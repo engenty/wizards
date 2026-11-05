@@ -6,6 +6,8 @@ import {
 } from "@engenty/wizards-shared/definition";
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import type { SessionUser } from "../auth/index.js";
+import { mailboxesOf } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
 import { signalRun } from "../engine/runner.js";
 import {
@@ -20,6 +22,7 @@ import { feature, remoteFeatures } from "../features.js";
 import { seal } from "../secrets/crypto.js";
 import { dropLinks, putLink } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { isAdminRole } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
 import { ownedWizard, writableWizard } from "./wizards.js";
 
@@ -77,6 +80,17 @@ export async function dropSignalAddress(userId: string, wizardId: string) {
   if (w.signalToken) {
     await dropLinks([w.signalToken]);
   }
+}
+
+/** „Aus einem Postfach“: the space's mailboxes, and whether this person may switch them. */
+export async function wizardMailboxes(user: SessionUser, wizardId: string) {
+  await requireSignals();
+  const w = await ownedWizard(user.id, wizardId);
+  const admin = isAdminRole(user.role);
+  return {
+    mailboxes: await mailboxesOf(w.spaceId, { kind: admin ? "admin" : "person", id: user.id }),
+    canSwitch: admin,
+  };
 }
 
 /** The wait steps of a definition that listen for this name. */
