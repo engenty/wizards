@@ -1277,7 +1277,7 @@ async function enterWait(run: RunRow, step: WaitStep, interrupted: boolean): Pro
     await emitEvent(run.id, step.id, "step_started", step.title);
   }
   if (step.signal) {
-    return enterSignalWait(run, step);
+    return enterSignalWait(run, step, open);
   }
   const said = open ? await saidInVisit(run.id, step.id, "wait") : null;
   const wakeAt = saidUntil(said) ?? wakeTimeOf(run, step);
@@ -1320,7 +1320,7 @@ function waitKeyText(run: RunRow, step: WaitStep): string {
  * The wait is written first, then the run looks: a signal that came before is found here, and one
  * that comes after finds the wait and wakes the run. Its wake meanwhile keeps the run in line.
  */
-async function enterSignalWait(run: RunRow, step: WaitStep): Promise<boolean> {
+async function enterSignalWait(run: RunRow, step: WaitStep, open: boolean): Promise<boolean> {
   const key = waitKeyOf(run, step);
   const spaceId = await spaceIdOf(run);
   await registerWait(run, spaceId, step, key);
@@ -1330,8 +1330,21 @@ async function enterSignalWait(run: RunRow, step: WaitStep): Promise<boolean> {
     await finishWait(run, step, await waitOver(run, step, signal));
     return false;
   }
+  // Back after a crash on the way in: the time it said stays.
+  const said = open ? await saidInVisit(run.id, step.id, "wait") : null;
   const timeout = step.signal?.timeout;
-  const wakeAt = timeout ? new Date(Date.now() + waitDurationMs(timeout)) : null;
+  const wakeAt =
+    saidUntil(said) ?? (timeout ? new Date(Date.now() + waitDurationMs(timeout)) : null);
+  if (!said) {
+    await emitEvent(
+      run.id,
+      step.id,
+      "wait",
+      wakeAt
+        ? note("runWaitsSignalUntil", { until: { at: wakeAt.toISOString() } })
+        : note("runWaitsSignal"),
+    );
+  }
   if (wakeAt) {
     await setWake(run.id, wakeAt);
   }

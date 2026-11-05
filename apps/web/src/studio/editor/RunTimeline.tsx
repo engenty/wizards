@@ -67,7 +67,7 @@ function WaitBanner({
     <div className="flex flex-wrap items-start gap-3 rounded-xl bg-paper-2 p-3">
       <Hourglass className="mt-0.5 size-4 shrink-0 text-ink-3" />
       <div className="min-w-56 flex-1">
-        <div className="font-medium text-[0.875rem]">
+        <div className="font-medium text-[0.875rem] first-letter:uppercase">
           {run.pause === "credits"
             ? t("runs.status.waitsCredits")
             : run.pause === "sign_in"
