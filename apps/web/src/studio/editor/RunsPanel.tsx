@@ -104,62 +104,64 @@ export function RunsPanel({
         const StartIcon = r.startedBy ? START_ICONS[r.startedBy.kind] : null;
         return (
           <div key={r.id} className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => (timelines ? setShown(r.id) : onOpen(r.id))}
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-accent"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 text-[0.875rem]">
-                {fmt.format(new Date(r.createdAt))}
-                {r.mode === "test" ? (
-                  <Chip>{t("run.testChip")}</Chip>
-                ) : (
-                  <Chip tone="live">Live v{r.version}</Chip>
-                )}
-              </div>
-              {timelines && r.label ? (
-                <div className="truncate text-[0.8125rem] text-ink-2">{r.label}</div>
-              ) : null}
-              <div className="truncate text-[0.75rem] text-ink-3">
-                {r.pause === "credits"
-                  ? t("runs.status.waitsCredits")
-                  : r.pause === "sign_in"
-                    ? t("runs.status.waitsSignIn")
-                    : r.status === "sleeping" && r.wakeAt
-                      ? t("runs.status.sleepingUntil", { time: fmt.format(new Date(r.wakeAt)) })
-                      : r.status === "waiting_signal" && r.wakeAt
-                        ? t("runs.status.waiting_signalUntil", {
-                            time: fmt.format(new Date(r.wakeAt)),
-                          })
-                        : STATUS[r.status]
-                          ? t(STATUS[r.status])
-                          : r.status}
-                {r.stepTitle && r.status !== "done" ? ` · ${r.stepTitle}` : ""}
-              </div>
-              {r.startedBy ? (
-                <div className="flex items-center gap-1 truncate text-[0.75rem] text-ink-3">
-                  {StartIcon ? <StartIcon className="size-3 shrink-0" /> : null}
-                  {t("runs.startedBy", {
-                    what: start ? describeStart(start, lang) : t(`starts.kind.${r.startedBy.kind}`),
-                  })}
-                </div>
-              ) : null}
-            </div>
-            <span className="text-[0.75rem] text-ink-4 tabular-nums">
-              {t("nav.credits", { n: r.credits })}
-            </span>
-          </button>
-          {r.status === "waiting_signal" && r.mode === "test" ? (
-            <Button
-              size="sm"
-              variant="secondary"
-              busy={testSignal.isPending && testSignal.variables === r.id}
-              onClick={() => testSignal.mutate(r.id)}
+            <button
+              type="button"
+              onClick={() => (timelines ? setShown(r.id) : onOpen(r.id))}
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-accent"
             >
-              {t("runs.testSignal")}
-            </Button>
-          ) : null}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-[0.875rem]">
+                  {fmt.format(new Date(r.createdAt))}
+                  {r.mode === "test" ? (
+                    <Chip>{t("run.testChip")}</Chip>
+                  ) : (
+                    <Chip tone="live">Live v{r.version}</Chip>
+                  )}
+                </div>
+                {timelines && r.label ? (
+                  <div className="truncate text-[0.8125rem] text-ink-2">{r.label}</div>
+                ) : null}
+                <div className="truncate text-[0.75rem] text-ink-3">
+                  {r.pause === "credits"
+                    ? t("runs.status.waitsCredits")
+                    : r.pause === "sign_in"
+                      ? t("runs.status.waitsSignIn")
+                      : r.status === "sleeping" && r.wakeAt
+                        ? t("runs.status.sleepingUntil", { time: fmt.format(new Date(r.wakeAt)) })
+                        : r.status === "waiting_signal" && r.wakeAt
+                          ? t("runs.status.waiting_signalUntil", {
+                              time: fmt.format(new Date(r.wakeAt)),
+                            })
+                          : STATUS[r.status]
+                            ? t(STATUS[r.status])
+                            : r.status}
+                  {r.stepTitle && r.status !== "done" ? ` · ${r.stepTitle}` : ""}
+                </div>
+                {r.startedBy ? (
+                  <div className="flex items-center gap-1 truncate text-[0.75rem] text-ink-3">
+                    {StartIcon ? <StartIcon className="size-3 shrink-0" /> : null}
+                    {t("runs.startedBy", {
+                      what: start
+                        ? describeStart(start, lang)
+                        : t(`starts.kind.${r.startedBy.kind}`),
+                    })}
+                  </div>
+                ) : null}
+              </div>
+              <span className="text-[0.75rem] text-ink-4 tabular-nums">
+                {t("nav.credits", { n: r.credits })}
+              </span>
+            </button>
+            {r.status === "waiting_signal" && r.mode === "test" ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                busy={testSignal.isPending && testSignal.variables === r.id}
+                onClick={() => testSignal.mutate(r.id)}
+              >
+                {t("runs.testSignal")}
+              </Button>
+            ) : null}
           </div>
         );
       })}

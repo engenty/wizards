@@ -74,6 +74,8 @@ export interface RunTurn {
   answer?: string;
   /** What the turn's tools made so far: a process that goes on no longer has them in memory. */
   assets?: AssetRef[];
+  /** A tool of the turn may have done something: a failure then ends it, and no try repeats that. */
+  acted?: boolean;
   /** How the turn ended: Mastra has dropped its snapshot by then, so a repeat would start it over. */
   end?: { text: string; closing: string };
 }
@@ -1296,14 +1298,16 @@ export interface RunTimeline {
   label: string | null;
   version: number | null;
   createdAt: string;
-  /** When a run that sleeps goes on; null otherwise. */
+  /** When a run that sleeps goes on, or until when one waits for a signal; null otherwise. */
   wakeAt: string | null;
+  /** Why it sleeps, where that is no `wait` step. */
+  pause: RunPause["kind"] | null;
   credits: number;
   /** The step the run stands on; null at its end. */
   stepTitle: string | null;
   /** Who started it, as its log says; null: a visitor, or the one person of this computer. */
   startedBy: string | null;
-  /** Whether the person looking may use "Continue now" and "Stop": the owner and the admins. */
+  /** Whether the person looking may use "Continue now" and "Stop": the owner and the admins, on a test run whoever started it. */
   canAct: boolean;
   /** The steps of the definition the run started on, for their titles. */
   steps: { id: string; title: string }[];
