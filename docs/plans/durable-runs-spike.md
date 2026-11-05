@@ -25,7 +25,7 @@ Not covered: `routes/runs.ts:874,989,1022`, `credits/credits.ts`, `broker/grant.
 - `wait` for a signal: `run_wait` is written before looking, so a signal in between wakes the run. A signal before the wait is kept and taken later. Another key does not wake it. The timeout goes on with `timedOut`.
 - A mail in a watched mailbox becomes two signals, by sender and by thread (`engine/mail-watch.ts`). Gmail is the only connector with `stream.pull`; `client.pullStream` does not exist yet. Pulled with a fake here.
 
-Type errors from a new step type and two statuses: 5 in the runtime, 1 in the web. The types catch little: the logic consumers (views, the plugin SDK, health) have to be found by hand.
+Type errors from a new step type and two statuses: 4 in the runtime, 1 in the web. The types catch little: the logic consumers (views, the plugin SDK, health) have to be found by hand.
 
 ## 3. A durable agent step (done)
 
