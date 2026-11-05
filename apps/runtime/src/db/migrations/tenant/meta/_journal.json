@@ -435,6 +435,13 @@
       "when": 1793946574442,
       "tag": "0061_space_connection_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "6",
+      "when": 1793916578844,
+      "tag": "0063_mail_cursor",
+      "breakpoints": true
     }
   ]
 }
