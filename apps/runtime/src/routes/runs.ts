@@ -1045,6 +1045,7 @@ export const runRoutes = new Hono()
           edits: z
             .record(z.string(), z.union([z.string(), z.record(z.string(), z.unknown())]))
             .optional(),
+          note: z.string().max(2000).optional(),
         }),
         z.object({
           type: z.literal("regenerate"),
@@ -1052,7 +1053,6 @@ export const runRoutes = new Hono()
           note: z.string().max(2000),
           items: z.array(z.number().int().min(0).max(50)).max(20).optional(),
         }),
-        z.object({ type: z.literal("approve"), note: z.string().max(2000).optional() }),
         z.object({ type: z.literal("decline"), note: z.string().max(2000).optional() }),
       ])
       .parse(await c.req.json());

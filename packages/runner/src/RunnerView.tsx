@@ -52,10 +52,11 @@ export interface RunSource {
   accept(
     stepId: string,
     edits?: Record<string, string | Record<string, unknown>>,
+    note?: string,
   ): Promise<boolean>;
+  /** A review with `approve` is declined. */
+  decline(stepId: string, note?: string): Promise<boolean>;
   regenerate(stepId: string, target: string, note: string, items?: number[]): Promise<boolean>;
-  /** A review with `approve`: decides it, with a note if the person writes one. */
-  decide?(stepId: string, approved: boolean, note?: string): Promise<boolean>;
   back(): Promise<boolean>;
   retry(): Promise<boolean>;
   /** A finished result's text in the language the run is read in (a translated wizard). */
@@ -366,40 +367,6 @@ function AnsweredElsewhere({ view, compact }: { view: RunView; compact?: boolean
   );
 }
 
-/** What a review with `approve` asks: a yes or a no, with a note if the person has one. */
-function ApproveFooter({ view, run, step }: { view: RunView; run: RunSource; step: ReviewStep }) {
-  const [note, setNote] = useState("");
-  return (
-    <Footer view={view} run={run} sticky>
-      <div className="flex w-full flex-col gap-3">
-        <Textarea
-          minRows={1}
-          placeholder={t("run.approveNote")}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-        <div className="flex justify-end gap-2">
-          <Button
-            size="lg"
-            variant="secondary"
-            busy={run.busy}
-            onClick={() => void run.decide?.(step.id, false, note.trim() || undefined)}
-          >
-            {t("run.decline")}
-          </Button>
-          <Button
-            size="lg"
-            busy={run.busy}
-            onClick={() => void run.decide?.(step.id, true, note.trim() || undefined)}
-          >
-            {t("run.approve")} <ArrowRight className="size-4" />
-          </Button>
-        </div>
-      </div>
-    </Footer>
-  );
-}
-
 function Working({
   view,
   compact,
@@ -591,6 +558,8 @@ function Review({
   const [editing, setEditing] = useState<Record<string, boolean>>({});
   // What the person wants changed, and which of the shown results it is about.
   const [note, setNote] = useState("");
+  // What the person says with their decision, at a review that asks for one.
+  const [decision, setDecision] = useState("");
   const made = view.shown.filter((x) => x.output);
   const [target, setTarget] = useState<string | null>(made.length === 1 ? made[0].step.id : null);
   // Steps with several results: the ones picked to be made again.
@@ -787,21 +756,41 @@ function Review({
           </Card>
         ) : null}
       </div>
-      {step.approve && run.decide ? (
-        <ApproveFooter view={view} run={run} step={step} />
-      ) : (
-        <Footer view={view} run={run} sticky>
+      {step.approve ? (
+        <Textarea
+          minRows={2}
+          maxRows={6}
+          value={decision}
+          placeholder={t("run.decisionNote")}
+          onChange={(e) => setDecision(e.target.value)}
+          className="mt-4"
+        />
+      ) : null}
+      <Footer view={view} run={run} sticky>
+        {step.approve ? (
           <Button
             size="lg"
+            variant="secondary"
             busy={run.busy}
-            onClick={() =>
-              void run.accept(step.id, Object.keys(drafts).length ? drafts : undefined)
-            }
+            onClick={() => void run.decline(step.id, decision.trim() || undefined)}
           >
-            {t("run.accept")} <ArrowRight className="size-4" />
+            {t("run.decline")}
           </Button>
-        </Footer>
-      )}
+        ) : null}
+        <Button
+          size="lg"
+          busy={run.busy}
+          onClick={() =>
+            void run.accept(
+              step.id,
+              Object.keys(drafts).length ? drafts : undefined,
+              decision.trim() || undefined,
+            )
+          }
+        >
+          {t(step.approve ? "run.approve" : "run.accept")} <ArrowRight className="size-4" />
+        </Button>
+      </Footer>
     </div>
   );
 }

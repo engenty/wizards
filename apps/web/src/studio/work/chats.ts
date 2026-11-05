@@ -456,7 +456,7 @@ export function useDecideRun(run: Pick<WaitingRun, "runId" | "stepId">) {
   return useMutation({
     mutationFn: (approved: boolean) =>
       api.post(`/api/runs/${run.runId}/reviews/${run.stepId}`, {
-        type: approved ? "approve" : "decline",
+        type: approved ? "accept" : "decline",
       }),
     onSuccess: () => client.invalidateQueries({ queryKey: ["work-approvals"] }),
   });
