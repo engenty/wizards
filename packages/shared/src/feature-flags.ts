@@ -203,6 +203,12 @@ export const FEATURES = {
     label: "Starts by itself",
     hint: "A wizard that runs on a schedule: the share dialog's section, the clock, the bell (docs/plans/starts.md).",
   },
+  durableRuns: {
+    kind: "release",
+    default: false,
+    label: "Runs that wait for days",
+    hint: "Wait steps: a run leaves every process and a clock wakes it. A deadline on automatic steps.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

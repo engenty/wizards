@@ -54,8 +54,9 @@ import { answerAsk, pendingAsk } from "../engine/asks.js";
 import { answerDevice, offerDevice, openDeviceCalls } from "../engine/device.js";
 import { emitEvent, signalChanged, watchRun } from "../engine/events.js";
 import { fieldErrorsIn } from "../engine/input.js";
+import type { Actor } from "../engine/notices.js";
 import { fromOwner } from "../engine/owner.js";
-import { pushAvailable, setPushDevice } from "../engine/push.js";
+import { pushAvailable, setPushDevice, setRunViewed } from "../engine/push.js";
 import { liveResources } from "../engine/resources.js";
 import {
   answerTurn,
@@ -89,7 +90,12 @@ import { transcribeAudio } from "../media/transcribe.js";
 import { errorText, ModelUnavailableError, noteOf } from "../model-errors.js";
 import { listDownload, renderDownload, stepHtml } from "../render/downloads.js";
 import { HTML_RESPONSE_CSP } from "../render/guard.js";
-import { runTicketValid, runViewTicketValid, verifySignedUrl } from "../secrets/signing.js";
+import {
+  runTicketValid,
+  runViewTicketValid,
+  runWaitTicketValid,
+  verifySignedUrl,
+} from "../secrets/signing.js";
 import { isAdminRole, MEMBERS_EDIT_ONLY } from "../services/access.js";
 import { brandView } from "../services/brand.js";
 import { clientMayOpen } from "../services/client-portal.js";
@@ -221,7 +227,11 @@ function visitorId(c: Context, create: boolean, embedded = false): string | null
 /** A view's kept state stays small: ticks and choices, not data. */
 const MAX_VIEW_STATE = 32_000;
 
-async function accessibleRun(c: Context, runId: string, opts: { signed?: boolean } = {}) {
+async function accessibleRun(
+  c: Context,
+  runId: string,
+  opts: { signed?: boolean; answers?: boolean } = {},
+) {
   const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
   if (!run) {
     return null;
@@ -229,11 +239,22 @@ async function accessibleRun(c: Context, runId: string, opts: { signed?: boolean
   if (opts.signed && verifySignedUrl(c.req.url)) {
     return run;
   }
-  if (runTicketValid(run.id, c.req.query("rt"))) {
+  const ticket = c.req.query("rt");
+  if (runTicketValid(run.id, ticket)) {
     return run;
   }
-  // A ticket that only reads: a run the firm shared with a client (services/client-portal.ts).
-  if (c.req.method === "GET" && runViewTicketValid(run.id, c.req.query("rt"))) {
+  // A ticket that only reads: a run the firm shared with a client (services/client-portal.ts), a
+  // mail about a run's end.
+  if (c.req.method === "GET" && runViewTicketValid(run.id, ticket)) {
+    return run;
+  }
+  // The ticket in a mail while a run waits. It lasts for days and sits in a mailbox, so it reads
+  // the run but not its browser, and answers only on the routes that say `answers`: it cannot
+  // stop the run, publish its result, spend credits or reach an account.
+  if (
+    runWaitTicketValid(run.id, ticket) &&
+    (opts.answers || (c.req.method === "GET" && !c.req.path.includes("/browser/")))
+  ) {
     return run;
   }
   const vid = visitorId(c, false);
@@ -250,6 +271,16 @@ async function accessibleRun(c: Context, runId: string, opts: { signed?: boolean
     return run;
   }
   return null;
+}
+
+/** Who is asking, as a run's notices see it: a ticket and a computer's one person are the run's own. */
+async function actorOf(c: Context, run: RunRow): Promise<Actor> {
+  const ticket = c.req.query("rt");
+  if (!managed || runTicketValid(run.id, ticket) || runWaitTicketValid(run.id, ticket)) {
+    return { userId: run.userId, visitorId: run.visitorId };
+  }
+  const user = await principalOf(c);
+  return { userId: user?.id, visitorId: visitorId(c, false) };
 }
 
 /** Whether a signed-in member of the run's organization is looking, not the guest who ran it. */
@@ -864,7 +895,7 @@ export const runRoutes = new Hono()
     return c.json({ ok: await answerDevice(run.id, c.req.param("reqId"), answer) });
   })
   .post("/:id/pages/:stepId", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -882,7 +913,7 @@ export const runRoutes = new Hono()
   // run, so the next visit shows it. Only while the run waits or is done: a running step owns
   // the state then.
   .put("/:id/views/:stepId", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
     const stepId = c.req.param("stepId");
     const output = run?.state.outputs[stepId];
     if (!run || !output) {
@@ -921,7 +952,7 @@ export const runRoutes = new Hono()
     }
   })
   .post("/:id/reviews/:stepId", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -950,14 +981,14 @@ export const runRoutes = new Hono()
     }
   })
   .post("/:id/back", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
     try {
       // A result that is on its way somewhere stops going there when the person steps back.
       await cancelShare(run.id);
-      await goBack(run.id);
+      await goBack(run.id, await actorOf(c, run));
       return c.json({ ok: true });
     } catch (err) {
       return commandError(c, err);
@@ -1018,7 +1049,7 @@ export const runRoutes = new Hono()
   })
   // The viewer reads the run in another language from now on: null for the wizard's own.
   .post("/:id/lang", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1148,7 +1179,7 @@ export const runRoutes = new Hono()
     }
   })
   .post("/:id/uploads", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1189,7 +1220,7 @@ export const runRoutes = new Hono()
   })
   // The address of where the person stands, for a location field — only when a geocoder is set up.
   .post("/:id/geocode", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1224,7 +1255,7 @@ export const runRoutes = new Hono()
   })
   // --- a running step waits for the person ------------------------------------
   .post("/:id/ask/:askId", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1628,6 +1659,22 @@ export const runRoutes = new Hono()
     return c.json({ ok: true });
   })
   // The mobile app's device for this run: told when it is done, failed or waits for the person.
+  // The run's page says it is in view, every 30 s: nobody is told what they are looking at.
+  .post("/:id/seen", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
+    if (!run) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const actor = await actorOf(c, run);
+    if (
+      (actor.userId && actor.userId === run.userId) ||
+      (actor.visitorId && actor.visitorId === run.visitorId) ||
+      !managed
+    ) {
+      await setRunViewed(run.id);
+    }
+    return c.json({ ok: true });
+  })
   .post("/:id/notify", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
