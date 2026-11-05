@@ -1,7 +1,7 @@
 # Plan: Fähigkeiten, the next four pieces
 
 Status: planned on 2026-11-05, every decision taken the same day. Piece 1 (1a the runtime, 1b
-the studio and the docs) and 2a are built (2026-11-06), the rest is not. Follows
+the studio and the docs), 2a and 3 are built (2026-11-06), the rest is not. Follows
 `docs/plans/capabilities.md` and `docs/plans/broker.md`, which are built. Page with the mockups:
 the artifact “Fähigkeiten Next Steps” (claude.ai/artifact/2WB6P59ZJgxPYi9rr2h53m). Checked
 against `main` at v0.16.2 plus #500–#509.
@@ -123,32 +123,44 @@ The design:
 
 ## 3. Rechte
 
-What the code does:
+Built (3a: #516, 3b: the page). What the code did before:
 
 - Rules (`rwx_rule`) come from four writers: the start set per role (`seedRwx`), „Wer sieht diesen
   Ordner“ in Wissen (`folderRules`), a mount's form in Dateien (`mountRules`), and „Für Kund:innen
-  sichtbar“ (`setOpenToClients`). No page lists them.
-- `PUT /spaces/:id/rules` replaces every rule of the space. Reading the list and saving it back
-  fails once a mount lets the AI in Work read: those rows have no subject id, and `checkRule` wants
-  one.
+  sichtbar“ (`setOpenToClients`). No page listed them.
+- `PUT /spaces/:id/rules` replaced every rule of the space. Reading the list and saving it back
+  failed once a mount let the AI in Work read: those rows have no subject id, and `checkRule`
+  wanted one.
 - Enforced are document, table, page, wizard, skill and setup, and mounts by their own readers.
   Stored and never asked: any rule on a connection, mail, a host or the sandbox (connections have
   their own audience and rules, and `broker/call.ts` asks only those); `w` on documents, tables,
   wizards and skills; `r` on setup.
-- „Was darf …?“ (`GET /spaces/:id/broker/ask`) answers for connections only.
+- „Was darf …?“ (`GET /spaces/:id/broker/ask`) answered for connections only.
 
-The design:
+What is built:
 
-- Fähigkeiten › Rechte, beside Audit, for admins.
-- On top, who may what on the six enforced kinds, in words. Mitglieder and Gäste can be changed.
-- Below, the exceptions as sentences. Each says where it was set and leads there; one set on this
-  page is removed here. Adding one: who, darf or darf nicht, lesen / ändern / ausführen, what.
-- Only what the runtime enforces can be chosen, and the runtime refuses the rest.
-- Connections keep their rules on their page; Rechte links there.
-- „Was darf …?“ also answers for a document, a folder, a table, a wizard, a skill.
+- Fähigkeiten › Rechte, after Audit, for admins, hidden while `broker` is off.
+- On top, what Admins (fixed), Mitglieder, Gäste and Kund:innen may do with everything of a kind:
+  a switch per right the runtime asks.
+- Below, the exceptions as sentences (`rights-words.ts`). Each says where it is set and leads
+  there; one set on the page is removed there. Adding one: who, darf or darf nicht, lesen /
+  ändern / ausführen, what.
+- One table of what a reader asks (`RWX_ASKED`, `packages/shared/src/rwx.ts`): the runtime refuses
+  a rule outside it, and the page offers nothing else. A rule is added, changed and removed one
+  at a time; the whole-list `PUT` is gone.
+- Where a rule is set is read off the rule (`originOf`): no column. A mount's rules stay its
+  form's, and the rules routes refuse one.
+- Connections keep their rules on their page; Rechte counts them and links there.
+- „Was darf …?“ on the page answers for a document, a page or folder, a table, a wizard, a skill
+  and the setup (`GET /spaces/:id/rules/ask`), by the readers' own decision.
 
-Build: **3a** runtime (one rule at a time, the AI-in-Work rows pass the check, rules without effect
-refused, the question for content). **3b** studio (the page) and the user guide.
+Found while building, and not changed:
+
+- `w` on a page and on the setup is asked only where Goose writes; `r` and `x` on a wizard only
+  for the AI's tools and the client portal. A member in the studio or in Work, and a guest at a
+  wizard's link, are not asked. The page words each right as far as the check goes.
+- The start set holds flags no reader asks yet (`w` on documents and tables, `r` on the setup
+  among them). They stay, so a later reader starts from them.
 
 ## 4. A Connector that brings skills
 
@@ -184,4 +196,9 @@ not hold is the one that hurts.
 
 ## Seen on the way
 
-- `docs/plans/broker.md` still opens with „nothing built“.
+- Nothing asks `w` where a member changes a page, a table or the setup in the studio, and nothing
+  asks `x` where a person starts a wizard in Work or the studio or a guest opens its link. Rechte
+  says so; the readers are not there.
+- „Wer sieht diesen Ordner“ replaces every rule about the team, the clients and the guests on its
+  page when it is saved, also one Rechte set there that it cannot show (only `w` denied).
+- The seed gives a client `w` on pages, which only Goose asks, and a client reaches no studio.

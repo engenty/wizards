@@ -38,6 +38,7 @@ import {
   useNarrow,
   useStepDirection,
 } from "./settings-menu";
+import { FolderAudienceDialog } from "./space/Audience";
 import {
   CATEGORY_ICON,
   CategoryView,
@@ -835,6 +836,18 @@ export function SpacePage({ place }: { place?: "skills" }) {
                   group={group}
                   top={!picked || Boolean(pickedSection)}
                 >
+                  {/* „Dort ändern“ in Fähigkeiten › Rechte: who sees the page, opened by the address. */}
+                  {group === "knowledge" && admin ? (
+                    <FolderAudienceDialog
+                      spaceId={space.id}
+                      folder={
+                        params.has("audience") && pickedItem?.kind === "page"
+                          ? { id: pickedItem.id, title: pickedItem.title }
+                          : null
+                      }
+                      onClose={() => setParams(show ? { show } : {}, { replace: true })}
+                    />
+                  ) : null}
                   {group === "knowledge" && item && clientsOn ? (
                     <OpenToClients
                       spaceId={space.id}

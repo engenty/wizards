@@ -331,21 +331,76 @@ registering. A new tool that calls a service registers there.
 
 ## RWX and the `broker` switch
 
-`broker/rwx.ts` keeps one table of permissions per space (`rwx_rule`): a subject (`guest`,
-`person`, `role`, `goose`, `wizard`, `plugin`), a resource (`document`, `table`, `page`,
-`connection`, `mail`, `host`, `sandbox`, with an id or `*`), and `r`, `w`, `x` each `allow`,
-`deny` or unset.
+`broker/rwx.ts` keeps one table of permissions per space (`rwx_rule`): a subject, a resource (a
+kind with an id, or `*` for all of the kind), and `r`, `w`, `x` each `allow`, `deny` or unset.
+
+| Subject | Id | Who it is |
+|---|---|---|
+| `guest` | none | Someone at a shared link or a public page |
+| `role` | `member`, `admin`, `owner`, `client` | Everyone with that role in the organization |
+| `person` | The user’s id | One person |
+| `goose` | The user’s id | Goose working for that person |
+| `agent` | none | An AI working for a person: a Work chat, a client’s chat, Claude or Codex through MCP |
+| `wizard` | The wizard’s id, or `*` | A run of that wizard |
+| `plugin` | The plugin’s id | A plugin, beside whom it was called for |
 
 - Unset means deny, and a deny wins over every allow.
+- A rule on a page of Wissen holds for what lies in it: its deny closes the folder, its allow
+  opens it (`withFolders`). The document behind a page or a table is asked as well.
 - Every space starts with a seed: owners and admins read, write and execute, members read and
-  write, guests read.
-- Readers ask today for `document`, `table` and `page` (`ENFORCED`): the knowledge readers, and
-  search filters its hits by `r`. The other resource kinds wait for their reader.
+  write, guests read. It holds flags no reader asks yet, so a later reader starts from them.
 
 All of this is behind the `broker` switch, on by default. With it off, `decide`, `readable` and
 `assertRwx` in `rwx.ts` say yes to everything, the rules routes answer 404, and a member’s
 `http_request` reaches any public host. On, the seed changes nothing until an admin
-writes a deny. No studio page draws the rules yet.
+writes a deny.
+
+### What is asked
+
+`RWX_ASKED` in `packages/shared/src/rwx.ts` is the one table of what a reader asks today: per
+kind of resource and permission, the kinds of subject it is asked for. The runtime refuses a rule
+outside it (`refusalOf`), and the studio offers nothing else.
+
+| Resource | Perm | Asked for | By |
+|---|---|---|---|
+| `document` | `r` | every subject | Every reader of Knowledge; a plugin’s `files` and `readFile` |
+| `page` | `r` | every subject | Every reader of Knowledge; a plugin’s `readPages` |
+| `page` | `w` | `person`, `role`, `goose` | Goose’s `write_knowledge_page` |
+| `table` | `r` | every subject but `plugin` | The readers of Knowledge and Daten, shared lists |
+| `wizard` | `r`, `x` | `person`, `role`, `agent` | `wizard_list` and `wizard_run` in a Work chat and for outside clients; the client portal |
+| `skill` | `r` | every subject but `plugin` | `skill_list`, `skill_load`, `skill_read` |
+| `skill` | `x` | `guest`, `person`, `role`, `wizard`, `agent` | A skill’s scripts placed in a sandbox |
+| `setup` | `w` | `person`, `role`, `goose` | Goose’s writes to the space’s setup |
+| `mount` | `r` | every subject but `plugin` | `readableMounts` |
+| `mount` | `w` | `person`, `role`, `agent` | A draft and „Veröffentlichen“ (`mounts/drafts.ts`) |
+
+Nothing asks a rule on `connection`, `mail`, `host` or `sandbox`: a connection’s own audience and
+rules decide (`broker/call.ts`), and a run’s grant decides hosts. Nothing asks `w` or `x` on a
+document or a table, `x` on a page, `w` on a wizard or a skill, or `r` on the setup. What only
+Goose asks (`w` on a page and on the setup) is not asked for the role `client`, who reaches no
+studio.
+
+Some of it is narrower than the kind suggests. `w` on a page and on the setup is asked where
+Goose writes; a person changing them in the studio is not asked. `r` and `x` on a wizard are
+asked for the AI’s tools and the client portal; a guest at a wizard’s link and a person starting
+one in Work or the studio are not asked. A reader that starts asking adds its line to `RWX_ASKED`,
+and `test/rwx-rules.test.ts` holds the table against `ENFORCED`.
+
+### Who writes rules
+
+| Writer | What it writes | `origin` in the list |
+|---|---|---|
+| The seed (`seedRwx`), and Rechte for a role | A role’s or the guests’ rule on `*` of an enforced kind | `start` |
+| „Wer sieht diesen Ordner“ (`setFolderAudience`) | On a page of Wissen: the team or the guests closed, the clients let in | `folder` |
+| A mount’s form (`mountRules`) | Every rule on a mount | `mount` |
+| „Für Kund:innen sichtbar“ (`setOpenToClients`) | The clients’ read on a document, a table or a wizard | `clients` |
+| Rechte (`addRule`, `changeRule`, `deleteRule`) | Every other rule | `rights` |
+
+`originOf` in `broker/rights.ts` reads the origin off the rule, with no column for it. A place
+that shows a rule also replaces it, so a rule in the folder dialog’s shape is the dialog’s whoever
+wrote the row. The rules routes add, change and remove one rule at a time and never touch
+another. They refuse a rule on a mount: its form reads the rules back as its switches and replaces
+them all.
 
 Every reader takes its subjects from whoever it serves: the studio’s person (`whoOf(c)`), a
 run’s holder and wizard (`subjectsOf(ctx)`, `runHolder(run)`), Goose for its person. What a step
@@ -382,7 +437,12 @@ All under `/api/studio`, for a signed-in person of the organization.
 | `POST`, `DELETE /connections/:id/sign-in` | Signs the space in or out: `{ credentials }`, or `{ oauth: true }` for a sign-in page | Admins |
 | `POST`, `DELETE /connections/:id/my-sign-in` | The person’s own sign-in, where each person signs in | Everyone in the audience |
 | `GET /person/sign-ins` | The person’s connections across their spaces | The person |
-| `GET /spaces/:id/rules`, `PUT /spaces/:id/rules`, `DELETE /spaces/:id/rules/:ruleId` | The RWX rules, saved as a whole list | Admins; 404 while `broker` is off |
+| `GET /spaces/:id/rules` | The RWX rules, each with its `origin` and the names of who and what it is about (`subjectName`, `resourceName`, `folder`) | Admins; 404 while `broker` is off |
+| `POST /spaces/:id/rules` | Adds one rule: `subjectKind`, `subjectId`, `resourceKind`, `resourceId`, `r`, `w`, `x`. `400` with the reason for a rule no reader asks, one on a mount, one about a resource the space does not have, and a second rule about the same subject and resource | Admins; 404 while `broker` is off |
+| `PATCH /spaces/:id/rules/:ruleId` | Sets the flags it names (`null` takes one away), and leaves the others. A flag set here is checked against `RWX_ASKED`; a rule left without a flag is refused | Admins; 404 while `broker` is off |
+| `DELETE /spaces/:id/rules/:ruleId` | Removes one rule | Admins; 404 while `broker` is off |
+| `GET /spaces/:id/rules/ask?who=&id=&for=&resource=&resourceId=&perm=` | „Was darf …?“ for content: `who` is `guest`, `person`, `goose`, `agent`, `wizard` (`for`: the person its run is held for, else a guest) or `plugin` (its own job); `resource` is `document`, `page`, `table`, `wizard`, `skill` or `setup`. Answers `{ ok, rule, reason }` by `decideWith`, as the readers decide. `400` for what no reader asks. Nothing is read, run or logged | Admins; 404 while `broker` is off |
+| `GET /spaces/:id/rules/choices` | The people, wizards, plugins, documents, pages, tables and skills a rule can name | Admins; 404 while `broker` is off |
 | `GET /spaces/:id/broker/log` | The log, newest first. Filters: `connection`, `who`, `outcome`, `result`, `refused`, `critical`, `since`, `until`, `q`; `cursor` with the `next` of the page before, `limit` | Admins: every line. A member: their own lines (`ownLines`); 403 where the space’s Studio is closed to members |
 | `GET /spaces/:id/broker/log/:line` | One line, with the run’s grant and status. The Audit’s “Stop run” reads the status and calls `POST /api/runs/:id/cancel` | Admins. A member: their own line; 404 for another person’s |
 | `GET /spaces/:id/broker/ask?who=&for=&resource=&action=&in=` | „Was darf …?“: `decide`’s outcome, rule and reason. A guest’s post to a channel is answered as the call is: a fixed step gets the connection’s rule and the condition in its reason, any other caller `deny` by `guest_send`. Nothing runs and nothing is logged | Admins (403 for a member) |
@@ -424,8 +484,9 @@ a new connection on it defaults to the audience `admins`.
   plans. The Manage-App’s Free plan doesn’t name it `false` yet, so every plan has it.
 - **The Manage-App’s side of the report.** The runtime posts to `POST /v1/broker/:tenant`, and the
   Manage-App has no endpoint for it yet.
-- **More of RWX.** No page in the studio draws the rules, and connections, mail, hosts and the
-  sandbox have no reader that asks RWX. `space_search` still says how many items pass its
+- **More of RWX.** Connections, mail, hosts and the sandbox have no reader that asks RWX, and
+  the runtime refuses a rule on them. A person changing a page, a table or the setup in the
+  studio, and a person or a guest starting a wizard, are not asked either. `space_search` still says how many items pass its
   `where` (`filtered`) without asking who reads, and what a plugin makes of pages it read in a
   job (the shop’s products) is the plugin’s own data: the rules don’t follow it.
 - A webhook for critical rows, a choice per kind of what notifies, and one connection offered to

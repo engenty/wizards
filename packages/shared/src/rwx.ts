@@ -2,7 +2,8 @@
  * The broker's first part (docs/plans/broker.md, "First: RWX"): the words of a space's rules.
  * A rule says who (a subject) may read, write or execute what (a resource); each flag is allow,
  * deny or unset. Unset means deny, and a deny wins over every allow from any other rule. The
- * runtime decides in apps/runtime/src/broker/rwx.ts; the studio will draw the rows as sentences.
+ * runtime decides in apps/runtime/src/broker/rwx.ts; the studio draws the rows as sentences in
+ * Fähigkeiten › Rechte (apps/web/src/studio/capabilities/rights-words.ts).
  */
 
 /**
@@ -106,7 +107,8 @@ const A_PERSON = ["person", "role", "agent"] as const;
  * - `document`, `page`, `table` · `r`: every reader of Knowledge (the studio's routes, a run's
  *   step, a Work chat, Goose, search, a share link, the client portal); a plugin reads pages and
  *   documents. A folder's rule is a rule on its page.
- * - `page` · `w`: Goose writing a page of Knowledge for its person (`write_knowledge_page`).
+ * - `page` · `w`: Goose writing a page of Knowledge for its person (`write_knowledge_page`). Not
+ *   for the role `client`, and neither is the setup: a client reaches no studio (`rwxAsked`).
  * - `wizard` · `r`, `x`: `wizard_list` and `wizard_run` for a person in a Work chat or through an
  *   outside client, and the client portal's list and start. A guest reaches a wizard by its link,
  *   and a person starting one in Work or the studio is not asked.
@@ -135,9 +137,27 @@ export const RWX_ASKED: Record<
   sandbox: {},
 };
 
-/** Whether a reader asks `perm` on a resource of `kind` for a subject of `subject`. */
-export const rwxAsked = (subject: RwxSubjectKind, kind: RwxResourceKind, perm: RwxPerm): boolean =>
-  RWX_ASKED[kind][perm]?.includes(subject) ?? false;
+/**
+ * What only Goose asks. Goose works for the people in the studio, and a client of the
+ * organization reaches no studio: for the role `client` this is asked by nobody.
+ */
+const GOOSE_ALONE: Partial<Record<RwxResourceKind, readonly RwxPerm[]>> = {
+  page: ["w"],
+  setup: ["w"],
+};
+
+/**
+ * Whether a reader asks `perm` on a resource of `kind` for a subject of `subject`; `subjectId`
+ * tells the roles apart, where it is known.
+ */
+export const rwxAsked = (
+  subject: RwxSubjectKind,
+  kind: RwxResourceKind,
+  perm: RwxPerm,
+  subjectId?: string | null,
+): boolean =>
+  (RWX_ASKED[kind][perm]?.includes(subject) ?? false) &&
+  !(subject === "role" && subjectId === "client" && GOOSE_ALONE[kind]?.includes(perm));
 
 /**
  * Where a rule is set, and so where it is changed: the start set every space has (a role's or the

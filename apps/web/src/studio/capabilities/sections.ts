@@ -1,10 +1,11 @@
 import type { FeatureName } from "@engenty/wizards-shared/features";
-import { LayoutGrid, type LucideIcon, Plug, ScrollText, ShieldCheck } from "lucide-react";
+import { KeyRound, LayoutGrid, type LucideIcon, Plug, ScrollText, ShieldCheck } from "lucide-react";
 import type { ComponentType } from "react";
 import type { Key } from "../../lib/i18n";
 import { ConnectorsSection } from "./ConnectorsSection";
 import { OverviewSection } from "./OverviewSection";
 import { ProtocolSection } from "./ProtocolSection";
+import { RightsSection } from "./RightsSection";
 import { SkillsSection } from "./SkillsSection";
 
 /**
@@ -19,6 +20,8 @@ export interface CapabilitySection {
   element: ComponentType | null;
   /** The switch it waits behind, besides `capabilities`. */
   feature?: FeatureName;
+  /** Only the space's admins see it. */
+  admins?: true;
   /** Without a menu of its own: the list of sections stays beside its page. */
   menu?: false;
 }
@@ -57,9 +60,24 @@ export const CAPABILITY_SECTIONS: CapabilitySection[] = [
     // their own lines.
     menu: false,
   },
+  {
+    id: "rights",
+    label: "capabilities.rights",
+    icon: KeyRound,
+    element: RightsSection,
+    // The space's RWX rules, which are there with the broker; the runtime gives them to admins.
+    feature: "broker",
+    admins: true,
+    menu: false,
+  },
 ];
 
-/** The sections the page shows: built, and on where they wait behind a switch. */
-export function shownSections(on: (name: FeatureName) => boolean): CapabilitySection[] {
-  return CAPABILITY_SECTIONS.filter((s) => s.element && (!s.feature || on(s.feature)));
+/** The sections the page shows: built, on where they wait behind a switch, and the admins' only for them. */
+export function shownSections(
+  on: (name: FeatureName) => boolean,
+  admin: boolean,
+): CapabilitySection[] {
+  return CAPABILITY_SECTIONS.filter(
+    (s) => s.element && (!s.feature || on(s.feature)) && (!s.admins || admin),
+  );
 }

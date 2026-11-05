@@ -251,6 +251,9 @@ describe("a rule no reader would ask is refused, in words", () => {
     ["Goose listing a wizard", { subjectKind: "goose", subjectId: B, resourceKind: "wizard", resourceId: at.W, r: "deny" }, "Nothing asks whether Goose may read a wizard"],
     ["a wizard changing a page", { subjectKind: "wizard", subjectId: at.W, resourceKind: "page", resourceId: at.page, w: "deny" }, "Nothing asks whether a wizard may change a page"],
     ["the AI in Work changing the setup", { subjectKind: "agent", subjectId: null, resourceKind: "setup", resourceId: "*", w: "deny" }, "Nothing asks whether an AI working for a person may change the setup"],
+    // Only Goose asks it, and a client reaches no studio.
+    ["a client changing a page", { subjectKind: "role", subjectId: "client", resourceKind: "page", resourceId: at.page, w: "deny" }, "Nothing asks whether a client may change a page"],
+    ["a client changing the setup", { subjectKind: "role", subjectId: "client", resourceKind: "setup", resourceId: "*", w: "allow" }, "Nothing asks whether a client may change the setup"],
     // What the schema cannot say.
     ["an agent with an id", { subjectKind: "agent", subjectId: B, resourceKind: "document", resourceId: at.D, r: "deny" }, "has no subject id"],
     ["a guest with an id", { subjectKind: "guest", subjectId: "v1", resourceKind: "document", resourceId: at.D, r: "deny" }, "A guest rule has no subject id"],
