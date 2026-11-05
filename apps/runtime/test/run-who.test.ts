@@ -763,6 +763,38 @@ describe("telling people", () => {
     expect(told.every((n) => !n.visitor)).toBe(true);
   });
 
+  it("a reminder goes where the question goes, and each person keeps their own row", async () => {
+    const { runId } = await onTeamStep([form, made, { ...check, remind: "1d" }, end]);
+    const all = await rows(runId);
+    const users = (kind: string) =>
+      all
+        .filter((r) => r.kind === kind)
+        .map((r) => r.userId)
+        .sort();
+    expect(users("needs_you")).toEqual([ANNA, JONAS].sort());
+    expect(users("reminder")).toEqual([ANNA, JONAS].sort());
+    for (const r of all.filter((r) => r.kind === "reminder")) {
+      expect(r.waitKey).toBe("step:check");
+      expect(r.dueAt?.getTime()).toBeGreaterThan(Date.now() + 23 * 3600_000);
+    }
+  });
+
+  it("an answer on a team step with a time limit counts as PR 8 says, and keeps who gave it", async () => {
+    const { runId } = await onTeamStep([form, made, { ...check, timeout: "1d" }, end]);
+    expect((await row(runId))?.wakeAt).not.toBeNull();
+    signIn(JONAS);
+    const res = await call(runId, "/reviews/check", "POST", { type: "decline", note: "Zu teuer" });
+    expect(res.status).toBe(200);
+    const after = await row(runId);
+    expect(after?.state.outputs.check?.json).toEqual({
+      timedOut: false,
+      approved: false,
+      note: "Zu teuer",
+    });
+    expect(after?.state.answeredBy?.check?.userId).toBe(JONAS);
+    expect(after?.wakeAt).toBeNull();
+  });
+
   it("the mail goes to them with the link into Work, and no device hears of it", async () => {
     const { runId } = await onTeamStep();
     await deliver(runId);
