@@ -303,6 +303,7 @@ import {
   hasWizards,
   ownedWizard,
   rotateShareLink,
+  setAnswerers,
   updateWizardSettings,
   writableWizard,
   writeDraft,
@@ -1627,6 +1628,14 @@ export const studio = new Hono<Vars>()
     const { revision, issues } = await writeDraft(c.get("user").id, c.req.param("id"), body);
     return c.json({ ok: true, revision, issues });
   })
+  .put("/wizards/:id/answerers", async (c) => {
+    const { answerers } = z
+      .object({
+        answerers: z.union([z.literal("admins"), z.array(z.string().min(1).max(120)).max(100)]),
+      })
+      .parse(await c.req.json());
+    return c.json(await setAnswerers(c.get("user").id, c.req.param("id"), answerers));
+  })
   .patch("/wizards/:id", async (c) => {
     const patch = z
       .object({
@@ -1636,9 +1645,6 @@ export const studio = new Hono<Vars>()
         spaceId: z.string().optional(),
         runners: z.object({ default: z.string(), enabled: z.array(z.string()).max(20) }).optional(),
         translate: z.boolean().optional(),
-        answerers: z
-          .union([z.literal("admins"), z.array(z.string().min(1).max(120)).max(100)])
-          .optional(),
       })
       .parse(await c.req.json());
     await updateWizardSettings(c.get("user").id, c.req.param("id"), patch);
