@@ -278,6 +278,8 @@ function standIn(wizard: WizardRow, userId: string): RunRow {
     version: null,
     mode: "test",
     runner: null,
+    startedBy: null,
+    occurrence: null,
     lang: null,
     visitorId: null,
     userId,

@@ -1,6 +1,31 @@
 # Plan: starts — a wizard that runs by itself
 
-Status: plan, written on 2026-10-10 against v0.2.36. Nothing built.
+Status: plan, written on 2026-10-10 against v0.2.36. Phase 1 is on main behind the `startTriggers`
+switch, off by default (PR 7 of the durable runs plan, 2026-11-05; first built on the branch
+`feat/starts`, PR #57 closed): `packages/shared/src/starts.ts`, `wizard.starts`, `run.started_by`,
+`run.occurrence`, the `notice` table, `engine/starts.ts` (the clock, `startFrom`, failures and
+pausing), `engine/notices.ts`, the started run's rules in `engine/runner.ts` (`passStep`, `askOf`),
+the studio routes, the share dialog's section and sheet (`StartsSection.tsx`), "Gestartet von" in
+the runs panel, `list_starts` and `set_starts` for the architect and MCP, the clock on the flow
+diagram's first node, the bell (`Notices.tsx`). Only the schedule kind runs and is offered in the
+sheet; the other three cards are shown "(soon)". Not yet: mail through the account. What differs
+from the plan: a confirm ask the start does not allow is not cancelled: the tool is told nobody is
+there, leaves the change open and the result says so (the rule unattended test runs already had).
+
+What came after the branch, for a run that waits for days and for several runners:
+
+| Rule | How |
+|---|---|
+| Only a runner ticks | `startStarts` asks `env.serves.runner`: on the cloud the studio and the doors never begin a run |
+| One run per time of a schedule | `run.occurrence` is `<startId>@<ISO time>`, unique per wizard (`run_occurrence`). A second runner, or the same one after a crash between the run and the write, is refused by the database. The clock then only writes what is left |
+| One time after a gap | `dueOccurrence` takes the schedule's latest time at or before now, so every runner agrees on it. `handledUntil` says what the clock dealt with; a time that started, was skipped or could not start counts once |
+| Overlap | `schedule.overlap`: `skip` (default) leaves a time out while a run of the start is in any status but done, failed and cancelled; `allow` starts another |
+| Limit on lateness | `schedule.maxLateMinutes`, default a day: a later time does not start. The sheet offers an hour, a day, a week |
+| What the owner sees | `lastSkip` on the start: the share section's row says which time was left out, and why |
+| Editing | A new start, changed times or switching on again set `handledUntil` to now, so a time from before does not fire |
+
+Known gap: a crash inside `createRun`, after the run's insert and before `indexRun`, leaves a run
+no runner takes, as for any run. With `skip`, that run holds its start back until it expires.
 Mockups: https://claude.ai/artifact/BzXoiszVueToEYnAZWiQb3 (eight screens, studio look, German UI). Prompted by a look at
 Attio's workflows (record change, schedule, webhook, manual run; every run logged; pause and
 rerun): engenty wizards has only the manual start today, over the link or from an AI app.
@@ -71,7 +96,7 @@ row".
 | A page with everything answered | shows it | passes it, like `startRun` with `answers` today |
 | A page with a missing required field | waits | waits, status `waiting_input`; the owner is notified: "Weekly report needs you" with the link |
 | An AI step | runs | runs |
-| A confirm ask (a write into a service) | asks | answered "done" when the start allows changes; otherwise the run is cancelled with the note "needed permission to change *Google Sheets*; switch it on in the start" |
+| A confirm ask (a write into a service) | asks | answered "done" when the start allows changes; otherwise nobody is there: the change stays open and the result says so |
 | A login ask (the browser met a sign-in) | asks | waits and notifies, like a page |
 | A review | waits | passes with "Looks good" when the start says so (default), else waits and notifies |
 | The result | shows downloads | lands in the space's Results; the owner is notified with the link |
@@ -152,7 +177,7 @@ field with that id.
 
 | Piece | Where | Does |
 |---|---|---|
-| Ticker | `engine/starts.ts`, started from `index.ts` like `startJobs` | Once a minute per tenant: every schedule whose next time passed starts a run; one run at a time per start; a missed schedule runs once when the runtime starts, not once per turn it missed — the rule `plugins/jobs.ts` already has |
+| Ticker | `engine/starts.ts`, started from `index.ts` on a runner role | Once a minute per tenant: the schedule's latest time that was not dealt with starts one run, unless it is past the limit or the last run is still going (see the table at the top) |
 | Record watch | `services/space-data.ts` `rowChanged`, `store/shared-lists.ts` `saveSharedRows`, plugin hook `server.records.changed(source, { id, cells, before })` | Emits `record.changed` on the bus in `engine/events.ts`; the watcher matches starts of the tenant, skips rows the running run's own wizard wrote, inserts into `wizard_start_seen`, starts the run |
 | Wizard start | `run.done` of `events.ts` | The same watcher, source = the finished wizard |
 | Webhook | `routes/starts.ts`, `POST /api/public/starts/:token`, no sign-in | Token → tenant and start (hash, like plugin public routes); body up to 4 MB; answers `202 { runId }`; `429` past the day's limit |
@@ -188,8 +213,29 @@ field with that id.
 | `apps/web/src/studio/editor/ShareDialog.tsx`, `editor/StartsSection.tsx` | The section, the four cards, the sentence, the chips, the switch |
 | `apps/web/src/studio/editor/FlowDiagram.tsx`, `RunsPanel.tsx` | Badge on the first node; "started by" line and filter; "Run again" |
 | `apps/web/src/studio/AppFrame.tsx` | The bell |
-| `docs/content/user-guide/test-and-share.md`, `steps.md`, `docs/content/dev/plugins/events.md`, `server.md` | "Starts by itself"; `values.start`; `records` hooks |
+| `docs/content/user/test-and-share.md`, `steps.md`, `docs/content/dev/plugins/events.md`, `server.md` | "Starts by itself"; `values.start`; `records` hooks |
 | `apps/runtime/test/starts.test.ts` | Schedule arithmetic across DST, a missed schedule after a restart, a row that starts a run once, the loop rule, a webhook body filling a page, the three-failures pause |
+
+## On wizards.page
+
+Decided on 2026-10-18 in Manage (`docs/plans/wizards-page.md` there): `<team>.wizards.page` is
+where people use a team's wizards, per space, in the space's brand; the studio stays the place
+to build and to watch. The starts concept sits on it like this:
+
+| Piece | Where it shows | Rule |
+|---|---|---|
+| The door for a contact (lead, customer, applicant) | the wizard on the space page, or the embed on the team's own site | The run belongs to the space; the person is the contact key (e-mail, number) the first page asks for. The browser's cookie only finds the run again on the same device |
+| "Weitermachen" | the team home and the space page already list the runs this browser can continue | A sleeping or parked run of a contact is one of them; a hand-off link in a mail or a message opens the same run on the team's host (phase 3 there: runs on the host; until then `engenty.ai/w/<token>`) |
+| A team member's step (time tracking, approvals) | a members-only space on wizards.page (phase 4 there), signed in | The member answers on the team's page, never in the studio; the notice's link goes there. Until members-only spaces exist: the link into the studio's run |
+| "Jeden Monat so?" and the start sheet | the studio, and a result page a signed-in member sees | Never on a public page: a visitor is not offered to automate a team's wizard |
+| Läufe (the space's runs), the bell, starts | the studio only | wizards.page is for using; building and watching stay in the studio |
+| Deliveries | the result's share targets (mail, folder, Slack) | Same on both sides; a started run delivers like a person who shared |
+| A wizard that cannot run | the space page says "Wieder morgen verfügbar" or "pausiert" | A paused start changes nothing on the page: the link and the listing keep working |
+
+What the page concept adds to the starts data: nothing. What the starts concept adds to the
+page: the contact key on a run (the page's "runs this browser can continue" becomes "your
+runs" once a space is members-only and the person is known), and the hand-off links on the
+team's host.
 
 ## Open
 

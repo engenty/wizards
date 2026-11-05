@@ -25,6 +25,12 @@ Read this before writing a wizard: the JSON schema, field kinds, step types and 
 <!-- section: tool.find_connectors -->
 Search the integrations registry for a service that can be imported as a connector, from its OpenAPI spec or its MCP server. Returns domains with a short description.
 
+<!-- section: tool.list_starts -->
+The wizard's starts: what begins a run without a person opening the link (a schedule today). Each with the sentence the studio shows for it.
+
+<!-- section: tool.set_starts -->
+Replace the wizard's starts. A start of kind "schedule" names every: hour | day | week (with weekday 0–6, 0 = Sunday) | month (with day 1–28), time "HH:MM" and an IANA tz. "overlap" says what happens when a run of the start is still going at the next time: "skip" (default) leaves that time out, "allow" starts another run. "maxLateMinutes" (default 1440, a day) limits how late a missed time may still start; past it that time is skipped. After a gap only the latest missed time counts. "answers" fills the first page's fields by id with literal values; a required field without a value makes the run wait for the owner. "allowChanges" lets the run write into connected services without asking; "passReviews" (default true) accepts reviews. Leave "id" out for a new start; keep it to change one. An empty list removes them all. Only a published wizard runs.
+
 <!-- section: tool.list_connectors -->
 The connectors a space has imported, each with its actions.
 
