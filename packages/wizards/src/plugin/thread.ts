@@ -157,6 +157,9 @@ const texts = {
     working: "{step} – das dauert einen Moment.",
     sleeping: "Das geht am {date} von selbst weiter. Du musst nichts tun.",
     sleepingSoon: "Das geht gleich von selbst weiter. Du musst nichts tun.",
+    waitsCredits:
+      "Das Guthaben dieses Wizards ist aufgebraucht. Es geht von selbst weiter, sobald wieder Guthaben da ist.",
+    waitsSignIn: "{service} braucht eine neue Anmeldung. Danach geht es von selbst weiter.",
     reviewAsk: "Passt das so?",
     reviewOk: "Passt",
     reviewRedo: "Neue Version",
@@ -194,6 +197,9 @@ const texts = {
     working: "{step} – this takes a moment.",
     sleeping: "This goes on by itself on {date}. You don’t need to do anything.",
     sleepingSoon: "This goes on by itself in a moment. You don’t need to do anything.",
+    waitsCredits:
+      "This wizard has run out of credits for now. It goes on by itself once there are credits again.",
+    waitsSignIn: "{service} needs a new sign-in. This goes on by itself after that.",
     reviewAsk: "Is this right?",
     reviewOk: "Looks good",
     reviewRedo: "New version",
@@ -496,14 +502,19 @@ export class ThreadDoor {
     }
     if ("wait" in w) {
       // Said once, or when the person writes: for days this thread has nothing else to say.
-      const key = `wait:${w.wait}`;
+      const key = `wait:${w.wait}:${w.pause?.kind ?? ""}`;
       if (s.said !== key || msg) {
         s.said = key;
         await this.send(thread, {
           kind: "text",
-          text: w.until
-            ? say(s.lang, "sleeping", { date: dayAndTime(w.until, s.lang) })
-            : say(s.lang, "sleepingSoon"),
+          text:
+            w.pause?.kind === "credits"
+              ? say(s.lang, "waitsCredits")
+              : w.pause?.kind === "sign_in"
+                ? say(s.lang, "waitsSignIn", { service: w.pause.service })
+                : w.until
+                  ? say(s.lang, "sleeping", { date: dayAndTime(w.until, s.lang) })
+                  : say(s.lang, "sleepingSoon"),
         });
       }
       this.o.watch(thread);

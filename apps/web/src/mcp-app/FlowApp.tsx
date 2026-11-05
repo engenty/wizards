@@ -4,7 +4,7 @@ import {
   slotText,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
-import type { RunTheme, RunView } from "@engenty/wizards-shared/run";
+import type { RunPause, RunTheme, RunView } from "@engenty/wizards-shared/run";
 import {
   App,
   applyHostFonts,
@@ -91,7 +91,7 @@ interface RunReport {
   step: { id: string; type: string; title: string } | null;
   passed: string[];
   waitingFor?:
-    | { wait: string; title: string; until: string | null }
+    | { wait: string; title: string; until: string | null; pause?: RunPause }
     | { page: string; title: string; fields: RunField[] }
     | { review: string; title: string; show: string[]; editable: boolean }
     | { ask: string; kind: "confirm"; reason: string; service: string; action: string }
@@ -651,7 +651,7 @@ function RunPanel({
   } else if (waiting && "wait" in waiting) {
     body = (
       <div className="flex flex-col items-start gap-1">
-        <p className="text-[0.8125rem] text-ink-2">{goesOnText(waiting.until)}</p>
+        <p className="text-[0.8125rem] text-ink-2">{goesOnText(waiting.until, waiting.pause)}</p>
         <p className="text-[0.8125rem] text-ink-3">{t("run.leavePage")}</p>
       </div>
     );

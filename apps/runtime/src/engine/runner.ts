@@ -31,7 +31,7 @@ import {
   whenHolds,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import type { RunNote, RunStatus, Said, StepOutput } from "@engenty/wizards-shared/run";
+import type { RunNote, RunPause, RunStatus, Said, StepOutput } from "@engenty/wizards-shared/run";
 import {
   CAN_GO_BACK,
   type ClosedChoice,
@@ -112,6 +112,7 @@ import { askPerson, clearStaleAsk } from "./asks.js";
 import { decide } from "./decide.js";
 import { clearDeviceCalls } from "./device.js";
 import { emitEvent, recentEvents, saidInVisit, signalChanged, visitLeftOpen } from "./events.js";
+import { classifyFailure, type Failure } from "./failures.js";
 import { type InputError, type PageContext, readPageInput } from "./input.js";
 import { pushRun } from "./push.js";
 import {
@@ -123,11 +124,11 @@ import {
   stepsWithoutModel,
   tierRefusalSaid,
 } from "./requirements.js";
-import { releaseResources, resourcesFor } from "./resources.js";
+import { liveResources, releaseResources, resourcesFor } from "./resources.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
 import { answersAsText, fillLabel, renderTemplate, resolveRef } from "./template.js";
 import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
-import { StepError } from "./types.js";
+import { SignInNeeded, StepError } from "./types.js";
 
 /** A command the run cannot take in its current state; a note where the person may read it. */
 export class RunConflict extends NotedError {}
@@ -301,7 +302,10 @@ function friendly(err: unknown): Said {
   }
   const msg = (err as Error)?.message ?? String(err);
   // The model-gateway answers 402 once the tenant's credits are used up.
-  if (/insufficient_credits|\b402\b/i.test(msg)) {
+  if (
+    /insufficient_credits|\b402\b/i.test(msg) ||
+    classifyFailure(err, { managed }).why === "credits"
+  ) {
     return saidOf(new NoCreditsError());
   }
   // A runtime that runs alone pays its provider itself: its admin can top the account up.
@@ -313,6 +317,16 @@ function friendly(err: unknown): Said {
   }
   if (/timeout|timed out/i.test(msg)) {
     return note("stepTookTooLong");
+  }
+  const { why } = classifyFailure(err, { managed });
+  if (why === "rate_limit") {
+    return note("aiServiceBusyRight");
+  }
+  if (why === "timeout") {
+    return note("stepTookTooLong");
+  }
+  if (why === "server" || why === "network") {
+    return note("aiServiceNotReached");
   }
   // The platform's own provider account (budget, quota, key): nothing the person can fix.
   if (
@@ -1176,19 +1190,234 @@ async function wakeFromWait(run: RunRow): Promise<boolean> {
     await finishWait(run, step, over);
     return true;
   }
-  // The wait is over either way: "try again" goes on from the next step and does not wait again.
-  await emitEvent(run.id, step.id, "error", refused);
+  // The wait is over either way: the top-up goes on from the next step and does not wait again.
+  await waitForPerson(
+    { ...run, cursor: over.cursor },
+    over.cursor ?? step.id,
+    { kind: "credits" },
+    over.state,
+    "sleeping",
+  );
+  return false;
+}
+
+// --- when a step fails ---------------------------------------------------------
+// Nothing waits in memory: a retry and a wait for a person are one more reason to sleep, so they
+// hold no process, no slot and no credits, and they survive a restart.
+
+/** After how long a step tries again; its length is how many more tries it gets. */
+const RETRY_MINUTES = [1, 5, 30];
+/** A service may ask for a wait in `Retry-After`, up to this: a run may sleep, but not for a week. */
+const RETRY_AFTER_MAX_MS = 6 * 3600_000;
+/**
+ * How often a run that waits for a person looks whether they acted. A top-up on the Manage-App is
+ * seen by the reservation alone, so that look costs nothing. A runtime that runs alone has only
+ * the provider itself to ask, with a call of the step's, so it asks less often.
+ */
+const lookAgainMs = () => (managed ? 5 : 30) * 60_000;
+/** A person who hasn't acted after this long won't: the run fails, and "try again" stays. */
+const PERSON_WAIT_MAX_MS = 30 * 86_400_000;
+/** A step's `onFail` is taken at most this often, so two failing steps can't send a run round forever. */
+const ON_FAIL_MAX = 3;
+
+/** The step's count of tries; a new step starts over. */
+function retriesOf(state: RunState, stepId: string): NonNullable<RunState["retries"]> {
+  return state.retries?.step === stepId
+    ? state.retries
+    : { step: stepId, count: 0, since: new Date().toISOString() };
+}
+
+/** The run sleeps for `pause` until `wakeAt`. The control copy first, as for a `wait`. */
+async function sleepFor(
+  run: RunRow,
+  pause: RunPause,
+  wakeAt: Date,
+  state: RunState,
+  from: RunStatus,
+) {
+  await setWake(run.id, wakeAt);
   await updateRun(
     run.id,
     {
-      ...over,
-      status: "failed",
-      wakeAt: null,
-      error: saidText(refused, textLang(wizardLang(run.definition))),
+      state: { ...state, pause },
+      cursor: run.cursor,
+      status: "sleeping",
+      wakeAt,
+      expiresAt: keptUntil(run, wakeAt),
+      error: null,
     },
+    { status: from },
+  );
+}
+
+/**
+ * Someone has to act before the run goes on, and this is the one place that tells them. Today that
+ * is the run's log, which the runner, the studio's panel and a channel's thread show, and the phone
+ * that follows the run. Nothing reaches an owner who isn't looking: PR 9's notice goes here.
+ */
+async function tellPerson(run: RunRow, stepId: string, pause: RunPause) {
+  await emitEvent(
+    run.id,
+    stepId,
+    "error",
+    pause.kind === "sign_in"
+      ? note("stepWaitsSignIn", { service: pause.service })
+      : note("stepWaitsCredits"),
+  );
+  void pushRun(run.id, "waiting");
+}
+
+/** Out of credits or signed out: the run waits for a person, and fails only if nobody ever comes. */
+async function waitForPerson(
+  run: RunRow,
+  stepId: string,
+  pause: Exclude<RunPause, { kind: "retry" }>,
+  state: RunState,
+  from: RunStatus,
+) {
+  const retries = retriesOf(state, stepId);
+  if (Date.now() - Date.parse(retries.since) > PERSON_WAIT_MAX_MS) {
+    const { pause: _, retries: __, ...rest } = state;
+    await updateRun(run.id, { state: rest, wakeAt: null }, { status: from });
+    await failRun(
+      run,
+      stepId,
+      pause.kind === "credits"
+        ? new NoCreditsError()
+        : new NotedError(note("stepWaitsSignIn", { service: pause.service })),
+    );
+    return;
+  }
+  // Said once: the run looks again every few minutes for as long as it waits.
+  if (retries.told !== pause.kind) {
+    await tellPerson(run, stepId, pause);
+  }
+  await sleepFor(
+    run,
+    pause,
+    new Date(Date.now() + lookAgainMs()),
+    { ...state, retries: { ...retries, told: pause.kind } },
+    from,
+  );
+}
+
+/** When the step tries again: what the service asked for within its cap, else the next of the list. */
+function retryDelayMs(failure: Failure, count: number): number {
+  return failure.retryAfterMs === null
+    ? RETRY_MINUTES[count] * 60_000
+    : Math.min(Math.max(failure.retryAfterMs, 60_000), RETRY_AFTER_MAX_MS);
+}
+
+/**
+ * A step failed; true when the run goes on elsewhere (`onFail`), false when this drive is over for
+ * now. A retry starts the step from the top, so one that may have done something out there
+ * (`RunResources.acted`) is not started again by itself, or the mail goes out twice: its failure
+ * is final, and a person can still choose "try again". A refused sign-in did nothing.
+ */
+async function stepFailed(run: RunRow, stepId: string, err: unknown, acted = false) {
+  if (!(await durableRunsOn())) {
+    await failRun(run, stepId, err);
+    return false;
+  }
+  const failure = classifyFailure(err, { managed });
+  // From the row, not from the step's copy: what the step did to its copy is not to stay, and what
+  // was written while it worked (run_effect's visit) is.
+  const latest = (await loadRun(run.id)) ?? run;
+  if (!acted || err instanceof SignInNeeded) {
+    if (failure.class === "credits") {
+      await waitForPerson(latest, stepId, { kind: "credits" }, latest.state, "running");
+      return false;
+    }
+    if (failure.class === "sign_in") {
+      const service = err instanceof SignInNeeded ? err.service : "";
+      await waitForPerson(latest, stepId, { kind: "sign_in", service }, latest.state, "running");
+      return false;
+    }
+    const retries = retriesOf(latest.state, stepId);
+    if (failure.class === "retry" && retries.count < RETRY_MINUTES.length) {
+      const delay = retryDelayMs(failure, retries.count);
+      console.warn(
+        `[run ${run.id} step ${stepId}] ${failure.why}, try ${retries.count + 1} in ${Math.round(delay / 60_000)} min:`,
+        (err as Error)?.message,
+      );
+      await emitEvent(
+        run.id,
+        stepId,
+        "info",
+        note("stepRetries", { minutes: Math.round(delay / 60_000) }),
+      );
+      await sleepFor(
+        latest,
+        { kind: "retry" },
+        new Date(Date.now() + delay),
+        { ...latest.state, retries: { ...retries, count: retries.count + 1 } },
+        "running",
+      );
+      return false;
+    }
+  }
+  return failedForGood(latest, stepId, err);
+}
+
+/** Past every try: the run goes where the step's `onFail` says, else it fails as it always did. */
+async function failedForGood(run: RunRow, stepId: string, err: unknown): Promise<boolean> {
+  const step = stepOf(run.definition, stepId);
+  const target = stepOf(run.definition, step?.onFail ?? null);
+  const key = target ? loopKey(stepId, target.id) : "";
+  if (!target || (run.state.loops?.[key] ?? 0) >= ON_FAIL_MAX) {
+    await failRun(run, stepId, err);
+    return false;
+  }
+  const said = noteOf(err) ?? (await tierRefusalSaid(err)) ?? friendly(err);
+  await emitEvent(run.id, stepId, "error", said);
+  await emitEvent(run.id, stepId, "info", note("stepFailedGoesOn", { step: target.title }));
+  const state = structuredClone(run.state);
+  state.loops = { ...state.loops, [key]: (state.loops?.[key] ?? 0) + 1 };
+  // What the content rules stopped stays known, on this way too.
+  if (err instanceof ContentBlockedError) {
+    state.blocked = err.kind;
+  }
+  delete state.retries;
+  delete state.deciding;
+  await updateRun(run.id, { state, cursor: target.id, status: "running", error: null });
+  return true;
+}
+
+/**
+ * A run that slept for a retry or for a person is woken. Like `wakeFromWait` the row decides, and
+ * the run holds credits again before it spends. Refused: it waits for them, whatever it slept for.
+ * A person who acted is noticed here; one who has not sends the step back to `stepFailed`.
+ */
+async function wakeFromPause(run: RunRow): Promise<boolean> {
+  if (run.wakeAt && run.wakeAt.getTime() > Date.now()) {
+    await setWake(run.id, run.wakeAt);
+    return false;
+  }
+  const stepId = run.cursor ?? "";
+  const state = structuredClone(run.state);
+  delete state.pause;
+  const step = stepOf(run.definition, run.cursor);
+  let refused = false;
+  if (step && step.type !== "result") {
+    try {
+      refused = (await holdAgain(run)) !== null;
+    } catch (err) {
+      // The Manage-App out of reach is no refusal: the time stays due, the clock tries again.
+      console.warn(`[run ${run.id}] holding credits on wake:`, (err as Error).message);
+      await setWake(run.id, run.wakeAt ?? new Date());
+      return false;
+    }
+  }
+  if (refused) {
+    await waitForPerson(run, stepId, { kind: "credits" }, state, "sleeping");
+    return false;
+  }
+  await updateRun(
+    run.id,
+    { state, status: "running", wakeAt: null, error: null },
     { status: "sleeping" },
   );
-  return false;
+  return true;
 }
 
 /**
@@ -1230,7 +1459,7 @@ async function drive(runId: string, signal: AbortSignal) {
   while (!signal.aborted) {
     const run = await loadRun(runId);
     if (run?.status === "sleeping") {
-      if (!(await wakeFromWait(run))) {
+      if (!(await (run.state.pause ? wakeFromPause(run) : wakeFromWait(run)))) {
         return;
       }
       continue;
@@ -1251,6 +1480,7 @@ async function drive(runId: string, signal: AbortSignal) {
           return;
         }
         await syncRunCost(runId);
+        delete state.retries;
         await updateRun(runId, { state, cursor, status: cursor ? "running" : "done", error: null });
       } catch (err) {
         if (signal.aborted) {
@@ -1260,8 +1490,9 @@ async function drive(runId: string, signal: AbortSignal) {
           throw err;
         }
         console.error(`[run ${runId} deciding ${deciding.id}]`, err);
-        await failRun(run, deciding.id, err);
-        return;
+        if (!(await stepFailed(run, deciding.id, err))) {
+          return;
+        }
       }
       continue;
     }
@@ -1282,6 +1513,7 @@ async function drive(runId: string, signal: AbortSignal) {
         }
         state.pages = { ...state.pages, [step.id]: { shown } };
         await syncRunCost(runId);
+        delete state.retries;
         await updateRun(runId, { state, error: null });
       } catch (err) {
         if (signal.aborted) {
@@ -1291,8 +1523,9 @@ async function drive(runId: string, signal: AbortSignal) {
           throw err;
         }
         console.error(`[run ${runId} fields of ${step.id}]`, err);
-        await failRun(run, step.id, err);
-        return;
+        if (!(await stepFailed(run, step.id, err))) {
+          return;
+        }
       }
       continue;
     }
@@ -1311,8 +1544,9 @@ async function drive(runId: string, signal: AbortSignal) {
         if (err instanceof LostClaim) {
           throw err;
         }
-        await failRun(run, step.id, err);
-        return;
+        if (!(await stepFailed(run, step.id, err))) {
+          return;
+        }
       }
       continue;
     }
@@ -1323,6 +1557,10 @@ async function drive(runId: string, signal: AbortSignal) {
       return;
     }
     if (!(await canSpend())) {
+      if (await durableRunsOn()) {
+        await waitForPerson(run, step.id, { kind: "credits" }, run.state, "running");
+        return;
+      }
       const message = new NoCreditsError().message;
       await emitEvent(runId, step.id, "error", message);
       await updateRun(runId, { status: "failed", error: message });
@@ -1335,6 +1573,7 @@ async function drive(runId: string, signal: AbortSignal) {
     interrupted = false;
     const space = await loadSpace(run);
     const state = structuredClone(run.state);
+    resourcesFor(runId).acted = false;
     try {
       if (await enterVisit(step, state)) {
         await updateRun(runId, { state });
@@ -1370,6 +1609,7 @@ async function drive(runId: string, signal: AbortSignal) {
       delete state.notes[step.id];
       delete state.redo?.[step.id];
       delete state.visiting;
+      delete state.retries;
       const cursor = await advance(run, step.id, state);
       await updateRun(runId, {
         state,
@@ -1392,8 +1632,9 @@ async function drive(runId: string, signal: AbortSignal) {
       }
       console.error(`[run ${runId} step ${step.id}]`, err);
       await noteFreeTierRefusal(err);
-      await failRun(run, step.id, err);
-      return;
+      if (!(await stepFailed(run, step.id, err, liveResources(runId)?.acted))) {
+        return;
+      }
     }
   }
 }
@@ -1620,9 +1861,12 @@ export async function goBack(runId: string) {
   if (!previous) {
     throw new RunConflict({ code: "noStepBefore" });
   }
-  // A decision that failed belongs to the step left behind, and so does a visit that stopped.
+  // A decision that failed belongs to the step left behind, and so do a visit that stopped and its
+  // tries.
   delete state.deciding;
   delete state.visiting;
+  delete state.retries;
+  delete state.pause;
   await updateRun(runId, { state, cursor: previous, status: "waiting_input", error: null }, run);
 }
 
@@ -1636,7 +1880,11 @@ export async function retry(runId: string) {
   if (refused) {
     throw new RunConflict(refused);
   }
-  await updateRun(runId, { status: "running", error: null }, run);
+  // A person's "try again" gets every try anew.
+  const state = structuredClone(run.state);
+  delete state.retries;
+  delete state.pause;
+  await updateRun(runId, { state, status: "running", error: null }, run);
   kick(runId);
 }
 
@@ -1842,6 +2090,7 @@ export async function runView(
     id: run.id,
     status: run.status,
     wakeAt: run.status === "sleeping" ? (run.wakeAt?.toISOString() ?? null) : null,
+    pause: run.status === "sleeping" ? (run.state.pause ?? null) : null,
     mode: run.mode,
     wizard: {
       title: def.title,

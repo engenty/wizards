@@ -1048,6 +1048,8 @@ export type PluginRunWaiting =
       wait: string;
       title: string;
       until: string | null;
+      /** Why, where it isn't a wait in the wizard: a step's retry, or a person has to act first. */
+      pause?: { kind: "retry" } | { kind: "credits" } | { kind: "sign_in"; service: string };
       hint: string;
     }
   | {

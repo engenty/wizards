@@ -70,3 +70,13 @@ export interface StepContext {
 
 /** A step failure the person can read. */
 export class StepError extends NotedError {}
+
+/** A fixed step's connection isn't signed in, or the service turned the sign-in down. */
+export class SignInNeeded extends StepError {
+  constructor(
+    readonly service: string,
+    said: RunNote,
+  ) {
+    super(said);
+  }
+}

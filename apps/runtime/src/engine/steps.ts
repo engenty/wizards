@@ -60,6 +60,7 @@ import { runMotionGraphicsStep } from "../motion-graphics/step.js";
 import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
 import { knowledgeBlock } from "../services/knowledge.js";
+import { watchActions } from "../tools/acted.js";
 import { callConnection } from "../tools/connector.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool, spaceContextOf } from "../tools/plugin.js";
@@ -582,7 +583,7 @@ async function runCallStep(
   const input = callInput(step.call.input, ctx);
   const answer =
     "tool" in step.call
-      ? await callPluginTool(step.call.tool, input, ctx)
+      ? await callPluginToolOnce(step.call.tool, input, ctx)
       : await callConnection(step.call, input, ctx);
   if (
     answer &&
@@ -595,6 +596,12 @@ async function runCallStep(
   const json =
     answer && typeof answer === "object" && !Array.isArray(answer) ? answer : { result: answer };
   return { json, at: new Date().toISOString() };
+}
+
+/** What a plugin's tool does nobody knows here, so a later try of the step does not repeat it. */
+function callPluginToolOnce(tool: string, input: unknown, ctx: StepContext) {
+  ctx.resources.acted = true;
+  return callPluginTool(tool, input, ctx);
 }
 
 export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<StepOutput> {
@@ -617,6 +624,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
   }
   // A step without tools of its own and without uploads: the run's device may answer it alone.
   attachTools(resolved, tools, step.tools.length === 0 && uploads.length === 0);
+  watchActions(tools, ctx.resources);
   const photos = await seenPhotos(step, ctx, resolved, uploads);
   const others = uploads.filter((u) => !photos.some((p) => p.upload === u));
   const formatHint =
