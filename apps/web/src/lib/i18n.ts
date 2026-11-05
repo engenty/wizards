@@ -2611,7 +2611,8 @@ const de: Record<Key, Line> = {
   "connectors.ownClient": "Eigener OAuth-Client",
   "connectors.refresh": "Aktionen neu laden",
   "connectors.remove": "Entfernen",
-  "connectors.actions": "{n} Aktionen, {r} lesend",
+  "connectors.actions.one": "1 Aktion, {r} lesend",
+  "connectors.actions.n": "{n} Aktionen, {r} lesend",
   "connectors.pending": "Aktionen erscheinen, sobald ein Konto verbunden ist",
   "connectors.needsClient":
     "Dieser Dienst braucht einen OAuth-Client (ID und Secret). Entfernen und mit „Eigener OAuth-Client“ neu importieren.",
@@ -6716,7 +6717,8 @@ const en = {
   "connectors.ownClient": "Your own OAuth client",
   "connectors.refresh": "Reload actions",
   "connectors.remove": "Remove",
-  "connectors.actions": "{n} actions, {r} of them only read",
+  "connectors.actions.one": "1 action, {r} only read",
+  "connectors.actions.n": "{n} actions, {r} of them only read",
   "connectors.pending": "Actions appear once an account is connected",
   "connectors.needsClient":
     "This service needs an OAuth client (ID and secret). Remove it and import it again with “Your own OAuth client”.",
