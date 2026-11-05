@@ -5,7 +5,13 @@ import {
 } from "@engenty/wizards-shared/connectors";
 import { upgradeDefinition, type WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
-import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
+import {
+  type AskAnswer,
+  RUN_EVENT_TYPES,
+  type RunAsk,
+  type RunNote,
+  type RunState,
+} from "@engenty/wizards-shared/run";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import { RWX_FLAGS, RWX_RESOURCE_KINDS, RWX_SUBJECT_KINDS } from "@engenty/wizards-shared/rwx";
 import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty/wizards-shared/sharing";
@@ -340,6 +346,13 @@ export const run = sqliteTable(
     claim: integer("claim").notNull().default(0),
     /** Counts the writes of `state` and `status`: a person's write needs the number it read. */
     rev: integer("rev").notNull().default(0),
+    /**
+     * A drive works on the run and has not reached a rest. One that finds this set on a run at work
+     * goes on after an interruption, a crash or a deploy (`durableRuns`).
+     */
+    driving: integer("driving", { mode: "boolean" }).notNull().default(false),
+    /** The wizard's `label`, filled from the run's answers; null without one, or before any. */
+    label: text("label"),
     error: text("error"),
     /** What a running step is asking the person right now (a login, a code); null = nothing. */
     ask: text("ask", { mode: "json" }).$type<RunAsk | null>(),
@@ -395,7 +408,7 @@ export const runEvent = sqliteTable(
       .notNull()
       .references(() => run.id, { onDelete: "cascade" }),
     stepId: text("step_id"),
-    type: text("type", { enum: ["step_started", "step_done", "tool", "info", "error"] }).notNull(),
+    type: text("type", { enum: RUN_EVENT_TYPES }).notNull(),
     message: text("message").notNull(),
     /** The message as a note of `RUN_NOTES`, for a runner in another language. */
     note: text("note", { mode: "json" }).$type<RunNote>(),

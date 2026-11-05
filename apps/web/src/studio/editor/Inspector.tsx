@@ -51,6 +51,7 @@ import {
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { withBase } from "@/lib/base";
 import { Mascot } from "../../brand";
+import { useFeature } from "../../lib/features";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { useStudioPlugins } from "../../plugins/host";
@@ -1127,6 +1128,7 @@ export function WizardSettings({
   spaceId: string;
   wizardId: string;
 }) {
+  const durableRuns = useFeature("durableRuns");
   return (
     <div>
       <Section>
@@ -1150,6 +1152,16 @@ export function WizardSettings({
             onChange={(e) => update({ ...def, intro: e.target.value || undefined })}
           />
         </div>
+        {durableRuns ? (
+          <div>
+            <Label hint={t("inspector.runLabelHint")}>{t("inspector.runLabel")}</Label>
+            <Input
+              value={def.label ?? ""}
+              placeholder={t("inspector.runLabelExample")}
+              onChange={(e) => update({ ...def, label: e.target.value || undefined })}
+            />
+          </div>
+        ) : null}
         <div>
           <Label hint={t("inspector.langHint")}>{t("inspector.lang")}</Label>
           <Select

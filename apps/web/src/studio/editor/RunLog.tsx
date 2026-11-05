@@ -1,19 +1,39 @@
 import type { RunEvent, RunView } from "@engenty/wizards-shared/run";
-import { AlertCircle, Check, ChevronDown, ChevronUp, Copy, Info, Play, Wrench } from "lucide-react";
+import {
+  AlarmClock,
+  AlertCircle,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Hourglass,
+  Info,
+  Play,
+  RotateCw,
+  Square,
+  TriangleAlert,
+  Wrench,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { withBase } from "../../lib/base";
 import { eventText, type Key, lang, t } from "../../lib/i18n";
 import { cn, IconButton } from "../../ui";
 
-const KIND: Record<RunEvent["type"], { Icon: typeof Play; tone: string }> = {
+export const KIND: Record<RunEvent["type"], { Icon: typeof Play; tone: string }> = {
   step_started: { Icon: Play, tone: "text-ink-3" },
   step_done: { Icon: Check, tone: "text-moss" },
   tool: { Icon: Wrench, tone: "text-ink-3" },
   info: { Icon: Info, tone: "text-ink-3" },
   error: { Icon: AlertCircle, tone: "text-rose" },
+  run_started: { Icon: Play, tone: "text-ink-3" },
+  wait: { Icon: Hourglass, tone: "text-ink-3" },
+  woken: { Icon: AlarmClock, tone: "text-ink-3" },
+  stopped: { Icon: Square, tone: "text-ink-3" },
+  resumed: { Icon: RotateCw, tone: "text-ink-3" },
+  effect_unsure: { Icon: TriangleAlert, tone: "text-amber" },
 };
 
-const time = (at: string) =>
+export const time = (at: string) =>
   new Date(at).toLocaleTimeString(lang, {
     hour: "2-digit",
     minute: "2-digit",
@@ -31,7 +51,7 @@ function gap(ev: RunEvent, before: RunEvent | undefined): string {
 }
 
 /** The log as text, to paste into the assistant's chat or a bug report. */
-function logText(events: RunEvent[], titles: Record<string, string>): string {
+export function logText(events: RunEvent[], titles: Record<string, string>): string {
   return events
     .map((ev, i) =>
       [

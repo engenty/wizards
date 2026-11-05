@@ -1911,7 +1911,7 @@ export const studio = new Hono<Vars>()
     c.json(await startTestRun(c.get("user").id, c.req.param("id"))),
   )
   .get("/wizards/:id/runs", async (c) =>
-    c.json(await listRuns(c.get("user").id, c.req.param("id"))),
+    c.json(await listRuns(c.get("user").id, c.req.param("id"), c.req.query("q"))),
   )
   // One step of the draft as a run shows it: the preview of the step chosen.
   .get("/wizards/:id/steps/:stepId/view", async (c) =>

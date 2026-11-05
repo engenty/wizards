@@ -1,7 +1,7 @@
 import { AsyncResource } from "node:async_hooks";
 import { EventEmitter } from "node:events";
-import { noteText, type RunEvent, type RunNote } from "@engenty/wizards-shared/run";
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { note as noted, noteText, type RunEvent, type RunNote } from "@engenty/wizards-shared/run";
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 
 const bus = new EventEmitter();
@@ -40,6 +40,26 @@ export async function emitEvent(
     asset: row.assetId,
   };
   bus.emit(runId, { runId, event } satisfies RunSignal);
+}
+
+/**
+ * What a run says when `run_effect` finds an outside action `started`: it may have happened, and
+ * nothing repeats it by itself. `to`: who a mail went to, when the action sends one. The check in
+ * `brokerCall` (broker/effect.ts) calls this.
+ */
+export async function effectUnsure(
+  runId: string,
+  stepId: string,
+  action: { tool: string; to?: string },
+): Promise<void> {
+  await emitEvent(
+    runId,
+    stepId,
+    "effect_unsure",
+    action.to
+      ? noted("effectMailMayBeSent", { to: action.to })
+      : noted("effectMayHaveHappened", { what: action.tool }),
+  );
 }
 
 export function signalChanged(runId: string) {
@@ -124,6 +144,47 @@ export function watchRun(runId: string, listener: (signal: RunSignal) => void): 
     clearInterval(timer);
     unsubscribe();
   };
+}
+
+/**
+ * The newest line of this type since `stepId` last started, if the visit has one: what a step
+ * already said when a takeover or a second wake comes back to it.
+ */
+export async function saidInVisit(
+  runId: string,
+  stepId: string,
+  type: RunEvent["type"],
+): Promise<typeof schema.runEvent.$inferSelect | null> {
+  const [last] = await db
+    .select()
+    .from(schema.runEvent)
+    .where(
+      and(
+        eq(schema.runEvent.runId, runId),
+        eq(schema.runEvent.stepId, stepId),
+        inArray(schema.runEvent.type, [type, "step_started"]),
+      ),
+    )
+    .orderBy(desc(schema.runEvent.id))
+    .limit(1);
+  return last?.type === type ? last : null;
+}
+
+/** The step's last visit started and has not ended: nothing finished or failed since. */
+export async function visitLeftOpen(runId: string, stepId: string): Promise<boolean> {
+  const [last] = await db
+    .select({ type: schema.runEvent.type })
+    .from(schema.runEvent)
+    .where(
+      and(
+        eq(schema.runEvent.runId, runId),
+        eq(schema.runEvent.stepId, stepId),
+        inArray(schema.runEvent.type, ["step_started", "step_done", "error"]),
+      ),
+    )
+    .orderBy(desc(schema.runEvent.id))
+    .limit(1);
+  return last?.type === "step_started";
 }
 
 export async function recentEvents(runId: string, afterId = 0, limit = 40): Promise<RunEvent[]> {

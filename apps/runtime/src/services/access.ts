@@ -43,7 +43,23 @@ export const isAdminRole = (role: Role): boolean => role === "owner" || role ===
 
 export const MEMBERS_EDIT_ONLY = note("onlyOrganizationAdmins");
 
-const roles = new Map<string, { at: number; byUser: Map<string, Role> }>();
+const roles = new Map<string, { at: number; byUser: Map<string, { role: Role; name: string }> }>();
+
+/** The tenant's people as the Manage-App says, asked once a minute. */
+async function peopleOf(tenant: string) {
+  let hit = roles.get(tenant);
+  if (!hit || Date.now() - hit.at > 60_000) {
+    const people = await tenantMembers(tenant).catch(() => null);
+    if (people) {
+      hit = {
+        at: Date.now(),
+        byUser: new Map(people.members.map((m) => [m.userId, { role: m.role, name: m.name }])),
+      };
+      roles.set(tenant, hit);
+    }
+  }
+  return hit?.byUser;
+}
 
 /**
  * The role of a person in the tenant at hand, for a context that has no session of theirs (a
@@ -54,16 +70,12 @@ export async function roleOf(userId: string): Promise<Role> {
   if (!managed) {
     return "owner";
   }
-  const tenant = currentTenant();
-  let hit = roles.get(tenant);
-  if (!hit || Date.now() - hit.at > 60_000) {
-    const people = await tenantMembers(tenant).catch(() => null);
-    if (people) {
-      hit = { at: Date.now(), byUser: new Map(people.members.map((m) => [m.userId, m.role])) };
-      roles.set(tenant, hit);
-    }
-  }
-  return hit?.byUser.get(userId) ?? "member";
+  return (await peopleOf(currentTenant()))?.get(userId)?.role ?? "member";
+}
+
+/** A person's name in the tenant; null alone (nobody else to tell apart), or where nobody says. */
+export async function nameOf(userId: string): Promise<string | null> {
+  return managed ? ((await peopleOf(currentTenant()))?.get(userId)?.name ?? null) : null;
 }
 
 /** Refuses a member: making and deleting is for the owner and the admins of the organization. */
