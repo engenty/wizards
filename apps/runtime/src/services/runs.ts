@@ -612,6 +612,8 @@ export async function draftStepView(
     }),
     definition: def,
     status,
+    claim: 0,
+    rev: 0,
     cursor: step.id,
     state,
     lang: lang && lang !== wizardLang(def) && (await storedTranslation(w.id, lang)) ? lang : null,

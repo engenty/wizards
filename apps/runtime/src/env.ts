@@ -112,6 +112,8 @@ export const env = {
      * nothing knows the runner stopped taking runs. Empty = no ping.
      */
     heartbeatUrl: str("HEARTBEAT_URL"),
+    /** Runs one runner process drives at once; the rest stay in line for another. */
+    maxRuns: num("RUNNER_MAX_RUNS", 16),
   },
   appUrl,
   /**

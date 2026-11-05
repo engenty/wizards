@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import {
   type ChoiceAnswer,
@@ -42,7 +43,7 @@ import { fitData } from "@engenty/wizards-shared/shape";
 import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
 import { machineTranslated, translateDefinition } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
-import { eq } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
 import { grantNote, grantOf, type KnownConnector, kindOf } from "../broker/index.js";
@@ -140,6 +141,12 @@ export class GuestBudgetError extends NotedError {
   }
 }
 
+/** This runner lost the run while driving it: another one claimed it after a silence. */
+class LostClaim extends Error {}
+
+/** The claim the process holds on the run it drives; empty outside `drive`. */
+const driving = new AsyncLocalStorage<{ generation: number }>();
+
 /** The runs this process drives right now, with the handle that stops each. */
 const active = new Map<string, AbortController>();
 
@@ -162,6 +169,14 @@ async function concurrencyLimit(tenant: string): Promise<number> {
     return null;
   });
   return info?.limits.concurrentRuns || env.limits.concurrentRuns;
+}
+
+/** A newer claim replaces an older one on the run's row. */
+async function holdRun(runId: string, generation: number) {
+  await db
+    .update(schema.run)
+    .set({ claim: generation })
+    .where(and(eq(schema.run.id, runId), lt(schema.run.claim, generation)));
 }
 
 async function loadRun(runId: string): Promise<RunRow | undefined> {
@@ -198,11 +213,32 @@ async function dataSpaceOf(run: RunRow, space: SpaceRow): Promise<{ id: string; 
   return client;
 }
 
-async function updateRun(runId: string, patch: Partial<typeof schema.run.$inferInsert>) {
-  await db
+async function updateRun(
+  runId: string,
+  patch: Partial<typeof schema.run.$inferInsert>,
+  seen?: { rev: number },
+) {
+  // A write of the process driving the run holds only while it holds the claim; a person's
+  // holds only if nothing moved the run since they read it. Otherwise it changes nothing.
+  const holder = driving.getStore();
+  const result = await db
     .update(schema.run)
-    .set({ ...patch, updatedAt: new Date() })
-    .where(eq(schema.run.id, runId));
+    .set({ ...patch, rev: sql`${schema.run.rev} + 1`, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.run.id, runId),
+        holder ? eq(schema.run.claim, holder.generation) : undefined,
+        seen ? eq(schema.run.rev, seen.rev) : undefined,
+      ),
+    );
+  if (result.rowsAffected === 0) {
+    if (holder) {
+      throw new LostClaim();
+    }
+    if (seen) {
+      throw new RunConflict({ code: "runBusy" });
+    }
+  }
   // A run that ended needs no credits held for it any more.
   if (patch.status === "done" || patch.status === "failed" || patch.status === "cancelled") {
     await releaseRun(runId);
@@ -426,14 +462,28 @@ export function kick(runId: string) {
 
 /** Claims the run for this process and drives it; nothing when another holds it or the tenant is full. */
 async function take(runId: string, tenant: string): Promise<void> {
-  if (active.has(runId)) {
+  if (active.has(runId) || active.size >= env.runner.maxRuns) {
     return;
   }
-  if (!(await claimRun(runId, tenant, await concurrencyLimit(tenant)))) {
+  const generation = await claimRun(runId, tenant, await concurrencyLimit(tenant));
+  if (generation === null) {
     return;
   }
   const abort = new AbortController();
   active.set(runId, abort);
+  // The claim on the run's own row: what this process writes while driving is checked against it.
+  await withTenant(tenant, () => holdRun(runId, generation));
+  // Driving takes as long as the steps do; the line goes on meanwhile.
+  void driveClaimed(runId, tenant, generation, abort);
+}
+
+/** Drives a claimed run to its next wait, and gives it back. */
+async function driveClaimed(
+  runId: string,
+  tenant: string,
+  generation: number,
+  abort: AbortController,
+): Promise<void> {
   // The heartbeat keeps the claim and hears of a cancel the web wrote while a step works.
   const beat = setInterval(() => {
     void heartbeatRuns([runId]).catch((err) => console.warn(`[run ${runId}] heartbeat:`, err));
@@ -441,22 +491,29 @@ async function take(runId: string, tenant: string): Promise<void> {
     void withTenant(tenant, () => reportRun(runId, "running")).catch(() => undefined);
     void withTenant(tenant, () => loadRun(runId))
       .then((run) => {
-        if (run && run.status !== "running") {
+        // Cancelled elsewhere, or another runner holds it now: this step stops.
+        if (run && (run.status !== "running" || run.claim !== generation)) {
           abort.abort();
         }
       })
       .catch((err) => console.warn(`[run ${runId}] cancel check:`, err));
   }, HEARTBEAT_MS);
   beat.unref();
-  await withTenant(tenant, () => drive(runId, abort.signal))
-    .catch(async (err) => {
-      console.error(`[run ${runId}]`, err);
-      await withTenant(tenant, async () => {
-        const run = await loadRun(runId);
-        const lang = run ? textLang(wizardLang(run.definition)) : "en";
-        await updateRun(runId, { status: "failed", error: saidText(friendly(err), lang) });
-      }).catch((e) => console.error(`[run ${runId}] marking it failed:`, e));
-    })
+  await driving
+    .run({ generation }, () =>
+      withTenant(tenant, () => drive(runId, abort.signal)).catch(async (err) => {
+        if (err instanceof LostClaim) {
+          console.warn(`[run ${runId}] another runner holds it now; this one stops.`);
+          return;
+        }
+        console.error(`[run ${runId}]`, err);
+        await withTenant(tenant, async () => {
+          const run = await loadRun(runId);
+          const lang = run ? textLang(wizardLang(run.definition)) : "en";
+          await updateRun(runId, { status: "failed", error: saidText(friendly(err), lang) });
+        }).catch((e) => console.error(`[run ${runId}] marking it failed:`, e));
+      }),
+    )
     .finally(async () => {
       clearInterval(beat);
       active.delete(runId);
@@ -866,6 +923,9 @@ async function drive(runId: string, signal: AbortSignal) {
         if (signal.aborted) {
           return;
         }
+        if (err instanceof LostClaim) {
+          throw err;
+        }
         console.error(`[run ${runId} deciding ${deciding.id}]`, err);
         await failRun(run, deciding.id, err);
         return;
@@ -891,6 +951,9 @@ async function drive(runId: string, signal: AbortSignal) {
       } catch (err) {
         if (signal.aborted) {
           return;
+        }
+        if (err instanceof LostClaim) {
+          throw err;
         }
         console.error(`[run ${runId} fields of ${step.id}]`, err);
         await failRun(run, step.id, err);
@@ -955,6 +1018,9 @@ async function drive(runId: string, signal: AbortSignal) {
     } catch (err) {
       if (signal.aborted) {
         return;
+      }
+      if (err instanceof LostClaim) {
+        throw err;
       }
       console.error(`[run ${runId} step ${step.id}]`, err);
       await noteFreeTierRefusal(err);
@@ -1047,7 +1113,7 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
   }
   state.history.push(stepId);
   const cursor = await advance(run, stepId, state);
-  await updateRun(runId, { state, cursor, status: "running", error: null });
+  await updateRun(runId, { state, cursor, status: "running", error: null }, run);
   kick(runId);
 }
 
@@ -1097,7 +1163,7 @@ export async function editOutput(runId: string, stepId: string, data: Record<str
   }
   const state = structuredClone(run.state);
   state.outputs[stepId] = editedJson(run.definition, stepId, output, data);
-  await updateRun(runId, { state });
+  await updateRun(runId, { state }, run);
 }
 
 export type ReviewAction =
@@ -1129,7 +1195,7 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
     }
     state.history.push(stepId);
     const cursor = await advance(run, stepId, state);
-    await updateRun(runId, { state, cursor, status: "running", error: null });
+    await updateRun(runId, { state, cursor, status: "running", error: null }, run);
     kick(runId);
     return;
   }
@@ -1143,7 +1209,7 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
   } else {
     delete state.redo?.[action.target];
   }
-  await updateRun(runId, { state, cursor: action.target, status: "running", error: null });
+  await updateRun(runId, { state, cursor: action.target, status: "running", error: null }, run);
   await emitEvent(runId, action.target, "info", "Wird neu erstellt …");
   kick(runId);
 }
@@ -1163,7 +1229,7 @@ export async function goBack(runId: string) {
   }
   // A decision that failed belongs to the step left behind.
   delete state.deciding;
-  await updateRun(runId, { state, cursor: previous, status: "waiting_input", error: null });
+  await updateRun(runId, { state, cursor: previous, status: "waiting_input", error: null }, run);
 }
 
 export async function retry(runId: string) {
@@ -1171,7 +1237,7 @@ export async function retry(runId: string) {
   if (run?.status !== "failed") {
     throw new RunConflict("Nothing to retry");
   }
-  await updateRun(runId, { status: "running", error: null });
+  await updateRun(runId, { status: "running", error: null }, run);
   kick(runId);
 }
 

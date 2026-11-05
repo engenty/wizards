@@ -325,6 +325,10 @@ export const run = sqliteTable(
     }).notNull(),
     cursor: text("cursor"),
     state: text("state", { mode: "json" }).$type<RunState>().notNull(),
+    /** The claim of the runner that drives the run (`run_index.generation`); its writes need it. */
+    claim: integer("claim").notNull().default(0),
+    /** Counts the writes: a person's write holds only if nothing moved the run since they read it. */
+    rev: integer("rev").notNull().default(0),
     error: text("error"),
     /** What a running step is asking the person right now (a login, a code); null = nothing. */
     ask: text("ask", { mode: "json" }).$type<RunAsk | null>(),

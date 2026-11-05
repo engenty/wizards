@@ -67,23 +67,23 @@ describe("the line in the control database", () => {
   it("a woken run waits for a runner; claimed, it leaves the line", async () => {
     await control.wakeRun("r1");
     expect((await control.waitingRuns()).map((r) => r.runId)).toEqual(["r1"]);
-    expect(await control.claimRun("r1", T, 4)).toBe(true);
+    expect(await control.claimRun("r1", T, 4)).toBeGreaterThan(0);
     expect(await control.waitingRuns()).toEqual([]);
     // Held by this runner: nobody else gets it.
-    expect(await control.claimRun("r1", T, 4)).toBe(false);
+    expect(await control.claimRun("r1", T, 4)).toBeNull();
   });
 
   it("counts the tenant's held runs against its limit", async () => {
     await control.wakeRun("r2");
-    expect(await control.claimRun("r2", T, 1)).toBe(false);
+    expect(await control.claimRun("r2", T, 1)).toBeNull();
     expect((await control.waitingRuns()).map((r) => r.runId)).toEqual(["r2"]);
-    expect(await control.claimRun("r2", T, 2)).toBe(true);
+    expect(await control.claimRun("r2", T, 2)).toBeGreaterThan(0);
   });
 
   it("a runner that stops hands its runs back; a silent one loses them", async () => {
     await control.disownRuns();
     expect((await control.waitingRuns()).map((r) => r.runId).sort()).toEqual(["r1", "r2"]);
-    expect(await control.claimRun("r1", T, 4)).toBe(true);
+    expect(await control.claimRun("r1", T, 4)).toBeGreaterThan(0);
     // The owner's heartbeat is old: the run counts as unheld.
     await client.controlDb
       .update(client.control.runIndex)
@@ -92,6 +92,10 @@ describe("the line in the control database", () => {
     expect((await control.waitingRuns()).map((r) => r.runId)).toContain("r1");
     await control.heartbeatRuns(["r1"]);
     expect((await control.waitingRuns()).map((r) => r.runId)).not.toContain("r1");
+    // Only its owner rests a run: r2 lost its owner above, so it stays in line until one takes it.
+    await control.restRun("r2");
+    expect((await control.waitingRuns()).map((r) => r.runId)).toEqual(["r2"]);
+    expect(await control.claimRun("r2", T, 4)).toBeGreaterThan(0);
     await control.restRun("r1");
     await control.restRun("r2");
     expect(await control.waitingRuns()).toEqual([]);
@@ -100,7 +104,7 @@ describe("the line in the control database", () => {
   it("a runner registers under its address and is found as a run's owner", async () => {
     await control.registerRunner();
     await control.wakeRun("r3");
-    expect(await control.claimRun("r3", T, 4)).toBe(true);
+    expect(await control.claimRun("r3", T, 4)).toBeGreaterThan(0);
     // Without RUNNER_URL the web has no address to ask.
     expect(await control.ownerUrl("r3")).toBeNull();
     await client.controlDb

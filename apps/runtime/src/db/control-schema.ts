@@ -61,6 +61,8 @@ export const runIndex = sqliteTable(
     owner: text("owner"),
     /** The owner's last heartbeat; one silent for RUNNER_STALE_MS has lost the run. */
     seen: integer("seen", { mode: "timestamp_ms" }),
+    /** Counts the claims on this run: a newer claim has a higher number. */
+    generation: integer("generation").notNull().default(0),
     /**
      * The mobile app's device for push, set by the app for this run (`POST /api/runs/:id/notify`):
      * `{ token, platform: "ios" | "android", lang }`. Told through the Manage-App when the run is
