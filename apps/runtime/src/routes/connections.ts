@@ -25,6 +25,12 @@ import { requestLang } from "./lang.js";
  * their audience; setting up, changing, removing and signing in as the space is for its admins
  * (403 for a member). A member signs in to a connection in which each person signs in themselves,
  * if it is open to them. Fähigkeiten › Connectors draws them.
+ *
+ * Each view says whether guests reach the connection (`reachedByGuests`: for everyone, as the
+ * space) and which plugin holds it (`plugin`, `pluginName`): the note above the list counts them
+ * and narrows one with `PATCH /connections/:id { audience: "members" }`. Setting one up with each
+ * person signing in, or changing one to it (`PATCH … { signIn: "person" }`), is the plan's to
+ * include: `403 { code: "plan" }` where the switch `personSignIn` is off.
  */
 
 type Vars = { Variables: { user: SessionUser } };

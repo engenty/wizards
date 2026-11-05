@@ -8,6 +8,7 @@ import {
   type ConnectionOutcome,
   type ConnectionSignIn,
   type ConnectorView,
+  reachedByGuests,
   type SpaceConnectionView,
 } from "@engenty/wizards-shared/connectors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +33,10 @@ import { Section } from "../space/Section";
  * search below. A connection opens with `?show=<id>`; `?setup=<connector id or domain>` opens the
  * setup with that connector chosen. Admins set up and change; a member reads the connections
  * open to them and signs in where each person does.
+ *
+ * A connection guests reach (for everyone, as the space) is marked in the list, and the admins
+ * get a note above it that narrows each to members. Each person signing in is the plan's to
+ * include (`personSignIn`): where it doesn't, the choice shows as not available, with why.
  */
 
 const connectionsKey = (spaceId: string) => ["space-connections", spaceId] as const;
@@ -137,6 +142,9 @@ function titleOf(c: SpaceConnectionView): string {
   const connector = c.connector?.name ?? c.connectorId;
   return c.name === connector ? c.name : `${connector} · ${c.name}`;
 }
+
+/** The plugin that holds a connection, by name. */
+const pluginOf = (c: SpaceConnectionView) => c.pluginName ?? c.plugin ?? "";
 
 /** How it signs in, in a few words: as the space with its account, or how many people did. */
 function signInLine(c: SpaceConnectionView): string {
@@ -345,6 +353,7 @@ function Overview({
         <h3 className="px-1 pt-2 font-display font-semibold text-base">
           {t("capabilities.inSpace")}
         </h3>
+        {writable ? <GuestsNote connections={connections} onOpen={onOpen} /> : null}
         {error ? (
           <p className="px-1 text-[0.875rem] text-rose">{error.message}</p>
         ) : connections.length ? (
@@ -434,6 +443,7 @@ export function ConnectionRow({
   );
   const asks = Object.values(c.rules).includes("ask");
   const person = c.signIn === "person";
+  const guests = reachedByGuests(c);
   return (
     <div className="px-3.5 py-3 sm:px-5">
       <div className="flex items-center gap-3">
@@ -452,13 +462,26 @@ export function ConnectionRow({
                 <Building2 className="size-3.5 shrink-0" aria-hidden="true" />
               )}
               <span className="truncate">
-                {signInLine(c)} · {lastUse(c)}
+                {signInLine(c)}
+                {c.plugin ? ` · ${t("connection.pluginNamed", { plugin: pluginOf(c) })}` : ""}
+                {" · "}
+                {lastUse(c)}
               </span>
             </div>
+            {/* On a phone the chips at the right give way: this one stays. */}
+            {guests ? (
+              <div className="mt-1 sm:hidden">
+                <Chip tone="warn">{t("connection.guests")}</Chip>
+              </div>
+            ) : null}
           </div>
           <span className="flex shrink-0 items-center gap-1.5 max-sm:hidden">
             {asks ? <Chip tone="warn">{t("connection.outcome.ask")}</Chip> : null}
-            <Chip>{t(AUDIENCE_LABEL[c.audience])}</Chip>
+            {guests ? (
+              <Chip tone="warn">{t("connection.guests")}</Chip>
+            ) : (
+              <Chip>{t(AUDIENCE_LABEL[c.audience])}</Chip>
+            )}
           </span>
         </button>
         {person ? (
@@ -475,6 +498,77 @@ export function ConnectionRow({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * For the admins, above the list: the connections guests reach, each narrowed to members with
+ * one click. One a plugin holds says so, and what stops once it is narrowed. Nothing changes
+ * until someone clicks; the connection's page sets it back.
+ */
+export function GuestsNote({
+  connections,
+  onOpen,
+}: {
+  connections: SpaceConnectionView[];
+  onOpen: (id: string) => void;
+}) {
+  const qc = useQueryClient();
+  const reached = connections.filter(reachedByGuests);
+  const narrow = useMutation({
+    mutationFn: (c: SpaceConnectionView) =>
+      api.patch<SpaceConnectionView>(`/api/studio/connections/${encodeURIComponent(c.id)}`, {
+        audience: "members",
+      }),
+    onSuccess: (view) => {
+      qc.setQueryData<ConnectionsList>(connectionsKey(view.spaceId), (old) =>
+        old ? { connections: old.connections.map((x) => (x.id === view.id ? view : x)) } : old,
+      );
+      void qc.invalidateQueries({ queryKey: ["person-sign-ins"] });
+    },
+  });
+  if (!reached.length) {
+    return null;
+  }
+  return (
+    <section className="rounded-xl bg-paper-2 px-3.5 py-3 ring-1 ring-border-soft sm:px-5 sm:py-4">
+      <h4 className="font-semibold text-[0.875rem]">
+        {t("connection.guests.title", { n: reached.length })}
+      </h4>
+      <p className="mt-0.5 text-[0.8125rem] text-ink-2">{t("connection.guests.hint")}</p>
+      <ul className="mt-2 flex flex-col divide-y divide-border-soft">
+        {reached.map((c) => (
+          <li key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5">
+            <div className="min-w-0 flex-1 basis-56">
+              <button
+                type="button"
+                onClick={() => onOpen(c.id)}
+                className="max-w-full truncate text-left font-medium text-[0.875rem] hover:underline"
+              >
+                {titleOf(c)}
+              </button>
+              {c.plugin ? (
+                <p className="text-[0.8125rem] text-ink-2">
+                  {t("connection.guests.plugin", { plugin: pluginOf(c) })}
+                </p>
+              ) : null}
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              aria-label={t("connection.guests.narrowNamed", { name: titleOf(c) })}
+              busy={narrow.isPending && narrow.variables?.id === c.id}
+              onClick={() => narrow.mutate(c)}
+            >
+              {t("connection.guests.narrow")}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {narrow.error ? (
+        <p className="mt-1 text-[0.8125rem] text-rose">{(narrow.error as Error).message}</p>
+      ) : null}
+    </section>
   );
 }
 
@@ -777,6 +871,11 @@ function ConnectionPage({
               </span>
             )}
             <span className="text-[0.8125rem] text-ink-3">{t(AUDIENCE_HINT[c.audience])}</span>
+            {writable && c.plugin && reachedByGuests(c) ? (
+              <span className="text-[0.8125rem] text-ink-3">
+                {t("connection.guests.plugin", { plugin: pluginOf(c) })}
+              </span>
+            ) : null}
           </div>
         </Row>
 
@@ -835,6 +934,13 @@ function ConnectionPage({
         <Row label={t("connection.use")}>
           <span className="text-[0.875rem]">{lastUse(c)}</span>
         </Row>
+        {c.plugin ? (
+          <Row label={t("connection.plugin")}>
+            <span className="text-[0.875rem]">
+              {t("connection.pluginUses", { plugin: pluginOf(c) })}
+            </span>
+          </Row>
+        ) : null}
       </Card>
 
       {writable ? (

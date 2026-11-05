@@ -2708,6 +2708,20 @@ const de: Record<Key, Line> = {
   "connection.removeConfirm":
     "„{name}“ entfernen? Wizards und Chats erreichen den Dienst dann nicht mehr. Alle Anmeldungen gehen mit.",
   "connection.remove": "Verbindung entfernen",
+  "connection.guests": "für Gäste offen",
+  "connection.guests.title": {
+    one: "Gäste erreichen 1 Verbindung",
+    other: "Gäste erreichen {n} Verbindungen",
+  },
+  "connection.guests.hint":
+    "Wer einen Wizard über seinen Link startet, nutzt sie mit. Grenze eine ein, wenn nur Mitglieder sie nutzen sollen.",
+  "connection.guests.narrow": "Auf Mitglieder eingrenzen",
+  "connection.guests.narrowNamed": "{name} auf Mitglieder eingrenzen",
+  "connection.guests.plugin":
+    "Das Plugin „{plugin}“ nutzt sie. Eingegrenzt erreicht es sie nicht mehr, wenn ein Gast einen Wizard startet.",
+  "connection.plugin": "Plugin",
+  "connection.pluginNamed": "Plugin: {plugin}",
+  "connection.pluginUses": "„{plugin}“ nutzt diese Verbindung.",
   "camera.missing": "An diesem Gerät wurde keine Kamera gefunden. Lade stattdessen ein Foto hoch.",
   "camera.busy":
     "Die Kamera wird gerade von einer anderen App verwendet. Schließ sie und versuch es noch einmal.",
@@ -6812,6 +6826,20 @@ const en = {
   "connection.removeConfirm":
     "Remove “{name}”? Wizards and chats can no longer reach the service. Every sign-in goes with it.",
   "connection.remove": "Remove connection",
+  "connection.guests": "open to guests",
+  "connection.guests.title": {
+    one: "Guests reach 1 connection",
+    other: "Guests reach {n} connections",
+  },
+  "connection.guests.hint":
+    "Anyone who starts a wizard from its link uses them too. Narrow one if only members should use it.",
+  "connection.guests.narrow": "Narrow to members",
+  "connection.guests.narrowNamed": "Narrow {name} to members",
+  "connection.guests.plugin":
+    "The plugin “{plugin}” uses it. Once narrowed, the plugin can’t reach it when a guest starts a wizard.",
+  "connection.plugin": "Plugin",
+  "connection.pluginNamed": "Plugin: {plugin}",
+  "connection.pluginUses": "“{plugin}” uses this connection.",
   "camera.missing": "No camera was found on this device. Upload a photo instead.",
   "camera.busy": "Another app is using the camera. Close it and try again.",
   "location.unavailable":

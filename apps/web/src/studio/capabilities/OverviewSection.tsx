@@ -19,6 +19,7 @@ import { Section } from "../space/Section";
 import { SourceChip, useSkills } from "../space/Skills";
 import {
   ConnectionRow,
+  GuestsNote,
   unusedBuiltins,
   useConnectors,
   useSpaceConnections,
@@ -31,7 +32,8 @@ const SHOWN = { skills: 4, connections: 5 };
 /**
  * Fähigkeiten › Übersicht (mockup 1 of „Fähigkeiten in the Studio“): what the space's wizards,
  * chats and Goose may use, on one page. The skills that count, the space's connections and the
- * built-in connectors nobody has set up yet; each part leads on to its section. Its second tab,
+ * built-in connectors nobody has set up yet; each part leads on to its section. The admins see
+ * above the connections which of them guests reach (`GuestsNote`). Its second tab,
  * „Entdecken“ (`?tab=discover`), searches the directories in place. One search box for both: it
  * finds among the space's own under „Im Space“; its words stay in the address (`?q=`).
  */
@@ -203,6 +205,14 @@ export function OverviewSection() {
               all={allConnections.length}
               to="/capabilities/connectors"
             >
+              {writable && !q ? (
+                <GuestsNote
+                  connections={allConnections}
+                  onOpen={(id) =>
+                    navigate(`/capabilities/connectors?show=${encodeURIComponent(id)}`)
+                  }
+                />
+              ) : null}
               {connections.error ? (
                 <p className="px-1 text-[0.875rem] text-rose">
                   {(connections.error as Error).message}

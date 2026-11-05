@@ -1,7 +1,7 @@
 ---
 title: Capabilities
 description: One place for what your wizards, Work chats and Goose may use – skills, the space’s connections to other services, the audit of every call, and a search for more.
-version: 0.13.0
+version: 0.16.2
 ---
 
 **Capabilities** in the app bar, after Resources, holds what a space’s wizards, Work chats and
@@ -25,7 +25,9 @@ Discover tab.
 ## Overview
 
 The Overview shows the skills that are always on or on demand, with the ones always on first, and
-the space’s connections, each with how it signs in and who may use it. “All” beside each part
+the space’s connections, each with how it signs in and who may use it. A connection that guests
+reach is marked “open to guests”, and admins see a note above the list that counts them (see
+[Connections that guests reach](#connections-that-guests-reach)). “All” beside each part
 opens its section, and the menu shows how many skills and connections the space has. The search
 looks through both. The “Discover” tab, or a search for something the space doesn’t have, searches
 skills.sh and integrations.sh in place, with the same words. “Add” leads to a new skill, a new
@@ -62,6 +64,22 @@ set what it may do.
 
 **Who may use it.** Admins, Members or Everyone. Everyone includes guests who start a wizard from
 its link. A guest’s run never uses a connection that is only for members or admins.
+
+### Connections that guests reach
+
+Guests reach a connection that is for Everyone and signs in as the space. The list marks each one
+“open to guests”. Where each person signs in, a guest has no sign-in of their own, so guests don’t
+reach it, whoever it is for.
+
+Admins see a note above the list, on the Overview and under Connectors, as long as the space has
+such a connection. It says how many there are and names each one. “Narrow to members” beside a
+connection sets it to Members with one click, and nothing changes until you click. To open it
+again, choose Everyone on the connection’s page. Members don’t see the note.
+
+A connection that a plugin set up names the plugin, in the list and on its page. The appointment
+planner, for example, books for guests through a calendar connection. The note says so before you
+narrow it: once the connection is for members only, the plugin can’t reach it when a guest starts
+a wizard. What the plugin does by itself, such as keeping a calendar in step, goes on.
 
 **What it may do.** One rule for each kind of action: Read, Change, Delete and Send. Each rule is
 Allowed, With approval or Never. A new connection reads freely, asks for approval before a change

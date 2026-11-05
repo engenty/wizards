@@ -24,6 +24,7 @@ import {
 } from "../engenty/connections-sdk/oauth2.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import type { Role } from "../manage.js";
+import { loadedPlugin } from "../plugins/registry.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { isAdminRole, requireAdmin, requireWritableSpace } from "../services/access.js";
 import { notFound, ServiceError } from "../services/errors.js";
@@ -203,6 +204,9 @@ export async function spaceConnectionViews(
         rules: row.rules,
         actions: row.actions,
         plugin: row.plugin,
+        pluginName: row.plugin
+          ? (loadedPlugin(row.plugin)?.source.manifest.name ?? row.plugin)
+          : null,
         account:
           row.signIn === "space" && row.secret
             ? {

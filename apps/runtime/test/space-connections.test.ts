@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createClient } from "@libsql/client";
+import { reachedByGuests } from "@engenty/wizards-shared/connectors";
 import { Hono } from "hono";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -543,6 +544,133 @@ describe("the studio's routes", () => {
     expect(await renamed.json()).toMatchObject({ name: "Kalender", signedIn: 1 });
     await send(owner, "DELETE", `/connections/${made.id}`);
     await send(owner, "DELETE", `/connections/${hidden.id}`);
+  });
+});
+
+describe("the connections guests reach", () => {
+  type App = { fetch: (req: Request) => Response | Promise<Response> };
+
+  async function appAs(role: "owner" | "member"): Promise<App> {
+    const { connectionRoutes } = await import("../src/routes/connections");
+    const { ServiceError } = await import("../src/services/errors");
+    const user = { id: role === "owner" ? "user-a" : "user-m", role, tenantId: TENANT };
+    return new Hono<{ Variables: { user: typeof user } }>()
+      .onError((err, c) =>
+        err instanceof ServiceError
+          ? c.json(err.toJSON(), err.status)
+          : c.json({ error: String(err) }, 500),
+      )
+      .use("*", async (c, next) => {
+        c.set("user", user);
+        await client.withTenant(TENANT, () => access.asRole(role, next));
+      })
+      .route("/api/studio", connectionRoutes as never);
+  }
+
+  const send = (app: App, method: string, path: string, body?: unknown) =>
+    app.fetch(
+      new Request(`http://localhost:5181/api/studio${path}`, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }),
+    );
+
+  const list = async (app: App) =>
+    (await (await send(app, "GET", `/spaces/${space}/connections`)).json()).connections as any[];
+
+  it("names them and the plugin that uses one; an admin narrows it, a member does not", async () => {
+    const registry = await import("../src/plugins/registry");
+    registry.setPlugin(
+      registry.emptyRecord({
+        id: "appointments",
+        manifest: { id: "appointments", name: "Termin-Planer", version: "1.0.0" },
+        root: "/nowhere",
+        entry: null,
+        studio: null,
+        styles: null,
+        single: false,
+      }),
+    );
+    // As the conversion left a plugin's connection: as the space, for everyone.
+    const { id } = await inTenant(() =>
+      service.createSpaceConnection(
+        "user-a",
+        space,
+        {
+          connectorId: "hubspot",
+          name: "kalender@firma.at",
+          signIn: "space",
+          audience: "all",
+          rules: RULES,
+          actions: [],
+        },
+        "appointments",
+      ),
+    );
+    await inTenant(() =>
+      service.signInWithCredentials(id, { as: "space" }, { access_token: TOKEN }),
+    );
+    // Each person signs in, for everyone: a guest has no sign-in there, so guests don't reach it.
+    const each = await inTenant(() =>
+      service.createSpaceConnection("user-a", space, {
+        connectorId: "hubspot",
+        name: "Für alle, je Person",
+        signIn: "person",
+        audience: "all",
+        rules: RULES,
+        actions: [],
+      }),
+    );
+    const owner = await appAs("owner");
+    const memberApp = await appAs("member");
+    const asGuest = () =>
+      inTenant(async () => {
+        const row = await service.spaceConnectionById(id);
+        return broker.brokerCall({
+          who: guest,
+          where: guestRun,
+          connection: { kind: "space_connection", row, connector: await service.connectorOfRow(row) },
+          action: { id: "list_contacts" },
+          input: {},
+        });
+      });
+
+    const before = await list(owner);
+    expect(before.filter(reachedByGuests).map((c) => c.id)).toEqual([id]);
+    expect(before.find((c) => c.id === id)).toMatchObject({
+      audience: "all",
+      signIn: "space",
+      plugin: "appointments",
+      pluginName: "Termin-Planer",
+    });
+    expect(before.find((c) => c.id === each.id)).toMatchObject({ plugin: null, pluginName: null });
+    // Nothing changed by looking: the guest still reads through it.
+    expect((await asGuest()).ok).toBe(true);
+
+    const refused = await send(memberApp, "PATCH", `/connections/${id}`, { audience: "members" });
+    expect(refused.status).toBe(403);
+    expect((await asGuest()).ok).toBe(true);
+
+    const narrowed = await send(owner, "PATCH", `/connections/${id}`, { audience: "members" });
+    expect(narrowed.status).toBe(200);
+    expect(await narrowed.json()).toMatchObject({
+      audience: "members",
+      plugin: "appointments",
+      pluginName: "Termin-Planer",
+    });
+    expect((await list(owner)).filter(reachedByGuests)).toEqual([]);
+    expect(await asGuest()).toMatchObject({ ok: false, refused: "denied" });
+    // The admins hear of the change.
+    expect((await logOf(id)).find((l) => l.actionId === "change_rules")).toMatchObject({
+      whoId: "user-a",
+      critical: true,
+      criticalKind: "rule_changed",
+      reason: "The audience is now members.",
+    });
+    registry.dropPlugin("appointments");
+    await send(owner, "DELETE", `/connections/${id}`);
+    await send(owner, "DELETE", `/connections/${each.id}`);
   });
 });
 
