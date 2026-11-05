@@ -7,6 +7,8 @@ import { answerDevice, offerDevice } from "./phone";
 
 /** Two missed pings: the stream is taken for dead. */
 const STALE_MS = 45_000;
+/** How often an open page says the run is in view (engine/notices.ts counts on it). */
+const SEEN_MS = 30_000;
 
 /** Live view of one run: a server-sent stream of the whole view, plus the commands a person can give. */
 export function useRun(runId: string | null) {
@@ -101,7 +103,16 @@ export function useRun(runId: string | null) {
         open();
       }
     }, 15_000);
+    // Only while in view: a tab in the background is nobody looking, and they should be told.
+    const seen = () => {
+      if (!stopped && document.visibilityState === "visible") {
+        void api.post(`/api/runs/${runId}/seen`).catch(() => undefined);
+      }
+    };
+    const seenTimer = setInterval(seen, SEEN_MS);
+    seen();
     open();
+    document.addEventListener("visibilitychange", seen);
     document.addEventListener("visibilitychange", wake);
     window.addEventListener("pageshow", wake);
     window.addEventListener("online", wake);
@@ -109,6 +120,8 @@ export function useRun(runId: string | null) {
       stopped = true;
       clearTimeout(timer);
       clearInterval(watchdog);
+      clearInterval(seenTimer);
+      document.removeEventListener("visibilitychange", seen);
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("pageshow", wake);
       window.removeEventListener("online", wake);

@@ -16,7 +16,7 @@ import { currentFeatures } from "../features.js";
 import { wizardUnavailable } from "../limits.js";
 import { noteOf } from "../model-errors.js";
 import { publishedVersion, type WizardRow } from "../services/wizards.js";
-import { addNotice, noticeOwner } from "./notices.js";
+import { addNotice } from "./notices.js";
 import { createRun, OccurrenceTaken } from "./runner.js";
 import type { RunRow } from "./types.js";
 
@@ -162,11 +162,17 @@ async function countFailure(
     );
   });
   if (start && !start.on && start.pausedReason) {
-    await addNotice({ kind: "paused", wizardId, startId, detail: start.pausedReason });
+    await addNotice({
+      kind: "paused",
+      wizardId,
+      startId,
+      detail: start.pausedReason,
+      userId: start.owner,
+    });
   }
 }
 
-/** Called as any run ends: a start's run is counted, and the owner told. */
+/** Called as any run ends: a start's run is counted; its notice went in with the status. */
 export async function startedRunEnded(runId: string, status: "done" | "failed" | "cancelled") {
   try {
     const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
@@ -175,9 +181,7 @@ export async function startedRunEnded(runId: string, status: "done" | "failed" |
     }
     if (status === "done") {
       await patchStart(run.wizardId, run.startedBy.startId, (s) => ({ ...s, failures: 0 }));
-      await noticeOwner(run, "done");
     } else if (status === "failed") {
-      await noticeOwner(run, "failed", run.error);
       await countFailure(run.wizardId, run.startedBy.startId, run.error ?? "failed");
     }
   } catch (err) {

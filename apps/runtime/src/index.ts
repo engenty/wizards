@@ -11,6 +11,7 @@ import {
   openTenantDb,
   withTenant,
 } from "./db/client.js";
+import { startNotices } from "./engine/notices.js";
 import { startRunner, stopRunner } from "./engine/runner.js";
 import { startStarts } from "./engine/starts.js";
 import { basePath, env } from "./env.js";
@@ -47,6 +48,7 @@ await loadEntitlement();
 await loadPlugins();
 startJobs();
 startStarts();
+startNotices();
 if (managed) {
   // Every tenant database is brought to this release's schema; a new one migrates when first opened.
   void migrateAllTenants()

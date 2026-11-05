@@ -912,6 +912,7 @@ export function UserMenu({
  */
 export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
   const startsOn = useFeature("startTriggers");
+  const durableOn = useFeature("durableRuns");
   const { phone } = useAppBar();
   // The person's Konto is theirs in every organization: no space, no organization's credits.
   const personal = useLocation().pathname.startsWith("/account");
@@ -922,7 +923,7 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
         <Trail alone={personal} />
         {children}
       </div>
-      {startsOn ? <NoticesBell /> : null}
+      {startsOn || durableOn ? <NoticesBell /> : null}
       {/* Goose, folded. */}
       <div ref={setHintSlot} className="flex shrink-0 items-center empty:hidden" />
       {/* A phone has no app bar beside the page: the switch between the modes stands up here. */}

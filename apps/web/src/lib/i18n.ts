@@ -2089,6 +2089,8 @@ const de: Record<Key, Line> = {
   "starts.skipped.late": "{when} ausgelassen: zu spät zum Nachholen",
   "starts.skipped.overlap": "{when} ausgelassen: der letzte Lauf läuft noch",
   "runs.startedBy": "Gestartet von: {what}",
+  "share.noMailHere":
+    "Ohne Konto schickt dieser Computer keine E-Mails. Wartet ein Lauf, siehst du das hier unter Nachrichten.",
   "notices.title": "Nachrichten",
   "notices.empty": "Nichts Neues.",
   "notices.allRead": "Alle gelesen",
@@ -6813,6 +6815,8 @@ const en = {
   "starts.skipped.late": "{when} skipped: too late to catch up",
   "starts.skipped.overlap": "{when} skipped: the last run is still going",
   "runs.startedBy": "Started by: {what}",
+  "share.noMailHere":
+    "Without an account, this computer sends no emails. When a run waits, you see it here under Messages.",
   "notices.title": "Messages",
   "notices.empty": "Nothing new.",
   "notices.allRead": "Mark all read",
