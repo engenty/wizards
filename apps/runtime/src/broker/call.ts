@@ -145,8 +145,8 @@ export interface BrokerCallInput<T = unknown> {
  * its mails and posts; `day_limit` – the wizard's guests have sent today's; `calls_per_run` – the
  * run has made the calls the connection takes from one run; `calls_per_day` – the connection has
  * taken today's calls; `run_ended` – the call's run was stopped, is done or failed (over.ts);
- * `paused` – an admin paused the connection; `may_have_happened` – the action was interrupted
- * before, and no person allowed it again.
+ * `paused` – an admin paused the connection; `may_have_happened` – the action was interrupted before,
+ * and no person allowed it again.
  */
 export type Refusal = BrokerRefusal;
 
@@ -690,11 +690,9 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       tool: `${connectionId}:${call.action.id}`,
     });
     if (!taken) {
-      if (open) {
-        await end("may_have_happened");
-      } else {
-        await line(kind, "deny", ONCE, MAY_HAVE_HAPPENED, "may_have_happened");
-      }
+      await (open
+        ? end("may_have_happened")
+        : line(kind, "deny", ONCE, MAY_HAVE_HAPPENED, "may_have_happened"));
       return { ok: false, refused: "may_have_happened", reason: MAY_HAVE_HAPPENED };
     }
   }

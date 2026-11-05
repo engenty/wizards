@@ -93,6 +93,17 @@ export const CONVERSATION_TOOLS = [
   },
   {
     type: "function",
+    name: "answer_question",
+    description: prompt("voice", "tool.answer_question"),
+    parameters: {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
     name: "look",
     description: prompt("voice", "tool.look"),
     parameters: { type: "object", properties: {}, additionalProperties: false },

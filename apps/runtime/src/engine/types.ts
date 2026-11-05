@@ -63,6 +63,8 @@ export interface StepContext {
   call: CallMeta;
   /** A share job's step: the run is done and the person sends its result on (broker/over.ts). */
   share?: boolean;
+  /** Writes `state` to the run's row, for what must outlive this process in the middle of a step. */
+  saveState(): Promise<void>;
   /** Adds provider cost to the run where the runtime resolves models itself; the gateway books the rest. */
   chargeUsd(usd: number): Promise<void>;
   saveAsset(input: Omit<SaveAssetInput, "runId">): Promise<AssetRef>;

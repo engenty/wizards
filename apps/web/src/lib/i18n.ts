@@ -2592,6 +2592,11 @@ const de: Record<Key, Line> = {
     "Konten, die die Person im Lauf verbindet. Lesen darf der Schritt frei, Änderungen erst nach ihrem Ja.",
   "inspector.output": "Ergebnis",
   "inspector.working": "Text während der Arbeit, z. B. „Recherchiert …“",
+  "inspector.durable": "Übersteht Unterbrechungen",
+  "inspector.durableHint":
+    "Der Schritt macht nach einem Absturz dort weiter, wo er war, und kann eine Person fragen.",
+  "inspector.durableNot":
+    "Geht nicht mit Browser oder Sandbox: Was sie offen haben, ist nach einer Unterbrechung weg.",
   "inspector.whatMade": "Was wird erzeugt?",
   "inspector.options": "Optionen",
   "inspector.style": "Stil, z. B. „helle Fotografie, minimalistisch“",
@@ -7301,6 +7306,11 @@ const en = {
     "Accounts the person connects during the run. The step reads from them freely; anything it changes waits for the person’s yes.",
   "inspector.output": "Result",
   "inspector.working": "Status text while it works, e.g. “Researching…”",
+  "inspector.durable": "Survives interruptions",
+  "inspector.durableHint":
+    "After a crash the step goes on where it was, and it can stop to ask a person.",
+  "inspector.durableNot":
+    "Doesn’t work with the browser or the sandbox: what they have open is gone after an interruption.",
   "inspector.whatMade": "What does it make?",
   "inspector.options": "Options",
   "inspector.style": "Style, e.g. “bright photography, minimalist”",

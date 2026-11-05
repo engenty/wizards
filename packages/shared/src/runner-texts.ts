@@ -137,6 +137,10 @@ const de: Record<RunnerKey, Line> = {
   "ask.allowRest": "Für den Rest dieses Laufs erlauben",
   "ask.allow": "Erlauben",
   "ask.deny": "Nicht erlauben",
+  "question.asks": "Der Wizard fragt dich",
+  "question.placeholder": "Deine Antwort",
+  "question.later": "Du kannst auch später antworten. Der Lauf wartet so lange.",
+  "question.send": "Antworten",
   "store.open": "Was dieser Wizard sich merkt",
   "store.title": "Für dich gemerkt",
   "store.explain":
@@ -436,6 +440,10 @@ const en = {
   "ask.allowRest": "Allow for the rest of this run",
   "ask.allow": "Allow",
   "ask.deny": "Don’t allow",
+  "question.asks": "The wizard asks you",
+  "question.placeholder": "Your answer",
+  "question.later": "You can also answer later. The run waits until you do.",
+  "question.send": "Answer",
   "store.open": "What this wizard remembers",
   "store.title": "Kept for you",
   "store.explain":
