@@ -98,6 +98,7 @@ interface RunReport {
   step: { id: string; type: string; title: string } | null;
   passed: string[];
   waitingFor?:
+    | { answeredBy: "person" | "owner" | "team"; title: string }
     | { wait: string; title: string; until: string | null; pause?: RunPause }
     | { page: string; title: string; fields: RunField[] }
     | { review: string; title: string; show: string[]; editable: boolean; approve?: boolean }
@@ -683,6 +684,12 @@ function RunPanel({
       <p className="flex items-center gap-2 text-[0.8125rem] text-ink-2">
         <Spinner className="size-4" />
         {(last && eventText(last)) || t("run.working")}
+      </p>
+    );
+  } else if (waiting && "answeredBy" in waiting) {
+    body = (
+      <p className="text-[0.8125rem] text-ink-2">
+        {t(waiting.answeredBy === "team" ? "run.answeredByTeam" : "run.answeredByOther")}
       </p>
     );
   } else if (waiting && "wait" in waiting) {

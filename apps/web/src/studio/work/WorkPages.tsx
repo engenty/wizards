@@ -1,15 +1,16 @@
-import { ShieldAlert, ShieldQuestion } from "lucide-react";
+import { FileQuestion, ShieldAlert, ShieldQuestion } from "lucide-react";
 import { type ReactNode, type SVGProps, useEffect } from "react";
 import { Navigate, NavLink, useParams } from "react-router";
 import { useFeature } from "../../lib/features";
 import { type Key, lang, t } from "../../lib/i18n";
 import { MODE_HOME, type Mode, useMode } from "../../lib/mode";
 import { useMe } from "../../lib/session";
+import { RunnerBody } from "../../runner/RunnerView";
 import { TopBar, useCrumbs } from "../AppFrame";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatView } from "./ChatView";
 import { type CriticalItem, useBellOpened, useWaiting } from "./chats";
-import { WorkHome } from "./WorkHome";
+import { runFacts, runLink, WorkHome } from "./WorkHome";
 
 /**
  * Work mode's places (behind `workMode`), empty in this step: Chats with its sidebar, the
@@ -121,11 +122,34 @@ function WaitingPlace() {
   }, [open]);
   const approvals = waiting?.approvals ?? [];
   const critical = waiting?.critical ?? [];
-  if (!(approvals.length || critical.length)) {
+  const runs = waiting?.runs?.needs ?? [];
+  if (!(approvals.length || critical.length || runs.length)) {
     return <Empty>{t("work.waitingEmpty")}</Empty>;
   }
   return (
     <div className="mx-auto grid w-full max-w-2xl gap-8 py-8">
+      {runs.length ? (
+        <section className="grid gap-2">
+          <h2 className="font-semibold text-[0.75rem] text-ink-3 uppercase tracking-wide">
+            {t("work.waiting.runs")}
+          </h2>
+          <ul className="grid gap-2">
+            {runs.map((r) => (
+              <li key={r.runId}>
+                <NavLink to={runLink(r)} className={item}>
+                  <FileQuestion className="size-4 shrink-0 text-ember" />
+                  <span className="grid min-w-0 gap-0.5">
+                    <span className="truncate">
+                      {r.wizard} · {r.step}
+                    </span>
+                    <span className="truncate text-[0.8125rem] text-ink-3">{runFacts(r)}</span>
+                  </span>
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {approvals.length ? (
         <section className="grid gap-2">
           <h2 className="font-semibold text-[0.75rem] text-ink-3 uppercase tracking-wide">
@@ -204,6 +228,20 @@ function CriticalLine({ line }: { line: CriticalItem }) {
   ) : (
     <div className={item}>{body}</div>
   );
+}
+
+/**
+ * `/work/r/:runId`: a run inside Work, where whoever is asked answers it. It is where a run's mail
+ * leads someone who answers for the team, so it opens in any mode.
+ */
+export function WorkRunPage() {
+  const { runId } = useParams();
+  useCrumbs([{ label: t("work.waiting") }]);
+  return runId ? (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <RunnerBody runId={runId} studio stickyProgress />
+    </div>
+  ) : null;
 }
 
 /** Client mode: one placeholder until the client's view is built. */

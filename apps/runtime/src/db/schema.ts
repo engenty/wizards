@@ -232,6 +232,14 @@ export const wizard = sqliteTable(
     signalSecret: text("signal_secret"),
     /** What begins a run without a person: schedules, addresses, rows, other wizards. */
     starts: text("starts", { mode: "json" }).$type<WizardStart[]>().notNull().default([]),
+    /**
+     * Who answers steps with `who: "team"`: people by id, or "admins". Empty: nobody is named, and
+     * the admins answer. This install's data: a `.wizard` file carries the role, never the people.
+     */
+    answerers: text("answerers", { mode: "json" })
+      .$type<string[] | "admins">()
+      .notNull()
+      .default([]),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -1515,27 +1523,30 @@ export const chatState = sqliteTable(
 );
 
 /**
- * A call of a tool that reaches past the space, held for a person's approval (Work chats, step 3
- * piece 4). Approve runs the stored call once with the stored arguments; Deny doesn't. Either way
- * the AI hears of it in the chat and goes on.
+ * Something held for a person's decision. In a Work chat a call of a tool that reaches past the
+ * space (`chat_id`): approve runs the stored call once with the stored arguments, deny doesn't, and
+ * either way the AI hears of it. In a run a review with `approve` (`run_id`, `step_id`): the first
+ * decision counts, and `next` rules read it.
  */
-export const chatApproval = sqliteTable(
-  "chat_approval",
+export const approval = sqliteTable(
+  "approval",
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    chatId: text("chat_id")
-      .notNull()
-      .references(() => chat.id, { onDelete: "cascade" }),
+    chatId: text("chat_id").references(() => chat.id, { onDelete: "cascade" }),
+    runId: text("run_id").references(() => run.id, { onDelete: "cascade" }),
+    stepId: text("step_id"),
+    /** What is held: a tool's name, or the review's title. */
     toolName: text("tool_name").notNull(),
     input: text("input", { mode: "json" }).$type<unknown>(),
-    /** Who the turn was for: the call runs with their access, and they may decide. */
+    /** Who the turn was for: the call runs with their access, and they may decide. Empty in a run. */
     askedBy: text("asked_by").notNull(),
     /**
-     * Whose decision it waits for: the asker's (a confirmed action, a plugin's tool), or the
-     * space's admins' („Mit Freigabe“ on a connection that signs in as the space, A7).
+     * Whose decision it waits for: the asker's (a confirmed action, a plugin's tool), the space's
+     * admins' („Mit Freigabe“ on a connection that signs in as the space, A7), or those named under
+     * "Answered by" (a run's review).
      */
-    heldFor: text("held_for", { enum: ["asker", "admins"] })
+    heldFor: text("held_for", { enum: ["asker", "admins", "team"] })
       .notNull()
       .default("asker"),
     state: text("state", { enum: ["pending", "approved", "denied", "failed"] })
@@ -1547,8 +1558,9 @@ export const chatApproval = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [
-    index("chat_approval_chat").on(t.chatId, t.createdAt),
-    index("chat_approval_state").on(t.tenantId, t.state),
+    index("approval_chat").on(t.chatId, t.createdAt),
+    index("approval_state").on(t.tenantId, t.state),
+    index("approval_run").on(t.runId, t.stepId),
   ],
 );
 

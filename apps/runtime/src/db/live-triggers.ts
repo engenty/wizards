@@ -179,7 +179,7 @@ export const CHAT_TABLES: LiveTable[] = [
     owns: false,
   },
   {
-    table: "chat_approval",
+    table: "approval",
     space: ofChat,
     kind: "'chat'",
     item: "$.chat_id",

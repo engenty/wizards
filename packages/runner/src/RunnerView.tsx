@@ -375,6 +375,20 @@ function Sleeping({ view, compact }: { view: RunView; compact?: boolean }) {
   );
 }
 
+/** The step is someone else's: this viewer has nothing to answer. */
+function AnsweredElsewhere({ view, compact }: { view: RunView; compact?: boolean }) {
+  const { Mascot } = runnerEnv();
+  return (
+    <div className="flex animate-rise flex-col items-center pt-6 text-center">
+      <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={compact ? 130 : 170} />
+      <h2 className="wizard-heading mt-4 font-display font-semibold text-[1.375rem] tracking-tight">
+        {t(view.answeredBy === "team" ? "run.answeredByTeam" : "run.answeredByOther")}
+      </h2>
+      <p className="mt-2 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
+    </div>
+  );
+}
+
 function Working({
   view,
   compact,
@@ -1038,7 +1052,9 @@ export function RunnerBody({
   }
   const step = view.step;
   let body: React.ReactNode = null;
-  if (view.status === "running" && view.ask) {
+  if (view.answeredBy) {
+    body = <AnsweredElsewhere view={view} compact={compact} />;
+  } else if (view.status === "running" && view.ask) {
     body = <AskPanel key={view.ask.id} runId={view.id} ask={view.ask} />;
   } else if (view.status === "waiting_input" && view.question) {
     body = (
