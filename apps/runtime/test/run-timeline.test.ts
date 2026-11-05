@@ -136,8 +136,9 @@ const rests = (id: string) =>
     const l = await line(id);
     return (await row(id))?.status === "sleeping" && l?.active === false && l.owner === null;
   });
-const as = (role: string) => {
-  who.user = { id: "u", tenantId: T, role, name: "Lena Berger", email: "lena@example.com" };
+/** Someone other than "u", who starts the runs here, unless `id` says it. */
+const as = (role: string, id = "someone") => {
+  who.user = { id, tenantId: T, role, name: "Lena Berger", email: "lena@example.com" };
 };
 const post = (id: string, what: string) =>
   routes.runRoutes.request(`/${id}/${what}`, { method: "POST" });
@@ -363,6 +364,41 @@ describe("the routes", () => {
     as("owner");
     expect((await post(other, "stop")).status).toBe(200);
     expect((await row(other))?.status).toBe("cancelled");
+  });
+
+  it("a member may use the commands on a test run they started", async () => {
+    const id = await start([pause, end]);
+    expect(await rests(id)).toBe(true);
+    as("member", "u");
+    expect(((await (await timeline(id)).json()) as { canAct: boolean }).canAct).toBe(true);
+    expect((await post(id, "wake-now")).status).toBe(200);
+    expect(await hasStatus(id, "done")).toBe(true);
+
+    const other = await start([pause, end]);
+    expect(await rests(other)).toBe(true);
+    expect((await post(other, "stop")).status).toBe(200);
+    expect((await row(other))?.status).toBe("cancelled");
+  });
+
+  it("a member may not use them on a live run they started", async () => {
+    const id = await start([pause, end]);
+    expect(await rests(id)).toBe(true);
+    await client.withTenant(T, () =>
+      client.db
+        .update(client.schema.run)
+        .set({ mode: "live" })
+        .where(eq(client.schema.run.id, id)),
+    );
+    as("member", "u");
+    expect(((await (await timeline(id)).json()) as { canAct: boolean }).canAct).toBe(false);
+    expect((await post(id, "wake-now")).status).toBe(403);
+    expect((await post(id, "stop")).status).toBe(403);
+    expect((await row(id))?.status).toBe("sleeping");
+
+    as("admin");
+    expect(((await (await timeline(id)).json()) as { canAct: boolean }).canAct).toBe(true);
+    expect((await post(id, "stop")).status).toBe(200);
+    expect((await row(id))?.status).toBe("cancelled");
   });
 
   it("a refusal is a 409 with what to do, not a failure", async () => {

@@ -82,7 +82,7 @@ import { loadAsset, saveAsset } from "../files/storage.js";
 import { type CheckedUpload, checkUpload } from "../files/upload-check.js";
 import { reverseGeocode } from "../geocode.js";
 import { allowed, hashIp, verifyTurnstile, wizardUnavailable } from "../limits.js";
-import { managed, postFeedback } from "../manage.js";
+import { managed, postFeedback, type Role } from "../manage.js";
 import { mintConversation } from "../media/conversation.js";
 import { transcribeAudio } from "../media/transcribe.js";
 import { errorText, ModelUnavailableError, noteOf } from "../model-errors.js";
@@ -274,16 +274,20 @@ async function viewOf(
 }
 
 /**
- * What "Continue now" and "Stop" answer to: the run, for the owner and the admins of its
- * organization, with who they are; else what to answer.
+ * Who may use "Continue now" and "Stop": the owner and the admins of the organization, and on a
+ * test run whoever started it. The wait of a live run may be meant, and stays theirs.
  */
+const mayActOnWait = (user: { id: string; role: Role }, run: RunRow) =>
+  isAdminRole(user.role) || (run.mode === "test" && run.userId === user.id);
+
+/** What "Continue now" and "Stop" answer to: the run, with who asks; else what to answer. */
 async function commandOnWait(c: Context) {
   const run = await accessibleRun(c, c.req.param("id") ?? "");
   const user = run && (await memberViewing(c, run)) ? await principalOf(c) : null;
   if (!(run && user && (await durableRunsOn()))) {
     return { refused: c.json(notFoundAnswer(c), 404) };
   }
-  if (!isAdminRole(user.role)) {
+  if (!mayActOnWait(user, run)) {
     return { refused: refuse(c, MEMBERS_EDIT_ONLY, 403) };
   }
   return { run, by: user.name || user.email };
@@ -985,7 +989,7 @@ export const runRoutes = new Hono()
     if (!(run && user && (await durableRunsOn()))) {
       return c.json(notFoundAnswer(c), 404);
     }
-    return c.json(await runTimeline(run, isAdminRole(user.role)));
+    return c.json(await runTimeline(run, mayActOnWait(user, run)));
   })
   .post("/:id/wake-now", async (c) => {
     const asked = await commandOnWait(c);
