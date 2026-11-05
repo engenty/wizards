@@ -443,6 +443,37 @@ describe("a step that may have done something out there", () => {
     expect(steps(id)).toEqual(["sends"]);
   });
 
+  /** A durable turn's mark, as a process that acted left it on the row. */
+  const turnActed = (err: unknown) => async (ctx: never) => {
+    const c = ctx as {
+      runId: string;
+      stepId: string;
+      state: { turn?: object; visiting?: string };
+      saveState(): Promise<void>;
+    };
+    c.state.turn = { stepId: c.stepId, id: `${c.runId}.t`, acted: true };
+    c.state.visiting = c.stepId;
+    await c.saveState();
+    throw err;
+  };
+
+  it("a turn's mark on the row counts: a later process has no `acted` to read", async () => {
+    script.steps.sends = [turnActed(http(503))];
+    const id = await start([agent("sends"), end]);
+    expect(await hasStatus(id, "failed")).toBe(true);
+    expect(steps(id)).toEqual(["sends"]);
+  });
+
+  it("onFail closes the step's turn and visit: coming back is a new one", async () => {
+    script.steps.sends = [turnActed(http(503))];
+    const id = await start([agent("sends", { onFail: "after" }), agent("after"), end]);
+    expect(await hasStatus(id, "done")).toBe(true);
+    const r = await row(id);
+    expect(r?.state.turn).toBeUndefined();
+    expect(r?.state.visiting).toBeUndefined();
+    expect(steps(id)).toEqual(["sends", "after"]);
+  });
+
   it("what acted before does not count for the next step", async () => {
     script.steps.sends = [(ctx: { resources: { acted: boolean } }) => { ctx.resources.acted = true; }] as never;
     script.steps.flaky = fails(http(503));
@@ -467,6 +498,19 @@ describe("a step that may have done something out there", () => {
 });
 
 describe("out of credits", () => {
+  it("leaves a notice for whoever isn't looking, and it counts while the run sleeps", async () => {
+    hold.can = false;
+    const id = await start([agent("work"), end]);
+    expect(await rests(id)).toBe(true);
+    const notices = await client.withTenant(T, () =>
+      client.db.query.notice.findMany({ where: eq(client.schema.notice.runId, id) }),
+    );
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toMatchObject({ kind: "needs_you", waitKey: "pause:credits", userId: "u" });
+    expect(notices[0].detail).toContain("credits");
+    await client.withTenant(T, () => runner.cancel(id));
+  });
+
   it("before a step: waits for the owner, says so once, and a top-up goes on", async () => {
     hold.can = false;
     const id = await start([agent("work"), end]);

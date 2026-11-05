@@ -401,6 +401,36 @@ describe("the routes", () => {
     expect((await row(id))?.status).toBe("cancelled");
   });
 
+  it("on a wait for a signal: Stop ends it, Continue now brings its deadline forward", async () => {
+    const hears = (more: object = {}) => ({
+      id: "hears",
+      type: "wait",
+      title: "Antwort",
+      signal: { name: "invoice.paid", key: "k" },
+      ...more,
+    });
+    const listens = (id: string) => until(async () => (await row(id))?.status === "waiting_signal");
+    as("owner");
+
+    const open = await start([hears(), end]);
+    expect(await listens(open)).toBe(true);
+    const seen = (await (await timeline(open)).json()) as { wakeAt: string | null };
+    expect(seen.wakeAt).toBeNull();
+    expect((await post(open, "wake-now")).status).toBe(409);
+    expect((await post(open, "stop")).status).toBe(200);
+    expect((await row(open))?.status).toBe("cancelled");
+
+    const timed = await start([
+      hears({ signal: { name: "invoice.paid", key: "k", timeout: "2d" } }),
+      end,
+    ]);
+    expect(await listens(timed)).toBe(true);
+    expect(((await (await timeline(timed)).json()) as { wakeAt: string | null }).wakeAt).not.toBeNull();
+    expect((await post(timed, "wake-now")).status).toBe(200);
+    expect(await hasStatus(timed, "done")).toBe(true);
+    expect((await row(timed))?.state.outputs.hears?.json).toMatchObject({ timedOut: true });
+  });
+
   it("a refusal is a 409 with what to do, not a failure", async () => {
     const id = await start([agent("only"), end]);
     expect(await hasStatus(id, "done")).toBe(true);

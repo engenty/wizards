@@ -604,8 +604,10 @@ describe("the run's grant, fixed at start", () => {
     const events = await inTenant(() =>
       client.db.query.runEvent.findMany({ where: (t, { eq }) => eq(t.runId, runId) }),
     );
-    expect(events.map((e) => e.note?.code)).toEqual(["grant"]);
-    expect(events[0].message).toBe("This run may: write in HubSpot, search the web");
+    // With `durableRuns` the run's start has a line of its own.
+    const said = events.filter((e) => e.note?.code !== "runStarted");
+    expect(said.map((e) => e.note?.code)).toEqual(["grant"]);
+    expect(said[0].message).toBe("This run may: write in HubSpot, search the web");
     // The wizard is edited while the run is under way: the run keeps the grant it started with.
     const wider = withStep(["create_contact", "delete_contact"], ["web_search", "http"]);
     await inTenant(() =>
