@@ -72,6 +72,7 @@ import {
   spaceIdOf,
   submitPage,
   talkAllowed,
+  writeRunState,
 } from "../engine/runner.js";
 import { basePath, env } from "../env.js";
 import { loadAsset, saveAsset } from "../files/storage.js";
@@ -870,16 +871,11 @@ export const runRoutes = new Hono()
     if (JSON.stringify(state).length > MAX_VIEW_STATE) {
       return c.json({ error: "too large" }, 413);
     }
-    await db
-      .update(schema.run)
-      .set({
-        state: {
-          ...run.state,
-          outputs: { ...run.state.outputs, [stepId]: { ...output, view: state } },
-        },
-      })
-      .where(eq(schema.run.id, run.id));
-    return c.json({ ok: true });
+    const kept = await writeRunState(run, {
+      ...run.state,
+      outputs: { ...run.state.outputs, [stepId]: { ...output, view: state } },
+    });
+    return kept ? c.json({ ok: true }) : c.json({ error: "busy" }, 409);
   })
   // A json step's data, edited in the studio by someone of the organization the run belongs to.
   .put("/:id/outputs/:stepId", async (c) => {
@@ -1013,13 +1009,15 @@ export const runRoutes = new Hono()
         }
         throw err;
       }
-      const fresh = await db.query.run.findFirst({ where: eq(schema.run.id, run.id) });
-      const state = fresh?.state ?? run.state;
+      const fresh = (await db.query.run.findFirst({ where: eq(schema.run.id, run.id) })) ?? run;
+      const state = fresh.state;
       state.translated = {
         ...state.translated,
         [run.lang]: { ...state.translated?.[run.lang], [stepId]: translated },
       };
-      await db.update(schema.run).set({ state }).where(eq(schema.run.id, run.id));
+      if (!(await writeRunState(fresh, state))) {
+        return refuse(c, { code: "runBusy" }, 409);
+      }
       signalChanged(run.id);
     }
     return c.json({ ok: true });

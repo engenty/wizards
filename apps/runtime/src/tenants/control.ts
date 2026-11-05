@@ -147,30 +147,38 @@ export async function wakeRun(runId: string) {
     .where(eq(control.runIndex.runId, runId));
 }
 
-/** The run is done with runners for now: a page, a review or the end. */
+/**
+ * The run is done with runners for now: a page, a review or the end. Only its owner rests it: a
+ * wake meanwhile cleared the owner, and the run stays in line.
+ */
 export async function restRun(runId: string) {
   await controlDb
     .update(control.runIndex)
     .set({ active: false, owner: null, seen: null })
-    .where(eq(control.runIndex.runId, runId));
+    .where(and(eq(control.runIndex.runId, runId), eq(control.runIndex.owner, env.runner.id)));
 }
 
 /**
  * Takes a run for this runner, in one statement: only while nobody (alive) holds it and the
- * tenant's owned runs stay under its limit. False: someone else has it, or the tenant is at its
- * limit — the run stays in line.
+ * tenant's owned runs stay under its limit. Answers the claim's number, higher than any before.
+ * Null: someone else has it, or the tenant is at its limit — the run stays in line.
  */
-export async function claimRun(runId: string, tenantId: string, limit: number): Promise<boolean> {
+export async function claimRun(
+  runId: string,
+  tenantId: string,
+  limit: number,
+): Promise<number | null> {
   const now = Date.now();
   const stale = now - RUNNER_STALE_MS;
   const result = await controlDb.run(sql`
-    UPDATE run_index SET owner = ${env.runner.id}, seen = ${now}
+    UPDATE run_index SET owner = ${env.runner.id}, seen = ${now}, generation = generation + 1
     WHERE run_id = ${runId} AND active = 1
       AND (owner IS NULL OR seen IS NULL OR seen < ${stale})
       AND (SELECT count(*) FROM run_index
            WHERE tenant_id = ${tenantId} AND owner IS NOT NULL AND seen >= ${stale}
-             AND run_id != ${runId}) < ${limit}`);
-  return result.rowsAffected > 0;
+             AND run_id != ${runId}) < ${limit}
+    RETURNING generation`);
+  return result.rows.length ? Number(result.rows[0].generation) : null;
 }
 
 /** This runner still works on these runs. */
