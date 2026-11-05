@@ -58,7 +58,8 @@ const first = {
   title: "Deine Daten",
   fields: [
     { id: "iban", kind: "text", label: "IBAN" },
-    { id: "email", kind: "email", label: "E-Mail" },
+    { id: "email", kind: "email", label: "E-Mail", notify: true },
+    { id: "kunde", kind: "email", label: "Kunde" },
   ],
 };
 const second = {
@@ -501,6 +502,14 @@ describe("who is told, and how", () => {
     expect(mails.mock.calls[0]?.[0]).toMatchObject({ to: { email: "gast@example.test" } });
     expect(await inTenant(() => notices.listNotices(USER))).toHaveLength(0);
     // Delivered, a visitor's row has nothing left to do.
+    expect(await noticesOf(runId)).toHaveLength(0);
+  });
+
+  it("an address that wasn't left for this gets no mail, whoever's it is", async () => {
+    const { runId } = await startRun({ visitorId: "v-customer" });
+    await toSecondPage(runId, { iban: SECRET, kunde: "kundin@example.test" });
+    await deliver();
+    expect(mails).not.toHaveBeenCalled();
     expect(await noticesOf(runId)).toHaveLength(0);
   });
 

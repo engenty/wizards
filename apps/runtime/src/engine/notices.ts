@@ -20,7 +20,7 @@ import type { RunRow } from "./types.js";
  *
  * Who is told:
  * - a member's run: its member, by bell, mail and the device the app gave the run
- * - a visitor's run: the visitor, by the address on the run's first `email` field and that device
+ * - a visitor's run: the visitor, by that device, and by mail at an `email` field with `notify`
  * - a channel's run: nobody here, its door says it (packages/wizards/src/plugin/thread.ts)
  *
  * Nobody is told what they did themselves on their own page (`by`), or while they look at the run.
@@ -288,7 +288,7 @@ async function settle(row: NoticeRow, now: Date) {
 
 const later = (row: NoticeRow, at: Date) => mark(row.id, { dueAt: at, claimUntil: null });
 
-/** The address a visitor left: the first `email` field of the run that has an answer. */
+/** The address a visitor left for this: the first `email` field with `notify` that has an answer. */
 export function visitorAddress(run: Pick<RunRow, "definition" | "state">): string | null {
   for (const step of run.definition.steps) {
     if (step.type !== "page") {
@@ -296,7 +296,12 @@ export function visitorAddress(run: Pick<RunRow, "definition" | "state">): strin
     }
     for (const field of step.fields) {
       const value = run.state.values[field.id];
-      if (field.kind === "email" && typeof value === "string" && /^[^\s@]+@[^\s@]+$/.test(value)) {
+      if (
+        field.kind === "email" &&
+        field.notify &&
+        typeof value === "string" &&
+        /^[^\s@]+@[^\s@]+$/.test(value)
+      ) {
         return value;
       }
     }
