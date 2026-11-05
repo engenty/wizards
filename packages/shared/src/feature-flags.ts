@@ -179,6 +179,12 @@ export const FEATURES = {
     label: "Pictures in Wissen by what they show",
     hint: "Pictures and PDF pages are embedded as pictures where the embedding model takes them (EmbeddingGemma 2), so a search finds a photo by what it shows (docs/plans/media-and-files.md).",
   },
+  gatewaySearch: {
+    kind: "release",
+    default: false,
+    label: "Web search through the gateway",
+    hint: "web_search through the gateway's /v1/web/search for every model and client, in place of the model's own search. On once the gateway has its provider's key.",
+  },
   dateien: {
     kind: "release",
     default: false,
