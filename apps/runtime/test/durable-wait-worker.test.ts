@@ -13,6 +13,11 @@ vi.mock("../src/engine/steps.js", async (original) => ({
   ...(await original<typeof import("../src/engine/steps.js")>()),
   runAutomaticStep: async (step: { id: string }) => {
     say(`STEP ${step.id}`);
+    // Inside the step, with its drive at work: what a real crash breaks off.
+    if (process.env.WAIT_KILL_IN === step.id) {
+      process.kill(process.pid, "SIGKILL");
+      await new Promise(() => undefined);
+    }
     return { text: `made ${step.id}`, at: new Date().toISOString() };
   },
 }));
@@ -79,6 +84,42 @@ describe.runIf(PHASE)("one process of a wait", () => {
       // The process is gone without a word: nothing of the wait may have been in it.
       process.kill(process.pid, "SIGKILL");
       await new Promise(() => undefined);
+    }
+
+    if (PHASE === "die-in-step") {
+      runner.startRunner();
+      const id = await withTenant(T, async () => {
+        const made = await wizards.createWizard("u", { definition: definition as never });
+        const run = await runner.createRun({
+          wizardId: made.id,
+          definition: definition as never,
+          files: [],
+          version: null,
+          mode: "test",
+          userId: "u",
+        });
+        say(`MADE ${run}`);
+        return run;
+      });
+      // The step kills this process; the wait is only for a step that never came.
+      await until(async () => (await row(id))?.status === "failed", 60_000);
+      return;
+    }
+
+    if (PHASE === "take-over") {
+      const id = process.env.WAIT_RUN ?? "";
+      runner.startRunner();
+      // Its claim has to go stale first, up to 30 s.
+      await until(async () => (await row(id))?.status === "sleeping", 60_000);
+      const lines = await withTenant(T, () =>
+        db.select().from(schema.runEvent).where(eq(schema.runEvent.runId, id)),
+      );
+      for (const l of lines) {
+        say(`LOG ${l.type} ${l.stepId ?? "-"}`);
+      }
+      say(`END status=${(await row(id))?.status}`);
+      await runner.stopRunner();
+      return;
     }
 
     const id = process.env.WAIT_RUN ?? "";

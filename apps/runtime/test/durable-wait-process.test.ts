@@ -36,6 +36,32 @@ const lines = (dir: string) => {
   return existsSync(p) ? readFileSync(p, "utf8").trim().split("\n") : [];
 };
 
+describe("a kill -9 inside a step", () => {
+  it("the next process says so once, and the log counts one visit", { timeout: 240_000 }, () => {
+    const dir = mkdtempSync(join(tmpdir(), "wizards-takeover-process-"));
+    phase(dir, "die-in-step", { WAIT_KILL_IN: "before" });
+    const first = lines(dir);
+    const made = first.find((l) => l.includes("MADE"));
+    expect(made, first.join("\n")).toBeTruthy();
+    const startedIn = made?.split(" ")[0];
+    const id = made?.split(" ")[2] ?? "";
+
+    phase(dir, "take-over", { WAIT_RUN: id });
+    const all = lines(dir);
+    expect(all.at(-1), all.join("\n")).toContain("END status=sleeping");
+    // The step worked twice: once in each process, because this one was broken off.
+    const steps = all.filter((l) => l.includes("STEP before"));
+    expect(steps).toHaveLength(2);
+    expect(steps[1].split(" ")[0]).not.toBe(startedIn);
+    const log = all.filter((l) => l.includes(" LOG ")).map((l) => l.split(" ").slice(2).join(" "));
+    expect(log.filter((l) => l === "run_started -")).toHaveLength(1);
+    expect(log.filter((l) => l === "resumed before")).toHaveLength(1);
+    expect(log.filter((l) => l === "step_started before")).toHaveLength(1);
+    expect(log.filter((l) => l === "step_done before")).toHaveLength(1);
+    expect(log.filter((l) => l === "wait pause")).toHaveLength(1);
+  });
+});
+
 describe("a wait across two processes", () => {
   it("the process that reached it dies, another wakes it and goes on", { timeout: 240_000 }, () => {
     const dir = mkdtempSync(join(tmpdir(), "wizards-wait-process-"));

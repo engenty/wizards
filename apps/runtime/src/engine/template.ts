@@ -336,6 +336,23 @@ export function renderTemplate(template: string, scope: TemplateScope): string {
   );
 }
 
+/**
+ * A run's label from what is answered so far: null before any gap has an answer. A gap still open
+ * leaves no separator behind.
+ */
+export function fillLabel(template: string, scope: TemplateScope): string | null {
+  const filled = renderTemplate(template, scope);
+  if (filled.replace(/\s/g, "") === template.replace(TEMPLATE_RE, "").replace(/\s/g, "")) {
+    return null;
+  }
+  return (
+    filled
+      .replace(/\s*([·,;|/–—-])(?:\s+\1)+\s*/g, " $1 ")
+      .replace(/^[\s·,;:|/–—-]+|[\s·,;:|/–—-]+$/g, "")
+      .slice(0, 200) || null
+  );
+}
+
 const REFERENCE_KINDS = new Set(["image", "file", "signature"]);
 
 /**
