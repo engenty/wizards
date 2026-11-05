@@ -278,6 +278,18 @@ const NOTES_EN = {
   runSleeps: "The run is waiting. It goes on by itself.",
   waitsOff: "This wizard has a wait step, and those aren’t turned on here yet.",
   waitDateUnreadable: "“{date}” isn’t a date this step can wait for.",
+  runStarted: "Run started",
+  runStartedBy: "Run started by {name}",
+  runWaitsUntil: "waits until {until}",
+  runWaitOver: "The wait is over",
+  runWokenBy: "{name} chose “Continue now”",
+  runStoppedBy: "{name} stopped the run",
+  runResumed: "Picked up again after an interruption",
+  effectMailMayBeSent:
+    "The mail to {to} may have been sent already. The step won’t send it again. Check your outbox to see if it’s there.",
+  effectMayHaveHappened:
+    "“{what}” may have happened already. The step won’t do it again. Check the service to see if it arrived.",
+  runMovedOn: "The run has moved on and no longer waits. Look at where it stands now.",
   runBusy: "The wizard is working right now.",
   pageOutdated: "This page is out of date.",
   noStepBefore: "There is no step before this one.",
@@ -742,6 +754,19 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   runSleeps: "Der Lauf wartet. Er geht von selbst weiter.",
   waitsOff: "Dieser Wizard hat einen Warten-Schritt, und die sind hier noch nicht eingeschaltet.",
   waitDateUnreadable: "„{date}“ ist kein Datum, auf das dieser Schritt warten kann.",
+  runStarted: "Lauf gestartet",
+  runStartedBy: "Lauf gestartet von {name}",
+  runWaitsUntil: "wartet bis {until}",
+  runWaitOver: "Die Wartezeit ist vorbei",
+  runWokenBy: "{name} hat „Jetzt weitermachen“ gewählt",
+  runStoppedBy: "{name} hat den Lauf gestoppt",
+  runResumed: "Nach einer Unterbrechung weitergemacht",
+  effectMailMayBeSent:
+    "Mail an {to} wurde vielleicht schon gesendet. Der Schritt sendet sie nicht noch einmal. Schau im Postausgang nach, ob sie dort liegt.",
+  effectMayHaveHappened:
+    "„{what}“ ist vielleicht schon passiert. Der Schritt macht es nicht noch einmal. Schau im Dienst nach, ob es dort angekommen ist.",
+  runMovedOn:
+    "Der Lauf ist schon weitergegangen und wartet nicht mehr. Schau nach, wo er jetzt steht.",
   runBusy: "Der Wizard arbeitet gerade.",
   pageOutdated: "Diese Seite ist nicht mehr aktuell.",
   noStepBefore: "Kein vorheriger Schritt.",
@@ -1120,7 +1145,16 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
 export const RUN_NOTES: Texts<RunNoteCode> = { en: NOTES_EN, de: NOTES_DE };
 
 /** What fills a note's gaps: words, numbers, other notes (said in the same language), lists. */
-export type NoteGap = Gap | RunNote | readonly NoteGap[];
+export type NoteGap = Gap | RunNote | NoteTime | readonly NoteGap[];
+
+/** A moment in a note: written out in the reader's language and time zone as it is read. */
+export interface NoteTime {
+  at: string;
+}
+
+export function isNoteTime(value: NoteGap | undefined): value is NoteTime {
+  return typeof value === "object" && typeof (value as NoteTime).at === "string";
+}
 
 /** A line of `RUN_NOTES` with what goes into its gaps. */
 export interface RunNote {
@@ -1141,12 +1175,28 @@ export function saidText(said: Said, lang: Lang): string {
   return typeof said === "string" ? said : noteText(said, lang);
 }
 
+function timeInNote(at: string, lang: string): string {
+  const time = new Date(at);
+  return Number.isNaN(time.getTime())
+    ? at
+    : new Intl.DateTimeFormat(lang, {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(time);
+}
+
 function gapIn(value: NoteGap, lang: string, table?: TextTable): Gap {
   if (Array.isArray(value)) {
     return value.map((item: NoteGap) => gapIn(item, lang, table));
   }
   if (typeof value === "object" && value !== null && "code" in value) {
     return noteText(value, lang, table);
+  }
+  if (isNoteTime(value)) {
+    return timeInNote(value.at, lang);
   }
   return value as Gap;
 }
@@ -1170,17 +1220,64 @@ export function noteText(note: RunNote, lang: string, table?: TextTable): string
   return textOf(RUN_NOTES, note.code, isLang(lang) ? lang : "en", params);
 }
 
+/**
+ * What a run's log holds. `step_started` to `error` from any run. The rest come with `durableRuns`:
+ * `run_started`; `wait`, a wait begun, with until when; `woken`, what ended it; `stopped`, by whom;
+ * `resumed`, another runner went on after an interruption; `effect_unsure`, an outside action that
+ * may have happened already (`run_effect` found `started`).
+ */
+export const RUN_EVENT_TYPES = [
+  "step_started",
+  "step_done",
+  "tool",
+  "info",
+  "error",
+  "run_started",
+  "wait",
+  "woken",
+  "stopped",
+  "resumed",
+  "effect_unsure",
+] as const;
+export type RunEventType = (typeof RUN_EVENT_TYPES)[number];
+
 export interface RunEvent {
   id: number;
   at: string;
   stepId: string | null;
-  type: "step_started" | "step_done" | "tool" | "info" | "error";
+  type: RunEventType;
   /** In German, as the run's log keeps it. */
   message: string;
   /** The same as a note a runner shows in the person's language; null for free text. */
   note?: RunNote | null;
   /** A picture of the run this is about (a photo being looked at, an image just made). */
   asset?: string | null;
+}
+
+/** One run as its timeline in the runs panel shows it, for a member of the organization. */
+export interface RunTimeline {
+  id: string;
+  mode: "test" | "live";
+  status: RunStatus;
+  /** The wizard's `label`, filled from the run's answers; null without one. */
+  label: string | null;
+  version: number | null;
+  createdAt: string;
+  /** When a run that sleeps goes on; null otherwise. */
+  wakeAt: string | null;
+  credits: number;
+  /** The step the run stands on; null at its end. */
+  stepTitle: string | null;
+  /** Who started it, as its log says; null: a visitor, or the one person of this computer. */
+  startedBy: string | null;
+  /** Whether the person looking may use "Continue now" and "Stop": the owner and the admins. */
+  canAct: boolean;
+  /** The steps of the definition the run started on, for their titles. */
+  steps: { id: string; title: string }[];
+  /** The newest lines of its log, oldest first. */
+  events: RunEvent[];
+  /** How many lines the log has, `events` or more. */
+  total: number;
 }
 
 /** One step's output as the current step shows it. */

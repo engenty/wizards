@@ -1105,7 +1105,18 @@ export interface PluginRunSignal {
     id: number;
     at: string;
     stepId: string | null;
-    type: "step_started" | "step_done" | "tool" | "info" | "error";
+    type:
+      | "step_started"
+      | "step_done"
+      | "tool"
+      | "info"
+      | "error"
+      | "run_started"
+      | "wait"
+      | "woken"
+      | "stopped"
+      | "resumed"
+      | "effect_unsure";
     message: string;
     /** The same as the run page shows it, in both languages; null for free text. */
     note: { code: string; text: { de: string; en: string } } | null;

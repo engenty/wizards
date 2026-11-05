@@ -1,12 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useDeferredValue, useState } from "react";
 import { api } from "../../lib/api";
-import { type Key, lang, t } from "../../lib/i18n";
-import { Chip, Empty } from "../../ui";
+import { useFeature } from "../../lib/features";
+import { lang, t } from "../../lib/i18n";
+import { Chip, Empty, Input } from "../../ui";
+import { RunTimeline, STATUS } from "./RunTimeline";
 
 interface RunRow {
   id: string;
   mode: "test" | "live";
   status: string;
+  label: string | null;
   wakeAt: string | null;
   version: number | null;
   createdAt: string;
@@ -15,15 +19,6 @@ interface RunRow {
   stepTitle: string | null;
 }
 
-const STATUS: Record<string, Key> = {
-  waiting_input: "runs.status.waiting_input",
-  sleeping: "runs.status.sleeping",
-  running: "runs.status.running",
-  done: "runs.status.done",
-  failed: "runs.status.failed",
-  cancelled: "runs.status.cancelled",
-};
-
 export function RunsPanel({
   wizardId,
   onOpen,
@@ -31,22 +26,60 @@ export function RunsPanel({
   wizardId: string;
   onOpen: (runId: string) => void;
 }) {
+  // With runs that last for days a run opens on its timeline here; the timeline opens the run.
+  const timelines = useFeature("durableRuns");
+  const [shown, setShown] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
+  const q = useDeferredValue(filter.trim());
   const runs = useQuery({
-    queryKey: ["runs", wizardId],
-    queryFn: () => api.get<RunRow[]>(`/api/studio/wizards/${wizardId}/runs`),
+    queryKey: ["runs", wizardId, q],
+    queryFn: () =>
+      api.get<RunRow[]>(
+        `/api/studio/wizards/${wizardId}/runs${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+      ),
     refetchInterval: 10_000,
+    placeholderData: keepPreviousData,
   });
-  if (runs.data && !runs.data.length) {
+  if (timelines && shown) {
+    return (
+      <RunTimeline
+        runId={shown}
+        wizardId={wizardId}
+        onBack={() => setShown(null)}
+        onOpen={onOpen}
+        onFilter={(label) => {
+          setFilter(label);
+          setShown(null);
+        }}
+      />
+    );
+  }
+  if (runs.data && !runs.data.length && !filter) {
     return <Empty>{t("editor.noRuns")}</Empty>;
   }
   const fmt = new Intl.DateTimeFormat(lang, { dateStyle: "short", timeStyle: "short" });
   return (
     <div className="flex flex-col p-2">
+      {/* Only where there is something to tell apart. */}
+      {timelines && (filter || runs.data?.some((r) => r.label)) ? (
+        <div className="px-1 pb-2">
+          <Input
+            type="search"
+            aria-label={t("runs.filter")}
+            placeholder={t("runs.filterExample")}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
+      ) : null}
+      {filter && runs.data && !runs.data.length ? (
+        <p className="px-3 py-3 text-[0.8125rem] text-ink-3">{t("runs.noMatch")}</p>
+      ) : null}
       {runs.data?.map((r) => (
         <button
           key={r.id}
           type="button"
-          onClick={() => onOpen(r.id)}
+          onClick={() => (timelines ? setShown(r.id) : onOpen(r.id))}
           className="flex items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-accent"
         >
           <div className="min-w-0 flex-1">
@@ -58,6 +91,9 @@ export function RunsPanel({
                 <Chip tone="live">Live v{r.version}</Chip>
               )}
             </div>
+            {timelines && r.label ? (
+              <div className="truncate text-[0.8125rem] text-ink-2">{r.label}</div>
+            ) : null}
             <div className="truncate text-[0.75rem] text-ink-3">
               {r.status === "sleeping" && r.wakeAt
                 ? t("runs.status.sleepingUntil", { time: fmt.format(new Date(r.wakeAt)) })
