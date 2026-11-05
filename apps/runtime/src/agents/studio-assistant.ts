@@ -35,7 +35,7 @@ import { gooseCaller } from "../elements/caller.js";
 import { elementTools } from "../elements/catalogue.js";
 import { brokered, elementCall } from "../elements/gate.js";
 import { currentFeatures } from "../features.js";
-import { managed } from "../manage.js";
+import { managed, type Role } from "../manage.js";
 import {
   type ChatTurnWay,
   chatModel,
@@ -208,13 +208,14 @@ function activity(tool: string, args: Record<string, unknown>, lang: Lang): stri
 /** A tool failure the model can read and fix, instead of a crashed turn: the whole message. */
 const attempt = <T>(run: () => Promise<T>) => attemptTool(run, { limit: Number.POSITIVE_INFINITY });
 
-async function spaceState(userId: string, spaceId: string) {
+async function spaceState(userId: string, role: Role, spaceId: string) {
   const p = await ownedSpace(userId, spaceId);
   const files = await spaceFiles(spaceId);
   const categories = await categoryRows(spaceId);
   return {
     knowledge: {
-      ...(await knowledgeCounts(spaceId)),
+      // How much of it Goose may read for the person.
+      ...(await knowledgeCounts(spaceId, subjectsOfGoose(userId, role))),
       categories: categories.map((c) => `${c.name} (${c.type}${c.proposed ? ", proposed" : ""})`),
     },
     title: p.brand.name ?? "",
@@ -1247,7 +1248,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
         ].join("\n\n")
       : "",
     writable
-      ? `The space now:\n\`\`\`json\n${JSON.stringify(await spaceState(input.user.id, writable.id))}\n\`\`\``
+      ? `The space now:\n\`\`\`json\n${JSON.stringify(await spaceState(input.user.id, input.user.role, writable.id))}\n\`\`\``
       : space
         ? prompt("goose", "turn.space_read_only", { name: space.name })
         : "No space is open.",

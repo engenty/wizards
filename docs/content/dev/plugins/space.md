@@ -49,8 +49,8 @@ const doc = await server.spaceData.putDocument({ space, key, label, name, mime, 
 | `putTable(input)` | A table: typed `columns`, `rows` (cells by column id, they replace the rows the key had), `format: "faq"` |
 | `putFile(input)` | A file that is not a page. It is found by its name, `description` and categories; `text` is what a step reads of it |
 | `putDocument(input)` | A file, read the way an upload is. Returns what it became: `items` (pages, tables), and `review` when it was hard to read or could not be read |
-| `readPages(space, { parent? })` | The space’s own pages, whoever wrote them, with their Markdown: `{ id, title, path, parentId, markdown, origin, originKey, updatedAt }` |
-| `files(space, kind?)`, `readFile(space, id)` | The space’s files of a kind (`document`, `logo`, `asset`, `pattern`, `picture`; `document` when none is named), newest first, and one file with its bytes, such as a price list someone dropped into Knowledge |
+| `readPages(space, { parent? })` | The space’s own pages, whoever wrote them, with their Markdown: `{ id, title, path, parentId, markdown, origin, originKey, updatedAt }`. Only the pages [the reader](#what-a-plugin-reads) may read |
+| `files(space, kind?)`, `readFile(space, id)` | The space’s files of a kind (`document`, `logo`, `asset`, `pattern`, `picture`; `document` when none is named), newest first, and one file with its bytes, such as a price list someone dropped into Knowledge. Documents only as far as [the reader](#what-a-plugin-reads) may read them |
 | `list(space)` | Everything the plugin wrote, by key, with its path and `state` |
 | `remove(space, key?)` | Takes out one key, or everything the plugin wrote in the space. Returns how many items it removed |
 | `summarize(space, category?, value?)` | Writes the “Overview” of one value, or of every value with three items or more. Each costs a model call. Returns how many it wrote |
@@ -59,6 +59,17 @@ const doc = await server.spaceData.putDocument({ space, key, label, name, mime, 
 - When a person changes an item, it is theirs: the plugin’s next write returns `state: "kept"`
   and changes nothing, and `remove` leaves it.
 - What a step reads of an item is its path: `pages/…`, `tables/…`, `files/…`.
+
+### What a plugin reads
+
+`readPages`, `files` and `readFile` read for someone, and the space’s rules decide what
+([the broker](../broker.md#rwx-and-the-broker-switch)). A tool in a step or a Work chat reads as
+the person or guest it was called for, an HTTP route as the person it answers, a job
+(`server.every`) as the runtime itself, which may read everything. The plugin is asked beside
+them: a rule that forbids the plugin a page, a folder or a document holds everywhere, in a job
+too. A page or a document the reader may not read is missing from the lists, and `readFile`
+refuses it with `forbidden`. Code that runs for nobody (a public route, a timer of the plugin’s
+own) gets empty lists.
 
 ### Pictures of a page
 

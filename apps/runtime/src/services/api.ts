@@ -9,6 +9,7 @@ import { standaloneEntry } from "@engenty/wizards-shared/fit";
 import { pluginsOf } from "@engenty/wizards-shared/marketplace";
 import { noteText } from "@engenty/wizards-shared/run";
 import { and, count, desc, eq, gte, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { subjectsOfPerson } from "../broker/rwx.js";
 import { MICROS_PER_CREDIT } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
@@ -16,7 +17,7 @@ import { wizardUnavailable } from "../limits.js";
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
-import { mayBuild, READ_ONLY_TENANT, spaceWritable } from "./access.js";
+import { mayBuild, READ_ONLY_TENANT, roleOf, spaceWritable } from "./access.js";
 import { mainLogoId } from "./brand.js";
 import { notFound, ServiceError } from "./errors.js";
 import { knowledgeCounts } from "./knowledge.js";
@@ -88,7 +89,8 @@ export async function apiSpaceDetails(userId: string, spaceId?: string | null) {
     colors: p.brand.colors ?? [],
     facts: p.facts.map(({ label, value }) => ({ label, value })),
     logoUrl: logo ? `${env.publicUrl}/api/public/logos/${logo}` : null,
-    knowledge: await knowledgeCounts(p.id),
+    // How much of it the caller may read.
+    knowledge: await knowledgeCounts(p.id, subjectsOfPerson(userId, await roleOf(userId))),
     writable: await spaceWritable(p),
     studioUrl: `${env.appUrl}/studio/space`,
   };

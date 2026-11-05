@@ -1,14 +1,14 @@
 import { createTool } from "@mastra/core/tools";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { assertRwx, decide, type Subject } from "../broker/rwx.js";
+import { assertRwx, decide, readableIds, type Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { openDraft, saveDraft } from "../mounts/drafts.js";
 import { fileByPath, mountFileText, usableMounts } from "../mounts/mounts.js";
 import { prompt } from "../prompts.js";
 import {
   filePaths,
-  knowledgeCounts,
+  knowledgeKinds,
   listForStep,
   readPage,
   readTable,
@@ -94,18 +94,18 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
   const spaceId = caller.space.id;
   const who = caller.subjects;
   const spaces = await readsFrom(spaceId);
-  const counts = { pages: 0, tables: 0, files: 0 };
+  const holds = { pages: false, tables: false, files: false };
   let entries = false;
   for (const space of spaces) {
-    const of = await knowledgeCounts(space.id);
-    counts.pages += of.pages;
-    counts.tables += of.tables;
-    counts.files += of.files;
+    const of = await knowledgeKinds(space.id);
+    holds.pages ||= of.pages;
+    holds.tables ||= of.tables;
+    holds.files ||= of.files;
     entries ||= await hasIndexEntries(space.id);
   }
   // The folders of Dateien the caller may use: searched, and read by their path.
   const mounted = (await usableMounts(spaceId, who)).length > 0;
-  if (!(counts.pages || counts.tables || counts.files || entries || mounted)) {
+  if (!(holds.pages || holds.tables || holds.files || entries || mounted)) {
     return {};
   }
   const call = <T>(action: string, input: unknown, run: () => Promise<T>) =>
@@ -168,7 +168,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
         }),
     }),
   };
-  if (counts.pages) {
+  if (holds.pages) {
     tools.page_read = createTool({
       id: "page_read",
       description: prompt("tools", "tool.page_read.knowledge"),
@@ -176,7 +176,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
       execute: (input) => readKnowledgePage(caller, input),
     });
   }
-  if (counts.tables) {
+  if (holds.tables) {
     tools.table_read = createTool({
       id: "table_read",
       description: prompt("tools", "tool.table_read"),
@@ -189,7 +189,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
         }),
     });
   }
-  if (counts.files || mounted) {
+  if (holds.files || mounted) {
     tools.space_document = createTool({
       id: "space_document",
       description: prompt("tools", "tool.space_document"),
@@ -210,7 +210,11 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
           }).catch(() => spaceId);
           const found = await resolvePath(inSpace, wanted);
           if (found?.kind !== "file") {
-            const there = [...(await filePaths(spaceId)).values()].slice(0, 40);
+            // The files the caller may read: one closed to them is not named.
+            const paths = await filePaths(spaceId);
+            const there = (await readableIds(spaceId, who, "document", [...paths.keys()]))
+              .slice(0, 40)
+              .map((id) => paths.get(id));
             throw new Error(`No file "${path}". There are: ${there.join(", ")}`);
           }
           const file = await db.query.spaceFile.findFirst({

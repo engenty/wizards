@@ -300,16 +300,121 @@ export async function listCategories(spaceId: string): Promise<SpaceCategory[]> 
         count: v.n,
         summary: Boolean(v.summary),
       })),
-      range:
-        c.type === "number" && range?.minNum !== null && range?.minNum !== undefined
-          ? { min: range.minNum, max: range.maxNum ?? range.minNum }
-          : c.type === "date" && range?.minAt !== null && range?.minAt !== undefined
-            ? { min: dateText(range.minAt), max: dateText(range.maxAt ?? range.minAt) }
-            : null,
+      range: rangeOf(c.type, range),
       alike: [],
     };
     category.alike = alikeValues(category.values);
     return category;
+  });
+}
+
+interface Bounds {
+  minNum: number | null;
+  maxNum: number | null;
+  minAt: number | null;
+  maxAt: number | null;
+}
+
+/** A number's or a date's lowest and highest value, as a category shows them. */
+function rangeOf(type: CategoryType, of: Bounds | undefined): SpaceCategory["range"] {
+  if (type === "number" && of?.minNum !== null && of?.minNum !== undefined) {
+    return { min: of.minNum, max: of.maxNum ?? of.minNum };
+  }
+  if (type === "date" && of?.minAt !== null && of?.minAt !== undefined) {
+    return { min: dateText(of.minAt), max: dateText(of.maxAt ?? of.minAt) };
+  }
+  return null;
+}
+
+/** Where items with a category lie: a page, a table (its rows too), a file, a mount of Dateien. */
+export interface CategoryPlace {
+  pageId: string | null;
+  tableId: string | null;
+  fileId: string | null;
+  mountId: string | null;
+}
+
+/** How the space's categories are used, place by place: what `categoriesOver` counts from. */
+export interface CategoryUse {
+  /** Per category and place: how many items have it there, their lowest and highest value. */
+  items: (CategoryPlace & Bounds & { categoryId: string; n: number })[];
+  /** Per value of a choice and place: how many items have it there. */
+  values: (CategoryPlace & { valueId: string | null; n: number })[];
+}
+
+/** The use of the space's categories by place, for a reader who may not read every place. */
+export async function categoryUse(spaceId: string): Promise<CategoryUse> {
+  const ids = (await categoryRows(spaceId)).map((c) => c.id);
+  if (!ids.length) {
+    return { items: [], values: [] };
+  }
+  const t = schema.spaceItemCategory;
+  const row = schema.spaceTableRow;
+  const file = schema.spaceMountFile;
+  // A row lies in its table, a mounted file in its mount.
+  const tableId = sql<string | null>`coalesce(${t.tableId}, ${row.tableId})`;
+  const place = { pageId: t.pageId, tableId, fileId: t.fileId, mountId: file.mountId };
+  const [items, values] = await Promise.all([
+    db
+      .select({
+        ...place,
+        categoryId: t.categoryId,
+        n: sql<number>`count(DISTINCT coalesce(${t.pageId}, ${t.rowId}, ${t.tableId}, ${t.fileId}, ${t.mountFileId}))`,
+        minNum: sql<number | null>`min(${t.num})`,
+        maxNum: sql<number | null>`max(${t.num})`,
+        minAt: sql<number | null>`min(${t.at})`,
+        maxAt: sql<number | null>`max(${t.at})`,
+      })
+      .from(t)
+      .leftJoin(row, eq(row.id, t.rowId))
+      .leftJoin(file, eq(file.id, t.mountFileId))
+      .where(inArray(t.categoryId, ids))
+      .groupBy(t.categoryId, t.pageId, tableId, t.fileId, file.mountId),
+    db
+      .select({ ...place, valueId: t.valueId, n: sql<number>`count(*)` })
+      .from(t)
+      .leftJoin(row, eq(row.id, t.rowId))
+      .leftJoin(file, eq(file.id, t.mountFileId))
+      .where(and(inArray(t.categoryId, ids), isNotNull(t.valueId)))
+      .groupBy(t.valueId, t.pageId, tableId, t.fileId, file.mountId),
+  ]);
+  return { items, values };
+}
+
+/**
+ * The categories counted over a part of their use: how many items have each, a choice's values
+ * and the ranges, from `use` alone. A value that only items outside it have is left out; one no
+ * item has stays, as the category's own.
+ */
+export function categoriesOver(all: SpaceCategory[], use: CategoryUse): SpaceCategory[] {
+  const byValue = new Map<string, number>();
+  for (const u of use.values) {
+    if (u.valueId) {
+      byValue.set(u.valueId, (byValue.get(u.valueId) ?? 0) + u.n);
+    }
+  }
+  const least = (list: (number | null)[]) =>
+    list.reduce<number | null>((m, x) => (x === null ? m : m === null ? x : Math.min(m, x)), null);
+  const most = (list: (number | null)[]) =>
+    list.reduce<number | null>((m, x) => (x === null ? m : m === null ? x : Math.max(m, x)), null);
+  return all.map((c) => {
+    const mine = use.items.filter((u) => u.categoryId === c.id);
+    const values = c.values
+      .filter((v) => byValue.has(v.id) || v.count === 0)
+      .map((v) => ({ ...v, count: byValue.get(v.id) ?? 0 }));
+    const kept = new Set(values.map((v) => v.id));
+    return {
+      ...c,
+      count: mine.reduce((sum, u) => sum + u.n, 0),
+      values,
+      range: rangeOf(c.type, {
+        minNum: least(mine.map((u) => u.minNum)),
+        maxNum: most(mine.map((u) => u.maxNum)),
+        minAt: least(mine.map((u) => u.minAt)),
+        maxAt: most(mine.map((u) => u.maxAt)),
+      }),
+      alike: c.alike.filter(([a, b]) => kept.has(a) && kept.has(b)),
+    };
   });
 }
 

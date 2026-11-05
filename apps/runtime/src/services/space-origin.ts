@@ -2,7 +2,7 @@ import type { PluginSpaceData } from "@engenty/wizards/plugin";
 import type { CategoryInput } from "@engenty/wizards-shared/knowledge";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { currentCaller } from "../broker/caller.js";
-import { currentReader, type Subject, subjectsOfCaller } from "../broker/rwx.js";
+import { currentReader, readable, type Subject, subjectsOfCaller } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { UnreadableDocument } from "../documents/parse.js";
 import { ServiceError } from "./errors.js";
@@ -20,8 +20,21 @@ import { putOriginFile, spaceFileContent } from "./space-files.js";
 import { queueIndex } from "./space-index.js";
 
 /**
+ * As whom a plugin reads the space's Knowledge: as whom it was called for, and as itself. A tool
+ * in a step or a Work chat reads as its caller, an HTTP route as the person it answers, a job as
+ * the runtime itself (readingAs). Anything else reads as the plugin alone, which no seed allows.
+ * A deny for the plugin always wins.
+ */
+async function readerOf(origin: string): Promise<Subject[]> {
+  const caller = currentCaller();
+  const plugin: Subject = { kind: "plugin", id: origin };
+  return [...(caller ? await subjectsOfCaller(caller) : currentReader()), plugin];
+}
+
+/**
  * `server.spaceData` of a plugin: Knowledge it writes under keys of its own, with categories. The
- * plugin's id is the origin of everything it writes; a person who changes an item keeps it.
+ * plugin's id is the origin of everything it writes; a person who changes an item keeps it. What
+ * it reads of the space (`readPages`, `files`, `readFile`), it reads as `readerOf` says.
  */
 export function originData(origin: string): PluginSpaceData {
   return {
@@ -210,16 +223,24 @@ export function originData(origin: string): PluginSpaceData {
         ),
         orderBy: [schema.spacePage.position, schema.spacePage.title],
       });
-      return rows.map((r) => ({
-        id: r.id,
-        title: r.title,
-        path: tree.get(r.id)?.path ?? `pages/${r.slug ?? r.id}`,
-        parentId: r.parentId,
-        markdown: r.markdown,
-        origin: r.origin,
-        originKey: r.originKey,
-        updatedAt: r.updatedAt.toISOString(),
-      }));
+      // Only the pages its reader may read: a page, the document behind it, the folders it lies in.
+      const ok = await readable(
+        space,
+        await readerOf(origin),
+        rows.map((r) => ({ kind: "page", id: r.id, fileId: r.fileId })),
+      );
+      return rows
+        .filter((r) => ok.has(r.id))
+        .map((r) => ({
+          id: r.id,
+          title: r.title,
+          path: tree.get(r.id)?.path ?? `pages/${r.slug ?? r.id}`,
+          parentId: r.parentId,
+          markdown: r.markdown,
+          origin: r.origin,
+          originKey: r.originKey,
+          updatedAt: r.updatedAt.toISOString(),
+        }));
     },
     async files(space, kind = "document") {
       const rows = await db.query.spaceFile.findMany({
@@ -230,23 +251,29 @@ export function originData(origin: string): PluginSpaceData {
         ),
         orderBy: [desc(schema.spaceFile.updatedAt)],
       });
-      return rows.map((r) => ({
-        id: r.id,
-        name: r.name,
-        mime: r.mime,
-        size: r.size,
-        kind: r.kind,
-        updatedAt: r.updatedAt.toISOString(),
-      }));
+      // A document is listed to whom may read it; a logo, pattern or asset is the brand's, not
+      // Knowledge, and asks nobody (space-files.ts).
+      const ok =
+        kind === "document"
+          ? await readable(
+              space,
+              await readerOf(origin),
+              rows.map((r) => ({ kind: "document", id: r.id })),
+            )
+          : null;
+      return rows
+        .filter((r) => !ok || ok.has(r.id))
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          mime: r.mime,
+          size: r.size,
+          kind: r.kind,
+          updatedAt: r.updatedAt.toISOString(),
+        }));
     },
     async readFile(space, fileId) {
-      // As whom the plugin was called for, and as itself: a tool in a step or a Work chat as its
-      // caller, an HTTP route as the person it answers, a job as the runtime itself (readingAs).
-      // Anything else reads as the plugin alone, which no seed allows. A deny for it always wins.
-      const caller = currentCaller();
-      const plugin: Subject = { kind: "plugin", id: origin };
-      const who = [...(caller ? await subjectsOfCaller(caller) : currentReader()), plugin];
-      const { row, data } = await spaceFileContent(space, fileId, who);
+      const { row, data } = await spaceFileContent(space, fileId, await readerOf(origin));
       return {
         id: row.id,
         name: row.name,

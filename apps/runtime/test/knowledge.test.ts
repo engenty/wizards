@@ -538,7 +538,7 @@ describe("the tools of a step", () => {
 
   it("tells every step what Knowledge holds and how to filter it", async () => {
     const { knowledgeBlock } = await import("../src/services/knowledge");
-    const block = await local(() => knowledgeBlock(spaceId));
+    const block = await local(() => knowledgeBlock(spaceId, who));
     expect(block).toContain("# KNOWLEDGE — WHAT THE SPACE KNOWS");
     expect(block).toContain("- Baustelle (choice): Graz Süd, Linz Hafen");
     expect(block).toContain("- Arbeitsstunden (number, h): 12 … 41.5");

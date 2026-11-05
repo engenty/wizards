@@ -310,13 +310,26 @@ export function decideWith(
   return behind.ok ? own : behind;
 }
 
-/** The rules of a space, seeded first where it has none yet. */
+/** The spaces being seeded right now, by tenant and space: each once. */
+const seeding = new Map<string, Promise<void>>();
+
+/**
+ * The rules of a space, seeded first where it has none yet. Readers that ask at once (a search's
+ * three, a plugin listing files and pages together) wait for one seed: a guest's rows have no
+ * subject id, so the table's unique key does not keep a second seed's rows out.
+ */
 async function rulesOf(spaceId: string): Promise<Rule[]> {
   const rows = await db.query.rwxRule.findMany({ where: eq(schema.rwxRule.spaceId, spaceId) });
   if (rows.length) {
     return rows;
   }
-  await seedRwx(spaceId);
+  const key = `${currentTenant()}/${spaceId}`;
+  let seed = seeding.get(key);
+  if (!seed) {
+    seed = seedRwx(spaceId).finally(() => seeding.delete(key));
+    seeding.set(key, seed);
+  }
+  await seed;
   return db.query.rwxRule.findMany({ where: eq(schema.rwxRule.spaceId, spaceId) });
 }
 

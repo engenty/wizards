@@ -9,14 +9,24 @@ import {
   type WhereValue,
 } from "@engenty/wizards-shared/knowledge";
 import { and, asc, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import { assertRwx, pageResources, readable, type Subject, tableResources } from "../broker/rwx.js";
+import {
+  assertRwx,
+  brokerOn,
+  pageResources,
+  readable,
+  readableMounts,
+  type Subject,
+  tableResources,
+} from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { embeddingModel, systemOneAccess } from "../models.js";
 import { prompt } from "../prompts.js";
 import { notFound, ServiceError } from "./errors.js";
 import {
+  categoriesOver,
   categoryLines,
   categoryRows,
+  categoryUse,
   dateOf,
   filterItems,
   itemCategoriesOf,
@@ -649,8 +659,11 @@ export async function readPage(
     categories,
     (await itemCategoriesOf([{ pageId: page.id }])).get(`p:${page.id}`),
   );
-  const children = [...tree.values()]
-    .filter((n) => n.parentId === page.id)
+  // Its sub-pages, as far as `who` may read them: one closed to them is not named.
+  const under = [...tree.values()].filter((n) => n.parentId === page.id);
+  const okUnder = await readable(spaceId, who, await pageResources(under.map((n) => n.id)));
+  const children = under
+    .filter((n) => okUnder.has(n.id))
     .sort((a, b) => a.position - b.position)
     .map((n) => n.path);
   const original = page.fileId ? (await filePaths(spaceId)).get(page.fileId) : undefined;
@@ -812,11 +825,10 @@ export async function readTable(
  * has; with one, the items it leaves that `who` may read, with their paths and categories.
  */
 export async function listForStep(spaceId: string, where: Where | undefined, who: Subject[]) {
-  const categories = await listCategories(spaceId);
-  const taken = categories.filter((c) => !c.proposed);
   if (!Object.keys(where ?? {}).length) {
+    const categories = (await categoriesFor(spaceId, who)).filter((c) => !c.proposed);
     return {
-      categories: taken.map((c) => ({
+      categories: categories.map((c) => ({
         name: c.name,
         type: c.type,
         ...(c.unit ? { unit: c.unit } : {}),
@@ -829,6 +841,7 @@ export async function listForStep(spaceId: string, where: Where | undefined, who
       hint: 'Pass `where` to list the items of values, e.g. { "Baustelle": "Graz Süd" }.',
     };
   }
+  const taken = (await categoryRows(spaceId)).filter((c) => !c.proposed);
   const filtered = await filterItems(spaceId, where);
   const [tree, tPaths, fPaths] = await Promise.all([
     pageTree(spaceId),
@@ -900,35 +913,105 @@ export async function listForStep(spaceId: string, where: Where | undefined, who
   return { items: items.slice(0, 200), total: items.length };
 }
 
-/** How much Knowledge a space holds: what the block of the steps' instructions says. */
-export async function knowledgeCounts(spaceId: string) {
-  const [pages, tables, files] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(schema.spacePage)
-      .where(and(eq(schema.spacePage.spaceId, spaceId), isNull(schema.spacePage.wizardId))),
-    db
-      .select({ n: count() })
-      .from(schema.spaceTable)
-      .where(and(eq(schema.spaceTable.spaceId, spaceId), isNull(schema.spaceTable.wizardId))),
-    db
-      .select({ n: count() })
-      .from(schema.spaceFile)
-      .where(and(eq(schema.spaceFile.spaceId, spaceId), eq(schema.spaceFile.kind, "document"))),
-  ]);
-  return { pages: pages[0].n, tables: tables[0].n, files: files[0].n };
+/**
+ * The space's categories as `who` sees them: how many items have each, a choice's values and the
+ * ranges, counted over the pages, tables, files and mounts they may read. Whoever may read all of
+ * it gets them as the space has them.
+ */
+export async function categoriesFor(spaceId: string, who: Subject[]) {
+  const all = await listCategories(spaceId);
+  if (!(all.length && (await brokerOn()))) {
+    return all;
+  }
+  const use = await categoryUse(spaceId);
+  const places = [...use.items, ...use.values];
+  const ids = (key: "pageId" | "tableId" | "fileId" | "mountId") => [
+    ...new Set(places.flatMap((p) => (p[key] ? [p[key]] : []))),
+  ];
+  const pages = await readable(spaceId, who, await pageResources(ids("pageId")));
+  const tables = await readable(spaceId, who, await tableResources(ids("tableId")));
+  const files = await readable(
+    spaceId,
+    who,
+    ids("fileId").map((id) => ({ kind: "document", id })),
+  );
+  const mounts = await readableMounts(spaceId, who, ids("mountId"));
+  const open = (p: (typeof places)[number]) =>
+    p.pageId
+      ? pages.has(p.pageId)
+      : p.tableId
+        ? tables.has(p.tableId)
+        : p.fileId
+          ? files.has(p.fileId)
+          : p.mountId
+            ? mounts.has(p.mountId)
+            : false;
+  if (places.every(open)) {
+    return all;
+  }
+  return categoriesOver(all, { items: use.items.filter(open), values: use.values.filter(open) });
 }
 
 /**
- * What every step of the space is told about Knowledge: how much there is, the categories to filter
- * by, the tools to find and read. Empty when Knowledge is.
+ * Which kinds of Knowledge a space holds at all: which tools a caller is offered. It says nothing
+ * of what they may read: each read of a tool is the broker's, and a refusal names the item.
  */
-export async function knowledgeBlock(spaceId: string): Promise<string> {
-  const counts = await knowledgeCounts(spaceId);
+export async function knowledgeKinds(spaceId: string) {
+  const [page, table, file] = await Promise.all([
+    db.query.spacePage.findFirst({
+      where: and(eq(schema.spacePage.spaceId, spaceId), isNull(schema.spacePage.wizardId)),
+      columns: { id: true },
+    }),
+    db.query.spaceTable.findFirst({
+      where: and(eq(schema.spaceTable.spaceId, spaceId), isNull(schema.spaceTable.wizardId)),
+      columns: { id: true },
+    }),
+    db.query.spaceFile.findFirst({
+      where: and(eq(schema.spaceFile.spaceId, spaceId), eq(schema.spaceFile.kind, "document")),
+      columns: { id: true },
+    }),
+  ]);
+  return { pages: Boolean(page), tables: Boolean(table), files: Boolean(file) };
+}
+
+/**
+ * How much Knowledge a space holds for `who`: the pages, tables and documents they may read. What
+ * a step's instructions, Goose and the space's details say counts nothing else.
+ */
+export async function knowledgeCounts(spaceId: string, who: Subject[]) {
+  const [pages, tables, files] = await Promise.all([
+    db.query.spacePage.findMany({
+      where: and(eq(schema.spacePage.spaceId, spaceId), isNull(schema.spacePage.wizardId)),
+      columns: { id: true, fileId: true },
+    }),
+    db.query.spaceTable.findMany({
+      where: and(eq(schema.spaceTable.spaceId, spaceId), isNull(schema.spaceTable.wizardId)),
+      columns: { id: true, fileId: true },
+    }),
+    db.query.spaceFile.findMany({
+      where: and(eq(schema.spaceFile.spaceId, spaceId), eq(schema.spaceFile.kind, "document")),
+      columns: { id: true },
+    }),
+  ]);
+  const ok = await readable(spaceId, who, [
+    ...pages.map((p) => ({ kind: "page" as const, id: p.id, fileId: p.fileId })),
+    ...tables.map((t) => ({ kind: "table" as const, id: t.id, fileId: t.fileId })),
+    ...files.map((f) => ({ kind: "document" as const, id: f.id })),
+  ]);
+  const read = (rows: { id: string }[]) => rows.filter((r) => ok.has(r.id)).length;
+  return { pages: read(pages), tables: read(tables), files: read(files) };
+}
+
+/**
+ * What a step of the space is told about Knowledge: how much of it `who` may read, the categories
+ * to filter by as they see them, the tools to find and read. Empty when that is nothing.
+ */
+export async function knowledgeBlock(spaceId: string, who: Subject[]): Promise<string> {
+  const counts = await knowledgeCounts(spaceId, who);
   if (!(counts.pages || counts.tables || counts.files)) {
     return "";
   }
-  const categories = (await listCategories(spaceId)).filter((c) => !c.proposed && c.count);
+  const categories = (await categoriesFor(spaceId, who)).filter((c) => !c.proposed && c.count);
   const what = [
     counts.pages ? `${counts.pages} pages` : "",
     counts.tables ? `${counts.tables} tables` : "",
