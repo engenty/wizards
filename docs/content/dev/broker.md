@@ -154,6 +154,7 @@ has words for each:
 | `not_allowed_recipient` | A guest’s send to an address that is neither the run’s own nor in the space’s mail domains |
 | `run_limit` | A guest’s run has sent its mails (`GUEST_MAILS_PER_RUN`, 3) |
 | `day_limit` | The wizard’s guests have sent today’s mails (`wizard.dailyMailLimit`, 50 unless set) |
+| `may_have_happened` | Behind `durableRuns`: the action was interrupted before and may have happened, and no person allowed it again (`broker/effect.ts`) |
 
 ## The run’s grant
 

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   type ConnectorDefinition,
   defineConnector,
@@ -337,11 +338,17 @@ export const calendarConnector: ConnectorDefinition = defineConnector({
       group: "write",
       handler: async (input, ctx) => {
         const calendarId = input.calendar_id ?? "primary";
+        const eventsUrl = `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`;
+        // An id of our own makes a repeat a 409. Google's ids are base32hex: hex is a part of it.
+        const eventId = ctx.idempotencyKey
+          ? createHash("sha256").update(ctx.idempotencyKey).digest("hex")
+          : undefined;
         const created = await googleJson<CalendarEvent>(
           ctx,
-          `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events${updatesQuery(input.send_updates)}`,
+          `${eventsUrl}${updatesQuery(input.send_updates)}`,
           {
             body: JSON.stringify({
+              ...(eventId ? { id: eventId } : {}),
               end: toEventDateTime(input.end, input.time_zone),
               start: toEventDateTime(input.start, input.time_zone),
               summary: input.summary,
@@ -357,7 +364,13 @@ export const calendarConnector: ConnectorDefinition = defineConnector({
             headers: { "Content-Type": "application/json" },
             method: "POST",
           }
-        );
+        ).catch((err: Error) => {
+          // It was there already: that event is the answer.
+          if (eventId && err.message.startsWith("google_api_error (409)")) {
+            return googleJson<CalendarEvent>(ctx, `${eventsUrl}/${eventId}`);
+          }
+          throw err;
+        });
         return { ...toEventSummary(created), calendar_id: calendarId };
       },
       id: "create_event",

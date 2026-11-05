@@ -272,11 +272,13 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
       ? {
           ask: ask.id,
           kind: ask.kind,
-          reason: ask.reason,
+          reason: ask.again
+            ? prompt("mcp", "reason.confirm_again", { service: ask.service })
+            : ask.reason,
           service: ask.service,
           action: ask.action.summary,
           input: clip(ask.input, 1500),
-          hint: prompt("mcp", "hint.confirm"),
+          hint: ask.again ? prompt("mcp", "hint.confirm_again") : prompt("mcp", "hint.confirm"),
         }
       : {
           ask: ask.id,
