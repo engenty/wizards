@@ -234,6 +234,14 @@ for someone other than the run's person. A review with `approve` is the approval
   the wizard row (`wizard.answerers`, below), as `starts.md` keeps starts off the definition.
 - `timedOut` and `approved` are read by `next` rules like any output. With no rule, a timed-out
   step goes to the next step in the list, and its fields stay empty.
+- A timed-out `approve` hands on `approved: false` with `timedOut: true`: a rule on either value
+  never sends what nobody approved, and the author can still tell the two apart. A review with
+  `approve` needs a branch on `approved`, or a decline would go on like an approval. A start's
+  `passReviews` does not pass it: nobody gives an approval by a setting.
+- An answer and a timeout each write on the `rev` they read. The loser finds the run moved on. A
+  timeout that loses to a write that is no answer (a translation) looks again, so no wake is lost.
+- A step with `timeout` or `remind` gives its hold back while it waits and holds again as it goes
+  on, on an answer as on a timeout. Refused: the answer stays and the run waits for credits.
 - Take over in a chat runner (a person writes to the customer in the wizard's place) is a page
   with `who: "team"` whose answer the chat shows as the wizard's message. The runner part of it
   comes later, with Engenties ("Decisions", 8).
@@ -290,6 +298,7 @@ what happens after.
 | `wait` has exactly one of `for`, `until`, `signal` | error |
 | `wait.signal.name` is one of `signals` | error |
 | `timeout`, `remind`, `for` between 1 minute and 31 days; `remind` shorter than `timeout` | error |
+| A review with `approve` has a branch on `steps.<id>.approved` | error |
 | A loop through a `wait` without `max` | error |
 | `onFail` names a step | error |
 | `who: "team"` on a wizard whose share settings name no one | warning at publish: "Nobody is set to answer “{step}”." |
@@ -408,7 +417,8 @@ That is the whole clock. The line does the rest: a runner claims the run, `drive
 sees `sleeping` or `waiting_*` with `wake_at` passed, moves it to `running` in one conditional
 update (`… WHERE status = 'sleeping' AND wake_at <= :now`, so two runners cannot both wake it),
 writes the `wait` step's output (`came: false`) or `timedOut: true`, and goes on. A `remind`
-due wakes the run only to send the reminder and puts it back.
+wakes nothing: it is a `notice` row written with the wait, due at its time, which the sender
+settles when the wait is over.
 
 Several runners running the statement at once is harmless. The health check (`health.ts`) reports
 the last tick. A due run more than 5 minutes late is a health warning.

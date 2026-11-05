@@ -68,6 +68,16 @@ export const CONVERSATION_TOOLS = [
   },
   {
     type: "function",
+    name: "decline_review",
+    description: prompt("voice", "tool.decline_review"),
+    parameters: {
+      type: "object",
+      properties: { note: { type: "string", description: "Why, in the person's words." } },
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
     name: "regenerate",
     description: prompt("voice", "tool.regenerate"),
     parameters: {

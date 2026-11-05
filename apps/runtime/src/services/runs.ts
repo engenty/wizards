@@ -343,6 +343,7 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
     return {
       page: current.id,
       title: current.title,
+      ...(run.wakeAt ? { until: run.wakeAt.toISOString() } : {}),
       /** What the fields' conditions read from before the page, by reference. */
       known: ctx.known,
       fields: fields.map((f) => ({
@@ -373,7 +374,9 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
       title: current.title,
       show: current.show,
       editable: Boolean(current.edit),
-      hint: prompt("mcp", "hint.review"),
+      ...(run.wakeAt ? { until: run.wakeAt.toISOString() } : {}),
+      ...(current.approve ? { approve: true } : {}),
+      hint: current.approve ? prompt("mcp", "hint.review_approve") : prompt("mcp", "hint.review"),
     };
   }
   return undefined;
@@ -753,7 +756,7 @@ export async function runTimeline(run: RunRow, canAct: boolean): Promise<RunTime
     version: run.version,
     createdAt: run.createdAt.toISOString(),
     wakeAt:
-      run.status === "sleeping" || run.status === "waiting_signal"
+      run.status === "sleeping" || run.status === "waiting_signal" || run.status === "waiting_input"
         ? (run.wakeAt?.toISOString() ?? null)
         : null,
     pause: run.status === "sleeping" ? (run.state.pause?.kind ?? null) : null,
