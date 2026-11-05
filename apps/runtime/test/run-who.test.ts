@@ -962,8 +962,8 @@ describe("Work's lists", () => {
 describe("naming who answers", () => {
   const set = (wizardId: string, answerers: unknown) =>
     app.fetch(
-      new Request(`http://localhost:5181/api/studio/wizards/${wizardId}`, {
-        method: "PATCH",
+      new Request(`http://localhost:5181/api/studio/wizards/${wizardId}/answerers`, {
+        method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ answerers }),
       }),
@@ -1011,7 +1011,7 @@ describe("naming who answers", () => {
     signIn(LENA, "owner");
     const refused = await publish();
     expect(refused.status).toBe(400);
-    expect(((await refused.json()) as { error: string }).error).toContain("Beantwortet von");
+    expect(((await refused.json()) as { error: string }).error).toContain("Answered by");
     expect((await set(wizardId, [JONAS])).status).toBe(200);
     expect((await publish()).status).toBe(200);
     // A choice as well: the admins, by name of their role.

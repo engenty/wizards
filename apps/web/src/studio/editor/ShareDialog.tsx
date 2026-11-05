@@ -356,7 +356,7 @@ function AnswerersSection({ wizard }: { wizard: WizardDetail }) {
   });
   const save = useMutation({
     mutationFn: (answerers: string[] | "admins") =>
-      api.patch(`/api/studio/wizards/${wizard.id}`, { answerers }),
+      api.put(`/api/studio/wizards/${wizard.id}/answerers`, { answerers }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.wizard(wizard.id) }),
   });
   const [adding, setAdding] = useState(false);
