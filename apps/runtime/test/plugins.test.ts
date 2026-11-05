@@ -402,6 +402,7 @@ describe("a plugin's tools", () => {
       holder: { kind: "person", id: "local", role: "owner" },
       store: { wizardId: "wizard-1", holder: "u:local" },
       signal: new AbortController().signal,
+      resources: {},
       emit: async (_type: string, message: string) => {
         emitted.push(message);
       },

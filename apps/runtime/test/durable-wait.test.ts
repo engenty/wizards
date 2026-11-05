@@ -360,41 +360,41 @@ describe("what a wait outlasts", () => {
     expect((await row(id))?.expiresAt).toBeNull();
   });
 
-  it("a guest run refused on wake fails with a clear message, past its wait", async () => {
+  it("a guest run refused on wake waits past its wait, and goes on when the budget allows", async () => {
     const id = await start([pause(), agent("after"), end], { mode: "live", visitorId: "v-guest" });
     expect(await rests(id)).toBe(true);
     hold.answer = "guest_budget";
     try {
       await pass(id);
-      expect(await hasStatus(id, "failed")).toBe(true);
+      expect(await until(async () => (await row(id))?.cursor === "after")).toBe(true);
+      expect(await rests(id)).toBe(true);
       const r = await row(id);
-      expect(r?.error).toMatch(/limit/i);
-      expect(r?.wakeAt).toBeNull();
-      // "Try again" is refused while the budget says no, and does not wait a second time.
-      expect(r?.cursor).toBe("after");
-      await client.withTenant(T, async () => {
-        await expect(runner.retry(id)).rejects.toThrow(/limit/i);
-      });
-      expect((await row(id))?.status).toBe("failed");
+      expect(r?.state.pause).toEqual({ kind: "credits" });
+      expect(r?.state.outputs.pause?.json).toEqual({ waited: true });
+      expect(steps(id)).toEqual([]);
     } finally {
       hold.answer = true;
     }
-    await client.withTenant(T, () => runner.retry(id));
+    await pass(id);
     expect(await hasStatus(id, "done")).toBe(true);
+    // It did not wait a second time.
     expect(steps(id)).toEqual(["after"]);
   });
 
-  it("an account out of credits on wake says that", async () => {
+  it("an account out of credits on wake waits for the top-up", async () => {
     const id = await start([pause(), agent("after"), end]);
     expect(await rests(id)).toBe(true);
     hold.answer = false;
     try {
       await pass(id);
-      expect(await hasStatus(id, "failed")).toBe(true);
-      expect((await row(id))?.error).toMatch(/credits/i);
+      expect(await until(async () => (await row(id))?.cursor === "after")).toBe(true);
+      expect(await rests(id)).toBe(true);
+      expect((await row(id))?.state.pause).toEqual({ kind: "credits" });
     } finally {
       hold.answer = true;
     }
+    await pass(id);
+    expect(await hasStatus(id, "done")).toBe(true);
   });
 
   it("nothing left to pay for needs no hold: a wait right before the result ends", async () => {

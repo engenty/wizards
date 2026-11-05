@@ -95,7 +95,20 @@ export interface RunState {
   visits?: Record<string, number>;
   /** The step whose visit is open; finishing it, or going back, closes it. */
   visiting?: string;
+  /** The step that keeps failing, how often it was given another try, and since when. */
+  retries?: { step: string; count: number; since: string; told?: RunPause["kind"] };
+  /** Why a run that sleeps is not at a `wait` step; gone once it wakes. */
+  pause?: RunPause;
 }
+
+/**
+ * A run that sleeps for something other than a `wait` step. `retry`: the step tries again at
+ * `wakeAt`. `credits`, `sign_in`: it waits for a person, and looks at `wakeAt` whether they acted.
+ */
+export type RunPause =
+  | { kind: "retry" }
+  | { kind: "credits" }
+  | { kind: "sign_in"; service: string };
 
 /** What a decision over a step's `ask` branches found. */
 export interface BranchDecision {
@@ -276,6 +289,11 @@ const NOTES_EN = {
   clientLimit: "This app has started a lot of runs just now. Try again later.",
   runOver: "The run is over.",
   runSleeps: "The run is waiting. It goes on by itself.",
+  stepRetries: "This step didn’t work this time. It tries again by itself in about {minutes} min.",
+  stepWaitsCredits:
+    "This wizard has run out of credits for now. It goes on by itself once there are credits again.",
+  stepWaitsSignIn: "{service} needs a new sign-in. This step goes on by itself after that.",
+  stepFailedGoesOn: "This step didn’t work, so the wizard goes on with “{step}”.",
   waitsOff: "This wizard has a wait step, and those aren’t turned on here yet.",
   waitDateUnreadable: "“{date}” isn’t a date this step can wait for.",
   runStarted: "Run started",
@@ -752,6 +770,14 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   clientLimit: "Diese App hat gerade viele Läufe gestartet. Versuch es später wieder.",
   runOver: "Der Lauf ist beendet.",
   runSleeps: "Der Lauf wartet. Er geht von selbst weiter.",
+  stepRetries:
+    "Dieser Schritt hat gerade nicht geklappt. Er versucht es in etwa {minutes} Min. von selbst noch einmal.",
+  stepWaitsCredits:
+    "Das Guthaben dieses Wizards ist aufgebraucht. Er macht von selbst weiter, sobald wieder Guthaben da ist.",
+  stepWaitsSignIn:
+    "{service} braucht eine neue Anmeldung. Danach macht dieser Schritt von selbst weiter.",
+  stepFailedGoesOn:
+    "Dieser Schritt hat nicht geklappt, darum macht der Wizard mit „{step}“ weiter.",
   waitsOff: "Dieser Wizard hat einen Warten-Schritt, und die sind hier noch nicht eingeschaltet.",
   waitDateUnreadable: "„{date}“ ist kein Datum, auf das dieser Schritt warten kann.",
   runStarted: "Lauf gestartet",
@@ -1298,6 +1324,8 @@ export interface RunView {
   status: RunStatus;
   /** When a run that sleeps goes on; null otherwise. */
   wakeAt: string | null;
+  /** Why it sleeps, where that is no `wait` step. */
+  pause: RunPause | null;
   mode: "test" | "live";
   wizard: Pick<WizardDefinition, "title" | "description" | "avatar" | "costume" | "intro">;
   /** The language the wizard speaks, by its code: what is read aloud, and in which voice. */

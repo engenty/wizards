@@ -289,11 +289,21 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
         };
   }
   if (run.status === "sleeping" && current) {
+    const pause = run.state.pause;
+    // Waiting for a person has no time: the next look says nothing about when they act.
     return {
       wait: current.id,
       title: current.title,
-      until: run.wakeAt?.toISOString() ?? null,
-      hint: prompt("mcp", "hint.sleeping"),
+      until: pause && pause.kind !== "retry" ? null : (run.wakeAt?.toISOString() ?? null),
+      ...(pause ? { pause } : {}),
+      hint:
+        pause?.kind === "retry"
+          ? prompt("mcp", "hint.pause_retry")
+          : pause?.kind === "credits"
+            ? prompt("mcp", "hint.pause_credits")
+            : pause?.kind === "sign_in"
+              ? prompt("mcp", "hint.pause_sign_in")
+              : prompt("mcp", "hint.sleeping"),
     };
   }
   if (run.status !== "waiting_input" || !current) {
@@ -678,6 +688,7 @@ export async function listRuns(userId: string, wizardId: string, q?: string) {
     status: r.status,
     label: r.label,
     wakeAt: r.wakeAt?.toISOString() ?? null,
+    pause: r.state.pause?.kind ?? null,
     version: r.version,
     createdAt: r.createdAt.toISOString(),
     credits: Math.ceil(r.costMicros / MICROS_PER_CREDIT),

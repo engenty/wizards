@@ -49,6 +49,39 @@ describe("validator", () => {
   });
 });
 
+describe("onFail", () => {
+  const wizard = (onFail: string) => ({
+    version: 2,
+    title: "On fail",
+    description: "",
+    avatar: "round",
+    steps: [
+      { id: "work", type: "agent", title: "W", instructions: "x", tools: [], output: { format: "text" }, onFail },
+      { id: "done", type: "result", title: "Fertig", deliverables: [] },
+    ],
+  });
+
+  it("goes to a step of the wizard", () => {
+    expect(parseWizard(wizard("done")).issues).toEqual([]);
+  });
+
+  it("refuses a step that isn't there, and the step itself", () => {
+    expect(parseWizard(wizard("nowhere")).issues.map((i) => i.message)).toEqual([
+      'onFail goes to unknown step "nowhere".',
+    ]);
+    expect(parseWizard(wizard("work")).issues.map((i) => i.message)).toEqual([
+      "A step can't go to itself when it fails.",
+    ]);
+  });
+
+  it("a wizard without it stays as it was", () => {
+    const { onFail: _, ...plain } = wizard("done").steps[0];
+    const parsed = parseWizard({ ...wizard("done"), steps: [plain, wizard("done").steps[1]] });
+    expect(parsed.ok && parsed.wizard.steps[0]).not.toHaveProperty("onFail");
+    expect(parsed.issues).toEqual([]);
+  });
+});
+
 describe("a wait step", () => {
   const wizard = (wait: object, more: object[] = []) => ({
     version: 2,

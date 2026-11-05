@@ -423,7 +423,7 @@ function Editor() {
       text: failed
         ? (runView.error ?? said)
         : sleeping
-          ? goesOnText(runView.wakeAt)
+          ? goesOnText(runView.wakeAt, runView.pause)
           : waiting
             ? t("editor.waitsForInput")
             : said,

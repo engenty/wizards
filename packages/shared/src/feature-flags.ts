@@ -201,7 +201,7 @@ export const FEATURES = {
     kind: "release",
     default: false,
     label: "Runs that wait for days",
-    hint: "Wait steps: a run leaves every process and a clock wakes it. A deadline on automatic steps. What a step did outside happens once.",
+    hint: "Wait steps: a run leaves every process and a clock wakes it. A deadline on automatic steps. What a step did outside happens once. Retries over time and onFail; out of credits waits for a top-up.",
   },
   ownKeys: {
     kind: "plan",
