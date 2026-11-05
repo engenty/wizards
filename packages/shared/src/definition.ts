@@ -656,6 +656,8 @@ const stepBase = {
   title: z.string().min(1),
   description: z.string().optional(),
   next: z.array(nextRuleSchema).optional(),
+  /** Where the run goes when this step fails for good; without it the run fails. */
+  onFail: z.string().optional(),
 };
 
 export const outputFieldSchema = z
@@ -1934,6 +1936,13 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         stepId: step.id,
         message: 'A step has at most one "otherwise" branch (one without "when" and "ask").',
       });
+    }
+    if (step.onFail !== undefined) {
+      if (step.onFail === step.id) {
+        issues.push({ stepId: step.id, message: "A step can't go to itself when it fails." });
+      } else if (!stepIds.has(step.onFail)) {
+        issues.push({ stepId: step.id, message: `onFail goes to unknown step "${step.onFail}".` });
+      }
     }
     for (const rule of step.next ?? []) {
       if (rule.goto !== "end" && !stepIds.has(rule.goto)) {

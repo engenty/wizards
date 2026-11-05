@@ -152,6 +152,15 @@ A sign-in: the person types it on the run page (browserUrl).
 <!-- section: hint.sleeping -->
 The run waits until `until` and goes on by itself. Nothing is needed from the person meanwhile.
 
+<!-- section: hint.pause_retry -->
+The step failed for a moment and tries again by itself at `until`. Nothing is needed from the person meanwhile.
+
+<!-- section: hint.pause_credits -->
+The run is out of credits. It goes on by itself a few minutes after the account is topped up. Tell the person.
+
+<!-- section: hint.pause_sign_in -->
+A connection of this step needs a new sign-in. The run goes on by itself a few minutes after someone signs in. Tell the person.
+
 <!-- section: hint.page -->
 Ask the fields in order; skip a field whose `when` does not hold on the answers so far (a hidden one is not required and not kept).
 

@@ -10,13 +10,14 @@ import {
   kindOf,
   type Refusal,
   reachesOutside,
+  signInRefused,
   type Who,
   whereOf,
 } from "../broker/index.js";
 import { refreshConnector, resolveConnector } from "../connectors/external.js";
 import { spaceConnectionOf } from "../connectors/space-connections.js";
 import type { ConnectorAction } from "../engenty/connections-sdk/types.js";
-import { type StepContext, StepError } from "../engine/types.js";
+import { SignInNeeded, type StepContext, StepError } from "../engine/types.js";
 import { prompt } from "../prompts.js";
 import { inProgram } from "./code.js";
 import { holderWho, stepWho } from "./plugin.js";
@@ -228,6 +229,8 @@ export async function callConnection(
   if (!action) {
     throw new StepError(note("connectorNoAction", { name: service, id: call.action }));
   }
+  // A change out there is not repeated by a later try of the step (engine/runner.ts stepFailed).
+  ctx.resources.acted ||= kindOf(action.group) !== "read";
   const out = await brokerCall({
     who,
     where: whereOf(ctx),
@@ -239,13 +242,25 @@ export async function callConnection(
       await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
       return action.handler(await sendContent(input ?? {}, ctx), account.ctx);
     },
+  }).catch((err) => {
+    if (signInRefused(err)) {
+      throw new SignInNeeded(
+        service,
+        note("stepCallRefused", {
+          service,
+          action: action.id,
+          reason: (err as Error).message.slice(0, 200),
+        }),
+      );
+    }
+    throw err;
   });
   if (!out.ok) {
-    throw new StepError(
+    const said =
       out.refused === "declined" || out.refused === "nobody"
         ? note("stepCallNotAllowed", { service })
-        : note("stepCallRefused", { service, action: action.id, reason: out.reason }),
-    );
+        : note("stepCallRefused", { service, action: action.id, reason: out.reason });
+    throw out.refused === "not_connected" ? new SignInNeeded(service, said) : new StepError(said);
   }
   return out.result;
 }

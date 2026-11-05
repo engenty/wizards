@@ -1693,7 +1693,7 @@ export function ChatBody({
           <Thread
             avatar={view.wizard.avatar}
             costume={view.wizard.costume}
-            lines={[...before, bot("sleeping", goesOnText(view.wakeAt))]}
+            lines={[...before, bot("sleeping", goesOnText(view.wakeAt, view.pause))]}
           />
           <Idle placeholder={t("run.leavePage")} />
         </>

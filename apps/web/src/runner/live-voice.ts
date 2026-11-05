@@ -74,7 +74,13 @@ export function stateText(view: RunView, page: PageBinding | null, camera = fals
     return lines.join("\n");
   }
   if (view.status === "sleeping") {
-    lines.push(`waiting until: ${view.wakeAt ?? "soon"}; it goes on by itself, nothing to do`);
+    lines.push(
+      view.pause?.kind === "credits"
+        ? "out of credits; it goes on by itself once the account is topped up"
+        : view.pause?.kind === "sign_in"
+          ? `${view.pause.service} needs a new sign-in; it goes on by itself after that`
+          : `waiting until: ${view.wakeAt ?? "soon"}; it goes on by itself, nothing to do`,
+    );
     return lines.join("\n");
   }
   if (view.status === "done") {

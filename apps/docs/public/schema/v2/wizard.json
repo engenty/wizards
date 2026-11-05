@@ -706,6 +706,9 @@
                   "additionalProperties": false
                 }
               },
+              "onFail": {
+                "type": "string"
+              },
               "type": {
                 "type": "string",
                 "const": "page"
@@ -1178,6 +1181,9 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "onFail": {
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -2858,6 +2864,9 @@
                   "additionalProperties": false
                 }
               },
+              "onFail": {
+                "type": "string"
+              },
               "type": {
                 "type": "string",
                 "const": "generate"
@@ -3099,6 +3108,9 @@
                   "additionalProperties": false
                 }
               },
+              "onFail": {
+                "type": "string"
+              },
               "type": {
                 "type": "string",
                 "const": "widget"
@@ -3297,6 +3309,9 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "onFail": {
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -3679,6 +3694,9 @@
                   "additionalProperties": false
                 }
               },
+              "onFail": {
+                "type": "string"
+              },
               "type": {
                 "type": "string",
                 "const": "motion-graphics"
@@ -3903,6 +3921,9 @@
                   "additionalProperties": false
                 }
               },
+              "onFail": {
+                "type": "string"
+              },
               "type": {
                 "type": "string",
                 "const": "review"
@@ -4065,6 +4086,9 @@
                   "additionalProperties": false
                 }
               },
+              "onFail": {
+                "type": "string"
+              },
               "type": {
                 "type": "string",
                 "const": "wait"
@@ -4220,6 +4244,9 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "onFail": {
+                "type": "string"
               },
               "type": {
                 "type": "string",
