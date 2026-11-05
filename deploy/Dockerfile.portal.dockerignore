@@ -1,0 +1,2 @@
+# deploy/Dockerfile.portal copies nothing: the image comes from GHCR.
+*
