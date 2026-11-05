@@ -1,4 +1,4 @@
-import { MESSAGE_SIGNAL, type Step } from "@engenty/wizards-shared/definition";
+import { MAIL_SIGNAL, MESSAGE_SIGNAL, type Step } from "@engenty/wizards-shared/definition";
 import {
   AppWindow,
   Bot,
@@ -94,7 +94,13 @@ export function waitSummary(step: Extract<Step, { type: "wait" }>): string {
   if (step.signal) {
     const { key, name, timeout } = step.signal;
     const waits =
-      name === MESSAGE_SIGNAL ? t("inspector.waitFromPerson") : t("wait.signal", { key });
+      name === MESSAGE_SIGNAL
+        ? t("inspector.waitFromPerson")
+        : name === MAIL_SIGNAL
+          ? key.startsWith("thread:")
+            ? t("wait.mailThread")
+            : t("wait.mail", { key })
+          : t("wait.signal", { key });
     return timeout ? t("wait.signalTimeout", { waits, time: lastsFor(timeout) ?? timeout }) : waits;
   }
   const lasts = lastsFor(step.for);

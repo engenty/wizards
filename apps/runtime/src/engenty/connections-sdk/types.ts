@@ -203,11 +203,15 @@ export interface InboundMessageAttachment {
  */
 export interface InboundMessage {
   attachments: InboundMessageAttachment[];
+  /** An out-of-office answer or a bounce: a machine answered, not the person. */
+  auto_reply?: boolean;
   body_html: string | null;
   body_text: string | null;
   cc: string[];
   from_email: string | null;
   from_name: string | null;
+  /** The mailbox's own: it sent this mail, nobody sent it to the mailbox. */
+  outgoing?: boolean;
   provider_message_id: string;
   provider_thread_id: string | null;
   received_at: string | null;
@@ -231,8 +235,8 @@ export interface StreamPullResult {
 
 /**
  * Connector-side stream capability: how to pull normalized inbound items.
- * Exposed ONLY through the module consumption API (`client.pullStream`) —
- * never as an agent tool; consent requires `autonomous_mode ≥ read_only`.
+ * Exposed ONLY through the broker (`brokerPullStream`) — never as an agent
+ * tool; consent requires `autonomous_mode ≥ read_only`.
  */
 export interface ConnectorStreamCapability {
   /** Envelope discriminator; more kinds later. */
