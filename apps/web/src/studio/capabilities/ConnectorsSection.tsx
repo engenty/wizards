@@ -462,6 +462,8 @@ export function ConnectionRow({
   const asks = Object.values(c.rules).includes("ask");
   const person = c.signIn === "person";
   const guests = reachedByGuests(c);
+  // Its connector came by an address, not from the registry.
+  const unchecked = c.connector?.fromAddress === true;
   return (
     <div className="px-3.5 py-3 sm:px-5">
       <div className="flex items-center gap-3">
@@ -486,14 +488,24 @@ export function ConnectionRow({
                 {lastUse(c)}
               </span>
             </div>
-            {/* On a phone the chips at the right give way: this one stays. */}
-            {guests ? (
-              <div className="mt-1 sm:hidden">
-                <Chip tone="warn">{t("connection.guests")}</Chip>
+            {/* On a phone the chips at the right give way: these stay. */}
+            {guests || unchecked ? (
+              <div className="mt-1 flex flex-wrap gap-1.5 sm:hidden">
+                {unchecked ? (
+                  <Chip tone="warn" title={t("connectors.uncheckedHint")}>
+                    {t("connectors.unchecked")}
+                  </Chip>
+                ) : null}
+                {guests ? <Chip tone="warn">{t("connection.guests")}</Chip> : null}
               </div>
             ) : null}
           </div>
           <span className="flex shrink-0 items-center gap-1.5 max-sm:hidden">
+            {unchecked ? (
+              <Chip tone="warn" title={t("connectors.uncheckedHint")}>
+                {t("connectors.unchecked")}
+              </Chip>
+            ) : null}
             {asks ? <Chip tone="warn">{t("connection.outcome.ask")}</Chip> : null}
             {guests ? (
               <Chip tone="warn">{t("connection.guests")}</Chip>
@@ -615,7 +627,12 @@ function SetupCard({
   const [signIn, setSignIn] = useState<ConnectionSignIn>(
     person.allowed && connector?.auth === "oauth2" ? "person" : "space",
   );
-  const [audience, setAudience] = useState<ConnectionAudience>("members");
+  // A connector nobody checked starts for the admins; the choice follows the connector until
+  // someone made their own.
+  const [audience, setAudience] = useState<ConnectionAudience>(
+    connector?.fromAddress ? "admins" : "members",
+  );
+  const [audienceSet, setAudienceSet] = useState(false);
   const create = useMutation({
     mutationFn: () =>
       api.post<SpaceConnectionView>(`/api/studio/spaces/${spaceId}/connections`, {
@@ -635,6 +652,9 @@ function SetupCard({
     // The name follows the connector until someone wrote their own.
     if (!name.trim() || name === connector?.name) {
       setName(next?.name ?? "");
+    }
+    if (!audienceSet) {
+      setAudience(next?.fromAddress ? "admins" : "members");
     }
     setConnectorId(id);
   };
@@ -692,9 +712,15 @@ function SetupCard({
           <Tabs
             label={t("connection.audience")}
             value={audience}
-            onChange={setAudience}
+            onChange={(next) => {
+              setAudience(next);
+              setAudienceSet(true);
+            }}
             options={CONNECTION_AUDIENCES.map((id) => ({ id, label: t(AUDIENCE_LABEL[id]) }))}
           />
+          {connector?.fromAddress ? (
+            <p className="mt-2 text-[0.75rem] text-ink-3">{t("connectors.address.adminsFirst")}</p>
+          ) : null}
         </div>
         {create.error ? (
           <p className="text-[0.8125rem] text-rose">{(create.error as Error).message}</p>
@@ -785,7 +811,14 @@ function ConnectionPage({
       <div className="flex items-center gap-4 px-1">
         <Logo name={connectorName} large />
         <div className="min-w-0">
-          <h2 className="font-display font-semibold text-lg leading-tight">{connectorName}</h2>
+          <h2 className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-display font-semibold text-lg leading-tight">
+            {connectorName}
+            {c.connector?.fromAddress ? (
+              <Chip tone="warn" title={t("connectors.uncheckedHint")}>
+                {t("connectors.unchecked")}
+              </Chip>
+            ) : null}
+          </h2>
           {c.connector?.description ? (
             <p className="mt-1 line-clamp-2 text-[0.875rem] text-ink-3">
               {c.connector.description}

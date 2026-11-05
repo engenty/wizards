@@ -1,7 +1,7 @@
 ---
 title: Connectors
-description: Services a wizard works in for the person who runs it – built in, from the registry or over MCP.
-version: 0.16.2
+description: Services a wizard works in for the person who runs it – built in, from the registry or by their address.
+version: 0.17.0
 ---
 
 **[Capabilities](./capabilities.md) › Connectors** lists the services the space’s wizards, Work
@@ -61,12 +61,53 @@ Any other service comes from the [integrations.sh](https://integrations.sh) regi
 If a service needs an OAuth client of your own, it says so. Remove it and import it again with
 “Your own OAuth client”.
 
+A service the registry doesn’t list comes in [by its address](#by-its-address).
+
 The **Discover** tab of Capabilities › Overview searches integrations.sh and skills.sh at once. Admins set up a
 service from its result with “Set up”, and a service the space already has shows “In this space”.
 
 The editor’s chat does the same while it builds a wizard: ask it to work with a service, and it
 finds and imports the connector. An [AI app](./ai-apps.md) connected to engenty wizards can do
 this too.
+
+## By its address
+
+A service the registry doesn’t list comes in by its address: an MCP server, or an OpenAPI
+description. This is how you add your own MCP server. Admins do it under “More connectors”, with
+“By address”:
+
+1. Paste the address and choose “Check”. engenty wizards reads what answers there: whether it is
+   an MCP server or an OpenAPI description, its host and its actions.
+2. Give it a name and a short name. Its actions start with the short name.
+3. Choose the sign-in. What the server describes itself comes first: a sign-in with OAuth, an API
+   key, or none. If the server asks for a sign-in and describes none, choose “Key in a header”
+   and name the header, or “None”.
+4. Check what each action does: “reads”, “changes”, “sends” or “deletes”. engenty wizards reads
+   this from the server’s hints and from the action’s name. Change one that is wrong: the
+   connection’s rules go by it. For “sends”, name the field that holds the recipient. That’s how
+   engenty wizards checks who a guest’s run sends to.
+5. “Import” adds the connector and opens “Add connection” with it.
+
+With “Key in a header”, the API key itself belongs to the connection: whoever sets it up enters
+it. If you enter it in the form, “Read actions” lists the server’s actions right away. The form
+doesn’t keep the key.
+
+You can change what an action does later. Open the connector under “More connectors” and set it
+there. A changed kind shows in the [audit](./capabilities.md#audit) of every connection on that
+connector, like a changed rule.
+
+**Not checked.** A connector from an address is marked “not checked”, in the lists and on its
+connections. Nobody has looked at the server: not engenty and not the registry. Its descriptions
+and its answers reach the AI as they are. That’s why a new connection on it is for admins only at
+first. Widen it on the connection’s page once you trust the server.
+
+**Private addresses.** On your computer the address may be a private one: `localhost`, or a server
+in your home or office network. The form says so when it sees one. Only a connector from an
+address reaches such addresses. In the cloud a private address is refused.
+
+**Reload actions.** Some servers list their actions only to a signed-in account. Set up the
+connection, sign in, then choose “Reload actions” on the connector. It asks the server with that
+sign-in, and what you set for each action stays. Only admins check an address and reload actions.
 
 ## What a wizard may do
 
@@ -89,7 +130,7 @@ Gmail · Orders and Gmail · Support.
 
 Only the space’s admins set up connections. “Add connection” starts one, and so does a built-in
 connector below the list or an imported one under “More connectors”, where you also search the
-registry. When you set one up, you choose how it signs in:
+registry or add a server [by its address](#by-its-address). When you set one up, you choose how it signs in:
 
 | Signs in | What it means |
 |---|---|
@@ -103,6 +144,7 @@ available. [Capabilities](./capabilities.md#connectors) has the details.
 **Who may use it.** Admins, Members or Everyone. Everyone includes guests who start a wizard from
 its link. Admins see above the list which connections guests reach, and narrow each to members
 with one click ([Connections that guests reach](./capabilities.md#connections-that-guests-reach)).
+A connection on a connector that is “not checked” starts with Admins.
 
 **What it may do.** One rule for each kind of action:
 

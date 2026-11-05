@@ -2599,8 +2599,8 @@ const de: Record<Key, Line> = {
   "connectors.title": "Connectors",
   "connectors.hint":
     "Dienste, in denen ein Wizard für die Person arbeiten kann. Sie verbindet beim Lauf ihr eigenes Konto. Die wichtigsten sind eingebaut. Jeden weiteren findest du im Verzeichnis integrations.sh und importierst ihn aus seiner OpenAPI-Beschreibung oder seinem MCP-Server.",
-  "connectors.imported": "Aus dem Verzeichnis",
-  "connectors.noneImported": "Hier ist kein Connector aus dem Verzeichnis importiert.",
+  "connectors.imported": "Importiert",
+  "connectors.noneImported": "Hier ist kein Connector importiert.",
   "connectors.notSetUp": "nicht eingerichtet",
   "connectors.setup": "Es fehlen noch diese Einstellungen:",
   "connectors.search": "Dienst suchen, z. B. Notion, Stripe, GitHub",
@@ -2623,13 +2623,79 @@ const de: Record<Key, Line> = {
   "connectors.group.write": "ändert",
   "connectors.group.send": "sendet",
   "connectors.group.destructive": "löscht",
+  // Weitere Connectors › Per Adresse (studio/ConnectorByAddress.tsx): a server the registry does not list.
+  "connectors.from": "Woher der Connector kommt",
+  "connectors.from.registry": "Aus dem Verzeichnis",
+  "connectors.from.address": "Per Adresse",
+  "connectors.unchecked": "nicht geprüft",
+  "connectors.uncheckedHint":
+    "Dieser Connector kam per Adresse, nicht aus dem Verzeichnis. Niemand hat den Server geprüft.",
+  "connectors.address.hint":
+    "Füg die Adresse eines MCP-Servers oder einer OpenAPI-Beschreibung ein. engenty liest, was dort antwortet, bevor du importierst.",
+  "connectors.address.label": "Adresse des MCP-Servers oder der OpenAPI-Beschreibung",
+  "connectors.address.placeholder": "z. B. https://crm.example.com/mcp",
+  "connectors.address.check": "Prüfen",
+  "connectors.address.kind.mcp": "MCP-Server",
+  "connectors.address.kind.openapi": "OpenAPI",
+  "connectors.address.actions.one": "1 Aktion",
+  "connectors.address.actions.n": "{n} Aktionen",
+  "connectors.address.actions.pending": "Aktionen noch unbekannt",
+  "connectors.address.dropped":
+    "{n} weitere Aktionen passen nicht mehr in einen Connector. engenty lässt sie weg.",
+  "connectors.address.private":
+    "Diese Adresse liegt in einem privaten Netz. Auf deinem Computer erreicht engenty sie. In der Cloud geht das nicht.",
+  "connectors.address.name": "Name",
+  "connectors.address.short": "Kürzel",
+  "connectors.address.shortHint": "Mit diesem Kürzel beginnen seine Aktionen.",
+  "connectors.address.shortInvalid":
+    "Das Kürzel beginnt mit einem Buchstaben. Danach kommen Kleinbuchstaben, Ziffern und Unterstriche.",
+  "connectors.address.shortTaken": "Dieses Kürzel gibt es in diesem Space schon.",
+  "connectors.address.signIn": "Anmeldung",
+  "connectors.address.signIn.described": "Wie der Server sie nennt",
+  "connectors.address.signIn.header": "Key im Header",
+  "connectors.address.signIn.none": "Ohne",
+  "connectors.address.signIn.oauth":
+    "Der Server beschreibt eine Anmeldung per OAuth. Wer die Verbindung einrichtet, meldet sich dort an.",
+  "connectors.address.signIn.oauthClient":
+    "Der Server beschreibt eine Anmeldung per OAuth, trägt engenty aber nicht selbst ein. Leg dort eine OAuth-App an und trag ihre Client-ID und ihr Client-Secret hier ein.",
+  "connectors.address.signIn.key":
+    "Die Beschreibung nennt einen API-Key in „{name}“. Wer die Verbindung einrichtet, trägt ihn ein.",
+  "connectors.address.signIn.open": "Der Server antwortet ohne Anmeldung.",
+  "connectors.address.signIn.unknown":
+    "Der Server verlangt eine Anmeldung und beschreibt keine. Wähl „Key im Header“ oder „Ohne“.",
+  "connectors.address.signIn.headerHint":
+    "Der API-Key steht bei jedem Aufruf in diesem Header. Wer die Verbindung einrichtet, trägt ihn ein.",
+  "connectors.address.signIn.noneHint":
+    "engenty ruft den Server ohne Anmeldung auf. Verlangt er eine, schlagen die Aufrufe fehl.",
+  "connectors.address.header.name": "Header",
+  "connectors.address.header.scheme": "Davor (optional)",
+  "connectors.address.header.schemePlaceholder": "z. B. Bearer",
+  "connectors.address.header.value": "API-Key (optional)",
+  "connectors.address.header.valueHint":
+    "Mit dem API-Key liest engenty die Aktionen schon jetzt. Gespeichert wird er erst mit der Verbindung.",
+  "connectors.address.header.read": "Aktionen lesen",
+  "connectors.address.pending":
+    "Der Server nennt seine Aktionen erst einem angemeldeten Konto. Richte die Verbindung ein, melde dich an und lade die Aktionen neu. Dann stellst du ein, was jede tut.",
+  "connectors.address.kinds": "Was jede Aktion tut",
+  "connectors.address.kindsHint":
+    "So hat engenty sie gelesen. Stimmt eine nicht, stell sie um: Danach richten sich die Regeln der Verbindung.",
+  "connectors.address.kindOf": "Was „{id}“ tut",
+  "connectors.address.recipient": "An wen es geht, steht in",
+  "connectors.address.recipientOf": "Feld von „{id}“, in dem steht, an wen es geht",
+  "connectors.address.recipientNone": "kein Feld",
+  "connectors.address.recipientHint":
+    "Bei „sendet“ nennst du das Feld, in dem steht, an wen es geht. So prüft engenty, an wen ein Gast sendet.",
+  "connectors.address.after":
+    "Danach richtest du die Verbindung ein. Sie ist zuerst nur für Admins da.",
+  "connectors.address.adminsFirst":
+    "Dieser Connector ist nicht geprüft. Deshalb ist die Verbindung zuerst nur für Admins da.",
   // Fähigkeiten › Connectors: the connections of a space (capabilities/ConnectorsSection.tsx).
   "capabilities.connectors.hint":
     "Dienste, mit denen deine Wizards, Chats und Goose in diesem Space arbeiten. Jede Verbindung gehört dem Space. Seine Admins richten sie ein und legen fest, wer sie nutzt und was sie darf.",
   "capabilities.connectors.all": "Alle Connectors",
   "capabilities.connectors.more": "Weitere Connectors",
   "capabilities.connectors.moreHint":
-    "Jeden weiteren Dienst findest du im Verzeichnis integrations.sh. Du importierst ihn aus seiner OpenAPI-Beschreibung oder seinem MCP-Server und richtest dann eine Verbindung ein.",
+    "Jeden weiteren Dienst findest du im Verzeichnis integrations.sh. Was dort fehlt, fügst du mit seiner Adresse hinzu: einen MCP-Server oder eine OpenAPI-Beschreibung.",
   "capabilities.connectors.add": "Verbindung hinzufügen",
   "capabilities.connectors.setUp": "Einrichten",
   "capabilities.connectors.setUpNamed": "{name} einrichten",
@@ -6743,8 +6809,8 @@ const en = {
   "connectors.title": "Connectors",
   "connectors.hint":
     "Services a wizard can work in for the person – they connect their own account during a run. The main ones are built in. You find others in the integrations.sh registry and import them from their OpenAPI spec or MCP server.",
-  "connectors.imported": "From the registry",
-  "connectors.noneImported": "No connectors imported from the registry yet.",
+  "connectors.imported": "Imported",
+  "connectors.noneImported": "No connectors imported yet.",
   "connectors.notSetUp": "not set up",
   "connectors.setup": "Still needs these settings:",
   "connectors.search": "Find a service, e.g. Notion, Stripe, GitHub",
@@ -6767,13 +6833,78 @@ const en = {
   "connectors.group.write": "changes",
   "connectors.group.send": "sends",
   "connectors.group.destructive": "deletes",
+  // More connectors › By address (studio/ConnectorByAddress.tsx): a server the registry does not list.
+  "connectors.from": "Where the connector comes from",
+  "connectors.from.registry": "From the registry",
+  "connectors.from.address": "By address",
+  "connectors.unchecked": "not checked",
+  "connectors.uncheckedHint":
+    "This connector came by its address, not from the registry. Nobody has checked the server.",
+  "connectors.address.hint":
+    "Paste the address of an MCP server or an OpenAPI description. engenty reads what answers there before you import.",
+  "connectors.address.label": "Address of the MCP server or the OpenAPI description",
+  "connectors.address.placeholder": "e.g. https://crm.example.com/mcp",
+  "connectors.address.check": "Check",
+  "connectors.address.kind.mcp": "MCP server",
+  "connectors.address.kind.openapi": "OpenAPI",
+  "connectors.address.actions.one": "1 action",
+  "connectors.address.actions.n": "{n} actions",
+  "connectors.address.actions.pending": "actions not known yet",
+  "connectors.address.dropped":
+    "{n} more actions don’t fit into one connector. engenty leaves them out.",
+  "connectors.address.private":
+    "This address is in a private network. On your computer engenty reaches it. In the cloud it can’t.",
+  "connectors.address.name": "Name",
+  "connectors.address.short": "Short name",
+  "connectors.address.shortHint": "Its actions start with this short name.",
+  "connectors.address.shortInvalid":
+    "The short name starts with a letter. After that come lower-case letters, digits and underscores.",
+  "connectors.address.shortTaken": "This short name already exists in this space.",
+  "connectors.address.signIn": "Sign-in",
+  "connectors.address.signIn.described": "As the server describes it",
+  "connectors.address.signIn.header": "Key in a header",
+  "connectors.address.signIn.none": "None",
+  "connectors.address.signIn.oauth":
+    "The server describes a sign-in with OAuth. Whoever sets up the connection signs in there.",
+  "connectors.address.signIn.oauthClient":
+    "The server describes a sign-in with OAuth, but doesn’t register engenty itself. Create an OAuth app there and enter its client ID and client secret here.",
+  "connectors.address.signIn.key":
+    "The description names an API key in “{name}”. Whoever sets up the connection enters it.",
+  "connectors.address.signIn.open": "The server answers without a sign-in.",
+  "connectors.address.signIn.unknown":
+    "The server asks for a sign-in and doesn’t describe one. Choose “Key in a header” or “None”.",
+  "connectors.address.signIn.headerHint":
+    "The API key goes in this header on every call. Whoever sets up the connection enters it.",
+  "connectors.address.signIn.noneHint":
+    "engenty calls the server without a sign-in. If it asks for one, the calls fail.",
+  "connectors.address.header.name": "Header",
+  "connectors.address.header.scheme": "Before it (optional)",
+  "connectors.address.header.schemePlaceholder": "e.g. Bearer",
+  "connectors.address.header.value": "API key (optional)",
+  "connectors.address.header.valueHint":
+    "With the API key, engenty reads the actions now. It’s only kept once you set up the connection.",
+  "connectors.address.header.read": "Read actions",
+  "connectors.address.pending":
+    "The server lists its actions only to a signed-in account. Set up the connection, sign in and reload the actions. Then you set what each one does.",
+  "connectors.address.kinds": "What each action does",
+  "connectors.address.kindsHint":
+    "This is how engenty read them. Change one that’s wrong: the connection’s rules go by it.",
+  "connectors.address.kindOf": "What “{id}” does",
+  "connectors.address.recipient": "Recipient is in",
+  "connectors.address.recipientOf": "Field with the recipient of “{id}”",
+  "connectors.address.recipientNone": "no field",
+  "connectors.address.recipientHint":
+    "For “sends”, name the field with the recipient. That’s how engenty checks who a guest sends to.",
+  "connectors.address.after": "Then you set up the connection. At first it’s for admins only.",
+  "connectors.address.adminsFirst":
+    "This connector isn’t checked. That’s why the connection is for admins only at first.",
   // Fähigkeiten › Connectors: the connections of a space (capabilities/ConnectorsSection.tsx).
   "capabilities.connectors.hint":
     "Services your wizards, chats and Goose work with in this space. Each connection belongs to the space. Its admins set it up and decide who uses it and what it may do.",
   "capabilities.connectors.all": "All connectors",
   "capabilities.connectors.more": "More connectors",
   "capabilities.connectors.moreHint":
-    "You find any other service in the integrations.sh registry. Import it from its OpenAPI description or its MCP server, then set up a connection.",
+    "You find any other service in the integrations.sh registry. What’s missing there you add by its address: an MCP server or an OpenAPI description.",
   "capabilities.connectors.add": "Add connection",
   "capabilities.connectors.setUp": "Set up",
   "capabilities.connectors.setUpNamed": "Set up {name}",

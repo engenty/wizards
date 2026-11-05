@@ -1,7 +1,7 @@
 ---
 title: The broker
 description: The one path every connector call takes in engenty wizards – who calls, what decides, what a run may reach, what is logged and heard, the RWX rules and the routes the studio uses.
-version: 0.16.2
+version: 0.17.0
 ---
 
 Every call a wizard step, a Work chat, Goose, a share target or a plugin makes to a connected
@@ -68,6 +68,15 @@ connector’s action has no such group in its spec, so `groupOf`
 whose id or summary says send, mail, message, post or notify, and not draft, update or delete,
 is a `send`. A caller may name the kind itself, as the mail tools, the share targets and
 `http_request` do.
+
+An admin’s word comes before that guess. `PATCH /spaces/:id/connectors/:connectorId/actions`
+keeps, per action of an imported connector, a kind and for a `send` the input field that holds
+the recipient (`action_kinds` on the stored record, `body.to` for a field inside an HTTP body).
+`groupIn` (`classify.ts`) reads it first, so the connector’s action carries the admin’s group and
+`kindOf` returns the admin’s kind everywhere: in `brokerCall`, in the run’s grant and in „Was
+darf …?“. The named field reaches the broker as the action’s `recipientField`. Reloading the
+actions keeps both. A changed kind is logged like a changed rule (`change_rules`), once for every
+connection on that connector.
 
 ## Connections
 
@@ -199,8 +208,11 @@ once from the run’s definition and writes it. `inGrant` always lets `list_tool
   decides it. Everything else is refused as `channel_not_fixed`: a templated channel, even
   where it renders to the same id, and the guest’s own call from an AI step or the Slack share
   target.
+- `recipientsOf(input, field)` reads a send’s addresses from `to`, `cc`, `bcc`, `recipients` and
+  `recipient`, and from the field an admin named for the action (`recipientField`). The named
+  field comes on top of the others, never in their place: an address in `cc` still counts.
 - Any other send that names no address is refused as `not_allowed_recipient`. That holds an
-  imported connector’s send: nothing says which of its inputs names where it goes.
+  imported connector’s send until an admin names the field with the recipient.
 - The limits count mails and posts together, per run and per wizard and day. They count what
   `broker_log` holds as an `ok` send of a guest (`who_kind` `guest`) or of a fixed step in a
   guest’s run (`who_kind` `step`), and no request to a host.
@@ -322,6 +334,30 @@ All under `/api/studio`, for a signed-in person of the organization.
 | `GET /spaces/:id/broker/ask?who=&for=&resource=&action=&in=` | „Was darf …?“: `decide`’s outcome, rule and reason. A guest’s post to a channel is answered as the call is: a fixed step gets the connection’s rule and the condition in its reason, any other caller `deny` by `guest_send`. Nothing runs and nothing is logged | Admins (403 for a member) |
 | `GET /spaces/:id/broker/choices` | The people and the space’s connections with their actions, for the question | Admins (403 for a member) |
 | `GET /spaces/:id/discover?q=` | Skills from skills.sh and connectors from integrations.sh, marked where the space has them | Everyone; 404 while `capabilities` is off |
+| `POST /spaces/:id/connectors/preview` | Reads an address before it is imported: `{ sourceUrl, sourceKind?, signIn? }`. Answers what is there (`mcp` or `openapi`), each action with its guessed kind and input fields, the sign-in the source describes, the id and tool prefix its host suggests, and `privateAddress` | Admins of a space that can be changed here |
+| `POST /spaces/:id/connectors` | Imports a connector. For a pasted address `domain`, `id` and `toolPrefix` may be left out, `signIn` is the admin’s choice (`described`, `header` with a name, `none`) and `actionKinds` what single actions do | Admins |
+| `POST /spaces/:id/connectors/:connectorId/refresh` | „Aktionen neu laden“: reads the source again, with the sign-in of a signed-in connection on that connector. The broker reads the sign-in, so it is logged as `list_tools` | Admins |
+| `PATCH /spaces/:id/connectors/:connectorId/actions` | What single actions do: `{ actions: { <id>: { kind, recipientField? } \| null } }`; `null` takes one back to the guess | Admins |
+
+### A connector from an address
+
+A connector whose record has no `registry_surface_slug` came from a pasted address
+(`connectors/external.ts`). Its view says `fromAddress`, the studio marks it „nicht geprüft“, and
+a new connection on it defaults to the audience `admins`.
+
+- **Sign-in.** An MCP server is asked for its tools without a sign-in. If it answers, the
+  connector needs none. If it answers 401, its own OAuth documents are read (`probeOAuth`: the
+  protected-resource document, then the authorization server’s metadata). Otherwise the import
+  takes the admin’s choice: a key in a header, stored as `api_key` with a header placement, or
+  none. An OpenAPI description says it in its security schemes. An import that can work out no
+  sign-in and got no choice refuses with a sentence that names the choices.
+- **Private addresses.** `createGuardedFetch({ allowPrivate: true })` lets loopback and private
+  hosts pass and still refuses link-local ones. Only a connector from an address gets it, and only
+  on a runtime that is not managed (`reachesPrivate`). It is decided at every request and stored
+  nowhere, so the same record on a managed runtime stays behind the guard. On a managed runtime
+  the preview and the import refuse a private address with `connectorPrivateAddress`.
+- **Token calls.** An imported connector’s code exchange, refresh and client registration go
+  through the same guarded fetch (`ConnectorOAuth2Config.fetchImpl`).
 
 ## Not built
 

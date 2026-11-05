@@ -1,6 +1,7 @@
 # Plan: Fähigkeiten, the next four pieces
 
-Status: planned on 2026-11-05, every decision taken the same day; nothing built. Follows
+Status: planned on 2026-11-05, every decision taken the same day. Piece 1 is built (1a the
+runtime, 1b the studio and the docs); pieces 2 to 4 are not. Follows
 `docs/plans/capabilities.md` and `docs/plans/broker.md`, which are built. Page with the mockups:
 the artifact “Fähigkeiten Next Steps” (claude.ai/artifact/2WB6P59ZJgxPYi9rr2h53m). Checked
 against `main` at v0.16.2 plus #500–#509.
@@ -9,7 +10,7 @@ against `main` at v0.16.2 plus #500–#509.
 
 | | Piece | Today | What comes |
 |---|---|---|---|
-| 1 | A server by its address | The runtime reads an address; no screen takes one, and an MCP server outside the registry fails at import | „Per Adresse“ in Connectors: check, correct, import |
+| 1 | A server by its address (built) | The runtime reads an address; no screen takes one, and an MCP server outside the registry fails at import | „Per Adresse“ in Connectors: check, correct, import |
 | 2 | Limits, stopping, pausing | Only a guest's mails are counted; a stopped run can still call; a connection can only be removed | Calls per run and day, a stop that holds, „Verbindung pausieren“ |
 | 3 | Rechte | Rules are written in four places and listed nowhere; some are stored and never asked | One page: who may what, the exceptions as sentences |
 | 4 | A Connector that brings skills | Nothing links a skill to a connection; nothing reads a plugin | A Claude Code or Cursor plugin becomes a Connector with its Skills |
@@ -35,7 +36,30 @@ warns about it first (2b) and makes it wait later (2c).
 
 ## 1. A server by its address
 
-What the code does:
+Built on 2026-11-06: 1a in `connectors/external.ts`, `connectors/reload.ts` and
+`test/connector-by-address.test.ts`, 1b in `studio/ConnectorByAddress.tsx`. How it works now is in
+`docs/content/dev/broker.md` („A connector from an address“) and
+`docs/content/user-guide/connectors.md` („By its address“). What follows is the state before, and
+the design.
+
+What a pasted address still cannot do:
+
+- A guest’s post to a channel works for Slack only (`postsToChannel`). An action of a pasted
+  server that names a channel, a phone number or a user id as its recipient is refused for a
+  guest: the named field must hold e-mail addresses.
+- A key in a query parameter, two credentials at once, OAuth client credentials or a device flow
+  cannot be chosen. OAuth is the authorization-code flow the server describes.
+- A server that needs a sign-in shows no actions at „Prüfen“, unless the admin types a key for a
+  header. With OAuth the actions come after the connection is signed in and reloaded, and their
+  kinds are set then.
+- Only http servers: streamable HTTP and SSE. A server started on the command line has no home
+  (piece 4 says so too).
+- A reload does not say which actions came or went, and a new action runs under its guessed kind
+  until an admin looks.
+- The server’s own name is not read: the connector is named after its host until the admin types
+  a name.
+
+What the code did:
 
 - `previewSource` (`apps/runtime/src/connectors/external.ts`) and `POST /connectors/preview`
   (`routes/studio.ts`) read any address; nothing in the studio calls them. `POST
