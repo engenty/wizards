@@ -28,11 +28,31 @@ export interface Grant {
   hosts: string[];
   /** The tools any step of the run names. */
   tools: string[];
+  /**
+   * Where a fixed `call` step posts, by step id: the `channel` its input names as a literal, with
+   * no template in it, so no value of the run can change it. A guest's run posts to no other
+   * channel (send.ts). Left out on a run that started before grants kept it.
+   */
+  channels?: Record<string, FixedChannel>;
+}
+
+/** The channel a fixed step is fixed to, through which connection and action. */
+export interface FixedChannel {
+  /** The connection as the broker's log names it: the space's, where the wizard's entry is one. */
+  connection: string;
+  action: string;
+  channel: string;
+}
+
+/** A value of a call's input as the definition fixes it: a text with no template; else null. */
+function literal(value: unknown): string | null {
+  return typeof value === "string" && !value.includes("{{") && value.trim() ? value.trim() : null;
 }
 
 /** The grant a definition gives its runs. Pure: the same definition, the same grant. */
 export function grantOf(definition: WizardDefinition): Grant {
   const connections: Record<string, string[]> = {};
+  const channels: Record<string, FixedChannel> = {};
   const tools = new Set<string>();
   const hosts = new Set<string>();
   const defs = new Map((definition.connections ?? []).map((c) => [c.id, c]));
@@ -47,6 +67,14 @@ export function grantOf(definition: WizardDefinition): Grant {
       const have = new Set(connections[step.call.connection] ?? []);
       have.add(step.call.action);
       connections[step.call.connection] = [...have].sort();
+      const channel = literal(step.call.input.channel);
+      if (channel) {
+        channels[step.id] = {
+          connection: defs.get(step.call.connection)?.spaceConnection ?? step.call.connection,
+          action: step.call.action,
+          channel,
+        };
+      }
     }
     for (const host of step.hosts ?? []) {
       hosts.add(host.trim().toLowerCase());
@@ -63,7 +91,25 @@ export function grantOf(definition: WizardDefinition): Grant {
       connections[id] = [...have].sort();
     }
   }
-  return { connections, hosts: [...hosts].sort(), tools: [...tools].sort() };
+  return { connections, hosts: [...hosts].sort(), tools: [...tools].sort(), channels };
+}
+
+/**
+ * Whether the grant fixes this step's post to this channel: the step's own connection and action,
+ * and the channel its definition names as a literal.
+ */
+export function channelInGrant(
+  grant: Grant,
+  stepId: string,
+  post: { connectionId: string; actionId: string; channel: string },
+): boolean {
+  const fixed = grant.channels?.[stepId];
+  return (
+    !!fixed &&
+    fixed.connection === post.connectionId &&
+    fixed.action === post.actionId &&
+    fixed.channel === post.channel
+  );
 }
 
 /**

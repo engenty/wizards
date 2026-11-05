@@ -29,6 +29,7 @@ import { SearchField, Section } from "../space/Section";
 import { useSpaceConnections } from "./ConnectorsSection";
 import {
   actionWord,
+  answerCondition,
   answerSentence,
   connectionWord,
   criticalWord,
@@ -684,6 +685,7 @@ function AnswerText({
   const tone: Tone =
     answer.outcome === "allow" ? "done" : answer.outcome === "ask" ? "held" : "refused";
   const Icon = TONE_ICON[tone];
+  const condition = answerCondition(answer);
   return (
     <div className="flex items-start gap-3">
       <Icon className={cn("mt-1 size-4 shrink-0", TONE_CLASS[tone])} />
@@ -691,6 +693,7 @@ function AnswerText({
         <p className="font-medium text-[0.9375rem] text-ink leading-snug">
           {answerSentence(answer, { who, connection, audience })}
         </p>
+        {condition ? <p className="text-[0.8125rem] text-ink-2">{condition}</p> : null}
         <p className="text-[0.8125rem] text-ink-3">
           {t("protocol.ask.rule", { rule: ruleWord(answer.rule) })}
         </p>

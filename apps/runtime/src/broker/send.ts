@@ -1,22 +1,74 @@
-import { and, eq, gte, notLike } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, notLike, or } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import type { Refusal, Where, Who } from "./call.js";
+import { channelInGrant, type Grant, grantOf } from "./grant.js";
 import { summarizeInput, writeLog } from "./log.js";
 
 /*
  * Sends from a guest's run (docs/plans/capabilities.md, A6; rule 7 of the connections plan): a
  * mail leaves only for an address the run itself collected — what the person typed into a page
- * field of kind `email` — or for an address in one of the space's own mail domains. A run sends a
- * few, a wizard's guests a number per day the wizard sets. Everything beyond is refused and
- * logged as critical. Members' runs are not bound: they send as they always did.
+ * field of kind `email` — or for an address in one of the space's own mail domains. A post to a
+ * channel (Slack) leaves only from a fixed step, for the channel the published definition fixes
+ * (the run's grant). A run sends a few, a wizard's guests a number per day the wizard sets, mails
+ * and posts together. Everything beyond is refused and logged as critical. Members' runs are not
+ * bound: they send as they always did.
  */
 
-/** Mails one guest's run sends, from any address. */
+/** Mails and posts one guest's run sends, from any address. */
 export const GUEST_MAILS_PER_RUN = 3;
 
-export type SendRefusal = Extract<Refusal, "not_allowed_recipient" | "run_limit" | "day_limit">;
+export type SendRefusal = Extract<
+  Refusal,
+  "not_allowed_recipient" | "channel_not_fixed" | "run_limit" | "day_limit"
+>;
 
 export type SendCheck = { ok: true } | { ok: false; refused: SendRefusal; reason: string };
+
+/**
+ * The sends that go to a channel and name no address, by connector: the actions whose input
+ * names the channel as `channel`. Slack's post is the one.
+ */
+const CHANNEL_POSTS: Record<string, readonly string[]> = { slack: ["post_message"] };
+
+/** Whether this action of this connector posts to a channel. */
+export function postsToChannel(connectorId: string, actionId: string): boolean {
+  return CHANNEL_POSTS[connectorId]?.includes(actionId) ?? false;
+}
+
+/** The channel a post's input names; null where it names none. */
+export function channelOf(input: unknown): string | null {
+  const channel =
+    input && typeof input === "object" ? (input as Record<string, unknown>).channel : null;
+  return typeof channel === "string" && channel.trim() ? channel.trim() : null;
+}
+
+/** A guest's post, as the log and „Was darf …?“ say it. */
+export const FIXED_CHANNEL_ONLY =
+  "A guest's run posts only from a fixed step, to the channel its published step fixes.";
+
+/**
+ * Whether a guest's run may post to this channel, with no side effect: only its fixed step
+ * posts, and only to the channel the grant fixes for that step. The grant comes from the
+ * published definition, so nothing the guest typed decides it.
+ */
+export function guestPostCheck(post: {
+  who: Who;
+  where: Where;
+  connectionId: string;
+  actionId: string;
+  channel: string | null;
+  grant: Grant;
+}): SendCheck {
+  const { where, connectionId, actionId, channel } = post;
+  const fixed =
+    post.who.kind === "step" &&
+    !!where.stepId &&
+    !!channel &&
+    channelInGrant(post.grant, where.stepId, { connectionId, actionId, channel });
+  return fixed
+    ? { ok: true }
+    : { ok: false, refused: "channel_not_fixed", reason: FIXED_CHANNEL_ONLY };
+}
 
 const ADDRESS = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
 
@@ -95,18 +147,39 @@ const startOfToday = () => {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 };
 
-/** How many mails guests sent through this run, and through this wizard today. */
-async function guestMailsSent(where: Where): Promise<{ run: number; day: number }> {
-  // Mails only: a request to a host is a send too, counted nowhere here.
+/**
+ * How often guests sent through this run, and through this wizard today: mails and posts, a
+ * guest's own and those of the fixed steps of guests' runs.
+ */
+async function guestSends(where: Where): Promise<{ run: number; day: number }> {
+  // A request to a host is a send too, counted nowhere here.
   const sent = and(
-    eq(schema.brokerLog.whoKind, "guest"),
     eq(schema.brokerLog.kind, "send"),
     eq(schema.brokerLog.result, "ok"),
     notLike(schema.brokerLog.connectionId, "host:%"),
   );
+  // A fixed step is logged as `step`: it counts where its run is a guest's.
+  const guestRuns = (wizardId: string) =>
+    db
+      .select({ id: schema.run.id })
+      .from(schema.run)
+      .where(
+        and(
+          eq(schema.run.wizardId, wizardId),
+          eq(schema.run.mode, "live"),
+          isNull(schema.run.userId),
+        ),
+      );
   const [inRun, today] = await Promise.all([
     where.runId
-      ? db.$count(schema.brokerLog, and(sent, eq(schema.brokerLog.runId, where.runId)))
+      ? db.$count(
+          schema.brokerLog,
+          and(
+            sent,
+            eq(schema.brokerLog.runId, where.runId),
+            inArray(schema.brokerLog.whoKind, ["guest", "step"]),
+          ),
+        )
       : 0,
     where.wizardId
       ? db.$count(
@@ -115,6 +188,13 @@ async function guestMailsSent(where: Where): Promise<{ run: number; day: number 
             sent,
             eq(schema.brokerLog.wizardId, where.wizardId),
             gte(schema.brokerLog.at, startOfToday()),
+            or(
+              eq(schema.brokerLog.whoKind, "guest"),
+              and(
+                eq(schema.brokerLog.whoKind, "step"),
+                inArray(schema.brokerLog.runId, guestRuns(where.wizardId)),
+              ),
+            ),
           ),
         )
       : 0,
@@ -122,57 +202,75 @@ async function guestMailsSent(where: Where): Promise<{ run: number; day: number 
   return { run: inRun, day: today };
 }
 
+/** What a guest's send names: addresses, and for a post to a channel who posts through what. */
+export interface GuestSend {
+  /** The addresses the send names (`recipientsOf`). */
+  recipients: string[];
+  /** A post to a channel (`postsToChannel`): the caller, the connection and action, the channel. */
+  post?: { who: Who; connectionId: string; actionId: string; channel: string | null };
+}
+
 /**
- * Whether a guest's run may send to these addresses now: each one the run's own or in the space's
- * domains, and the run and the wizard under their caps. The run, the wizard and the space are
- * read here; a run or wizard not known refuses.
+ * Whether a guest's run may send this now: each address the run's own or in the space's domains,
+ * a post only to the channel its fixed step is fixed to, and the run and the wizard under their
+ * caps. The run, the wizard and the space are read here; a run or wizard not known refuses.
  */
-export async function guestSendCheck(where: Where, recipients: string[]): Promise<SendCheck> {
+export async function guestSendCheck(where: Where, send: GuestSend): Promise<SendCheck> {
+  const { recipients, post } = send;
   const refuse = (refused: SendRefusal, reason: string): SendCheck => ({
     ok: false,
     refused,
     reason,
   });
-  if (!recipients.length) {
+  if (!(recipients.length || post)) {
     return refuse("not_allowed_recipient", "The send names no recipient.");
   }
   const run = where.runId
     ? await db.query.run.findFirst({
         where: eq(schema.run.id, where.runId),
-        columns: { definition: true, state: true, wizardId: true },
+        columns: { definition: true, state: true, wizardId: true, grant: true },
       })
     : null;
   if (!run) {
     return refuse("not_allowed_recipient", "The run is not known here.");
   }
+  if (post) {
+    // A run from before grants were kept: the grant its definition gives (grant.ts, `runGrant`).
+    const fixed = guestPostCheck({ ...post, where, grant: run.grant ?? grantOf(run.definition) });
+    if (!fixed.ok) {
+      return fixed;
+    }
+  }
   const wizard = await db.query.wizard.findFirst({
     where: eq(schema.wizard.id, run.wizardId),
     columns: { spaceId: true, dailyMailLimit: true },
   });
-  const space = wizard
-    ? await db.query.space.findFirst({
-        where: eq(schema.space.id, wizard.spaceId),
-        columns: { mailDomains: true },
-      })
-    : null;
-  const own = runAddresses(run);
-  const domains = space?.mailDomains ?? [];
-  const foreign = recipients.find(
-    (address) => !(own.includes(address.toLowerCase()) || inMailDomains(address, domains)),
-  );
-  if (foreign) {
-    return refuse(
-      "not_allowed_recipient",
-      `A guest's run sends only to its own address or the space's domains, not to ${foreign}.`,
+  if (recipients.length) {
+    const space = wizard
+      ? await db.query.space.findFirst({
+          where: eq(schema.space.id, wizard.spaceId),
+          columns: { mailDomains: true },
+        })
+      : null;
+    const own = runAddresses(run);
+    const domains = space?.mailDomains ?? [];
+    const foreign = recipients.find(
+      (address) => !(own.includes(address.toLowerCase()) || inMailDomains(address, domains)),
     );
+    if (foreign) {
+      return refuse(
+        "not_allowed_recipient",
+        `A guest's run sends only to its own address or the space's domains, not to ${foreign}.`,
+      );
+    }
   }
-  const sent = await guestMailsSent({ ...where, wizardId: where.wizardId ?? run.wizardId });
+  const sent = await guestSends({ ...where, wizardId: where.wizardId ?? run.wizardId });
   if (sent.run >= GUEST_MAILS_PER_RUN) {
-    return refuse("run_limit", `This run has sent its ${GUEST_MAILS_PER_RUN} mails.`);
+    return refuse("run_limit", `This run has sent its ${GUEST_MAILS_PER_RUN} mails and posts.`);
   }
   const perDay = wizard?.dailyMailLimit ?? 50;
   if (sent.day >= perDay) {
-    return refuse("day_limit", `This wizard's guests have sent today's ${perDay} mails.`);
+    return refuse("day_limit", `This wizard's guests have sent today's ${perDay} mails and posts.`);
   }
   return { ok: true };
 }
@@ -218,7 +316,7 @@ export async function brokerSend<T>(call: {
     });
   let reason = "The server's address sends for members.";
   if (where.guest) {
-    const check = await guestSendCheck(where, call.recipients);
+    const check = await guestSendCheck(where, { recipients: call.recipients });
     if (!check.ok) {
       await line("deny", check.reason, check.refused);
       return check;

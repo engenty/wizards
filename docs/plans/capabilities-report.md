@@ -171,3 +171,13 @@ re-checked on the final branch: the connection page lists `send_message` under �
 `broker/ask` answers an admin's send in a chat with `ask` by `rules.send` and a guest's send in a
 run with `deny` by the audience. Decide before `feat/work-mode` goes to main: narrow the plugin connections A5 converted with audience „alle"; whether a guest's Slack
 post should be refused like a send without an address (#373 made it so).
+
+Decided on 2026-11-05 (`capabilities.md`, „Decided on 2026-11-05", 3) and built: a guest's run
+posts to Slack from a fixed step whose `call.input.channel` is a literal in the published
+definition. `grantOf` keeps that channel in the run's grant (`channels`, by step id), and
+`guestPostCheck` (`broker/send.ts`) allows only that step, connection, action and channel. A
+templated channel and the guest's own call are refused as `channel_not_fixed`. Posts and mails
+count against the same limits (3 per run, `dailyMailLimit` per day). Found on the way: the
+limits counted only lines logged as `guest`, so a fixed step's sends (logged as `step`), mails
+included, were never counted. They count now where the run is a guest's. Other sends that name
+no address (an imported connector's) stay refused: nothing says which input names where they go.

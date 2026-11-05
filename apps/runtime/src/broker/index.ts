@@ -29,6 +29,8 @@ export {
 } from "./call.js";
 export { type Caller, currentCaller, withCaller } from "./caller.js";
 export {
+  channelInGrant,
+  type FixedChannel,
   type Grant,
   grantNote,
   grantOf,
@@ -62,8 +64,13 @@ export {
 export { type OutsideReach, outsideReaches, reachesOutside } from "./registry.js";
 export {
   brokerSend,
+  channelOf,
+  FIXED_CHANNEL_ONLY,
   GUEST_MAILS_PER_RUN,
+  type GuestSend,
+  guestPostCheck,
   guestSendCheck,
+  postsToChannel,
   recipientsOf,
   runAddresses,
   type SendCheck,

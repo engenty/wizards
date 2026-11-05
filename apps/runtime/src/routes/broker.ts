@@ -7,12 +7,14 @@ import {
   type BrokerConnection,
   cursorOf,
   decide,
+  FIXED_CHANNEL_ONLY,
   inAudience,
   kindOf,
   LOG_PAGE,
   type LoggedRow,
   logLine,
   logOfSpace,
+  postsToChannel,
   readCursor,
   type Who,
   type WhoKind,
@@ -293,7 +295,25 @@ export const brokerRoutes = new Hono<Vars>()
       ...(ask.in === "run" ? { runId: "ask", mode: "live" as const } : {}),
       ...(ask.in === "chat" ? { chatId: "ask" } : {}),
     };
-    const decision = decide({ who, where, connection, actionId: ask.action, kind });
+    let decision = decide({ who, where, connection, actionId: ask.action, kind });
+    // A guest's post (broker/send.ts): only a fixed step posts, to the channel its published
+    // step fixes. No step is named here, so a fixed step's answer says the condition.
+    const post =
+      where.guest &&
+      kind === "send" &&
+      decision.outcome !== "deny" &&
+      postsToChannel(connector.id, ask.action);
+    const fixedChannel = post && who.kind === "step";
+    if (fixedChannel) {
+      decision = { ...decision, reason: `${decision.reason} ${FIXED_CHANNEL_ONLY}` };
+    } else if (post) {
+      decision = {
+        outcome: "deny",
+        rule: "guest_send",
+        refused: "channel_not_fixed",
+        reason: FIXED_CHANNEL_ONLY,
+      };
+    }
     return c.json({
       who,
       connection: { id: row.id, name: row.name, connector: connector.id },
@@ -303,6 +323,7 @@ export const brokerRoutes = new Hono<Vars>()
       reason: decision.reason,
       ...(decision.refused ? { refused: decision.refused } : {}),
       ...(decision.admins ? { admins: true } : {}),
+      ...(fixedChannel ? { fixedChannel: true } : {}),
     });
   })
   // What „Was darf …?“ picks from: the organization's people, the space's connections and their actions.

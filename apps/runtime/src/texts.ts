@@ -164,8 +164,9 @@ const EN = {
   shareVisitorRecipients: "From here, an email goes to at most {recipients} addresses.",
   shareGuestRecipient:
     "From here, an email goes only to the address you gave in the wizard or to the team’s own addresses.",
-  shareGuestRunMails: "This run has sent its {mails} emails.",
-  shareGuestDayMails: "This wizard has sent its emails for today. Try again tomorrow.",
+  shareGuestChannel: "From here, no message goes to a Slack channel.",
+  shareGuestRunMails: "This run has sent its {mails} emails and messages.",
+  shareGuestDayMails: "This wizard has sent its emails and messages for today. Try again tomorrow.",
   shareConnectMailbox: "Connect a mailbox first.",
   shareSendingFrom: "Sending from {account}",
   shareSentTo: "Sent to {to}",
@@ -410,9 +411,10 @@ const DE: Partial<Record<ServerKey, Line>> = {
   shareVisitorRecipients: "Von hier geht eine E-Mail an höchstens {recipients} Adressen.",
   shareGuestRecipient:
     "Von hier geht eine E-Mail nur an die Adresse, die du im Wizard angegeben hast, oder an Adressen des Teams.",
-  shareGuestRunMails: "Dieser Lauf hat seine {mails} E-Mails gesendet.",
+  shareGuestChannel: "Von hier geht keine Nachricht in einen Slack-Kanal.",
+  shareGuestRunMails: "Dieser Lauf hat seine {mails} E-Mails und Nachrichten gesendet.",
   shareGuestDayMails:
-    "Dieser Wizard hat seine E-Mails für heute gesendet. Versuch es morgen wieder.",
+    "Dieser Wizard hat seine E-Mails und Nachrichten für heute gesendet. Versuch es morgen wieder.",
   shareConnectMailbox: "Verbinde zuerst ein Postfach.",
   shareSendingFrom: "Sendet von {account}",
   shareSentTo: "Gesendet an {to}",

@@ -102,6 +102,18 @@ With approval on a connection that signs in as the space asks the space’s admi
 under the bell in Work until one of them agrees. Where each person signs in, With approval asks
 that person.
 
+**What a guest’s run may send.** A guest starts a wizard from its link, and nobody of your team
+watches the run. So the rules above are not all that counts for it:
+
+- It sends an email only to the address the guest gave in the wizard, or to an address in the
+  space’s own mail domains.
+- It posts to Slack only from a fixed step, and only to the channel written into that step of the
+  published wizard. A channel taken from what the guest typed is refused.
+- One run sends three emails and messages in all. A wizard’s guests send a set number per day.
+
+Your members’ runs are not bound by this. The [Audit](./protocol.md) shows each refusal with its
+reason.
+
 Members see the connections open to them, with their rules, and change nothing. Where each person
 signs in, they sign in right there. [Connectors](./connectors.md#connections-in-the-space) has the
 details, and how a wizard uses a connector of its own.

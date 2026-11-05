@@ -14,7 +14,7 @@ import type { StoreScope } from "../store/index.js";
 import { type Account, keptSecret, markUsed, spaceAccount, wizardAccount } from "./account.js";
 import { type Grant, inGrant, runGrant } from "./grant.js";
 import { type LineContext, SIGN_IN_FAILED, summarizeInput, writeLog } from "./log.js";
-import { guestSendCheck, recipientsOf } from "./send.js";
+import { channelOf, guestSendCheck, postsToChannel, recipientsOf } from "./send.js";
 
 /*
  * The broker (docs/plans/broker.md): the one path every connector call takes. It knows who calls
@@ -97,8 +97,9 @@ export interface BrokerCallInput<T = unknown> {
  * words for each: `needs_approval` – the connection's rule says „Mit Freigabe“, the call waits for
  * an admin of the space and the caller holds it; `ai_step_writes` – an AI step wanted to write as
  * the space, which only a fixed `call` step does (A4); `not_allowed_recipient` – a guest's send to
- * an address that is neither the run's own nor in the space's domains; `run_limit` – a guest's
- * run has sent its mails; `day_limit` – the wizard's guests have sent today's mails.
+ * an address that is neither the run's own nor in the space's domains; `channel_not_fixed` – a
+ * guest's post to a channel its published step does not fix; `run_limit` – a guest's run has sent
+ * its mails and posts; `day_limit` – the wizard's guests have sent today's.
  */
 export type Refusal = BrokerRefusal;
 
@@ -449,9 +450,22 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     await line(kind, "deny", rule, decision.reason, refused);
     return { ok: false, refused, reason: decision.reason };
   }
-  // A guest's send goes only to the run's own address or the space's domains, a few per run and day.
+  // A guest's send goes only to the run's own address or the space's domains, a post only to the
+  // channel its fixed step is fixed to, a few per run and day.
   if (kind === "send" && where.guest) {
-    const sent = await guestSendCheck(where, recipientsOf(call.input));
+    const sent = await guestSendCheck(where, {
+      recipients: recipientsOf(call.input),
+      ...(postsToChannel(account.connector.id, call.action.id)
+        ? {
+            post: {
+              who,
+              connectionId,
+              actionId: call.action.id,
+              channel: channelOf(call.input),
+            },
+          }
+        : {}),
+    });
     if (!sent.ok) {
       await line(kind, "deny", "guest_send", sent.reason, sent.refused);
       return { ok: false, refused: sent.refused, reason: sent.reason };

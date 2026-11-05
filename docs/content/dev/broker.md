@@ -151,9 +151,10 @@ has words for each:
 | `nobody` | The rules say ask, and nobody can be asked |
 | `needs_approval` | *Mit Freigabe* on a connection that signs in as the space: the call waits for an admin |
 | `ai_step_writes` | An AI step wanted to change, delete or send as the space |
-| `not_allowed_recipient` | A guest’s send to an address that is neither the run’s own nor in the space’s mail domains |
-| `run_limit` | A guest’s run has sent its mails (`GUEST_MAILS_PER_RUN`, 3) |
-| `day_limit` | The wizard’s guests have sent today’s mails (`wizard.dailyMailLimit`, 50 unless set) |
+| `not_allowed_recipient` | A guest’s send to an address that is neither the run’s own nor in the space’s mail domains, or a send that names no recipient |
+| `channel_not_fixed` | A guest’s post to a channel that the published step does not fix |
+| `run_limit` | A guest’s run has sent its mails and posts (`GUEST_MAILS_PER_RUN`, 3) |
+| `day_limit` | The wizard’s guests have sent today’s mails and posts (`wizard.dailyMailLimit`, 50 unless set) |
 
 ## The run’s grant
 
@@ -164,12 +165,18 @@ interface Grant {
   connections: Record<string, string[]>; // action ids, or the kind "read"
   hosts: string[];                       // names, or "*.example.org"
   tools: string[];
+  channels?: Record<string, FixedChannel>; // by step id: { connection, action, channel }
 }
 ```
 
 - A step’s `connections` add the actions its connection names, or `read` without a list.
 - A fixed step’s `call` adds its one action on its connection.
 - A step’s `hosts` add the hosts `http_request` may reach.
+- A fixed step whose `call.input.channel` is a literal adds that channel under the step’s id.
+  A literal is a text with no `{{…}}` in it. A channel that comes from a field, a value or an
+  earlier step is a template and adds nothing. `connection` is the id the log uses: the space
+  connection’s where the wizard’s entry names one, else the entry’s own. A run that started
+  before this has no `channels`.
 
 `createRun` (`engine/runner.ts`) computes the grant from the definition the run starts on: the
 published one for a live run, the draft for a test run. It keeps the grant in `run.grant`, so an
@@ -183,9 +190,20 @@ once from the run’s definition and writes it. `inGrant` always lets `list_tool
   `host:<name>`, action `http_request`, kind `send`. A guest’s run reaches only the hosts in its
   grant. A member’s run reaches any public host, until the `broker` switch is on.
 - `guestSendCheck` (`broker/send.ts`) lets a guest’s send go only to an address a page field of
-  kind `email` collected in the run, or to the space’s `mailDomains`, within the limits above.
-  It holds a connection’s send action as well as the email share target. A send whose input
-  names no address, such as a Slack post, is refused for a guest.
+  kind `email` collected in the run, or to the space’s `mailDomains`. It holds a connection’s
+  send action as well as the email share target.
+- A guest’s post to a channel is Slack’s `post_message` (`postsToChannel`), and its input names
+  the channel as `channel`. `guestPostCheck` is pure and allows it only when a fixed step posts
+  (`who.kind` is `step`) and `channelInGrant` finds that step, connection, action and channel in
+  the run’s grant. The grant comes from the published definition, so nothing the guest typed
+  decides it. Everything else is refused as `channel_not_fixed`: a templated channel, even
+  where it renders to the same id, and the guest’s own call from an AI step or the Slack share
+  target.
+- Any other send that names no address is refused as `not_allowed_recipient`. That holds an
+  imported connector’s send: nothing says which of its inputs names where it goes.
+- The limits count mails and posts together, per run and per wizard and day. They count what
+  `broker_log` holds as an `ok` send of a guest (`who_kind` `guest`) or of a fixed step in a
+  guest’s run (`who_kind` `step`), and no request to a host.
 - `keptStepIds` (`broker/kept.ts`) names the steps of a guest’s run that read from a space
   connection whose audience is not `all`. Their results stay in the space.
 
@@ -301,7 +319,7 @@ All under `/api/studio`, for a signed-in person of the organization.
 | `GET /spaces/:id/rules`, `PUT /spaces/:id/rules`, `DELETE /spaces/:id/rules/:ruleId` | The RWX rules, saved as a whole list | Admins; 404 while `broker` is off |
 | `GET /spaces/:id/broker/log` | The log, newest first. Filters: `connection`, `who`, `outcome`, `result`, `refused`, `critical`, `since`, `until`, `q`; `cursor` with the `next` of the page before, `limit` | Admins: every line. A member: their own lines (`ownLines`); 403 where the space’s Studio is closed to members |
 | `GET /spaces/:id/broker/log/:line` | One line, with the run’s grant | Admins. A member: their own line; 404 for another person’s |
-| `GET /spaces/:id/broker/ask?who=&for=&resource=&action=&in=` | „Was darf …?“: `decide`’s outcome, rule and reason. Nothing runs and nothing is logged | Admins (403 for a member) |
+| `GET /spaces/:id/broker/ask?who=&for=&resource=&action=&in=` | „Was darf …?“: `decide`’s outcome, rule and reason. A guest’s post to a channel is answered as the call is: a fixed step gets the connection’s rule and the condition in its reason, any other caller `deny` by `guest_send`. Nothing runs and nothing is logged | Admins (403 for a member) |
 | `GET /spaces/:id/broker/choices` | The people and the space’s connections with their actions, for the question | Admins (403 for a member) |
 | `GET /spaces/:id/discover?q=` | Skills from skills.sh and connectors from integrations.sh, marked where the space has them | Everyone; 404 while `capabilities` is off |
 

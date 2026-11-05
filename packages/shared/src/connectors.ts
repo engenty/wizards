@@ -119,6 +119,7 @@ export const BROKER_REFUSALS = [
   "needs_approval",
   "ai_step_writes",
   "not_allowed_recipient",
+  "channel_not_fixed",
   "run_limit",
   "day_limit",
 ] as const;
@@ -216,6 +217,8 @@ export interface BrokerAnswer {
   reason: string;
   refused?: BrokerRefusal;
   admins?: true;
+  /** A guest's post from a fixed step: it runs only to the channel the published step fixes. */
+  fixedChannel?: true;
 }
 
 /** What an action does, as the rules see it. */

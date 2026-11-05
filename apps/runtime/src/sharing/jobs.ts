@@ -147,6 +147,8 @@ function refusalLine(refused: Refusal): Said | null {
   switch (refused) {
     case "not_allowed_recipient":
       return line("shareGuestRecipient");
+    case "channel_not_fixed":
+      return line("shareGuestChannel");
     case "run_limit":
       return line("shareGuestRunMails", { mails: GUEST_MAILS_PER_RUN });
     case "day_limit":
