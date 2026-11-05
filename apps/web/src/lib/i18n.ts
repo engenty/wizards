@@ -3043,6 +3043,11 @@ const de: Record<Key, Line> = {
   "protocol.empty":
     "Noch keine Zeilen. Sobald ein Wizard, ein Chat oder Goose eine Verbindung nutzt, steht es hier.",
   "protocol.emptyFiltered": "Keine Zeile passt zu diesen Filtern.",
+  "protocol.own.hint":
+    "Du siehst hier nur deine eigenen Zugriffe, auch die von Goose für dich und die deiner Läufe. Klick auf eine Zeile für mehr.",
+  "protocol.own.search": "z. B. HubSpot, create_contact",
+  "protocol.own.empty":
+    "Noch keine Zeilen. Sobald du, Goose für dich oder einer deiner Läufe eine Verbindung nutzt, steht es hier.",
   "protocol.more": "Mehr laden",
   "protocol.critical": "kritisch",
   "protocol.kind.read": "Lesen",
@@ -7133,6 +7138,11 @@ const en = {
   "protocol.empty":
     "No lines yet. As soon as a wizard, a chat or Goose uses a connection, it shows here.",
   "protocol.emptyFiltered": "No line fits these filters.",
+  "protocol.own.hint":
+    "You see only your own calls here, including Goose’s for you and those of your runs. Click a line for more.",
+  "protocol.own.search": "e.g. HubSpot, create_contact",
+  "protocol.own.empty":
+    "No lines yet. As soon as you, Goose for you or one of your runs uses a connection, it shows here.",
   "protocol.more": "Load more",
   "protocol.critical": "critical",
   "protocol.kind.read": "Reading",

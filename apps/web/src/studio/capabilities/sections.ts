@@ -19,8 +19,6 @@ export interface CapabilitySection {
   element: ComponentType | null;
   /** The switch it waits behind, besides `capabilities`. */
   feature?: FeatureName;
-  /** For the owners and admins alone: a member's menu leaves it out. */
-  admins?: boolean;
   /** Without a menu of its own: the list of sections stays beside its page. */
   menu?: false;
 }
@@ -55,18 +53,13 @@ export const CAPABILITY_SECTIONS: CapabilitySection[] = [
     label: "capabilities.protocol",
     icon: ShieldCheck,
     element: ProtocolSection,
-    admins: true,
-    // „Was darf …?“ and the notifications open from its header.
+    // An admin's: every line, with „Was darf …?“ and the notifications in its header. A member's:
+    // their own lines.
     menu: false,
   },
 ];
 
-/** The sections the page shows: built, on where they wait behind a switch, and the admins' to an admin. */
-export function shownSections(
-  on: (name: FeatureName) => boolean,
-  admin = true,
-): CapabilitySection[] {
-  return CAPABILITY_SECTIONS.filter(
-    (s) => s.element && (!s.feature || on(s.feature)) && (admin || !s.admins),
-  );
+/** The sections the page shows: built, and on where they wait behind a switch. */
+export function shownSections(on: (name: FeatureName) => boolean): CapabilitySection[] {
+  return CAPABILITY_SECTIONS.filter((s) => s.element && (!s.feature || on(s.feature)));
 }

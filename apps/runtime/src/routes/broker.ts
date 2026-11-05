@@ -7,6 +7,7 @@ import {
   type BrokerConnection,
   cursorOf,
   decide,
+  inAudience,
   kindOf,
   LOG_PAGE,
   type LoggedRow,
@@ -25,19 +26,27 @@ import {
 import { db, schema } from "../db/client.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { managed, tenantMembers } from "../manage.js";
-import { isAdminRole, requireAdmin } from "../services/access.js";
+import { currentRole, isAdminRole, requireAdmin } from "../services/access.js";
 import { notFound } from "../services/errors.js";
 import { userProfile } from "../services/profile.js";
 import { ownedSpace } from "../services/spaces.js";
 import { currentTenant } from "../tenants/tenant.js";
 
 /**
- * The broker heard and tried (docs/plans/broker.md, phase 2), under `/api/studio`, for the
- * space's admins (403 for a member): „Was darf …?“ answers what the broker would decide for a
- * caller, a connection and an action, with the rule that decides, and nothing runs; the log with
- * the filters of Fähigkeiten › Protokoll, a page of it at a time, each line with the names the
- * page shows (the person, the connection, the action, the wizard, the chat); one line with what
- * the run was allowed; the people and connections the page's question picks from.
+ * The broker heard and tried (docs/plans/broker.md, phase 2), under `/api/studio`: „Was darf …?“
+ * answers what the broker would decide for a caller, a connection and an action, with the rule
+ * that decides, and nothing runs; the log with the filters of Fähigkeiten › Protokoll, a page of
+ * it at a time, each line with the names the page shows (the person, the connection, the action,
+ * the wizard, the chat); one line with what the run was allowed; the people and connections the
+ * page's question picks from.
+ *
+ * The question and what it picks from are the space's admins' (403 for a member). The log is the
+ * admins' whole; a member reads their own lines of it (broker/log.ts `ownLines`: their calls,
+ * Goose's for them, the fixed steps of their runs), where the space's Studio is open to them
+ * (services/members-studio.ts). The query narrows to them, so a page, a cursor and a search count
+ * no one else's, and another person's line is a line that is not there. A member's lines name
+ * themselves and the connections open to them, no one else, and say what a run was allowed only
+ * of a run held for them.
  */
 
 type Vars = { Variables: { user: SessionUser } };
@@ -120,13 +129,25 @@ export function logView(row: LoggedRow) {
   };
 }
 
-/** The organization's people by id, with their role; alone, the one person. */
-async function peopleOf(user: SessionUser): Promise<ProtocolPerson[]> {
+/** The person whose own lines are all they read of the log: a member. Undefined for an admin. */
+const memberOf = (user: SessionUser): string | undefined =>
+  managed && !isAdminRole(currentRole()) ? user.id : undefined;
+
+/** The organization's people by id, with their role; alone, the one person; for a member, themselves. */
+async function peopleOf(user: SessionUser, own?: string): Promise<ProtocolPerson[]> {
   if (!managed) {
     return [{ id: user.id, name: (await userProfile(user)).name, role: "owner" }];
   }
   const people = await tenantMembers(currentTenant()).catch(() => null);
-  return (people?.members ?? []).map((m) => ({ id: m.userId, name: m.name, role: m.role }));
+  return (people?.members ?? [])
+    .filter((m) => !own || m.userId === own)
+    .map((m) => ({ id: m.userId, name: m.name, role: m.role }));
+}
+
+/** The space's connections the lines are named by: for a member, the ones open to them. */
+async function connectionsOf(spaceId: string, own?: string) {
+  const all = await listSpaceConnections(spaceId);
+  return own ? all.filter((c) => inAudience(c.audience, { kind: "person", id: own })) : all;
 }
 
 /** A connector, looked up once per request. */
@@ -148,9 +169,14 @@ function connectorCache(spaceId: string) {
  * The lines with the names the page shows: who by name (a fixed step: whom its run is held for),
  * the connection and the action by theirs, the wizard of a run, the title of a chat.
  */
-async function describeLines(rows: LoggedRow[], spaceId: string, people: ProtocolPerson[]) {
+async function describeLines(
+  rows: LoggedRow[],
+  spaceId: string,
+  people: ProtocolPerson[],
+  own?: string,
+) {
   const named = new Map(people.map((p) => [p.id, p]));
-  const connections = new Map((await listSpaceConnections(spaceId)).map((c) => [c.id, c]));
+  const connections = new Map((await connectionsOf(spaceId, own)).map((c) => [c.id, c]));
   const connector = connectorCache(spaceId);
   const ids = (pick: (row: LoggedRow) => string | null) => [
     ...new Set(rows.map(pick).filter((id): id is string => !!id)),
@@ -230,7 +256,7 @@ async function describeLines(rows: LoggedRow[], spaceId: string, people: Protoco
 }
 
 /** The ids whose names hold the search text: people, the space's connections, its wizards. */
-async function matchesOf(q: string, spaceId: string, people: ProtocolPerson[]) {
+async function matchesOf(q: string, spaceId: string, people: ProtocolPerson[], own?: string) {
   const text = q.trim().toLowerCase();
   if (!text) {
     return undefined;
@@ -242,7 +268,7 @@ async function matchesOf(q: string, spaceId: string, people: ProtocolPerson[]) {
     .where(eq(schema.wizard.spaceId, spaceId));
   return {
     who: people.filter((p) => has(p.name)).map((p) => p.id),
-    connections: (await listSpaceConnections(spaceId)).filter((c) => has(c.name)).map((c) => c.id),
+    connections: (await connectionsOf(spaceId, own)).filter((c) => has(c.name)).map((c) => c.id),
     wizards: wizards.filter((w) => has(w.title)).map((w) => w.id),
   };
 }
@@ -307,40 +333,51 @@ export const brokerRoutes = new Hono<Vars>()
   .get("/spaces/:id/broker/log", async (c) => {
     const user = c.get("user");
     const space = await ownedSpace(user.id, c.req.param("id"));
-    await requireAdmin();
+    const own = memberOf(user);
     const { cursor, q, ...query } = logSchema.parse(c.req.query());
     const before = cursor ? readCursor(cursor) : null;
     const limit = query.limit ?? LOG_PAGE;
-    const people = await peopleOf(user);
+    const people = await peopleOf(user, own);
     const rows = await logOfSpace(space.id, {
       ...query,
       limit,
+      ...(own ? { own } : {}),
       ...(before ? { before } : {}),
-      ...(q?.trim() ? { q, matches: await matchesOf(q, space.id, people) } : {}),
+      ...(q?.trim() ? { q, matches: await matchesOf(q, space.id, people, own) } : {}),
     });
     const last = rows.at(-1);
     return c.json({
-      lines: await describeLines(rows, space.id, people),
+      lines: await describeLines(rows, space.id, people, own),
       // A full page may have more behind it.
       next: last && rows.length === limit ? cursorOf(last) : null,
     });
   })
-  // One line, with what its run was allowed through that connection or to that host.
+  // One line, with what its run was allowed through that connection or to that host. A member's
+  // own line; another person's is not there for them.
   .get("/spaces/:id/broker/log/:line", async (c) => {
     const user = c.get("user");
     const space = await ownedSpace(user.id, c.req.param("id"));
-    await requireAdmin();
-    const row = await logLine(space.id, c.req.param("line"));
+    const own = memberOf(user);
+    const row = await logLine(space.id, c.req.param("line"), own);
     if (!row) {
       throw notFound();
     }
-    const [line] = await describeLines([row], space.id, await peopleOf(user));
-    const run = row.runId
+    const [line] = await describeLines([row], space.id, await peopleOf(user, own), own);
+    const found = row.runId
       ? await db.query.run.findFirst({
           where: (t, { eq }) => eq(t.id, row.runId as string),
-          columns: { id: true, wizardId: true, mode: true, status: true, grant: true },
+          columns: {
+            id: true,
+            wizardId: true,
+            mode: true,
+            status: true,
+            grant: true,
+            userId: true,
+          },
         })
       : undefined;
+    // A member reads what a run was allowed only of a run held for them.
+    const run = found && (!own || found.userId === own) ? found : undefined;
     const host = row.connectionId.startsWith("host:") ? row.connectionId.slice(5) : null;
     return c.json({
       line,
