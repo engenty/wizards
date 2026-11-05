@@ -220,4 +220,5 @@ same function the broker uses, with no side effect. The same shows on a wizard's
 - The German word for the component in the product: it shows as its pages (Protokoll,
   Freigaben, „Was darf …?“) and never needs a name; the docs say „der Broker“.
 - Limits: per run and per day are enough at first; per person and per connection later.
-- Does a member see the Protokoll of their own calls? Proposed: yes, their own; admins all.
+- Decided on 2026-11-05: a member sees the Protokoll of their own calls; admins see all
+  (`capabilities.md`, „Decided on 2026-11-05“).
