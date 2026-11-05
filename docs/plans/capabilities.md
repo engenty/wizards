@@ -385,6 +385,9 @@ All behind `capabilities` (#364), on by default since 7. They show what part A b
 
 ## Roadmap
 
+What is built next (a server by its address, limits and pausing, the Rechte page, a Connector
+that brings skills) is planned in `docs/plans/capabilities-next.md`.
+
 - Plugins move to Fähigkeiten, with their settings; `/settings/plugins` redirects.
 - One connection offered to several spaces.
 - Through the company sign-in: MCP Enterprise-Managed Authorization, for Enterprise with SSO.
