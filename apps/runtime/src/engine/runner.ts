@@ -126,7 +126,13 @@ import { newTurn, TurnAsks, turnOf } from "./durable-turn.js";
 import { emitEvent, recentEvents, saidInVisit, signalChanged, visitLeftOpen } from "./events.js";
 import { classifyFailure, type Failure } from "./failures.js";
 import { type InputError, type PageContext, readPageInput } from "./input.js";
-import { type Actor, type NoticeKind, noticeFor, noticeWrites } from "./notices.js";
+import {
+  type Actor,
+  type NoticeKind,
+  type NoticeValues,
+  noticeFor,
+  noticeWrites,
+} from "./notices.js";
 import { pushRun } from "./push.js";
 import {
   blockingMessage,
@@ -265,35 +271,53 @@ const TOLD: Partial<Record<RunRow["status"], NoticeKind>> = {
   failed: "failed",
 };
 
-/** The notice a status change writes, if it tells anyone. A notice never breaks a run. */
-async function noticeOfStatus(
+/**
+ * The reminder of a person's step, written with the wait and due at `remind`. It goes by the same
+ * key as the wait, so an answer or a timeout settles it, and it replaces the last wait's. Whoever
+ * opened the page themselves has left by then, if they are not looking: it has no `by`.
+ */
+async function reminderOf(
+  run: Parameters<typeof noticeFor>[0],
+  step: Step | undefined,
+): Promise<NoticeValues | null> {
+  if (!isPersonStep(step) || !step.remind || !(await durableRunsOn())) {
+    return null;
+  }
+  return noticeFor(run, "reminder", {
+    waitKey: `step:${step.id}`,
+    detail: step.title,
+    dueAt: new Date(Date.now() + waitDurationMs(step.remind)),
+  });
+}
+
+/** The notices a status change writes, if it tells anyone. A notice never breaks a run. */
+async function noticesOfStatus(
   runId: string,
   patch: Partial<typeof schema.run.$inferInsert>,
   by?: Actor,
-) {
+): Promise<NoticeValues[]> {
   const kind = patch.status && TOLD[patch.status];
   if (!kind) {
-    return null;
+    return [];
   }
   try {
     const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
     if (!run) {
-      return null;
+      return [];
     }
     const cursor = patch.cursor === undefined ? run.cursor : patch.cursor;
-    return await noticeFor(run, kind, {
+    const step = stepOf(run.definition, cursor);
+    const told = await noticeFor(run, kind, {
       by,
       waitKey: kind === "needs_you" && cursor ? `step:${cursor}` : null,
       detail:
-        kind === "needs_you"
-          ? stepOf(run.definition, cursor)?.title
-          : kind === "failed"
-            ? (patch.error ?? run.error)
-            : null,
+        kind === "needs_you" ? step?.title : kind === "failed" ? (patch.error ?? run.error) : null,
     });
+    const reminder = kind === "needs_you" ? await reminderOf(run, step) : null;
+    return [told, reminder].filter((n) => n !== null);
   } catch (err) {
     console.error(`[notices] run ${runId}:`, err);
-    return null;
+    return [];
   }
 }
 
@@ -325,12 +349,12 @@ async function updateRun(
       updatedAt: new Date(),
     })
     .where(where);
-  // The notice goes in with the status: both happen, or neither.
-  const notice = await noticeOfStatus(runId, patch, by);
-  const result = notice
-    ? (await db.batch([...noticeWrites(notice, where), write]))[2]
+  // The notices go in with the status: all of it happens, or none.
+  const notices = (await noticesOfStatus(runId, patch, by)).flatMap((n) => noticeWrites(n, where));
+  const result = notices.length
+    ? ((await db.batch([...notices, write] as never)) as { rowsAffected: number }[]).at(-1)
     : await write;
-  if (result.rowsAffected === 0) {
+  if (result?.rowsAffected === 0) {
     if (held) {
       throw new LostClaim();
     }
@@ -546,6 +570,13 @@ export async function createRun(input: {
   }
   // What the run may reach outside, from the definition it starts on: fixed here, never widened.
   const grant = grantOf(input.definition);
+  // Without an account nobody can come back for a result later: it is kept a week. A run of a
+  // client space is the client's, kept with it.
+  const expiresAt =
+    input.mode === "live" && !input.clientSpaceId
+      ? new Date(Date.now() + env.limits.resultTtlDays * 24 * 60 * 60 * 1000)
+      : null;
+  const deadline = waits ? await deadlineOf({ expiresAt }, first) : { wakeAt: null };
   const insert = db
     .insert(schema.run)
     .values({
@@ -573,37 +604,33 @@ export async function createRun(input: {
       cursor: first.id,
       state,
       label: await labelOf(input.definition, state),
-      // Without an account nobody can come back for a result later: it is kept a week. A run of a
-      // client space is the client's, kept with it.
-      expiresAt:
-        input.mode === "live" && !input.clientSpaceId
-          ? new Date(Date.now() + env.limits.resultTtlDays * 24 * 60 * 60 * 1000)
-          : null,
+      expiresAt,
+      ...deadline,
     })
     .onConflictDoNothing({ target: [schema.run.wizardId, schema.run.occurrence] });
   // Whoever starts a run stands on its first page: today that tells nobody, by `noticeFor`'s rule.
-  const notice = waits
-    ? await noticeFor(
-        {
-          id,
-          wizardId: input.wizardId,
-          userId: input.userId ?? null,
-          visitorId: input.visitorId ?? null,
-          runner: input.runner ?? null,
-          unattended: input.unattended ?? false,
-          impersonatedBy: currentImpersonator()?.adminId ?? null,
-          startedBy: input.startedBy ?? null,
-        },
-        "needs_you",
-        {
+  const facts = {
+    id,
+    wizardId: input.wizardId,
+    userId: input.userId ?? null,
+    visitorId: input.visitorId ?? null,
+    runner: input.runner ?? null,
+    unattended: input.unattended ?? false,
+    impersonatedBy: currentImpersonator()?.adminId ?? null,
+    startedBy: input.startedBy ?? null,
+  };
+  const notices = waits
+    ? [
+        await noticeFor(facts, "needs_you", {
           detail: first.title,
           waitKey: `step:${first.id}`,
           by: { userId: input.userId, visitorId: input.visitorId },
-        },
-      )
-    : null;
-  const inserted = notice
-    ? (await db.batch([insert, ...noticeWrites(notice, eq(schema.run.id, id))]))[0]
+        }),
+        await reminderOf(facts, first),
+      ].flatMap((n) => (n ? noticeWrites(n, eq(schema.run.id, id)) : []))
+    : [];
+  const inserted = notices.length
+    ? ((await db.batch([insert, ...notices] as never)) as { rowsAffected: number }[])[0]
     : await insert;
   if (inserted.rowsAffected === 0) {
     await releaseRun(id);
@@ -626,7 +653,15 @@ export async function createRun(input: {
   if (may) {
     await emitEvent(id, first.id, "info", may);
   }
-  await indexRun({ runId: id, visitorId: input.visitorId, ipHash: input.ipHash });
+  await indexRun({
+    runId: id,
+    visitorId: input.visitorId,
+    ipHash: input.ipHash,
+    wakeAt: deadline.wakeAt,
+  });
+  if (waits) {
+    await waitsForAnswer(id, first, deadline.wakeAt);
+  }
   reportRun(id, waits ? "waiting_input" : "running");
   if (!waits) {
     kick(id);
@@ -735,7 +770,8 @@ async function driveClaimed(
         const working =
           run?.status === "running" ||
           run?.status === "sleeping" ||
-          run?.status === "waiting_signal";
+          run?.status === "waiting_signal" ||
+          (run?.status === "waiting_input" && run.wakeAt !== null);
         if (run && run.claim !== generation) {
           // Not a cancel: the turn of a durable step belongs to the runner that has the run now.
           abort.abort("stop");
@@ -1235,7 +1271,7 @@ async function withDeadline<T>(
 const NO_DEADLINE_KEPT_MS = 365 * 86_400_000;
 
 /** A run that waits is kept past its start: its wait, and the same time to come back for it. */
-function keptUntil(run: RunRow, wakeAt: Date | null): Date | null {
+function keptUntil(run: Pick<RunRow, "expiresAt">, wakeAt: Date | null): Date | null {
   if (!run.expiresAt) {
     return null;
   }
@@ -1464,6 +1500,205 @@ async function wakeFromWait(run: RunRow): Promise<boolean> {
   return false;
 }
 
+// --- a person's step with a deadline -------------------------------------------
+// It waits as a `wait` does: a row with `wake_at`, no process, no slot, no credits. An answer and the
+// deadline each write on the `rev` they read, so one wins and the other finds the run moved on.
+
+const isPersonStep = (step: Step | undefined): step is PageStep | ReviewStep =>
+  step?.type === "page" || step?.type === "review";
+
+/** Whether the step may wait for long: it gives its hold back, and holds again as it goes on. */
+async function waitsLong(step: PageStep | ReviewStep): Promise<boolean> {
+  return Boolean(step.timeout || step.remind) && (await durableRunsOn());
+}
+
+/** When a person's step gives up, and how long the run is kept for it. Written with the wait. */
+async function deadlineOf(
+  run: Pick<RunRow, "expiresAt">,
+  step: Step | undefined,
+): Promise<{ wakeAt: Date | null; expiresAt?: Date | null }> {
+  if (!isPersonStep(step) || !(await waitsLong(step))) {
+    return { wakeAt: null };
+  }
+  const now = Date.now();
+  const wakeAt = step.timeout ? new Date(now + waitDurationMs(step.timeout)) : null;
+  const last = wakeAt ?? new Date(now + waitDurationMs(step.remind as string));
+  return { wakeAt, expiresAt: keptUntil(run, last) };
+}
+
+/** The wait is on the row: its hold goes back, and the log says until when. */
+async function waitsForAnswer(runId: string, step: Step | undefined, wakeAt: Date | null) {
+  if (!isPersonStep(step) || !(await waitsLong(step))) {
+    return;
+  }
+  await releaseRun(runId);
+  if (wakeAt) {
+    await emitEvent(
+      runId,
+      step.id,
+      "wait",
+      note("runWaitsAnswerUntil", { until: { at: wakeAt.toISOString() } }),
+    );
+  }
+}
+
+/** The run stands at a person's step: control copy of the deadline first, as for a `wait`. */
+async function waitForAnswer(
+  run: RunRow,
+  step: Step | undefined,
+  patch: Partial<typeof schema.run.$inferInsert>,
+  seen?: { rev: number },
+  by?: Actor,
+) {
+  const deadline = await deadlineOf(run, step);
+  if (deadline.wakeAt) {
+    await setWake(run.id, deadline.wakeAt);
+  }
+  await updateRun(run.id, { ...patch, ...deadline, status: "waiting_input" }, seen, by);
+  await waitsForAnswer(run.id, step, deadline.wakeAt);
+}
+
+/** What a person's answer hands on, for `next` to read. */
+function handOnAnswer(
+  step: PageStep | ReviewStep,
+  state: RunState,
+  decision?: { approved: boolean; note?: string },
+) {
+  if (step.timeout || decision) {
+    state.outputs[step.id] = {
+      json: { ...(step.timeout ? { timedOut: false } : {}), ...decision },
+      at: new Date().toISOString(),
+    };
+  }
+}
+
+/**
+ * A person's answer takes the run on, if the deadline has not. A step that gave its hold back holds
+ * again first. Refused: the answer stays and the run waits for credits, as on a wake. The control
+ * copy of the deadline stays too: the extra wake finds the run moved on, and clearing it here could
+ * wipe the next wait's.
+ */
+async function answerGoesOn(
+  run: RunRow,
+  step: PageStep | ReviewStep,
+  state: RunState,
+  cursor: string | null,
+  patch: Partial<typeof schema.run.$inferInsert> = {},
+) {
+  const next = stepOf(run.definition, cursor);
+  let refused: RunNote | null = null;
+  if (next && next.type !== "result" && (await waitsLong(step))) {
+    // The Manage-App out of reach stops no answer: `canSpend` still guards the next step.
+    refused = await holdAgain(run).catch((err) => {
+      console.warn(`[run ${run.id}] holding credits on an answer:`, (err as Error).message);
+      return null;
+    });
+  }
+  try {
+    if (refused) {
+      await waitForPerson({ ...run, cursor }, cursor ?? step.id, { kind: "credits" }, state, {
+        rev: run.rev,
+      });
+    } else {
+      await updateRun(
+        run.id,
+        { ...patch, state, cursor, status: "running", wakeAt: null, error: null },
+        run,
+      );
+    }
+  } catch (err) {
+    // Lost to the deadline: say that, not that the wizard is busy.
+    if (err instanceof RunConflict) {
+      await requireWaiting(run.id, step.id);
+    }
+    throw err;
+  }
+}
+
+/**
+ * The clock woke a run at a person's step. The row decides: a wake that comes early puts the time
+ * back and changes nothing, one that finds the time up moves the run past the step, as the author
+ * wrote. Nobody's answer is invented: its fields stay empty, and an approval is not given.
+ * True: look at the run again, it went on or moved. False: nothing for this drive to do.
+ */
+async function wakeFromPersonStep(run: RunRow): Promise<boolean> {
+  const step = stepOf(run.definition, run.cursor);
+  if (!isPersonStep(step) || !run.wakeAt) {
+    return false;
+  }
+  if (run.wakeAt.getTime() > Date.now()) {
+    await setWake(run.id, run.wakeAt);
+    return false;
+  }
+  const state = structuredClone(run.state);
+  if (step.type === "page") {
+    for (const field of step.fields) {
+      delete state.values[field.id];
+    }
+    const at = run.definition.steps.indexOf(step);
+    for (const later of run.definition.steps.slice(at + 1)) {
+      delete state.pages?.[later.id];
+    }
+  }
+  state.outputs[step.id] = {
+    json: {
+      timedOut: true,
+      ...(step.type === "review" && step.approve ? { approved: false } : {}),
+    },
+    at: new Date().toISOString(),
+  };
+  state.history.push(step.id);
+  const cursor = await advance(run, step.id, state);
+  const next = stepOf(run.definition, cursor);
+  let refused: RunNote | null = null;
+  if (next && next.type !== "result") {
+    try {
+      refused = await holdAgain(run);
+    } catch (err) {
+      // The Manage-App out of reach is no refusal: the time stays due, the clock tries again.
+      console.warn(`[run ${run.id}] holding credits on wake:`, (err as Error).message);
+      await setWake(run.id, run.wakeAt);
+      return false;
+    }
+  }
+  try {
+    if (refused) {
+      await waitForPerson({ ...run, cursor }, cursor ?? step.id, { kind: "credits" }, state, {
+        rev: run.rev,
+      });
+    } else {
+      await updateRun(
+        run.id,
+        {
+          state,
+          cursor,
+          status: cursor ? "running" : "done",
+          wakeAt: null,
+          error: null,
+          driving: true,
+          ...(run.definition.label ? { label: await labelOf(run.definition, state) } : {}),
+        },
+        { rev: run.rev },
+      );
+    }
+  } catch (err) {
+    // Not another runner: the run moved under this write. An answer, or a translation landing, in
+    // which case the time is still up. The next look decides, so no wake is lost.
+    if (!(err instanceof LostClaim)) {
+      throw err;
+    }
+    const holder = driving.getStore();
+    if ((await loadRun(run.id))?.claim !== holder?.generation) {
+      throw err;
+    }
+    await startDriving(run.id);
+    return true;
+  }
+  await emitEvent(run.id, step.id, "woken", note("stepTimedOut"));
+  await emitEvent(run.id, step.id, "step_done", step.title);
+  return !refused;
+}
+
 // --- when a step fails ---------------------------------------------------------
 // Nothing waits in memory: a retry and a wait for a person are one more reason to sleep, so they
 // hold no process, no slot and no credits, and they survive a restart.
@@ -1496,7 +1731,7 @@ async function sleepFor(
   pause: RunPause,
   wakeAt: Date,
   state: RunState,
-  from: RunStatus,
+  from: RunStatus | { rev: number },
 ) {
   await setWake(run.id, wakeAt);
   await updateRun(
@@ -1509,7 +1744,7 @@ async function sleepFor(
       expiresAt: keptUntil(run, wakeAt),
       error: null,
     },
-    { status: from },
+    typeof from === "string" ? { status: from } : from,
   );
 }
 
@@ -1544,12 +1779,16 @@ async function waitForPerson(
   stepId: string,
   pause: Exclude<RunPause, { kind: "retry" }>,
   state: RunState,
-  from: RunStatus,
+  from: RunStatus | { rev: number },
 ) {
   const retries = retriesOf(state, stepId);
   if (Date.now() - Date.parse(retries.since) > PERSON_WAIT_MAX_MS) {
     const { pause: _, retries: __, ...rest } = state;
-    await updateRun(run.id, { state: rest, wakeAt: null }, { status: from });
+    await updateRun(
+      run.id,
+      { state: rest, wakeAt: null },
+      typeof from === "string" ? { status: from } : from,
+    );
     await failRun(
       run,
       stepId,
@@ -1709,6 +1948,10 @@ async function startDriving(runId: string): Promise<boolean> {
     where: eq(schema.run.id, runId),
     columns: { status: true, cursor: true, driving: true },
   });
+  // A wake of a person's step may well change nothing: the run only works once its time is up.
+  if (run?.status === "waiting_input") {
+    return false;
+  }
   const interrupted = run?.status === "running" && run.driving;
   if (interrupted) {
     await emitEvent(runId, run.cursor, "resumed", note("runResumed"));
@@ -1736,6 +1979,12 @@ async function drive(runId: string, signal: AbortSignal) {
     const run = await loadRun(runId);
     if (run?.status === "sleeping" || run?.status === "waiting_signal") {
       if (!(await (run.state.pause ? wakeFromPause(run) : wakeFromWait(run)))) {
+        return;
+      }
+      continue;
+    }
+    if (run?.status === "waiting_input" && run.wakeAt) {
+      if (!(await wakeFromPersonStep(run))) {
         return;
       }
       continue;
@@ -1831,7 +2080,7 @@ async function drive(runId: string, signal: AbortSignal) {
       const state = structuredClone(run.state);
       const cursor = await passStep(run, step, state);
       if (cursor === undefined) {
-        await updateRun(runId, { status: "waiting_input" });
+        await waitForAnswer(run, step, {});
         return;
       }
       await updateRun(runId, {
@@ -1844,7 +2093,7 @@ async function drive(runId: string, signal: AbortSignal) {
       continue;
     }
     if (step.type === "page" || step.type === "review") {
-      await updateRun(runId, { status: "waiting_input" });
+      await waitForAnswer(run, step, {});
       // A step that ran is over and the next one is the person's: a phone in a pocket hears it.
       void pushRun(runId, "waiting");
       return;
@@ -1969,7 +2218,8 @@ async function passStep(
 ): Promise<string | null | undefined> {
   if (step.type === "review") {
     const start = await startOf(run);
-    if (!start?.passReviews) {
+    // An approval is a person's: no setting gives it.
+    if (!start?.passReviews || step.approve) {
       return undefined;
     }
   } else {
@@ -1984,6 +2234,7 @@ async function passStep(
     }
     state.values = { ...state.values, ...values };
   }
+  handOnAnswer(step, state);
   state.history.push(step.id);
   return advance(run, step.id, state);
 }
@@ -2002,7 +2253,14 @@ async function requireWaiting(runId: string, stepId: string) {
   if (!run) {
     throw new RunConflict("Run not found");
   }
-  if (run.status !== "waiting_input" && run.status !== "done") {
+  const open = run.status === "waiting_input" || run.status === "done";
+  if (!open || run.cursor !== stepId) {
+    const output = run.state.outputs[stepId]?.json as { timedOut?: boolean } | undefined;
+    if (output?.timedOut) {
+      throw new RunConflict({ code: "answerTooLate" });
+    }
+  }
+  if (!open) {
     throw new RunConflict({ code: "runBusy" });
   }
   if (run.cursor !== stepId) {
@@ -2076,13 +2334,10 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
   for (const later of run.definition.steps.slice(at + 1)) {
     delete state.pages?.[later.id];
   }
+  handOnAnswer(step, state);
   state.history.push(stepId);
   const cursor = await advance(run, stepId, state);
-  await updateRun(
-    runId,
-    { state, cursor, status: "running", error: null, label: await labelOf(run.definition, state) },
-    run,
-  );
+  await answerGoesOn(run, step, state, cursor, { label: await labelOf(run.definition, state) });
   await tellAnswered(run, stepId);
   kick(runId);
 }
@@ -2174,7 +2429,9 @@ export async function writeRunState(
 }
 
 export type ReviewAction =
-  | { type: "accept"; edits?: Record<string, string | Record<string, unknown>> }
+  | { type: "accept"; edits?: Record<string, string | Record<string, unknown>>; note?: string }
+  /** A review with `approve` is declined; `note` says why. */
+  | { type: "decline"; note?: string }
   | { type: "regenerate"; target: string; note: string; items?: number[] };
 
 export async function reviewStep(runId: string, stepId: string, action: ReviewAction) {
@@ -2184,8 +2441,12 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
     throw new RunConflict("Not a review");
   }
   const state = structuredClone(run.state);
-  if (action.type === "accept") {
-    for (const [target, edit] of Object.entries(action.edits ?? {})) {
+  if (action.type === "decline" && !step.approve) {
+    throw new RunConflict({ code: "notAnApproval" });
+  }
+  if (action.type === "accept" || action.type === "decline") {
+    const edits = action.type === "accept" ? action.edits : undefined;
+    for (const [target, edit] of Object.entries(edits ?? {})) {
       const output = state.outputs[target];
       if (!step.edit || !step.show.includes(target) || !output) {
         continue;
@@ -2200,9 +2461,20 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
         await checkGuestText({ text: typeof edit === "string" ? edit : JSON.stringify(edit) });
       }
     }
+    const words = action.note?.trim().slice(0, 2000) || undefined;
+    if (words && step.approve && guestRun(run) && (await guestChecksOn())) {
+      await checkGuestText({ text: words });
+    }
+    handOnAnswer(
+      step,
+      state,
+      step.approve
+        ? { approved: action.type === "accept", ...(words ? { note: words } : {}) }
+        : undefined,
+    );
     state.history.push(stepId);
     const cursor = await advance(run, stepId, state);
-    await updateRun(runId, { state, cursor, status: "running", error: null }, run);
+    await answerGoesOn(run, step, state, cursor);
     await tellAnswered(run, stepId);
     kick(runId);
     return;
@@ -2217,7 +2489,7 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
   } else {
     delete state.redo?.[action.target];
   }
-  await updateRun(runId, { state, cursor: action.target, status: "running", error: null }, run);
+  await answerGoesOn(run, step, state, action.target);
   await emitEvent(runId, action.target, "info", "Wird neu erstellt …");
   kick(runId);
 }
@@ -2239,9 +2511,10 @@ export async function goBack(runId: string, by?: Actor) {
   delete state.retries;
   delete state.pause;
   delete state.turn;
-  await updateRun(
-    runId,
-    { state, cursor: previous, status: "waiting_input", error: null },
+  await waitForAnswer(
+    run,
+    stepOf(run.definition, previous),
+    { state, cursor: previous, error: null },
     run,
     by,
   );
@@ -2292,9 +2565,14 @@ export async function wakeNow(runId: string, by: string) {
   const run = await loadRun(runId);
   const now = new Date();
   // A time already gone by is the clock's: the run is about to go on, or going on.
-  // A wait for a signal goes on as at its deadline; without one there is no time to bring forward.
+  // A wait for a signal or a person goes on as at its deadline; without one there is no time to
+  // bring forward.
   if (
-    !(run?.status === "sleeping" || run?.status === "waiting_signal") ||
+    !(
+      run?.status === "sleeping" ||
+      run?.status === "waiting_signal" ||
+      run?.status === "waiting_input"
+    ) ||
     !run.wakeAt ||
     run.wakeAt <= now
   ) {
@@ -2474,7 +2752,7 @@ export async function runView(
     id: run.id,
     status: run.status,
     wakeAt:
-      run.status === "sleeping" || run.status === "waiting_signal"
+      run.status === "sleeping" || run.status === "waiting_signal" || run.status === "waiting_input"
         ? (run.wakeAt?.toISOString() ?? null)
         : null,
     pause: run.status === "sleeping" ? (run.state.pause ?? null) : null,

@@ -166,6 +166,8 @@ const texts = {
     signalTaken: "Danke, das ist angekommen.",
     reviewAsk: "Passt das so?",
     reviewOk: "Passt",
+    reviewApprove: "Freigeben",
+    reviewDecline: "Ablehnen",
     reviewRedo: "Neue Version",
     reviewWhich: "Was soll neu gemacht werden?",
     reviewNote: "Was soll anders sein?",
@@ -210,6 +212,8 @@ const texts = {
     signalTaken: "Thanks, that arrived.",
     reviewAsk: "Is this right?",
     reviewOk: "Looks good",
+    reviewApprove: "Approve",
+    reviewDecline: "Decline",
     reviewRedo: "New version",
     reviewWhich: "What should be redone?",
     reviewNote: "What should be different?",
@@ -892,6 +896,13 @@ export class ThreadDoor {
       await this.after(thread);
       return;
     }
+    if (msg?.replyId === "r:no" && w.approve) {
+      await this.o.runs.review(runId, w.review, { type: "decline" });
+      s.said = null;
+      s.awaiting = null;
+      await this.after(thread);
+      return;
+    }
     if (msg?.replyId === "r:redo") {
       if (w.show.length > 1) {
         s.awaiting = "target";
@@ -941,10 +952,15 @@ export class ThreadDoor {
         kind: "choice",
         text: say(s.lang, "reviewAsk"),
         button: say(s.lang, "choose"),
-        options: [
-          { id: "r:ok", title: say(s.lang, "reviewOk") },
-          { id: "r:redo", title: say(s.lang, "reviewRedo") },
-        ],
+        options: w.approve
+          ? [
+              { id: "r:ok", title: say(s.lang, "reviewApprove") },
+              { id: "r:no", title: say(s.lang, "reviewDecline") },
+            ]
+          : [
+              { id: "r:ok", title: say(s.lang, "reviewOk") },
+              { id: "r:redo", title: say(s.lang, "reviewRedo") },
+            ],
       });
     }
   }
