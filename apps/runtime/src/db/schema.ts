@@ -1929,7 +1929,6 @@ export const runEffect = sqliteTable(
     at: integer("at", { mode: "timestamp_ms" }).notNull(),
   },
   (t) => [index("run_effect_run").on(t.runId)],
-
 );
 
 /**

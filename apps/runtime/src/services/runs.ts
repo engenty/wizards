@@ -752,7 +752,11 @@ export async function runTimeline(run: RunRow, canAct: boolean): Promise<RunTime
     label: run.label,
     version: run.version,
     createdAt: run.createdAt.toISOString(),
-    wakeAt: run.status === "sleeping" ? (run.wakeAt?.toISOString() ?? null) : null,
+    wakeAt:
+      run.status === "sleeping" || run.status === "waiting_signal"
+        ? (run.wakeAt?.toISOString() ?? null)
+        : null,
+    pause: run.status === "sleeping" ? (run.state.pause?.kind ?? null) : null,
     credits: Math.ceil(run.costMicros / MICROS_PER_CREDIT),
     stepTitle: run.definition.steps.find((s) => s.id === run.cursor)?.title ?? null,
     startedBy: typeof name === "string" ? name : null,

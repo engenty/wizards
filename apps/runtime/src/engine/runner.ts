@@ -23,8 +23,8 @@ import {
   otherwiseOf,
   type PageStep,
   pageNeeds,
-  RUN_DONE_SIGNAL,
   type ReviewStep,
+  RUN_DONE_SIGNAL,
   type Step,
   signalMissing,
   textLang,
@@ -122,7 +122,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { type AskResult, askPerson, clearStaleAsk } from "./asks.js";
 import { decide } from "./decide.js";
 import { clearDeviceCalls } from "./device.js";
-import { newTurn, TurnAsks } from "./durable-turn.js";
+import { newTurn, TurnAsks, turnOf } from "./durable-turn.js";
 import { emitEvent, recentEvents, saidInVisit, signalChanged, visitLeftOpen } from "./events.js";
 import { classifyFailure, type Failure } from "./failures.js";
 import { type InputError, type PageContext, readPageInput } from "./input.js";
@@ -739,7 +739,7 @@ async function driveClaimed(
         if (run && run.claim !== generation) {
           // Not a cancel: the turn of a durable step belongs to the runner that has the run now.
           abort.abort("stop");
-        } else if (run && run.status !== "running") {
+        } else if (run && !working) {
           abort.abort();
         }
         if (run && !longHoldReported && Date.now() - heldSince >= LONG_HOLD_MS) {
@@ -1501,20 +1501,28 @@ async function sleepFor(
 }
 
 /**
- * Someone has to act before the run goes on, and this is the one place that tells them. Today that
- * is the run's log, which the runner, the studio's panel and a channel's thread show, and the phone
- * that follows the run. Nothing reaches an owner who isn't looking: PR 9's notice goes here.
+ * Someone has to act before the run goes on, and this is the one place that tells them: the run's
+ * log, which the runner, the studio's panel and a channel's thread show, and a notice for whoever
+ * isn't looking. A crash before the run sleeps tells again, and that notice replaces this one.
  */
 async function tellPerson(run: RunRow, stepId: string, pause: RunPause) {
-  await emitEvent(
-    run.id,
-    stepId,
-    "error",
+  const said =
     pause.kind === "sign_in"
       ? note("stepWaitsSignIn", { service: pause.service })
-      : note("stepWaitsCredits"),
-  );
-  void pushRun(run.id, "waiting");
+      : note("stepWaitsCredits");
+  await emitEvent(run.id, stepId, "error", said);
+  try {
+    const notice = await noticeFor(run, "needs_you", {
+      waitKey: `pause:${pause.kind}`,
+      detail: saidText(said, textLang(wizardLang(run.definition))),
+    });
+    if (notice) {
+      await db.batch(noticeWrites(notice, eq(schema.run.id, run.id)));
+    }
+  } catch (err) {
+    // A notice never breaks a run.
+    console.error(`[notices] run ${run.id}:`, err);
+  }
 }
 
 /** Out of credits or signed out: the run waits for a person, and fails only if nobody ever comes. */
@@ -1573,7 +1581,9 @@ async function stepFailed(run: RunRow, stepId: string, err: unknown, acted = fal
   // From the row, not from the step's copy: what the step did to its copy is not to stay, and what
   // was written while it worked (run_effect's visit) is.
   const latest = (await loadRun(run.id)) ?? run;
-  if (!acted || err instanceof SignInNeeded) {
+  // A turn starts over after a failure: its calls get new ids, so `run_effect` can't match them. The
+  // row knows what an earlier process of this turn did.
+  if (!(acted || turnOf(latest.state, stepId)?.acted) || err instanceof SignInNeeded) {
     if (failure.class === "credits") {
       await waitForPerson(latest, stepId, { kind: "credits" }, latest.state, "running");
       return false;
@@ -1627,8 +1637,11 @@ async function failedForGood(run: RunRow, stepId: string, err: unknown): Promise
   if (err instanceof ContentBlockedError) {
     state.blocked = err.kind;
   }
+  // The step is behind the run: going back to it later is a new visit, with a new turn.
   delete state.retries;
   delete state.deciding;
+  delete state.visiting;
+  delete state.turn;
   await updateRun(run.id, { state, cursor: target.id, status: "running", error: null });
   return true;
 }
@@ -2230,9 +2243,9 @@ export async function retry(runId: string) {
   const refused = (await durableRunsOn()) ? await holdAgain(run) : null;
   if (refused) {
     throw new RunConflict(refused);
+  }
   // A person's "try again" gets every try anew, and a turn that failed has dropped its snapshot:
   // the step starts over with a new one.
-  // A person's "try again" gets every try anew.
   const state = structuredClone(run.state);
   delete state.retries;
   delete state.pause;
@@ -2266,7 +2279,12 @@ export async function wakeNow(runId: string, by: string) {
   const run = await loadRun(runId);
   const now = new Date();
   // A time already gone by is the clock's: the run is about to go on, or going on.
-  if (run?.status !== "sleeping" || !run.wakeAt || run.wakeAt <= now) {
+  // A wait for a signal goes on as at its deadline; without one there is no time to bring forward.
+  if (
+    !(run?.status === "sleeping" || run?.status === "waiting_signal") ||
+    !run.wakeAt ||
+    run.wakeAt <= now
+  ) {
     throw new RunConflict({ code: "runMovedOn" });
   }
   await whileItWaits(run, { wakeAt: now });
@@ -2277,7 +2295,7 @@ export async function wakeNow(runId: string, by: string) {
 }
 
 /** What "Stop" may end: a run that waits, for a time or for a person. */
-const STOPPABLE = new Set<RunStatus>(["sleeping", "waiting_input"]);
+const STOPPABLE = new Set<RunStatus>(["sleeping", "waiting_signal", "waiting_input"]);
 
 /** "Stop" on a run that waits. Unlike `cancel` it refuses a run that has moved on. */
 export async function stopRun(runId: string, by: string) {

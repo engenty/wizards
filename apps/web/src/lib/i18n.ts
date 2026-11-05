@@ -2518,7 +2518,7 @@ const de: Record<Key, Line> = {
   "runs.noMatch": "Kein Lauf heißt so.",
   "runs.back": "Zurück zu den Läufen",
   "runs.open": "Lauf öffnen",
-  "runs.startedBy": "gestartet von {name}",
+  "runs.startedByName": "gestartet von {name}",
   "runs.filterByLabel": "Alle Läufe mit diesem Namen zeigen",
   "runs.waitsUntil": "Wartet bis {time}",
   "runs.waitsHint":
@@ -7236,7 +7236,7 @@ const en = {
   "runs.noMatch": "No run has that name.",
   "runs.back": "Back to the runs",
   "runs.open": "Open run",
-  "runs.startedBy": "started by {name}",
+  "runs.startedByName": "started by {name}",
   "runs.filterByLabel": "Show all runs with this name",
   "runs.waitsUntil": "Waits until {time}",
   "runs.waitsHint": "The run costs no credits while it waits. Then it goes on by itself.",
