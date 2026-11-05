@@ -36,6 +36,7 @@ import { managed } from "../manage.js";
 import { conversationAccess, ModelUnavailableError, textModel } from "../models.js";
 import { pluginMountChanged, pluginMounts } from "../mounts/mounts.js";
 import { seal, unseal } from "../secrets/crypto.js";
+import { sendSignalFromPlugin } from "../services/signals.js";
 import { putIndexEntry, removeIndexEntries } from "../services/space-index.js";
 import { originData } from "../services/space-origin.js";
 import {
@@ -268,6 +269,9 @@ function apiFor(record: LoadedPlugin): WizardsPluginApi {
       channels: channelsApi,
       claims: claimsApiFor(source.id),
       runs: runsApiFor(source.id),
+      signals: {
+        send: (input) => sendSignalFromPlugin(source.id, input),
+      },
       speech: {
         async conversation() {
           const access = await conversationAccess().catch((err: unknown) => {

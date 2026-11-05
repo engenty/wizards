@@ -105,8 +105,8 @@ describe("a wait step", () => {
   });
 
   it("has one of them", () => {
-    expect(messages(wizard({})).join()).toContain('"for" or "until"');
-    expect(messages(wizard({ for: "2d", until: "{{due}}" })).join()).toContain('"for" or "until"');
+    expect(messages(wizard({})).join()).toContain('"for", "until" or "signal"');
+    expect(messages(wizard({ for: "2d", until: "{{due}}" })).join()).toContain("one of them");
   });
 
   it("refuses what it cannot wait for", () => {
@@ -138,6 +138,65 @@ describe("a wait step", () => {
     expect(
       branchValues({}, { pause: { json: { waited: true } } })["steps.pause.waited"],
     ).toBe(true);
+  });
+
+  describe("for a signal", () => {
+    const signal = (more: object = {}) => ({ signal: { name: "paid", key: "{{due}}", ...more } });
+    const branch = (field: string) => ({
+      id: "after",
+      type: "agent",
+      title: "After",
+      instructions: "x",
+      tools: [],
+      output: { format: "text" },
+      next: [{ when: { field, op: "equals", value: true }, goto: "done" }],
+    });
+
+    it("takes a name, a key, a timeout and fields, and the version stays", () => {
+      expect(parseWizard(wizard(signal())).issues).toEqual([]);
+      expect(parseWizard(wizard(signal({ timeout: "3d", fields: ["amount"] }))).issues).toEqual([]);
+      expect(DEFINITION_VERSION).toBe(2);
+    });
+
+    it("is one of the three, with a known key and a readable timeout", () => {
+      expect(messages(wizard({ for: "1d", ...signal() })).join()).toContain("one of them");
+      expect(messages(wizard(signal({ key: "{{nope}}" }))).length).toBeGreaterThan(0);
+      expect(messages(wizard(signal({ timeout: "soon" }))).length).toBeGreaterThan(0);
+      expect(messages(wizard(signal({ name: "has space" }))).length).toBeGreaterThan(0);
+    });
+
+    it("hands on came, timedOut and its data, and a list decides which data", () => {
+      const reads = (field: string, more: object = {}) =>
+        parseWizard(wizard(signal(more), [branch(field)])).issues;
+      expect(reads("steps.pause.came")).toEqual([]);
+      expect(reads("steps.pause.timedOut")).toEqual([]);
+      expect(reads("steps.pause.data.subject")).toEqual([]);
+      expect(reads("steps.pause.data.amount", { fields: ["amount"] })).toEqual([]);
+      expect(reads("steps.pause.data.subject", { fields: ["amount"] }).length).toBeGreaterThan(0);
+      expect(reads("steps.pause.waited").length).toBeGreaterThan(0);
+      expect(reads("steps.pause.subject").length).toBeGreaterThan(0);
+      expect(reads("steps.pause.data").length).toBeGreaterThan(0);
+      expect(reads("steps.pause.came.p").length).toBeGreaterThan(0);
+    });
+
+    it("reads a sender's data only below `data`", () => {
+      const values = branchValues(
+        {},
+        {
+          pause: {
+            json: {
+              came: true,
+              timedOut: false,
+              data: { came: false, timedOut: true, subject: "Ja" },
+            },
+          },
+        },
+      );
+      expect(values["steps.pause.came"]).toBe(true);
+      expect(values["steps.pause.timedOut"]).toBe(false);
+      expect(values["steps.pause.data.came"]).toBe(false);
+      expect(values["steps.pause.data.subject"]).toBe("Ja");
+    });
   });
 
   it("has nothing to show or hand over", () => {
