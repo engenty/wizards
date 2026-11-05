@@ -309,7 +309,7 @@ describe("the hourly mail", () => {
   });
 });
 
-describe("„Was darf …?“ and the log, for the admins", () => {
+describe("„Was darf …?“ for the admins, and the log", () => {
   type App = { fetch: (req: Request) => Response | Promise<Response> };
   const url = (path: string) => `http://localhost:5181/api/studio${path}`;
 
@@ -351,7 +351,7 @@ describe("„Was darf …?“ and the log, for the admins", () => {
     expect((await get(owner, `/spaces/${space}/broker/ask?who=guest&resource=nope&action=x`)).status).toBe(404);
   });
 
-  it("lists the log with its filters; a member gets 403", async () => {
+  it("lists the log with its filters; a member gets their own lines, and 403 for the question", async () => {
     const owner = await appAs("owner");
     const all = await get(owner, `/spaces/${space}/broker/log`);
     expect(all.status).toBe(200);
@@ -370,8 +370,12 @@ describe("„Was darf …?“ and the log, for the admins", () => {
     expect(all.body.lines[0].input).toMatchObject({ fields: expect.any(Object) });
     expect(JSON.stringify(all.body)).not.toContain("pat-1");
 
+    // A member reads their own lines of it (broker-protocol-members.test.ts): none of these.
     const memberApp = await appAs("member");
-    expect((await get(memberApp, `/spaces/${space}/broker/log`)).status).toBe(403);
+    const own = await get(memberApp, `/spaces/${space}/broker/log`);
+    expect(own.status).toBe(200);
+    expect(own.body.lines.every((l: any) => l.who.id === member.id)).toBe(true);
+    expect(own.body.lines.length).toBeLessThan(all.body.lines.length);
     expect((await get(memberApp, `/spaces/${space}/broker/ask?who=guest&resource=${connection}&action=list_contacts`)).status).toBe(403);
   });
 });

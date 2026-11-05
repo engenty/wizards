@@ -349,7 +349,8 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    built yet), and every critical row is a line of the runtime's own log. „Was darf …?“: `GET
    /spaces/:id/broker/ask?who=&resource=&action=&in=` answers with `decide`'s outcome and rule,
    nothing runs; `GET /spaces/:id/broker/log` filters by connection, who, outcome, critical and
-   since; both for admins (403 for a member). The Protokoll page came with B5. Not yet: a webhook, per-kind
+   since; both for admins (403 for a member). The Protokoll page came with B5. Since 2026-11-05 a
+   member reads their own lines of the log (decision 4 below). Not yet: a webhook, per-kind
    choices of what notifies.
 8. Later, when the cloud needs it: `feat(runtime): isolated instances` — `RUNTIME_ROLE`
    `runner-guests`, the broker as its own process holding the sealing key, a guest instance

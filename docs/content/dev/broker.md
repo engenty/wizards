@@ -198,6 +198,24 @@ once from the run’s definition and writes it. `inGrant` always lets `list_tool
 field name doesn’t look like a secret, and a SHA-256 of the whole. No token, key, password or body
 is ever written. A log that can’t be written never stops the call.
 
+Admins read the whole log of a space. A member reads their own lines, where the space’s Studio is
+open to members (`services/members-studio.ts`). `ownLines(userId)` in `broker/log.ts` says which
+those are:
+
+- `who_kind` is `person` or `goose` and `who_id` is the member. An AI step calls as the person
+  its run is held for, so its lines are among them;
+- `who_kind` is `step` and the line’s run is held for the member (`run.user_id`).
+
+`logOfSpace` and `logLine` take the member as `own` and put `ownLines` into the query’s `where`.
+So a page, a cursor, a filter and a search never count another person’s line, and
+`GET /spaces/:id/broker/log/:line` answers 404 for one, as for a line that isn’t there. A line
+the member wrote as an admin (`who_kind` `admin`, `change_rules` among them) is not theirs.
+
+`routes/broker.ts` names a member’s lines with less than an admin’s: the only person is the
+member, a space connection outside their audience has no name, connector or action name, and
+`run` with its grant is there only for a run held for them. Everything else on the line is the
+member’s own call: the input’s summary, the outcome, the rule, the reason and the critical mark.
+
 `criticalOf(row)` in `broker/log.ts` is the one place that decides whether a row is critical:
 
 | `CRITICAL_KINDS` | When |
@@ -281,10 +299,10 @@ All under `/api/studio`, for a signed-in person of the organization.
 | `POST`, `DELETE /connections/:id/my-sign-in` | The person’s own sign-in, where each person signs in | Everyone in the audience |
 | `GET /person/sign-ins` | The person’s connections across their spaces | The person |
 | `GET /spaces/:id/rules`, `PUT /spaces/:id/rules`, `DELETE /spaces/:id/rules/:ruleId` | The RWX rules, saved as a whole list | Admins; 404 while `broker` is off |
-| `GET /spaces/:id/broker/log` | The log, newest first. Filters: `connection`, `who`, `outcome`, `result`, `refused`, `critical`, `since`, `until`, `q`; `cursor` with the `next` of the page before, `limit` | Admins (403 for a member) |
-| `GET /spaces/:id/broker/log/:line` | One line, with the run’s grant | Admins |
-| `GET /spaces/:id/broker/ask?who=&for=&resource=&action=&in=` | „Was darf …?“: `decide`’s outcome, rule and reason. Nothing runs and nothing is logged | Admins |
-| `GET /spaces/:id/broker/choices` | The people and the space’s connections with their actions, for the question | Admins |
+| `GET /spaces/:id/broker/log` | The log, newest first. Filters: `connection`, `who`, `outcome`, `result`, `refused`, `critical`, `since`, `until`, `q`; `cursor` with the `next` of the page before, `limit` | Admins: every line. A member: their own lines (`ownLines`); 403 where the space’s Studio is closed to members |
+| `GET /spaces/:id/broker/log/:line` | One line, with the run’s grant | Admins. A member: their own line; 404 for another person’s |
+| `GET /spaces/:id/broker/ask?who=&for=&resource=&action=&in=` | „Was darf …?“: `decide`’s outcome, rule and reason. Nothing runs and nothing is logged | Admins (403 for a member) |
+| `GET /spaces/:id/broker/choices` | The people and the space’s connections with their actions, for the question | Admins (403 for a member) |
 | `GET /spaces/:id/discover?q=` | Skills from skills.sh and connectors from integrations.sh, marked where the space has them | Everyone; 404 while `capabilities` is off |
 
 ## Not built
