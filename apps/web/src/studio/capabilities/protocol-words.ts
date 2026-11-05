@@ -32,6 +32,7 @@ export const REFUSAL_WORDS: Record<BrokerRefusal, Key> = {
   calls_per_day: "protocol.refused.calls_per_day",
   run_ended: "protocol.refused.run_ended",
   paused: "protocol.refused.paused",
+  may_have_happened: "protocol.refused.may_have_happened",
 };
 
 /** Why a run that is over took no more calls, by the rule the broker logs (`run.<status>`). */
@@ -189,6 +190,9 @@ export function outcomeOf(line: Pick<ProtocolLine, "outcome" | "result" | "rule"
       tone: "done",
       text: t(outcome === "ask" ? "protocol.outcome.doneApproved" : "protocol.outcome.done"),
     };
+  }
+  if (result === "already_done") {
+    return { tone: "done", text: t("protocol.outcome.alreadyDone") };
   }
   if (result === "needs_approval") {
     return { tone: "held", text: t("protocol.outcome.held") };

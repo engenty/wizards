@@ -97,6 +97,7 @@ function buildAction(
         // reached the guard is the invoker's own, with `allowPrivate`.
         ...(allowPrivate ? { allowPrivate: true } : {}),
         fetchImpl: allowPrivate ? fetch : ctx.fetchImpl,
+        ...(ctx.idempotencyKey ? { idempotencyKey: ctx.idempotencyKey } : {}),
         input: args,
         invoke: action.invoke,
         record: current,

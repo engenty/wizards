@@ -3328,6 +3328,7 @@ const de: Record<Key, Line> = {
   "protocol.outcome.done": "durchgeführt",
   "protocol.outcome.doneApproved": "durchgeführt mit Freigabe",
   "protocol.outcome.held": "wartet auf Freigabe durch die Admins",
+  "protocol.outcome.alreadyDone": "schon erledigt, nicht wiederholt",
   "protocol.outcome.signInFailed":
     "nicht durchgeführt: die Anmeldung ist abgelaufen oder wurde abgelehnt",
   "protocol.outcome.notDone": "nicht durchgeführt: {why}",
@@ -3391,6 +3392,8 @@ const de: Record<Key, Line> = {
   "connection.callsToday": { one: "heute 1 Aufruf", other: "heute {n} Aufrufe" },
   "connection.callsTodayOf": "heute {n} von {limit} Aufrufen",
   "connection.inAudit": "Im Audit ansehen",
+  "protocol.refused.may_have_happened":
+    "es ist vielleicht schon passiert und wurde nicht wiederholt",
   "protocol.why.audience": "die Verbindung ist nicht für diese Person",
   "protocol.why.audienceFor": "die Verbindung ist nur für {audience}",
   "protocol.why.actions": "die Verbindung ist nicht für diese Aktion",
@@ -7866,6 +7869,7 @@ const en = {
   "protocol.outcome.done": "done",
   "protocol.outcome.doneApproved": "done with approval",
   "protocol.outcome.held": "waiting for the admins’ approval",
+  "protocol.outcome.alreadyDone": "done before, not repeated",
   "protocol.outcome.signInFailed": "not done: the sign-in ran out or was refused",
   "protocol.outcome.notDone": "not done: {why}",
   "protocol.outcome.refused": "refused: {why}",
@@ -7926,6 +7930,7 @@ const en = {
   "connection.callsToday": { one: "1 call today", other: "{n} calls today" },
   "connection.callsTodayOf": "{n} of {limit} calls today",
   "connection.inAudit": "View in the audit",
+  "protocol.refused.may_have_happened": "it may have happened already and wasn’t repeated",
   "protocol.why.audience": "the connection isn’t for them",
   "protocol.why.audienceFor": "the connection is for {audience} only",
   "protocol.why.actions": "the connection isn’t for this action",

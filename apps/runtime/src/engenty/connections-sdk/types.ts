@@ -58,6 +58,11 @@ export interface ConnectorActionContext {
   connection: ConnectionSummary;
   /** fetch bound to nothing — actions build their own provider requests. */
   fetchImpl: typeof fetch;
+  /**
+   * The same on every attempt at one action of a run (the broker's `run_effect` id). A service
+   * that takes a key of its own gets it, so a repeat it sees changes nothing.
+   */
+  idempotencyKey?: string;
   log: (msg: string, data?: Record<string, unknown>) => void;
 }
 

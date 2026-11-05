@@ -189,6 +189,7 @@ export const BROKER_REFUSALS = [
   "calls_per_day",
   "run_ended",
   "paused",
+  "may_have_happened",
 ] as const;
 export type BrokerRefusal = (typeof BROKER_REFUSALS)[number];
 
