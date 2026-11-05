@@ -1054,7 +1054,6 @@ export const runRoutes = new Hono()
           note: z.string().max(2000),
           items: z.array(z.number().int().min(0).max(50)).max(20).optional(),
         }),
-        z.object({ type: z.literal("decline"), note: z.string().max(2000).optional() }),
       ])
       .parse(await c.req.json());
     try {
