@@ -13,12 +13,14 @@ export {
   brokerCall,
   brokerConnected,
   brokerSecret,
+  CONNECTION_PAUSED,
   type Decision,
   decide,
   grantBinds,
   inAudience,
   kindOf,
   type Refusal,
+  type SecretResult,
   signInRefused,
   type Where,
   type Who,
@@ -61,6 +63,7 @@ export {
   SIGN_IN_FAILED,
   summarizeInput,
 } from "./log.js";
+export { type RunOver, runOver } from "./over.js";
 export { type OutsideReach, outsideReaches, reachesOutside } from "./registry.js";
 export {
   brokerSend,

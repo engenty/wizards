@@ -59,6 +59,8 @@ export interface StepContext {
   ask(ask: AskInput): Promise<AskResult | null>;
   /** Run and step every model call of this step is made for. */
   call: CallMeta;
+  /** A share job's step: the run is done and the person sends its result on (broker/over.ts). */
+  share?: boolean;
   /** Adds provider cost to the run where the runtime resolves models itself; the gateway books the rest. */
   chargeUsd(usd: number): Promise<void>;
   saveAsset(input: Omit<SaveAssetInput, "runId">): Promise<AssetRef>;

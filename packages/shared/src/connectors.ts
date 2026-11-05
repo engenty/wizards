@@ -122,6 +122,8 @@ export const BROKER_REFUSALS = [
   "channel_not_fixed",
   "run_limit",
   "day_limit",
+  "run_ended",
+  "paused",
 ] as const;
 export type BrokerRefusal = (typeof BROKER_REFUSALS)[number];
 
@@ -282,6 +284,10 @@ export interface SpaceConnectionView {
   lastUsedAt: string | null;
   /** A `person` sign-in: how many people signed in; never who. */
   signedIn: number;
+  /** Since when it pauses: nobody reaches it until an admin resumes it. Null: it does not pause. */
+  pausedAt: string | null;
+  /** Who paused it, by name where the organization still knows them. */
+  pausedByName?: string | null;
 }
 
 /**
@@ -325,6 +331,8 @@ export interface PersonConnectionView {
   /** Who set it up, by name where the organization still knows them. */
   setUpBy: string | null;
   setUpAt: string;
+  /** Since when it pauses: nobody reaches it until an admin resumes it. Null: it does not pause. */
+  pausedAt: string | null;
 }
 
 /** The person's menu › „Verbindungen“: per space they belong to, the connections they may use. */

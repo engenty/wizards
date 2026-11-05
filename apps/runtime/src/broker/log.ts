@@ -22,7 +22,7 @@ export type LoggedRow = typeof schema.brokerLog.$inferSelect;
  * that is for the space's members or admins; `host_not_in_grant`; `limit_reached` – a guest's run
  * or a wizard's guests have sent their mails for the run or the day; `sign_in_failed` – a sign-in
  * ran out or the service refused it; `first_use` of a connection of the space; `rule_changed` –
- * RWX, or a connection's rules or audience.
+ * RWX, a connection's rules or audience, or a connection paused or resumed.
  */
 export { CRITICAL_KINDS, type CriticalKind } from "@engenty/wizards-shared/connectors";
 
@@ -41,6 +41,8 @@ export interface LineContext {
  * Which critical kind a row is, if any: the one place that decides. Every refusal of a write, a
  * delete or a send is critical; a refused read only where a guest reached outside a connection's
  * audience. A connection's first use and a changed rule are critical though nothing was refused.
+ * What a paused connection refuses is not: the admins paused it themselves and heard of that
+ * (`rule_changed`), and the mail that tells them of critical lines may go through that connection.
  */
 export function criticalOf(
   row: Pick<LogRow, "whoKind" | "kind" | "outcome" | "result" | "connectionId" | "actionId"> & {
@@ -55,6 +57,9 @@ export function criticalOf(
     return "sign_in_failed";
   }
   if (row.outcome === "deny") {
+    if (row.result === "paused") {
+      return null;
+    }
     if (row.result === "run_limit" || row.result === "day_limit") {
       return "limit_reached";
     }

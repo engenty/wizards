@@ -756,11 +756,11 @@ export async function makeContext(
   space: SpaceRow,
   state: RunState,
   signal: AbortSignal,
-  own: Partial<Pick<StepContext, "stepId" | "emit" | "ask">> = {},
+  own: Partial<Pick<StepContext, "stepId" | "emit" | "ask" | "share">> = {},
 ): Promise<StepContext> {
   const store = scopeOf(run);
   const resources = resourcesFor(run.id);
-  resources.bind(store, run);
+  resources.bind(store, run, own.share);
   const stepId = own.stepId ?? run.cursor ?? "";
   const holder = await runHolder(run);
   return {
@@ -792,6 +792,7 @@ export async function makeContext(
     emit:
       own.emit ?? ((type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset)),
     call: { runId: run.id, stepId },
+    ...(own.share ? { share: true } : {}),
     chargeUsd: (usd) => addLocalCost(run.id, stepId, usd),
     saveAsset: (input) =>
       saveAsset({

@@ -11,9 +11,17 @@ import type { AskResult } from "../engine/asks.js";
 import type { StepContext } from "../engine/types.js";
 import type { Role } from "../manage.js";
 import type { StoreScope } from "../store/index.js";
-import { type Account, keptSecret, markUsed, spaceAccount, wizardAccount } from "./account.js";
+import {
+  type Account,
+  keptSecret,
+  markUsed,
+  pauseOf,
+  spaceAccount,
+  wizardAccount,
+} from "./account.js";
 import { type Grant, inGrant, runGrant } from "./grant.js";
 import { type LineContext, SIGN_IN_FAILED, summarizeInput, writeLog } from "./log.js";
+import { runOver } from "./over.js";
 import { channelOf, guestSendCheck, postsToChannel, recipientsOf } from "./send.js";
 
 /*
@@ -25,6 +33,10 @@ import { channelOf, guestSendCheck, postsToChannel, recipientsOf } from "./send.
  * `ask` of the space's admins: the broker answers `needs_approval` and the caller holds the call
  * (a Work chat: `chat_approval`, the bell); once an admin approved it, the same call runs with
  * `ctx.approved` (A7).
+ *
+ * Two things are asked before any of it, on every call (docs/plans/capabilities-next.md, 2a):
+ * whether the call's run is over (`over.ts`: stopping a run is the revoke), and whether a
+ * connection of the space pauses. Neither trusts what a step or a chat turn read when it started.
  */
 
 /** Who calls: a guest at the wizard's link, a signed-in person, Goose for a person, a plugin's own job, a fixed step. */
@@ -53,6 +65,11 @@ export interface Where {
   guest?: boolean;
   /** The outside client that calls (an MCP client, `x-wizards-client`), for the log. */
   client?: string;
+  /**
+   * A share job: the person sends a finished run's result on. The one call a run that is done
+   * still makes (over.ts).
+   */
+  share?: boolean;
 }
 
 /** What an action does, as the rules see it. */
@@ -99,7 +116,8 @@ export interface BrokerCallInput<T = unknown> {
  * the space, which only a fixed `call` step does (A4); `not_allowed_recipient` – a guest's send to
  * an address that is neither the run's own nor in the space's domains; `channel_not_fixed` – a
  * guest's post to a channel its published step does not fix; `run_limit` – a guest's run has sent
- * its mails and posts; `day_limit` – the wizard's guests have sent today's.
+ * its mails and posts; `day_limit` – the wizard's guests have sent today's; `run_ended` – the
+ * call's run was stopped, is done or failed (over.ts); `paused` – an admin paused the connection.
  */
 export type Refusal = BrokerRefusal;
 
@@ -112,7 +130,8 @@ export interface Decision {
   /**
    * Which rule decided, as the log and „Was darf …?“ name it: `grant`, `audience`, `actions`,
    * `ai_step_writes`, `rules.<kind>` (a connection of the space), `destructive`, `policy.<action>`
-   * (a wizard's connection), `read`, `own_job`.
+   * (a wizard's connection), `read`, `own_job`, `paused`. A run that is over is logged as
+   * `run.<status>` (over.ts), before any decision here.
    */
   rule: string;
   reason: string;
@@ -147,6 +166,7 @@ export function whereOf(ctx: StepContext): Where {
       ctx.space.id,
     ),
     stepId: ctx.stepId,
+    ...(ctx.share ? { share: true } : {}),
   };
 }
 
@@ -189,8 +209,9 @@ export function inAudience(audience: SpaceConnectionRow["audience"], who: Who): 
  * comes first: a wizard's connection outside it, or an action the grant does not name, is denied
  * whatever the rules say.
  *
- * A connection of the space: outside its audience nothing runs, nor an action the connection is
- * not for. Its rules say per kind of action Erlaubt, Mit Freigabe or Nie. On a connection that
+ * A connection of the space: a pause is asked first, for every caller and before a plugin's own
+ * job: nobody reaches a connection an admin paused. Outside its audience nothing runs, nor an
+ * action the connection is not for. Its rules say per kind of action Erlaubt, Mit Freigabe or Nie. On a connection that
  * signs in as the space an AI step only reads: a write there comes from a fixed `call` step (the
  * wizard's fields, no model) or a Work chat's confirmed action, and never asks the person running;
  * „Mit Freigabe“ there asks the space's admins (`admins`). Where each person signs in, „Mit
@@ -220,6 +241,10 @@ export function decide(call: {
   }
   if (connection.kind === "space_connection") {
     const { row } = connection;
+    const paused = pausedDecision(row);
+    if (paused) {
+      return paused;
+    }
     const ownJob =
       who.kind === "plugin" && row.plugin === who.id && !call.where.runId && !call.where.chatId;
     if (ownJob) {
@@ -297,6 +322,17 @@ export function decide(call: {
   };
 }
 
+/** What the log and „Was darf …?“ say of a connection that pauses. */
+export const CONNECTION_PAUSED =
+  "The connection is paused: nobody reaches it until an admin resumes it.";
+
+/** The decision for a connection of the space that pauses, whoever calls; null where it does not. */
+function pausedDecision(row: Pick<SpaceConnectionRow, "pausedAt">): Decision | null {
+  return row.pausedAt
+    ? { outcome: "deny", rule: "paused", refused: "paused", reason: CONNECTION_PAUSED }
+    : null;
+}
+
 /**
  * Whether a call in a run comes from an AI step: a model's tool call, made as the person running
  * (a guest, a person, an admin), or a plugin tool it called. A fixed step calls as `step`; a
@@ -363,7 +399,8 @@ const ASK_INPUT = 4000;
  */
 export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise<BrokerResult<T>> {
   const started = Date.now();
-  const { who, where, connection, ctx = {} } = call;
+  const { who, where, ctx = {} } = call;
+  let { connection } = call;
   const connectionId = connectionIdOf(connection);
   // A connection of the space used for the first time is heard of (log.ts, `first_use`).
   const firstUse = connection.kind === "space_connection" && !connection.row.lastUsedAt;
@@ -400,6 +437,29 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       },
       context,
     );
+
+  // Before anything else: a run that is over calls nothing more, whatever the connection.
+  const over = await runOver(where);
+  if (over) {
+    await line(kindBefore(call), "deny", over.rule, over.reason, "run_ended");
+    return { ok: false, refused: "run_ended", reason: over.reason };
+  }
+  // A connection of the space: whether it pauses is read now, not taken from the row a step or a
+  // chat turn read when it started; one that was removed since is gone for them too.
+  if (connection.kind === "space_connection") {
+    const now = await pauseOf(connection.row.id);
+    if (!now) {
+      const reason = "The connection was removed.";
+      await line(kindBefore(call), "deny", null, reason, "not_connected");
+      return { ok: false, refused: "not_connected", reason };
+    }
+    connection = { ...connection, row: { ...connection.row, ...now } };
+    const paused = pausedDecision(connection.row);
+    if (paused) {
+      await line(kindBefore(call), "deny", paused.rule, paused.reason, "paused");
+      return { ok: false, refused: "paused", reason: paused.reason };
+    }
+  }
 
   // The account says what kind the action is; its secret stays inside the broker. A sign-in
   // that ran out and cannot be renewed, or that the service refuses, is heard of.
@@ -535,15 +595,37 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
   }
 }
 
+/**
+ * An action's kind before the account is read: what the caller says, else what the connector of
+ * a connection of the space says; a wizard's own connection names its connector only once its
+ * account is read, so an action of unknown kind counts as a write there.
+ */
+function kindBefore(call: BrokerCallInput<unknown>): ActionKind {
+  if (call.action.kind) {
+    return call.action.kind;
+  }
+  const { connection } = call;
+  const found =
+    connection.kind === "space_connection"
+      ? connection.connector.actions.find((a) => a.id === call.action.id)
+      : undefined;
+  return found ? kindOf(found.group) : "write";
+}
+
 /** Whether the service answered a call with "who are you?": its 401, or an OAuth grant gone. */
 export function signInRefused(err: unknown): boolean {
   const text = err instanceof Error ? err.message : String(err);
   return /(^|\D)401(\D|$)|invalid_grant|unauthori[sz]ed|token (has )?expired/i.test(text);
 }
 
+export type SecretResult<T> =
+  | { ok: true; result: T }
+  | { ok: false; refused: "run_ended"; reason: string };
+
 /**
  * A secret of a run's store that is no connection (the browser's kept sign-ins), read through
- * the broker as a `read`: the handler alone sees it, and the call is logged like any other.
+ * the broker as a `read`: the handler alone sees it, and the call is logged like any other. A run
+ * that is over reads none.
  */
 export async function brokerSecret<S, T>(call: {
   who: Who;
@@ -551,10 +633,16 @@ export async function brokerSecret<S, T>(call: {
   scope: StoreScope;
   slot: string;
   handler: (secret: S | null) => Promise<T>;
-}): Promise<T> {
+}): Promise<SecretResult<T>> {
   const started = Date.now();
-  const kept = await keptSecret<S>(call.scope, call.slot);
-  const line = (result: string) =>
+  const line = (
+    result: string,
+    decided: { outcome: "allow" | "deny"; rule: string; reason: string } = {
+      outcome: "allow",
+      rule: "read",
+      reason: "Reading is allowed.",
+    },
+  ) =>
     writeLog({
       at: new Date(started),
       durationMs: Date.now() - started,
@@ -570,16 +658,21 @@ export async function brokerSecret<S, T>(call: {
       actionId: "read_secret",
       kind: "read",
       inputSummary: summarizeInput({}),
-      outcome: "allow",
-      rule: "read",
-      reason: "Reading is allowed.",
+      ...decided,
       result,
       resultSize: null,
     });
+  // A run that is over reads no secret: the handler does not run.
+  const over = await runOver(call.where);
+  if (over) {
+    await line("run_ended", { outcome: "deny", ...over });
+    return { ok: false, refused: "run_ended", reason: over.reason };
+  }
+  const kept = await keptSecret<S>(call.scope, call.slot);
   try {
     const result = await call.handler(kept?.data ?? null);
     await line(kept ? "ok" : "not_connected");
-    return result;
+    return { ok: true, result };
   } catch (err) {
     await line(err instanceof Error ? err.constructor.name || "Error" : "Error");
     throw err;

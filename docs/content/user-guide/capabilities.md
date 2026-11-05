@@ -118,6 +118,19 @@ Members see the connections open to them, with their rules, and change nothing. 
 signs in, they sign in right there. [Connectors](./connectors.md#connections-in-the-space) has the
 details, and how a wizard uses a connector of its own.
 
+### Pause a connection
+
+An admin can pause a connection without removing it. “Pause connection” is at the bottom of the
+connection’s page, beside “Remove connection”. While it’s paused, nobody reaches it: no wizard, no
+chat, no plugin. A step that was already running is refused at its next call. Nothing is lost. The
+sign-ins, the rules and who may use it stay as they are.
+
+The page says on top that the connection is paused, since when and who paused it. “Resume” there
+gives it back as it was. The lists on the Overview, under Connectors and under Connections in your
+own menu mark it *paused*. The [Audit](./protocol.md) shows the pause and the resume as critical
+lines. Each call the connection refused meanwhile is a line too, with the reason “the connection
+is paused”.
+
 ## Your own connections
 
 Your own menu, behind your avatar in the top bar, has **Connections**. It lists, for each of your spaces, the
@@ -138,6 +151,12 @@ bell in Work. **Who may do what?** tries a rule before anything runs, for the ow
 The owner and the admins see every line. A member sees only their own: what they called, what
 Goose called for them and what the fixed steps of their runs called. [Audit](./protocol.md)
 explains each line, the filters, what counts as critical and what a member sees.
+
+**Stop a run.** An admin stops a run from the Audit. Click a line of a run that is still under
+way, then “Stop run”. From then on the run calls nothing more: each later call is refused, on
+every connection, and the line says the run is *stopped*. A call that was already under way still
+finishes. A stopped run can’t be continued. Stopping a run is the one way to take back what it may
+reach, and there is no other.
 
 ## Discover
 

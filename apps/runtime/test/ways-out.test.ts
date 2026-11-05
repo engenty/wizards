@@ -107,7 +107,10 @@ const definition = {
 const guest = { kind: "guest" as const, id: "visitor-7" };
 const member = { kind: "person" as const, id: "local" };
 
-/** A finished run with the step outputs in place: a guest's, or a member's. */
+/**
+ * A run with the step outputs in place, a guest's or a member's: still under way, so its steps
+ * call (the broker refuses a run that is over); `finish` ends it for the tests that read it.
+ */
 async function runRow(id: string, who: "guest" | "member", grant: unknown = null) {
   await inTenant(async () => {
     await client.db.insert(client.schema.run).values({
@@ -120,7 +123,7 @@ async function runRow(id: string, who: "guest" | "member", grant: unknown = null
       version: null,
       mode: "live",
       ...(who === "guest" ? { visitorId: "visitor-7" } : { userId: "local" }),
-      status: "done",
+      status: "running",
       cursor: "done",
       state: {
         values: { email: "Kundin@Example.com" },
@@ -136,6 +139,15 @@ async function runRow(id: string, who: "guest" | "member", grant: unknown = null
     await control.indexRun({ runId: id, visitorId: who === "guest" ? "visitor-7" : null });
   });
 }
+
+/** The run is done: what it made is read from here on. */
+const finish = (id: string) =>
+  inTenant(() =>
+    client.db
+      .update(client.schema.run)
+      .set({ status: "done" })
+      .where(eq(client.schema.run.id, id)),
+  );
 
 const where = (runId: string, who: "guest" | "member", stepId?: string) => ({
   runId,
@@ -489,6 +501,8 @@ describe("results that stay in the space", () => {
     );
     expect(out.ok).toBe(true);
     expect((await logOf(row.id)).at(-1)).toMatchObject({ stepId: "fetch", outcome: "allow" });
+    await finish("run-g");
+    await finish("run-m");
     const entered = await app.fetch(new Request(`${ORIGIN}/api/local/enter?k=test-key`));
     memberCookie = entered.headers.get("set-cookie")?.split(";")[0] ?? "";
   });

@@ -1508,6 +1508,10 @@ export const spaceConnection = sqliteTable(
     setUpAt: integer("set_up_at", { mode: "timestamp_ms" }).notNull().default(now),
     updatedAt: updatedAt(),
     lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+    /** Since when it pauses: the broker refuses every call through it until an admin resumes it. */
+    pausedAt: integer("paused_at", { mode: "timestamp_ms" }),
+    /** The admin who paused it. */
+    pausedBy: text("paused_by"),
   },
   (t) => [index("space_connection_space").on(t.spaceId)],
 );

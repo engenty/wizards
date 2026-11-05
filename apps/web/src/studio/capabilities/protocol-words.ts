@@ -28,6 +28,15 @@ export const REFUSAL_WORDS: Record<BrokerRefusal, Key> = {
   channel_not_fixed: "protocol.refused.channel_not_fixed",
   run_limit: "protocol.refused.run_limit",
   day_limit: "protocol.refused.day_limit",
+  run_ended: "protocol.refused.run_ended",
+  paused: "protocol.refused.paused",
+};
+
+/** Why a run that is over took no more calls, by the rule the broker logs (`run.<status>`). */
+const RUN_OVER_WORDS: Record<string, Key> = {
+  "run.cancelled": "protocol.why.runStopped",
+  "run.done": "protocol.why.runDone",
+  "run.failed": "protocol.why.runFailed",
 };
 
 /** What an action does, as a noun: Lesen, Schreiben … */
@@ -68,6 +77,8 @@ export const RULE_WORDS: Record<string, Key> = {
   read: "protocol.rule.read",
   own_job: "protocol.rule.own_job",
   guest_send: "protocol.rule.guest_send",
+  run: "protocol.rule.run",
+  paused: "protocol.rule.paused",
 };
 
 /** Who a connection is for, after „nur für“. */
@@ -112,6 +123,10 @@ export function refusalWord(
   rule: string | null,
   audience?: string | null,
 ): string {
+  // A run that is over: stopped, done or failed, as the rule says.
+  if (refused === "run_ended" && rule && rule in RUN_OVER_WORDS) {
+    return t(RUN_OVER_WORDS[rule] as Key);
+  }
   if (refused && refused !== "denied" && refused in REFUSAL_WORDS) {
     return t(REFUSAL_WORDS[refused as BrokerRefusal]);
   }
@@ -130,6 +145,26 @@ export function refusalWord(
     return t("protocol.why.rule");
   }
   return t("protocol.refused.denied");
+}
+
+/** A run's state in the detail of a line: stopped says so, the rest as the lists of runs say it. */
+const RUN_STATE_WORDS: Record<string, Key> = {
+  waiting_input: "runs.status.waiting_input",
+  sleeping: "runs.status.sleeping",
+  running: "runs.status.running",
+  done: "runs.status.done",
+  failed: "runs.status.failed",
+  cancelled: "protocol.detail.runStopped",
+};
+
+export function runStateWord(status: string): string {
+  const named = RUN_STATE_WORDS[status];
+  return named ? t(named) : status;
+}
+
+/** Whether a run still calls: the ones an admin can stop from the audit. */
+export function runUnderWay(status: string): boolean {
+  return status === "running" || status === "waiting_input" || status === "sleeping";
 }
 
 export type Tone = "done" | "refused" | "held" | "failed";
@@ -240,10 +275,22 @@ export function connectionWord(
   return line.connectorName ? `${line.connectorName} · ${id}` : id;
 }
 
-/** The action by the connector's name for it; the broker's own actions in words. */
-export function actionWord(line: Pick<ProtocolLine, "actionId" | "actionName">): string {
+/**
+ * The action by the connector's name for it; the broker's own actions in words. A changed rule
+ * that paused or resumed a connection says so: its input is the one field `paused`.
+ */
+export function actionWord(
+  line: Pick<ProtocolLine, "actionId" | "actionName"> & { input?: ProtocolLine["input"] },
+): string {
   switch (line.actionId) {
     case "change_rules":
+      if (line.input?.fields && "paused" in line.input.fields) {
+        return t(
+          line.input.sample === "paused: yes"
+            ? "protocol.action.paused"
+            : "protocol.action.resumed",
+        );
+      }
       return t("protocol.action.changeRules");
     case "http_request":
       return t("protocol.action.request");

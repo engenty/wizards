@@ -73,6 +73,7 @@ export async function personSignIns(user: SessionUser): Promise<PersonSignIns> {
             : null,
         setUpBy: row.setUpBy ? (names?.get(row.setUpBy) ?? null) : null,
         setUpAt: row.setUpAt.toISOString(),
+        pausedAt: row.pausedAt?.toISOString() ?? null,
       });
     }
     spaces.push({ id: space.id, name: space.name, connections });
