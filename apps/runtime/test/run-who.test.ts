@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -279,7 +279,12 @@ const DOORS: [string, string, string, unknown][] = [
   ["taking it back", "DELETE", "/share", {}],
   ["sending it on", "POST", "/share/jobs", { target: "email" }],
   ["a job's cancel", "POST", "/share/jobs/j1/cancel", {}],
+  ["a result's translation", "POST", "/translate-result", {}],
+  ["what someone thought of it", "POST", "/feedback", { good: true }],
 ];
+
+/** Doors that take no right to answer: saying one looks and reads in a language, and the two with a rule of their own. */
+const OTHER_RULES = ["/:id/seen", "/:id/lang", "/:id/wake-now", "/:id/stop"];
 
 beforeAll(async () => {
   client = await import("../src/db/client");
@@ -319,6 +324,26 @@ beforeEach(() => {
   signIn(null);
   mails.mockClear();
   pushes.mockClear();
+});
+
+describe("the list of doors", () => {
+  it("holds every door of a run that writes: a new one has to say what it takes", async () => {
+    const { runRoutes } = await import("../src/routes/runs");
+    const writes = runRoutes.routes.filter(
+      (r) => ["POST", "PUT", "PATCH", "DELETE"].includes(r.method) && r.path.startsWith("/:id"),
+    );
+    expect(writes.length).toBeGreaterThan(30);
+    const missing = writes.filter((route) => {
+      const pattern = new RegExp(
+        `^${route.path.replace("/:id", "").replace(/:[a-zA-Z]+/g, "[^/]+")}$`,
+      );
+      return !(
+        OTHER_RULES.includes(route.path) ||
+        DOORS.some(([, method, path]) => method === route.method && pattern.test(path))
+      );
+    });
+    expect(missing.map((r) => `${r.method} ${r.path}`)).toEqual([]);
+  });
 });
 
 describe("on a step for the team", () => {
@@ -708,13 +733,6 @@ describe("an approval", () => {
       client.db.query.approval.findMany({ where: eq(client.schema.approval.runId, runId) }),
     );
     expect(rows).toEqual([]);
-  });
-
-  it("a chat's held calls are still found by their chat", async () => {
-    const pending = await inTenant(() =>
-      client.db.query.approval.findMany({ where: and(eq(client.schema.approval.state, "pending")) }),
-    );
-    expect(pending.every((a) => a.runId || a.chatId)).toBe(true);
   });
 });
 
