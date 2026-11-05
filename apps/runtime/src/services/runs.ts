@@ -596,6 +596,8 @@ export async function draftStepView(
       version: null,
       mode: "test" as const,
       runner: null,
+      startedBy: null,
+      occurrence: null,
       visitorId: null,
       userId,
       impersonatedBy: null,
@@ -659,6 +661,8 @@ export async function listRuns(userId: string, wizardId: string) {
     stepTitle: r.definition.steps.find((s) => s.id === r.cursor)?.title ?? null,
     /** The token of its shared result (`/s/<token>`); null while it is not shared. */
     shareToken: r.status === "done" ? r.shareToken : null,
+    /** The start that began it; null: a person did. */
+    startedBy: r.startedBy ?? null,
   }));
 }
 

@@ -322,6 +322,7 @@ export function EditorPage() {
 
 function Editor() {
   const account = useFeature("account");
+  const startsOn = useFeature("startTriggers");
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -828,6 +829,7 @@ function Editor() {
           fitKey={`${columnBeside}:${shownView}:${columnBeside ? columnPane.width : 0}`}
           pulse={remote?.steps}
           wizardId={w.id}
+          starts={startsOn ? w.starts.filter((x) => x.on).length : 0}
           decisions={shownDecisions}
           onBranch={(sid) => {
             select(sid);
@@ -1207,7 +1209,7 @@ function Editor() {
                     readOnly={w.readOnly}
                   />
                 ) : (
-                  <RunsPanel wizardId={w.id} onOpen={openRun} />
+                  <RunsPanel wizardId={w.id} starts={w.starts} onOpen={openRun} />
                 )}
               </div>
             </div>

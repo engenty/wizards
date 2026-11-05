@@ -185,6 +185,12 @@ export const FEATURES = {
     label: "Dateien",
     hint: "File trees another party owns, mounted in a space and indexed where they live: a folder on this computer first (docs/plans/media-and-files.md).",
   },
+  startTriggers: {
+    kind: "release",
+    default: false,
+    label: "Starts by itself",
+    hint: "A wizard that runs on a schedule: the share dialog's section, the clock, the bell (docs/plans/starts.md).",
+  },
   ownKeys: {
     kind: "plan",
     default: true,
