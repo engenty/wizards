@@ -25,6 +25,7 @@ export const REFUSAL_WORDS: Record<BrokerRefusal, Key> = {
   needs_approval: "protocol.refused.needs_approval",
   ai_step_writes: "protocol.refused.ai_step_writes",
   not_allowed_recipient: "protocol.refused.not_allowed_recipient",
+  channel_not_fixed: "protocol.refused.channel_not_fixed",
   run_limit: "protocol.refused.run_limit",
   day_limit: "protocol.refused.day_limit",
 };
@@ -275,4 +276,9 @@ export function answerSentence(
     ...vars,
     why: refusalWord(answer.refused ?? null, answer.rule, names.audience),
   });
+}
+
+/** What the answer holds only under: a guest's post goes to the channel its step fixes. Else null. */
+export function answerCondition(answer: Pick<BrokerAnswer, "fixedChannel">): string | null {
+  return answer.fixedChannel ? t("protocol.ask.fixedChannel") : null;
 }

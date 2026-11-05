@@ -1,7 +1,7 @@
 ---
 title: Capabilities
 description: One place for what your wizards, Work chats and Goose may use – skills, the space’s connections to other services, the audit of every call, and a search for more.
-version: 0.13.0
+version: 0.16.2
 ---
 
 **Capabilities** in the app bar, after Resources, holds what a space’s wizards, Work chats and
@@ -72,6 +72,18 @@ or a send, and never deletes.
 With approval on a connection that signs in as the space asks the space’s admins. The call waits
 under the bell in Work until one of them agrees. Where each person signs in, With approval asks
 that person.
+
+**What a guest’s run may send.** A guest starts a wizard from its link, and nobody of your team
+watches the run. So the rules above are not all that counts for it:
+
+- It sends an email only to the address the guest gave in the wizard, or to an address in the
+  space’s own mail domains.
+- It posts to Slack only from a fixed step, and only to the channel written into that step of the
+  published wizard. A channel taken from what the guest typed is refused.
+- One run sends three emails and messages in all. A wizard’s guests send a set number per day.
+
+Your members’ runs are not bound by this. The [Audit](./protocol.md) shows each refusal with its
+reason.
 
 Members see the connections open to them, with their rules, and change nothing. Where each person
 signs in, they sign in right there. [Connectors](./connectors.md#connections-in-the-space) has the

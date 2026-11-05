@@ -7,6 +7,7 @@ import {
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { type Key, lang, setLang, t } from "../../lib/i18n";
 import {
+  answerCondition,
   answerSentence,
   CRITICAL_WORDS,
   KIND_WORDS,
@@ -105,6 +106,14 @@ describe.each(["de", "en"] as const)("the Protokoll's words in %s", (language) =
         expect(sentence).not.toMatch(/protocol\.|\{\w+\}/);
       }
     }
+  });
+
+  it("says under what a guest's post holds, and nothing where no condition is", () => {
+    setLang(language);
+    expect(answerCondition({})).toBeNull();
+    const condition = answerCondition({ fixedChannel: true });
+    expect(condition).toMatch(/Kanal|channel/);
+    expect(condition).not.toMatch(/protocol\./);
   });
 });
 

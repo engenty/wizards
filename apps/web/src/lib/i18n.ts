@@ -3096,8 +3096,11 @@ const de: Record<Key, Line> = {
     "ein KI-Schritt liest als Space nur, schreiben darf nur ein fester Schritt",
   "protocol.refused.not_allowed_recipient":
     "die Adresse gehört weder zum Lauf noch zu einer Domain des Space",
-  "protocol.refused.run_limit": "der Lauf hat seine E-Mails schon gesendet",
-  "protocol.refused.day_limit": "die Gäste dieses Wizards haben die E-Mails für heute gesendet",
+  "protocol.refused.channel_not_fixed":
+    "der Kanal steht im veröffentlichten Schritt nicht fest, und nur dorthin postet der Lauf eines Gasts",
+  "protocol.refused.run_limit": "der Lauf hat seine E-Mails und Nachrichten schon gesendet",
+  "protocol.refused.day_limit":
+    "die Gäste dieses Wizards haben die E-Mails und Nachrichten für heute gesendet",
   "protocol.why.audience": "die Verbindung ist nicht für diese Person",
   "protocol.why.audienceFor": "die Verbindung ist nur für {audience}",
   "protocol.why.actions": "die Verbindung ist nicht für diese Aktion",
@@ -3114,7 +3117,7 @@ const de: Record<Key, Line> = {
   "protocol.rule.policy": "Einstellung des Wizards",
   "protocol.rule.read": "Lesen ist erlaubt",
   "protocol.rule.own_job": "Eigene Verbindung des Plugins",
-  "protocol.rule.guest_send": "Regeln für E-Mails von Gästen",
+  "protocol.rule.guest_send": "Regeln für E-Mails und Nachrichten von Gästen",
   "protocol.rule.none": "Keine Regel, der Aufruf kam nicht so weit",
   "protocol.detail.when": "Wann",
   "protocol.detail.duration": "{ms} ms",
@@ -3157,6 +3160,8 @@ const de: Record<Key, Line> = {
   "protocol.ask.askAdmins": "{who} darf in {connection} {verb} – mit Freigabe durch die Admins.",
   "protocol.ask.askPerson": "{who} darf in {connection} {verb} – wenn die Person zustimmt.",
   "protocol.ask.deny": "{who} darf in {connection} nicht {verb} – {why}.",
+  "protocol.ask.fixedChannel":
+    "Nur in den Kanal, der im veröffentlichten Schritt fest steht. Ein Kanal aus den Angaben des Gasts wird abgelehnt.",
   "protocol.ask.rule": "Entschieden von: {rule}",
   "protocol.ask.change": "Regeln ändern",
   "protocol.notify.title": "Benachrichtigungen",
@@ -7185,8 +7190,10 @@ const en = {
     "an AI step only reads as the space, and only a fixed step may write",
   "protocol.refused.not_allowed_recipient":
     "the address is neither the run’s own nor in one of the space’s domains",
-  "protocol.refused.run_limit": "the run has sent all its emails",
-  "protocol.refused.day_limit": "this wizard’s guests have sent today’s emails",
+  "protocol.refused.channel_not_fixed":
+    "the published step doesn’t fix the channel, and a guest’s run posts nowhere else",
+  "protocol.refused.run_limit": "the run has sent all its emails and messages",
+  "protocol.refused.day_limit": "this wizard’s guests have sent today’s emails and messages",
   "protocol.why.audience": "the connection isn’t for them",
   "protocol.why.audienceFor": "the connection is for {audience} only",
   "protocol.why.actions": "the connection isn’t for this action",
@@ -7203,7 +7210,7 @@ const en = {
   "protocol.rule.policy": "The wizard’s setting",
   "protocol.rule.read": "Reading is allowed",
   "protocol.rule.own_job": "The plugin’s own connection",
-  "protocol.rule.guest_send": "The rules for guests’ emails",
+  "protocol.rule.guest_send": "The rules for guests’ emails and messages",
   "protocol.rule.none": "No rule, the call didn’t get that far",
   "protocol.detail.when": "When",
   "protocol.detail.duration": "{ms} ms",
@@ -7246,6 +7253,8 @@ const en = {
   "protocol.ask.askAdmins": "{who} may {verb} in {connection} – once the admins approve.",
   "protocol.ask.askPerson": "{who} may {verb} in {connection} – once the person agrees.",
   "protocol.ask.deny": "{who} may not {verb} in {connection} – {why}.",
+  "protocol.ask.fixedChannel":
+    "Only to the channel written into the published step. A channel taken from what the guest typed is refused.",
   "protocol.ask.rule": "Decided by: {rule}",
   "protocol.ask.change": "Change the rules",
   "protocol.notify.title": "Notifications",

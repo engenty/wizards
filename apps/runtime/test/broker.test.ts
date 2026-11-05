@@ -486,8 +486,14 @@ describe("the run's grant, fixed at start", () => {
       connections: { hub: ["create_contact"], inbox: ["read"] },
       hosts: [],
       tools: ["http", "shop.find", "web_search"],
+      channels: {},
     });
-    expect(broker.grantOf(definition as never)).toEqual({ connections: {}, hosts: [], tools: [] });
+    expect(broker.grantOf(definition as never)).toEqual({
+      connections: {},
+      hosts: [],
+      tools: [],
+      channels: {},
+    });
   });
 
   it("says what the run may do, in the person's language", () => {
@@ -593,6 +599,7 @@ describe("the run's grant, fixed at start", () => {
       connections: { hub: ["create_contact"] },
       hosts: [],
       tools: ["web_search"],
+      channels: {},
     });
     const events = await inTenant(() =>
       client.db.query.runEvent.findMany({ where: (t, { eq }) => eq(t.runId, runId) }),
@@ -611,6 +618,7 @@ describe("the run's grant, fixed at start", () => {
       connections: { hub: ["create_contact"] },
       hosts: [],
       tools: ["web_search"],
+      channels: {},
     });
     const where = { runId, wizardId, spaceId: space, mode: "test" as const, guest: false };
     const out = await inTenant(() =>
@@ -621,7 +629,7 @@ describe("the run's grant, fixed at start", () => {
 
   it("gives a run from before grants were kept one from its definition, once", async () => {
     await runRow("run-old", withStep(["list_contacts"]), null);
-    const grant = { connections: { hub: ["list_contacts"] }, hosts: [], tools: [] };
+    const grant = { connections: { hub: ["list_contacts"] }, hosts: [], tools: [], channels: {} };
     expect(await inTenant(() => broker.runGrant("run-old"))).toEqual(grant);
     const row = await inTenant(() =>
       client.db.query.run.findFirst({ where: (t, { eq }) => eq(t.id, "run-old") }),
