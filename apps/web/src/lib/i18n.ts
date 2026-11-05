@@ -3950,10 +3950,9 @@ const de: Record<Key, Line> = {
   "share.answerersPeople": "Personen",
   "share.answerersAdmins": "Admins",
   "share.answerersAdminsHint": "Alle Admins deiner Organisation beantworten sie.",
-  "share.answerersNobody": "Noch steht hier niemand. Bis dahin beantworten die Admins sie.",
+  "share.answerersNobody": "Noch steht hier niemand, darum kannst du den Wizard nicht veröffentlichen.",
   "share.answerersAdd": "Person hinzufügen",
   "share.answerersRemove": "{name} entfernen",
-  "share.answerersOnlyAdmins": "Das legen Admins fest.",
   "inspector.who": "Wer beantwortet das?",
   "inspector.who.person": "Wer den Lauf macht",
   "inspector.who.owner": "Wem der Lauf gehört",
@@ -3980,7 +3979,7 @@ const de: Record<Key, Line> = {
   "share.signalsCopySecret": "Geheimnis kopieren",
   "share.signalsFromMailbox": "Aus einem Postfach",
   "share.signalsMailboxHint":
-    "Solange ein Lauf auf eine E-Mail wartet, liest engenty wizards das Postfach jede Minute. Jede neue E-Mail bleibt 30 Tage als Ereignis gespeichert.",
+    "Solange ein Lauf auf eine E-Mail wartet, liest engenty wizards das Postfach jede Minute. Von jeder neuen E-Mail bleiben Adresse und Betreff 30 Tage als Ereignis gespeichert, der Text nur, wenn gerade ein Lauf auf sie wartet.",
   "share.signalsMailboxNone":
     "Hier steht noch kein Postfach. Richte Gmail unter Fähigkeiten › Connectors ein, mit „Als Space“.",
   "share.signalsMailbox": "Postfach {name}",
@@ -8679,10 +8678,9 @@ const en = {
   "share.answerersPeople": "People",
   "share.answerersAdmins": "Admins",
   "share.answerersAdminsHint": "All admins of your organization answer them.",
-  "share.answerersNobody": "Nobody is here yet. Until then the admins answer them.",
+  "share.answerersNobody": "Nobody is here yet, so you can’t publish this wizard.",
   "share.answerersAdd": "Add a person",
   "share.answerersRemove": "Remove {name}",
-  "share.answerersOnlyAdmins": "Admins decide this.",
   "inspector.who": "Who answers this?",
   "inspector.who.person": "Whoever does the run",
   "inspector.who.owner": "The run’s owner",
@@ -8709,7 +8707,7 @@ const en = {
   "share.signalsCopySecret": "Copy secret",
   "share.signalsFromMailbox": "From a mailbox",
   "share.signalsMailboxHint":
-    "While a run waits for an email, engenty wizards reads the mailbox every minute. Every new email stays saved as an event for 30 days.",
+    "While a run waits for an email, engenty wizards reads the mailbox every minute. Each new email’s address and subject stay saved as an event for 30 days, its text only if a run is waiting on it at that moment.",
   "share.signalsMailboxNone":
     "No mailbox here yet. Set up Gmail under Capabilities › Connectors, with “As the space”.",
   "share.signalsMailbox": "Mailbox {name}",

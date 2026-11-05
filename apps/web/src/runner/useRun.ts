@@ -182,6 +182,7 @@ export function useRun(runId: string | null) {
         items: items?.length ? items : undefined,
       }),
     back: () => command("back"),
+    withdraw: () => command("cancel"),
     retry: () => command("retry"),
     translateResult: (stepId: string) => command("translate-result", { stepId }),
     /** The language the run is read in from now on; null: the wizard's own. */

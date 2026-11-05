@@ -363,7 +363,7 @@ function AnswerersSection({ wizard }: { wizard: WizardDetail }) {
   const answerers = save.isPending && save.variables ? save.variables : wizard.answerers;
   const named = Array.isArray(answerers) ? answerers : [];
   const members = people.data?.members ?? [];
-  const may = Boolean(people.data?.canManage) && !wizard.readOnly;
+  const may = !wizard.readOnly;
   const addable = members.filter((m) => m.role !== "client" && !named.includes(m.userId));
   const initials = (name: string) =>
     name
@@ -458,9 +458,6 @@ function AnswerersSection({ wizard }: { wizard: WizardDetail }) {
           ) : null}
         </>
       )}
-      {people.data && !people.data.canManage ? (
-        <p className="text-[0.75rem] text-ink-4">{t("share.answerersOnlyAdmins")}</p>
-      ) : null}
       {save.error ? (
         <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
       ) : null}
