@@ -3,7 +3,7 @@ import {
   CONNECTION_SIGN_INS,
   type ConnectionRules,
 } from "@engenty/wizards-shared/connectors";
-import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import { upgradeDefinition, type WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
 import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
@@ -38,6 +38,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnySQLiteColumn,
   blob,
+  customType,
   index,
   integer,
   primaryKey,
@@ -53,6 +54,13 @@ import type { DeviceAnswer, DeviceOffer, DeviceRequest } from "../engine/device.
 const now = sql`(unixepoch() * 1000)`;
 const createdAt = () => integer("created_at", { mode: "timestamp_ms" }).notNull().default(now);
 const updatedAt = () => integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now);
+
+/** JSON text that reads as the definition of this version, whichever version was written. */
+const runDefinition = customType<{ data: WizardDefinition; driverData: string }>({
+  dataType: () => "text",
+  toDriver: (def) => JSON.stringify(def),
+  fromDriver: (json) => upgradeDefinition(JSON.parse(json)) as WizardDefinition,
+});
 
 // One database per tenant holds these tables; `tenant_id` stays in every row so a tenant's
 // rows can be moved or merged. Users and tenants themselves live outside (Manage-App).
@@ -294,7 +302,8 @@ export const run = sqliteTable(
       .references(() => wizard.id, { onDelete: "cascade" }),
     tenantId: text("tenant_id").notNull(),
     /** The definition the run started on — edits never reach a running wizard. */
-    definition: text("definition", { mode: "json" }).$type<WizardDefinition>().notNull(),
+    /** Read through `upgradeDefinition`: a run can outlast a version of the format. */
+    definition: runDefinition("definition").notNull(),
     /** The workspace the run started with. */
     files: text("files", { mode: "json" }).$type<WorkspaceFile[]>().notNull().default([]),
     /**
@@ -321,8 +330,10 @@ export const run = sqliteTable(
     /** The client that started it over the public API (`x-wizards-client`): web, app, cli, or a registered id. */
     client: text("client"),
     status: text("status", {
-      enum: ["waiting_input", "running", "done", "failed", "cancelled"],
+      enum: ["waiting_input", "sleeping", "running", "done", "failed", "cancelled"],
     }).notNull(),
+    /** When a run that sleeps goes on; null: nothing due. The clock reads a copy (`run_index.wake_at`). */
+    wakeAt: integer("wake_at", { mode: "timestamp_ms" }),
     cursor: text("cursor"),
     state: text("state", { mode: "json" }).$type<RunState>().notNull(),
     /** The claim of the runner driving the run (`run_index.generation`), only ever upward. */

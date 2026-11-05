@@ -1004,6 +1004,8 @@ function StepBody({
           </Section>
         </>
       );
+    case "wait":
+      return <WaitBody step={step} set={set} />;
     case "review":
       return (
         <Section title={t("inspector.whatShown")}>
@@ -1760,6 +1762,96 @@ function StepOverview({
  * between in one call, and "otherwise" — each unfolding to edit it; after a test run each row
  * shows how probable the decision found it and the way it took is marked.
  */
+/** A date for an input of type datetime-local, in this computer's time. */
+function localDateTime(iso: string | undefined): string {
+  const at = Date.parse(iso ?? "");
+  if (Number.isNaN(at)) {
+    return "";
+  }
+  const shifted = new Date(at - new Date(at).getTimezoneOffset() * 60_000);
+  return shifted.toISOString().slice(0, 16);
+}
+
+const WAIT_UNITS = ["m", "h", "d"] as const;
+
+/** What a run waits for: a time, or a date (one picked here, or a template with an answer). */
+function WaitBody({
+  step,
+  set,
+}: {
+  step: Extract<Step, { type: "wait" }>;
+  set: (next: Step) => void;
+}) {
+  const lasts = /^(\d+)([mhd])$/.exec(step.for ?? "");
+  const amount = lasts?.[1] ?? "1";
+  const unit = (lasts?.[2] ?? "d") as (typeof WAIT_UNITS)[number];
+  const byDate = step.until !== undefined;
+  const { for: _for, until: _until, ...rest } = step;
+  const lastsFor = (n: string, u: string) => set({ ...rest, for: `${n}${u}` });
+  const untilDate = (until: string) => set({ ...rest, until });
+  const unitLabel = {
+    m: "inspector.waitMinutes",
+    h: "inspector.waitHours",
+    d: "inspector.waitDays",
+  } as const;
+  return (
+    <Section title={t("inspector.waitFor")}>
+      <Select
+        value={byDate ? "until" : "for"}
+        onChange={(v) => (v === "until" ? untilDate(new Date().toISOString()) : lastsFor("1", "d"))}
+        options={[
+          { value: "for", label: t("inspector.waitTime") },
+          { value: "until", label: t("inspector.waitDate") },
+        ]}
+      />
+      {byDate ? (
+        <>
+          <Label>{t("inspector.waitUntil")}</Label>
+          <Input
+            type="datetime-local"
+            value={localDateTime(step.until)}
+            onChange={(e) => {
+              const at = Date.parse(e.target.value);
+              if (!Number.isNaN(at)) {
+                untilDate(new Date(at).toISOString());
+              }
+            }}
+          />
+          <Label>{t("inspector.waitAnswer")}</Label>
+          <Input
+            placeholder={t("inspector.waitAnswerExample")}
+            value={step.until?.includes("{{") ? step.until : ""}
+            onChange={(e) => e.target.value && untilDate(e.target.value)}
+          />
+        </>
+      ) : (
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            min={1}
+            max={9999}
+            className="w-24"
+            aria-label={t("inspector.waitHowLong")}
+            value={amount}
+            onChange={(e) => {
+              const n = Math.trunc(Number(e.target.value));
+              if (n >= 1 && n <= 9999) {
+                lastsFor(String(n), unit);
+              }
+            }}
+          />
+          <Select
+            value={unit}
+            onChange={(u) => lastsFor(amount, u)}
+            options={WAIT_UNITS.map((u) => ({ value: u, label: t(unitLabel[u]) }))}
+          />
+        </div>
+      )}
+      <p className="text-[0.8125rem] text-ink-3">{t("inspector.waitFree")}</p>
+    </Section>
+  );
+}
+
 function NextSection({
   def,
   step,

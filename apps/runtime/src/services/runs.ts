@@ -6,6 +6,7 @@ import {
   type Step,
   shownFields,
   slotText,
+  waitDurationMs,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
 import { note, type RunState, type RunView } from "@engenty/wizards-shared/run";
@@ -284,6 +285,14 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
           site: ask.site.host,
           hint: prompt("mcp", "hint.sign_in"),
         };
+  }
+  if (run.status === "sleeping" && current) {
+    return {
+      wait: current.id,
+      title: current.title,
+      until: run.wakeAt?.toISOString() ?? null,
+      hint: prompt("mcp", "hint.sleeping"),
+    };
   }
   if (run.status !== "waiting_input" || !current) {
     return undefined;
@@ -583,7 +592,9 @@ export async function draftStepView(
       ? "waiting_input"
       : step.type === "result"
         ? "done"
-        : "running";
+        : step.type === "wait"
+          ? "sleeping"
+          : "running";
   const now = new Date();
   // That run lends its id too: the outputs' files are reached through it.
   const run: RunRow = {
@@ -612,6 +623,8 @@ export async function draftStepView(
     }),
     definition: def,
     status,
+    wakeAt:
+      step.type === "wait" && step.for ? new Date(now.getTime() + waitDurationMs(step.for)) : null,
     claim: 0,
     rev: 0,
     cursor: step.id,
@@ -652,6 +665,7 @@ export async function listRuns(userId: string, wizardId: string) {
     id: r.id,
     mode: r.mode,
     status: r.status,
+    wakeAt: r.wakeAt?.toISOString() ?? null,
     version: r.version,
     createdAt: r.createdAt.toISOString(),
     credits: Math.ceil(r.costMicros / MICROS_PER_CREDIT),

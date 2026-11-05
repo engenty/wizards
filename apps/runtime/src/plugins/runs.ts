@@ -247,6 +247,12 @@ export function runsApiFor(pluginId: string): PluginRuns {
           noteText({ code: "runOver" }, wizardLang(run.definition)),
         );
       }
+      if (run.status === "sleeping") {
+        throw new ServiceError(
+          "refused",
+          noteText({ code: "runSleeps" }, wizardLang(run.definition)),
+        );
+      }
       const bytes = file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data);
       if (!bytes.length || bytes.length > 10_000_000) {
         throw new ServiceError(

@@ -15,7 +15,10 @@ import type { Surface } from "./surface.js";
 import { type Gap, type Line, lineText, type Texts, type TextTable, textOf } from "./texts.js";
 import type { ThemeColours, ThemeEffect, ThemeShape } from "./theme.js";
 
-export type RunStatus = "waiting_input" | "running" | "done" | "failed" | "cancelled";
+export type RunStatus = "waiting_input" | "sleeping" | "running" | "done" | "failed" | "cancelled";
+
+/** A person can step back from these; `RunView.canBack` and `goBack` read this one list. */
+export const CAN_GO_BACK: ReadonlySet<RunStatus> = new Set(["waiting_input", "done", "failed"]);
 
 export interface AssetRef {
   id: string;
@@ -263,6 +266,9 @@ const NOTES_EN = {
   clientRefused: "This app may not start runs here.",
   clientLimit: "This app has started a lot of runs just now. Try again later.",
   runOver: "The run is over.",
+  runSleeps: "The run is waiting. It goes on by itself.",
+  waitsOff: "This wizard has a wait step, and those aren’t turned on here yet.",
+  waitDateUnreadable: "“{date}” isn’t a date this step can wait for.",
   runBusy: "The wizard is working right now.",
   pageOutdated: "This page is out of date.",
   noStepBefore: "There is no step before this one.",
@@ -700,6 +706,9 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   clientRefused: "Diese App darf hier keine Läufe starten.",
   clientLimit: "Diese App hat gerade viele Läufe gestartet. Versuch es später wieder.",
   runOver: "Der Lauf ist beendet.",
+  runSleeps: "Der Lauf wartet. Er geht von selbst weiter.",
+  waitsOff: "Dieser Wizard hat einen Warten-Schritt, und die sind hier noch nicht eingeschaltet.",
+  waitDateUnreadable: "„{date}“ ist kein Datum, auf das dieser Schritt warten kann.",
   runBusy: "Der Wizard arbeitet gerade.",
   pageOutdated: "Diese Seite ist nicht mehr aktuell.",
   noStepBefore: "Kein vorheriger Schritt.",
@@ -1131,6 +1140,8 @@ export interface ShownStep {
 export interface RunView {
   id: string;
   status: RunStatus;
+  /** When a run that sleeps goes on; null otherwise. */
+  wakeAt: string | null;
   mode: "test" | "live";
   wizard: Pick<WizardDefinition, "title" | "description" | "avatar" | "costume" | "intro">;
   /** The language the wizard speaks, by its code: what is read aloud, and in which voice. */

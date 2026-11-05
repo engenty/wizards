@@ -242,6 +242,17 @@ describe("what the runtime reports to the admin app", () => {
     expect(turns[0].body).toMatchObject({ wizardId: wizard, via: "link", state: "waiting" });
   });
 
+  it("a run that sleeps is a waiting one to the admin app", async () => {
+    const { withTenant } = await import("../src/db/client");
+    const { reportRun } = await import("../src/services/manage-reports");
+    const before = sent.length;
+    await withTenant(TENANT, () => reportRun(runId, "running"));
+    await withTenant(TENANT, () => reportRun(runId, "sleeping"));
+    await settle();
+    const turns = sent.slice(before).filter((s) => s.path === `/v1/runs/${TENANT}`);
+    expect(turns.at(-1)?.body).toMatchObject({ runId, state: "waiting" });
+  });
+
   it("takes the feedback at a run's end and sends it on", async () => {
     // Not over yet: no feedback.
     const early = await call("POST", `/api/runs/${runId}/feedback`, {

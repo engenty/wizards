@@ -1,6 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const dir = mkdtempSync(join(tmpdir(), "wizards-line-"));
@@ -121,6 +122,62 @@ describe("the line in the control database", () => {
     await control.forgetRunner();
     expect(await control.ownerUrl("r3")).toBeNull();
     await control.restRun("r3");
+  });
+});
+
+describe("the clock", () => {
+  const index = (id: string) =>
+    client.controlDb.query.runIndex.findFirst({
+      where: eq(client.control.runIndex.runId, id),
+    });
+
+  it("puts what came due in line, in one statement, and clears the time", async () => {
+    await makeRun("due");
+    await makeRun("later");
+    const dueAt = new Date(Date.now() - 60_000);
+    await control.setWake("due", dueAt);
+    await control.setWake("later", new Date(Date.now() + 60_000));
+    expect(await control.wakeDue()).toBe(1);
+    const due = await index("due");
+    expect(due).toMatchObject({ active: true, owner: null, wakeAt: null });
+    expect(due?.wokenAt?.getTime()).toBe(dueAt.getTime());
+    expect((await index("later"))?.active).toBe(false);
+    // A second runner's clock finds nothing more.
+    expect(await control.wakeDue()).toBe(0);
+    await control.claimRun("due", T, 99);
+    await control.restRun("due");
+  });
+
+  it("leaves a run alone that is in line already", async () => {
+    await makeRun("busy");
+    await control.wakeRun("busy");
+    await control.setWake("busy", new Date(Date.now() - 1000));
+    expect(await control.wakeDue()).toBe(0);
+    await control.setWake("busy", null);
+    await control.claimRun("busy", T, 99);
+    await control.restRun("busy");
+  });
+
+  it("a run woken after days has its place by its wake and looks days younger", async () => {
+    await makeRun("old-wait");
+    const made = new Date(Date.now() - 3 * 86_400_000);
+    await client.controlDb
+      .update(client.control.runIndex)
+      .set({ createdAt: made })
+      .where(eq(client.control.runIndex.runId, "old-wait"));
+    await makeRun("first-in-line");
+    await control.wakeRun("first-in-line");
+    await new Promise((r) => setTimeout(r, 5));
+    await control.setWake("old-wait", new Date());
+    expect(await control.wakeDue()).toBe(1);
+    const order = (await control.waitingRuns()).map((r) => r.runId);
+    expect(order.indexOf("first-in-line")).toBeLessThan(order.indexOf("old-wait"));
+    const { oldestWaiting } = await control.lineState();
+    expect(Date.now() - (oldestWaiting?.getTime() ?? 0)).toBeLessThan(60_000);
+    for (const id of ["first-in-line", "old-wait"]) {
+      await control.claimRun(id, T, 99);
+      await control.restRun(id);
+    }
   });
 });
 

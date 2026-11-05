@@ -7,6 +7,7 @@ interface RunRow {
   id: string;
   mode: "test" | "live";
   status: string;
+  wakeAt: string | null;
   version: number | null;
   createdAt: string;
   credits: number;
@@ -16,6 +17,7 @@ interface RunRow {
 
 const STATUS: Record<string, Key> = {
   waiting_input: "runs.status.waiting_input",
+  sleeping: "runs.status.sleeping",
   running: "runs.status.running",
   done: "runs.status.done",
   failed: "runs.status.failed",
@@ -57,7 +59,11 @@ export function RunsPanel({
               )}
             </div>
             <div className="truncate text-[0.75rem] text-ink-3">
-              {STATUS[r.status] ? t(STATUS[r.status]) : r.status}
+              {r.status === "sleeping" && r.wakeAt
+                ? t("runs.status.sleepingUntil", { time: fmt.format(new Date(r.wakeAt)) })
+                : STATUS[r.status]
+                  ? t(STATUS[r.status])
+                  : r.status}
               {r.stepTitle && r.status !== "done" ? ` · ${r.stepTitle}` : ""}
             </div>
           </div>

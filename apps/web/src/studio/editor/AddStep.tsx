@@ -3,6 +3,7 @@ import {
   AppWindow,
   Bot,
   ChevronDown,
+  Hourglass,
   Image,
   LayoutTemplate,
   ListChecks,
@@ -10,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useFeature } from "../../lib/features";
 import { type Key, t } from "../../lib/i18n";
 import { Button, cn, Input, Textarea } from "../../ui";
 
@@ -19,9 +21,11 @@ export type AddKind = (typeof ADD_KINDS)[number];
 
 /** The kinds an empty step can be inserted as, without the assistant. */
 export const EMPTY_KINDS = ["page", "agent", "generate", "widget"] as const;
-export type EmptyKind = (typeof EMPTY_KINDS)[number];
+/** A wait comes with the `durableRuns` switch. */
+export type EmptyKind = (typeof EMPTY_KINDS)[number] | "wait";
 
-const KIND_ICON: Record<AddKind, typeof Bot> = {
+const KIND_ICON: Record<AddKind | EmptyKind, typeof Bot> = {
+  wait: Hourglass,
   auto: Sparkles,
   page: ListChecks,
   agent: Bot,
@@ -30,7 +34,8 @@ const KIND_ICON: Record<AddKind, typeof Bot> = {
   widget: AppWindow,
 };
 
-const kindLabel = (k: AddKind) => (k === "auto" ? t("addStep.auto") : t(`type.${k}` as Key));
+const kindLabel = (k: AddKind | EmptyKind) =>
+  k === "auto" ? t("addStep.auto") : t(`type.${k}` as Key);
 
 /**
  * When the new step comes: on every run, or only on a branch from the step before it – under a
@@ -99,6 +104,8 @@ export function AddStepPanel({
   onEmpty?: (kind: EmptyKind) => void;
   onCancel: () => void;
 }) {
+  const durableRuns = useFeature("durableRuns");
+  const emptyKinds: EmptyKind[] = durableRuns ? [...EMPTY_KINDS, "wait"] : [...EMPTY_KINDS];
   const [kind, setKind] = useState<AddKind>("auto");
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -227,7 +234,7 @@ export function AddStepPanel({
             </button>
             {emptyOpen ? (
               <div className="absolute bottom-full left-0 z-20 mb-1 flex min-w-40 flex-col rounded-xl bg-card p-1 shadow-elevated ring-1 ring-border">
-                {EMPTY_KINDS.map((k) => {
+                {emptyKinds.map((k) => {
                   const Icon = KIND_ICON[k];
                   return (
                     <button
@@ -330,6 +337,7 @@ export function uniqueId(def: WizardDefinition, base: string): string {
 }
 
 const NEW_STEP: Record<EmptyKind, (id: string) => Step> = {
+  wait: (id) => ({ id, type: "wait", title: t("step.new.wait"), for: "1d" }),
   page: (id) => ({
     id,
     type: "page",
@@ -369,7 +377,15 @@ export function withEmptyStep(
 ): { def: WizardDefinition; id: string } {
   const id = uniqueId(
     def,
-    kind === "page" ? "page" : kind === "agent" ? "ai" : kind === "widget" ? "widget" : "generate",
+    kind === "page"
+      ? "page"
+      : kind === "agent"
+        ? "ai"
+        : kind === "widget"
+          ? "widget"
+          : kind === "wait"
+            ? "wait"
+            : "generate",
   );
   const steps = [...def.steps];
   steps.splice(at, 0, NEW_STEP[kind](id));

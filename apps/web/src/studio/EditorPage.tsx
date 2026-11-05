@@ -1,3 +1,4 @@
+import { goesOnText } from "@engenty/wizards-runner";
 import { type ModelClass, TEXT_CLASSES } from "@engenty/wizards-shared/definition";
 import type { MissingModel, RunView } from "@engenty/wizards-shared/run";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -412,14 +413,26 @@ function Editor() {
     }
     const failed = runView.status === "failed";
     const waiting = runView.status === "waiting_input";
+    const sleeping = runView.status === "sleeping";
     const mine = runView.events.filter((ev) => ev.stepId === step.id).reverse();
     const started = mine.find((ev) => ev.type === "step_started");
     const latest = mine.find((ev) => ev.type !== "step_done");
     const said = latest ? eventText(latest) : step.title;
     return {
       step: step.id,
-      text: failed ? (runView.error ?? said) : waiting ? t("editor.waitsForInput") : said,
-      since: failed || waiting ? null : started ? new Date(started.at).getTime() : Date.now(),
+      text: failed
+        ? (runView.error ?? said)
+        : sleeping
+          ? goesOnText(runView.wakeAt)
+          : waiting
+            ? t("editor.waitsForInput")
+            : said,
+      since:
+        failed || waiting || sleeping
+          ? null
+          : started
+            ? new Date(started.at).getTime()
+            : Date.now(),
       failed,
     };
   }, [drawerRun, runView]);

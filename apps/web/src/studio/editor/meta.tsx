@@ -6,6 +6,7 @@ import {
   Eye,
   FileText,
   Flag,
+  Hourglass,
   Image,
   LayoutDashboard,
   LayoutTemplate,
@@ -13,7 +14,7 @@ import {
   Video,
   Wand2,
 } from "lucide-react";
-import { t } from "../../lib/i18n";
+import { lang, t } from "../../lib/i18n";
 
 export function stepIcon(step: Step) {
   switch (step.type) {
@@ -37,6 +38,8 @@ export function stepIcon(step: Step) {
       return Clapperboard;
     case "review":
       return Eye;
+    case "wait":
+      return Hourglass;
     case "result":
       return Flag;
   }
@@ -51,8 +54,26 @@ export const TYPE_TONE: Record<Step["type"], string> = {
   surface: "bg-ember-veil text-ember-strong",
   "motion-graphics": "bg-amber-tint text-ink-2",
   review: "bg-moss-tint text-moss",
+  wait: "bg-cobalt-tint text-cobalt",
   result: "bg-paper-2 text-ink-2",
 };
+
+const WAIT_UNIT = { m: "wait.minutes", h: "wait.hours", d: "wait.days" } as const;
+
+/** "3 Tage", or what a wait waits until: a date as the person reads it, a template as written. */
+export function waitSummary(step: Extract<Step, { type: "wait" }>): string {
+  const lasts = /^(\d+)([mhd])$/.exec(step.for ?? "");
+  if (lasts) {
+    return lasts[0] === "1d"
+      ? t("wait.day")
+      : t(WAIT_UNIT[lasts[2] as keyof typeof WAIT_UNIT], { n: lasts[1] });
+  }
+  const date = Date.parse(step.until ?? "");
+  const until = Number.isNaN(date)
+    ? (step.until ?? "")
+    : new Intl.DateTimeFormat(lang, { dateStyle: "medium", timeStyle: "short" }).format(date);
+  return t("wait.until", { date: until });
+}
 
 export function typeLabel(step: Step): string {
   return t(`type.${step.type}` as "type.page");
@@ -105,6 +126,8 @@ export function stepSummary(step: Step): string {
       ]
         .filter(Boolean)
         .join(" · ");
+    case "wait":
+      return waitSummary(step);
     case "result":
       return step.deliverables
         .map((d) => `${d.label ?? d.from} (${d.formats.join(", ")})`)

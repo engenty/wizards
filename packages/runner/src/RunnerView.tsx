@@ -33,7 +33,7 @@ import {
 } from "./device";
 import { api, runBase, runnerEnv, withBase } from "./env.js";
 import { FieldInput, type Values } from "./fields";
-import { eventText, noteLine, setChoiceLabels, t } from "./i18n.js";
+import { eventText, noteLine, runnerLangCode, setChoiceLabels, t } from "./i18n.js";
 import { DownloadButtons, OutputView } from "./outputs";
 import { ListCheck, ListDownloads, ListTable, StoreButton } from "./store";
 import { Button, Card, cn, LinkedText, Spinner, Textarea } from "./ui.js";
@@ -299,6 +299,35 @@ function NotifyToggle() {
   );
 }
 
+/** The heading of a run that waits for a time: the day and the hour it goes on, as the person reads them. */
+export function goesOnText(wakeAt: string | null): string {
+  if (!wakeAt) {
+    return t("run.goesOnSoon");
+  }
+  const when = new Date(wakeAt);
+  const code = runnerLangCode();
+  return t("run.goesOn", {
+    date: new Intl.DateTimeFormat(code, { weekday: "long", day: "numeric", month: "long" }).format(
+      when,
+    ),
+    time: new Intl.DateTimeFormat(code, { hour: "numeric", minute: "2-digit" }).format(when),
+  });
+}
+
+/** The run waits for a time: nothing to do, and nobody has to stay. */
+function Sleeping({ view, compact }: { view: RunView; compact?: boolean }) {
+  const { Mascot } = runnerEnv();
+  return (
+    <div className="flex animate-rise flex-col items-center pt-6 text-center">
+      <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={compact ? 130 : 170} />
+      <h2 className="wizard-heading mt-4 font-display font-semibold text-[1.375rem] tracking-tight">
+        {goesOnText(view.wakeAt)}
+      </h2>
+      <p className="mt-2 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
+    </div>
+  );
+}
+
 function Working({
   view,
   compact,
@@ -407,7 +436,12 @@ export function useDoneSignal(view: RunView | null) {
     };
     if (running && view.ask && view.ask.id !== prev.ask) {
       tell(t("notify.needsYou"));
-    } else if (!running && prev.running && Date.now() - prev.since > 8000) {
+    } else if (
+      !running &&
+      prev.running &&
+      view.status !== "sleeping" &&
+      Date.now() - prev.since > 8000
+    ) {
       tell(
         view.status === "failed"
           ? t("run.failed")
@@ -891,6 +925,8 @@ export function RunnerBody({
     body = <AskPanel key={view.ask.id} runId={view.id} ask={view.ask} />;
   } else if (view.status === "running") {
     body = <Working view={view} compact={compact} awake={awake} />;
+  } else if (view.status === "sleeping") {
+    body = <Sleeping view={view} compact={compact} />;
   } else if (view.status === "failed") {
     body = <Failed view={view} run={run} />;
   } else if (view.status === "cancelled") {

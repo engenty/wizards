@@ -976,6 +976,34 @@ export const resultStepSchema = z.object({
   share: z.array(shareOptionSchema).max(12).optional(),
 });
 
+/** "90m", "6h", "2d": how long a `wait` lasts. */
+export const waitDurationSchema = z
+  .string()
+  .regex(/^[1-9]\d{0,3}(m|h|d)$/, 'A duration like "90m", "6h" or "2d".');
+
+const WAIT_UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000 } as const;
+
+/** What a duration lasts, in milliseconds. */
+export function waitDurationMs(duration: string): number {
+  const unit = duration.slice(-1) as keyof typeof WAIT_UNIT_MS;
+  return Number(duration.slice(0, -1)) * WAIT_UNIT_MS[unit];
+}
+
+/**
+ * A step that waits and needs no process meanwhile: for a time, or until a date. `until` is an
+ * ISO date or a template such as "{{deadline}}"; a date gone by waits for nothing.
+ */
+export const waitStepSchema = z.object({
+  ...stepBase,
+  type: z.literal("wait"),
+  for: waitDurationSchema.optional(),
+  until: z.string().min(1).optional(),
+});
+export type WaitStep = z.infer<typeof waitStepSchema>;
+
+/** What a finished wait hands on, as `steps.<wait>.<key>`. */
+export const WAIT_OUTPUT_KEYS: readonly string[] = ["waited"];
+
 export const stepSchema = z.discriminatedUnion("type", [
   pageStepSchema,
   agentStepSchema,
@@ -984,6 +1012,7 @@ export const stepSchema = z.discriminatedUnion("type", [
   surfaceStepSchema,
   motionGraphicsStepSchema,
   reviewStepSchema,
+  waitStepSchema,
   resultStepSchema,
 ]);
 export type Step = z.infer<typeof stepSchema>;
@@ -1456,6 +1485,9 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       return false;
     }
     const source = def.steps.find((s) => s.id === from);
+    if (source?.type === "wait") {
+      return !probability && WAIT_OUTPUT_KEYS.includes(key);
+    }
     return (
       source?.type === "agent" &&
       (!probability || isDecisionStep(source)) &&
@@ -1835,6 +1867,23 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
           }
         }
         break;
+      case "wait":
+        if (Boolean(step.for) === Boolean(step.until)) {
+          issues.push({
+            stepId: step.id,
+            message: 'A wait has "for" or "until": one of them.',
+          });
+        }
+        if (step.until) {
+          checkTemplate(step, step.until);
+          if (!templateRefs(step.until).length && Number.isNaN(Date.parse(step.until))) {
+            issues.push({
+              stepId: step.id,
+              message: `"until" is an ISO date or a template; "${step.until}" is neither.`,
+            });
+          }
+        }
+        break;
       case "review":
         for (const ref of step.show) {
           const list = listRef(ref);
@@ -1843,6 +1892,8 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
               stepId: step.id,
               message: `Review shows unknown ${list ? "list" : "step"} "${ref}".`,
             });
+          } else if (!list && def.steps.find((s) => s.id === ref)?.type === "wait") {
+            issues.push({ stepId: step.id, message: `A wait has nothing to show: "${ref}".` });
           } else if (list && sharedLists.has(list)) {
             issues.push({ stepId: step.id, message: notShown(list) });
           }
@@ -1855,6 +1906,11 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
             issues.push({
               stepId: step.id,
               message: `Deliverable from unknown ${list ? "list" : "step"} "${d.from}".`,
+            });
+          } else if (!list && def.steps.find((s) => s.id === d.from)?.type === "wait") {
+            issues.push({
+              stepId: step.id,
+              message: `A wait has nothing to hand over: "${d.from}".`,
             });
           } else if (list && sharedLists.has(list)) {
             issues.push({ stepId: step.id, message: notShown(list) });
