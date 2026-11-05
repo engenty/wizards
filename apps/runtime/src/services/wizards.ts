@@ -606,13 +606,9 @@ export async function updateWizardSettings(
     spaceId?: string;
     runners?: RunnerSettings;
     translate?: boolean;
-    answerers?: string[] | "admins";
   },
 ) {
   const w = await writableWizard(userId, wizardId);
-  if (patch.answerers !== undefined) {
-    await checkAnswerers(patch.answerers);
-  }
   if (patch.spaceId) {
     await requireWritable(await ownedSpace(userId, patch.spaceId));
   }
@@ -626,6 +622,24 @@ export async function updateWizardSettings(
     pushPages();
     pushWizards();
   }
+  return wizardSummary(await ownedWizard(userId, wizardId));
+}
+
+/**
+ * Who answers the wizard's team steps: for whoever edits it. Not a setting of its sharing, which is
+ * the admins' alone: a member with the Studio open to them can get a wizard ready to publish.
+ */
+export async function setAnswerers(
+  userId: string,
+  wizardId: string,
+  answerers: string[] | "admins",
+) {
+  const w = await writableWizard(userId, wizardId);
+  await checkAnswerers(answerers);
+  await db
+    .update(schema.wizard)
+    .set({ answerers, updatedAt: new Date() })
+    .where(eq(schema.wizard.id, w.id));
   return wizardSummary(await ownedWizard(userId, wizardId));
 }
 
