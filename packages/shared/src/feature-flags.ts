@@ -197,6 +197,12 @@ export const FEATURES = {
     label: "Runs that wait for days",
     hint: "Wait steps: a run leaves every process, and a clock or a signal wakes it. A deadline on automatic steps. What a step did outside happens once. Retries over time and onFail; out of credits waits for a top-up.",
   },
+  startTriggers: {
+    kind: "release",
+    default: false,
+    label: "Starts by itself",
+    hint: "A wizard that runs on a schedule: the share dialog's section, the clock, the bell (docs/plans/starts.md).",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

@@ -4,6 +4,7 @@ import {
   signalNameSchema,
   upgradeDefinition,
 } from "@engenty/wizards-shared/definition";
+import { describeStart, startInputSchema } from "@engenty/wizards-shared/starts";
 import type { CallToolResult, McpServer, ToolCallback } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { authoringGuide } from "../authoring/guide.js";
@@ -31,6 +32,7 @@ import {
 } from "../services/runs.js";
 import { sendSignalForWizard } from "../services/signals.js";
 import { defaultSpace, listSpaces, ownedSpace } from "../services/spaces.js";
+import { listStarts, setStarts, withStartIds } from "../services/starts.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import {
   checkDraft,
@@ -621,6 +623,43 @@ export function registerTools(server: McpServer, who: Principal) {
         shareUrl: shareUrl(w.shareToken),
       };
     },
+  );
+
+  // --- starts: what begins a run without a person ---------------------------------
+  tool(
+    "list_starts",
+    "wizards:read",
+    {
+      title: "List starts",
+      description: prompt("mcp", "tool.list_starts"),
+      input: z.object({ wizardId: z.string() }),
+      readOnly: true,
+    },
+    async ({ wizardId }) => ({
+      starts: (await listStarts(who.userId, wizardId)).map((s) => ({
+        ...s,
+        text: describeStart(s, "en"),
+      })),
+    }),
+  );
+
+  tool(
+    "set_starts",
+    "wizards:publish",
+    {
+      title: "Set starts",
+      description: prompt("mcp", "tool.set_starts"),
+      input: z.object({
+        wizardId: z.string(),
+        starts: z.array(startInputSchema).max(20),
+      }),
+    },
+    async ({ wizardId, starts }) => ({
+      starts: (await setStarts(who.userId, wizardId, withStartIds(starts))).map((s) => ({
+        ...s,
+        text: describeStart(s, "en"),
+      })),
+    }),
   );
 
   // --- test runs ---------------------------------------------------------------

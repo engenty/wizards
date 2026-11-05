@@ -68,6 +68,7 @@ import {
 import { reloadConnector } from "../connectors/reload.js";
 import { balanceCredits, canSpend } from "../credits/credits.js";
 import { estimateRun } from "../credits/estimate.js";
+import { listNotices, markNoticesRead } from "../engine/notices.js";
 import { missingModels, stepsWithoutModel } from "../engine/requirements.js";
 import { env } from "../env.js";
 import { feature, features, forgetAccountFeatures } from "../features.js";
@@ -287,6 +288,7 @@ import {
   spacePatchSchema,
   updateSpace,
 } from "../services/spaces.js";
+import { listStarts, runStartNow, setStarts } from "../services/starts.js";
 import { deleteTheme, listThemes, saveTheme } from "../services/themes.js";
 import {
   deleteTranslation,
@@ -1960,6 +1962,25 @@ export const studio = new Hono<Vars>()
   .get("/wizards/:id/looks", async (c) => {
     const w = await ownedWizard(c.get("user").id, c.req.param("id"));
     return c.json({ looks: await themeLooks(w.spaceId, w.draft.themes) });
+  })
+
+  // --- starts: what begins a run without a person ---------------------------------
+  .get("/wizards/:id/starts", async (c) =>
+    c.json(await listStarts(c.get("user").id, c.req.param("id"))),
+  )
+  .put("/wizards/:id/starts", async (c) =>
+    c.json(await setStarts(c.get("user").id, c.req.param("id"), await c.req.json())),
+  )
+  .post("/wizards/:id/starts/:startId/run", async (c) =>
+    c.json(await runStartNow(c.get("user").id, c.req.param("id"), c.req.param("startId"))),
+  )
+  .get("/notices", async (c) => c.json(await listNotices()))
+  .post("/notices/read", async (c) => {
+    const body = z
+      .object({ ids: z.union([z.array(z.string()).max(200), z.literal("all")]) })
+      .parse(await c.req.json());
+    await markNoticesRead(body.ids);
+    return c.json({ ok: true });
   })
 
   // --- workspace -------------------------------------------------------------

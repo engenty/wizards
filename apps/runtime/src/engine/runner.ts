@@ -24,6 +24,7 @@ import {
   type PageStep,
   pageNeeds,
   RUN_DONE_SIGNAL,
+  type ReviewStep,
   type Step,
   signalMissing,
   textLang,
@@ -33,7 +34,14 @@ import {
   whenHolds,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import type { RunNote, RunPause, RunStatus, Said, StepOutput } from "@engenty/wizards-shared/run";
+import type {
+  AskInput,
+  RunNote,
+  RunPause,
+  RunStatus,
+  Said,
+  StepOutput,
+} from "@engenty/wizards-shared/run";
 import {
   CAN_GO_BACK,
   type ClosedChoice,
@@ -46,6 +54,7 @@ import {
 } from "@engenty/wizards-shared/run";
 import { CONVERSATION_RUNNERS, DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
 import { fitData } from "@engenty/wizards-shared/shape";
+import type { StartEvent, StartedBy } from "@engenty/wizards-shared/starts";
 import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
 import { machineTranslated, translateDefinition } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
@@ -110,12 +119,13 @@ import {
   wakeRun,
 } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { askPerson, clearStaleAsk } from "./asks.js";
+import { type AskResult, askPerson, clearStaleAsk } from "./asks.js";
 import { decide } from "./decide.js";
 import { clearDeviceCalls } from "./device.js";
 import { emitEvent, recentEvents, saidInVisit, signalChanged, visitLeftOpen } from "./events.js";
 import { classifyFailure, type Failure } from "./failures.js";
 import { type InputError, type PageContext, readPageInput } from "./input.js";
+import { noticeOwner } from "./notices.js";
 import { pushRun } from "./push.js";
 import {
   blockingMessage,
@@ -136,6 +146,7 @@ import {
   sendSignal,
   signalData,
 } from "./signals.js";
+import { startedRunEnded, startOf } from "./starts.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
 import { answersAsText, fillLabel, renderTemplate, resolveRef } from "./template.js";
 import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
@@ -168,6 +179,9 @@ class StepDeadline extends NotedError {
     super(note("stepTookTooLong"));
   }
 }
+
+/** This time of a start began a run already: the database refused a second one. */
+export class OccurrenceTaken extends Error {}
 
 /** Another runner claimed the run while this one drove it: this drive ends, without a word on the run. */
 class LostClaim extends Error {}
@@ -293,6 +307,8 @@ async function updateRun(
     if (patch.status !== "cancelled") {
       void pushRun(runId, patch.status);
     }
+    // A start's run that ended: the start counts it, the owner hears of it.
+    void startedRunEnded(runId, patch.status);
   }
   if (patch.status) {
     reportRun(runId, patch.status);
@@ -437,10 +453,25 @@ export async function createRun(input: {
   client?: string | null;
   /** The client space it runs in, with its parent's wizard (docs/plans/client-portal.md). */
   clientSpaceId?: string | null;
+  /**
+   * A start began the run, nobody is there: `start` is what started it, `fill` the answers it
+   * brings. Pages are filled as the run reaches them; what is missing waits for the owner.
+   */
+  startedBy?: StartedBy | null;
+  start?: StartEvent;
+  fill?: Record<string, unknown>;
+  /** Which time of the start this is (`occurrenceKey`): a second run of it is refused. */
+  occurrence?: string;
 }): Promise<string> {
   const id = nanoid(18);
   const first = input.definition.steps[0];
+  // A started run fills its first page itself, in the drive loop.
+  const waits = first.type === "page" && !input.startedBy;
   const state: RunState = { values: {}, outputs: {}, history: [], notes: {} };
+  if (input.startedBy) {
+    state.start = input.start;
+    state.fill = input.fill ?? {};
+  }
   // Off, nothing starts that would need the clock; a run that already waits goes on.
   if (input.definition.steps.some((s) => s.type === "wait") && !(await durableRunsOn())) {
     throw new ModelUnavailableError(note("waitsOff"));
@@ -470,36 +501,45 @@ export async function createRun(input: {
   }
   // What the run may reach outside, from the definition it starts on: fixed here, never widened.
   const grant = grantOf(input.definition);
-  await db.insert(schema.run).values({
-    id,
-    wizardId: input.wizardId,
-    tenantId: currentTenant(),
-    definition: input.definition,
-    files: input.files,
-    grant,
-    version: input.version,
-    mode: input.mode,
-    runner: input.runner ?? null,
-    visitorId: input.visitorId ?? null,
-    userId: input.userId ?? null,
-    impersonatedBy: currentImpersonator()?.adminId ?? null,
-    ipHash: input.ipHash ?? null,
-    origin: input.origin ?? null,
-    lang: input.lang ?? null,
-    unattended: input.unattended ?? false,
-    client: input.client ?? null,
-    clientSpaceId: input.clientSpaceId ?? null,
-    status: first.type === "page" ? "waiting_input" : "running",
-    cursor: first.id,
-    state,
-    label: await labelOf(input.definition, state),
-    // Without an account nobody can come back for a result later: it is kept a week. A run of a
-    // client space is the client's, kept with it.
-    expiresAt:
-      input.mode === "live" && !input.clientSpaceId
-        ? new Date(Date.now() + env.limits.resultTtlDays * 24 * 60 * 60 * 1000)
-        : null,
-  });
+  const inserted = await db
+    .insert(schema.run)
+    .values({
+      id,
+      wizardId: input.wizardId,
+      tenantId: currentTenant(),
+      definition: input.definition,
+      files: input.files,
+      grant,
+      version: input.version,
+      mode: input.mode,
+      runner: input.runner ?? null,
+      visitorId: input.visitorId ?? null,
+      userId: input.userId ?? null,
+      impersonatedBy: currentImpersonator()?.adminId ?? null,
+      ipHash: input.ipHash ?? null,
+      origin: input.origin ?? null,
+      lang: input.lang ?? null,
+      unattended: input.unattended ?? false,
+      client: input.client ?? null,
+      clientSpaceId: input.clientSpaceId ?? null,
+      startedBy: input.startedBy ?? null,
+      occurrence: input.occurrence ?? null,
+      status: waits ? "waiting_input" : "running",
+      cursor: first.id,
+      state,
+      label: await labelOf(input.definition, state),
+      // Without an account nobody can come back for a result later: it is kept a week. A run of a
+      // client space is the client's, kept with it.
+      expiresAt:
+        input.mode === "live" && !input.clientSpaceId
+          ? new Date(Date.now() + env.limits.resultTtlDays * 24 * 60 * 60 * 1000)
+          : null,
+    })
+    .onConflictDoNothing({ target: [schema.run.wizardId, schema.run.occurrence] });
+  if (inserted.rowsAffected === 0) {
+    await releaseRun(id);
+    throw new OccurrenceTaken();
+  }
   if (await durableRunsOn()) {
     const name = input.userId ? await nameOf(input.userId) : null;
     await emitEvent(
@@ -518,8 +558,8 @@ export async function createRun(input: {
     await emitEvent(id, first.id, "info", may);
   }
   await indexRun({ runId: id, visitorId: input.visitorId, ipHash: input.ipHash });
-  reportRun(id, first.type === "page" ? "waiting_input" : "running");
-  if (first.type !== "page") {
+  reportRun(id, waits ? "waiting_input" : "running");
+  if (!waits) {
     kick(id);
   }
   return id;
@@ -871,10 +911,7 @@ export async function makeContext(
     spaceFiles: (await spaceFiles(space.id)).filter((f) => f.status === "ready"),
     signal,
     resources,
-    ask:
-      own.ask ??
-      ((ask) =>
-        run.unattended ? Promise.resolve(null) : askPerson(run.id, { ...ask, stepId }, signal)),
+    ask: own.ask ?? ((ask) => askOf(run, ask, stepId, signal)),
     emit:
       own.emit ?? ((type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset)),
     call: { runId: run.id, stepId },
@@ -887,6 +924,30 @@ export async function makeContext(
         stepId: input.stepId ?? own.stepId ?? run.cursor,
       }),
   };
+}
+
+/**
+ * A step's question to the person. An autopilot's test run asks nobody. A started run answers a
+ * confirm itself when its start allows changes; otherwise nobody is there and the tool leaves
+ * the change open. A sign-in it puts to the owner, who is told.
+ */
+async function askOf(
+  run: RunRow,
+  ask: AskInput,
+  stepId: string,
+  signal: AbortSignal,
+): Promise<AskResult | null> {
+  if (run.unattended) {
+    return null;
+  }
+  if (run.startedBy && ask.kind === "confirm") {
+    const start = await startOf(run);
+    return start?.allowChanges ? { type: "done" } : null;
+  }
+  if (run.startedBy) {
+    void noticeOwner(run, "needs_you", ask.kind === "login" ? ask.site.host : null);
+  }
+  return askPerson(run.id, { ...ask, stepId }, signal);
 }
 
 /** A decided branch is taken only when its pick leads the runner-up by this much. */
@@ -1668,6 +1729,24 @@ async function drive(runId: string, signal: AbortSignal) {
       }
       continue;
     }
+    if ((step.type === "page" || step.type === "review") && run.startedBy) {
+      // Nobody is there: the start's answers fill the page, its setting passes the review.
+      const state = structuredClone(run.state);
+      const cursor = await passStep(run, step, state);
+      if (cursor === undefined) {
+        await updateRun(runId, { status: "waiting_input" });
+        void noticeOwner(run, "needs_you", step.title);
+        return;
+      }
+      await updateRun(runId, {
+        state,
+        cursor,
+        status: cursor ? "running" : "done",
+        error: null,
+        ...(run.definition.label ? { label: await labelOf(run.definition, state) } : {}),
+      });
+      continue;
+    }
     if (step.type === "page" || step.type === "review") {
       await updateRun(runId, { status: "waiting_input" });
       // A step that ran is over and the next one is the person's: a phone in a pocket hears it.
@@ -1755,6 +1834,37 @@ async function drive(runId: string, signal: AbortSignal) {
       }
     }
   }
+}
+
+/**
+ * A started run at a page or a review: the page is answered from the start's `fill` when every
+ * required field has a value, a review passes when the start says so. The cursor after the
+ * step, or undefined when the owner has to come.
+ */
+async function passStep(
+  run: RunRow,
+  step: PageStep | ReviewStep,
+  state: RunState,
+): Promise<string | null | undefined> {
+  if (step.type === "review") {
+    const start = await startOf(run);
+    if (!start?.passReviews) {
+      return undefined;
+    }
+  } else {
+    const shown = state.pages?.[step.id]?.shown;
+    const fields = step.fields.filter((f) => !shown || shown.includes(f.id));
+    const input = Object.fromEntries(
+      fields.filter((f) => f.id in (state.fill ?? {})).map((f) => [f.id, state.fill?.[f.id]]),
+    );
+    const { values, errors } = readPageInput(step, input, await pageContext(run, step));
+    if (errors.length) {
+      return undefined;
+    }
+    state.values = { ...state.values, ...values };
+  }
+  state.history.push(step.id);
+  return advance(run, step.id, state);
 }
 
 // --- commands ----------------------------------------------------------------

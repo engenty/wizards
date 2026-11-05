@@ -1,4 +1,6 @@
+import { describeStart, type StartedBy, type WizardStart } from "@engenty/wizards-shared/starts";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Clock, Link2, Table2, Wand2 } from "lucide-react";
 import { useDeferredValue, useState } from "react";
 import { api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
@@ -19,13 +21,19 @@ interface RunRow {
   credits: number;
   assets: number;
   stepTitle: string | null;
+  startedBy: StartedBy | null;
 }
+
+const START_ICONS = { schedule: Clock, webhook: Link2, record: Table2, wizard: Wand2 };
 
 export function RunsPanel({
   wizardId,
+  starts,
   onOpen,
 }: {
   wizardId: string;
+  /** The wizard's starts, so a run says which one began it. */
+  starts: WizardStart[];
   onOpen: (runId: string) => void;
 }) {
   // With runs that last for days a run opens on its timeline here; the timeline opens the run.
@@ -91,8 +99,11 @@ export function RunsPanel({
           {(testSignal.error as Error).message}
         </p>
       ) : null}
-      {runs.data?.map((r) => (
-        <div key={r.id} className="flex items-center gap-1">
+      {runs.data?.map((r) => {
+        const start = r.startedBy ? starts.find((s) => s.id === r.startedBy?.startId) : null;
+        const StartIcon = r.startedBy ? START_ICONS[r.startedBy.kind] : null;
+        return (
+          <div key={r.id} className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => (timelines ? setShown(r.id) : onOpen(r.id))}
@@ -126,6 +137,14 @@ export function RunsPanel({
                           : r.status}
                 {r.stepTitle && r.status !== "done" ? ` · ${r.stepTitle}` : ""}
               </div>
+              {r.startedBy ? (
+                <div className="flex items-center gap-1 truncate text-[0.75rem] text-ink-3">
+                  {StartIcon ? <StartIcon className="size-3 shrink-0" /> : null}
+                  {t("runs.startedBy", {
+                    what: start ? describeStart(start, lang) : t(`starts.kind.${r.startedBy.kind}`),
+                  })}
+                </div>
+              ) : null}
             </div>
             <span className="text-[0.75rem] text-ink-4 tabular-nums">
               {t("nav.credits", { n: r.credits })}
@@ -141,8 +160,9 @@ export function RunsPanel({
               {t("runs.testSignal")}
             </Button>
           ) : null}
-        </div>
-      ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
