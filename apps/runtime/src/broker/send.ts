@@ -72,8 +72,13 @@ export function guestPostCheck(post: {
 
 const ADDRESS = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
 
-/** The addresses a send's input names: `to`, `cc`, `bcc`, `recipients`, as strings, lists or objects. */
-export function recipientsOf(input: unknown): string[] {
+/**
+ * The addresses a send's input names: the field the connector's action names as the recipient's
+ * (an imported connector: what an admin said, `body.to` for one inside an HTTP body), and `to`,
+ * `cc`, `bcc`, `recipients`, as strings, lists or objects. The named field comes on top of the
+ * guess, never in place of it: an address in `cc` is still one the send goes to.
+ */
+export function recipientsOf(input: unknown, field?: string): string[] {
   if (!input || typeof input !== "object") {
     return [];
   }
@@ -96,6 +101,13 @@ export function recipientsOf(input: unknown): string[] {
       take(o.email ?? o.address ?? o.emailAddress);
     }
   };
+  if (field) {
+    let value: unknown = input;
+    for (const part of field.split(".")) {
+      value = value && typeof value === "object" ? (value as Record<string, unknown>)[part] : null;
+    }
+    take(value);
+  }
   for (const key of ["to", "cc", "bcc", "recipients", "recipient"]) {
     take((input as Record<string, unknown>)[key]);
   }

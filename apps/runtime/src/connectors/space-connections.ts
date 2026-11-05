@@ -75,7 +75,8 @@ export const newConnectionSchema = z.object({
   connectorId: z.string().min(1).max(200),
   name: z.string().trim().min(1).max(CONNECTION_LIMITS.name),
   signIn: z.enum(CONNECTION_SIGN_INS),
-  audience: z.enum(CONNECTION_AUDIENCES).default("members"),
+  /** Left out: the members, and the admins on a connector that came from a pasted address. */
+  audience: z.enum(CONNECTION_AUDIENCES).optional(),
   rules: rulesSchema.default(DEFAULT_CONNECTION_RULES),
   /** The connector's actions it is for; left out: every action. */
   actions: z.array(z.string().max(200)).max(200).default([]),
@@ -187,7 +188,8 @@ export async function spaceConnectionViews(
     : [];
   return Promise.all(
     rows.map(async (row) => {
-      const connector = (await resolveConnector(spaceId, row.connectorId))?.connector ?? null;
+      const found = await resolveConnector(spaceId, row.connectorId);
+      const connector = found?.connector ?? null;
       const theirs =
         row.signIn === "person" ? signIns.filter((s) => s.connectionId === row.id) : [];
       const mine = theirs.find((s) => s.userId === userId);
@@ -204,6 +206,7 @@ export async function spaceConnectionViews(
               ...(connector.auth.kind === "api_key"
                 ? { fields: connector.auth.apiKey.fields }
                 : {}),
+              ...(found?.fromAddress ? { fromAddress: true } : {}),
             }
           : null,
         name: row.name,
@@ -297,7 +300,8 @@ export async function createSpaceConnection(
       plugin,
       name: input.name,
       signIn: input.signIn,
-      audience: input.audience,
+      // A server nobody checked reaches the AI with its own texts: the admins use it first.
+      audience: input.audience ?? (found.fromAddress ? "admins" : "members"),
       rules: input.rules,
       actions: knownActions(found.connector, input.actions),
       setUpBy: userId,

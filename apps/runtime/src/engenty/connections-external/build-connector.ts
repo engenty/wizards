@@ -7,9 +7,10 @@ import {
 } from "../shims/connections-sdk.js";
 import { z } from "zod";
 import { headersFromRequired } from "./import-service.js";
-import { groupOf } from "./importer/classify.js";
+import { groupIn, recipientFieldIn } from "./importer/classify.js";
 import { executeHttpAction } from "./invoke/http-invoker.js";
 import { mcpCallTool } from "./invoke/mcp-client.js";
+import { createGuardedFetch } from "./net/guarded-fetch.js";
 import { connectionsRedirectUri, registerDynamicClient } from "./oauth-dcr.js";
 import type { ImportedConnectorRecord, NormalizedAction } from "./types.js";
 
@@ -61,13 +62,15 @@ function inputSchemaToZod(action: NormalizedAction): z.ZodType | null {
 function buildAction(
   record: ImportedConnectorRecord,
   action: NormalizedAction,
-  live: () => ImportedConnectorRecord
+  live: () => ImportedConnectorRecord,
+  allowPrivate: boolean
 ): ConnectorAction | null {
   const inputSchema = inputSchemaToZod(action);
   if (!inputSchema) {
     return null;
   }
-  const group = groupOf(action);
+  const group = groupIn(record, action);
+  const recipientField = recipientFieldIn(record, action);
   return {
     description: action.description.slice(0, 1024),
     group,
@@ -80,6 +83,9 @@ function buildAction(
         return mcpCallTool({
           args,
           endpoint: current.source_url,
+          ...(allowPrivate
+            ? { fetchImpl: createGuardedFetch({ allowPrivate: true }) }
+            : {}),
           headers: mcpHeaders(current, ctx.accessToken),
           toolName: action.invoke.tool_name,
           transport: current.mcp_transport,
@@ -87,7 +93,10 @@ function buildAction(
       }
       return executeHttpAction({
         accessToken: ctx.accessToken,
-        fetchImpl: ctx.fetchImpl,
+        // The context's fetch refuses private hosts itself; where they may be
+        // reached the guard is the invoker's own, with `allowPrivate`.
+        ...(allowPrivate ? { allowPrivate: true } : {}),
+        fetchImpl: allowPrivate ? fetch : ctx.fetchImpl,
         input: args,
         invoke: action.invoke,
         record: current,
@@ -95,6 +104,7 @@ function buildAction(
     },
     id: action.id,
     inputSchema,
+    ...(recipientField ? { recipientField } : {}),
     summary: action.summary.slice(0, 256),
   };
 }
@@ -102,11 +112,15 @@ function buildAction(
 function buildAuth(
   record: ImportedConnectorRecord,
   live: () => ImportedConnectorRecord,
+  allowPrivate: boolean,
   persistOAuthClient?: (creds: {
     clientId: string;
     clientSecret: string;
   }) => Promise<void>
 ): ConnectorAuth {
+  // The endpoints came from a registry or a pasted address: the token calls
+  // and the client registration go through the guard like every other call.
+  const guarded = createGuardedFetch(allowPrivate ? { allowPrivate: true } : {});
   const stored = record.auth_config;
   if (stored.kind === "oauth2") {
     const dcr =
@@ -117,6 +131,7 @@ function buildAuth(
         authUrl: stored.auth_url,
         baseScopes: stored.scopes,
         dynamicClientRegistration: dcr,
+        fetchImpl: guarded,
         registerClient:
           dcr && persistOAuthClient
             ? async () => {
@@ -136,6 +151,7 @@ function buildAuth(
                 }
                 const registered = await registerDynamicClient({
                   clientName: current.name,
+                  fetchImpl: guarded,
                   redirectUri: connectionsRedirectUri(),
                   registrationEndpoint: endpoint,
                   scopes:
@@ -214,13 +230,22 @@ export function buildImportedConnector(
   persistOAuthClient?: (creds: {
     clientId: string;
     clientSecret: string;
-  }) => Promise<void>
+  }) => Promise<void>,
+  options?: {
+    /**
+     * The connector's calls may reach loopback and private hosts. The host
+     * says so for a connector from a pasted address on a computer of one's
+     * own, and for nothing else.
+     */
+    allowPrivate?: boolean;
+  }
 ): BuiltImportedConnector {
   const live = () => resolveLive?.() ?? record;
+  const allowPrivate = options?.allowPrivate === true;
   const actions: ConnectorAction[] = [];
   const skippedActions: string[] = [];
   for (const normalized of record.actions) {
-    const action = buildAction(record, normalized, live);
+    const action = buildAction(record, normalized, live, allowPrivate);
     if (action) {
       actions.push(action);
     } else {
@@ -229,7 +254,7 @@ export function buildImportedConnector(
   }
   const connector = defineConnector({
     actions,
-    auth: buildAuth(record, live, persistOAuthClient),
+    auth: buildAuth(record, live, allowPrivate, persistOAuthClient),
     description: `${record.name} — imported from ${record.domain} (${record.source_kind})`,
     icon: "plug",
     id: record.id,

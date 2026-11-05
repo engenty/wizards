@@ -6,7 +6,18 @@ export type ActionGroup = "read" | "write" | "send" | "destructive";
 export interface ConnectorActionView {
   id: string;
   summary: string;
+  /** What it does: what an admin said, else what the importer read from its hints and words. */
   group: ActionGroup;
+  /** A send: the input field that holds the recipient, where an admin named one. */
+  recipientField?: string;
+  /** An imported action's input fields (`body.to` for one inside an HTTP body), to name the recipient's. */
+  fields?: string[];
+}
+
+/** What an admin says an action does; for a send, the input field that holds the recipient. */
+export interface ActionKindChoice {
+  kind: ActionGroup;
+  recipientField?: string;
 }
 
 export interface ConnectorView {
@@ -27,6 +38,11 @@ export interface ConnectorView {
   needsOAuthClient: boolean;
   /** An MCP server that lists its tools only to a signed-in account: none are known yet. */
   toolsPending: boolean;
+  /**
+   * Imported from a pasted address, not from the registry: nobody checked it („nicht geprüft“),
+   * and a new connection on it starts for the admins.
+   */
+  fromAddress: boolean;
   actions: ConnectorActionView[];
   importedAt: string;
   refreshedAt: string | null;
@@ -59,26 +75,67 @@ export interface RegistryService {
   credentials: { label: string; setup: string | null; url: string | null }[];
 }
 
+/**
+ * How a source signs in, as it describes itself: an MCP server's OAuth documents or its tools
+ * list answering without a sign-in, an OpenAPI description's security schemes, or the registry.
+ */
+export interface DescribedSignIn {
+  /** `null`: it asks for a sign-in and describes none, so the admin chooses. */
+  described: "none" | "oauth2" | "api_key" | null;
+  /** OAuth without self-registration: the import needs a client id and secret of your own. */
+  needsOAuthClient: boolean;
+  /** A described key: the header or query parameter it goes in. */
+  keyIn: string | null;
+}
+
 export interface SourcePreview {
+  /** What answered at the address. */
+  sourceKind: "openapi" | "mcp";
+  /** The address's host, and the id and tool prefix it suggests (free in the space). */
+  host: string;
+  suggestedId: string;
+  suggestedToolPrefix: string;
   title: string | null;
+  /** Each action with what the importer read it as (`group`) and its input fields. */
   actions: ConnectorActionView[];
   blockers: string[];
   /** Actions beyond the per-connector cap. */
   dropped: number;
   toolsPending: boolean;
+  signIn: DescribedSignIn;
+  /** The registry lists nothing at this address: the connector will be „nicht geprüft“. */
+  fromAddress: boolean;
+  /** A private or loopback address, taken because this is a computer of one's own. */
+  privateAddress: boolean;
 }
 
+/**
+ * What an admin chooses for the sign-in of a source from a pasted address: what the source
+ * describes itself, a key or token in a header, or none. A header's `value` only lists an MCP
+ * server's tools now; it is kept nowhere, the connection asks for the key again.
+ */
+export type SignInChoice =
+  | { kind: "described" }
+  | { kind: "header"; name: string; scheme?: string; value?: string }
+  | { kind: "none" };
+
 export interface ImportRequest {
-  domain: string;
+  /** The registry's domain; left out for a pasted address, whose host stands for it. */
+  domain?: string;
   sourceKind: "openapi" | "mcp";
   sourceUrl: string;
-  id: string;
-  toolPrefix: string;
+  /** Left out: the address's host suggests them. */
+  id?: string;
+  toolPrefix?: string;
   name?: string;
   /** Only these actions; default all. */
   actions?: string[];
   oauthClientId?: string;
   oauthClientSecret?: string;
+  /** A pasted address: the sign-in the admin chose; left out: what the source describes. */
+  signIn?: SignInChoice;
+  /** What single actions do, where the admin says otherwise than the importer read. */
+  actionKinds?: Record<string, ActionKindChoice>;
 }
 
 // --- connections of a space (docs/plans/capabilities.md, "Connections") ---------------------
@@ -260,6 +317,8 @@ export interface SpaceConnectionView {
     description?: string;
     /** An `api_key` connector: what is typed to sign in (as the space, or each person). */
     fields?: ConnectorKeyField[];
+    /** Imported from a pasted address, not from the registry: the lists mark it „nicht geprüft“. */
+    fromAddress?: boolean;
   } | null;
   name: string;
   signIn: ConnectionSignIn;
