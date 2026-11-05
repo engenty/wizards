@@ -250,7 +250,7 @@ const call = (
 const DOORS: [string, string, string, unknown][] = [
   ["a page", "POST", "/pages/form", { values: {} }],
   ["a page of the team", "POST", "/pages/team", { values: { intern: "x" } }],
-  ["a review", "POST", "/reviews/check", { type: "approve" }],
+  ["a review", "POST", "/reviews/check", { type: "accept" }],
   ["back", "POST", "/back", {}],
   ["retry", "POST", "/retry", {}],
   ["cancel", "POST", "/cancel", {}],
@@ -377,7 +377,7 @@ describe("on a step for the team", () => {
     ];
     for (const ticket of tickets) {
       for (const [path, body] of [
-        ["/reviews/check", { type: "approve" }],
+        ["/reviews/check", { type: "accept" }],
         ["/back", {}],
       ] as const) {
         expect((await call(runId, path, "POST", body, { ticket })).status).toBe(403);
@@ -395,13 +395,13 @@ describe("on a step for the team", () => {
         .where(eq(client.schema.wizard.id, wizardId)),
     );
     signIn(KIM, "client");
-    expect((await call(runId, "/reviews/check", "POST", { type: "approve" })).status).toBe(404);
+    expect((await call(runId, "/reviews/check", "POST", { type: "accept" })).status).toBe(404);
   });
 
   it("someone from another organization doesn't find the run", async () => {
     const { runId } = await onTeamStep();
     who.user = { ...(who.user ?? {}), id: JONAS, tenantId: "other", role: "owner", name: "x", email: "x", impersonatedBy: null };
-    expect((await call(runId, "/reviews/check", "POST", { type: "approve" })).status).toBe(404);
+    expect((await call(runId, "/reviews/check", "POST", { type: "accept" })).status).toBe(404);
   });
 
   it("an MCP client's person who isn't named is refused on each tool", async () => {
@@ -417,7 +417,7 @@ describe("on a step for the team", () => {
     await inTenant(async () => {
       await expect(services.answerRunPage(MAX, runId, "check", {})).rejects.toMatchObject(refused);
       await expect(
-        services.reviewRun(MAX, runId, "check", { type: "approve" }),
+        services.reviewRun(MAX, runId, "check", { type: "accept" }),
       ).rejects.toMatchObject(refused);
       for (const action of ["back", "retry", "cancel"] as const) {
         await expect(services.controlRun(MAX, runId, action)).rejects.toMatchObject(refused);
@@ -709,7 +709,7 @@ describe("an approval", () => {
     };
     const { runId } = await onTeamStep([form, made, decides, yes, no]);
     signIn(ANNA);
-    expect((await call(runId, "/reviews/check", "POST", { type: "approve" })).status).toBe(200);
+    expect((await call(runId, "/reviews/check", "POST", { type: "accept" })).status).toBe(200);
     expect(await until(async () => (await row(runId))?.status === "done")).toBe(true);
     expect((await row(runId))?.cursor).toBe("yes");
     const log = await inTenant(() =>
@@ -718,11 +718,15 @@ describe("an approval", () => {
     expect(log.some((e) => e.note?.code === "stepApprovedBy")).toBe(true);
   });
 
-  it("a review that decides isn't just accepted", async () => {
+  it("accepting approves, and a review that doesn't decide can't be declined", async () => {
     const { runId } = await onTeamStep();
     signIn(JONAS);
-    expect((await call(runId, "/reviews/check", "POST", { type: "accept" })).status).toBe(409);
-    expect((await row(runId))?.status).toBe("waiting_input");
+    expect((await call(runId, "/reviews/check", "POST", { type: "accept" })).status).toBe(200);
+    expect((await row(runId))?.state.outputs.check?.json).toEqual({ approved: true });
+    const plain = await onTeamStep([form, made, { ...check, approve: undefined }, end]);
+    const res = await call(plain.runId, "/reviews/check", "POST", { type: "decline" });
+    expect(res.status).toBe(409);
+    expect((await row(plain.runId))?.status).toBe("waiting_input");
   });
 
   it("the row goes when the run moves on without a decision", async () => {

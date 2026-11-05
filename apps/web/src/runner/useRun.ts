@@ -167,8 +167,13 @@ export function useRun(runId: string | null) {
     fieldErrors,
     submitPage: (stepId: string, values: Record<string, unknown>) =>
       command(`pages/${stepId}`, { values }),
-    accept: (stepId: string, edits?: Record<string, string | Record<string, unknown>>) =>
-      command(`reviews/${stepId}`, { type: "accept", edits }),
+    accept: (
+      stepId: string,
+      edits?: Record<string, string | Record<string, unknown>>,
+      note?: string,
+    ) => command(`reviews/${stepId}`, { type: "accept", edits, note }),
+    decline: (stepId: string, note?: string) =>
+      command(`reviews/${stepId}`, { type: "decline", note }),
     regenerate: (stepId: string, target: string, note: string, items?: number[]) =>
       command(`reviews/${stepId}`, {
         type: "regenerate",
@@ -176,8 +181,6 @@ export function useRun(runId: string | null) {
         note,
         items: items?.length ? items : undefined,
       }),
-    decide: (stepId: string, approved: boolean, note?: string) =>
-      command(`reviews/${stepId}`, { type: approved ? "approve" : "decline", note }),
     back: () => command("back"),
     retry: () => command("retry"),
     translateResult: (stepId: string) => command("translate-result", { stepId }),
