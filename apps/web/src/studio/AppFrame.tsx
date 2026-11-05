@@ -61,6 +61,7 @@ import { InstallBanner, InstallDialog } from "./InstallBanner";
 import { LangSwitch } from "./LangSwitch";
 import { useLiveFeed } from "./live/index";
 import { ModeSwitch } from "./ModeSwitch";
+import { NoticesBell } from "./Notices";
 import {
   currentOrganization,
   OrganizationFace,
@@ -910,6 +911,7 @@ export function UserMenu({
  * switch stands up here.
  */
 export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
+  const startsOn = useFeature("startTriggers");
   const { phone } = useAppBar();
   // The person's Konto is theirs in every organization: no space, no organization's credits.
   const personal = useLocation().pathname.startsWith("/account");
@@ -920,6 +922,7 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
         <Trail alone={personal} />
         {children}
       </div>
+      {startsOn ? <NoticesBell /> : null}
       {/* Goose, folded. */}
       <div ref={setHintSlot} className="flex shrink-0 items-center empty:hidden" />
       {/* A phone has no app bar beside the page: the switch between the modes stands up here. */}

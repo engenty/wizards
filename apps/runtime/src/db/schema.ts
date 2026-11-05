@@ -42,6 +42,7 @@ import type {
   TextStyle,
   VoiceBlock,
 } from "@engenty/wizards-shared/spaces";
+import type { StartedBy, WizardStart } from "@engenty/wizards-shared/starts";
 import type { Theme } from "@engenty/wizards-shared/theme";
 import type { TranslationMemory } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
@@ -229,6 +230,8 @@ export const wizard = sqliteTable(
     signalToken: text("signal_token"),
     /** With it, sealed: a call counts only when signed with this secret. */
     signalSecret: text("signal_secret"),
+    /** What begins a run without a person: schedules, addresses, rows, other wizards. */
+    starts: text("starts", { mode: "json" }).$type<WizardStart[]>().notNull().default([]),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -331,6 +334,10 @@ export const run = sqliteTable(
     mode: text("mode", { enum: ["test", "live"] }).notNull(),
     /** The door the run came through: steps, chat, or a plugin's runner. Null: the page. */
     runner: text("runner"),
+    /** What began the run without a person: one of the wizard's starts. Null: a person did. */
+    startedBy: text("started_by", { mode: "json" }).$type<StartedBy | null>(),
+    /** Which time of its start began the run: unique per wizard, so a time starts one run. */
+    occurrence: text("occurrence"),
     /** The language the viewer reads the wizard in, translated on request; null: its own. */
     lang: text("lang"),
     visitorId: text("visitor_id"),
@@ -410,12 +417,37 @@ export const run = sqliteTable(
   },
   (t) => [
     uniqueIndex("run_share_token").on(t.shareToken),
+    uniqueIndex("run_occurrence").on(t.wizardId, t.occurrence),
     index("run_expires").on(t.expiresAt),
     index("run_wizard").on(t.wizardId, t.createdAt),
     index("run_visitor").on(t.visitorId, t.createdAt),
     index("run_status").on(t.status),
     index("run_client_space").on(t.clientSpaceId, t.createdAt),
   ],
+);
+
+/**
+ * A word to the owner about a run nobody watches: it waits for them, it is done, it failed, its
+ * start was paused. Read in the studio's bell. Only started runs write one for now; nothing here
+ * ties a notice to a start, so any run can.
+ */
+export const notice = sqliteTable(
+  "notice",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    kind: text("kind", { enum: ["needs_you", "done", "failed", "paused"] }).notNull(),
+    wizardId: text("wizard_id")
+      .notNull()
+      .references(() => wizard.id, { onDelete: "cascade" }),
+    runId: text("run_id").references(() => run.id, { onDelete: "cascade" }),
+    startId: text("start_id"),
+    /** A line of detail in the wizard's language: the page that waits, the error. */
+    detail: text("detail"),
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("notice_tenant_at").on(t.tenantId, t.createdAt)],
 );
 
 export const runEvent = sqliteTable(

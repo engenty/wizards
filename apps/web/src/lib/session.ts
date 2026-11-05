@@ -22,6 +22,7 @@ import type {
   TextStyle,
   VoiceBlock,
 } from "@engenty/wizards-shared/spaces";
+import type { WizardStart } from "@engenty/wizards-shared/starts";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
@@ -425,6 +426,8 @@ export interface WizardSummary {
   runners: { default: string; enabled: string[] } | null;
   /** Its page offers it in the viewer's language, translated on request. */
   translate: boolean;
+  /** What begins a run without a person. */
+  starts: WizardStart[];
   stepCount: number;
   updatedAt: string;
   /**
