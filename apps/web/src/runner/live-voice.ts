@@ -85,6 +85,12 @@ export function stateText(view: RunView, page: PageBinding | null, camera = fals
     );
     return lines.join("\n");
   }
+  if (view.status === "waiting_signal") {
+    lines.push(
+      `waiting for an event${view.waitsFor ? ` from ${view.waitsFor}` : ""}${view.wakeAt ? `, until ${view.wakeAt} at the latest` : ""}; it goes on by itself, nothing to do`,
+    );
+    return lines.join("\n");
+  }
   if (view.status === "done") {
     lines.push("done. made:");
     for (const { step, output } of view.shown) {

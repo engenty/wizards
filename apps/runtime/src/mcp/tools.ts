@@ -1,5 +1,9 @@
 import type { StepWarning } from "@engenty/wizards-shared/connectors";
-import { DEFINITION_VERSION, upgradeDefinition } from "@engenty/wizards-shared/definition";
+import {
+  DEFINITION_VERSION,
+  signalNameSchema,
+  upgradeDefinition,
+} from "@engenty/wizards-shared/definition";
 import type { CallToolResult, McpServer, ToolCallback } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { authoringGuide } from "../authoring/guide.js";
@@ -25,6 +29,7 @@ import {
   startTestRun,
   testRunReport,
 } from "../services/runs.js";
+import { sendSignalForWizard } from "../services/signals.js";
 import { defaultSpace, listSpaces, ownedSpace } from "../services/spaces.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import {
@@ -837,6 +842,24 @@ export function registerTools(server: McpServer, who: Principal) {
       await controlRun(who.userId, runId, action);
       return runReport(who.userId, runId);
     },
+  );
+
+  tool(
+    "send_signal",
+    "runs:test",
+    {
+      title: "Send signal",
+      description: prompt("mcp", "tool.send_signal"),
+      input: z.object({
+        wizardId: z.string(),
+        name: signalNameSchema,
+        key: z.string().min(1).max(500),
+        data: z.record(z.string(), z.unknown()).optional(),
+        delivery: z.string().min(1).max(200).optional(),
+      }),
+      openWorld: true,
+    },
+    async ({ wizardId, ...signal }) => sendSignalForWizard(who.userId, wizardId, signal),
   );
 
   // --- workspace (widget code, libraries, reference data) --------------------

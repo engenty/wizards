@@ -363,7 +363,14 @@ const REFERENCE_KINDS = new Set(["image", "file", "signature"]);
 export function renderTask(template: string, scope: TemplateScope): string {
   return template.replace(TEMPLATE_RE, (_m, ref: string) => {
     const value = stringify(resolveRef(ref.trim(), scope));
-    const head = ref.trim().split(".")[0];
+    const [head, from, part, name] = ref.trim().split(".");
+    // What a signal brought comes from outside, as a visitor's words do.
+    if (head === "steps" && (!part || part === "data") && value !== "") {
+      const source = scope.def.steps.find((s) => s.id === from);
+      if (source?.type === "wait") {
+        return `<data field="${name ?? part ?? from}">${value.replaceAll("</data>", "")}</data>`;
+      }
+    }
     const field = allFields(scope.def).find((f) => f.id === head);
     if (!field || REFERENCE_KINDS.has(field.kind) || value === "") {
       return value;

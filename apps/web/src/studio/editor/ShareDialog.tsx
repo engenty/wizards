@@ -264,6 +264,125 @@ function PageSection({ wizard }: { wizard: WizardDetail }) {
   );
 }
 
+/**
+ * "Ereignisse": the wizard's address for other services. Address and secret are said once, as they
+ * are made; after that they can only be made anew.
+ */
+function SignalsSection({ wizard }: { wizard: WizardDetail }) {
+  const qc = useQueryClient();
+  const id = useId();
+  const key = ["signal-address", wizard.id];
+  const { copied, copy } = useCopy();
+  const [signed, setSigned] = useState(true);
+  const address = useQuery({
+    queryKey: key,
+    queryFn: () =>
+      api.get<{ on: boolean; signed: boolean }>(`/api/studio/wizards/${wizard.id}/signal-address`),
+  });
+  const make = useMutation({
+    mutationFn: () =>
+      api.post<{ url: string; secret: string | null }>(
+        `/api/studio/wizards/${wizard.id}/signal-address`,
+        { signed },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  });
+  const drop = useMutation({
+    mutationFn: () => api.del(`/api/studio/wizards/${wizard.id}/signal-address`),
+    onSuccess: () => {
+      make.reset();
+      return qc.invalidateQueries({ queryKey: key });
+    },
+  });
+  const made = make.data;
+  const on = address.data?.on;
+  const failed = address.error ?? make.error ?? drop.error;
+  const line = (label: string, text: string, what: string) => (
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">
+        <div className="text-[0.8125rem] text-ink-3">{label}</div>
+        <div className="select-all truncate font-mono text-[0.8125rem]" title={text}>
+          {text}
+        </div>
+      </div>
+      <Button size="sm" variant="secondary" aria-label={what} onClick={() => copy(what, text)}>
+        {copied === what ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+        {copied === what ? t("share.copied") : t("share.copy")}
+      </Button>
+    </div>
+  );
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 id={id} className={heading}>
+            {t("share.signals")}
+          </h3>
+          <p className="text-[0.8125rem] text-ink-3">{t("share.signalsHint")}</p>
+        </div>
+        {on || wizard.readOnly ? null : (
+          <Button size="sm" variant="secondary" busy={make.isPending} onClick={() => make.mutate()}>
+            {t("share.signalsAdd")}
+          </Button>
+        )}
+      </div>
+      {on || wizard.readOnly ? null : (
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[0.8125rem] text-ink-2">{t("share.signalsSigned")}</span>
+          <Switch checked={signed} onChange={setSigned} label={t("share.signalsSigned")} />
+        </div>
+      )}
+      {made ? (
+        <>
+          <Banner title={t("share.signalsOnce")}>{t("share.signalsOnceHint")}</Banner>
+          <div className="flex flex-col gap-2 rounded-xl bg-paper-2 px-3.5 py-3">
+            <div className="font-medium text-[0.875rem]">{t("share.signalsFromServices")}</div>
+            {line(t("share.signalsAddress"), made.url, t("share.signalsCopyAddress"))}
+            {made.secret ? (
+              <>
+                {line(t("share.signalsSecret"), made.secret, t("share.signalsCopySecret"))}
+                <p className="text-[0.8125rem] text-ink-3">{t("share.signalsSecretHint")}</p>
+              </>
+            ) : null}
+          </div>
+        </>
+      ) : on ? (
+        <p className="text-[0.8125rem] text-ink-2">
+          {t(address.data?.signed ? "share.signalsThereSigned" : "share.signalsThere")}
+        </p>
+      ) : null}
+      {on && !wizard.readOnly ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            busy={make.isPending}
+            onClick={async () =>
+              (await askConfirm(t("share.signalsNewConfirm"), { action: t("share.signalsNew") })) &&
+              make.mutate()
+            }
+          >
+            <RefreshCw className="size-3.5" /> {t("share.signalsNew")}
+          </Button>
+          <Button
+            size="sm"
+            variant="quiet"
+            busy={drop.isPending}
+            onClick={async () =>
+              (await askConfirm(t("share.signalsRemoveConfirm"), {
+                action: t("share.signalsRemove"),
+              })) && drop.mutate()
+            }
+          >
+            {t("share.signalsRemove")}
+          </Button>
+        </div>
+      ) : null}
+      {failed ? <p className="text-[0.8125rem] text-rose">{(failed as Error).message}</p> : null}
+    </section>
+  );
+}
+
 /** The channels that are on, as rows, by kind: the browser's (with `base`, the link), the phone's, the messages'. */
 function waysOf(answer: RunnersAnswer, base: string | null): Way[] {
   const { settings } = answer;
@@ -1391,6 +1510,7 @@ function SharePanel({
   const qc = useQueryClient();
   const account = useFeature("account");
   const wordpress = useFeature("wordpress");
+  const durableRuns = useFeature("durableRuns");
   const me = useMe();
   const local = me.data?.mode === "local";
   // A local install with an account sends what it publishes on to the account's cloud.
@@ -1615,6 +1735,7 @@ function SharePanel({
               <p className="-mt-4 text-[0.8125rem] text-rose">{(access.error as Error).message}</p>
             ) : null}
             {here ? null : <PageSection wizard={wizard} />}
+            {durableRuns ? <SignalsSection wizard={wizard} /> : null}
             {runners.data ? (
               <Ways
                 ways={ways}

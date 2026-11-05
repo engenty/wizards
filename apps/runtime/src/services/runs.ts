@@ -306,6 +306,15 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
               : prompt("mcp", "hint.sleeping"),
     };
   }
+  if (run.status === "waiting_signal" && current?.type === "wait") {
+    return {
+      wait: current.id,
+      title: current.title,
+      until: run.wakeAt?.toISOString() ?? null,
+      signal: current.signal?.name ?? null,
+      hint: prompt("mcp", "hint.waiting_signal"),
+    };
+  }
   if (run.status !== "waiting_input" || !current) {
     return undefined;
   }
@@ -605,7 +614,9 @@ export async function draftStepView(
       : step.type === "result"
         ? "done"
         : step.type === "wait"
-          ? "sleeping"
+          ? step.signal
+            ? "waiting_signal"
+            : "sleeping"
           : "running";
   const now = new Date();
   // That run lends its id too: the outputs' files are reached through it.
@@ -638,7 +649,9 @@ export async function draftStepView(
     driving: false,
     status,
     wakeAt:
-      step.type === "wait" && step.for ? new Date(now.getTime() + waitDurationMs(step.for)) : null,
+      step.type === "wait" && (step.for ?? step.signal?.timeout)
+        ? new Date(now.getTime() + waitDurationMs((step.for ?? step.signal?.timeout) as string))
+        : null,
     claim: 0,
     rev: 0,
     cursor: step.id,

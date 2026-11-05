@@ -15,7 +15,14 @@ import type { Surface } from "./surface.js";
 import { type Gap, type Line, lineText, type Texts, type TextTable, textOf } from "./texts.js";
 import type { ThemeColours, ThemeEffect, ThemeShape } from "./theme.js";
 
-export type RunStatus = "waiting_input" | "sleeping" | "running" | "done" | "failed" | "cancelled";
+export type RunStatus =
+  | "waiting_input"
+  | "sleeping"
+  | "waiting_signal"
+  | "running"
+  | "done"
+  | "failed"
+  | "cancelled";
 
 /** A person can step back from these; `RunView.canBack` and `goBack` read this one list. */
 export const CAN_GO_BACK: ReadonlySet<RunStatus> = new Set(["waiting_input", "done", "failed"]);
@@ -72,6 +79,8 @@ export interface RunState {
   deciding?: string;
   /** What decided `ask` branches answered, by step. */
   decisions?: Record<string, BranchDecision>;
+  /** The signals this run took, by id: each only once. */
+  signals?: string[];
   /** Pages whose fields a decision chose: the field ids kept, by page. */
   pages?: Record<string, { shown: string[] }>;
   /** How often each branch was taken, by "<step>→<goto>": loops stop at the rule's max. */
@@ -294,6 +303,9 @@ const NOTES_EN = {
     "This wizard has run out of credits for now. It goes on by itself once there are credits again.",
   stepWaitsSignIn: "{service} needs a new sign-in. This step goes on by itself after that.",
   stepFailedGoesOn: "This step didn’t work, so the wizard goes on with “{step}”.",
+  signalKeyEmpty: "This step waits for a signal, but “{key}” came out empty.",
+  signalCame: "The event arrived.",
+  signalTimedOut: "The deadline passed.",
   waitsOff: "This wizard has a wait step, and those aren’t turned on here yet.",
   waitDateUnreadable: "“{date}” isn’t a date this step can wait for.",
   runStarted: "Run started",
@@ -778,6 +790,9 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "{service} braucht eine neue Anmeldung. Danach macht dieser Schritt von selbst weiter.",
   stepFailedGoesOn:
     "Dieser Schritt hat nicht geklappt, darum macht der Wizard mit „{step}“ weiter.",
+  signalKeyEmpty: "Dieser Schritt wartet auf ein Ereignis, aber „{key}“ ist leer.",
+  signalCame: "Ereignis angekommen.",
+  signalTimedOut: "Frist abgelaufen.",
   waitsOff: "Dieser Wizard hat einen Warten-Schritt, und die sind hier noch nicht eingeschaltet.",
   waitDateUnreadable: "„{date}“ ist kein Datum, auf das dieser Schritt warten kann.",
   runStarted: "Lauf gestartet",
@@ -1322,10 +1337,12 @@ export interface ShownStep {
 export interface RunView {
   id: string;
   status: RunStatus;
-  /** When a run that sleeps goes on; null otherwise. */
+  /** When a run that sleeps goes on, or until when one waits for a signal; null otherwise. */
   wakeAt: string | null;
   /** Why it sleeps, where that is no `wait` step. */
   pause: RunPause | null;
+  /** Who a run that waits for a signal waits to hear from; null otherwise. */
+  waitsFor: string | null;
   mode: "test" | "live";
   wizard: Pick<WizardDefinition, "title" | "description" | "avatar" | "costume" | "intro">;
   /** The language the wizard speaks, by its code: what is read aloud, and in which voice. */
