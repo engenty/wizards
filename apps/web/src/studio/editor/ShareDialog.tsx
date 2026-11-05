@@ -1,3 +1,4 @@
+import type { MailboxView } from "@engenty/wizards-shared/connectors";
 import type { RunnerFit, RunnerInfo, RunnerSettings } from "@engenty/wizards-shared/runners";
 import type { WizardStart } from "@engenty/wizards-shared/starts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +17,7 @@ import {
   Laptop,
   Link2,
   Lock,
+  Mail,
   Plus,
   Printer,
   Puzzle,
@@ -64,6 +66,7 @@ import {
   Switch,
 } from "../../ui";
 import { LinkStatus, useAccountLink } from "../Account";
+import { ago } from "../capabilities/ConnectorsSection";
 import { openExternal } from "../LocalRuntime";
 import {
   CHANNEL_GROUPS,
@@ -265,6 +268,68 @@ function PageSection({ wizard }: { wizard: WizardDetail }) {
         <p className="text-[0.8125rem] text-rose">{(change.error as Error).message}</p>
       ) : null}
     </section>
+  );
+}
+
+/** „Aus einem Postfach“: the space's mailboxes. An admin switches on that one is read while a run waits. */
+function MailboxRows({ wizard }: { wizard: WizardDetail }) {
+  const qc = useQueryClient();
+  const key = ["mailboxes", wizard.id];
+  const found = useQuery({
+    queryKey: key,
+    queryFn: () =>
+      api.get<{ mailboxes: MailboxView[]; canSwitch: boolean }>(
+        `/api/studio/wizards/${wizard.id}/mailboxes`,
+      ),
+    refetchInterval: 30_000,
+  });
+  const change = useMutation({
+    mutationFn: ({ id, on }: { id: string; on: boolean }) =>
+      api.patch(`/api/studio/connections/${id}`, { autonomousMode: on ? "read_only" : "off" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  });
+  const mailboxes = found.data?.mailboxes ?? [];
+  const failed = found.error ?? change.error;
+  return (
+    <div className="flex flex-col gap-2 rounded-xl bg-paper-2 px-3.5 py-3">
+      <div className="flex items-center gap-1.5 font-medium text-[0.875rem]">
+        <Mail className="size-3.5" />
+        {t("share.signalsFromMailbox")}
+      </div>
+      {found.data ? (
+        <p className="text-[0.8125rem] text-ink-3">
+          {t(mailboxes.length ? "share.signalsMailboxHint" : "share.signalsMailboxNone")}
+        </p>
+      ) : null}
+      {mailboxes.map((box) => (
+        <div key={box.id} className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[0.875rem]">
+              {t(box.on ? "share.signalsMailboxOn" : "share.signalsMailbox", { name: box.name })}
+            </div>
+            <div className="truncate text-[0.8125rem] text-ink-3" title={box.account}>
+              {!box.on
+                ? box.account
+                : box.readAt
+                  ? t("share.signalsMailboxRead", { account: box.account, when: ago(box.readAt) })
+                  : t("share.signalsMailboxNotYet", { account: box.account })}
+            </div>
+            {box.on && box.error ? (
+              <div className="text-[0.8125rem] text-rose">
+                {t(`share.signalsMailboxError.${box.error}`)}
+              </div>
+            ) : null}
+          </div>
+          <Switch
+            checked={box.on}
+            label={t("share.signalsMailbox", { name: box.name })}
+            disabled={wizard.readOnly || !found.data?.canSwitch || change.isPending}
+            onChange={(on) => change.mutate({ id: box.id, on })}
+          />
+        </div>
+      ))}
+      {failed ? <p className="text-[0.8125rem] text-rose">{(failed as Error).message}</p> : null}
+    </div>
   );
 }
 
@@ -514,6 +579,7 @@ function SignalsSection({ wizard }: { wizard: WizardDetail }) {
         </div>
       ) : null}
       {failed ? <p className="text-[0.8125rem] text-rose">{(failed as Error).message}</p> : null}
+      <MailboxRows wizard={wizard} />
     </section>
   );
 }

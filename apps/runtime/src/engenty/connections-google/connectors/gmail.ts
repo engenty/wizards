@@ -162,12 +162,28 @@ function collectAttachments(
   }
 }
 
+/** A machine answered: out of office (RFC 3834 and its older spellings), or a bounce. */
+function isAutoReply(headers: GmailPayload["headers"], from: string | null): boolean {
+  const said = (name: string) => getHeader(headers, name)?.trim().toLowerCase();
+  return (
+    said("Auto-Submitted")?.startsWith("auto-replied") === true ||
+    said("X-Autoreply") !== undefined ||
+    said("X-Autorespond") !== undefined ||
+    said("Precedence") === "auto_reply" ||
+    /^(mailer-daemon|postmaster)@/i.test(from ?? "")
+  );
+}
+
 function toInboundMessage(raw: GmailMessage): InboundMessage {
   const parsed = parseGmailMessage(raw);
   const attachments: InboundMessageAttachment[] = [];
   collectAttachments(raw.payload, attachments);
+  const labels = raw.labelIds ?? [];
   return {
     attachments,
+    auto_reply: isAutoReply(raw.payload?.headers, parsed.from_email),
+    // A mail to oneself is both, and did arrive.
+    outgoing: labels.includes("SENT") && !labels.includes("INBOX"),
     body_html: extractBody(raw.payload, "text/html"),
     body_text: parsed.body_text,
     cc: parsed.cc,
@@ -181,8 +197,8 @@ function toInboundMessage(raw: GmailMessage): InboundMessage {
   };
 }
 
-/** Drafts and chats are never "inbound"; everything else flows through. */
-const EXCLUDED_LABELS = new Set(["CHAT", "DRAFT"]);
+/** Drafts, chats and what Gmail threw out are never "inbound"; everything else flows through. */
+const EXCLUDED_LABELS = new Set(["CHAT", "DRAFT", "SPAM", "TRASH"]);
 
 const DEFAULT_PULL_LIMIT = 50;
 const MAX_PULL_LIMIT = 100;
@@ -278,6 +294,7 @@ async function fetchInboundMessages(
   }
   return messages
     .filter((m): m is GmailMessage => m !== null)
+    .filter((m) => !(m.labelIds ?? []).some((l) => EXCLUDED_LABELS.has(l)))
     .map(toInboundMessage);
 }
 
