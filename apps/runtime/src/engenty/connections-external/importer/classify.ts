@@ -1,4 +1,8 @@
-import type { ActionClassification, NormalizedAction } from "../types.js";
+import type {
+  ActionClassification,
+  ImportedConnectorRecord,
+  NormalizedAction,
+} from "../types.js";
 
 /**
  * Map an HTTP method (plus path hints) onto the connections-framework action
@@ -120,4 +124,24 @@ export function groupOf(
     return action.classification;
   }
   return words.some((w) => SEND_WORDS.has(w)) ? "send" : action.classification;
+}
+
+/**
+ * The group an action of a stored connector runs under: what an admin said it
+ * does (`action_kinds`) first, the guess by name (`groupOf`) else.
+ */
+export function groupIn(
+  record: Pick<ImportedConnectorRecord, "action_kinds">,
+  action: Pick<NormalizedAction, "classification" | "id" | "summary" | "invoke">
+): ActionClassification {
+  return record.action_kinds?.[action.id]?.kind ?? groupOf(action);
+}
+
+/** The input field an admin named as a send's recipient, where one did. */
+export function recipientFieldIn(
+  record: Pick<ImportedConnectorRecord, "action_kinds">,
+  action: Pick<NormalizedAction, "classification" | "id" | "summary" | "invoke">
+): string | undefined {
+  const set = record.action_kinds?.[action.id];
+  return groupIn(record, action) === "send" ? set?.recipient_field : undefined;
 }

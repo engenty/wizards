@@ -154,6 +154,11 @@ export function buildHttpRequest(params: {
 
 export async function executeHttpAction(params: {
   accessToken: string;
+  /**
+   * Loopback and private hosts pass the guard: a connector from a pasted
+   * address on a computer of one's own (see `GuardedFetchOptions`).
+   */
+  allowPrivate?: boolean;
   fetchImpl: typeof fetch;
   input: Record<string, unknown>;
   /** Injectable DNS lookup for tests; production resolves for real. */
@@ -166,6 +171,7 @@ export async function executeHttpAction(params: {
 }): Promise<unknown> {
   const { accessToken, input, invoke, record } = params;
   const fetchImpl = createGuardedFetch({
+    ...(params.allowPrivate ? { allowPrivate: true } : {}),
     fetchImpl: params.fetchImpl,
     ...(params.lookupImpl ? { lookupImpl: params.lookupImpl } : {}),
   });

@@ -1,4 +1,8 @@
-import { assertPublicHttpHost, type LookupFn } from "../../shims/web-ingest.js";
+import {
+  assertLocalOrPublicHttpHost,
+  assertPublicHttpHost,
+  type LookupFn,
+} from "../../shims/web-ingest.js";
 
 /**
  * Every network call this module makes reaches a URL that came from the
@@ -21,6 +25,13 @@ const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const DOWNGRADE_TO_GET = new Set([301, 302, 303]);
 
 export interface GuardedFetchOptions {
+  /**
+   * Loopback and private hosts pass as well as public ones; link-local and
+   * non-HTTP targets stay refused. For one caller only: a connector from a
+   * pasted address on a runtime that is a computer of one's own
+   * (`connectors/external.ts`, `reachOf`). Every other caller leaves it out.
+   */
+  allowPrivate?: boolean;
   /** Injectable for tests; defaults to global `fetch`. */
   fetchImpl?: typeof fetch;
   /** Injectable DNS lookup for tests; defaults to `node:dns/promises`. */
@@ -35,13 +46,16 @@ export function createGuardedFetch(
 ): typeof fetch {
   const fetchImpl = options?.fetchImpl ?? fetch;
   const maxRedirects = options?.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
+  const assertHost = options?.allowPrivate
+    ? assertLocalOrPublicHttpHost
+    : assertPublicHttpHost;
 
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     let currentUrl = typeof input === "string" ? input : String(input);
     let currentInit: RequestInit = { ...init, redirect: "manual" };
     let hops = 0;
 
-    await assertPublicHttpHost(currentUrl, options?.lookupImpl);
+    await assertHost(currentUrl, options?.lookupImpl);
 
     while (true) {
       const response = await fetchImpl(currentUrl, currentInit);
@@ -68,7 +82,7 @@ export function createGuardedFetch(
       } catch {
         throw new Error(`Malformed Location header in redirect: ${location}`);
       }
-      await assertPublicHttpHost(nextUrl, options?.lookupImpl);
+      await assertHost(nextUrl, options?.lookupImpl);
 
       if (DOWNGRADE_TO_GET.has(response.status)) {
         currentInit = { ...currentInit, body: undefined, method: "GET" };
