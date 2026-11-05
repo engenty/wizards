@@ -24,7 +24,7 @@ import { type ExecResult, shellToolDescription } from "../sandbox/index.js";
 import { snapshotFile } from "../services/files.js";
 import { hasStoreFiles } from "../store/index.js";
 import { browserTools } from "./browser.js";
-import { codeTool } from "./code.js";
+import { codeTool, toolCallIdOf } from "./code.js";
 import { connectorTools } from "./connector.js";
 import { mailTools } from "./mail.js";
 import { assertPublicUrl, safeFetch } from "./net-guard.js";
@@ -173,20 +173,23 @@ export async function buildStepTools(
         headers: z.record(z.string(), z.string()).optional(),
         json: z.unknown().optional().describe("JSON body"),
       }),
-      execute: async ({ method, url, headers, json }) => {
+      execute: async ({ method, url, headers, json }, context) => {
         const safe = await assertPublicUrl(url);
         const out = await brokerHost({
           who: whoOf(ctx.store.holder, ctx.holder.kind === "person" ? ctx.holder.role : undefined),
           where: whereOf(ctx),
           url: safe,
           method,
-          handler: async () => {
+          effect: { turn: ctx.turn, toolCallId: toolCallIdOf(context) },
+          ask: ctx.ask,
+          handler: async (idempotencyKey) => {
             await ctx.emit("tool", `${method} ${safe.hostname}${safe.pathname}`);
             const res = await safeFetch(safe.toString(), {
               method,
               signal: AbortSignal.any([ctx.signal, AbortSignal.timeout(30_000)]),
               headers: {
                 ...(json !== undefined ? { "content-type": "application/json" } : {}),
+                ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
                 ...headers,
               },
               body: json !== undefined ? JSON.stringify(json) : undefined,
@@ -197,11 +200,14 @@ export async function buildStepTools(
         if (out.ok) {
           return out.result;
         }
+        const host = safe.hostname;
         return {
           error:
             out.refused === "run_ended"
               ? prompt("tools", "note.run_ended")
-              : prompt("tools", "note.host_not_in_grant", { host: safe.hostname }),
+              : out.refused === "may_have_happened"
+                ? prompt("tools", "note.host_may_have_happened", { host })
+                : prompt("tools", "note.host_not_in_grant", { host }),
         };
       },
     });

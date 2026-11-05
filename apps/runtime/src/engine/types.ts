@@ -30,6 +30,8 @@ export interface StepContext {
   test: boolean;
   /** The current step's id. */
   stepId: string;
+  /** The durable turn this step runs in; none: its tool calls have no lasting id (broker/effect.ts). */
+  turn?: string;
   /** What the wizard keeps for the person running it. */
   store: StoreScope;
   def: WizardDefinition;

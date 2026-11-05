@@ -150,6 +150,12 @@ No times are free right now: tell the person.
 <!-- section: hint.confirm -->
 Ask the person, then answer_ask with allow or skip.
 
+<!-- section: reason.confirm_again -->
+This was interrupted and may have happened in ${service} already. Do it again?
+
+<!-- section: hint.confirm_again -->
+This was interrupted and may have happened already. Ask the person to check, then answer_ask: allow does it again, skip leaves it.
+
 <!-- section: hint.sign_in -->
 A sign-in: the person types it on the run page (browserUrl).
 

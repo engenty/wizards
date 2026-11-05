@@ -248,6 +248,7 @@ has words for each:
 | `calls_per_day` | The space connection has taken today’s calls |
 | `run_ended` | The call’s run was stopped, is done or failed. The rule says which: `run.cancelled`, `run.done`, `run.failed` |
 | `paused` | An admin paused the space connection |
+| `may_have_happened` | Behind `durableRuns`: the action was interrupted before and may have happened, and no person allowed it again (`broker/effect.ts`) |
 
 The model reads each refusal in words from `prompts/tools.md`, through `refusalNote`
 (`tools/connector.ts`) and `connectionRefusalNote` (`tools/connections.ts`): `note.run_ended` and
