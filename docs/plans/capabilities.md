@@ -407,8 +407,8 @@ Not built or not verified, as the sessions reported:
   the choice greyed out with why. One that already has each person sign in keeps working and can
   be changed to the space. For that a connection's sign-in became changeable on its page (`PATCH
   /connections/:id { signIn }`): the sign-ins of the way it leaves go, a plugin's connection stays
-  the space's. Waits for the Manage-App: its plans name `personSignIn: false` on every plan but
-  Team (1 below; `docs/manage-contract.md`, `features`). A local install has no plan.
+  the space's. Waits for the Manage-App: its Free plan names `personSignIn: false`; Pro and Team
+  have it (1 below; `docs/manage-contract.md`, `features`). A local install has no plan.
 - A5 converted the old plugin connections with the audience „alle“: guests reach them until an
   admin narrows them. They stay, and admins are shown them (2 below): **built**. A connection
   guests reach (for everyone, as the space) is marked „für Gäste offen“ in the lists; above them
@@ -427,7 +427,7 @@ The user took every question that was open. What follows from each is built in i
 
 | | Question | Decision |
 |---|---|---|
-| 1 | Which plans let each person sign in to a connection themselves? | The Team plan only. On the others a connection signs in as the space. Built as the switch `personSignIn`; the Manage-App's plans still have to name it. |
+| 1 | Which plans let each person sign in to a connection themselves? | The Pro and Team plans: both have several people. On Free a connection signs in as the space. First taken as „Team only“, corrected by the user the same day. Built as the switch `personSignIn`; the Manage-App's Free plan still has to name it `false`. |
 | 2 | The old plugin connections that guests reach since A5 | They stay open: the Termin-Planer books for guests through one. Admins see which connections guests reach, with one click to narrow each. Built. |
 | 3 | A guest's run posting to Slack | Allowed where the channel is fixed in the published step, within the limits a guest's mails have. Refused otherwise, as #373 made it. |
 | 4 | Does a member see the Protokoll? | Their own lines only. Admins see all. |

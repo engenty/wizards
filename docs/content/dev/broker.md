@@ -330,7 +330,8 @@ All under `/api/studio`, for a signed-in person of the organization.
   alone holds the sealing key don’t exist.
 - **The company sign-in.** A third way to sign in, through the organization’s SSO (MCP
   Enterprise-Managed Authorization), is not built.
-- **Plans.** Signing in as each person is not limited to the Team plan.
+- **Plans.** Each person signing in is the plan switch `personSignIn`, meant for the Pro and Team
+  plans. The Manage-App’s Free plan doesn’t name it `false` yet, so every plan has it.
 - **The Manage-App’s side of the report.** The runtime posts to `POST /v1/broker/:tenant`, and the
   Manage-App has no endpoint for it yet.
 - **More of RWX.** No page in the studio draws the rules, and connections, mail, hosts and the
