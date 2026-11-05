@@ -40,7 +40,7 @@ a client space, the firm's brand, runs in a client space, "Share with the client
 | D10 A client's write that needs a yes | Held for the bell, not refused. Not part of this plan's steps (open point 3) |
 | D11 Order | The portal before phase 4 (published wizards as endpoints) |
 | D12 Plans | Pro: one public page. Team: client spaces and portals |
-| Address | `<team>.wizards.page/portal`, later the team's own domains. The Manage-App serves the rest of the host; `/portal` goes to the portal's container |
+| Address | `<team>.wizards.page/portal`, later the team's own domains. The rest of the host is the team's public pages, in the same app since `docs/plans/org-page.md`, step 1 |
 | Who | Only people with the organization's role `client`. The firm's own view of a client space stays in Studio and Work ("View as" in Client mode, `client-spaces.md` step 2) |
 | Switch | `clientSpaces`, as the rest of client spaces |
 | The organization's page (2026-11-01) | The app is the organization's page with an optional client part. Before sign-in it shows the firm's brand and its public page; client portals are a Team plan option. Later the organization's page can offer chat, wizards and information to everyone too: the routes leave room for it. MVP now, structure right |

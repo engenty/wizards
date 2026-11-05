@@ -1,13 +1,13 @@
 {
   "name": "@engenty/wizards-portal",
   "version": "0.1.0",
-  "description": "The client portal of engenty wizards: a firm's clients at <team>.wizards.page/portal, on the client contract of a runtime.",
+  "description": "A team's host at <team>.wizards.page: its public pages, and the client portal under /portal on the client contract of a runtime.",
   "license": "FSL-1.1-MIT",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n server,web \"pnpm dev:server\" \"vite\"",
-    "dev:server": "tsx watch --conditions=wizards-source server/index.ts",
+    "dev:server": "tsx watch --tsconfig tsconfig.server.json --conditions=wizards-source server/index.ts",
     "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit",

@@ -1,5 +1,6 @@
-# The client portal (docs/plans/client-portal.md): its SPA and the thin server that signs a
-# firm's clients in and forwards to the runtime's client contract. Its own image, apart from the
+# A team's host (docs/plans/org-page.md, docs/plans/client-portal.md): the public pages the server
+# draws, the portal's SPA, and the thin server that signs a firm's clients in and forwards to the
+# runtime's client contract. Its own image, apart from the
 # runtime's: it reaches the runtime only over HTTP. The build context is the repo root:
 #   docker build -f apps/portal/Dockerfile .
 # Dockerfile.dockerignore beside this file is this image's ignore file.
