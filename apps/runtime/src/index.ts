@@ -16,12 +16,14 @@ import { basePath, env } from "./env.js";
 import { pruneLive } from "./live/feed.js";
 import { hookConsole } from "./log.js";
 import { managed } from "./manage.js";
+import { pruneSeen } from "./mcp/seen.js";
 import { checkModelsAtStart, loadCatalog, loadLocalModels } from "./models.js";
 import { startJobs } from "./plugins/jobs.js";
 import { loadPlugins } from "./plugins/loader.js";
 import { loadEntitlement, startProChecks } from "./plugins/pro.js";
 import { closeBrowser } from "./render/chromium.js";
 import { clearRunning, writeRunning } from "./running.js";
+import { pruneDraftChanges } from "./services/draft-events.js";
 import { reportAllWizards } from "./services/manage-reports.js";
 import { syncMarketplace } from "./services/marketplace.js";
 import { purgeExpiredRuns } from "./services/shares.js";
@@ -121,7 +123,14 @@ async function purge() {
   await purgeSessions();
   for (const id of await knownTenants()) {
     await withTenant(id, () =>
-      Promise.all([purgeExpiredRuns(), purgeUnusedStores(), compactLog(), pruneLive()]),
+      Promise.all([
+        purgeExpiredRuns(),
+        purgeUnusedStores(),
+        compactLog(),
+        pruneLive(),
+        pruneSeen(),
+        pruneDraftChanges(),
+      ]),
     ).catch((err) => console.error(`[retention ${id}]`, err));
   }
 }
