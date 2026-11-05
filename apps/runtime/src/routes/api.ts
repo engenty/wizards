@@ -48,6 +48,7 @@ import {
   pullChanges,
   pushChanges,
   rotateSynced,
+  syncHears,
   syncOverview,
   takeBlob,
 } from "../sync/hub.js";
@@ -557,10 +558,16 @@ export const apiRoutes = new Hono()
               }),
         );
       };
-      const stop = await followFor(who.tenantId, install, since, (e) => {
-        const { event, ...data } = e;
-        write(event, data, e.seq);
-      });
+      const stop = await followFor(
+        who.tenantId,
+        install,
+        since,
+        (e) => {
+          const { event, ...data } = e;
+          write(event, data, e.seq);
+        },
+        (changes) => asRole(who.role, () => syncHears(changes)),
+      );
       stream.onAbort(() => {
         closed = true;
         stop();

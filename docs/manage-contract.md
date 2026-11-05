@@ -288,6 +288,9 @@ Calls of the cloud runtime, below `<RUNTIME_URL>/api/v1`, with the account's acc
 - **Roles**: the token's role counts. A member changes what is there; making or deleting a wizard,
   and any change of the space's details or its connectors, is for owners and admins
   (`reason: "forbidden"`). A tenant with `limits.build: false` is refused (`403 read_only`).
+  With the switch `capabilities` on, a member's token meets only the spaces whose Studio is open
+  to members: `GET /sync` lists those, `GET /sync/live` names those, and a call on another space
+  answers `403 forbidden`.
 - **Refusals**: `400 { reason: "schema_mismatch", schema }` when the tenant schemas differ (the
   sync pauses until both match); `404 { reason: "not_found" }` for a space that is not there and
   is not made by the push; per item `reason` `forbidden`, `id_taken`, `space_limit`,
