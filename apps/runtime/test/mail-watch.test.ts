@@ -344,7 +344,9 @@ describe("a mail wakes a run", () => {
     await own();
     const waiting = await startIn(space, [waitFor(`thread:t-${n}`), end]);
     expect(await rests(waiting)).toBe(true);
-    answer = async () => ({ hasMore: false, items: [mail()], nextCursor: "h" });
+    // Dated after the later run begins: a run only hears what came since it began.
+    const soon = new Date(Date.now() + 30_000).toISOString();
+    answer = async () => ({ hasMore: false, items: [mail({ received_at: soon })], nextCursor: "h" });
     await nextMinute();
     const rows = (await signalsOf(space)).filter((s) => s.delivery === `m-${n}`);
     const of = (key: string) => rows.find((r) => r.key === key)?.data as Record<string, unknown>;
@@ -366,7 +368,8 @@ describe("a mail wakes a run", () => {
     await own();
     const first = await startIn(space, [waitFor(`nobody-${n}@kunde.at`), end]);
     expect(await rests(first)).toBe(true);
-    answer = async () => ({ hasMore: false, items: [mail()], nextCursor: "h" });
+    const soon = new Date(Date.now() + 30_000).toISOString();
+    answer = async () => ({ hasMore: false, items: [mail({ received_at: soon })], nextCursor: "h" });
     await nextMinute();
     readAnswer = async () => null;
     const later = await startIn(space, [waitFor(ANNA), end]);
