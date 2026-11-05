@@ -158,6 +158,8 @@ const active = new Map<string, AbortController>();
 /** How often a runner looks at the line, and how often it reports on the runs it holds. */
 const POLL_MS = 2000;
 const HEARTBEAT_MS = 10_000;
+/** A run holding a slot this long goes into the log, once: what real steps take. It stops nothing. */
+const LONG_HOLD_MS = 60 * 60_000;
 
 async function concurrencyLimit(tenant: string): Promise<number> {
   if (!managed) {
@@ -505,6 +507,8 @@ async function driveClaimed(
   generation: number,
   abort: AbortController,
 ): Promise<void> {
+  const heldSince = Date.now();
+  let longHoldReported = false;
   // The heartbeat keeps the claim, and hears of a cancel the web wrote or of a newer claim while a
   // step works.
   const beat = setInterval(() => {
@@ -515,6 +519,13 @@ async function driveClaimed(
       .then((run) => {
         if (run && (run.status !== "running" || run.claim !== generation)) {
           abort.abort();
+        }
+        if (run && !longHoldReported && Date.now() - heldSince >= LONG_HOLD_MS) {
+          longHoldReported = true;
+          const step = stepOf(run.definition, run.cursor);
+          console.warn(
+            `[run ${runId}] has held a slot for ${Math.round((Date.now() - heldSince) / 60_000)} min: tenant ${tenant}, step ${run.cursor} (${step?.type}).`,
+          );
         }
       })
       .catch((err) => console.warn(`[run ${runId}] cancel check:`, err));

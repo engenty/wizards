@@ -233,6 +233,37 @@ describe("the line, as the cloud runs it", () => {
       .where(eq(client.control.runIndex.runId, r));
   }, 15_000);
 
+  it("a run holding a slot past an hour is reported once, and goes on", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    // The heartbeat's timer and clock only: the database and this test's waits stay real.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      const r = await newRun();
+      expect(await until(() => finish.has(r))).toBe(true);
+      const reports = () => warn.mock.calls.filter(([line]) => String(line).includes("held a slot"));
+      const settled = () => new Promise((res) => setTimeout(res, 300));
+      vi.advanceTimersByTime(59 * 60_000);
+      await settled();
+      expect(reports()).toEqual([]);
+      vi.advanceTimersByTime(2 * 60_000);
+      expect(await until(() => reports().length > 0)).toBe(true);
+      vi.advanceTimersByTime(60 * 60_000);
+      await settled();
+      expect(reports()).toHaveLength(1);
+      const line = String(reports()[0][0]);
+      expect(line).toContain(r);
+      expect(line).toContain(T);
+      expect(line).toContain("step work (agent)");
+      // Only a report: the step still works and the run still finishes.
+      expect(signals.get(r)?.aborted).toBe(false);
+      finish.get(r)?.();
+      expect(await until(isDone(r))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      warn.mockRestore();
+    }
+  });
+
   it("a step that answers another run is not held to its own claim", async () => {
     const page = await newRun(asking);
     const r = await newRun();
