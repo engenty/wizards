@@ -219,6 +219,10 @@ export const wizard = sqliteTable(
     runners: text("runners", { mode: "json" }).$type<RunnerSettings>(),
     /** The wizard's page offers it in the viewer's language, translated on request. */
     translate: integer("translate", { mode: "boolean" }).notNull().default(true),
+    /** The token of its address for signals from other services; null: it has none. */
+    signalToken: text("signal_token"),
+    /** With it, sealed: a call counts only when signed with this secret. */
+    signalSecret: text("signal_secret"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -336,7 +340,15 @@ export const run = sqliteTable(
     /** The client that started it over the public API (`x-wizards-client`): web, app, cli, or a registered id. */
     client: text("client"),
     status: text("status", {
-      enum: ["waiting_input", "sleeping", "running", "done", "failed", "cancelled"],
+      enum: [
+        "waiting_input",
+        "sleeping",
+        "waiting_signal",
+        "running",
+        "done",
+        "failed",
+        "cancelled",
+      ],
     }).notNull(),
     /** When a run that sleeps goes on; null: nothing due. The clock reads a copy (`run_index.wake_at`). */
     wakeAt: integer("wake_at", { mode: "timestamp_ms" }),
@@ -1754,4 +1766,50 @@ export const runEffect = sqliteTable(
     at: integer("at", { mode: "timestamp_ms" }).notNull(),
   },
   (t) => [index("run_effect_run").on(t.runId)],
+
+);
+
+/**
+ * Something that arrived for runs to wait for: written first, then matched, so one that comes
+ * before the wait is not lost and nothing depends on a process being up. Kept 30 days.
+ */
+export const runSignal = sqliteTable(
+  "run_signal",
+  {
+    id: text("id").primaryKey(),
+    spaceId: text("space_id").notNull(),
+    /** Who it may wake: `space` (sent from inside), `wizard:<id>` (its token), `run:<id>` (that run). */
+    scope: text("scope").notNull(),
+    name: text("name").notNull(),
+    key: text("key").notNull(),
+    /** One delivery, one signal: the same one sent again answers what it answered first. */
+    delivery: text("delivery").notNull(),
+    data: text("data", { mode: "json" }).$type<Record<string, unknown>>(),
+    source: text("source").notNull(),
+    /** How many runs it woke; null until that is done. */
+    runs: integer("runs"),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("run_signal_delivery").on(t.spaceId, t.scope, t.name, t.key, t.delivery),
+    index("run_signal_match").on(t.spaceId, t.name, t.key, t.at),
+    index("run_signal_at").on(t.at),
+  ],
+);
+
+/** A run that waits for a signal: written before the run looks for one, so neither misses the other. */
+export const runWait = sqliteTable(
+  "run_wait",
+  {
+    runId: text("run_id")
+      .primaryKey()
+      .references(() => run.id, { onDelete: "cascade" }),
+    wizardId: text("wizard_id").notNull(),
+    spaceId: text("space_id").notNull(),
+    name: text("name").notNull(),
+    key: text("key").notNull(),
+    fields: text("fields", { mode: "json" }).$type<string[]>(),
+    since: integer("since", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("run_wait_match").on(t.spaceId, t.name, t.key)],
 );

@@ -251,6 +251,11 @@ describe("what the runtime reports to the admin app", () => {
     await settle();
     const turns = sent.slice(before).filter((s) => s.path === `/v1/runs/${TENANT}`);
     expect(turns.at(-1)?.body).toMatchObject({ runId, state: "waiting" });
+    await withTenant(TENANT, () => reportRun(runId, "running"));
+    await withTenant(TENANT, () => reportRun(runId, "waiting_signal"));
+    await settle();
+    const later = sent.slice(before).filter((s) => s.path === `/v1/runs/${TENANT}`);
+    expect(later.at(-1)?.body).toMatchObject({ runId, state: "waiting" });
   });
 
   it("takes the feedback at a run's end and sends it on", async () => {

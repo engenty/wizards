@@ -16,6 +16,7 @@ import {
   useDoneSignal,
   useWakeLock,
   type Values,
+  waitsSignalText,
 } from "@engenty/wizards-runner";
 import {
   type EngentyCostume,
@@ -1687,13 +1688,21 @@ export function ChatBody({
           <Idle placeholder={t("run.working")} />
         </>
       );
-    } else if (view.status === "sleeping") {
+    } else if (view.status === "sleeping" || view.status === "waiting_signal") {
       body = (
         <>
           <Thread
             avatar={view.wizard.avatar}
             costume={view.wizard.costume}
-            lines={[...before, bot("sleeping", goesOnText(view.wakeAt, view.pause))]}
+            lines={[
+              ...before,
+              bot(
+                "sleeping",
+                view.status === "sleeping"
+                  ? goesOnText(view.wakeAt, view.pause)
+                  : waitsSignalText(view.waitsFor, view.wakeAt),
+              ),
+            ]}
           />
           <Idle placeholder={t("run.leavePage")} />
         </>

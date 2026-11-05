@@ -320,14 +320,30 @@ export function goesOnText(wakeAt: string | null, pause?: RunPause | null): stri
   });
 }
 
-/** The run waits for a time: nothing to do, and nobody has to stay. */
+/** Says what a run waiting for a signal waits for, and until when at most. */
+export function waitsSignalText(waitsFor: string | null, until: string | null): string {
+  const waits = waitsFor ? t("run.waitsSignalFrom", { who: waitsFor }) : t("run.waitsSignal");
+  if (!until) {
+    return waits;
+  }
+  const date = new Intl.DateTimeFormat(runnerLangCode(), {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date(until));
+  return t("run.waitsAtMost", { waits, date });
+}
+
+/** The run waits for a time or a signal: nothing to do, and nobody has to stay. */
 function Sleeping({ view, compact }: { view: RunView; compact?: boolean }) {
   const { Mascot } = runnerEnv();
   return (
     <div className="flex animate-rise flex-col items-center pt-6 text-center">
       <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={compact ? 130 : 170} />
       <h2 className="wizard-heading mt-4 font-display font-semibold text-[1.375rem] tracking-tight">
-        {goesOnText(view.wakeAt, view.pause)}
+        {view.status === "waiting_signal"
+          ? waitsSignalText(view.waitsFor, view.wakeAt)
+          : goesOnText(view.wakeAt, view.pause)}
       </h2>
       <p className="mt-2 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
     </div>
@@ -446,6 +462,7 @@ export function useDoneSignal(view: RunView | null) {
       !running &&
       prev.running &&
       view.status !== "sleeping" &&
+      view.status !== "waiting_signal" &&
       Date.now() - prev.since > 8000
     ) {
       tell(
@@ -931,7 +948,7 @@ export function RunnerBody({
     body = <AskPanel key={view.ask.id} runId={view.id} ask={view.ask} />;
   } else if (view.status === "running") {
     body = <Working view={view} compact={compact} awake={awake} />;
-  } else if (view.status === "sleeping") {
+  } else if (view.status === "sleeping" || view.status === "waiting_signal") {
     body = <Sleeping view={view} compact={compact} />;
   } else if (view.status === "failed") {
     body = <Failed view={view} run={run} />;

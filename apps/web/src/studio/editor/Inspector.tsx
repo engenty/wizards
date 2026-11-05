@@ -15,9 +15,11 @@ import {
   isOtherwise,
   isRealLanguage,
   langName,
+  MESSAGE_SIGNAL,
   type NextRule,
   outputKeys,
   type PageStep,
+  RUN_DONE_SIGNAL,
   type Step,
   stepShape,
   TOOL_IDS,
@@ -25,6 +27,7 @@ import {
   type VideoResolution,
   WIZARD_LANGS,
   type WizardDefinition,
+  waitOutputRefs,
 } from "@engenty/wizards-shared/definition";
 import { readNumber } from "@engenty/wizards-shared/numbers";
 import type { BranchDecision, RunEstimate } from "@engenty/wizards-shared/run";
@@ -1673,6 +1676,8 @@ function branchSources(def: WizardDefinition, step: Step): string[] {
           out.push(`steps.${s.id}.${key}.p`);
         }
       }
+    } else if (s.type === "wait") {
+      out.push(...waitOutputRefs(s));
     }
   }
   out.push(...(def.lists ?? []).map((l) => `lists.${l.id}.count`));
@@ -1798,9 +1803,10 @@ function WaitBody({
   const amount = lasts?.[1] ?? "1";
   const unit = (lasts?.[2] ?? "d") as (typeof WAIT_UNITS)[number];
   const byDate = step.until !== undefined;
-  const { for: _for, until: _until, ...rest } = step;
+  const { for: _for, until: _until, signal, ...rest } = step;
   const lastsFor = (n: string, u: string) => set({ ...rest, for: `${n}${u}` });
   const untilDate = (until: string) => set({ ...rest, until });
+  const listens = (next: NonNullable<typeof signal>) => set({ ...rest, signal: next });
   const unitLabel = {
     m: "inspector.waitMinutes",
     h: "inspector.waitHours",
@@ -1809,14 +1815,25 @@ function WaitBody({
   return (
     <Section title={t("inspector.waitFor")}>
       <Select
-        value={byDate ? "until" : "for"}
-        onChange={(v) => (v === "until" ? untilDate(new Date().toISOString()) : lastsFor("1", "d"))}
+        value={signal ? "signal" : byDate ? "until" : "for"}
+        onChange={(v) => {
+          if (v === "signal") {
+            listens({ name: "event", key: "{{email}}", timeout: "3d" });
+          } else if (v === "until") {
+            untilDate(new Date().toISOString());
+          } else {
+            lastsFor("1", "d");
+          }
+        }}
         options={[
           { value: "for", label: t("inspector.waitTime") },
           { value: "until", label: t("inspector.waitDate") },
+          { value: "signal", label: t("inspector.waitSignal") },
         ]}
       />
-      {byDate ? (
+      {signal ? (
+        <SignalWait signal={signal} set={listens} />
+      ) : byDate ? (
         <>
           <Label>{t("inspector.waitUntil")}</Label>
           <Input
@@ -1861,6 +1878,123 @@ function WaitBody({
       )}
       <p className="text-[0.8125rem] text-ink-3">{t("inspector.waitFree")}</p>
     </Section>
+  );
+}
+
+/** A wait for an event: which one, from whom, for how long, and what it must hold. */
+function SignalWait({
+  signal,
+  set,
+}: {
+  signal: NonNullable<Extract<Step, { type: "wait" }>["signal"]>;
+  set: (next: typeof signal) => void;
+}) {
+  const source =
+    signal.name === MESSAGE_SIGNAL ? "person" : signal.name === RUN_DONE_SIGNAL ? "run" : "service";
+  const lasts = /^(\d+)([mhd])$/.exec(signal.timeout ?? "");
+  const unit = (lasts?.[2] ?? "d") as (typeof WAIT_UNITS)[number];
+  const unitLabel = {
+    m: "inspector.waitMinutes",
+    h: "inspector.waitHours",
+    d: "inspector.waitDays",
+  } as const;
+  const { timeout: _timeout, fields: _fields, ...rest } = signal;
+  const withFields = signal.fields ? { fields: signal.fields } : {};
+  return (
+    <>
+      <Label>{t("inspector.waitWhich")}</Label>
+      <Select
+        value={source}
+        onChange={(v) => {
+          if (v === "person") {
+            set({ ...signal, name: MESSAGE_SIGNAL, key: "person" });
+          } else if (v === "run") {
+            set({ ...signal, name: RUN_DONE_SIGNAL, key: "{{run}}" });
+          } else {
+            set({ ...signal, name: "event", key: "{{email}}" });
+          }
+        }}
+        options={[
+          { value: "service", label: t("inspector.waitFromService") },
+          { value: "person", label: t("inspector.waitFromPerson") },
+          { value: "run", label: t("inspector.waitFromRun") },
+        ]}
+      />
+      {source === "service" ? (
+        <>
+          <p className="text-[0.8125rem] text-ink-3">{t("inspector.waitWhichHint")}</p>
+          <Label>{t("inspector.waitName")}</Label>
+          <Input
+            placeholder={t("inspector.waitNameExample")}
+            value={signal.name}
+            onChange={(e) => {
+              const name = e.target.value.replace(/[^a-zA-Z0-9._-]/g, "");
+              if (/^[a-zA-Z0-9]/.test(name)) {
+                set({ ...signal, name });
+              }
+            }}
+          />
+        </>
+      ) : null}
+      {source === "person" ? null : (
+        <>
+          <Label>{t(source === "run" ? "inspector.waitRun" : "inspector.waitKey")}</Label>
+          <Input
+            value={signal.key}
+            onChange={(e) => e.target.value && set({ ...signal, key: e.target.value })}
+          />
+          <p className="text-[0.8125rem] text-ink-3">
+            {t(source === "run" ? "inspector.waitRunHint" : "inspector.waitKeyHint")}
+          </p>
+        </>
+      )}
+      <Label>{t("inspector.waitDeadline")}</Label>
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          min={1}
+          max={9999}
+          className="w-24"
+          aria-label={t("inspector.waitDeadline")}
+          placeholder={t("inspector.waitNoDeadline")}
+          value={lasts?.[1] ?? ""}
+          onChange={(e) => {
+            const n = Math.trunc(Number(e.target.value));
+            set(
+              n >= 1 && n <= 9999
+                ? { ...rest, ...withFields, timeout: `${n}${unit}` }
+                : { ...rest, ...withFields },
+            );
+          }}
+        />
+        <Select
+          value={unit}
+          onChange={(u) =>
+            set({ ...rest, ...withFields, ...(lasts ? { timeout: `${lasts[1]}${u}` } : {}) })
+          }
+          options={WAIT_UNITS.map((u) => ({ value: u, label: t(unitLabel[u]) }))}
+        />
+      </div>
+      <p className="text-[0.8125rem] text-ink-3">{t("inspector.waitDeadlineHint")}</p>
+      {source === "service" ? (
+        <>
+          <Label>{t("inspector.waitFields")}</Label>
+          <Input
+            placeholder={t("inspector.waitFieldsExample")}
+            value={(signal.fields ?? []).join(", ")}
+            onChange={(e) => {
+              const fields = e.target.value
+                .split(",")
+                .map((f) => f.trim())
+                .filter(Boolean);
+              const { fields: _was, ...others } = signal;
+              set(fields.length ? { ...others, fields } : others);
+            }}
+          />
+          <p className="text-[0.8125rem] text-ink-3">{t("inspector.waitFieldsHint")}</p>
+        </>
+      ) : null}
+    </>
   );
 }
 

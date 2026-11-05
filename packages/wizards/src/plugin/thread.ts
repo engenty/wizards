@@ -160,6 +160,10 @@ const texts = {
     waitsCredits:
       "Das Guthaben dieses Wizards ist aufgebraucht. Es geht von selbst weiter, sobald wieder Guthaben da ist.",
     waitsSignIn: "{service} braucht eine neue Anmeldung. Danach geht es von selbst weiter.",
+    waitsSignal: "Der Wizard wartet auf ein Ereignis und geht dann von selbst weiter.",
+    waitsSignalUntil:
+      "Der Wizard wartet auf ein Ereignis, höchstens bis {date}, und geht dann von selbst weiter.",
+    signalTaken: "Danke, das ist angekommen.",
     reviewAsk: "Passt das so?",
     reviewOk: "Passt",
     reviewRedo: "Neue Version",
@@ -200,6 +204,10 @@ const texts = {
     waitsCredits:
       "This wizard has run out of credits for now. It goes on by itself once there are credits again.",
     waitsSignIn: "{service} needs a new sign-in. This goes on by itself after that.",
+    waitsSignal: "The wizard is waiting for an event and goes on by itself after that.",
+    waitsSignalUntil:
+      "The wizard is waiting for an event, until {date} at the latest, and goes on by itself after that.",
+    signalTaken: "Thanks, that arrived.",
     reviewAsk: "Is this right?",
     reviewOk: "Looks good",
     reviewRedo: "New version",
@@ -501,19 +509,39 @@ export class ThreadDoor {
       return;
     }
     if ("wait" in w) {
+      // What the person writes goes to one place: a wait that listens for it takes it as its
+      // signal, where a person's step would take it as the answer.
+      const text = msg?.text?.trim() || msg?.replyTitle?.trim();
+      if (w.signal && msg && text) {
+        const taken = await this.o.runs.message(runId, { text, delivery: msg.id });
+        if (taken) {
+          s.said = null;
+          await this.send(thread, { kind: "text", text: say(s.lang, "signalTaken") });
+          this.o.watch(thread);
+          return;
+        }
+        // The run may have gone on just now: then what was written is for the step it stands at.
+        const now = await this.report(thread);
+        if (now?.waitingFor && !("wait" in now.waitingFor)) {
+          await this.step(thread, now, msg);
+          return;
+        }
+      }
       // Said once, or when the person writes: for days this thread has nothing else to say.
       const key = `wait:${w.wait}:${w.pause?.kind ?? ""}`;
       if (s.said !== key || msg) {
         s.said = key;
+        const date = w.until ? dayAndTime(w.until, s.lang) : "";
         await this.send(thread, {
           kind: "text",
-          text:
-            w.pause?.kind === "credits"
+          text: w.signal
+            ? say(s.lang, date ? "waitsSignalUntil" : "waitsSignal", { date })
+            : w.pause?.kind === "credits"
               ? say(s.lang, "waitsCredits")
               : w.pause?.kind === "sign_in"
                 ? say(s.lang, "waitsSignIn", { service: w.pause.service })
-                : w.until
-                  ? say(s.lang, "sleeping", { date: dayAndTime(w.until, s.lang) })
+                : date
+                  ? say(s.lang, "sleeping", { date })
                   : say(s.lang, "sleepingSoon"),
         });
       }

@@ -1,4 +1,4 @@
-import { goesOnText, Markdown } from "@engenty/wizards-runner";
+import { goesOnText, Markdown, waitsSignalText } from "@engenty/wizards-runner";
 import {
   type EngentyCostume,
   slotText,
@@ -87,7 +87,14 @@ interface RunReport {
   runId: string;
   wizardId: string;
   mode: "test" | "live";
-  status: "running" | "waiting_input" | "sleeping" | "done" | "failed" | "cancelled";
+  status:
+    | "running"
+    | "waiting_input"
+    | "sleeping"
+    | "waiting_signal"
+    | "done"
+    | "failed"
+    | "cancelled";
   step: { id: string; type: string; title: string } | null;
   passed: string[];
   waitingFor?:
@@ -651,7 +658,11 @@ function RunPanel({
   } else if (waiting && "wait" in waiting) {
     body = (
       <div className="flex flex-col items-start gap-1">
-        <p className="text-[0.8125rem] text-ink-2">{goesOnText(waiting.until, waiting.pause)}</p>
+        <p className="text-[0.8125rem] text-ink-2">
+          {report.status === "waiting_signal"
+            ? waitsSignalText(null, waiting.until)
+            : goesOnText(waiting.until, waiting.pause)}
+        </p>
         <p className="text-[0.8125rem] text-ink-3">{t("run.leavePage")}</p>
       </div>
     );
