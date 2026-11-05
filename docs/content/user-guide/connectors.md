@@ -1,7 +1,7 @@
 ---
 title: Connectors
 description: Services a wizard works in for the person who runs it – built in, from the registry or over MCP.
-version: 0.13.0
+version: 0.16.2
 ---
 
 **[Capabilities](./capabilities.md) › Connectors** lists the services the space’s wizards, Work
@@ -96,10 +96,13 @@ registry. When you set one up, you choose how it signs in:
 | As the space | An admin signs the space in once, with an API key, an app token or a team account. Everyone uses that account, even when nobody is watching. On this kind of connection the AI only reads; writing happens in fixed steps or as an action someone confirms |
 | Each person signs in | Each person signs in once with their own account, here or in their menu › Connections. The connection then acts as that person, and asks them before it changes something |
 
-You can’t change how a connection signs in later. Set up a new one instead.
+An admin can change how a connection signs in later, on its page. The sign-ins made until then go
+with the change. In the cloud, your organization’s plan decides whether “Each person signs in” is
+available. [Capabilities](./capabilities.md#connectors) has the details.
 
 **Who may use it.** Admins, Members or Everyone. Everyone includes guests who start a wizard from
-its link.
+its link. Admins see above the list which connections guests reach, and narrow each to members
+with one click ([Connections that guests reach](./capabilities.md#connections-that-guests-reach)).
 
 **What it may do.** One rule for each kind of action:
 

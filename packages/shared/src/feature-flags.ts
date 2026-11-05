@@ -197,4 +197,10 @@ export const FEATURES = {
     label: "Own API keys",
     hint: "The organization puts its providers' keys into the cloud studio instead of running on credits.",
   },
+  personSignIn: {
+    kind: "plan",
+    default: true,
+    label: "Each person signs in to a connection",
+    hint: "A space's connection may have each person sign in with their own account. Without it a connection signs in as the space.",
+  },
 } as const satisfies Record<string, FeatureDeclaration>;

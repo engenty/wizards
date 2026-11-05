@@ -265,7 +265,8 @@ export function Tabs<T extends string>({
 }: {
   value: T;
   onChange: (next: T) => void;
-  options: { id: T; label: string }[];
+  /** `disabled`: shown, not to be picked; the caller says why beside the tabs. */
+  options: { id: T; label: string; disabled?: boolean }[];
   /** The group's name for a screen reader. */
   label?: string;
 }) {
@@ -315,10 +316,15 @@ export function Tabs<T extends string>({
             type="button"
             role="tab"
             aria-selected={on}
+            disabled={option.disabled && !on}
             onClick={() => onChange(option.id)}
             className={cn(
               "relative h-8 whitespace-nowrap rounded-full px-4 font-medium text-[0.875rem] transition-colors motion-reduce:transition-none coarse:h-9",
-              on ? "text-ink" : "text-ink-3 hover:text-ink-2",
+              on
+                ? "text-ink"
+                : option.disabled
+                  ? "cursor-not-allowed text-ink-4"
+                  : "text-ink-3 hover:text-ink-2",
             )}
           >
             {option.label}

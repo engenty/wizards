@@ -9,6 +9,7 @@ import {
   type SpaceConnectionView,
 } from "@engenty/wizards-shared/connectors";
 import type { Lang } from "@engenty/wizards-shared/definition";
+import { featureOn } from "@engenty/wizards-shared/features";
 import { note } from "@engenty/wizards-shared/run";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -23,7 +24,8 @@ import {
   type OAuth2Tokens,
 } from "../engenty/connections-sdk/oauth2.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
-import type { Role } from "../manage.js";
+import { currentFeatures } from "../features.js";
+import { managed, type Role, tenantInfo } from "../manage.js";
 import { loadedPlugin } from "../plugins/registry.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { isAdminRole, requireAdmin, requireWritableSpace } from "../services/access.js";
@@ -42,6 +44,10 @@ import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-ac
  * `space_connection_sign_in`. Secrets are sealed here and unsealed by the broker alone
  * (`broker/account.ts`). Plugins reach the same table through `server.connections`
  * (`plugin-connections.ts`).
+ *
+ * Each person signing in is the plan's to include (the switch `personSignIn`): without it a
+ * connection is set up as the space and none is changed to each person. One that already has
+ * each person sign in keeps working, and its admins may change it to the space.
  */
 
 export type SpaceConnectionRow = typeof schema.spaceConnection.$inferSelect;
@@ -77,6 +83,8 @@ export const newConnectionSchema = z.object({
 
 export const connectionPatchSchema = z.object({
   name: z.string().trim().min(1).max(CONNECTION_LIMITS.name).optional(),
+  /** How it signs in: a change forgets the sign-ins of the way it leaves. */
+  signIn: z.enum(CONNECTION_SIGN_INS).optional(),
   audience: z.enum(CONNECTION_AUDIENCES).optional(),
   rules: rulesSchema.optional(),
   actions: z.array(z.string().max(200)).max(200).optional(),
@@ -239,6 +247,23 @@ function knownActions(connector: ConnectorDefinition, actions: string[]): string
   return [...new Set(actions)];
 }
 
+/** Whether a connection here may have each person sign in. A computer of one's own has no plan. */
+export async function personSignInAllowed(): Promise<boolean> {
+  return !managed || featureOn(await currentFeatures(), "personSignIn");
+}
+
+/** Refuses each person signing in where the organization's plan leaves it out, naming the plan. */
+async function requirePersonSignIn(): Promise<void> {
+  if (await personSignInAllowed()) {
+    return;
+  }
+  const plan = (await tenantInfo(currentTenant()).catch(() => null))?.plan?.name;
+  throw new ServiceError(
+    "plan",
+    plan ? note("personSignInNotInPlan", { plan }) : note("personSignInNotInOrganizationPlan"),
+  );
+}
+
 export async function createSpaceConnection(
   userId: string | null,
   spaceId: string,
@@ -249,6 +274,9 @@ export async function createSpaceConnection(
   await ownedSpace(userId ?? "", spaceId);
   await requireWritableSpace(spaceId);
   await requireAdmin();
+  if (input.signIn === "person") {
+    await requirePersonSignIn();
+  }
   const found = await resolveConnector(spaceId, input.connectorId);
   if (!found || found.connector.auth.kind === "browser") {
     throw new ServiceError("invalid", note("connectorGone", { id: input.connectorId }));
@@ -287,6 +315,14 @@ export async function updateSpaceConnection(
   await ownedSpace(userId, row.spaceId);
   await requireWritableSpace(row.spaceId);
   await requireAdmin();
+  const signInChanged = patch.signIn !== undefined && patch.signIn !== row.signIn;
+  if (signInChanged && patch.signIn === "person") {
+    // A plugin calls with no person: its connection stays the space's.
+    if (row.plugin) {
+      throw new ServiceError("invalid", note("pluginConnectionSignsInAsSpace"));
+    }
+    await requirePersonSignIn();
+  }
   const actions =
     patch.actions !== undefined
       ? knownActions(await connectorOfRow(row), patch.actions)
@@ -295,6 +331,8 @@ export async function updateSpaceConnection(
     .update(schema.spaceConnection)
     .set({
       ...(patch.name !== undefined ? { name: patch.name } : {}),
+      // The space's own sign-in goes with the way it leaves; a person's has none on the row.
+      ...(signInChanged ? { signIn: patch.signIn, secret: null, label: null } : {}),
       ...(patch.audience !== undefined ? { audience: patch.audience } : {}),
       ...(patch.rules !== undefined ? { rules: patch.rules } : {}),
       ...(actions !== undefined ? { actions } : {}),
@@ -302,20 +340,31 @@ export async function updateSpaceConnection(
     })
     .where(eq(schema.spaceConnection.id, row.id))
     .returning();
-  // Who may use it, and what each kind of action may do: a change there is heard of.
+  if (signInChanged && updated.signIn === "space") {
+    await db
+      .delete(schema.spaceConnectionSignIn)
+      .where(eq(schema.spaceConnectionSignIn.connectionId, row.id));
+  }
+  // How it signs in, who may use it, and what each kind of action may do: a change there is heard of.
   const rulesChanged =
     patch.rules !== undefined && JSON.stringify(patch.rules) !== JSON.stringify(row.rules);
   const audienceChanged = patch.audience !== undefined && patch.audience !== row.audience;
-  if (rulesChanged || audienceChanged) {
+  if (rulesChanged || audienceChanged || signInChanged) {
     await logRuleChange({
       userId,
       spaceId: row.spaceId,
       connectionId: row.id,
       summary: {
+        ...(signInChanged ? { signIn: `${row.signIn} → ${updated.signIn}` } : {}),
         ...(audienceChanged ? { audience: `${row.audience} → ${updated.audience}` } : {}),
         ...(rulesChanged ? { rules: changedRules(row.rules, updated.rules) } : {}),
       },
       reason: [
+        signInChanged
+          ? updated.signIn === "space"
+            ? "It now signs in as the space."
+            : "Each person now signs in."
+          : "",
         audienceChanged ? `The audience is now ${updated.audience}.` : "",
         rulesChanged ? `The rules changed: ${changedRules(row.rules, updated.rules)}.` : "",
       ]

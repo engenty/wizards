@@ -55,12 +55,23 @@ leaves. Only the space’s admins set up a connection, change it or remove it.
 When an admin sets one up, they choose how it signs in and who may use it. On its page they then
 set what it may do.
 
-**How it signs in.** This can’t be changed later.
+**How it signs in.**
 
 | Signs in | What it means |
 |---|---|
 | As the space | An admin signs in once, with an API key, an app token or a team account such as orders@. Everyone uses that account, also when nobody is watching. The AI only reads through it. Changes come from fixed steps or from an action a person confirms in a Work chat |
 | Each person signs in | Each person signs in once with their own account, on the connection’s page or in their menu. The connection then acts as that person, and asks them before it changes something |
+
+An admin can change this later on the connection’s page. The change removes the sign-ins made
+until then: every person’s when the connection becomes the space’s, the space’s when each person
+signs in from then on. The page asks before it changes anything. A connection that a plugin uses
+always signs in as the space.
+
+In the cloud, your organization’s plan decides whether “Each person signs in” is available. Where
+the plan doesn’t include it, the choice is greyed out with a sentence that says so, and a new
+connection signs in as the space. A connection that already has each person sign in keeps working,
+and people still sign in and out of it. You can change it to “As the space”, but not back. On your
+computer there is no plan, so both ways are always available.
 
 **Who may use it.** Admins, Members or Everyone. Everyone includes guests who start a wizard from
 its link. A guest’s run never uses a connection that is only for members or admins.

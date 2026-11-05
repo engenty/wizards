@@ -57,11 +57,18 @@ vi.mock("../src/engenty/connections-hubspot/connector", async (importOriginal) =
   };
 });
 
-// An organization with roles: the Manage-App says who is who; nothing else of it is asked here.
+/** What the organization's plan says of the switches: nothing, until a test sets one. */
+const plan = vi.hoisted(() => ({ features: {} as Record<string, boolean> }));
+
+// An organization with roles: the Manage-App says who is who, which plan it is on and its switches.
 vi.mock("../src/manage.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../src/manage.js")>()),
   managed: true,
-  tenantInfo: async () => ({ limits: { build: true } }),
+  tenantInfo: async () => ({
+    limits: { build: true },
+    plan: { id: "pro", name: "Pro" },
+    features: plan.features,
+  }),
   tenantMembers: async () => ({
     members: [
       { userId: "user-a", role: "owner", name: "Anna" },
@@ -671,6 +678,185 @@ describe("the connections guests reach", () => {
     registry.dropPlugin("appointments");
     await send(owner, "DELETE", `/connections/${id}`);
     await send(owner, "DELETE", `/connections/${each.id}`);
+  });
+});
+
+describe("each person signing in, where the plan leaves it out", () => {
+  type App = { fetch: (req: Request) => Response | Promise<Response> };
+
+  async function appAs(role: "owner" | "member"): Promise<App> {
+    const { connectionRoutes } = await import("../src/routes/connections");
+    const { ServiceError } = await import("../src/services/errors");
+    const user = { id: role === "owner" ? "user-a" : "user-m", role, tenantId: TENANT };
+    return new Hono<{ Variables: { user: typeof user } }>()
+      .onError((err, c) =>
+        err instanceof ServiceError
+          ? c.json(err.toJSON(), err.status)
+          : c.json({ error: String(err) }, 500),
+      )
+      .use("*", async (c, next) => {
+        c.set("user", user);
+        await client.withTenant(TENANT, () => access.asRole(role, next));
+      })
+      .route("/api/studio", connectionRoutes as never);
+  }
+
+  const send = (app: App, method: string, path: string, body?: unknown) =>
+    app.fetch(
+      new Request(`http://localhost:5181/api/studio${path}`, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }),
+    );
+
+  const signInsOf = (connectionId: string) =>
+    inTenant(() =>
+      client.db.query.spaceConnectionSignIn.findMany({
+        where: (t, { eq }) => eq(t.connectionId, connectionId),
+      }),
+    );
+
+  const asMember = (id: string) =>
+    inTenant(async () => {
+      const row = await service.spaceConnectionById(id);
+      return broker.brokerCall({
+        who: member,
+        where: memberRun,
+        connection: { kind: "space_connection", row, connector: await service.connectorOfRow(row) },
+        action: { id: "list_contacts" },
+        input: {},
+      });
+    });
+
+  let each = "";
+  let asSpace = "";
+
+  beforeAll(async () => {
+    // Set up while the plan had it.
+    const owner = await appAs("owner");
+    const make = async (name: string, signIn: "space" | "person") =>
+      (
+        await (
+          await send(owner, "POST", `/spaces/${space}/connections`, {
+            connectorId: "hubspot",
+            name,
+            signIn,
+          })
+        ).json()
+      ).id as string;
+    each = await make("Je Person", "person");
+    asSpace = await make("Als Space", "space");
+    await send(await appAs("member"), "POST", `/connections/${each}/my-sign-in`, {
+      credentials: { access_token: "member-key-2" },
+    });
+  });
+
+  it("refuses to set one up or to change one to it, in words that name the plan", async () => {
+    plan.features = { personSignIn: false };
+    try {
+      const owner = await appAs("owner");
+      const made = await send(owner, "POST", `/spaces/${space}/connections`, {
+        connectorId: "hubspot",
+        name: "Neu",
+        signIn: "person",
+      });
+      expect(made.status).toBe(403);
+      expect(await made.json()).toEqual({
+        code: "plan",
+        error:
+          "The Pro plan doesn’t include each person signing in. A connection signs in as the space.",
+      });
+      const changed = await send(owner, "PATCH", `/connections/${asSpace}`, { signIn: "person" });
+      expect(changed.status).toBe(403);
+      expect((await changed.json()).code).toBe("plan");
+      expect((await inTenant(() => service.spaceConnectionById(asSpace))).signIn).toBe("space");
+      // As the space is every plan's.
+      const plain = await send(owner, "POST", `/spaces/${space}/connections`, {
+        connectorId: "hubspot",
+        name: "Neu als Space",
+        signIn: "space",
+      });
+      expect(plain.status).toBe(200);
+      await send(owner, "DELETE", `/connections/${(await plain.json()).id}`);
+    } finally {
+      plan.features = {};
+    }
+  });
+
+  it("keeps one that already has each person sign in working, and lets it become the space's", async () => {
+    plan.features = { personSignIn: false };
+    try {
+      const owner = await appAs("owner");
+      const memberApp = await appAs("member");
+      expect((await asMember(each)).ok).toBe(true);
+      // A person still signs out and in.
+      expect((await send(memberApp, "DELETE", `/connections/${each}/my-sign-in`)).status).toBe(200);
+      const again = await send(memberApp, "POST", `/connections/${each}/my-sign-in`, {
+        credentials: { access_token: "member-key-6" },
+      });
+      expect(await again.json()).toEqual({ ok: true, label: "HubSpot 6" });
+      // Its name, audience and rules change as before.
+      const renamed = await send(owner, "PATCH", `/connections/${each}`, {
+        name: "Je Person, neu",
+        signIn: "person",
+      });
+      expect(await renamed.json()).toMatchObject({ name: "Je Person, neu", signIn: "person" });
+      expect(await signInsOf(each)).toHaveLength(1);
+
+      const toSpace = await send(owner, "PATCH", `/connections/${each}`, { signIn: "space" });
+      expect(await toSpace.json()).toMatchObject({
+        signIn: "space",
+        signedIn: 0,
+        account: null,
+        mySignIn: null,
+      });
+      // The people's sign-ins went with it, and the way back is the plan's.
+      expect(await signInsOf(each)).toEqual([]);
+      expect(await asMember(each)).toMatchObject({ ok: false, refused: "not_connected" });
+      expect((await logOf(each)).find((l) => l.actionId === "change_rules")).toMatchObject({
+        critical: true,
+        reason: "It now signs in as the space.",
+      });
+      const back = await send(owner, "PATCH", `/connections/${each}`, { signIn: "person" });
+      expect(back.status).toBe(403);
+    } finally {
+      plan.features = {};
+    }
+  });
+
+  it("changes both ways where the plan has it; a plugin's connection stays the space's", async () => {
+    const owner = await appAs("owner");
+    await send(owner, "POST", `/connections/${asSpace}/sign-in`, {
+      credentials: { access_token: TOKEN },
+    });
+    const toPerson = await send(owner, "PATCH", `/connections/${asSpace}`, { signIn: "person" });
+    // The space's own sign-in went with it.
+    expect(await toPerson.json()).toMatchObject({ signIn: "person", account: null, signedIn: 0 });
+    const row = await inTenant(() => service.spaceConnectionById(asSpace));
+    expect(row).toMatchObject({ secret: null, label: null });
+
+    const ofPlugin = await inTenant(() =>
+      service.createSpaceConnection(
+        "user-a",
+        space,
+        {
+          connectorId: "hubspot",
+          name: "Vom Plugin",
+          signIn: "space",
+          audience: "all",
+          rules: RULES,
+          actions: [],
+        },
+        "appointments",
+      ),
+    );
+    const refused = await send(owner, "PATCH", `/connections/${ofPlugin.id}`, { signIn: "person" });
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error).toMatch(/A plugin uses this connection/);
+    for (const id of [each, asSpace, ofPlugin.id]) {
+      await send(owner, "DELETE", `/connections/${id}`);
+    }
   });
 });
 

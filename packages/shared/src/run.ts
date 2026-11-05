@@ -407,6 +407,11 @@ const NOTES_EN = {
   connectionEachPersonSignsIn: "Each person signs in to this connection themselves.",
   connectionSignsInAsSpace: "This connection signs in as the space. Its admins sign it in.",
   connectionNotForYou: "This connection is not open to you.",
+  personSignInNotInPlan:
+    "The {plan} plan doesn’t include each person signing in. A connection signs in as the space.",
+  personSignInNotInOrganizationPlan:
+    "Your organization’s plan doesn’t include each person signing in. A connection signs in as the space.",
+  pluginConnectionSignsInAsSpace: "A plugin uses this connection. It signs in as the space.",
   connectorSignsIn: "{name} is connected by signing in, not with keys.",
   connectorTakesKeys: "{name} takes keys, not a sign-in.",
   notFound: "This doesn’t exist or was deleted.",
@@ -855,6 +860,12 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   connectionEachPersonSignsIn: "Bei dieser Verbindung meldet sich jede Person selbst an.",
   connectionSignsInAsSpace: "Diese Verbindung meldet sich als Space an. Die Admins melden sie an.",
   connectionNotForYou: "Diese Verbindung steht dir nicht offen.",
+  personSignInNotInPlan:
+    "Im Paket {plan} meldet sich nicht jede Person selbst an. Eine Verbindung meldet sich als Space an.",
+  personSignInNotInOrganizationPlan:
+    "Im Paket deiner Organisation meldet sich nicht jede Person selbst an. Eine Verbindung meldet sich als Space an.",
+  pluginConnectionSignsInAsSpace:
+    "Ein Plugin nutzt diese Verbindung. Sie meldet sich als Space an.",
   connectorSignsIn: "{name} wird per Anmeldung verbunden, nicht mit Keys.",
   connectorTakesKeys: "{name} nimmt Keys, keine Anmeldung.",
   notFound: "Das gibt es nicht oder nicht mehr.",

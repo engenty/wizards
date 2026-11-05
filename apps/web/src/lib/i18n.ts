@@ -2684,7 +2684,8 @@ const de: Record<Key, Line> = {
   "connection.nameHint": "Er unterscheidet mehrere Verbindungen zum selben Dienst.",
   "connection.namePlaceholder": "z. B. Vertrieb",
   "connection.signIn": "Meldet sich an",
-  "connection.signInFixed": "Das lässt sich später nicht mehr ändern.",
+  "connection.signInLater":
+    "Du kannst das später umstellen. Die Anmeldungen bis dahin gehen dabei verloren.",
   "connection.audience": "Wer sie nutzen darf",
   "connection.adminsManage": "Die Admins verwalten diese Verbindung.",
   "connection.account": "Konto",
@@ -2722,6 +2723,19 @@ const de: Record<Key, Line> = {
   "connection.plugin": "Plugin",
   "connection.pluginNamed": "Plugin: {plugin}",
   "connection.pluginUses": "„{plugin}“ nutzt diese Verbindung.",
+  "connection.signIn.personPlan":
+    "Das Paket {plan} enthält nicht, dass sich jede Person selbst anmeldet.",
+  "connection.signIn.personNoPlan":
+    "Das Paket deiner Organisation enthält nicht, dass sich jede Person selbst anmeldet.",
+  "connection.signIn.personKept":
+    "Dein Paket enthält das nicht mehr. Die Verbindung arbeitet weiter, und du kannst sie auf „Als Space“ umstellen.",
+  "connection.signIn.pluginSpace":
+    "Das Plugin „{plugin}“ nutzt sie. Deshalb meldet sie sich als Space an.",
+  "connection.signIn.toSpaceConfirm":
+    "Auf „Als Space“ umstellen? Die Anmeldungen aller Personen werden entfernt, und ein Admin meldet den Space an. Die KI liest über die Verbindung dann nur noch, und Goose nutzt sie nicht mehr.",
+  "connection.signIn.toPersonConfirm":
+    "Auf „Jede Person meldet sich an“ umstellen? Die Anmeldung des Space wird entfernt. Danach meldet sich jede Person selbst an, und die Verbindung handelt als diese Person.",
+  "connection.signIn.change": "Anmeldung umstellen",
   "camera.missing": "An diesem Gerät wurde keine Kamera gefunden. Lade stattdessen ein Foto hoch.",
   "camera.busy":
     "Die Kamera wird gerade von einer anderen App verwendet. Schließ sie und versuch es noch einmal.",
@@ -6802,7 +6816,7 @@ const en = {
   "connection.nameHint": "It tells several connections to the same service apart.",
   "connection.namePlaceholder": "e.g. Sales",
   "connection.signIn": "Signs in",
-  "connection.signInFixed": "This can’t be changed later.",
+  "connection.signInLater": "You can change this later. The sign-ins made until then go with it.",
   "connection.audience": "Who may use it",
   "connection.adminsManage": "The admins manage this connection.",
   "connection.account": "Account",
@@ -6840,6 +6854,19 @@ const en = {
   "connection.plugin": "Plugin",
   "connection.pluginNamed": "Plugin: {plugin}",
   "connection.pluginUses": "“{plugin}” uses this connection.",
+  "connection.signIn.personPlan":
+    "The {plan} plan doesn’t include each person signing in themselves.",
+  "connection.signIn.personNoPlan":
+    "Your organization’s plan doesn’t include each person signing in themselves.",
+  "connection.signIn.personKept":
+    "Your plan no longer includes this. The connection keeps working, and you can change it to “As the space”.",
+  "connection.signIn.pluginSpace":
+    "The plugin “{plugin}” uses it. That’s why it signs in as the space.",
+  "connection.signIn.toSpaceConfirm":
+    "Change to “As the space”? Every person’s sign-in is removed, and an admin signs the space in. The AI then only reads through the connection, and Goose no longer uses it.",
+  "connection.signIn.toPersonConfirm":
+    "Change to “Each person signs in”? The space’s sign-in is removed. Each person then signs in themselves, and the connection acts as that person.",
+  "connection.signIn.change": "Change sign-in",
   "camera.missing": "No camera was found on this device. Upload a photo instead.",
   "camera.busy": "Another app is using the camera. Close it and try again.",
   "location.unavailable":
