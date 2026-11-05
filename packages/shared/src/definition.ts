@@ -1048,6 +1048,15 @@ export const RUN_DONE_SIGNAL = "run.done";
  */
 export const MESSAGE_SIGNAL = "message.received";
 
+/**
+ * A mail in a mailbox of the space. One mail makes two of these: keyed by its sender, and by its
+ * thread (`thread:<id>`).
+ */
+export const MAIL_SIGNAL = "mail.received";
+
+/** What a mail's signal holds under `data`. */
+export const MAIL_FIELDS = ["from", "name", "subject", "text", "thread", "message", "at"] as const;
+
 /** The field names a signal's data missing from this list; empty when it fits. */
 export function signalMissing(
   data: unknown,
@@ -1116,7 +1125,9 @@ export function waitOutputRefs(step: WaitStep): string[] {
   return [
     `steps.${step.id}.came`,
     `steps.${step.id}.timedOut`,
-    ...(step.signal.fields ?? []).map((f) => `steps.${step.id}.data.${f}`),
+    ...(step.signal.fields ?? (step.signal.name === MAIL_SIGNAL ? MAIL_FIELDS : [])).map(
+      (f) => `steps.${step.id}.data.${f}`,
+    ),
   ];
 }
 

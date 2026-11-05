@@ -11,6 +11,7 @@ import {
   openTenantDb,
   withTenant,
 } from "./db/client.js";
+import { startMailWatch } from "./engine/mail-watch.js";
 import { startNotices } from "./engine/notices.js";
 import { startRunner, stopRunner } from "./engine/runner.js";
 import { startStarts } from "./engine/starts.js";
@@ -119,6 +120,7 @@ if (env.serves.runner) {
   await registerRunner();
   setInterval(() => void registerRunner().catch(() => undefined), 10_000).unref();
   startRunner();
+  startMailWatch();
 }
 
 // End-user results are kept RESULT_TTL_DAYS; expired runs and their files go once an hour.

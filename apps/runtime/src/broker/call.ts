@@ -6,6 +6,7 @@ import type {
   ConnectorAction,
   ConnectorActionGroup,
   ConnectorDefinition,
+  StreamPullResult,
 } from "../engenty/connections-sdk/types.js";
 import type { AskResult } from "../engine/asks.js";
 import { effectUnsure } from "../engine/events.js";
@@ -64,8 +65,11 @@ import { channelOf, guestSendCheck, postsToChannel, recipientsOf } from "./send.
  * one past a limit is refused. The limits are read with the pause, on every call.
  */
 
-/** Who calls: a guest at the wizard's link, a signed-in person, Goose for a person, a plugin's own job, a fixed step. */
-export type WhoKind = "guest" | "person" | "admin" | "goose" | "plugin" | "step";
+/**
+ * Who calls: a guest at the wizard's link, a signed-in person, Goose for a person, a plugin's own
+ * job, a fixed step, the runtime reading for nobody in particular (`brokerPullStream`).
+ */
+export type WhoKind = "guest" | "person" | "admin" | "goose" | "plugin" | "step" | "runtime";
 
 export interface Who {
   kind: WhoKind;
@@ -160,7 +164,7 @@ export interface Decision {
   /**
    * Which rule decided, as the log and „Was darf …?“ name it: `grant`, `audience`, `actions`,
    * `ai_step_writes`, `rules.<kind>` (a connection of the space), `destructive`, `policy.<action>`
-   * (a wizard's connection), `read`, `own_job`, `paused`. A run that is over is logged as
+   * (a wizard's connection), `read`, `own_job`, `autonomous_mode`, `paused`. A run that is over is logged as
    * `run.<status>` (over.ts), before any decision here; a call past a connection's limit as
    * `limits.run` or `limits.day`, after it. The log also has `once` (broker/effect.ts).
    */
@@ -264,6 +268,9 @@ export function decide(call: {
   grant?: Grant | null;
 }): Decision {
   const { connection, kind, who } = call;
+  if (who.kind === "runtime") {
+    return decideRuntime(connection, kind);
+  }
   if (call.grant && connection.kind === "store_secret") {
     if (!inGrant(call.grant, connection.def.id, call.actionId, kind)) {
       return {
@@ -365,6 +372,29 @@ function pausedDecision(row: Pick<SpaceConnectionRow, "pausedAt">): Decision | n
   return row.pausedAt
     ? { outcome: "deny", rule: "paused", refused: "paused", reason: CONNECTION_PAUSED }
     : null;
+}
+
+/**
+ * The runtime reads for nobody in particular: only as the space, only what an admin agreed to on
+ * this connection, and only where its rule lets reading run without anyone asked.
+ */
+function decideRuntime(connection: BrokerConnection, kind: ActionKind): Decision {
+  const row = connection.kind === "space_connection" ? connection.row : null;
+  if (!row || row.signIn !== "space" || kind !== "read" || row.autonomousMode === "off") {
+    return {
+      outcome: "deny",
+      rule: "autonomous_mode",
+      reason: "No admin agreed that the runtime reads this on its own.",
+    };
+  }
+  if (row.rules.read !== "allow") {
+    return {
+      outcome: "deny",
+      rule: "rules.read",
+      reason: "The connection's rule: reading does not run on its own.",
+    };
+  }
+  return { outcome: "allow", rule: "autonomous_mode", reason: "An admin agreed to reading it." };
 }
 
 /**
@@ -754,6 +784,33 @@ function kindBefore(call: BrokerCallInput<unknown>): ActionKind {
       ? connection.connector.actions.find((a) => a.id === call.action.id)
       : undefined;
   return found ? kindOf(found.group) : "write";
+}
+
+/**
+ * The next items of a connector's stream, from `cursor`: the one way to a mailbox's stream, logged
+ * like any call. `since` is where a pull without a cursor starts. An error the connector throws,
+ * like its expired cursor, is thrown on.
+ */
+export function brokerPullStream(input: {
+  connection: Extract<BrokerConnection, { kind: "space_connection" }>;
+  cursor: string | null;
+  since: Date;
+  limit: number;
+}): Promise<BrokerResult<StreamPullResult>> {
+  const { connection, cursor, since, limit } = input;
+  return brokerCall({
+    who: { kind: "runtime" },
+    where: { spaceId: connection.row.spaceId },
+    connection,
+    action: { id: "pull_stream", kind: "read" },
+    input: { since: since.toISOString(), limit },
+    handler: ({ connector, ctx }) => {
+      if (!connector.stream) {
+        throw new Error(`${connector.name} has no stream.`);
+      }
+      return connector.stream.pull({ ...ctx, since: since.toISOString(), limit }, cursor);
+    },
+  });
 }
 
 /** Whether the service answered a call with "who are you?": its 401, or an OAuth grant gone. */
