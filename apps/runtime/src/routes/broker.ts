@@ -42,17 +42,12 @@ import { currentTenant } from "../tenants/tenant.js";
 
 type Vars = { Variables: { user: SessionUser } };
 
-const WHO = [
-  "guest",
-  "person",
-  "admin",
-  "goose",
-  "plugin",
-  "step",
-] as const satisfies readonly WhoKind[];
+/** Who „Was darf …?“ can ask about. The runtime's reading has its own switch, and only a log line. */
+const ASKED_WHO = ["guest", "person", "admin", "goose", "plugin", "step"] as const;
+const WHO = [...ASKED_WHO, "runtime"] as const satisfies readonly WhoKind[];
 
 const askSchema = z.object({
-  who: z.enum(WHO),
+  who: z.enum(ASKED_WHO),
   /** A fixed step: whom the run is held for. Goose: `admin` for an admin's Goose. */
   for: z.enum(["guest", "person", "admin"]).optional(),
   /** A connection of the space, by its id. */

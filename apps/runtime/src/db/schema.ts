@@ -2,6 +2,7 @@ import {
   CONNECTION_AUDIENCES,
   CONNECTION_SIGN_INS,
   type ConnectionRules,
+  MAILBOX_ERRORS,
 } from "@engenty/wizards-shared/connectors";
 import { upgradeDefinition, type WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
@@ -1583,6 +1584,13 @@ export const spaceConnection = sqliteTable(
     actions: text("actions", { mode: "json" }).$type<string[]>().notNull().default([]),
     /** A `space` sign-in's tokens or keys, sealed; the broker alone unseals them. */
     secret: text("secret"),
+    /**
+     * How far the runtime may use the account for nobody in particular. `read_only`: an admin
+     * agreed that its mailbox is read while a run waits for mail. Off until then.
+     */
+    autonomousMode: text("autonomous_mode", { enum: ["off", "read_only", "full"] })
+      .notNull()
+      .default("off"),
     setUpBy: text("set_up_by"),
     setUpAt: integer("set_up_at", { mode: "timestamp_ms" }).notNull().default(now),
     updatedAt: updatedAt(),
@@ -1590,6 +1598,28 @@ export const spaceConnection = sqliteTable(
   },
   (t) => [index("space_connection_space").on(t.spaceId)],
 );
+
+/**
+ * How far a mailbox was read (`engine/mail-watch.ts`), one row per connection that an admin
+ * switched on. Goes when the switch goes off or another account signs in.
+ */
+export const mailCursor = sqliteTable("mail_cursor", {
+  connectionId: text("connection_id")
+    .primaryKey()
+    .references(() => spaceConnection.id, { onDelete: "cascade" }),
+  /** The provider's own place in the mailbox; null: from `since`. */
+  cursor: text("cursor"),
+  /** When it was switched on: mail from before that is not the runtime's to read. */
+  since: integer("since", { mode: "timestamp_ms" }).notNull(),
+  /** Not read again before this: another runner has it, or the last try failed. */
+  nextAt: integer("next_at", { mode: "timestamp_ms" }),
+  /** When it was last read. */
+  readAt: integer("read_at", { mode: "timestamp_ms" }),
+  /** Why the last try failed, one of `MAILBOX_ERRORS`. */
+  error: text("error", { enum: MAILBOX_ERRORS }),
+  /** Tries that failed in a row: each waits longer. */
+  failures: integer("failures").notNull().default(0),
+});
 
 /** A person's own sign-in to a connection in which each person signs in. `secret` is sealed. */
 export const spaceConnectionSignIn = sqliteTable(
@@ -1618,7 +1648,7 @@ export const brokerLog = sqliteTable(
     id: text("id").primaryKey(),
     at: integer("at", { mode: "timestamp_ms" }).notNull(),
     durationMs: integer("duration_ms").notNull(),
-    /** guest, person, admin, goose, plugin, step. */
+    /** guest, person, admin, goose, plugin, step, runtime. */
     whoKind: text("who_kind").notNull(),
     whoId: text("who_id"),
     runId: text("run_id"),

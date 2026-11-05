@@ -15,6 +15,7 @@ import {
   isOtherwise,
   isRealLanguage,
   langName,
+  MAIL_SIGNAL,
   MESSAGE_SIGNAL,
   type NextRule,
   outputKeys,
@@ -1912,7 +1913,13 @@ function SignalWait({
   set: (next: typeof signal) => void;
 }) {
   const source =
-    signal.name === MESSAGE_SIGNAL ? "person" : signal.name === RUN_DONE_SIGNAL ? "run" : "service";
+    signal.name === MESSAGE_SIGNAL
+      ? "person"
+      : signal.name === RUN_DONE_SIGNAL
+        ? "run"
+        : signal.name === MAIL_SIGNAL
+          ? "mail"
+          : "service";
   const lasts = /^(\d+)([mhd])$/.exec(signal.timeout ?? "");
   const unit = (lasts?.[2] ?? "d") as (typeof WAIT_UNITS)[number];
   const unitLabel = {
@@ -1932,12 +1939,15 @@ function SignalWait({
             set({ ...signal, name: MESSAGE_SIGNAL, key: "person" });
           } else if (v === "run") {
             set({ ...signal, name: RUN_DONE_SIGNAL, key: "{{run}}" });
+          } else if (v === "mail") {
+            set({ ...signal, name: MAIL_SIGNAL, key: "{{email}}" });
           } else {
             set({ ...signal, name: "event", key: "{{email}}" });
           }
         }}
         options={[
           { value: "service", label: t("inspector.waitFromService") },
+          { value: "mail", label: t("inspector.waitFromMail") },
           { value: "person", label: t("inspector.waitFromPerson") },
           { value: "run", label: t("inspector.waitFromRun") },
         ]}
@@ -1966,8 +1976,17 @@ function SignalWait({
             onChange={(e) => e.target.value && set({ ...signal, key: e.target.value })}
           />
           <p className="text-[0.8125rem] text-ink-3">
-            {t(source === "run" ? "inspector.waitRunHint" : "inspector.waitKeyHint")}
+            {t(
+              source === "run"
+                ? "inspector.waitRunHint"
+                : source === "mail"
+                  ? "inspector.waitMailHint"
+                  : "inspector.waitKeyHint",
+            )}
           </p>
+          {source === "mail" ? (
+            <p className="text-[0.8125rem] text-ink-3">{t("inspector.waitMailOn")}</p>
+          ) : null}
         </>
       )}
       <Label>{t("inspector.waitDeadline")}</Label>

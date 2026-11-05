@@ -219,6 +219,7 @@ import {
   makeSignalAddress,
   sendTestSignal,
   signalAddress,
+  wizardMailboxes,
 } from "../services/signals.js";
 import {
   addCategoryValue,
@@ -1695,6 +1696,9 @@ export const studio = new Hono<Vars>()
     await dropSignalAddress(c.get("user").id, c.req.param("id"));
     return c.json({ ok: true });
   })
+  .get("/wizards/:id/mailboxes", async (c) =>
+    c.json(await wizardMailboxes(c.get("user"), c.req.param("id"))),
+  )
   .post("/wizards/:id/runs/:runId/test-signal", async (c) =>
     c.json(await sendTestSignal(c.get("user").id, c.req.param("id"), c.req.param("runId"))),
   )

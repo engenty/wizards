@@ -175,6 +175,8 @@ async function subjectsOfWho(who: Who): Promise<Subject[]> {
       return who.for ? subjectsOfWho(who.for) : [];
     case "plugin":
       return who.id ? [{ kind: "plugin", id: who.id }] : [];
+    case "runtime":
+      return [];
   }
 }
 

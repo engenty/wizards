@@ -12,6 +12,7 @@ export {
   type BrokerResult,
   brokerCall,
   brokerConnected,
+  brokerPullStream,
   brokerSecret,
   type Decision,
   decide,

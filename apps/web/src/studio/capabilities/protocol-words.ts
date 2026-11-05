@@ -67,6 +67,7 @@ export const RULE_WORDS: Record<string, Key> = {
   policy: "protocol.rule.policy",
   read: "protocol.rule.read",
   own_job: "protocol.rule.own_job",
+  autonomous_mode: "protocol.rule.autonomous_mode",
   guest_send: "protocol.rule.guest_send",
 };
 
@@ -183,6 +184,8 @@ export function whoWord(who: ProtocolLine["who"]): string {
       return who.name ? t("protocol.who.gooseFor", { name: who.name }) : t("protocol.who.goose");
     case "plugin":
       return t("protocol.who.plugin", { name: who.id ?? "" });
+    case "runtime":
+      return t("protocol.who.runtime");
     case "step":
       if (!who.for) {
         return t("protocol.who.step");
@@ -252,6 +255,8 @@ export function actionWord(line: Pick<ProtocolLine, "actionId" | "actionName">):
       return t("protocol.action.request");
     case "read_secret":
       return t("protocol.action.readSecret");
+    case "pull_stream":
+      return t("protocol.action.pullStream");
     case "send_message":
       return line.actionName ?? t("protocol.action.sendMail");
     default:

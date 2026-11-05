@@ -116,7 +116,7 @@ const day = (iso: string) =>
   new Intl.DateTimeFormat(lang, { dateStyle: "medium" }).format(new Date(iso));
 
 /** „vor 2 Stunden“: how long ago, in the largest unit that fits. */
-function ago(iso: string): string {
+export function ago(iso: string): string {
   const seconds = Math.round((Date.parse(iso) - Date.now()) / 1000);
   const format = new Intl.RelativeTimeFormat(lang, { numeric: "auto" });
   const units: [Intl.RelativeTimeFormatUnit, number][] = [

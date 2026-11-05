@@ -6,6 +6,7 @@ import {
   CONNECTION_SIGN_INS,
   type ConnectionRules,
   DEFAULT_CONNECTION_RULES,
+  type MailboxView,
   type SpaceConnectionView,
 } from "@engenty/wizards-shared/connectors";
 import type { Lang } from "@engenty/wizards-shared/definition";
@@ -79,6 +80,8 @@ export const connectionPatchSchema = z.object({
   audience: z.enum(CONNECTION_AUDIENCES).optional(),
   rules: rulesSchema.optional(),
   actions: z.array(z.string().max(200)).max(200).optional(),
+  /** `read_only`: an admin agrees that its mailbox is read while a run waits for mail. */
+  autonomousMode: z.enum(["off", "read_only"]).optional(),
 });
 
 export type NewConnection = z.infer<typeof newConnectionSchema>;
@@ -223,6 +226,38 @@ export async function spaceConnectionViews(
   );
 }
 
+/**
+ * The mailboxes of the space whose mail can wake a run: connections that sign in as the space, to
+ * a connector with a stream of messages. A member sees those within their audience.
+ */
+export async function mailboxesOf(spaceId: string, who: Who): Promise<MailboxView[]> {
+  const rows = await listSpaceConnections(spaceId);
+  const views: MailboxView[] = [];
+  for (const row of rows) {
+    const connector = (await resolveConnector(spaceId, row.connectorId))?.connector;
+    if (
+      row.signIn !== "space" ||
+      !row.secret ||
+      !connector?.stream ||
+      !inAudience(row.audience, who)
+    ) {
+      continue;
+    }
+    const cursor = await db.query.mailCursor.findFirst({
+      where: eq(schema.mailCursor.connectionId, row.id),
+    });
+    views.push({
+      id: row.id,
+      name: row.name,
+      account: row.label ?? connector.name,
+      on: row.autonomousMode !== "off",
+      readAt: cursor?.readAt?.toISOString() ?? null,
+      error: cursor?.error ?? null,
+    });
+  }
+  return views;
+}
+
 // --- setting up, admins only -----------------------------------------------------------------
 
 /** The actions named exist on the connector. */
@@ -287,6 +322,11 @@ export async function updateSpaceConnection(
     patch.actions !== undefined
       ? knownActions(await connectorOfRow(row), patch.actions)
       : undefined;
+  const switched =
+    patch.autonomousMode !== undefined && patch.autonomousMode !== row.autonomousMode;
+  if (switched && !(row.signIn === "space" && (await connectorOfRow(row)).stream)) {
+    throw new ServiceError("invalid", note("connectionNoMailbox"));
+  }
   const [updated] = await db
     .update(schema.spaceConnection)
     .set({
@@ -294,15 +334,23 @@ export async function updateSpaceConnection(
       ...(patch.audience !== undefined ? { audience: patch.audience } : {}),
       ...(patch.rules !== undefined ? { rules: patch.rules } : {}),
       ...(actions !== undefined ? { actions } : {}),
+      ...(patch.autonomousMode !== undefined ? { autonomousMode: patch.autonomousMode } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.spaceConnection.id, row.id))
     .returning();
+  if (switched) {
+    // Agreed from now on: what came before, or while it was off, stays unread.
+    await forgetMailCursor(row.id);
+    if (updated.autonomousMode !== "off") {
+      await db.insert(schema.mailCursor).values({ connectionId: row.id, since: new Date() });
+    }
+  }
   // Who may use it, and what each kind of action may do: a change there is heard of.
   const rulesChanged =
     patch.rules !== undefined && JSON.stringify(patch.rules) !== JSON.stringify(row.rules);
   const audienceChanged = patch.audience !== undefined && patch.audience !== row.audience;
-  if (rulesChanged || audienceChanged) {
+  if (rulesChanged || audienceChanged || switched) {
     await logRuleChange({
       userId,
       spaceId: row.spaceId,
@@ -310,10 +358,18 @@ export async function updateSpaceConnection(
       summary: {
         ...(audienceChanged ? { audience: `${row.audience} → ${updated.audience}` } : {}),
         ...(rulesChanged ? { rules: changedRules(row.rules, updated.rules) } : {}),
+        ...(switched
+          ? { autonomousMode: `${row.autonomousMode} → ${updated.autonomousMode}` }
+          : {}),
       },
       reason: [
         audienceChanged ? `The audience is now ${updated.audience}.` : "",
         rulesChanged ? `The rules changed: ${changedRules(row.rules, updated.rules)}.` : "",
+        switched
+          ? updated.autonomousMode === "off"
+            ? "Its mailbox is no longer read on its own."
+            : "Its mailbox is read while a run waits for mail."
+          : "",
       ]
         .filter(Boolean)
         .join(" "),
@@ -321,6 +377,9 @@ export async function updateSpaceConnection(
   }
   return updated;
 }
+
+const forgetMailCursor = (connectionId: string) =>
+  db.delete(schema.mailCursor).where(eq(schema.mailCursor.connectionId, connectionId));
 
 /** "write: ask → allow, send: ask → deny" */
 function changedRules(before: ConnectionRules, after: ConnectionRules): string {
@@ -369,10 +428,20 @@ async function keepSignIn(
   stored: StoredTokens,
 ): Promise<void> {
   if (as.as === "space") {
+    // An admin agreed to reading that account: another one is not agreed to, nor its cursor valid.
+    const another = label !== row.label;
     await db
       .update(schema.spaceConnection)
-      .set({ secret: seal(stored), label, updatedAt: new Date() })
+      .set({
+        secret: seal(stored),
+        label,
+        updatedAt: new Date(),
+        ...(another ? { autonomousMode: "off" as const } : {}),
+      })
       .where(eq(schema.spaceConnection.id, row.id));
+    if (another) {
+      await forgetMailCursor(row.id);
+    }
     return;
   }
   await db
@@ -564,8 +633,9 @@ export async function removeSignIn(id: string, as: SignInAs): Promise<void> {
     await requireAdmin();
     await db
       .update(schema.spaceConnection)
-      .set({ secret: null, label: null, updatedAt: new Date() })
+      .set({ secret: null, label: null, autonomousMode: "off", updatedAt: new Date() })
       .where(eq(schema.spaceConnection.id, row.id));
+    await forgetMailCursor(row.id);
     return;
   }
   await db

@@ -121,7 +121,7 @@ const RANGE_MS: Record<Exclude<Range, "all">, number> = {
   month: 30 * 86_400_000,
 };
 
-const WHO_KINDS = ["guest", "person", "admin", "goose", "plugin", "step"] as const;
+const WHO_KINDS = ["guest", "person", "admin", "goose", "plugin", "step", "runtime"] as const;
 
 /** Lines per page. */
 const PAGE = 50;
