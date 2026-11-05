@@ -347,11 +347,19 @@ describe("the Protokoll's log", () => {
     await inTenant(() => service.removeSpaceConnection("user-a", smtp.id));
   });
 
-  it("is for the admins: a member gets 403", async () => {
+  it("keeps „Was darf …?“ for the admins, and gives a member their own lines of the log", async () => {
     const app = await appAs("member");
-    for (const path of ["broker/log", "broker/choices", "broker/log/x"]) {
+    for (const path of ["broker/choices", `broker/ask?who=person&resource=${connection}&action=list_contacts`]) {
       expect((await get(app, `/spaces/${space}/${path}`)).status).toBe(403);
     }
+    // Julia's nine; the guest's line and the step of the guest's run are not hers
+    // (broker-protocol-members.test.ts has the rest).
+    const own = await get(app, `/spaces/${space}/broker/log`);
+    expect(own.status).toBe(200);
+    expect(own.body.lines).toHaveLength(9);
+    expect(new Set(own.body.lines.map((l: any) => `${l.who.kind}:${l.who.id}`))).toEqual(
+      new Set(["person:user-j"]),
+    );
   });
 });
 
