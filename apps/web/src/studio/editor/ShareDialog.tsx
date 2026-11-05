@@ -1373,6 +1373,7 @@ function SharePanel({
   const account = useFeature("account");
   const wordpress = useFeature("wordpress");
   const startsOn = useFeature("startTriggers");
+  const durableOn = useFeature("durableRuns");
   const me = useMe();
   const local = me.data?.mode === "local";
   // A local install with an account sends what it publishes on to the account's cloud.
@@ -1588,6 +1589,9 @@ function SharePanel({
               </PluginFrame>
             ) : null}
             {here && wizard.published ? <LocalOffer account={account} /> : null}
+            {durableOn && local && !linked ? (
+              <p className="text-[0.8125rem] text-ink-3">{t("share.noMailHere")}</p>
+            ) : null}
             {linked && wizard.published ? (
               <CloudProblem wizard={wizard} where={where} cloud={cloud.data} />
             ) : null}

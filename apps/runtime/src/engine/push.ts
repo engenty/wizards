@@ -1,6 +1,7 @@
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { eq } from "drizzle-orm";
 import { control, controlDb, db, schema } from "../db/client.js";
+import { currentFeatures } from "../features.js";
 import { managed, pushToDevice } from "../manage.js";
 import { currentTenant } from "../tenants/tenant.js";
 
@@ -38,33 +39,54 @@ export async function setPushDevice(runId: string, device: PushDevice | null) {
     .where(eq(control.runIndex.runId, runId));
 }
 
-/** Tells the run's device, if the app gave one; never fails the run. */
+/** The run's own person has its page in view. */
+export async function setRunViewed(runId: string) {
+  await controlDb
+    .update(control.runIndex)
+    .set({ viewedAt: new Date() })
+    .where(eq(control.runIndex.runId, runId));
+}
+
+/** Tells the run's device, if the app gave one. A failure comes back to the caller. */
+export async function pushToRunDevice(
+  run: { id: string; definition: { title: string } },
+  kind: PushKind,
+) {
+  const row = await controlDb.query.runIndex.findFirst({
+    where: eq(control.runIndex.runId, run.id),
+  });
+  const device = row?.push;
+  if (!device) {
+    return;
+  }
+  await pushToDevice({
+    tenantId: currentTenant(),
+    device: { token: device.token, platform: device.platform },
+    title: run.definition.title,
+    body: TEXT[device.lang][kind],
+    data: { runId: run.id, kind },
+  });
+  // An ended run has nothing more to say.
+  if (kind === "done" || kind === "failed") {
+    await setPushDevice(run.id, null);
+  }
+}
+
+/**
+ * Tells the run's device at once; never fails the run. With `durableRuns` the notice's row does
+ * it (engine/notices.ts), so someone looking at the run is not told and a crash loses nothing.
+ */
 export async function pushRun(runId: string, kind: PushKind) {
   if (!managed) {
     return;
   }
   try {
-    const row = await controlDb.query.runIndex.findFirst({
-      where: eq(control.runIndex.runId, runId),
-    });
-    const device = row?.push;
-    if (!device) {
+    if ((await currentFeatures()).durableRuns) {
       return;
     }
     const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
-    if (!run) {
-      return;
-    }
-    await pushToDevice({
-      tenantId: currentTenant(),
-      device: { token: device.token, platform: device.platform },
-      title: run.definition.title,
-      body: TEXT[device.lang][kind],
-      data: { runId, kind },
-    });
-    // An ended run has nothing more to say.
-    if (kind === "done" || kind === "failed") {
-      await setPushDevice(runId, null);
+    if (run) {
+      await pushToRunDevice(run, kind);
     }
   } catch (err) {
     console.error("[push]", (err as Error).message);

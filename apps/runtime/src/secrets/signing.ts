@@ -75,3 +75,27 @@ export function runViewTicketValid(runId: string, ticket: string | undefined): b
   }
   return sameSignature(`run-view:${runId}|${exp}`, sig);
 }
+
+/**
+ * The ticket in a visitor's mail while their run waits: it reads the run and answers it, and
+ * nothing else (`accessibleRun`'s `waiting`). It lasts as long as the wait can, so it opens less
+ * than `runTicket`. `until` comes from the run, so the same mail signs the same link again.
+ */
+export function runWaitTicket(runId: string, until: Date): string {
+  const exp = String(Math.floor(until.getTime() / 1000));
+  return `${exp}.${sign(`run-wait:${runId}|${exp}`)}`;
+}
+
+export function runWaitTicketValid(runId: string, ticket: string | undefined): boolean {
+  const [exp, sig] = (ticket ?? "").split(".");
+  if (!exp || !sig || Number(exp) * 1000 < Date.now()) {
+    return false;
+  }
+  return sameSignature(`run-wait:${runId}|${exp}`, sig);
+}
+
+/** `runViewTicket` for a mail about a run's end: it lasts as long as the run is kept. */
+export function runViewTicketUntil(runId: string, until: Date): string {
+  const exp = String(Math.floor(until.getTime() / 1000));
+  return `${exp}.${sign(`run-view:${runId}|${exp}`)}`;
+}

@@ -526,7 +526,7 @@ export async function controlRun(
   action: "back" | "retry" | "cancel",
 ) {
   await ownedRun(userId, runId);
-  const command = { back: goBack, retry, cancel }[action];
+  const command = { back: (id: string) => goBack(id, { userId }), retry, cancel }[action];
   await command(runId).catch(refusedInput);
 }
 

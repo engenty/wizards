@@ -73,6 +73,8 @@ export const runIndex = sqliteTable(
       platform: "ios" | "android";
       lang: Lang;
     }>(),
+    /** The run's own person last had its page in view (`POST /api/runs/:id/seen`). */
+    viewedAt: integer("viewed_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
   },
   (t) => [

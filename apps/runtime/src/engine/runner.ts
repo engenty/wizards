@@ -45,7 +45,7 @@ import type { StartEvent, StartedBy } from "@engenty/wizards-shared/starts";
 import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
 import { machineTranslated, translateDefinition } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, lt, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
 import { grantNote, grantOf, type KnownConnector, kindOf } from "../broker/index.js";
@@ -106,7 +106,7 @@ import { decide } from "./decide.js";
 import { clearDeviceCalls } from "./device.js";
 import { emitEvent, recentEvents, signalChanged } from "./events.js";
 import { type InputError, type PageContext, readPageInput } from "./input.js";
-import { noticeOwner } from "./notices.js";
+import { type Actor, type NoticeKind, noticeFor, noticeWrites } from "./notices.js";
 import { pushRun } from "./push.js";
 import {
   blockingMessage,
@@ -222,6 +222,45 @@ async function dataSpaceOf(run: RunRow, space: SpaceRow): Promise<{ id: string; 
   return client;
 }
 
+/** The statuses that tell someone, and what the notice says. */
+const TOLD: Partial<Record<RunRow["status"], NoticeKind>> = {
+  waiting_input: "needs_you",
+  done: "done",
+  failed: "failed",
+};
+
+/** The notice a status change writes, if it tells anyone. A notice never breaks a run. */
+async function noticeOfStatus(
+  runId: string,
+  patch: Partial<typeof schema.run.$inferInsert>,
+  by?: Actor,
+) {
+  const kind = patch.status && TOLD[patch.status];
+  if (!kind) {
+    return null;
+  }
+  try {
+    const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+    if (!run) {
+      return null;
+    }
+    const cursor = patch.cursor === undefined ? run.cursor : patch.cursor;
+    return await noticeFor(run, kind, {
+      by,
+      waitKey: kind === "needs_you" && cursor ? `step:${cursor}` : null,
+      detail:
+        kind === "needs_you"
+          ? stepOf(run.definition, cursor)?.title
+          : kind === "failed"
+            ? (patch.error ?? run.error)
+            : null,
+    });
+  } catch (err) {
+    console.error(`[notices] run ${runId}:`, err);
+    return null;
+  }
+}
+
 /**
  * Writes the run. Inside its drive the write needs the drive's claim; with `seen`, a person's write
  * needs the `rev` it read. A step may start or answer other runs: only its own run's claim counts.
@@ -230,19 +269,24 @@ async function updateRun(
   runId: string,
   patch: Partial<typeof schema.run.$inferInsert>,
   seen?: { rev: number },
+  by?: Actor,
 ) {
   const holder = driving.getStore();
   const held = holder?.runId === runId ? holder : undefined;
-  const result = await db
+  const where = and(
+    eq(schema.run.id, runId),
+    held ? eq(schema.run.claim, held.generation) : undefined,
+    seen ? eq(schema.run.rev, seen.rev) : undefined,
+  ) as SQL;
+  const write = db
     .update(schema.run)
     .set({ ...patch, rev: sql`${schema.run.rev} + 1`, updatedAt: new Date() })
-    .where(
-      and(
-        eq(schema.run.id, runId),
-        held ? eq(schema.run.claim, held.generation) : undefined,
-        seen ? eq(schema.run.rev, seen.rev) : undefined,
-      ),
-    );
+    .where(where);
+  // The notice goes in with the status: both happen, or neither.
+  const notice = await noticeOfStatus(runId, patch, by);
+  const result = notice
+    ? (await db.batch([...noticeWrites(notice, where), write]))[2]
+    : await write;
   if (result.rowsAffected === 0) {
     if (held) {
       throw new LostClaim();
@@ -399,7 +443,7 @@ export async function createRun(input: {
   }
   // What the run may reach outside, from the definition it starts on: fixed here, never widened.
   const grant = grantOf(input.definition);
-  const inserted = await db
+  const insert = db
     .insert(schema.run)
     .values({
       id,
@@ -433,6 +477,30 @@ export async function createRun(input: {
           : null,
     })
     .onConflictDoNothing({ target: [schema.run.wizardId, schema.run.occurrence] });
+  // Whoever starts a run stands on its first page: today that tells nobody, by `noticeFor`'s rule.
+  const notice = waits
+    ? await noticeFor(
+        {
+          id,
+          wizardId: input.wizardId,
+          userId: input.userId ?? null,
+          visitorId: input.visitorId ?? null,
+          runner: input.runner ?? null,
+          unattended: input.unattended ?? false,
+          impersonatedBy: currentImpersonator()?.adminId ?? null,
+          startedBy: input.startedBy ?? null,
+        },
+        "needs_you",
+        {
+          detail: first.title,
+          waitKey: `step:${first.id}`,
+          by: { userId: input.userId, visitorId: input.visitorId },
+        },
+      )
+    : null;
+  const inserted = notice
+    ? (await db.batch([insert, ...noticeWrites(notice, eq(schema.run.id, id))]))[0]
+    : await insert;
   if (inserted.rowsAffected === 0) {
     await releaseRun(id);
     throw new OccurrenceTaken();
@@ -809,9 +877,6 @@ async function askOf(
     const start = await startOf(run);
     return start?.allowChanges ? { type: "done" } : null;
   }
-  if (run.startedBy) {
-    void noticeOwner(run, "needs_you", ask.kind === "login" ? ask.site.host : null);
-  }
   return askPerson(run.id, { ...ask, stepId }, signal);
 }
 
@@ -1058,7 +1123,6 @@ async function drive(runId: string, signal: AbortSignal) {
       const cursor = await passStep(run, step, state);
       if (cursor === undefined) {
         await updateRun(runId, { status: "waiting_input" });
-        void noticeOwner(run, "needs_you", step.title);
         return;
       }
       await updateRun(runId, { state, cursor, status: cursor ? "running" : "done", error: null });
@@ -1359,7 +1423,7 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
   kick(runId);
 }
 
-export async function goBack(runId: string) {
+export async function goBack(runId: string, by?: Actor) {
   const run = await loadRun(runId);
   if (
     !run ||
@@ -1374,7 +1438,12 @@ export async function goBack(runId: string) {
   }
   // A decision that failed belongs to the step left behind.
   delete state.deciding;
-  await updateRun(runId, { state, cursor: previous, status: "waiting_input", error: null }, run);
+  await updateRun(
+    runId,
+    { state, cursor: previous, status: "waiting_input", error: null },
+    run,
+    by,
+  );
 }
 
 export async function retry(runId: string) {

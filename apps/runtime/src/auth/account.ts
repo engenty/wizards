@@ -1,6 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 import { env } from "../env.js";
-import { discovery, type TokenSet, tokenRequest, unverifiedClaims } from "../manage.js";
+import {
+  discovery,
+  ManageError,
+  type RunMail,
+  type TokenSet,
+  tokenRequest,
+  unverifiedClaims,
+} from "../manage.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { vaultDelete, vaultGet, vaultSet } from "../secrets/vault.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
@@ -277,4 +284,30 @@ export async function accountOverview(): Promise<{
     void import("../plugins/pro.js").then((pro) => pro.followPlan(tenant));
   }
   return overview;
+}
+
+/**
+ * A run mail from a computer with an account, to that account's own address. Null without one:
+ * a computer on its own sends no mail. A refusal comes back as a `ManageError`.
+ */
+export async function accountRunMail(mail: RunMail): Promise<{ sent: boolean } | null> {
+  const token = await accountToken();
+  if (!token) {
+    return null;
+  }
+  const res = await fetch(`${env.local.accountUrl}/v1/me/run-mail`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify(mail),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    sent?: boolean;
+    code?: string;
+    error?: string;
+  };
+  if (!res.ok) {
+    throw new ManageError(res.status, data.code ?? "error", data.error ?? `Account ${res.status}`);
+  }
+  return { sent: data.sent ?? true };
 }
