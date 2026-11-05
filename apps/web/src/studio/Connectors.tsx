@@ -33,10 +33,13 @@ function Builtin({ connector }: { connector: ConnectorView }) {
         </span>
         <span className="shrink-0 text-[0.75rem] text-ink-3">
           {connector.usable
-            ? t("connectors.actions", {
-                n: connector.actions.length,
-                r: connector.actions.filter((a) => a.group === "read").length,
-              })
+            ? t(
+                connector.actions.length === 1 ? "connectors.actions.one" : "connectors.actions.n",
+                {
+                  n: connector.actions.length,
+                  r: connector.actions.filter((a) => a.group === "read").length,
+                },
+              )
             : t("connectors.notSetUp")}
         </span>
       </button>
@@ -105,10 +108,15 @@ function Imported({
             {t(AUTH_LABEL[connector.auth] as "connectors.authNone")} ·{" "}
             {connector.toolsPending
               ? t("connectors.pending")
-              : t("connectors.actions", {
-                  n: connector.actions.length,
-                  r: reads,
-                })}
+              : t(
+                  connector.actions.length === 1
+                    ? "connectors.actions.one"
+                    : "connectors.actions.n",
+                  {
+                    n: connector.actions.length,
+                    r: reads,
+                  },
+                )}
           </div>
         </button>
         {readOnly ? null : (

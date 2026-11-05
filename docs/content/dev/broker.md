@@ -1,7 +1,7 @@
 ---
 title: The broker
 description: The one path every connector call takes in engenty wizards – who calls, what decides, what a run may reach, what is logged and heard, the RWX rules and the routes the studio uses.
-version: 0.13.0
+version: 0.16.2
 ---
 
 Every call a wizard step, a Work chat, Goose, a share target or a plugin makes to a connected
@@ -259,7 +259,8 @@ name it, no helper builds it from a request, `decideWith` knows it only by ident
 
 The `capabilities` switch is on by default. It shows the studio’s Capabilities place, opens
 `/spaces/:id/discover` and makes the rule „Mitglieder dürfen ins Studio“ count. It does not turn
-on RWX.
+on RWX. The routes for connections, rules and the broker (`/connections`, `/rules`, `/broker/*`)
+don’t read the switch: with it off they still answer, and only the studio’s pages for them hide.
 
 ## Routes
 

@@ -172,7 +172,7 @@ function criticalLink(line: CriticalItem): string | null {
     return `/work/c/${line.chatId}`;
   }
   if (line.wizardId) {
-    return `/wizards/${line.wizardId}${line.runId ? `?run=${line.runId}` : ""}`;
+    return `/edit/${line.wizardId}${line.runId ? `?run=${line.runId}` : ""}`;
   }
   return null;
 }

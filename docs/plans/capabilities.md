@@ -400,8 +400,6 @@ Not built or not verified, as the sessions reported:
   `/api/v1/sync` and `/sync/live` still list closed spaces; MCP's `run_wizard` and `get_run`
   stay open, as Work runs wizards in every space.
 - Signing in as each person is not gated to the Team plan (B2, B3).
-- The Work bell's link to a run, `/wizards/:id?run=`, is no route; the Protokoll uses
-  `/edit/:id?run=` (B5).
 - A5 converted the old plugin connections with the audience „alle“: guests reach them until an
   admin narrows them.
 - Isolated instances (A8), the company sign-in (Roadmap) and a page for the RWX rules are not built.
