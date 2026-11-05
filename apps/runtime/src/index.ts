@@ -141,6 +141,17 @@ if (env.serves.studio) {
       console.error(`[space-index ${id}]`, err),
     );
   }
+  // The embedding model can change at any time on a Manage-App: vectors of another don't compare.
+  const { queueVectors } = await import("./services/space-index.js");
+  const vectors = async () => {
+    for (const id of await knownTenants()) {
+      await withTenant(id, () => queueVectors());
+    }
+  };
+  setInterval(
+    () => void vectors().catch((err) => console.error("[space-index]", err)),
+    600_000,
+  ).unref();
 }
 // Dateien: the folders of this computer mounted in a space, watched and listed again.
 if (env.serves.studio) {
