@@ -22,6 +22,7 @@ import { markAgent, presentIn } from "../services/presence.js";
 import {
   answerRunAsk,
   answerRunPage,
+  answerRunQuestion,
   controlRun,
   reviewRun,
   runReport,
@@ -841,6 +842,22 @@ export function registerTools(server: McpServer, who: Principal) {
     },
     async ({ runId, askId, answer, waitSeconds }) => {
       await answerRunAsk(who.userId, runId, askId, answer);
+      return runReport(who.userId, runId, waitSeconds);
+    },
+  );
+
+  tool(
+    "answer_question",
+    "runs:test",
+    {
+      title: "Answer a step's question",
+      description: prompt("mcp", "tool.answer_question"),
+      input: z.object({ runId: z.string(), answer: z.string().min(1), waitSeconds }),
+      destructive: false,
+      openWorld: true,
+    },
+    async ({ runId, answer, waitSeconds }) => {
+      await answerRunQuestion(who.userId, runId, answer);
       return runReport(who.userId, runId, waitSeconds);
     },
   );

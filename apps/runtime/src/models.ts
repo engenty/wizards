@@ -986,6 +986,15 @@ export function attachTools(
   }
 }
 
+/** A model whose tool loop runs in a process of its own: an installed client, the run's device. */
+export function keepsOwnLoop(resolved: ResolvedModel<unknown>): boolean {
+  return (
+    resolved.model instanceof HarnessModel ||
+    resolved.model instanceof DeviceModel ||
+    isHarnessVendor(resolved.vendor)
+  );
+}
+
 /** Whether the model can call tools: an installed client that runs none cannot. */
 export function takesTools(resolved: ResolvedModel<unknown>): boolean {
   return !(resolved.model instanceof HarnessModel) || resolved.model.takesTools;

@@ -355,7 +355,8 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
             .join(" ")
             .slice(0, 1100),
           inputSchema: action.inputSchema as z.ZodType<any>,
-          execute: (input, context) => call(action, input, toolCallIdOf(context)),
+          execute: (input, context) =>
+            call(action, input, toolCallIdOf(context, `${prefix}_${action.id}`, input)),
         }),
       ]),
     );
@@ -403,7 +404,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
       execute: ({ action: id, input }, context) => {
         const action = usable.find((a) => a.id === id);
         return action
-          ? call(action, input, toolCallIdOf(context))
+          ? call(action, input, toolCallIdOf(context, `${prefix}_${action.id}`, input))
           : Promise.resolve({ error: `No action "${id}". Use ${prefix}_actions to find one.` });
       },
     }),

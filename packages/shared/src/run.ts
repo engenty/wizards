@@ -63,6 +63,21 @@ export interface StepOutput {
   at: string;
 }
 
+/** A durable agent step's turn, on the row: whoever goes on with the run finds it here. */
+export interface RunTurn {
+  stepId: string;
+  /** The run of the turn in Mastra's store: `<run>.<random>`, so its snapshots go with the run. */
+  id: string;
+  /** What the turn last asked the person. */
+  question?: string;
+  /** Their answer to `question`, kept until the turn has gone on with it. */
+  answer?: string;
+  /** What the turn's tools made so far: a process that goes on no longer has them in memory. */
+  assets?: AssetRef[];
+  /** How the turn ended: Mastra has dropped its snapshot by then, so a repeat would start it over. */
+  end?: { text: string; closing: string };
+}
+
 export interface RunState {
   values: Record<string, unknown>;
   outputs: Record<string, StepOutput>;
@@ -116,6 +131,8 @@ export interface RunState {
   retries?: { step: string; count: number; since: string; told?: RunPause["kind"] };
   /** Why a run that sleeps is not at a `wait` step; gone once it wakes. */
   pause?: RunPause;
+  /** The durable agent step at work (engine/durable-turn.ts); gone when the step has finished. */
+  turn?: RunTurn;
 }
 
 /**
@@ -255,6 +272,10 @@ const NOTES_EN = {
   attaches: "Attaching {name}",
   runs: "Running: {command}",
   noSandbox: "Working without the sandbox – this run can’t run code",
+  noDurable: "This step starts over after an interruption: its model can’t go on where it stopped",
+  turnWentOn: "Went on after an interruption",
+  turnAsked: "Asks you: {question}",
+  turnAnswered: "Goes on with your answer",
   // What the run may reach outside, from its grant (broker/grant.ts), as its log opens.
   grant: "This run may: {what}",
   grantReads: "read in {name}",
@@ -344,6 +365,8 @@ const NOTES_EN = {
   uploadNotItsType: "This file holds something other than its type says. Choose the file again.",
   uploadSvgNotUsable: "This SVG can’t be used. Save it again as a plain SVG, or choose a PNG.",
   askClosed: "This question is no longer open.",
+  toolCallIdRepeated:
+    "This model’s server repeats its tool call ids, so this step can’t keep track of what it did. Use another model for it, or switch off “Survives interruptions”.",
   noBrowser: "The wizard has no browser open right now.",
   notWaiting: "The wizard isn’t waiting for you right now.",
   pageActFailed: "That didn’t work on the page.",
@@ -717,6 +740,11 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   attaches: "Hängt {name} an",
   runs: "Führt aus: {command}",
   noSandbox: "Arbeitet ohne Sandbox – dieser Lauf kann keinen Code ausführen",
+  noDurable:
+    "Dieser Schritt beginnt nach einer Unterbrechung neu: sein Modell kann nicht dort weitermachen",
+  turnWentOn: "Nach einer Unterbrechung weitergemacht",
+  turnAsked: "Fragt dich: {question}",
+  turnAnswered: "Macht mit deiner Antwort weiter",
   grant: "Dieser Lauf darf: {what}",
   grantReads: "in {name} lesen",
   grantWrites: "in {name} schreiben",
@@ -811,6 +839,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "In dieser Datei steckt etwas anderes, als ihr Typ sagt. Wähl die Datei noch einmal.",
   uploadSvgNotUsable: "Dieses SVG geht nicht. Speicher es neu als einfaches SVG oder wähl ein PNG.",
   askClosed: "Diese Frage ist nicht mehr offen.",
+  toolCallIdRepeated:
+    "Der Server dieses Modells wiederholt seine Tool-Call-IDs, deshalb verliert dieser Schritt den Überblick über das, was er getan hat. Nimm ein anderes Modell oder schalte „Übersteht Unterbrechungen“ aus.",
   noBrowser: "Der Wizard hat gerade keinen Browser offen.",
   notWaiting: "Der Wizard wartet gerade nicht auf dich.",
   pageActFailed: "Das hat auf der Seite nicht geklappt.",
@@ -1349,6 +1379,8 @@ export interface RunView {
   brand: BrandView;
   /** What the running step asks the person right now. */
   ask: RunAsk | null;
+  /** What a durable step asks while the run waits for the person; apart from `ask`, which needs a step at work. */
+  question: string | null;
   /** Stored lists the current step shows (a page's list fields, a review, the result). */
   lists: ShownList[];
   /** The wizard's connections with what the person has connected. */

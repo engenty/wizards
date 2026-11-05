@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { createHash } from "node:crypto";
 import { createCodeMode, createTool, noopObserve, type ToolObserve } from "@mastra/core/tools";
 import { QuickJsCodeModeTransport } from "@mastra/quickjs";
 import type { z } from "zod";
@@ -49,14 +50,46 @@ export const CODE_LIMITS: CodeLimits = {
 /** The id of the tool, the way the model calls it. */
 export const CODE_TOOL_ID = "execute_typescript";
 
-const program = new AsyncLocalStorage<true>();
+/** The program a tool runs for: its own tool call id, and how often it called what so far. */
+interface ProgramCall {
+  id?: string;
+  seen: Map<string, number>;
+}
+const program = new AsyncLocalStorage<ProgramCall>();
 
 /**
  * Whether a tool is running for a program. Nobody can be asked from inside one: a tool that needs
  * the person's yes refuses there and tells the model to call it directly.
  */
 export function inProgram(): boolean {
-  return program.getStore() === true;
+  return program.getStore() !== undefined;
+}
+
+/**
+ * The id of the tool call a tool runs for. A tool called by a program has none of its own: it would
+ * read the program's, shared with every other call the program makes. So it gets the program's with
+ * what it calls and how often that was called before: a program that runs again, after a crash,
+ * comes to the same id in any order. `tool`, `input`: what the program calls.
+ */
+export function toolCallIdOf(
+  context: { agent?: { toolCallId?: string } } | undefined,
+  tool: string,
+  input: unknown,
+) {
+  const inside = program.getStore();
+  if (!inside) {
+    return context?.agent?.toolCallId;
+  }
+  if (!inside.id) {
+    return undefined;
+  }
+  const what = createHash("sha256")
+    .update(JSON.stringify([tool, input ?? null]))
+    .digest("hex")
+    .slice(0, 16);
+  const before = inside.seen.get(what) ?? 0;
+  inside.seen.set(what, before + 1);
+  return `${inside.id}/${what}/${before}`;
 }
 
 /**
@@ -127,8 +160,10 @@ function guarded(
   ctx: Pick<StepContext, "signal">,
   limits: CodeLimits,
   step: StepCount,
+  id: string | undefined,
 ) {
   let calls = 0;
+  const seen = new Map<string, number>();
   const slot = limiter(limits.maxParallel);
   return Object.fromEntries(
     Object.entries(tools).map(([key, tool]) => [
@@ -150,7 +185,7 @@ function guarded(
             throw new Error("The run was stopped.");
           }
           return slot(async () => {
-            const answer = await program.run(true, () => tool.execute(input, options));
+            const answer = await program.run({ id, seen }, () => tool.execute(input, options));
             const size = JSON.stringify(answer ?? null)?.length ?? 0;
             if (size > limits.answerChars) {
               throw new Error(
@@ -193,7 +228,16 @@ export function codeTool(
     execute: async (input, options) => {
       await ctx.emit("tool", { code: "runsProgram" });
       const run = createCodeMode(
-        { ...config, tools: guarded(reachable, ctx, limits, step) },
+        {
+          ...config,
+          tools: guarded(
+            reachable,
+            ctx,
+            limits,
+            step,
+            (options as { agent?: { toolCallId?: string } })?.agent?.toolCallId,
+          ),
+        },
         quickJs(),
       ).tool;
       let result: {

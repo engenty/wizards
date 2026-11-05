@@ -14,6 +14,7 @@ import { answerAsk } from "../engine/asks.js";
 import { watchRun } from "../engine/events.js";
 import { fieldErrorsIn } from "../engine/input.js";
 import {
+  answerTurn,
   cancel,
   createRun,
   GuestBudgetError,
@@ -198,6 +199,10 @@ export function runsApiFor(pluginId: string): PluginRuns {
           noteText({ code: "askClosed" }, wizardLang(run.definition)),
         );
       }
+    },
+    async answerQuestion(runId, answer) {
+      await pluginRun(runId);
+      await answerTurn(runId, answer).catch(refusedInput);
     },
     async control(runId, action) {
       await pluginRun(runId);

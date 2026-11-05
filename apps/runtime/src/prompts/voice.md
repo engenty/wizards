@@ -43,6 +43,9 @@ Asks the wizard to make one of the shown outputs again, with what should change.
 <!-- section: tool.answer_ask -->
 Answers the question a running step asks before it changes something in a connected account: allow it, or skip it.
 
+<!-- section: tool.answer_question -->
+Sends the person's answer to the question the step asked: the step goes on with it. Say it in their words.
+
 <!-- section: tool.look -->
 Takes a look through the person's camera right now: a picture of what they are showing arrives as the next message. Only while the camera is on; otherwise ask them to switch it on.
 

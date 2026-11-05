@@ -780,6 +780,7 @@ function StepBody({
   const readOnly = useContext(ReadOnly);
   // Tools the runtime's plugins add, listed by their full id next to the built-in ones.
   const pluginTools = useStudioPlugins().plugins.flatMap((plugin) => plugin.tools);
+  const durableRuns = useFeature("durableRuns");
   const earlierProducers = def.steps
     .slice(0, index)
     .filter(
@@ -920,6 +921,27 @@ function StepBody({
               value={step.working ?? ""}
               onChange={(e) => set({ ...step, working: e.target.value || undefined })}
             />
+            {durableRuns && !step.each && !step.call ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-[0.8125rem] text-ink-2">{t("inspector.durable")}</span>
+                  <p className="text-[0.75rem] text-ink-4">
+                    {step.tools.includes("browser") || step.tools.includes("sandbox")
+                      ? t("inspector.durableNot")
+                      : t("inspector.durableHint")}
+                  </p>
+                </div>
+                <Switch
+                  checked={Boolean(step.durable)}
+                  disabled={
+                    !step.durable &&
+                    (step.tools.includes("browser") || step.tools.includes("sandbox"))
+                  }
+                  label={t("inspector.durable")}
+                  onChange={(v) => set({ ...step, durable: v || undefined })}
+                />
+              </div>
+            ) : null}
           </Section>
         </>
       );
