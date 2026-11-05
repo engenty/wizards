@@ -15,7 +15,9 @@ export type ServiceErrorCode =
   /** Nothing is changed here: the space is a local install's, or the tenant builds elsewhere. */
   | "read_only"
   /** The person's role in the organization does not allow it: a member edits wizards, an admin makes and deletes. */
-  | "forbidden";
+  | "forbidden"
+  /** The organization's plan does not include it. */
+  | "plan";
 
 const STATUS: Record<ServiceErrorCode, 400 | 402 | 403 | 404 | 409> = {
   not_found: 404,
@@ -27,6 +29,7 @@ const STATUS: Record<ServiceErrorCode, 400 | 402 | 403 | 404 | 409> = {
   page_taken: 409,
   read_only: 403,
   forbidden: 403,
+  plan: 403,
 };
 
 export class ServiceError extends NotedError {

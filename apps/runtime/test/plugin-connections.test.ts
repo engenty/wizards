@@ -244,3 +244,29 @@ describe("plugin connections", () => {
     expect(await inTenant(() => cal().list(space))).toEqual([]);
   });
 });
+
+describe("each person signing in on a computer of one's own", () => {
+  it("is set up whatever a plan's switch says: there is no plan", async () => {
+    const features = await import("../src/features");
+    const service = await import("../src/connectors/space-connections");
+    features.writeFeature("personSignIn", false);
+    try {
+      expect(features.feature("personSignIn")).toBe(false);
+      expect(await service.personSignInAllowed()).toBe(true);
+      const row = await inTenant(() =>
+        service.createSpaceConnection("user-c", space, {
+          connectorId: "hubspot",
+          name: "Mein HubSpot",
+          signIn: "person",
+          audience: "members",
+          rules: { read: "allow", write: "ask", destructive: "deny", send: "ask" },
+          actions: [],
+        }),
+      );
+      expect(row.signIn).toBe("person");
+      await inTenant(() => service.removeSpaceConnection("user-c", row.id));
+    } finally {
+      features.writeFeature("personSignIn", null);
+    }
+  });
+});

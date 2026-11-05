@@ -3,11 +3,13 @@ import {
   CONNECTION_AUDIENCES,
   CONNECTION_LIMITS,
   CONNECTION_OUTCOMES,
+  CONNECTION_SIGN_INS,
   type ConnectionActionKind,
   type ConnectionAudience,
   type ConnectionOutcome,
   type ConnectionSignIn,
   type ConnectorView,
+  reachedByGuests,
   type SpaceConnectionView,
 } from "@engenty/wizards-shared/connectors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +20,7 @@ import { api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
 import { type Key, lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { initialsOf, useCurrentSpace, useIsAdmin } from "../../lib/session";
+import { initialsOf, useCurrentSpace, useIsAdmin, useMe } from "../../lib/session";
 import { Button, Card, Chip, cn, Empty, Input, Label, Select, Tabs } from "../../ui";
 import { scrollRoot } from "../AppFrame";
 import { Connectors } from "../Connectors";
@@ -32,6 +34,10 @@ import { Section } from "../space/Section";
  * search below. A connection opens with `?show=<id>`; `?setup=<connector id or domain>` opens the
  * setup with that connector chosen. Admins set up and change; a member reads the connections
  * open to them and signs in where each person does.
+ *
+ * A connection guests reach (for everyone, as the space) is marked in the list, and the admins
+ * get a note above it that narrows each to members. Each person signing in is the plan's to
+ * include (`personSignIn`): where it doesn't, the choice shows as not available, with why.
  */
 
 const connectionsKey = (spaceId: string) => ["space-connections", spaceId] as const;
@@ -136,6 +142,26 @@ function ago(iso: string): string {
 function titleOf(c: SpaceConnectionView): string {
   const connector = c.connector?.name ?? c.connectorId;
   return c.name === connector ? c.name : `${connector} · ${c.name}`;
+}
+
+/** The plugin that holds a connection, by name. */
+const pluginOf = (c: SpaceConnectionView) => c.pluginName ?? c.plugin ?? "";
+
+/**
+ * Whether a connection here may have each person sign in, and why not: the plan's switch in the
+ * cloud. On your computer there is no plan.
+ */
+function usePersonSignIn(): { allowed: boolean; why: string | null } {
+  const me = useMe().data;
+  const on = useFeature("personSignIn");
+  if (!me || me.mode !== "managed" || on) {
+    return { allowed: true, why: null };
+  }
+  const plan = me.tenant.plan?.name;
+  return {
+    allowed: false,
+    why: plan ? t("connection.signIn.personPlan", { plan }) : t("connection.signIn.personNoPlan"),
+  };
 }
 
 /** How it signs in, in a few words: as the space with its account, or how many people did. */
@@ -345,6 +371,7 @@ function Overview({
         <h3 className="px-1 pt-2 font-display font-semibold text-base">
           {t("capabilities.inSpace")}
         </h3>
+        {writable ? <GuestsNote connections={connections} onOpen={onOpen} /> : null}
         {error ? (
           <p className="px-1 text-[0.875rem] text-rose">{error.message}</p>
         ) : connections.length ? (
@@ -434,6 +461,7 @@ export function ConnectionRow({
   );
   const asks = Object.values(c.rules).includes("ask");
   const person = c.signIn === "person";
+  const guests = reachedByGuests(c);
   return (
     <div className="px-3.5 py-3 sm:px-5">
       <div className="flex items-center gap-3">
@@ -452,13 +480,26 @@ export function ConnectionRow({
                 <Building2 className="size-3.5 shrink-0" aria-hidden="true" />
               )}
               <span className="truncate">
-                {signInLine(c)} · {lastUse(c)}
+                {signInLine(c)}
+                {c.plugin ? ` · ${t("connection.pluginNamed", { plugin: pluginOf(c) })}` : ""}
+                {" · "}
+                {lastUse(c)}
               </span>
             </div>
+            {/* On a phone the chips at the right give way: this one stays. */}
+            {guests ? (
+              <div className="mt-1 sm:hidden">
+                <Chip tone="warn">{t("connection.guests")}</Chip>
+              </div>
+            ) : null}
           </div>
           <span className="flex shrink-0 items-center gap-1.5 max-sm:hidden">
             {asks ? <Chip tone="warn">{t("connection.outcome.ask")}</Chip> : null}
-            <Chip>{t(AUDIENCE_LABEL[c.audience])}</Chip>
+            {guests ? (
+              <Chip tone="warn">{t("connection.guests")}</Chip>
+            ) : (
+              <Chip>{t(AUDIENCE_LABEL[c.audience])}</Chip>
+            )}
           </span>
         </button>
         {person ? (
@@ -475,6 +516,77 @@ export function ConnectionRow({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * For the admins, above the list: the connections guests reach, each narrowed to members with
+ * one click. One a plugin holds says so, and what stops once it is narrowed. Nothing changes
+ * until someone clicks; the connection's page sets it back.
+ */
+export function GuestsNote({
+  connections,
+  onOpen,
+}: {
+  connections: SpaceConnectionView[];
+  onOpen: (id: string) => void;
+}) {
+  const qc = useQueryClient();
+  const reached = connections.filter(reachedByGuests);
+  const narrow = useMutation({
+    mutationFn: (c: SpaceConnectionView) =>
+      api.patch<SpaceConnectionView>(`/api/studio/connections/${encodeURIComponent(c.id)}`, {
+        audience: "members",
+      }),
+    onSuccess: (view) => {
+      qc.setQueryData<ConnectionsList>(connectionsKey(view.spaceId), (old) =>
+        old ? { connections: old.connections.map((x) => (x.id === view.id ? view : x)) } : old,
+      );
+      void qc.invalidateQueries({ queryKey: ["person-sign-ins"] });
+    },
+  });
+  if (!reached.length) {
+    return null;
+  }
+  return (
+    <section className="rounded-xl bg-paper-2 px-3.5 py-3 ring-1 ring-border-soft sm:px-5 sm:py-4">
+      <h4 className="font-semibold text-[0.875rem]">
+        {t("connection.guests.title", { n: reached.length })}
+      </h4>
+      <p className="mt-0.5 text-[0.8125rem] text-ink-2">{t("connection.guests.hint")}</p>
+      <ul className="mt-2 flex flex-col divide-y divide-border-soft">
+        {reached.map((c) => (
+          <li key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5">
+            <div className="min-w-0 flex-1 basis-56">
+              <button
+                type="button"
+                onClick={() => onOpen(c.id)}
+                className="max-w-full truncate text-left font-medium text-[0.875rem] hover:underline"
+              >
+                {titleOf(c)}
+              </button>
+              {c.plugin ? (
+                <p className="text-[0.8125rem] text-ink-2">
+                  {t("connection.guests.plugin", { plugin: pluginOf(c) })}
+                </p>
+              ) : null}
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              aria-label={t("connection.guests.narrowNamed", { name: titleOf(c) })}
+              busy={narrow.isPending && narrow.variables?.id === c.id}
+              onClick={() => narrow.mutate(c)}
+            >
+              {t("connection.guests.narrow")}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {narrow.error ? (
+        <p className="mt-1 text-[0.8125rem] text-rose">{(narrow.error as Error).message}</p>
+      ) : null}
+    </section>
   );
 }
 
@@ -499,8 +611,9 @@ function SetupCard({
   );
   const connector = offered.find((c) => c.id === connectorId);
   const [name, setName] = useState(connector?.name ?? "");
+  const person = usePersonSignIn();
   const [signIn, setSignIn] = useState<ConnectionSignIn>(
-    connector?.auth === "oauth2" ? "person" : "space",
+    person.allowed && connector?.auth === "oauth2" ? "person" : "space",
   );
   const [audience, setAudience] = useState<ConnectionAudience>("members");
   const create = useMutation({
@@ -564,12 +677,15 @@ function SetupCard({
             label={t("connection.signIn")}
             value={signIn}
             onChange={setSignIn}
-            options={(["space", "person"] as const).map((id) => ({
+            options={CONNECTION_SIGN_INS.map((id) => ({
               id,
               label: t(SIGN_IN_LABEL[id]),
+              disabled: id === "person" && !person.allowed,
             }))}
           />
-          <p className="mt-2 text-[0.75rem] text-ink-3">{t("connection.signInFixed")}</p>
+          <p className="mt-2 text-[0.75rem] text-ink-3">
+            {person.why ?? t("connection.signInLater")}
+          </p>
         </div>
         <div>
           <Label hint={t(AUDIENCE_HINT[audience])}>{t("connection.audience")}</Label>
@@ -613,10 +729,14 @@ function ConnectionPage({
   const reload = () => qc.invalidateQueries({ queryKey: key });
   const [name, setName] = useState(c.name);
   const [removing, setRemoving] = useState(false);
+  /** The way to sign in an admin picked and has not confirmed yet. */
+  const [signInTo, setSignInTo] = useState<ConnectionSignIn | null>(null);
+  const person = usePersonSignIn();
   const base = `/api/studio/connections/${encodeURIComponent(c.id)}`;
   const patch = useMutation({
-    mutationFn: (body: Partial<Pick<SpaceConnectionView, "name" | "audience" | "rules">>) =>
-      api.patch<SpaceConnectionView>(base, body),
+    mutationFn: (
+      body: Partial<Pick<SpaceConnectionView, "name" | "audience" | "rules" | "signIn">>,
+    ) => api.patch<SpaceConnectionView>(base, body),
     onSuccess: (view) => {
       qc.setQueryData<ConnectionsList>(key, (old) =>
         old ? { connections: old.connections.map((x) => (x.id === view.id ? view : x)) } : old,
@@ -647,6 +767,14 @@ function ConnectionPage({
   const setUp = c.setUpByName
     ? t("konto.connectionSetUpBy", { name: c.setUpByName, when: day(c.setUpAt) })
     : t("konto.connectionSetUpAt", { when: day(c.setUpAt) });
+  // Why each person signing in is not to be picked here: a plugin holds it, or the plan leaves it out.
+  const personWhy = c.plugin
+    ? t("connection.signIn.pluginSpace", { plugin: pluginOf(c) })
+    : person.allowed
+      ? null
+      : c.signIn === "person"
+        ? t("connection.signIn.personKept")
+        : person.why;
   const actionsOf = (kind: ConnectionActionKind) =>
     (connector?.actions ?? [])
       .filter((a) => a.group === kind)
@@ -692,16 +820,58 @@ function ConnectionPage({
         </div>
 
         <Row label={t("connection.signIn")}>
-          <div className="flex flex-col gap-1">
-            <span className="flex items-center gap-1.5 text-[0.875rem]">
-              {c.signIn === "space" ? (
-                <Building2 className="size-4 text-ink-3" aria-hidden="true" />
-              ) : (
-                <UserRound className="size-4 text-ink-3" aria-hidden="true" />
-              )}
-              {t(SIGN_IN_LABEL[c.signIn])}
-            </span>
+          <div className="flex flex-col gap-1.5">
+            {writable ? (
+              <div className="max-w-full overflow-x-auto">
+                <Tabs
+                  label={t("connection.signIn")}
+                  value={c.signIn}
+                  onChange={(next) => setSignInTo(next === c.signIn ? null : next)}
+                  options={CONNECTION_SIGN_INS.map((id) => ({
+                    id,
+                    label: t(SIGN_IN_LABEL[id]),
+                    disabled: id === "person" && Boolean(personWhy),
+                  }))}
+                />
+              </div>
+            ) : (
+              <span className="flex items-center gap-1.5 text-[0.875rem]">
+                {c.signIn === "space" ? (
+                  <Building2 className="size-4 text-ink-3" aria-hidden="true" />
+                ) : (
+                  <UserRound className="size-4 text-ink-3" aria-hidden="true" />
+                )}
+                {t(SIGN_IN_LABEL[c.signIn])}
+              </span>
+            )}
             <span className="text-[0.8125rem] text-ink-3">{t(SIGN_IN_HINT[c.signIn])}</span>
+            {writable && personWhy ? (
+              <span className="text-[0.8125rem] text-ink-3">{personWhy}</span>
+            ) : null}
+            {writable && signInTo ? (
+              <div className="mt-1 flex flex-col gap-3 rounded-lg bg-paper p-3 text-[0.875rem] ring-1 ring-border-soft">
+                <p>
+                  {t(
+                    signInTo === "space"
+                      ? "connection.signIn.toSpaceConfirm"
+                      : "connection.signIn.toPersonConfirm",
+                  )}
+                </p>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button variant="ghost" onClick={() => setSignInTo(null)}>
+                    {t("orgSettings.cancel")}
+                  </Button>
+                  <Button
+                    busy={patch.isPending}
+                    onClick={() =>
+                      patch.mutate({ signIn: signInTo }, { onSettled: () => setSignInTo(null) })
+                    }
+                  >
+                    {t("connection.signIn.change")}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </Row>
 
@@ -777,6 +947,11 @@ function ConnectionPage({
               </span>
             )}
             <span className="text-[0.8125rem] text-ink-3">{t(AUDIENCE_HINT[c.audience])}</span>
+            {writable && c.plugin && reachedByGuests(c) ? (
+              <span className="text-[0.8125rem] text-ink-3">
+                {t("connection.guests.plugin", { plugin: pluginOf(c) })}
+              </span>
+            ) : null}
           </div>
         </Row>
 
@@ -835,6 +1010,13 @@ function ConnectionPage({
         <Row label={t("connection.use")}>
           <span className="text-[0.875rem]">{lastUse(c)}</span>
         </Row>
+        {c.plugin ? (
+          <Row label={t("connection.plugin")}>
+            <span className="text-[0.875rem]">
+              {t("connection.pluginUses", { plugin: pluginOf(c) })}
+            </span>
+          </Row>
+        ) : null}
       </Card>
 
       {writable ? (

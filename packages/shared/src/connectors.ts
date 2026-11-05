@@ -266,6 +266,8 @@ export interface SpaceConnectionView {
   actions: string[];
   /** The plugin that set it up, where one did. */
   plugin: string | null;
+  /** That plugin by name, as the runtime carries it; its id where it is not loaded. */
+  pluginName?: string | null;
   /** A `space` sign-in: the account as the provider names it; null until an admin signed in. */
   account: { label: string; signedInAt: string } | null;
   /** A `person` sign-in: the asking person's own; null until they signed in. */
@@ -277,6 +279,14 @@ export interface SpaceConnectionView {
   lastUsedAt: string | null;
   /** A `person` sign-in: how many people signed in; never who. */
   signedIn: number;
+}
+
+/**
+ * Whether guests reach a connection: it is for everyone and signs in as the space. Where each
+ * person signs in a guest has no sign-in of their own, whatever the audience says.
+ */
+export function reachedByGuests(c: { audience: ConnectionAudience; signIn: ConnectionSignIn }) {
+  return c.audience === "all" && c.signIn === "space";
 }
 
 /** A field an `api_key` connector asks for when someone signs in. */

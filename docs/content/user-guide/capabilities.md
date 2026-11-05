@@ -25,7 +25,9 @@ Discover tab.
 ## Overview
 
 The Overview shows the skills that are always on or on demand, with the ones always on first, and
-the space’s connections, each with how it signs in and who may use it. “All” beside each part
+the space’s connections, each with how it signs in and who may use it. A connection that guests
+reach is marked “open to guests”, and admins see a note above the list that counts them (see
+[Connections that guests reach](#connections-that-guests-reach)). “All” beside each part
 opens its section, and the menu shows how many skills and connections the space has. The search
 looks through both. The “Discover” tab, or a search for something the space doesn’t have, searches
 skills.sh and integrations.sh in place, with the same words. “Add” leads to a new skill, a new
@@ -53,15 +55,42 @@ leaves. Only the space’s admins set up a connection, change it or remove it.
 When an admin sets one up, they choose how it signs in and who may use it. On its page they then
 set what it may do.
 
-**How it signs in.** This can’t be changed later.
+**How it signs in.**
 
 | Signs in | What it means |
 |---|---|
 | As the space | An admin signs in once, with an API key, an app token or a team account such as orders@. Everyone uses that account, also when nobody is watching. The AI only reads through it. Changes come from fixed steps or from an action a person confirms in a Work chat |
 | Each person signs in | Each person signs in once with their own account, on the connection’s page or in their menu. The connection then acts as that person, and asks them before it changes something |
 
+An admin can change this later on the connection’s page. The change removes the sign-ins made
+until then: every person’s when the connection becomes the space’s, the space’s when each person
+signs in from then on. The page asks before it changes anything. A connection that a plugin uses
+always signs in as the space.
+
+In the cloud, your organization’s plan decides whether “Each person signs in” is available. Where
+the plan doesn’t include it, the choice is greyed out with a sentence that says so, and a new
+connection signs in as the space. A connection that already has each person sign in keeps working,
+and people still sign in and out of it. You can change it to “As the space”, but not back. On your
+computer there is no plan, so both ways are always available.
+
 **Who may use it.** Admins, Members or Everyone. Everyone includes guests who start a wizard from
 its link. A guest’s run never uses a connection that is only for members or admins.
+
+### Connections that guests reach
+
+Guests reach a connection that is for Everyone and signs in as the space. The list marks each one
+“open to guests”. Where each person signs in, a guest has no sign-in of their own, so guests don’t
+reach it, whoever it is for.
+
+Admins see a note above the list, on the Overview and under Connectors, as long as the space has
+such a connection. It says how many there are and names each one. “Narrow to members” beside a
+connection sets it to Members with one click, and nothing changes until you click. To open it
+again, choose Everyone on the connection’s page. Members don’t see the note.
+
+A connection that a plugin set up names the plugin, in the list and on its page. The appointment
+planner, for example, books for guests through a calendar connection. The note says so before you
+narrow it: once the connection is for members only, the plugin can’t reach it when a guest starts
+a wizard. What the plugin does by itself, such as keeping a calendar in step, goes on.
 
 **What it may do.** One rule for each kind of action: Read, Change, Delete and Send. Each rule is
 Allowed, With approval or Never. A new connection reads freely, asks for approval before a change

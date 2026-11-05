@@ -226,7 +226,7 @@ member’s own call: the input’s summary, the outcome, the rule, the reason an
 | `limit_reached` | `run_limit` or `day_limit` |
 | `sign_in_failed` | A sign-in ran out, or the service refused it |
 | `first_use` | A space connection’s first call that ran |
-| `rule_changed` | An admin changed RWX rules, or a connection’s rules or audience (`logRuleChange`) |
+| `rule_changed` | An admin changed RWX rules, or a connection’s rules, audience or way of signing in (`logRuleChange`) |
 
 A critical row goes four ways:
 
@@ -292,9 +292,9 @@ All under `/api/studio`, for a signed-in person of the organization.
 
 | Route | What it does | Who |
 |---|---|---|
-| `GET /spaces/:id/connections` | The space’s connections, each with who set it up | Everyone; a member sees the ones in their audience |
-| `POST /spaces/:id/connections` | Sets one up: connector, name, `signIn`, `audience` | Admins |
-| `PATCH /connections/:id`, `DELETE /connections/:id` | Changes its name, audience, rules or the actions it is for, or removes it | Admins |
+| `GET /spaces/:id/connections` | The space’s connections, each with who set it up and, where a plugin holds it, the plugin (`plugin`, `pluginName`). `reachedByGuests` (shared) says which ones guests reach: `audience: "all"` and `signIn: "space"` | Everyone; a member sees the ones in their audience |
+| `POST /spaces/:id/connections` | Sets one up: connector, name, `signIn`, `audience`. `signIn: "person"` answers `403 { code: "plan" }` where the plan’s switch `personSignIn` is off | Admins |
+| `PATCH /connections/:id`, `DELETE /connections/:id` | Changes its name, `signIn`, audience, rules or the actions it is for, or removes it. A changed `signIn` forgets the sign-ins of the way it leaves; to `person` it answers `403 { code: "plan" }` without `personSignIn`, and `400` on a plugin’s connection | Admins |
 | `POST`, `DELETE /connections/:id/sign-in` | Signs the space in or out: `{ credentials }`, or `{ oauth: true }` for a sign-in page | Admins |
 | `POST`, `DELETE /connections/:id/my-sign-in` | The person’s own sign-in, where each person signs in | Everyone in the audience |
 | `GET /person/sign-ins` | The person’s connections across their spaces | The person |

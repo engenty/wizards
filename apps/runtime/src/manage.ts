@@ -209,7 +209,10 @@ export interface TenantInfo {
   };
   /** Ids of the plugins switched on for the tenant, besides the runtime's `PLUGINS_DEFAULT`. */
   modules?: string[];
-  /** The plan's feature switches; a feature that is not named is off. `ownKeys`: own API keys here. */
+  /**
+   * The plan's feature switches; one not named counts as declared (a core plan switch is on).
+   * `ownKeys`: own API keys here. `personSignIn`: a connection may have each person sign in.
+   */
   features?: Record<string, boolean>;
   db: { url: string } | null;
   /**

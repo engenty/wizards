@@ -401,9 +401,19 @@ Not built or not verified, as the sessions reported:
   Work runs wizards in every space.
 - The live feed's number (`hello`, `Last-Event-ID`) counts every change in the organization: a
   member sees that something changed, not what or where. A stream resumes by it after a drop.
-- Signing in as each person is not gated to the Team plan (B2, B3). Decided: Team only (1 below).
+- Signing in as each person is the plan's to include: **built** in the runtime and the studio as
+  the plan switch `personSignIn` (on until a plan says `false`). With it off a connection is set
+  up as the space and none is changed to each person (`403 { code: "plan" }`); the studio shows
+  the choice greyed out with why. One that already has each person sign in keeps working and can
+  be changed to the space. For that a connection's sign-in became changeable on its page (`PATCH
+  /connections/:id { signIn }`): the sign-ins of the way it leaves go, a plugin's connection stays
+  the space's. Waits for the Manage-App: its plans name `personSignIn: false` on every plan but
+  Team (1 below; `docs/manage-contract.md`, `features`). A local install has no plan.
 - A5 converted the old plugin connections with the audience „alle“: guests reach them until an
-  admin narrows them. Decided: they stay, and admins are shown them (2 below).
+  admin narrows them. They stay, and admins are shown them (2 below): **built**. A connection
+  guests reach (for everyone, as the space) is marked „für Gäste offen“ in the lists; above them
+  the admins get a note that counts them and narrows each to members with one click; one a plugin
+  holds names the plugin (`pluginName`) and says what stops once it is narrowed.
 - Isolated instances (A8), the company sign-in (Roadmap) and a page for the RWX rules are not built.
 - RWX, after the plugin's `readPages` and `files` and the steps' Knowledge counts came under it
   (2026-11-05, see the report): `space_search` still counts what passes its `where` (`filtered`)
@@ -417,8 +427,8 @@ The user took every question that was open. What follows from each is built in i
 
 | | Question | Decision |
 |---|---|---|
-| 1 | Which plans let each person sign in to a connection themselves? | The Team plan only. On the others a connection signs in as the space. |
-| 2 | The old plugin connections that guests reach since A5 | They stay open: the Termin-Planer books for guests through one. Admins see which connections guests reach, with one click to narrow each. |
+| 1 | Which plans let each person sign in to a connection themselves? | The Team plan only. On the others a connection signs in as the space. Built as the switch `personSignIn`; the Manage-App's plans still have to name it. |
+| 2 | The old plugin connections that guests reach since A5 | They stay open: the Termin-Planer books for guests through one. Admins see which connections guests reach, with one click to narrow each. Built. |
 | 3 | A guest's run posting to Slack | Allowed where the channel is fixed in the published step, within the limits a guest's mails have. Refused otherwise, as #373 made it. |
 | 4 | Does a member see the Protokoll? | Their own lines only. Admins see all. |
 | 5 | Does a member in Work get a page of the space's connections and rules? | No. Their own sign-ins are in their menu, and a refusal names its rule. |
