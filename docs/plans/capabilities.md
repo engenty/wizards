@@ -400,9 +400,9 @@ Not built or not verified, as the sessions reported:
   Work runs wizards in every space.
 - The live feed's number (`hello`, `Last-Event-ID`) counts every change in the organization: a
   member sees that something changed, not what or where. A stream resumes by it after a drop.
-- Signing in as each person is not gated to the Team plan (B2, B3).
+- Signing in as each person is not gated to the Team plan (B2, B3). Decided: Team only (1 below).
 - A5 converted the old plugin connections with the audience „alle“: guests reach them until an
-  admin narrows them.
+  admin narrows them. Decided: they stay, and admins are shown them (2 below).
 - Isolated instances (A8), the company sign-in (Roadmap) and a page for the RWX rules are not built.
 - RWX, after the plugin's `readPages` and `files` and the steps' Knowledge counts came under it
   (2026-11-05, see the report): `space_search` still counts what passes its `where` (`filtered`)
@@ -410,9 +410,17 @@ Not built or not verified, as the sessions reported:
   don't follow it; a page made of a document and its document can lie in different folders,
   and only the page's folders are asked.
 
-Questions:
+## Decided on 2026-11-05
 
-- Does a member in Work ever need to see the space's connections and rules, or is the menu enough?
-- Later: may a member with Studio publish a wizard to people outside the space, or only an admin?
-- Guests and the team on one broker: logical separation only, or isolated instances (see „Guests
-  and the team“)?
+The user took every question that was open. What follows from each is built in its own PR.
+
+| | Question | Decision |
+|---|---|---|
+| 1 | Which plans let each person sign in to a connection themselves? | The Team plan only. On the others a connection signs in as the space. |
+| 2 | The old plugin connections that guests reach since A5 | They stay open: the Termin-Planer books for guests through one. Admins see which connections guests reach, with one click to narrow each. |
+| 3 | A guest's run posting to Slack | Allowed where the channel is fixed in the published step, within the limits a guest's mails have. Refused otherwise, as #373 made it. |
+| 4 | Does a member see the Protokoll? | Their own lines only. Admins see all. |
+| 5 | Does a member in Work get a page of the space's connections and rules? | No. Their own sign-ins are in their menu, and a refusal names its rule. |
+| 6 | May a member with the Studio publish to people outside the space? | No: admins only, as built. |
+| 7 | Guests and the team on one broker | Separated by rules, as built. Isolated instances (A8) wait for a customer who needs them. |
+| 8 | A guest's mail address is not confirmed | The limits stay (3 per run, the wizard's number per day). An address is confirmed by a code once sign-in by e-mail exists. |
