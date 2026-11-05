@@ -1,7 +1,7 @@
 ---
 title: The broker
 description: The one path every connector call takes in engenty wizards – who calls, what decides, what a run may reach, what is logged and heard, the RWX rules and the routes the studio uses.
-version: 0.16.2
+version: 0.17.0
 ---
 
 Every call a wizard step, a Work chat, Goose, a share target or a plugin makes to a connected

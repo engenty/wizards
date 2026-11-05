@@ -1,7 +1,7 @@
 ---
 title: Audit
 description: Every time a wizard, a chat or Goose used a connection of your space, allowed or not – what critical means, what a member sees, and how to try a rule before anything runs.
-version: 0.16.2
+version: 0.17.0
 ---
 
 **[Capabilities](./capabilities.md) › Audit** shows every call your space’s wizards, Work chats and

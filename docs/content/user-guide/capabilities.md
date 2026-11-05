@@ -1,7 +1,7 @@
 ---
 title: Capabilities
 description: One place for what your wizards, Work chats and Goose may use – skills, the space’s connections to other services, the audit of every call, and a search for more.
-version: 0.16.2
+version: 0.17.0
 ---
 
 **Capabilities** in the app bar, after Resources, holds what a space’s wizards, Work chats and

@@ -414,6 +414,13 @@
       "when": 1793920546957,
       "tag": "0058_mcp_state_across_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "6",
+      "when": 1793921853823,
+      "tag": "0059_space_connection_paused",
+      "breakpoints": true
     }
   ]
 }
