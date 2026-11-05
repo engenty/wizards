@@ -58,7 +58,9 @@ export function stateText(view: RunView, page: PageBinding | null, camera = fals
   if (view.ask) {
     lines.push(
       view.ask.kind === "confirm"
-        ? `question: the step wants to "${view.ask.action.summary}" in ${view.ask.service}; answer_ask allows or skips it`
+        ? view.ask.again
+          ? `question: "${view.ask.action.summary}" in ${view.ask.service} was interrupted and may have happened already; answer_ask allows doing it again or skips it`
+          : `question: the step wants to "${view.ask.action.summary}" in ${view.ask.service}; answer_ask allows or skips it`
         : `question: a sign-in at ${view.ask.site.host}; the person types it on the screen, wait`,
     );
     return lines.join("\n");

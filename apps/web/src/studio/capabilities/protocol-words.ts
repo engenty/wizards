@@ -27,6 +27,7 @@ export const REFUSAL_WORDS: Record<BrokerRefusal, Key> = {
   not_allowed_recipient: "protocol.refused.not_allowed_recipient",
   run_limit: "protocol.refused.run_limit",
   day_limit: "protocol.refused.day_limit",
+  may_have_happened: "protocol.refused.may_have_happened",
 };
 
 /** What an action does, as a noun: Lesen, Schreiben … */
@@ -144,6 +145,9 @@ export function outcomeOf(line: Pick<ProtocolLine, "outcome" | "result" | "rule"
       tone: "done",
       text: t(outcome === "ask" ? "protocol.outcome.doneApproved" : "protocol.outcome.done"),
     };
+  }
+  if (result === "already_done") {
+    return { tone: "done", text: t("protocol.outcome.alreadyDone") };
   }
   if (result === "needs_approval") {
     return { tone: "held", text: t("protocol.outcome.held") };

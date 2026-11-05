@@ -85,6 +85,13 @@ export interface RunState {
    * place of the step's own (`StepOutput.text`); the step's output stays as it was made.
    */
   translated?: Record<string, Record<string, string>>;
+  /**
+   * How often a fixed `call` step on a connection was entered, by step, written before it acts: a
+   * restart keeps the number, a real re-entry gets a new one (broker/effect.ts).
+   */
+  visits?: Record<string, number>;
+  /** The step whose visit is open; finishing it, or going back, closes it. */
+  visiting?: string;
 }
 
 /** What a decision over a step's `ask` branches found. */
@@ -130,6 +137,8 @@ export interface ConfirmAsk extends AskBase {
   input: string;
   /** Asked for this one thing: there is nothing to allow for the rest of the run. */
   once?: boolean;
+  /** It was interrupted before and may have happened already: is it to happen again? */
+  again?: boolean;
 }
 
 /** What a running step asks the person; the step waits for the answer. */
@@ -322,6 +331,8 @@ const NOTES_EN = {
     "This step calls the connection “{id}”, which the wizard doesn’t have.",
   stepCallNotAllowed: "The change in {service} wasn’t allowed, so this step stopped.",
   stepCallRefused: "{service} didn’t run “{action}” for this step: {reason}",
+  stepCallMayHaveHappened:
+    "“{action}” in {service} was interrupted and may have happened already. It wasn’t repeated, so this step stopped. Check in {service} whether it’s there.",
   clientNotSignedIn: "{name} isn’t signed in on this computer. Sign in under Settings → Models.",
   clientNotInstalled:
     "{name} isn’t installed on this computer. Install it under Settings → Models.",
@@ -763,6 +774,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   stepCallNotAllowed:
     "Die Änderung in {service} wurde nicht erlaubt, darum hat dieser Schritt aufgehört.",
   stepCallRefused: "{service} hat „{action}“ für diesen Schritt nicht ausgeführt: {reason}",
+  stepCallMayHaveHappened:
+    "„{action}“ in {service} wurde unterbrochen und ist vielleicht schon passiert. Es wurde nicht wiederholt, darum hat dieser Schritt aufgehört. Schau in {service} nach, ob es da ist.",
   clientNotSignedIn:
     "{name} ist auf diesem Computer nicht angemeldet. Melde dich unter Einstellungen → Modelle an.",
   clientNotInstalled:

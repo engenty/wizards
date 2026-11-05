@@ -121,6 +121,7 @@ export const BROKER_REFUSALS = [
   "not_allowed_recipient",
   "run_limit",
   "day_limit",
+  "may_have_happened",
 ] as const;
 export type BrokerRefusal = (typeof BROKER_REFUSALS)[number];
 

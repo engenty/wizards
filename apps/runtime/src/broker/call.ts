@@ -12,6 +12,15 @@ import type { StepContext } from "../engine/types.js";
 import type { Role } from "../manage.js";
 import type { StoreScope } from "../store/index.js";
 import { type Account, keptSecret, markUsed, spaceAccount, wizardAccount } from "./account.js";
+import {
+  askAgain,
+  type EffectCall,
+  effectDone,
+  effectIdOf,
+  effectThrew,
+  findEffect,
+  startEffect,
+} from "./effect.js";
 import { type Grant, inGrant, runGrant } from "./grant.js";
 import { type LineContext, SIGN_IN_FAILED, summarizeInput, writeLog } from "./log.js";
 import { guestSendCheck, recipientsOf } from "./send.js";
@@ -79,6 +88,8 @@ export interface BrokerContext {
   confirmed?: boolean;
   /** An admin of the space approved exactly this call (a held call, decided): „Mit Freigabe“ is met. */
   approved?: boolean;
+  /** Which call this is, so that an action that is no read happens once (broker/effect.ts). */
+  effect?: EffectCall;
 }
 
 export interface BrokerCallInput<T = unknown> {
@@ -98,7 +109,8 @@ export interface BrokerCallInput<T = unknown> {
  * an admin of the space and the caller holds it; `ai_step_writes` – an AI step wanted to write as
  * the space, which only a fixed `call` step does (A4); `not_allowed_recipient` – a guest's send to
  * an address that is neither the run's own nor in the space's domains; `run_limit` – a guest's
- * run has sent its mails; `day_limit` – the wizard's guests have sent today's mails.
+ * run has sent its mails; `day_limit` – the wizard's guests have sent today's mails;
+ * `may_have_happened` – the action was interrupted before, and no person allowed it again.
  */
 export type Refusal = BrokerRefusal;
 
@@ -111,7 +123,7 @@ export interface Decision {
   /**
    * Which rule decided, as the log and „Was darf …?“ name it: `grant`, `audience`, `actions`,
    * `ai_step_writes`, `rules.<kind>` (a connection of the space), `destructive`, `policy.<action>`
-   * (a wizard's connection), `read`, `own_job`.
+   * (a wizard's connection), `read`, `own_job`; the log also has `once` (broker/effect.ts).
    */
   rule: string;
   reason: string;
@@ -355,6 +367,10 @@ export async function brokerConnected(
 /** The widest the person sees of an input they are asked about. */
 const ASK_INPUT = 4000;
 
+/** The rule that decides a call found in `run_effect`, as the log names it. */
+const ONCE = "once";
+const MAY_HAVE_HAPPENED = "It was interrupted before and may have happened already.";
+
 /**
  * One call through the broker: who, where, which connection and action, with what. Reads the
  * account, decides, asks where the rules say so, runs the action (the connector's, or `handler`)
@@ -449,6 +465,17 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     await line(kind, "deny", rule, decision.reason, refused);
     return { ok: false, refused, reason: decision.reason };
   }
+  const effectId = kind === "read" ? null : await effectIdOf(where, ctx.effect);
+  const effect = effectId ? await findEffect(effectId) : null;
+  // It happened: its answer, and no guest's limit, question or second action.
+  if (effect?.state === "done") {
+    await line(kind, "allow", ONCE, "It happened before.", "already_done", sizeOf(effect.output));
+    return {
+      ok: true,
+      result: effect.output as T,
+      account: { connector: account.connector, label: account.label },
+    };
+  }
   // A guest's send goes only to the run's own address or the space's domains, a few per run and day.
   if (kind === "send" && where.guest) {
     const sent = await guestSendCheck(where, recipientsOf(call.input));
@@ -456,6 +483,23 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       await line(kind, "deny", "guest_send", sent.reason, sent.refused);
       return { ok: false, refused: sent.refused, reason: sent.reason };
     }
+  }
+  // It may have happened: never again without a person's yes, which answers the rule's ask as well.
+  const again =
+    effect?.state === "started"
+      ? await askAgain(ctx.ask, {
+          service: account.label,
+          actionId: call.action.id,
+          summary: found?.summary ?? call.action.id,
+          destructive: kind === "destructive",
+          input: JSON.stringify(call.input ?? {}, null, 2).slice(0, ASK_INPUT),
+        })
+      : null;
+  if (again === "nobody" || again === "not_again") {
+    await (again === "nobody"
+      ? line(kind, "deny", ONCE, MAY_HAVE_HAPPENED, "may_have_happened")
+      : line(kind, "ask", ONCE, MAY_HAVE_HAPPENED, "declined"));
+    return { ok: false, refused: "may_have_happened", reason: MAY_HAVE_HAPPENED };
   }
   if (decision.outcome === "ask" && decision.admins) {
     // „Mit Freigabe“ as the space: the person's own yes is not enough; an admin's is.
@@ -465,6 +509,8 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       await line(kind, "ask", rule, decision.reason, "needs_approval");
       return { ok: false, refused: "needs_approval", reason: decision.reason };
     }
+  } else if (again) {
+    decision.reason = "The person allowed it again.";
   } else if (decision.outcome === "ask") {
     const key = `${connectionId}:${call.action.id}`;
     if (ctx.allowed?.has(key)) {
@@ -500,16 +546,38 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     }
   }
 
+  // The row comes before the action, so a crash in between finds that it may have happened.
+  if (effectId && !again) {
+    const taken = await startEffect({
+      id: effectId,
+      runId: where.runId as string,
+      stepId: where.stepId as string,
+      tool: `${connectionId}:${call.action.id}`,
+    });
+    if (!taken) {
+      await line(kind, "deny", ONCE, MAY_HAVE_HAPPENED, "may_have_happened");
+      return { ok: false, refused: "may_have_happened", reason: MAY_HAVE_HAPPENED };
+    }
+  }
+  const acting = effectId
+    ? { ...account, ctx: { ...account.ctx, idempotencyKey: effectId } }
+    : account;
   try {
     const result = call.handler
-      ? await call.handler(account)
-      : ((await (found as ConnectorAction).handler(call.input ?? {}, account.ctx)) as T);
+      ? await call.handler(acting)
+      : ((await (found as ConnectorAction).handler(call.input ?? {}, acting.ctx)) as T);
+    if (effectId) {
+      await effectDone(effectId, result);
+    }
     await line(kind, decision.outcome, rule, decision.reason, "ok", sizeOf(result), { firstUse });
     if (connection.kind === "space_connection") {
       await markUsed(connection.row);
     }
     return { ok: true, result, account: { connector: account.connector, label: account.label } };
   } catch (err) {
+    if (effectId) {
+      await effectThrew(effectId, err);
+    }
     // The service turned the sign-in down: heard of, like a sign-in that ran out.
     const result = signInRefused(err)
       ? SIGN_IN_FAILED

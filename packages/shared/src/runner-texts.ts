@@ -119,6 +119,11 @@ const de: Record<RunnerKey, Line> = {
   "ask.done": "Ich bin angemeldet",
   "ask.signIn": "Anmelden",
   "ask.wants": "Der Wizard möchte in {service} Folgendes ausführen:",
+  "ask.again": "Das ist in {service} vielleicht schon passiert:",
+  "ask.againHint":
+    "Der Lauf wurde dabei unterbrochen. Schau zuerst in {service} nach. Es passiert nur noch einmal, wenn du es erlaubst.",
+  "ask.againAllow": "Noch einmal",
+  "ask.againDeny": "Nicht noch einmal",
   "ask.allowRest": "Für den Rest dieses Laufs erlauben",
   "ask.allow": "Erlauben",
   "ask.deny": "Nicht erlauben",
@@ -404,6 +409,11 @@ const en = {
   "ask.done": "I’m signed in",
   "ask.signIn": "Sign in",
   "ask.wants": "The wizard wants to run this in {service}:",
+  "ask.again": "This may have happened in {service} already:",
+  "ask.againHint":
+    "The run was interrupted while doing it. Check in {service} first. It only happens again if you allow it.",
+  "ask.againAllow": "Do it again",
+  "ask.againDeny": "Don’t do it again",
   "ask.allowRest": "Allow for the rest of this run",
   "ask.allow": "Allow",
   "ask.deny": "Don’t allow",

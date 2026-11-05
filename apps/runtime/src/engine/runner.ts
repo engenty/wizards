@@ -46,6 +46,7 @@ import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { and, eq, lt, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
+import { enterVisit } from "../broker/effect.js";
 import { grantNote, grantOf, type KnownConnector, kindOf } from "../broker/index.js";
 import { runHolder, subjectsOf } from "../broker/rwx.js";
 import { resolveConnector } from "../connectors/external.js";
@@ -1014,6 +1015,9 @@ async function drive(runId: string, signal: AbortSignal) {
     const space = await loadSpace(run);
     const state = structuredClone(run.state);
     try {
+      if (await enterVisit(step, state)) {
+        await updateRun(runId, { state });
+      }
       const ctx = await makeContext(run, space, state, signal);
       // A guest's answers are checked once before any model works on them, and what a step
       // wrote for a guest before it is kept (docs/plans/guest-content-guards.md).
@@ -1041,6 +1045,7 @@ async function drive(runId: string, signal: AbortSignal) {
       state.outputs[step.id] = output;
       delete state.notes[step.id];
       delete state.redo?.[step.id];
+      delete state.visiting;
       const cursor = await advance(run, step.id, state);
       await updateRun(runId, { state, cursor, status: cursor ? "running" : "done", error: null });
       const masked = takeMasked(runId, step.id);
@@ -1275,8 +1280,9 @@ export async function goBack(runId: string) {
   if (!previous) {
     throw new RunConflict({ code: "noStepBefore" });
   }
-  // A decision that failed belongs to the step left behind.
+  // A decision that failed belongs to the step left behind, and so does a visit that stopped.
   delete state.deciding;
+  delete state.visiting;
   await updateRun(runId, { state, cursor: previous, status: "waiting_input", error: null }, run);
 }
 
