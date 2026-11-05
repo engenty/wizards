@@ -1,6 +1,7 @@
 import type { Where, Who } from "./call.js";
 import { hostInGrant, runGrant } from "./grant.js";
 import { summarizeInput, writeLog } from "./log.js";
+import { runOver } from "./over.js";
 import { brokerOn } from "./rwx.js";
 
 /*
@@ -8,12 +9,13 @@ import { brokerOn } from "./rwx.js";
  * send through a connection, so it goes through here. The host is a resource of its own
  * (`host:<name>`), the kind is `send`. A guest's run reaches only the hosts its grant lists —
  * what the steps named in `hosts`; a member's run every public host, as before, until the
- * space's `broker` switch is on, then the same rule. Every call is logged, a refusal as critical.
+ * space's `broker` switch is on, then the same rule. A run that is over reaches no host at all
+ * (over.ts), asked first. Every call is logged, a refusal as critical.
  */
 
 export type HostResult<T> =
   | { ok: true; result: T }
-  | { ok: false; refused: "not_in_grant"; reason: string };
+  | { ok: false; refused: "not_in_grant" | "run_ended"; reason: string };
 
 export async function brokerHost<T>(call: {
   who: Who;
@@ -25,7 +27,7 @@ export async function brokerHost<T>(call: {
   const started = Date.now();
   const { who, where, url } = call;
   const host = url.hostname.toLowerCase();
-  const line = (outcome: "allow" | "deny", reason: string, result: string) =>
+  const line = (outcome: "allow" | "deny", reason: string, result: string, rule = "grant") =>
     writeLog({
       at: new Date(started),
       durationMs: Date.now() - started,
@@ -43,12 +45,17 @@ export async function brokerHost<T>(call: {
       // The path without its query: a query may carry a key.
       inputSummary: summarizeInput({ method: call.method, host, path: url.pathname }),
       outcome,
-      rule: "grant",
+      rule,
       reason,
       result,
       resultSize: null,
     });
 
+  const over = await runOver(where);
+  if (over) {
+    await line("deny", over.reason, "run_ended", over.rule);
+    return { ok: false, refused: "run_ended", reason: over.reason };
+  }
   const bound = where.guest || (await brokerOn());
   let reason = "Members reach every public host.";
   if (bound) {

@@ -1,7 +1,7 @@
 # Plan: Fähigkeiten, the next four pieces
 
-Status: planned on 2026-11-05, every decision taken the same day. Piece 1 is built (1a the
-runtime, 1b the studio and the docs); pieces 2 to 4 are not. Follows
+Status: planned on 2026-11-05, every decision taken the same day. Piece 1 (1a the runtime, 1b
+the studio and the docs) and 2a are built (2026-11-06), the rest is not. Follows
 `docs/plans/capabilities.md` and `docs/plans/broker.md`, which are built. Page with the mockups:
 the artifact “Fähigkeiten Next Steps” (claude.ai/artifact/2WB6P59ZJgxPYi9rr2h53m). Checked
 against `main` at v0.16.2 plus #500–#509.
@@ -106,11 +106,13 @@ What the code does:
 
 The design:
 
-- **2a. A stop that holds.** Every broker path (call, host, send, secret) refuses a run that is
-  cancelled, done or failed, with its own words. „Lauf stoppen“ on a line of the Audit.
-- **2a. Pause.** „Verbindung pausieren“ on its page: `paused_at`, `paused_by`. The broker asks it
-  first, before `own_job`, and reads it on every call rather than from a step's row. The lists show
-  „pausiert“, „Was darf …?“ names it, and the change is a critical line.
+- **2a. A stop that holds.** Built. Every broker path (call, host, send, secret) refuses a run
+  that is cancelled, done or failed, with its own words (`run_ended`, `broker/over.ts`). „Lauf
+  stoppen“ on a line of the Audit. A share job is the one caller of a run that is done.
+- **2a. Pause.** Built. „Verbindung pausieren“ on its page: `paused_at`, `paused_by`. The broker
+  asks it first, before `own_job`, and reads it on every call rather than from a step's row. The
+  lists show „pausiert“, „Was darf …?“ names it, and the change is a critical line. What a paused
+  connection refuses is no critical line.
 - **2b. Limits per connection.** Calls per run and per day, empty for none, counted with the log
   line in one write. The refusals `run_limit` and `day_limit` and their critical kind exist. The
   wizard's mails per day get their field in the share dialog beside the runs per day.

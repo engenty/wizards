@@ -13,7 +13,7 @@ import {
   type SpaceConnectionView,
 } from "@engenty/wizards-shared/connectors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, UserRound } from "lucide-react";
+import { Building2, CirclePause, Plus, UserRound } from "lucide-react";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "../../lib/api";
@@ -38,6 +38,10 @@ import { Section } from "../space/Section";
  * A connection guests reach (for everyone, as the space) is marked in the list, and the admins
  * get a note above it that narrows each to members. Each person signing in is the plan's to
  * include (`personSignIn`): where it doesn't, the choice shows as not available, with why.
+ *
+ * An admin pauses a connection on its page (docs/plans/capabilities-next.md, 2a): nobody reaches
+ * it while it pauses, and nothing is lost. The page says so on top with „Fortsetzen“, and the
+ * lists show „pausiert“.
  */
 
 const connectionsKey = (spaceId: string) => ["space-connections", spaceId] as const;
@@ -489,8 +493,9 @@ export function ConnectionRow({
               </span>
             </div>
             {/* On a phone the chips at the right give way: these stay. */}
-            {guests || unchecked ? (
+            {guests || c.pausedAt || unchecked ? (
               <div className="mt-1 flex flex-wrap gap-1.5 sm:hidden">
+                {c.pausedAt ? <Chip tone="ember">{t("connection.paused")}</Chip> : null}
                 {unchecked ? (
                   <Chip tone="warn" title={t("connectors.uncheckedHint")}>
                     {t("connectors.unchecked")}
@@ -501,6 +506,7 @@ export function ConnectionRow({
             ) : null}
           </div>
           <span className="flex shrink-0 items-center gap-1.5 max-sm:hidden">
+            {c.pausedAt ? <Chip tone="ember">{t("connection.paused")}</Chip> : null}
             {unchecked ? (
               <Chip tone="warn" title={t("connectors.uncheckedHint")}>
                 {t("connectors.unchecked")}
@@ -778,6 +784,16 @@ function ConnectionPage({
       onGone();
     },
   });
+  const pause = useMutation({
+    mutationFn: (paused: boolean) =>
+      api.post<SpaceConnectionView>(`${base}/${paused ? "pause" : "resume"}`),
+    onSuccess: (view) => {
+      qc.setQueryData<ConnectionsList>(key, (old) =>
+        old ? { connections: old.connections.map((x) => (x.id === view.id ? view : x)) } : old,
+      );
+      void qc.invalidateQueries({ queryKey: ["person-sign-ins"] });
+    },
+  });
   const asSpace = useSignIn(`${base}/sign-in`, reload);
   const mine = useSignIn(`${base}/my-sign-in`, reload);
   const saveName = () => {
@@ -808,6 +824,24 @@ function ConnectionPage({
 
   return (
     <div className="flex flex-col gap-6">
+      {c.pausedAt ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-xl bg-ember-tint p-3.5 sm:px-5"
+        >
+          <CirclePause className="size-5 shrink-0 text-ember-strong" aria-hidden="true" />
+          <p className="min-w-48 flex-1 text-[0.875rem] text-ink">
+            {c.pausedByName
+              ? t("connection.pausedNoteBy", { name: c.pausedByName, when: day(c.pausedAt) })
+              : t("connection.pausedNote", { when: day(c.pausedAt) })}
+          </p>
+          {writable ? (
+            <Button size="sm" busy={pause.isPending} onClick={() => pause.mutate(false)}>
+              {t("connection.resume")}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="flex items-center gap-4 px-1">
         <Logo name={connectorName} large />
         <div className="min-w-0">
@@ -1067,12 +1101,31 @@ function ConnectionPage({
               </Button>
             </div>
           ) : (
-            <Button variant="danger" size="sm" onClick={() => setRemoving(true)}>
-              {t("connection.remove")}
-            </Button>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+              {c.pausedAt ? null : (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    busy={pause.isPending}
+                    onClick={() => pause.mutate(true)}
+                  >
+                    {t("connection.pause")}
+                  </Button>
+                  <p className="min-w-48 flex-1 text-[0.8125rem] text-ink-3">
+                    {t("connection.pauseHint")}
+                  </p>
+                </>
+              )}
+              <Button variant="danger" size="sm" onClick={() => setRemoving(true)}>
+                {t("connection.remove")}
+              </Button>
+            </div>
           )}
-          {remove.error ? (
-            <p className="mt-2 text-[0.8125rem] text-rose">{(remove.error as Error).message}</p>
+          {remove.error || pause.error ? (
+            <p className="mt-2 text-[0.8125rem] text-rose">
+              {((remove.error ?? pause.error) as Error).message}
+            </p>
           ) : null}
         </div>
       ) : null}

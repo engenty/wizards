@@ -7,6 +7,7 @@ import {
   connectionPatchSchema,
   createSpaceConnection,
   newConnectionSchema,
+  pauseSpaceConnection,
   removeSignIn,
   removeSpaceConnection,
   type SignInAs,
@@ -31,6 +32,9 @@ import { requestLang } from "./lang.js";
  * and narrows one with `PATCH /connections/:id { audience: "members" }`. Setting one up with each
  * person signing in, or changing one to it (`PATCH … { signIn: "person" }`), is the plan's to
  * include: `403 { code: "plan" }` where the switch `personSignIn` is off.
+ *
+ * `POST /connections/:id/pause` and `…/resume` are the admins' too: while a connection pauses
+ * (`pausedAt`, `pausedByName`) the broker refuses every call through it, and nothing is lost.
  */
 
 type Vars = { Variables: { user: SessionUser } };
@@ -50,11 +54,20 @@ async function views(user: SessionUser, spaceId: string) {
   const shown = admin
     ? all
     : all.filter((v) => inAudience(v.audience, { kind: "person", id: user.id }));
-  const names = shown.some((v) => v.setUpBy) ? await namesOf(user) : null;
-  return shown.map((v) => ({
+  const names = shown.some((v) => v.setUpBy || v.pausedBy) ? await namesOf(user) : null;
+  return shown.map(({ pausedBy, ...v }) => ({
     ...v,
     setUpByName: v.setUpBy ? (names?.get(v.setUpBy) ?? null) : null,
+    pausedByName: pausedBy ? (names?.get(pausedBy) ?? null) : null,
   }));
+}
+
+/** Pauses or resumes a connection, and answers with it as the studio shows it. */
+async function pause(c: Context<Vars>, paused: boolean) {
+  const user = c.get("user");
+  const row = await pauseSpaceConnection(user.id, c.req.param("id") ?? "", paused);
+  const [view] = (await views(user, row.spaceId)).filter((v) => v.id === row.id);
+  return c.json(view);
 }
 
 const asMe = (user: SessionUser): SignInAs => ({ as: "person", userId: user.id, role: user.role });
@@ -89,6 +102,9 @@ export const connectionRoutes = new Hono<Vars>()
     await removeSpaceConnection(c.get("user").id, c.req.param("id"));
     return c.json({ ok: true });
   })
+  // Nobody reaches a connection that pauses; resuming gives it back as it was.
+  .post("/connections/:id/pause", (c) => pause(c, true))
+  .post("/connections/:id/resume", (c) => pause(c, false))
   // As the space: the admins' sign-in, kept on the connection itself.
   .post("/connections/:id/sign-in", async (c) => signIn(c, asSpace))
   .delete("/connections/:id/sign-in", async (c) => {

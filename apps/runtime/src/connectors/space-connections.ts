@@ -167,7 +167,7 @@ export async function guideSpaceConnections(spaceId: string): Promise<GuideSpace
 export async function spaceConnectionViews(
   spaceId: string,
   userId: string,
-): Promise<SpaceConnectionView[]> {
+): Promise<(SpaceConnectionView & { pausedBy: string | null })[]> {
   const rows = await listSpaceConnections(spaceId);
   const people = rows.some((row) => row.signIn === "person");
   const signIns = people
@@ -233,6 +233,8 @@ export async function spaceConnectionViews(
         setUpAt: row.setUpAt.toISOString(),
         lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
         signedIn: theirs.length,
+        pausedAt: row.pausedAt?.toISOString() ?? null,
+        pausedBy: row.pausedBy,
       };
     }),
   );
@@ -385,6 +387,43 @@ function changedRules(before: ConnectionRules, after: ConnectionRules): string {
     .filter((k) => before[k] !== after[k])
     .map((k) => `${k}: ${before[k]} → ${after[k]}`)
     .join(", ");
+}
+
+/**
+ * Pauses a connection, or resumes it (docs/plans/capabilities-next.md, 2a): while it pauses the
+ * broker refuses every call through it, whoever calls, at the call (broker/call.ts reads the
+ * pause each time). Nothing is lost: its sign-ins, rules and audience stay. Heard of as a changed
+ * rule, with who did it. Pausing what pauses, or resuming what does not, changes nothing.
+ */
+export async function pauseSpaceConnection(
+  userId: string,
+  id: string,
+  paused: boolean,
+): Promise<SpaceConnectionRow> {
+  const row = await spaceConnectionById(id);
+  await ownedSpace(userId, row.spaceId);
+  await requireWritableSpace(row.spaceId);
+  await requireAdmin();
+  if (Boolean(row.pausedAt) === paused) {
+    return row;
+  }
+  const [updated] = await db
+    .update(schema.spaceConnection)
+    .set({
+      pausedAt: paused ? new Date() : null,
+      pausedBy: paused ? userId : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.spaceConnection.id, row.id))
+    .returning();
+  await logRuleChange({
+    userId,
+    spaceId: row.spaceId,
+    connectionId: row.id,
+    summary: { paused: paused ? "yes" : "no" },
+    reason: paused ? "The connection is paused: nobody reaches it." : "The connection is resumed.",
+  });
+  return updated;
 }
 
 export async function removeSpaceConnection(userId: string, id: string): Promise<void> {

@@ -6,7 +6,7 @@ import type {
   ProtocolPage,
 } from "@engenty/wizards-shared/connectors";
 import type { SpaceNotify } from "@engenty/wizards-shared/spaces";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   ChevronDown,
@@ -24,7 +24,7 @@ import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { type Space, useCurrentSpace, useIsAdmin } from "../../lib/session";
-import { Button, Chip, cn, Dialog, Select, Spinner, Switch, Tabs } from "../../ui";
+import { askConfirm, Button, Chip, cn, Dialog, Select, Spinner, Switch, Tabs } from "../../ui";
 import { SearchField, Section } from "../space/Section";
 import { useSpaceConnections } from "./ConnectorsSection";
 import {
@@ -36,6 +36,8 @@ import {
   kindWord,
   outcomeOf,
   ruleWord,
+  runStateWord,
+  runUnderWay,
   type Tone,
   whereWord,
   whoWord,
@@ -45,7 +47,9 @@ import {
  * Fähigkeiten › Audit (docs/plans/capabilities.md, B5; docs/plans/broker.md, "The log",
  * "„Was darf …?“"): every call the broker decided in this space, in plain words, with filters and
  * a detail per line. Beside its title: the question an admin asks of the rules before anything
- * runs, and how the admins hear of critical lines, each in a dialog.
+ * runs, and how the admins hear of critical lines, each in a dialog. A line of a run that is
+ * still under way lets an admin stop that run: the run's own cancel, which the broker holds
+ * (docs/plans/capabilities-next.md, 2a).
  *
  * Owners and admins read every line. A member reads their own: what they called, what Goose
  * called for them and what their runs called. The runtime sends a member nothing else, and their
@@ -412,7 +416,10 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** What a line holds beyond its words: sizes, the rule, the run's grant, where to go. */
+/**
+ * What a line holds beyond its words: sizes, the rule, the run's grant and state, where to go.
+ * „Lauf stoppen“ for an admin while the run is under way; after it the line says „gestoppt“.
+ */
 function LineDetail({
   line,
   spaceId,
@@ -428,6 +435,13 @@ function LineDetail({
       api.get<ProtocolLineDetail>(`/api/studio/spaces/${spaceId}/broker/log/${line.id}`),
   });
   const run = detail.data?.run;
+  const admin = useIsAdmin();
+  const qc = useQueryClient();
+  const stop = useMutation({
+    mutationFn: () => api.post(`/api/runs/${line.runId}/cancel`),
+    // Every open line of that run says so.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["broker-line", spaceId] }),
+  });
   const input = line.input;
   const fields = Object.keys(input?.fields ?? {});
   const host = line.connectionId.startsWith("host:");
@@ -464,6 +478,7 @@ function LineDetail({
             <span className="mt-0.5 block text-[0.8125rem] text-ink-3">{line.reason}</span>
           ) : null}
         </Fact>
+        {run ? <Fact label={t("protocol.detail.run")}>{runStateWord(run.status)}</Fact> : null}
         {line.runId ? (
           <Fact label={t("protocol.detail.grant")}>
             {detail.isPending ? (
@@ -500,7 +515,30 @@ function LineDetail({
             {t("protocol.detail.openConnection")}
           </LinkButton>
         ) : null}
+        {admin && run && runUnderWay(run.status) ? (
+          <span className="sm:ml-auto">
+            <Button
+              variant="danger"
+              size="sm"
+              busy={stop.isPending}
+              onClick={async () => {
+                const yes = await askConfirm(t("protocol.detail.stopRunAsk"), {
+                  detail: t("protocol.detail.stopRunDetail"),
+                  action: t("protocol.detail.stopRun"),
+                });
+                if (yes) {
+                  stop.mutate();
+                }
+              }}
+            >
+              {t("protocol.detail.stopRun")}
+            </Button>
+          </span>
+        ) : null}
       </div>
+      {stop.error ? (
+        <p className="mt-2 text-[0.8125rem] text-rose">{(stop.error as Error).message}</p>
+      ) : null}
     </div>
   );
 }
