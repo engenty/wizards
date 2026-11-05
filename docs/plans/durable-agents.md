@@ -528,10 +528,10 @@ Here the server owns every wait.
 - `nextInBrowser` returns null when the next step is a `wait`, a page or review with `who` other
   than `person`, or any step with a `timeout`. The runner then waits on the server, as it does
   for an AI step.
-- `RunState.typed` keeps what someone types on a team page too: Anna starts an answer on her
-  phone and finishes it on her computer.
+- What someone types stays on the run on a team page too: Anna starts an answer on her phone and
+  finishes it on her computer. Where it is stored is fast-creation's to say.
 - A page that times out while the person is typing: the server's state wins, the runner loads the
-  run again and shows where it is now. What was typed stays in `typed` and the timeline.
+  run again and shows where it is now. What was typed stays on the run and in the timeline.
 
 ## Words
 
