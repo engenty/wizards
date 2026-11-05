@@ -566,6 +566,11 @@ export const fieldSchema = z.object({
   /** VAT for `items`: a fixed rate in percent, or the id of a number/select field holding it. */
   vat: z.object({ rate: z.number().optional(), field: z.string().optional() }).optional(),
   currency: z.string().optional(),
+  /**
+   * email: a visitor's own address, for telling them the run waits for them or ended. The answer may
+   * be a customer's address and the mail carries a link that opens the run, so it has to be meant.
+   */
+  notify: z.boolean().optional(),
   /** image / file: several files; the value is then a list, in the order the person put them. */
   multiple: z.boolean().optional(),
   /** image / file with `multiple`: how many files at least and at most (up to 30). */
