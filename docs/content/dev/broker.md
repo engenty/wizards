@@ -1,7 +1,7 @@
 ---
 title: The broker
 description: The one path every connector call takes in engenty wizards – who calls, what decides, what a run may reach, what is logged and heard, the RWX rules and the routes the studio uses.
-version: 0.16.2
+version: 0.17.0
 ---
 
 Every call a wizard step, a Work chat, Goose, a share target or a plugin makes to a connected
@@ -49,6 +49,7 @@ interface Where {
   spaceId?: string;
   mode?: "test" | "live";
   guest?: boolean;  // a live run nobody signed in for
+  share?: boolean;  // a share job: the one caller of a run that is done
 }
 ```
 
@@ -84,6 +85,38 @@ A space connection holds its `audience` (`admins`, `members` or `all`), its `rul
 decides the audience. A fixed step is in the audience of whom its run is held for, and Goose for
 an admin counts as an admin.
 
+A space connection can pause: `paused_at` and `paused_by` on its row, set by
+`pauseSpaceConnection` (`POST /connections/:id/pause` and `/resume`, admins only). While it pauses
+the broker refuses every call through it. Nothing else changes: the sign-ins, the rules and the
+audience stay.
+
+## A stop that holds
+
+Two things are asked before anything else, on every call. Neither trusts what a step or a chat
+turn read when it started.
+
+**The run.** `runOver(where)` in `broker/over.ts` reads `run.status` for `where.runId`. A run that
+is `cancelled`, `done` or `failed` calls nothing more, whatever the connection: a space
+connection, a wizard’s own, a host, the server’s mail, a kept secret. All four paths ask it first
+(`brokerCall`, `brokerHost`, `brokerSend`, `brokerSecret`), refuse with `run_ended` and log the
+call with the rule `run.<status>`. There is no separate revoke: stopping a run (`cancel()` in
+`engine/runner.ts`, `POST /api/runs/:id/cancel`, MCP `control_run`, “Stop run” in the Audit) is
+the revoke. Three things to know:
+
+- A call already under way finishes. The broker refuses the next call and does not take back what
+  has left.
+- A share job is the one caller of a run that is done. `sharing/jobs.ts` sets `where.share`, and
+  the share agent’s step and the run’s browser carry it. With `share` a `done` run calls, a
+  `cancelled` or `failed` one does not.
+- A run this tenant does not have is not refused here. The grant refuses it for a wizard’s own
+  connection and for a bound host (`not_in_grant`).
+
+**The pause.** For a space connection `brokerCall` reads `paused_at` again on every call
+(`pauseOf` in `broker/account.ts`) and puts it on the row before `decide` sees it. So a step whose
+tools hold the row from before the pause is refused at its next call, and so is a chat turn. A
+connection that was removed since is refused the same way, as `not_connected`. The account is not
+read and no token is renewed for a call that is refused here.
+
 ## `decide`
 
 `decide({ who, where, connection, actionId, kind, grant })` is pure: it reads nothing and runs
@@ -93,6 +126,8 @@ admins `admins: true`. The checks run in this order:
 
 1. **The grant.** A wizard’s own connection in a run, outside the run’s grant: deny, rule `grant`.
 2. **A space connection:**
+   - a connection that pauses: deny, rule and refusal `paused`, for every caller and before a
+     plugin’s own job;
    - a plugin’s own job on a connection it set up, outside any run or chat: allow, `own_job`;
    - a caller outside the audience: deny, `audience`;
    - an action the connection is not for: deny, `actions`;
@@ -112,29 +147,34 @@ brokerCall({ who, where, connection, action: { id, kind? }, input, ctx?, handler
   → { ok: true, result, account } | { ok: false, refused, reason }
 ```
 
-![brokerCall reads the account, checks the grant, decides, checks a guest’s send and asks where it must, then runs the action. Each check can refuse, and every call goes to broker_log](../../assets/diagrams/broker-order.svg)
+![brokerCall asks whether the run is over and whether the connection pauses, reads the account, checks the grant, decides, checks a guest’s send and asks where it must, then runs the action. Each check can refuse, and every call goes to broker_log](../../assets/diagrams/broker-order.svg)
 
 In order, it:
 
-1. reads the account. A sign-in that ran out and can’t be renewed is logged as `sign_in_failed`
+1. refuses a call of a run that is over (`runOver`, above): `run_ended`;
+2. reads a space connection’s pause again and refuses a paused one (`paused`), and one that was
+   removed (`not_connected`);
+3. reads the account. A sign-in that ran out and can’t be renewed is logged as `sign_in_failed`
    and refused as `not_connected`;
-2. checks the grant where one binds the call (`grantBinds`: a wizard’s own connection, in a run,
+4. checks the grant where one binds the call (`grantBinds`: a wizard’s own connection, in a run,
    and not a share target’s connection);
-3. refuses a missing account (`not_connected`) or an unknown action (`no_action`);
-4. asks `decide`. A deny returns its refusal;
-5. checks a guest’s send (`guestSendCheck`, below);
-6. on an ask of the admins, runs only with `ctx.approved`. Otherwise it refuses with
+5. refuses a missing account (`not_connected`) or an unknown action (`no_action`);
+6. asks `decide`. A deny returns its refusal;
+7. checks a guest’s send (`guestSendCheck`, below);
+8. on an ask of the admins, runs only with `ctx.approved`. Otherwise it refuses with
    `needs_approval`, and the caller holds the call (a Work chat in `chat_approval`, under the bell);
-7. on an ask of the person, runs when `ctx.allowed` holds `<connection>:<action>` (“for the rest of
+9. on an ask of the person, runs when `ctx.allowed` holds `<connection>:<action>` (“for the rest of
    the run”) or `ctx.confirmed` is set and the call deletes nothing. Otherwise it calls `ctx.ask`.
    With no one to ask it refuses with `nobody`, and on a no with `declined`;
-8. runs the action (the connector’s handler, or `handler`), marks the space connection used and
-   logs the call. An error the action throws is logged and thrown on. A 401 or a lost OAuth grant
-   is logged as `sign_in_failed`.
+10. runs the action (the connector’s handler, or `handler`), marks the space connection used and
+    logs the call. An error the action throws is logged and thrown on. A 401 or a lost OAuth grant
+    is logged as `sign_in_failed`.
 
 `brokerConnected(connection, who)` says whether and as whom a connection is signed in, without the
 secret. `brokerSecret` reads a run’s kept secret that is no connection (the browser’s kept
-sign-ins) through the same log.
+sign-ins) through the same log. It answers `{ ok: true, result }`, or for a run that is over
+`{ ok: false, refused: "run_ended" }`. Then its handler does not run, and the run’s browser opens
+signed in nowhere.
 
 ### Refusals
 
@@ -155,6 +195,12 @@ has words for each:
 | `channel_not_fixed` | A guest’s post to a channel that the published step does not fix |
 | `run_limit` | A guest’s run has sent its mails and posts (`GUEST_MAILS_PER_RUN`, 3) |
 | `day_limit` | The wizard’s guests have sent today’s mails and posts (`wizard.dailyMailLimit`, 50 unless set) |
+| `run_ended` | The call’s run was stopped, is done or failed. The rule says which: `run.cancelled`, `run.done`, `run.failed` |
+| `paused` | An admin paused the space connection |
+
+The model reads each refusal in words from `prompts/tools.md`, through `refusalNote`
+(`tools/connector.ts`) and `connectionRefusalNote` (`tools/connections.ts`): `note.run_ended` and
+`note.connector_paused` for these two.
 
 ## The run’s grant
 
@@ -189,6 +235,8 @@ once from the run’s definition and writes it. `inGrant` always lets `list_tool
 - `brokerHost` (`broker/host.ts`) runs `http_request`. It logs the call as connection
   `host:<name>`, action `http_request`, kind `send`. A guest’s run reaches only the hosts in its
   grant. A member’s run reaches any public host, until the `broker` switch is on.
+- `brokerHost` and `brokerSend` (the server’s own mail, `mail:server`) ask `runOver` first, like
+  `brokerCall`: a run that is over reaches no host and sends no mail.
 - `guestSendCheck` (`broker/send.ts`) lets a guest’s send go only to an address a page field of
   kind `email` collected in the run, or to the space’s `mailDomains`. It holds a connection’s
   send action as well as the email share target.
@@ -244,7 +292,12 @@ member’s own call: the input’s summary, the outcome, the rule, the reason an
 | `limit_reached` | `run_limit` or `day_limit` |
 | `sign_in_failed` | A sign-in ran out, or the service refused it |
 | `first_use` | A space connection’s first call that ran |
-| `rule_changed` | An admin changed RWX rules, or a connection’s rules, audience or way of signing in (`logRuleChange`) |
+| `rule_changed` | An admin changed RWX rules, or a connection’s rules, audience or way of signing in, or paused or resumed a connection (`logRuleChange`) |
+
+A call that a paused connection refuses is not critical, whatever its kind. The admins paused it
+themselves and heard of that, and the hourly mail about critical lines may go through that very
+connection. A refused call of a run that is over follows the rule above: critical where it wanted
+to change, delete or send.
 
 A critical row goes four ways:
 
@@ -313,12 +366,13 @@ All under `/api/studio`, for a signed-in person of the organization.
 | `GET /spaces/:id/connections` | The space’s connections, each with who set it up and, where a plugin holds it, the plugin (`plugin`, `pluginName`). `reachedByGuests` (shared) says which ones guests reach: `audience: "all"` and `signIn: "space"` | Everyone; a member sees the ones in their audience |
 | `POST /spaces/:id/connections` | Sets one up: connector, name, `signIn`, `audience`. `signIn: "person"` answers `403 { code: "plan" }` where the plan’s switch `personSignIn` is off | Admins |
 | `PATCH /connections/:id`, `DELETE /connections/:id` | Changes its name, `signIn`, audience, rules or the actions it is for, or removes it. A changed `signIn` forgets the sign-ins of the way it leaves; to `person` it answers `403 { code: "plan" }` without `personSignIn`, and `400` on a plugin’s connection | Admins |
+| `POST /connections/:id/pause`, `POST /connections/:id/resume` | Pauses the connection, or resumes it. The view carries `pausedAt` and `pausedByName`. Logged as a changed rule | Admins |
 | `POST`, `DELETE /connections/:id/sign-in` | Signs the space in or out: `{ credentials }`, or `{ oauth: true }` for a sign-in page | Admins |
 | `POST`, `DELETE /connections/:id/my-sign-in` | The person’s own sign-in, where each person signs in | Everyone in the audience |
 | `GET /person/sign-ins` | The person’s connections across their spaces | The person |
 | `GET /spaces/:id/rules`, `PUT /spaces/:id/rules`, `DELETE /spaces/:id/rules/:ruleId` | The RWX rules, saved as a whole list | Admins; 404 while `broker` is off |
 | `GET /spaces/:id/broker/log` | The log, newest first. Filters: `connection`, `who`, `outcome`, `result`, `refused`, `critical`, `since`, `until`, `q`; `cursor` with the `next` of the page before, `limit` | Admins: every line. A member: their own lines (`ownLines`); 403 where the space’s Studio is closed to members |
-| `GET /spaces/:id/broker/log/:line` | One line, with the run’s grant | Admins. A member: their own line; 404 for another person’s |
+| `GET /spaces/:id/broker/log/:line` | One line, with the run’s grant and status. The Audit’s “Stop run” reads the status and calls `POST /api/runs/:id/cancel` | Admins. A member: their own line; 404 for another person’s |
 | `GET /spaces/:id/broker/ask?who=&for=&resource=&action=&in=` | „Was darf …?“: `decide`’s outcome, rule and reason. A guest’s post to a channel is answered as the call is: a fixed step gets the connection’s rule and the condition in its reason, any other caller `deny` by `guest_send`. Nothing runs and nothing is logged | Admins (403 for a member) |
 | `GET /spaces/:id/broker/choices` | The people and the space’s connections with their actions, for the question | Admins (403 for a member) |
 | `GET /spaces/:id/discover?q=` | Skills from skills.sh and connectors from integrations.sh, marked where the space has them | Everyone; 404 while `capabilities` is off |

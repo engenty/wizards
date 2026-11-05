@@ -1,7 +1,7 @@
 ---
 title: Audit
 description: Every time a wizard, a chat or Goose used a connection of your space, allowed or not – what critical means, what a member sees, and how to try a rule before anything runs.
-version: 0.16.2
+version: 0.17.0
 ---
 
 **[Capabilities](./capabilities.md) › Audit** shows every call your space’s wizards, Work chats and
@@ -30,6 +30,11 @@ Click a line to see more: when exactly it happened and how long it took, which f
 how big the input and the result were, and which rule decided. A line from a run also shows the
 run’s grant: what the wizard allowed that run through this connection when the run started. The
 buttons below lead to the run, the chat or the connection.
+
+A line from a run also says how the run stands: running, waiting, done, failed or stopped. While
+the run is under way, an admin sees “Stop run” there. A stopped run calls nothing more. What it
+tries after that is refused with “the run was stopped”, and a call already under way still
+finishes.
 
 The audit never holds a password, a token, a key or a whole email. Of the input it keeps the names of
 the fields, their sizes and one short value that is no secret.
@@ -77,7 +82,10 @@ A line is critical when someone should hear of it:
 - a limit was reached, such as the emails a guest’s run may send;
 - a sign-in ran out or the service refused it;
 - a connection was used for the first time;
-- someone changed a rule.
+- someone changed a rule, or paused or resumed a connection.
+
+What a paused connection refuses is not critical. The admins paused it themselves and heard of
+that.
 
 A member’s own lines show the mark too. Only the admins hear of them.
 

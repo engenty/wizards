@@ -7,6 +7,7 @@ import {
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { type Key, lang, setLang, t } from "../../lib/i18n";
 import {
+  actionWord,
   answerCondition,
   answerSentence,
   CRITICAL_WORDS,
@@ -16,6 +17,8 @@ import {
   RULE_WORDS,
   refusalWord,
   ruleWord,
+  runStateWord,
+  runUnderWay,
   VERB_WORDS,
   whoWord,
 } from "./protocol-words";
@@ -62,6 +65,9 @@ describe.each(["de", "en"] as const)("the Protokoll's words in %s", (language) =
       ...Object.keys(RULE_WORDS),
       ...CONNECTION_ACTION_KINDS.map((k) => `rules.${k}`),
       "policy.create_contact",
+      "run.cancelled",
+      "run.done",
+      "run.failed",
       null,
     ];
     for (const rule of rules) {
@@ -142,5 +148,45 @@ describe("plain words", () => {
         { who: "Julia", connection: "Gmail" },
       ),
     ).toBe("Julia darf in Gmail senden – mit Freigabe durch die Admins.");
+  });
+
+  it("in German: a run that was stopped, a connection that pauses", () => {
+    setLang("de");
+    const refused = (result: string, rule: string) => outcomeOf({ outcome: "deny", result, rule });
+    expect(refused("run_ended", "run.cancelled")).toEqual({
+      tone: "refused",
+      text: "abgelehnt: der Lauf wurde gestoppt",
+    });
+    expect(refused("run_ended", "run.done").text).toBe("abgelehnt: der Lauf ist fertig");
+    expect(refused("run_ended", "run.failed").text).toBe("abgelehnt: der Lauf ist fehlgeschlagen");
+    expect(refused("paused", "paused").text).toBe("abgelehnt: die Verbindung ist pausiert");
+    expect(ruleWord("run.cancelled")).toBe("Ein beendeter Lauf ruft nichts mehr auf");
+    expect(
+      answerSentence(
+        {
+          outcome: "deny",
+          rule: "paused",
+          refused: "paused",
+          action: { id: "x", kind: "read", known: true },
+        },
+        { who: "Julia", connection: "Gmail", audience: "members" },
+      ),
+    ).toBe("Julia darf in Gmail nicht lesen – die Verbindung ist pausiert.");
+    // The detail of a line: the run's state, and whether an admin can still stop it.
+    expect(runStateWord("cancelled")).toBe("gestoppt");
+    expect(runStateWord("running")).toBe("läuft");
+    expect(["running", "waiting_input", "sleeping"].every(runUnderWay)).toBe(true);
+    expect(["done", "failed", "cancelled"].some(runUnderWay)).toBe(false);
+  });
+
+  it("in German: pausing and resuming read as what they are, other changes as changed rules", () => {
+    setLang("de");
+    const change = (input: { fields: Record<string, number>; sample: string }) =>
+      actionWord({ actionId: "change_rules", actionName: null, input });
+    expect(change({ fields: { paused: 3 }, sample: "paused: yes" })).toBe("Verbindung pausiert");
+    expect(change({ fields: { paused: 2 }, sample: "paused: no" })).toBe("Verbindung fortgesetzt");
+    expect(change({ fields: { audience: 13 }, sample: "audience: all → members" })).toBe(
+      "Regeln geändert",
+    );
   });
 });

@@ -216,13 +216,27 @@ export async function spaceAccount(
   return { connector, ctx, label };
 }
 
-/** „Letzte Nutzung“: the connection was just used. */
+/**
+ * Whether a connection of the space pauses, as it is now: read on every call, so a pause stops a
+ * step or a chat turn that read the row before it. Null where the connection is gone.
+ */
+export async function pauseOf(
+  id: string,
+): Promise<Pick<SpaceConnectionRow, "pausedAt" | "pausedBy"> | null> {
+  const row = await db.query.spaceConnection.findFirst({
+    where: eq(schema.spaceConnection.id, id),
+    columns: { pausedAt: true, pausedBy: true },
+  });
+  return row ?? null;
+}
+
 /** The rights the provider granted a connection of the space at its sign-in; none for keys. */
 export function grantedScopes(row: SpaceConnectionRow): string[] {
   const data = row.secret ? unseal<StoredTokens>(row.secret) : null;
   return data?.scopes ?? [];
 }
 
+/** „Letzte Nutzung“: the connection was just used. */
 export async function markUsed(row: SpaceConnectionRow): Promise<void> {
   await db
     .update(schema.spaceConnection)

@@ -194,9 +194,15 @@ export async function buildStepTools(
             return { status: res.status, body: clip(await res.text(), 8000) };
           },
         });
-        return out.ok
-          ? out.result
-          : { error: prompt("tools", "note.host_not_in_grant", { host: safe.hostname }) };
+        if (out.ok) {
+          return out.result;
+        }
+        return {
+          error:
+            out.refused === "run_ended"
+              ? prompt("tools", "note.run_ended")
+              : prompt("tools", "note.host_not_in_grant", { host: safe.hostname }),
+        };
       },
     });
   }

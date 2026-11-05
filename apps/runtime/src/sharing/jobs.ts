@@ -79,6 +79,9 @@ function contextOf(
 ): ShareContext {
   const connection = entry.target.connection?.() ?? null;
   const signal = job?.signal ?? new AbortController().signal;
+  // The run is done and the person sends its result on: the one call the broker takes of a run
+  // that is done (broker/over.ts).
+  const where = { ...whereOfRun(run, holderOf(run), spaceId), share: true };
   const emit = (message: Said) =>
     job ? addJobEvent(run.id, job.id, sayIn(who.lang, message)) : Promise.resolve();
   const ask: ShareContext["ask"] = (question) =>
@@ -102,7 +105,7 @@ function contextOf(
       // The person filled the form and sent it: a write is theirs, nothing asks again.
       const out = await brokerCall({
         who: whoOf(holderOf(run)),
-        where: whereOfRun(run, holderOf(run), spaceId),
+        where,
         connection: heldBy(run, connection, spaceId),
         action,
         input,
@@ -121,7 +124,7 @@ function contextOf(
     sendFromServer: async (recipients, input, handler) => {
       const out = await brokerSend({
         who: whoOf(holderOf(run)),
-        where: whereOfRun(run, holderOf(run), spaceId),
+        where,
         recipients,
         input,
         handler,
@@ -135,6 +138,7 @@ function contextOf(
     step: async () =>
       makeContext(run, await loadSpace(run), structuredClone(run.state), signal, {
         stepId: SHARE_STEP,
+        share: true,
         emit: (_type, message) =>
           emit(typeof message === "string" ? message : noteText(message, who.lang)),
         ask,

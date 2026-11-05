@@ -147,6 +147,10 @@ function refusalNote(refused: Refusal, service: string): string {
       return prompt("tools", "note.connector_needs_approval", { service });
     case "ai_step_writes":
       return prompt("tools", "note.connector_ai_step_writes", { service });
+    case "paused":
+      return prompt("tools", "note.connector_paused", { service });
+    case "run_ended":
+      return prompt("tools", "note.run_ended");
     default:
       return prompt("tools", "note.connector_refused", { service });
   }

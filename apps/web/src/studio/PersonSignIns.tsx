@@ -5,7 +5,7 @@ import { useCallback } from "react";
 import { api } from "../lib/api";
 import { lang, t } from "../lib/i18n";
 import { initialsOf } from "../lib/session";
-import { Spinner } from "../ui";
+import { Chip, Spinner } from "../ui";
 import { SignInButtons, SignInPanel, useConnectedMessage, useSignIn } from "./connection-sign-in";
 import { Section } from "./space/Section";
 
@@ -17,6 +17,7 @@ const day = (iso: string) =>
  * Konto › Verbindungen (docs/plans/capabilities.md, "A person's own page"): per space of the
  * person, the connections they may use. Where each person signs in, they sign in or out here;
  * where the space signs in, they see which account and who set it up. Nobody sets one up here.
+ * A connection an admin paused shows „pausiert“: nobody reaches it until it is resumed.
  */
 export function PersonSignInsPage() {
   const qc = useQueryClient();
@@ -98,6 +99,7 @@ function ConnectionRow({ connection: c }: { connection: PersonConnectionView }) 
             <span className="truncate">{sub}</span>
           </div>
         </div>
+        {c.pausedAt ? <Chip tone="ember">{t("connection.paused")}</Chip> : null}
         {person ? (
           <SignInButtons s={s} auth={c.connector?.auth} signedIn={Boolean(c.mySignIn)} />
         ) : null}

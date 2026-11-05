@@ -3,6 +3,7 @@ import { db, schema } from "../db/client.js";
 import type { Refusal, Where, Who } from "./call.js";
 import { channelInGrant, type Grant, grantOf } from "./grant.js";
 import { summarizeInput, writeLog } from "./log.js";
+import { runOver } from "./over.js";
 
 /*
  * Sends from a guest's run (docs/plans/capabilities.md, A6; rule 7 of the connections plan): a
@@ -289,12 +290,12 @@ export async function guestSendCheck(where: Where, send: GuestSend): Promise<Sen
 
 export type SendResult<T> =
   | { ok: true; result: T }
-  | { ok: false; refused: SendRefusal; reason: string };
+  | { ok: false; refused: SendRefusal | "run_ended"; reason: string };
 
 /**
  * A mail from the server's own address, which no account holds: the one send that is not a
- * connector's action. A guest's run is bound by the rules above; the call is logged like any
- * other, under the connection `mail:server`.
+ * connector's action. A run that is over sends nothing (over.ts), asked first; a guest's run is
+ * bound by the rules above; the call is logged like any other, under the connection `mail:server`.
  */
 export async function brokerSend<T>(call: {
   who: Who;
@@ -305,7 +306,7 @@ export async function brokerSend<T>(call: {
 }): Promise<SendResult<T>> {
   const started = Date.now();
   const { who, where } = call;
-  const line = (outcome: "allow" | "deny", reason: string, result: string) =>
+  const line = (outcome: "allow" | "deny", reason: string, result: string, rule = "guest_send") =>
     writeLog({
       at: new Date(started),
       durationMs: Date.now() - started,
@@ -321,11 +322,16 @@ export async function brokerSend<T>(call: {
       kind: "send",
       inputSummary: summarizeInput(call.input),
       outcome,
-      rule: "guest_send",
+      rule,
       reason,
       result,
       resultSize: null,
     });
+  const over = await runOver(where);
+  if (over) {
+    await line("deny", over.reason, "run_ended", over.rule);
+    return { ok: false, refused: "run_ended", reason: over.reason };
+  }
   let reason = "The server's address sends for members.";
   if (where.guest) {
     const check = await guestSendCheck(where, { recipients: call.recipients });
