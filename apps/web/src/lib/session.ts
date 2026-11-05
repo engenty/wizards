@@ -419,6 +419,8 @@ export interface WizardSummary {
   publishedVersion: number | null;
   shareToken: string;
   shareEnabled: boolean;
+  /** Who answers its steps with `who: "team"`: people by id, or the admins. */
+  answerers: string[] | "admins";
   dailyRunLimit: number;
   /** How many emails and messages its guests' runs send per day, all of them together. */
   dailyMailLimit: number;

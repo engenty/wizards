@@ -139,3 +139,33 @@ describe("a computer on its own", () => {
     expect(String(mail.url)).toContain("/studio/edit/");
   });
 });
+
+describe("a step for the team on a computer", () => {
+  it("tells its one person, whoever answered right before and through whichever door", async () => {
+    const team = { ...flow.steps[1], who: "team" };
+    const asked = { ...flow, steps: [flow.steps[0], team, flow.steps[2]] };
+    const runId = await inTenant(async () => {
+      const created = await wizards.createWizard(USER, { definition: asked as never });
+      await wizards.publishWizard(USER, created.id);
+      const id = await runner.createRun({
+        wizardId: created.id,
+        definition: asked as never,
+        files: [],
+        version: 1,
+        mode: "live",
+        visitorId: "v",
+        runner: "whatsapp",
+      });
+      await runner.submitPage(id, "first", {}, { visitorId: "v" });
+      return id;
+    });
+    let told: { visitor: boolean; userId: string | null }[] = [];
+    for (let i = 0; i < 200 && !told.length; i++) {
+      told = await inTenant(() =>
+        client.db.query.notice.findMany({ where: eq(client.schema.notice.runId, runId) }),
+      );
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    expect(told.map((n) => [n.visitor, n.userId])).toEqual([[false, null]]);
+  });
+});

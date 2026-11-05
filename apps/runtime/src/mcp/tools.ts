@@ -836,6 +836,8 @@ export function registerTools(server: McpServer, who: Principal) {
             target: z.string().describe("One of waitingFor.show."),
             note: z.string().max(2000),
           }),
+          z.object({ type: z.literal("approve"), note: z.string().max(2000).optional() }),
+          z.object({ type: z.literal("decline"), note: z.string().max(2000).optional() }),
         ]),
         waitSeconds,
       }),

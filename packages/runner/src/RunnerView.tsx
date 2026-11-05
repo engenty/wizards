@@ -54,6 +54,8 @@ export interface RunSource {
     edits?: Record<string, string | Record<string, unknown>>,
   ): Promise<boolean>;
   regenerate(stepId: string, target: string, note: string, items?: number[]): Promise<boolean>;
+  /** A review with `approve`: decides it, with a note if the person writes one. */
+  decide?(stepId: string, approved: boolean, note?: string): Promise<boolean>;
   back(): Promise<boolean>;
   retry(): Promise<boolean>;
   /** A finished result's text in the language the run is read in (a translated wizard). */
@@ -347,6 +349,54 @@ function Sleeping({ view, compact }: { view: RunView; compact?: boolean }) {
       </h2>
       <p className="mt-2 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
     </div>
+  );
+}
+
+/** The step is someone else's: this viewer has nothing to answer. */
+function AnsweredElsewhere({ view, compact }: { view: RunView; compact?: boolean }) {
+  const { Mascot } = runnerEnv();
+  return (
+    <div className="flex animate-rise flex-col items-center pt-6 text-center">
+      <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={compact ? 130 : 170} />
+      <h2 className="wizard-heading mt-4 font-display font-semibold text-[1.375rem] tracking-tight">
+        {t(view.answeredBy === "team" ? "run.answeredByTeam" : "run.answeredByOther")}
+      </h2>
+      <p className="mt-2 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
+    </div>
+  );
+}
+
+/** What a review with `approve` asks: a yes or a no, with a note if the person has one. */
+function ApproveFooter({ view, run, step }: { view: RunView; run: RunSource; step: ReviewStep }) {
+  const [note, setNote] = useState("");
+  return (
+    <Footer view={view} run={run} sticky>
+      <div className="flex w-full flex-col gap-3">
+        <Textarea
+          minRows={1}
+          placeholder={t("run.approveNote")}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+        <div className="flex justify-end gap-2">
+          <Button
+            size="lg"
+            variant="secondary"
+            busy={run.busy}
+            onClick={() => void run.decide?.(step.id, false, note.trim() || undefined)}
+          >
+            {t("run.decline")}
+          </Button>
+          <Button
+            size="lg"
+            busy={run.busy}
+            onClick={() => void run.decide?.(step.id, true, note.trim() || undefined)}
+          >
+            {t("run.approve")} <ArrowRight className="size-4" />
+          </Button>
+        </div>
+      </div>
+    </Footer>
   );
 }
 
@@ -737,15 +787,21 @@ function Review({
           </Card>
         ) : null}
       </div>
-      <Footer view={view} run={run} sticky>
-        <Button
-          size="lg"
-          busy={run.busy}
-          onClick={() => void run.accept(step.id, Object.keys(drafts).length ? drafts : undefined)}
-        >
-          {t("run.accept")} <ArrowRight className="size-4" />
-        </Button>
-      </Footer>
+      {step.approve && run.decide ? (
+        <ApproveFooter view={view} run={run} step={step} />
+      ) : (
+        <Footer view={view} run={run} sticky>
+          <Button
+            size="lg"
+            busy={run.busy}
+            onClick={() =>
+              void run.accept(step.id, Object.keys(drafts).length ? drafts : undefined)
+            }
+          >
+            {t("run.accept")} <ArrowRight className="size-4" />
+          </Button>
+        </Footer>
+      )}
     </div>
   );
 }
@@ -984,7 +1040,9 @@ export function RunnerBody({
   }
   const step = view.step;
   let body: React.ReactNode = null;
-  if (view.status === "running" && view.ask) {
+  if (view.answeredBy) {
+    body = <AnsweredElsewhere view={view} compact={compact} />;
+  } else if (view.status === "running" && view.ask) {
     body = <AskPanel key={view.ask.id} runId={view.id} ask={view.ask} />;
   } else if (view.status === "waiting_input" && view.question) {
     body = (

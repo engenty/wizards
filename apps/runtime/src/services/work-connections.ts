@@ -20,7 +20,7 @@ import { holdCall } from "./work-approvals.js";
  * A Work chat's grant (docs/plans/capabilities.md, A7): the space's connections whose audience
  * includes the person the turn is for. Their read actions are tools that run at once; a write, a
  * send or a delete is a confirmed action: the AI fills in its fields, the gate holds the call for
- * the person (`chat_approval`, the card in the chat), and once they confirm it the broker decides
+ * the person (`approval`, the card in the chat), and once they confirm it the broker decides
  * by the connection's rules. „Mit Freigabe“ on a connection that signs in as the space holds it
  * again, for the space's admins under the bell; an admin's yes runs it.
  */
