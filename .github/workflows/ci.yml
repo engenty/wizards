@@ -2,11 +2,12 @@ name: CI
 
 # The checks of docs/development.md on every push to main, every pull request and every release
 # tag. A push to main deploys nothing. On a release tag `v<version>` (pnpm release) the images of
-# the cloud runtime and of the documentation are built here beside the checks and pushed to GHCR;
-# when both are green the images become `latest` and the branches `deploy/runtime` and
-# `deploy/docs` move to the tag's commit, each when what it is built from changed. The server
-# deploys what a branch points at (Coolify resources `runtime` and `docs`, Auto Deploy) by pulling
-# the images (compose.cloud.yaml, deploy/Dockerfile.docs): it builds nothing. No secret and no
+# the cloud runtime, the documentation and the portal are built here beside the checks and pushed
+# to GHCR; when both are green the images become `latest` and the branches `deploy/runtime`,
+# `deploy/docs` and `deploy/portal` move to the tag's commit, each when what it is built from
+# changed. The server deploys what a branch points at (Coolify resources `runtime`, `docs` and
+# `portal`, Auto Deploy) by pulling the images (compose.cloud.yaml, deploy/Dockerfile.docs,
+# deploy/Dockerfile.portal): it builds nothing. No secret and no
 # call to the server from here.
 #   pnpm release                         # commit on release/vX.Y.Z; push it, open a pull request
 #   pnpm release:tag                     # once merged: tags main's release commit, pushes the tag
@@ -196,7 +197,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # What the server pulls (compose.cloud.yaml, deploy/Dockerfile.docs): the release's images,
+      # What the server pulls (compose.cloud.yaml, deploy/Dockerfile.docs, deploy/Dockerfile.portal):
+      # the release's images,
       # checked and built.
       - name: The release's images become latest
         run: |
@@ -239,6 +241,10 @@ jobs:
           # release, the site with its pages.
           move deploy/docs apps/docs docs/content docs/assets deploy/Dockerfile.docs \
             deploy/Dockerfile.docs.dockerignore pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json
+          # A team's host: deploy/Dockerfile.portal with the image (apps/portal/Dockerfile) built
+          # above.
+          move deploy/portal apps/portal packages/shared packages/runner deploy/Dockerfile.portal \
+            deploy/Dockerfile.portal.dockerignore pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json
 
       # A repository that builds on the release's images (its own image on top of the runtime's)
       # hears of it: a repository_dispatch `runtime-released` with the tag, to the repository named

@@ -1,0 +1,6 @@
+# What the server builds for `<team>.wizards.page` (Coolify resource `portal`): nothing of its
+# own. The app's image is built from apps/portal/Dockerfile on GitHub's runners for every release
+# (.github/workflows/ci.yml, job `images`); Coolify builds this file with --pull, so each deploy
+# fetches the newest green release. IMAGE_TAG on the resource pins a release (`v0.2.12`).
+ARG IMAGE_TAG=latest
+FROM ghcr.io/engenty/engenty-wizards-portal:${IMAGE_TAG}
