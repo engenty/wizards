@@ -1,7 +1,12 @@
 import type { MailboxError } from "@engenty/wizards-shared/connectors";
 import { MAIL_SIGNAL } from "@engenty/wizards-shared/definition";
 import { and, eq, inArray, isNotNull, isNull, lte, min, ne, notInArray, or } from "drizzle-orm";
-import { type BrokerResult, brokerPullStream, signInRefused } from "../broker/index.js";
+import {
+  type BrokerResult,
+  brokerPullStream,
+  brokerReadMessage,
+  signInRefused,
+} from "../broker/index.js";
 import { resolveConnector } from "../connectors/external.js";
 import { control, controlDb, db, schema, withTenant } from "../db/client.js";
 import type {
@@ -12,7 +17,7 @@ import type {
 import { feature, remoteFeatures } from "../features.js";
 import { twoWayActive } from "../sync/state.js";
 import { LOCAL_TENANT } from "../tenants/tenant.js";
-import { SPACE_SCOPE, sendSignal } from "./signals.js";
+import { SPACE_SCOPE, sendSignal, signalKey } from "./signals.js";
 
 /**
  * A mailbox as a source of signals: read from a stored cursor once a minute, only while a run
@@ -25,7 +30,11 @@ import { SPACE_SCOPE, sendSignal } from "./signals.js";
 type Connection = typeof schema.spaceConnection.$inferSelect;
 type Cursor = typeof schema.mailCursor.$inferSelect;
 
-/** How long one mail's text goes on: signals are kept whole, and they reach prompts and pages. */
+/**
+ * How long one mail's text goes on: signals are kept whole, and they reach prompts and pages. Only a
+ * mail a run waits on as it is read keeps its text. Of the rest the row has what tells who wrote
+ * about what, and a run that comes to one later reads its text in the mailbox (`withMailText`).
+ */
 const MAIL_TEXT = 20_000;
 const PAGE = 50;
 /** The most pages a mailbox reads in one minute; the rest comes with the next minute. */
@@ -55,7 +64,25 @@ async function furthestBack(spaceId: string, since: Date, now: Date): Promise<Da
 const senderKey = (from: string | null) =>
   from?.includes("@") && !from.toLowerCase().startsWith("thread:") ? from : null;
 
-/** One mail, two signals: by sender and by thread. What the mailbox sent itself or a machine answered wakes nobody. */
+/** Of these keys, the ones a run in this space waits on now. */
+async function waitedOn(spaceId: string, keys: string[]): Promise<Set<string>> {
+  const rows = await db
+    .selectDistinct({ key: schema.runWait.key })
+    .from(schema.runWait)
+    .where(
+      and(
+        eq(schema.runWait.spaceId, spaceId),
+        eq(schema.runWait.name, MAIL_SIGNAL),
+        inArray(schema.runWait.key, keys.map(signalKey)),
+      ),
+    );
+  return new Set(rows.map((r) => r.key));
+}
+
+/**
+ * One mail, two signals: by sender and by thread. What the mailbox sent itself or a machine answered
+ * wakes nobody, and a sender the provider found forged wakes no wait for that sender.
+ */
 async function signalMail(spaceId: string, connectionId: string, mail: InboundMessage, from: Date) {
   if (mail.outgoing || mail.auto_reply) {
     return;
@@ -69,28 +96,64 @@ async function signalMail(spaceId: string, connectionId: string, mail: InboundMe
     from: mail.from_email,
     name: mail.from_name,
     subject: mail.subject,
-    text: mail.body_text?.slice(0, MAIL_TEXT) ?? null,
     thread: mail.provider_thread_id,
     message: mail.provider_message_id,
     at: at.toISOString(),
   };
   const keys = [
-    senderKey(mail.from_email),
+    mail.sender_failed_checks ? null : senderKey(mail.from_email),
     mail.provider_thread_id ? `thread:${mail.provider_thread_id}` : null,
-  ];
+  ].filter((k): k is string => k !== null);
+  const waited = await waitedOn(spaceId, keys);
+  const text = mail.body_text?.slice(0, MAIL_TEXT) ?? null;
   for (const key of keys) {
-    if (key) {
-      await sendSignal({
-        spaceId,
-        scope: SPACE_SCOPE,
-        name: MAIL_SIGNAL,
-        key,
-        data,
-        source: `mail:${connectionId}`,
-        delivery: mail.provider_message_id,
-        at,
-      });
+    await sendSignal({
+      spaceId,
+      scope: SPACE_SCOPE,
+      name: MAIL_SIGNAL,
+      key,
+      data: waited.has(signalKey(key)) ? { ...data, text } : data,
+      source: `mail:${connectionId}`,
+      delivery: mail.provider_message_id,
+      at,
+    });
+  }
+}
+
+/**
+ * What a wait hands on from a signal. A mail that came before anyone waited has no text in its row:
+ * it is read from the mailbox now. A mail that can't be read any more wakes the run all the same.
+ */
+export async function withMailText(signal: {
+  data: Record<string, unknown> | null;
+  source?: string;
+}): Promise<Record<string, unknown> | null> {
+  const { data, source } = signal;
+  if (!(data && source?.startsWith("mail:") && typeof data.message === "string")) {
+    return data;
+  }
+  if ("text" in data) {
+    return data;
+  }
+  try {
+    const row = await db.query.spaceConnection.findFirst({
+      where: eq(schema.spaceConnection.id, source.slice("mail:".length)),
+    });
+    const connector = row && (await resolveConnector(row.spaceId, row.connectorId))?.connector;
+    if (!(row && connector?.stream?.read)) {
+      return { ...data, text: null };
     }
+    const got = await brokerReadMessage({
+      connection: { kind: "space_connection", row, connector },
+      message: data.message,
+    });
+    return {
+      ...data,
+      text: (got.ok ? got.result?.body_text?.slice(0, MAIL_TEXT) : null) ?? null,
+    };
+  } catch (err) {
+    console.warn(`[mail-watch] reading ${data.message}: ${(err as Error)?.message ?? err}`);
+    return { ...data, text: null };
   }
 }
 

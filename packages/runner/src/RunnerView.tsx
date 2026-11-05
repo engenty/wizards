@@ -44,6 +44,8 @@ import { Button, Card, cn, LinkedText, Spinner, Textarea } from "./ui.js";
  */
 export interface RunSource {
   view: RunView | null;
+  /** Takes a run back that the team has now; only where the viewer can (`view.canWithdraw`). */
+  withdraw?: () => Promise<unknown>;
   notFound: boolean;
   error: string | null;
   busy: boolean;
@@ -376,8 +378,9 @@ function Sleeping({ view, compact }: { view: RunView; compact?: boolean }) {
 }
 
 /** The step is someone else's: this viewer has nothing to answer. */
-function AnsweredElsewhere({ view, compact }: { view: RunView; compact?: boolean }) {
+function AnsweredElsewhere({ view, run, compact }: { view: RunView; run: Run; compact?: boolean }) {
   const { Mascot } = runnerEnv();
+  const [asking, setAsking] = useState(false);
   return (
     <div className="flex animate-rise flex-col items-center pt-6 text-center">
       <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={compact ? 130 : 170} />
@@ -385,6 +388,25 @@ function AnsweredElsewhere({ view, compact }: { view: RunView; compact?: boolean
         {t(view.answeredBy === "team" ? "run.answeredByTeam" : "run.answeredByOther")}
       </h2>
       <p className="mt-2 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
+      {view.canWithdraw && run.withdraw ? (
+        asking ? (
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <p className="text-[0.875rem] text-ink-2">{t("run.withdrawAsk")}</p>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setAsking(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button variant="danger" disabled={run.busy} onClick={() => void run.withdraw?.()}>
+                {t("run.withdraw")}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="ghost" className="mt-4" onClick={() => setAsking(true)}>
+            {t("run.withdraw")}
+          </Button>
+        )
+      ) : null}
     </div>
   );
 }
@@ -1053,7 +1075,7 @@ export function RunnerBody({
   const step = view.step;
   let body: React.ReactNode = null;
   if (view.answeredBy) {
-    body = <AnsweredElsewhere view={view} compact={compact} />;
+    body = <AnsweredElsewhere view={view} run={run} compact={compact} />;
   } else if (view.status === "running" && view.ask) {
     body = <AskPanel key={view.ask.id} runId={view.id} ask={view.ask} />;
   } else if (view.status === "waiting_input" && view.question) {

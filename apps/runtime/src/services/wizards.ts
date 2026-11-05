@@ -21,6 +21,7 @@ import { listConnectors, resolveConnector } from "../connectors/external.js";
 import { listSpaceConnections } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
+import { answeringNarrowed, whoOf } from "../engine/answerers.js";
 import { env } from "../env.js";
 import { managed, tenantMembers } from "../manage.js";
 import { saidOf } from "../model-errors.js";
@@ -610,8 +611,6 @@ export async function updateWizardSettings(
 ) {
   const w = await writableWizard(userId, wizardId);
   if (patch.answerers !== undefined) {
-    // Who may answer for the team is a right over the runs, so it is the organization's to give.
-    await requireAdmin();
     await checkAnswerers(patch.answerers);
   }
   if (patch.spaceId) {
@@ -729,6 +728,16 @@ export async function requireClean(w: WizardRow) {
 export async function publishWizard(userId: string, wizardId: string) {
   const w = await writableWizard(userId, wizardId);
   const { definition, files } = await requireClean(w);
+  // Runs already out still reach the admins if the list empties later (`teamToAsk`).
+  if (
+    managed &&
+    (await answeringNarrowed()) &&
+    Array.isArray(w.answerers) &&
+    !w.answerers.length &&
+    definition.steps.some((s) => whoOf(s) === "team")
+  ) {
+    throw new ServiceError("refused", note("teamNobodyNamed"));
+  }
   const version = (w.publishedVersion ?? 0) + 1;
   await db
     .insert(schema.wizardVersion)

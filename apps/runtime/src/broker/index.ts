@@ -13,6 +13,7 @@ export {
   brokerCall,
   brokerConnected,
   brokerPullStream,
+  brokerReadMessage,
   brokerSecret,
   CONNECTION_PAUSED,
   type Decision,

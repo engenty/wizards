@@ -60,6 +60,7 @@ import {
   mayAct,
   mayAnswerStep,
   mayGoBackFrom,
+  mayWithdraw,
   stepOfRun,
   viewFor,
 } from "../engine/answerers.js";
@@ -1097,9 +1098,14 @@ export const runRoutes = new Hono()
     }
   })
   .post("/:id/cancel", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const opened = await openedRun(c, c.req.param("id"), {});
+    const withdraws = opened ? await mayWithdraw(opened, await callerOf(c, opened)) : false;
+    const run = withdraws ? opened : await accessibleRun(c, c.req.param("id"));
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
+    }
+    if (withdraws) {
+      await emitEvent(run.id, run.cursor, "stopped", note("runWithdrawn"));
     }
     await cancel(run.id);
     return c.json({ ok: true });

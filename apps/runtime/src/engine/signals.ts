@@ -145,7 +145,16 @@ export async function findSignal(run: RunRow, spaceId: string, step: WaitStep, k
     orderBy: asc(schema.runSignal.at),
     limit: 50,
   });
-  return found.find((s) => !signalMissing(s.data, wait.fields).length) ?? null;
+  // A mail's text may still be in the mailbox: the run reads it there when it takes the signal.
+  return (
+    found.find(
+      (s) =>
+        !signalMissing(
+          s.data,
+          s.source.startsWith("mail:") ? wait.fields?.filter((f) => f !== "text") : wait.fields,
+        ).length,
+    ) ?? null
+  );
 }
 
 /** What a wait hands on from a signal: below `data`, and of a listed wait only what it listed. */
