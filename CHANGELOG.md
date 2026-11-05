@@ -4,6 +4,18 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.17.0] - 2026-11-05
+- ADDED **[portal]** The portal app draws a team's public pages (#510)
+- ADDED **[broker]** A guest's run posts to the Slack channel its published step fixes (#505)
+- ADDED **[connections]** Admins see which connections guests reach, and each person signing in is a plan feature (#508)
+- ADDED **[runtime]** Web_search through the gateway, for every model and client (#485)
+- ADDED **[broker]** A member reads their own lines of the Audit (#504)
+- DOCS Documentation updates (#503, #506, #509, #511)
+- FIXED **[knowledge]** Text in the index gets vectors of the model at hand, also when the cloud binds another (#507)
+- FIXED **[broker]** A plugin's readPages and the steps' Knowledge counts follow the space's RWX rules (#502)
+- FIXED **[runtime]** A member hears and lists nothing of a closed space's Studio (#501)
+- FIXED **[studio]** The Work bell opens the run, one action reads as one (#500)
+
 ## [0.16.2] - 2026-11-05
 - ADDED **[runtime]** Wait steps and the minute clock, behind `durableRuns` (#496)
 - DOCS Documentation updates (#490, #491)

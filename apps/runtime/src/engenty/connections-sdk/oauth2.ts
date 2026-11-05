@@ -240,7 +240,7 @@ export function exchangeAuthorizationCode(params: {
   return postTokenEndpoint(
     params.config,
     body,
-    params.fetchImpl ?? fetch,
+    params.fetchImpl ?? params.config.fetchImpl ?? fetch,
     params.resolveEnv
   );
 }
@@ -257,7 +257,7 @@ export function refreshAccessToken(params: {
       grant_type: "refresh_token",
       refresh_token: params.refreshToken,
     },
-    params.fetchImpl ?? fetch,
+    params.fetchImpl ?? params.config.fetchImpl ?? fetch,
     params.resolveEnv
   );
 }

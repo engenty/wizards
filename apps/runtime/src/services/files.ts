@@ -94,7 +94,7 @@ export async function writeFile(
       set: { hash: file.hash, mime: file.mime, size: file.size, updatedAt: new Date() },
     });
   await touch(w.id);
-  emitDraftChanged(filesChanged(w, path));
+  await emitDraftChanged(filesChanged(w, path));
   return file;
 }
 
@@ -162,7 +162,7 @@ export async function deleteFile(userId: string, wizardId: string, rawPath: stri
     throw notFound();
   }
   await touch(w.id);
-  emitDraftChanged(filesChanged(w, path));
+  await emitDraftChanged(filesChanged(w, path));
 }
 
 /** Copies a workspace onto another wizard (duplicate). Blobs are shared, only rows are new. */

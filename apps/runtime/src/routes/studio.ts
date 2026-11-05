@@ -55,14 +55,17 @@ import { assertRwx, folderAudience, setFolderAudience, subjectsOfPerson } from "
 import { appStates, connectApps } from "../cli/connect.js";
 import { layout } from "../cli/home.js";
 import {
+  actionKindsPatchSchema,
   connectorImportSchema,
+  connectorPreviewSchema,
   importConnector,
   previewSource,
-  refreshConnector,
   registryService,
   removeConnector,
   searchRegistry,
+  setActionKinds,
 } from "../connectors/external.js";
+import { reloadConnector } from "../connectors/reload.js";
 import { balanceCredits, canSpend } from "../credits/credits.js";
 import { estimateRun } from "../credits/estimate.js";
 import { missingModels, stepsWithoutModel } from "../engine/requirements.js";
@@ -1140,15 +1143,10 @@ export const studio = new Hono<Vars>()
   .get("/connectors/registry/:domain", async (c) =>
     c.json(await registryService(c.req.param("domain"))),
   )
-  .post("/connectors/preview", async (c) => {
-    const body = z
-      .object({
-        domain: z.string().min(1).max(253).optional(),
-        sourceKind: z.enum(["openapi", "mcp"]),
-        sourceUrl: z.string().url(),
-      })
-      .parse(await c.req.json());
-    return c.json(await previewSource(body));
+  // Reads an address before it is imported: for admins of a space that can be changed here.
+  .post("/spaces/:id/connectors/preview", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json(await previewSource(space.id, connectorPreviewSchema.parse(await c.req.json())));
   })
   .get("/spaces/:id/connectors", async (c) =>
     c.json(await connectorsView(reader(c), c.req.param("id"))),
@@ -1161,8 +1159,16 @@ export const studio = new Hono<Vars>()
     );
   })
   .post("/spaces/:id/connectors/:connectorId/refresh", async (c) => {
-    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
-    return c.json(await refreshConnector(space.id, c.req.param("connectorId"), null));
+    const user = c.get("user");
+    const space = await ownedSpace(user.id, c.req.param("id"));
+    return c.json(await reloadConnector(user.id, space.id, c.req.param("connectorId")));
+  })
+  // What single actions of an imported connector do, as an admin says it.
+  .patch("/spaces/:id/connectors/:connectorId/actions", async (c) => {
+    const user = c.get("user");
+    const space = await ownedSpace(user.id, c.req.param("id"));
+    const { actions } = actionKindsPatchSchema.parse(await c.req.json());
+    return c.json(await setActionKinds(user.id, space.id, c.req.param("connectorId"), actions));
   })
   .delete("/spaces/:id/connectors/:connectorId", async (c) => {
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
@@ -2001,16 +2007,16 @@ export const studio = new Hono<Vars>()
     // Not done is an answer too: the app's file is no plain JSON, here is what to paste.
     return c.json(done.outcome);
   })
-  // What each AI client did with the MCP server since the start: the test on "Integrate".
-  .get("/integrations/seen", (c) => c.json(seenApps(c.get("user").tenantId)))
+  // What each AI client did with the MCP server: the test on "Integrate".
+  .get("/integrations/seen", async (c) => c.json(await seenApps(c.get("user").tenantId)))
   // The apps members used on the spaces, allowed or refused by the organization's model policy.
   // Who used which app is for the organization's owners and admins.
-  .get("/model-policy/apps", (c) => {
+  .get("/model-policy/apps", async (c) => {
     const user = c.get("user");
     if (!mayChangeModels(user)) {
       return c.json({ error: say(c, "onlyOrganizationAdminsChange"), code: "forbidden" }, 403);
     }
-    return c.json({ apps: checkedApps(user.tenantId) });
+    return c.json({ apps: await checkedApps(user.tenantId) });
   })
   .get("/local/models", (c) => (managed ? c.notFound() : c.json(localModelSettings())))
   .put("/local/models", async (c) => {

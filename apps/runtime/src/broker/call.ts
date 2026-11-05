@@ -186,7 +186,10 @@ export function whereOfRun(
   };
 }
 
-/** The rules' view of a connector action's group. */
+/**
+ * The rules' view of a connector action's group. An imported connector's group is what an admin
+ * said the action does, where one did, before the importer's guess (`groupIn`, importer/classify.ts).
+ */
 export function kindOf(group: ConnectorActionGroup): ActionKind {
   return group === "destructive" || group === "write" || group === "send" ? group : "read";
 }
@@ -514,7 +517,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
   // channel its fixed step is fixed to, a few per run and day.
   if (kind === "send" && where.guest) {
     const sent = await guestSendCheck(where, {
-      recipients: recipientsOf(call.input),
+      recipients: recipientsOf(call.input, found?.recipientField),
       ...(postsToChannel(account.connector.id, call.action.id)
         ? {
             post: {

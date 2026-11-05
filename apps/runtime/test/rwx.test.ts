@@ -93,18 +93,32 @@ const stepContext = (holder: { kind: "guest"; id: string } | { kind: "person"; i
     store: { wizardId: fixture.W, holder: `${holder.kind[0]}:${holder.id}` },
   }) as never;
 
-/** The rules as the studio saves them: what is there, with a test's rows laid over it. */
+/**
+ * A test's rules, one at a time as the studio writes them: a rule about the same subject and
+ * resource takes the flags given, another is added. No other rule is touched.
+ */
 async function putRules(extra: Record<string, unknown>[]) {
-  const { rules } = await json(send("GET", `/api/studio/spaces/${spaceId}/rules`));
   const key = (r: any) => [r.subjectKind, r.subjectId ?? "", r.resourceKind, r.resourceId].join("|");
-  const kept = rules
-    .filter((r: any) => !extra.some((e) => key(e) === key(r)))
-    .map(({ id: _id, createdBy: _by, createdAt: _at, ...r }: any) => r);
-  const res = await send("PUT", `/api/studio/spaces/${spaceId}/rules`, {
-    rules: [...kept, ...extra],
-  });
+  const { rules } = await json(send("GET", `/api/studio/spaces/${spaceId}/rules`));
+  for (const e of extra) {
+    const there = rules.find((r: any) => key(r) === key(e));
+    const flags = { r: e.r ?? null, w: e.w ?? null, x: e.x ?? null };
+    const res = there
+      ? await send("PATCH", `/api/studio/spaces/${spaceId}/rules/${there.id}`, flags)
+      : await send("POST", `/api/studio/spaces/${spaceId}/rules`, e);
+    expect(res.status, await res.clone().text()).toBe(200);
+  }
+  return (await json(send("GET", `/api/studio/spaces/${spaceId}/rules`))).rules as any[];
+}
+
+/** Takes the rule about a subject and a resource away again. */
+async function dropRule(of: Record<string, unknown>) {
+  const key = (r: any) => [r.subjectKind, r.subjectId ?? "", r.resourceKind, r.resourceId].join("|");
+  const { rules } = await json(send("GET", `/api/studio/spaces/${spaceId}/rules`));
+  const there = rules.find((r: any) => key(r) === key(of));
+  expect(there, key(of)).toBeTruthy();
+  const res = await send("DELETE", `/api/studio/spaces/${spaceId}/rules/${there.id}`);
   expect(res.status, await res.clone().text()).toBe(200);
-  return (await res.json()).rules as any[];
 }
 
 const realFetch = globalThis.fetch;
@@ -247,18 +261,14 @@ describe("the rules, for the space's admins", () => {
     ]);
   });
 
-  it("checks what it is given, and takes the whole list", async () => {
-    const bad = await send("PUT", `/api/studio/spaces/${spaceId}/rules`, {
-      rules: [{ subjectKind: "role", subjectId: "boss", resourceKind: "page", resourceId: "*", r: "allow" }],
-    });
+  it("checks what it is given, and takes one rule at a time", async () => {
+    const add = (rule: Record<string, unknown>) => send("POST", `/api/studio/spaces/${spaceId}/rules`, rule);
+    const bad = await add({ subjectKind: "role", subjectId: "boss", resourceKind: "page", resourceId: "*", r: "allow" });
     expect(bad.status).toBe(400);
-    const twice = await send("PUT", `/api/studio/spaces/${spaceId}/rules`, {
-      rules: [
-        { subjectKind: "guest", subjectId: null, resourceKind: "page", resourceId: "*", r: "allow" },
-        { subjectKind: "guest", subjectId: null, resourceKind: "page", resourceId: "*", r: "deny" },
-      ],
-    });
+    // The guests' rule on every page is there from the seed: a second one about the same is refused.
+    const twice = await add({ subjectKind: "guest", subjectId: null, resourceKind: "page", resourceId: "*", r: "deny" });
     expect(twice.status).toBe(400);
+    expect((await twice.json()).error).toContain("already");
     const rules = await putRules([
       { subjectKind: "person", subjectId: "b2", resourceKind: "page", resourceId: fixture.pageOfD, r: "deny" },
     ]);
@@ -268,6 +278,8 @@ describe("the rules, for the space's admins", () => {
     expect((await send("DELETE", `/api/studio/spaces/${spaceId}/rules/${added.id}`)).status).toBe(200);
     expect((await json(send("GET", `/api/studio/spaces/${spaceId}/rules`))).rules).toHaveLength(22);
     expect((await send("DELETE", `/api/studio/spaces/${spaceId}/rules/${added.id}`)).status).toBe(404);
+    // The whole list is no longer saved at once.
+    expect((await send("PUT", `/api/studio/spaces/${spaceId}/rules`, { rules: [] })).status).toBe(404);
   });
 
   it("refuses a member", async () => {
@@ -275,8 +287,12 @@ describe("the rules, for the space's admins", () => {
     await expect(
       local(() => asRole("member", () => rwx.listRules(B, spaceId))),
     ).rejects.toMatchObject({ code: "forbidden" });
+    const rule = { subjectKind: "guest", subjectId: null, resourceKind: "page", resourceId: fixture.pageOfD, r: "deny", w: null, x: null } as const;
     await expect(
-      local(() => asRole("member", () => rwx.putRules(B, spaceId, []))),
+      local(() => asRole("member", () => rwx.addRule(B, spaceId, rule))),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      local(() => asRole("member", () => rwx.askRule(B, spaceId, { who: "guest", resource: "page", resourceId: fixture.pageOfD, perm: "r" }))),
     ).rejects.toMatchObject({ code: "forbidden" });
   });
 });
@@ -535,7 +551,7 @@ describe("the runtime itself", () => {
   it("is allowed everything, whatever a role's rows say; a deny for the plugin beside it wins", async () => {
     on();
     await putRules([
-      { subjectKind: "role", subjectId: "owner", resourceKind: "document", resourceId: fixture.D, r: "deny", w: "deny", x: "deny" },
+      { subjectKind: "role", subjectId: "owner", resourceKind: "document", resourceId: fixture.D, r: "deny" },
     ]);
     expect((await local(() => rwx.decide(spaceId, rwx.subjectsOfPerson(B, "owner"), D(), "r"))).ok).toBe(false);
     for (const perm of ["r", "w", "x"] as const) {
@@ -602,8 +618,12 @@ describe("the runtime itself", () => {
     expect((await local(() => rwx.decide(spaceId, [lookalike], D(), "r"))).reason).toBe(
       `document ${fixture.D}: no rule`,
     );
-    const res = await send("PUT", `/api/studio/spaces/${spaceId}/rules`, {
-      rules: [{ subjectKind: "system", subjectId: null, resourceKind: "document", resourceId: "*", r: "allow" }],
+    const res = await send("POST", `/api/studio/spaces/${spaceId}/rules`, {
+      subjectKind: "system",
+      subjectId: null,
+      resourceKind: "document",
+      resourceId: "*",
+      r: "allow",
     });
     expect(res.status).toBe(400);
   });
@@ -612,8 +632,9 @@ describe("the runtime itself", () => {
     on();
     await putRules([
       { subjectKind: "plugin", subjectId: "atlas", resourceKind: "document", resourceId: fixture.D, r: "deny" },
-      { subjectKind: "role", subjectId: "owner", resourceKind: "document", resourceId: fixture.D, r: null, w: null, x: "allow" },
     ]);
+    // The owners' deny on D from the test before is taken away again.
+    await dropRule({ subjectKind: "role", subjectId: "owner", resourceKind: "document", resourceId: fixture.D });
     const { originData } = await import("../src/services/space-origin");
     const { withCaller } = await import("../src/broker/caller");
     const read = (plugin: string) => local(() => originData(plugin).readFile(spaceId, fixture.D));
@@ -787,9 +808,8 @@ describe("a folder closed to guests: a plugin's reads, a step's counts", () => {
 
   beforeAll(async () => {
     on();
-    // The seed again: what the sentences above wrote is gone.
-    const reset = await send("PUT", `/api/studio/spaces/${spaceId}/rules`, { rules: [] });
-    expect(reset.status, await reset.clone().text()).toBe(200);
+    // The seed again: what the sentences above wrote is gone, and the next read seeds the space.
+    await local(() => client.db.delete(client.schema.rwxRule));
     const page = async (body: Record<string, unknown>) =>
       (await json(send("POST", `/api/studio/spaces/${spaceId}/pages`, body))).id as string;
     at.folder = await page({ title: "Kalkulation" });

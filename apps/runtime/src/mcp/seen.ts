@@ -1,8 +1,16 @@
+import { desc, lt, sql } from "drizzle-orm";
+import { db, withTenant } from "../db/client.js";
+import * as schema from "../db/schema.js";
+
 /**
- * What each AI client did with the MCP server since the runtime started: the test on the
- * "Integrate" page waits for a client to show up, call a tool and show the widget. Kept in memory
- * only; a restart starts the test over.
+ * What each AI client did with the MCP server: the test on the "Integrate" page waits for a client
+ * to show up, call a tool and show the widget. In the tenant's database, as the process that
+ * answers MCP need not be the one that serves the studio (RUNTIME_ROLE). A note that can't be
+ * written is logged: the client's call goes on.
  */
+
+/** How long an app stays known without a request. */
+const KEEP_MS = 30 * 24 * 3600_000;
 
 /** The ids the studio lists the AI apps by, and the names they give themselves (`clientInfo`). */
 const CLIENT_NAMES: [id: string, name: RegExp][] = [
@@ -36,14 +44,18 @@ export interface Seen {
   widgetAt: number | null;
 }
 
-const seen = new Map<string, Seen>();
 /** The name a client gave on `initialize`, by its sign-in: later requests do not repeat it. */
 const names = new Map<string, string>();
 
 type Message = { method?: string; params?: Record<string, unknown> };
 
 /** Notes one MCP request: its JSON-RPC messages, from the client signed in as `signIn`. */
-export function noteRequest(tenantId: string, signIn: string, client: string, body: unknown) {
+export async function noteRequest(
+  tenantId: string,
+  signIn: string,
+  client: string,
+  body: unknown,
+): Promise<void> {
   const messages = (Array.isArray(body) ? body : [body]).filter(
     (m): m is Message => Boolean(m) && typeof m === "object",
   );
@@ -54,34 +66,40 @@ export function noteRequest(tenantId: string, signIn: string, client: string, bo
   if (given) {
     names.set(signIn, given);
   }
-  const name = names.get(signIn) ?? client;
-  const now = Date.now();
-  for (const id of appIdsOf(name)) {
-    const key = `${tenantId}\n${id}`;
-    const last = seen.get(key) ?? { at: now, toolAt: null, widgetAt: null };
-    last.at = now;
-    for (const m of messages) {
-      if (m.method === "tools/call") {
-        last.toolAt = now;
-      }
-      if (m.method === "resources/read" && String(m.params?.uri ?? "").startsWith("ui://")) {
-        last.widgetAt = now;
-      }
-    }
-    seen.set(key, last);
+  const apps = appIdsOf(names.get(signIn) ?? client);
+  if (!apps.length) {
+    return;
   }
+  const now = Date.now();
+  const toolAt = messages.some((m) => m.method === "tools/call") ? now : null;
+  const widgetAt = messages.some(
+    (m) => m.method === "resources/read" && String(m.params?.uri ?? "").startsWith("ui://"),
+  )
+    ? now
+    : null;
+  await withTenant(tenantId, async () => {
+    for (const app of apps) {
+      await db
+        .insert(schema.mcpAppSeen)
+        .values({ app, at: now, toolAt, widgetAt })
+        .onConflictDoUpdate({
+          target: schema.mcpAppSeen.app,
+          set: {
+            at: now,
+            toolAt: sql`coalesce(excluded.tool_at, ${schema.mcpAppSeen.toolAt})`,
+            widgetAt: sql`coalesce(excluded.widget_at, ${schema.mcpAppSeen.widgetAt})`,
+          },
+        });
+    }
+  }).catch((err) => console.error("[mcp] noting a client:", (err as Error).message));
 }
 
 /** What the tenant's clients did, by app id. */
-export function seenApps(tenantId: string): Record<string, Seen> {
-  const out: Record<string, Seen> = {};
-  for (const [key, value] of seen) {
-    const [tenant, id] = key.split("\n");
-    if (tenant === tenantId) {
-      out[id] = value;
-    }
-  }
-  return out;
+export async function seenApps(tenantId: string): Promise<Record<string, Seen>> {
+  const rows = await withTenant(tenantId, () => db.select().from(schema.mcpAppSeen));
+  return Object.fromEntries(
+    rows.map((r) => [r.app, { at: r.at, toolAt: r.toolAt, widgetAt: r.widgetAt }]),
+  );
 }
 
 /** The name a sign-in's client gave on `initialize`, else the one its sign-in carries. */
@@ -117,38 +135,56 @@ export interface CheckedApp {
   at: number;
 }
 
-const checked = new Map<string, CheckedApp>();
-
 /** Counts one tool call of an app the policy allowed or refused. */
-export function noteChecked(
+export async function noteChecked(
   tenantId: string,
   app: string,
   person: string | null,
   allowed: boolean,
   kind: CheckedApp["kind"],
-) {
-  const key = `${tenantId}\n${app}\n${person ?? ""}`;
-  const last = checked.get(key) ?? {
-    app,
-    kind,
-    person,
-    allowed: 0,
-    refused: 0,
-    at: 0,
-  };
-  last.at = Date.now();
-  if (allowed) {
-    last.allowed++;
-  } else {
-    last.refused++;
-  }
-  checked.set(key, last);
+): Promise<void> {
+  const now = Date.now();
+  const t = schema.mcpAppCheck;
+  await withTenant(tenantId, () =>
+    db
+      .insert(t)
+      .values({
+        app,
+        person: person ?? "",
+        kind,
+        allowed: allowed ? 1 : 0,
+        refused: allowed ? 0 : 1,
+        at: now,
+      })
+      .onConflictDoUpdate({
+        target: [t.app, t.person],
+        set: {
+          kind,
+          at: now,
+          allowed: sql`${t.allowed} + excluded.allowed`,
+          refused: sql`${t.refused} + excluded.refused`,
+        },
+      }),
+  ).catch((err) => console.error("[mcp] noting an app's check:", (err as Error).message));
 }
 
-/** The apps the tenant's members used on its spaces since the runtime started, latest first. */
-export function checkedApps(tenantId: string): CheckedApp[] {
-  return [...checked]
-    .filter(([key]) => key.startsWith(`${tenantId}\n`))
-    .map(([, value]) => value)
-    .sort((a, b) => b.at - a.at);
+/** The apps the tenant's members used on its spaces, latest first. */
+export async function checkedApps(tenantId: string): Promise<CheckedApp[]> {
+  const rows = await withTenant(tenantId, () =>
+    db.select().from(schema.mcpAppCheck).orderBy(desc(schema.mcpAppCheck.at)),
+  );
+  return rows.map((r) => ({
+    app: r.app,
+    kind: r.kind as CheckedApp["kind"],
+    person: r.person || null,
+    allowed: r.allowed,
+    refused: r.refused,
+    at: r.at,
+  }));
+}
+
+/** Forgets what is older than `KEEP_MS`, in the current tenant's context: names of people among it. */
+export async function pruneSeen(now = Date.now()) {
+  await db.delete(schema.mcpAppSeen).where(lt(schema.mcpAppSeen.at, now - KEEP_MS));
+  await db.delete(schema.mcpAppCheck).where(lt(schema.mcpAppCheck.at, now - KEEP_MS));
 }

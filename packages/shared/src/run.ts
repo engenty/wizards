@@ -311,6 +311,16 @@ const NOTES_EN = {
   appleNotConverted: "Apple Intelligence couldn’t convert the recording: {detail}",
   connectorAlreadyExistsSpace: "The connector “{id}” already exists in this space.",
   connectorNotExist: "This connector doesn’t exist.",
+  connectorPrivateAddress:
+    "{host} is in a private network. A connector reaches such an address only on your own computer, not in the cloud.",
+  connectorSignInUnknown:
+    "{host} asks for a sign-in and doesn’t describe one. Choose a key in a header or no sign-in.",
+  connectorAddressNotRead:
+    "Neither an MCP server nor an OpenAPI description answered at {host}. Check the address: {detail}",
+  connectorNoSignedInConnection:
+    "{name} lists its actions only to a signed-in account. Set up a connection and sign in, then reload.",
+  connectorNoRecipientField: "The action “{id}” has no field “{field}”.",
+  connectorKeyRefused: "{host} didn’t accept the key. Check the header and the key.",
   fieldMissing: "“{label}” is missing.",
   mailServerNotExist:
     "The mail server{host} doesn’t exist. Enter the IMAP server. For Gmail and Google Workspace, it’s imap.gmail.com.",
@@ -759,6 +769,16 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   appleNotConverted: "Apple Intelligence konnte die Aufnahme nicht umwandeln: {detail}",
   connectorAlreadyExistsSpace: "Den Connector „{id}“ gibt es in diesem Space schon.",
   connectorNotExist: "Diesen Connector gibt es nicht.",
+  connectorPrivateAddress:
+    "{host} liegt in einem privaten Netz. Ein Connector erreicht so eine Adresse nur auf deinem eigenen Computer, nicht in der Cloud.",
+  connectorSignInUnknown:
+    "{host} verlangt eine Anmeldung und beschreibt keine. Wähl einen Key im Header oder keine Anmeldung.",
+  connectorAddressNotRead:
+    "Unter {host} hat weder ein MCP-Server noch eine OpenAPI-Beschreibung geantwortet. Prüf die Adresse: {detail}",
+  connectorNoSignedInConnection:
+    "{name} nennt seine Aktionen nur einem angemeldeten Konto. Richte eine Verbindung ein und melde dich an, dann lade neu.",
+  connectorNoRecipientField: "Die Aktion „{id}“ hat kein Feld „{field}“.",
+  connectorKeyRefused: "{host} hat den Key nicht angenommen. Prüf den Header und den Key.",
   fieldMissing: "„{label}“ fehlt.",
   mailServerNotExist:
     "Den Mail-Server{host} gibt es nicht. Trag den IMAP-Server ein, bei Gmail und Google Workspace imap.gmail.com.",

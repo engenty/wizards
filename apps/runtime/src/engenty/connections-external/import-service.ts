@@ -16,6 +16,7 @@ import {
   resolveMcpTransport,
 } from "./registry-client.js";
 import type {
+  ActionKindSet,
   ExternalSourceKind,
   ImportedConnectorRecord,
   McpTransport,
@@ -271,6 +272,14 @@ export function headersFromRequired(
 
 export interface AssembleParams {
   actionFilter?: string[] | null;
+  /** What an admin said single actions do, by action id; unknown ids are dropped. */
+  actionKinds?: Record<string, ActionKindSet> | null;
+  /**
+   * The sign-in the host worked out itself (a pasted address: what the server
+   * describes, or what the admin chose). Given, the registry's facts are not
+   * asked; left out, `mapAuth` decides and an unmappable sign-in refuses.
+   */
+  auth?: StoredAuthConfig | null;
   baseUrlOverride?: string | null;
   discover?: RegistryDiscoverPayload | null;
   domain: string;
@@ -307,19 +316,24 @@ export function assembleRecord(params: AssembleParams): {
   }
   const requiredHeaders = surface ? resolveRequiredHeaders(surface) : [];
 
-  const mapped = mapAuth({
-    discover: params.discover ?? null,
-    securitySchemes: normalized.security_schemes as Record<
-      string,
-      never
-    > | null,
-    sourceKind: params.sourceKind,
-    surface,
-  });
-  if (!mapped.ok) {
-    throw new ImportValidationError(mapped.reason);
+  let auth: StoredAuthConfig;
+  if (params.auth) {
+    auth = params.auth;
+  } else {
+    const mapped = mapAuth({
+      discover: params.discover ?? null,
+      securitySchemes: normalized.security_schemes as Record<
+        string,
+        never
+      > | null,
+      sourceKind: params.sourceKind,
+      surface,
+    });
+    if (!mapped.ok) {
+      throw new ImportValidationError(mapped.reason);
+    }
+    auth = mapped.auth;
   }
-  const auth: StoredAuthConfig = mapped.auth;
 
   if (auth.kind === "oauth2" && !params.oauthClient) {
     if (auth.dcr && auth.registration_endpoint) {
@@ -375,7 +389,13 @@ export function assembleRecord(params: AssembleParams): {
     );
   }
 
+  const known = new Set(actions.map((action) => action.id));
+  const actionKinds = Object.fromEntries(
+    Object.entries(params.actionKinds ?? {}).filter(([id]) => known.has(id))
+  );
+
   const record: ImportedConnectorRecord = {
+    ...(Object.keys(actionKinds).length ? { action_kinds: actionKinds } : {}),
     actions,
     auth_config: auth,
     base_url: baseUrl,

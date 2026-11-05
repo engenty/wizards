@@ -1,18 +1,94 @@
 [
   {
+    "version": "v0.17.0",
+    "timestamp": 1793920329,
+    "commits": [
+      {
+        "id": "25c81f7",
+        "message": "documentation updates (#503, #506, #509, #511)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "c0bc415",
+        "message": "the portal app draws a team's public pages (#510)",
+        "group": "Added",
+        "scope": "portal",
+        "breaking": false
+      },
+      {
+        "id": "707ca0f",
+        "message": "a guest's run posts to the Slack channel its published step fixes (#505)",
+        "group": "Added",
+        "scope": "broker",
+        "breaking": false
+      },
+      {
+        "id": "9e998bf",
+        "message": "admins see which connections guests reach, and each person signing in is a plan feature (#508)",
+        "group": "Added",
+        "scope": "connections",
+        "breaking": false
+      },
+      {
+        "id": "e404ae0",
+        "message": "text in the index gets vectors of the model at hand, also when the cloud binds another (#507)",
+        "group": "Fixed",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "cc80abd",
+        "message": "web_search through the gateway, for every model and client (#485)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "16b18c9",
+        "message": "a member reads their own lines of the Audit (#504)",
+        "group": "Added",
+        "scope": "broker",
+        "breaking": false
+      },
+      {
+        "id": "2b3b6a7",
+        "message": "a plugin's readPages and the steps' Knowledge counts follow the space's RWX rules (#502)",
+        "group": "Fixed",
+        "scope": "broker",
+        "breaking": false
+      },
+      {
+        "id": "d0c4af1",
+        "message": "a member hears and lists nothing of a closed space's Studio (#501)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "aef8878",
+        "message": "the Work bell opens the run, one action reads as one (#500)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.16.2",
-    "timestamp": 1793905693,
+    "timestamp": 1793906183,
     "commits": [
       {
         "id": "380a289",
-        "message": "wait steps and the minute clock, behind durableRuns (#496)",
+        "message": "wait steps and the minute clock (#496)",
         "group": "Added",
         "scope": "runtime",
         "breaking": false
       },
       {
         "id": "a8bda45",
-        "message": "several runs now go on at once, and a run no longer loses a wake-up or writes after another runner took it over (#495)",
+        "message": "runs in parallel, wakes that stay, writes only with the claim (#495)",
         "group": "Fixed",
         "scope": "runner",
         "breaking": false

@@ -97,7 +97,19 @@ export type StoredAuthConfig =
       };
     };
 
+/** What an admin said an action does; for a send, the input field that holds the recipient. */
+export interface ActionKindSet {
+  kind: ActionClassification;
+  /** A send's recipient: a field of the input, `body.to` for one inside an HTTP body. */
+  recipient_field?: string;
+}
+
 export interface ImportedConnectorRecord {
+  /**
+   * What an admin said single actions do, by action id. It comes before the
+   * guess by name (`groupOf`) and stays when the actions are reloaded.
+   */
+  action_kinds?: Record<string, ActionKindSet>;
   actions: NormalizedAction[];
   auth_config: StoredAuthConfig;
   base_url: string | null;

@@ -45,7 +45,7 @@ async function appRefusal(who: Principal, client: string, body: unknown): Promis
       ? policy.apps.local
       : policy.apps.subscriptions
     : false;
-  noteChecked(who.tenantId, client, who.name ?? who.email ?? null, allowed, kind);
+  await noteChecked(who.tenantId, client, who.name ?? who.email ?? null, allowed, kind);
   if (allowed) {
     return null;
   }
@@ -119,7 +119,7 @@ export function mcpHandler(): (request: Request) => Promise<Response> {
         .clone()
         .json()
         .catch(() => null);
-      noteRequest(who.tenantId, authInfo.clientId, who.client, body);
+      await noteRequest(who.tenantId, authInfo.clientId, who.client, body);
       const refused = await appRefusal(who, clientNameOf(authInfo.clientId, who.client), body);
       if (refused) {
         return refused;

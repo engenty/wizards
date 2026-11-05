@@ -77,6 +77,12 @@ export interface ConnectorAction<TInput = unknown, TOutput = unknown> {
    * union of scopes for the connection's enabled groups (incremental auth).
    */
   providerScopes?: string[];
+  /**
+   * A send: the input field that holds the recipient, where the connector
+   * knows it (an imported connector: what an admin named). The broker reads a
+   * guest's recipients there (`broker/send.ts`, `recipientsOf`).
+   */
+  recipientField?: string;
   summary: string;
 }
 
@@ -96,6 +102,12 @@ export interface ConnectorOAuth2Config {
   dynamicClientRegistration?: boolean;
   /** Extra static query params for the authorization URL. */
   extraAuthParams?: Record<string, string>;
+  /**
+   * The fetch the token endpoint is called with (code exchange and refresh),
+   * where the caller passes none. An imported connector sets its guarded
+   * fetch here: its token endpoint came from a registry or a pasted address.
+   */
+  fetchImpl?: typeof fetch;
   /**
    * Register an OAuth client (DCR) and persist id/secret so
    * `resolveClientCredentials` succeeds. Called once from the connect route
