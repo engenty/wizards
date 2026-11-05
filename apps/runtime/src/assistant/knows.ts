@@ -306,7 +306,9 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       id: "runs",
       description: prompt("goose", "tool.runs"),
       inputSchema: z.object({
-        status: z.enum(["failed", "done", "running", "waiting_input", "cancelled"]).optional(),
+        status: z
+          .enum(["failed", "done", "running", "waiting_input", "sleeping", "cancelled"])
+          .optional(),
         limit: z.number().int().min(1).max(40).optional(),
       }),
       execute: ({ status, limit }) =>

@@ -73,6 +73,10 @@ export function stateText(view: RunView, page: PageBinding | null, camera = fals
     }
     return lines.join("\n");
   }
+  if (view.status === "sleeping") {
+    lines.push(`waiting until: ${view.wakeAt ?? "soon"}; it goes on by itself, nothing to do`);
+    return lines.join("\n");
+  }
   if (view.status === "done") {
     lines.push("done. made:");
     for (const { step, output } of view.shown) {

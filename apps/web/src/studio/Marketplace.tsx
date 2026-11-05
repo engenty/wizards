@@ -39,6 +39,7 @@ import {
   FileText,
   Flag,
   Globe,
+  Hourglass,
   Image as ImageIcon,
   ListChecks,
   type LucideIcon,
@@ -329,6 +330,8 @@ function stepIcon(step: OutlineStep): LucideIcon {
       return Clapperboard;
     case "review":
       return Eye;
+    case "wait":
+      return Hourglass;
     case "result":
       return Flag;
   }

@@ -1031,6 +1031,9 @@ export const runRoutes = new Hono()
     if (run.status === "done" || run.status === "cancelled" || run.status === "failed") {
       return refuse(c, { code: "runOver" }, 409);
     }
+    if (run.status === "sleeping") {
+      return refuse(c, { code: "runSleeps" }, 409);
+    }
     if (!(await talkAllowed(run))) {
       return refuse(c, { code: "talkOff" }, 403);
     }
@@ -1056,6 +1059,9 @@ export const runRoutes = new Hono()
     }
     if (run.status === "done" || run.status === "cancelled" || run.status === "failed") {
       return refuse(c, { code: "runOver" }, 409);
+    }
+    if (run.status === "sleeping") {
+      return refuse(c, { code: "runSleeps" }, 409);
     }
     if (!allowed(`transcribe:${run.id}`, 60, 3600_000)) {
       return refuse(c, { code: "tryLater" }, 429);

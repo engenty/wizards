@@ -154,6 +154,14 @@ describe("what a step needs beyond a text model", () => {
     expect(by("done")).toEqual(["format:docx", "format:pdf?", "lists"]);
   });
 
+  it("a wait needs a process that stays", () => {
+    const wait = { id: "pause", type: "wait", title: "Pause", for: "2d" };
+    const def = { version: 2, title: "T", description: "", avatar: "round", steps: [wait] };
+    expect(needs(wait as never, def as unknown as WizardDefinition)).toEqual([
+      expect.objectContaining({ need: "wait", hard: true }),
+    ]);
+  });
+
   it("a file nobody reads later is soft", () => {
     const def = {
       title: "x",

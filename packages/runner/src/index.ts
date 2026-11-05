@@ -59,7 +59,13 @@ export {
   Markdown,
   OutputView,
 } from "./outputs.js";
-export { initialValues, RunnerBody, type RunSource, useDoneSignal } from "./RunnerView.js";
+export {
+  goesOnText,
+  initialValues,
+  RunnerBody,
+  type RunSource,
+  useDoneSignal,
+} from "./RunnerView.js";
 export { ConnectionField, ListCheck, ListDownloads, ListTable, StoreButton } from "./store.js";
 export {
   type SurfaceAction,

@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   type AgentStep,
   branchValues,
+  DEFINITION_VERSION,
   isDecisionStep,
   itemsTotals,
   nextStepId,
   parseWizard,
+  waitDurationMs,
 } from "@engenty/wizards-shared/definition";
 import { EXAMPLE_WIZARD } from "../src/authoring/example";
 
@@ -44,6 +46,75 @@ describe("validator", () => {
     if (!parsed.ok) throw new Error("invalid");
     expect(nextStepId(parsed.wizard, "p", { kind: "b" })).toBe("r");
     expect(nextStepId(parsed.wizard, "p", { kind: "a" })).toBe("q");
+  });
+});
+
+describe("a wait step", () => {
+  const wizard = (wait: object, more: object[] = []) => ({
+    version: 2,
+    title: "Wait",
+    description: "",
+    avatar: "round",
+    steps: [
+      { id: "ask", type: "page", title: "Ask", fields: [{ id: "due", kind: "text", label: "D" }] },
+      { id: "pause", type: "wait", title: "Pause", ...wait },
+      ...more,
+      { id: "done", type: "result", title: "Fertig", deliverables: [] },
+    ],
+  });
+  const messages = (raw: unknown) => parseWizard(raw).issues.map((i) => i.message);
+
+  it("takes a time or a date, and the version stays", () => {
+    expect(parseWizard(wizard({ for: "2d" })).issues).toEqual([]);
+    expect(parseWizard(wizard({ until: "2026-11-10T08:00:00.000Z" })).issues).toEqual([]);
+    expect(parseWizard(wizard({ until: "{{due}}" })).issues).toEqual([]);
+    expect(DEFINITION_VERSION).toBe(2);
+  });
+
+  it("has one of them", () => {
+    expect(messages(wizard({})).join()).toContain('"for" or "until"');
+    expect(messages(wizard({ for: "2d", until: "{{due}}" })).join()).toContain('"for" or "until"');
+  });
+
+  it("refuses what it cannot wait for", () => {
+    for (const bad of ["0d", "2w", "1.5h", "99999d", "soon"]) {
+      expect(parseWizard(wizard({ for: bad })).ok, bad).toBe(false);
+    }
+    expect(messages(wizard({ until: "next tuesday" })).join()).toContain("ISO date");
+    expect(messages(wizard({ until: "{{nobody}}" })).length).toBeGreaterThan(0);
+  });
+
+  it("a duration lasts what it says", () => {
+    expect(waitDurationMs("90m")).toBe(90 * 60_000);
+    expect(waitDurationMs("6h")).toBe(6 * 3_600_000);
+    expect(waitDurationMs("2d")).toBe(2 * 86_400_000);
+  });
+
+  it("hands on what branches read, and nothing else", () => {
+    const branch = (field: string) => ({
+      id: "after",
+      type: "agent",
+      title: "After",
+      instructions: "x",
+      tools: [],
+      output: { format: "text" },
+      next: [{ when: { field, op: "equals", value: true }, goto: "done" }],
+    });
+    expect(parseWizard(wizard({ for: "1d" }, [branch("steps.pause.waited")])).issues).toEqual([]);
+    expect(messages(wizard({ for: "1d" }, [branch("steps.pause.nope")])).length).toBeGreaterThan(0);
+    expect(
+      branchValues({}, { pause: { json: { waited: true } } })["steps.pause.waited"],
+    ).toBe(true);
+  });
+
+  it("has nothing to show or hand over", () => {
+    const review = { id: "look", type: "review", title: "Look", show: ["pause"] };
+    expect(messages(wizard({ for: "1d" }, [review])).join()).toContain("nothing to show");
+    const raw = wizard({ for: "1d" });
+    (raw.steps.at(-1) as { deliverables: object[] }).deliverables = [
+      { from: "pause", formats: ["md"] },
+    ];
+    expect(messages(raw).join()).toContain("nothing to hand over");
   });
 });
 

@@ -1036,8 +1036,15 @@ export interface PluginRunField {
   shown?: boolean;
 }
 
-/** What a run waits for: a page, a review, or a question of a running step. */
+/** What a run waits for: a page, a review, a question of a running step, or a time. */
 export type PluginRunWaiting =
+  | {
+      /** The step that waits. The run goes on by itself at `until`: tell the person, ask nothing. */
+      wait: string;
+      title: string;
+      until: string | null;
+      hint: string;
+    }
   | {
       page: string;
       title: string;
@@ -1064,7 +1071,7 @@ export interface PluginRunReport {
   mode: "test" | "live";
   /** The wizard's language: what to say to the person in. */
   lang: "de" | "en";
-  status: "waiting_input" | "running" | "done" | "failed" | "cancelled";
+  status: "waiting_input" | "sleeping" | "running" | "done" | "failed" | "cancelled";
   step: { id: string; type: string; title: string } | null;
   passed: string[];
   waitingFor?: PluginRunWaiting;

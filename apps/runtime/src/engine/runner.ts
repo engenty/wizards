@@ -25,12 +25,15 @@ import {
   pageNeeds,
   type Step,
   textLang,
+  type WaitStep,
   type WizardDefinition,
+  waitDurationMs,
   whenHolds,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import type { Said, StepOutput } from "@engenty/wizards-shared/run";
+import type { RunNote, RunStatus, Said, StepOutput } from "@engenty/wizards-shared/run";
 import {
+  CAN_GO_BACK,
   type ClosedChoice,
   note,
   type RunState,
@@ -60,6 +63,7 @@ import {
 import { estimateRun } from "../credits/estimate.js";
 import { db, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
+import { feature, remoteFeatures } from "../features.js";
 import { saveAsset } from "../files/storage.js";
 import { managed, tenantInfo } from "../manage.js";
 import { hasFfmpeg } from "../media/ffmpeg.js";
@@ -95,7 +99,9 @@ import {
   indexRun,
   markLine,
   restRun,
+  setWake,
   waitingRuns,
+  wakeDue,
   wakeRun,
 } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -116,7 +122,7 @@ import {
 } from "./requirements.js";
 import { releaseResources, resourcesFor } from "./resources.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
-import { answersAsText, resolveRef } from "./template.js";
+import { answersAsText, renderTemplate, resolveRef } from "./template.js";
 import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
 import { StepError } from "./types.js";
 
@@ -138,6 +144,13 @@ export class NoCreditsError extends NotedError {
 export class GuestBudgetError extends NotedError {
   constructor() {
     super(note("guestBudget"));
+  }
+}
+
+/** A step past its deadline (`env.runner.stepDeadlines`): it fails, and its slot comes free. */
+class StepDeadline extends NotedError {
+  constructor() {
+    super(note("stepTookTooLong"));
   }
 }
 
@@ -217,12 +230,13 @@ async function dataSpaceOf(run: RunRow, space: SpaceRow): Promise<{ id: string; 
 
 /**
  * Writes the run. Inside its drive the write needs the drive's claim; with `seen`, a person's write
- * needs the `rev` it read. A step may start or answer other runs: only its own run's claim counts.
+ * needs the `rev` it read, and a wait's write the status it came from: a cancel wins over either. A
+ * step may start or answer other runs: only its own run's claim counts.
  */
 async function updateRun(
   runId: string,
   patch: Partial<typeof schema.run.$inferInsert>,
-  seen?: { rev: number },
+  seen?: { rev: number } | { status: RunStatus },
 ) {
   const holder = driving.getStore();
   const held = holder?.runId === runId ? holder : undefined;
@@ -233,7 +247,7 @@ async function updateRun(
       and(
         eq(schema.run.id, runId),
         held ? eq(schema.run.claim, held.generation) : undefined,
-        seen ? eq(schema.run.rev, seen.rev) : undefined,
+        seen && ("rev" in seen ? eq(schema.run.rev, seen.rev) : eq(schema.run.status, seen.status)),
       ),
     );
   if (result.rowsAffected === 0) {
@@ -243,6 +257,10 @@ async function updateRun(
     if (seen) {
       throw new RunConflict({ code: "runBusy" });
     }
+  }
+  // A run that sleeps holds no credits: it reserves again when it wakes.
+  if (patch.status === "sleeping") {
+    await releaseRun(runId);
   }
   // A run that ended needs no credits held for it any more.
   if (patch.status === "done" || patch.status === "failed" || patch.status === "cancelled") {
@@ -350,6 +368,10 @@ export async function createRun(input: {
   const id = nanoid(18);
   const first = input.definition.steps[0];
   const state: RunState = { values: {}, outputs: {}, history: [], notes: {} };
+  // Off, nothing starts that would need the clock; a run that already waits goes on.
+  if (input.definition.steps.some((s) => s.type === "wait") && !(await durableRunsOn())) {
+    throw new ModelUnavailableError(note("waitsOff"));
+  }
   // A step every run passes through needs a model this runtime cannot serve: refuse before anything is held.
   const blocked = blockingMessage(await missingModelsSaid(input.definition));
   if (blocked) {
@@ -517,7 +539,9 @@ async function driveClaimed(
     void withTenant(tenant, () => reportRun(runId, "running")).catch(() => undefined);
     void withTenant(tenant, () => loadRun(runId))
       .then((run) => {
-        if (run && (run.status !== "running" || run.claim !== generation)) {
+        // A run woken from its wait is still `sleeping` for the moment its drive reserves credits.
+        const working = run?.status === "running" || run?.status === "sleeping";
+        if (run && (!working || run.claim !== generation)) {
           abort.abort();
         }
         if (run && !longHoldReported && Date.now() - heldSince >= LONG_HOLD_MS) {
@@ -630,6 +654,23 @@ export function startRunner() {
   }, POLL_MS);
   timer.unref();
   void lookAtLine();
+  const clock = setInterval(() => void lookAtClock(), env.runner.clockMs);
+  clock.unref();
+  void lookAtClock();
+}
+
+/** The clock: what came due goes in line, and the line need not wait for its next look. */
+async function lookAtClock() {
+  if (stopping) {
+    return;
+  }
+  try {
+    if (await wakeDue()) {
+      await lookAtLine();
+    }
+  } catch (err) {
+    console.warn("[clock]", (err as Error).message);
+  }
 }
 
 /** Stops the runs this process holds and hands them back to the line. */
@@ -930,6 +971,176 @@ async function decidePageFields(
     .map((f) => f.id);
 }
 
+async function durableRunsOn() {
+  return feature("durableRuns", await remoteFeatures().catch(() => null));
+}
+
+/**
+ * Does a step's work under its deadline. Past it the work hears `deadline` on the signal it was
+ * given, and the answer is a StepDeadline even if the work never ends: a hung step gives its slot
+ * back. A stop of the run itself passes through to the work.
+ */
+async function withDeadline<T>(
+  stepType: string,
+  signal: AbortSignal,
+  work: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  if (!(await durableRunsOn())) {
+    return work(signal);
+  }
+  const minutes = env.runner.stepDeadlines[stepType] ?? env.runner.stepDeadlines.default;
+  const limit = new AbortController();
+  const stop = () => limit.abort(signal.reason);
+  if (signal.aborted) {
+    stop();
+  }
+  signal.addEventListener("abort", stop, { once: true });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const past = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      // In this order: what the abort makes the work throw comes second.
+      reject(new StepDeadline());
+      limit.abort("deadline");
+    }, minutes * 60_000);
+    timer.unref();
+  });
+  try {
+    return await Promise.race([work(limit.signal), past]);
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", stop);
+  }
+}
+
+/** A run that waits is kept past its start: its wait, and the same time to come back for it. */
+function keptUntil(run: RunRow, wakeAt: Date): Date | null {
+  if (!run.expiresAt) {
+    return null;
+  }
+  const kept = wakeAt.getTime() + env.limits.resultTtlDays * 86_400_000;
+  return new Date(Math.max(run.expiresAt.getTime(), kept));
+}
+
+/** When a wait ends; an `until` that says no date fails the run with what it says. */
+function wakeTimeOf(run: RunRow, step: WaitStep): Date {
+  if (!step.until) {
+    return new Date(Date.now() + waitDurationMs(step.for ?? "1m"));
+  }
+  const said = renderTemplate(step.until, {
+    def: run.definition,
+    state: run.state,
+    brand: {},
+  }).trim();
+  const wakeAt = new Date(said);
+  if (Number.isNaN(wakeAt.getTime())) {
+    throw new NotedError(note("waitDateUnreadable", { date: said }));
+  }
+  return wakeAt;
+}
+
+/**
+ * A `wait` is reached: the run leaves every process and stays as a row. False: the time has gone
+ * by already, and the run goes on at once.
+ */
+async function enterWait(run: RunRow, step: WaitStep): Promise<boolean> {
+  const wakeAt = wakeTimeOf(run, step);
+  await emitEvent(run.id, step.id, "step_started", step.title);
+  if (wakeAt.getTime() <= Date.now()) {
+    await finishWait(run, step, await waitOver(run, step));
+    return false;
+  }
+  await setWake(run.id, wakeAt);
+  await updateRun(
+    run.id,
+    { status: "sleeping", wakeAt, expiresAt: keptUntil(run, wakeAt), error: null },
+    { status: "running" },
+  );
+  return true;
+}
+
+interface WaitOver {
+  state: RunState;
+  cursor: string | null;
+}
+
+/** The wait is behind the run: its output, and the way on. */
+async function waitOver(run: RunRow, step: WaitStep): Promise<WaitOver> {
+  const state = structuredClone(run.state);
+  state.outputs[step.id] = { json: { waited: true }, at: new Date().toISOString() };
+  return { state, cursor: await advance(run, step.id, state) };
+}
+
+async function finishWait(run: RunRow, step: WaitStep, { state, cursor }: WaitOver) {
+  await updateRun(
+    run.id,
+    { state, cursor, status: cursor ? "running" : "done", wakeAt: null, error: null },
+    { status: run.status },
+  );
+  await emitEvent(run.id, step.id, "step_done", step.title);
+}
+
+/** Holds the credits a run needs to go on; what it says when they are refused, else null. */
+async function holdAgain(run: RunRow): Promise<RunNote | null> {
+  const estimate = await estimateRun(
+    run.wizardId,
+    run.version,
+    run.definition,
+    await stepsWithoutModel(run.definition),
+  );
+  const held = await reserveForRun(run.id, estimate.reserve, guestRun(run));
+  return held === true
+    ? null
+    : note(held === "guest_budget" ? "guestBudget" : "wizardRunOutCredits");
+}
+
+/**
+ * A run that sleeps is woken: true when it goes on, false when it does not. The row decides, not
+ * the wake: one that comes early or twice puts the time back and changes nothing. What else may
+ * end a wait slots in here.
+ */
+async function wakeFromWait(run: RunRow): Promise<boolean> {
+  const step = stepOf(run.definition, run.cursor);
+  if (step?.type !== "wait") {
+    await updateRun(run.id, { status: "running", wakeAt: null }, { status: "sleeping" });
+    return true;
+  }
+  if (run.wakeAt && run.wakeAt.getTime() > Date.now()) {
+    await setWake(run.id, run.wakeAt);
+    return false;
+  }
+  const over = await waitOver(run, step);
+  const next = stepOf(run.definition, over.cursor);
+  let refused: RunNote | null = null;
+  // A sleeping run gave its hold back, and a hold lapses anyway: it holds again before it spends.
+  if (next && next.type !== "result") {
+    try {
+      refused = await holdAgain(run);
+    } catch (err) {
+      // The Manage-App out of reach is no refusal: the time stays due, the clock tries again.
+      console.warn(`[run ${run.id}] holding credits on wake:`, (err as Error).message);
+      await setWake(run.id, run.wakeAt ?? new Date());
+      return false;
+    }
+  }
+  if (!refused) {
+    await finishWait(run, step, over);
+    return true;
+  }
+  // The wait is over either way: "try again" goes on from the next step and does not wait again.
+  await emitEvent(run.id, step.id, "error", refused);
+  await updateRun(
+    run.id,
+    {
+      ...over,
+      status: "failed",
+      wakeAt: null,
+      error: saidText(refused, textLang(wizardLang(run.definition))),
+    },
+    { status: "sleeping" },
+  );
+  return false;
+}
+
 async function drive(runId: string, signal: AbortSignal) {
   // The step starts afresh here: a question or a device call another process left has no one
   // waiting.
@@ -937,6 +1148,12 @@ async function drive(runId: string, signal: AbortSignal) {
   await clearDeviceCalls(runId);
   while (!signal.aborted) {
     const run = await loadRun(runId);
+    if (run?.status === "sleeping") {
+      if (!(await wakeFromWait(run))) {
+        return;
+      }
+      continue;
+    }
     if (run?.status !== "running") {
       return;
     }
@@ -946,7 +1163,9 @@ async function drive(runId: string, signal: AbortSignal) {
     if (deciding) {
       const state = structuredClone(run.state);
       try {
-        const cursor = await decideBranch(run, deciding, state, signal);
+        const cursor = await withDeadline("decision", signal, (limit) =>
+          decideBranch(run, deciding, state, limit),
+        );
         if (signal.aborted) {
           return;
         }
@@ -974,7 +1193,9 @@ async function drive(runId: string, signal: AbortSignal) {
     if (step.type === "page" && step.fields.some(isDecidedField) && !run.state.pages?.[step.id]) {
       const state = structuredClone(run.state);
       try {
-        const shown = await decidePageFields(run, step, state, signal);
+        const shown = await withDeadline("decision", signal, (limit) =>
+          decidePageFields(run, step, state, limit),
+        );
         if (signal.aborted) {
           return;
         }
@@ -998,6 +1219,20 @@ async function drive(runId: string, signal: AbortSignal) {
       await updateRun(runId, { status: "done" });
       return;
     }
+    if (step.type === "wait") {
+      try {
+        if (await enterWait(run, step)) {
+          return;
+        }
+      } catch (err) {
+        if (err instanceof LostClaim) {
+          throw err;
+        }
+        await failRun(run, step.id, err);
+        return;
+      }
+      continue;
+    }
     if (step.type === "page" || step.type === "review") {
       await updateRun(runId, { status: "waiting_input" });
       // A step that ran is over and the next one is the person's: a phone in a pocket hears it.
@@ -1014,28 +1249,31 @@ async function drive(runId: string, signal: AbortSignal) {
     const space = await loadSpace(run);
     const state = structuredClone(run.state);
     try {
-      const ctx = await makeContext(run, space, state, signal);
-      // A guest's answers are checked once before any model works on them, and what a step
-      // wrote for a guest before it is kept (docs/plans/guest-content-guards.md).
-      const guest = guestRun(run) && (await guestChecksOn());
-      if (guest) {
-        const answers = [answersAsText(ctx.scope), ...Object.values(state.notes)].join("\n");
-        const hash = createHash("sha256").update(answers).digest("base64url").slice(0, 24);
-        if (state.inputChecked !== hash) {
-          await checkGuestInput({ text: answers, call: ctx.call, signal });
-          state.inputChecked = hash;
+      const output = await withDeadline(step.type, signal, async (limit) => {
+        const ctx = await makeContext(run, space, state, limit);
+        // A guest's answers are checked once before any model works on them, and what a step
+        // wrote for a guest before it is kept (docs/plans/guest-content-guards.md).
+        const guest = guestRun(run) && (await guestChecksOn());
+        if (guest) {
+          const answers = [answersAsText(ctx.scope), ...Object.values(state.notes)].join("\n");
+          const hash = createHash("sha256").update(answers).digest("base64url").slice(0, 24);
+          if (state.inputChecked !== hash) {
+            await checkGuestInput({ text: answers, call: ctx.call, signal: limit });
+            state.inputChecked = hash;
+          }
         }
-      }
-      const output = await runAutomaticStep(step, ctx);
+        const made = await runAutomaticStep(step, ctx);
+        if (guest && !limit.aborted) {
+          await checkGuestText({
+            text: made.text || (made.json ? JSON.stringify(made.json) : ""),
+            call: ctx.call,
+            signal: limit,
+          });
+        }
+        return made;
+      });
       if (signal.aborted) {
         return;
-      }
-      if (guest) {
-        await checkGuestText({
-          text: output.text || (output.json ? JSON.stringify(output.json) : ""),
-          call: ctx.call,
-          signal,
-        });
       }
       await syncRunCost(runId);
       state.outputs[step.id] = output;
@@ -1264,10 +1502,7 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
 
 export async function goBack(runId: string) {
   const run = await loadRun(runId);
-  if (
-    !run ||
-    (run.status !== "waiting_input" && run.status !== "done" && run.status !== "failed")
-  ) {
+  if (!run || !CAN_GO_BACK.has(run.status)) {
     throw new RunConflict({ code: "runBusy" });
   }
   const state = structuredClone(run.state);
@@ -1285,13 +1520,20 @@ export async function retry(runId: string) {
   if (run?.status !== "failed") {
     throw new RunConflict("Nothing to retry");
   }
+  // A failure gave the run's hold back: a refusal on wake must not be walked around here.
+  const refused = (await durableRunsOn()) ? await holdAgain(run) : null;
+  if (refused) {
+    throw new RunConflict(refused);
+  }
   await updateRun(runId, { status: "running", error: null }, run);
   kick(runId);
 }
 
 export async function cancel(runId: string) {
   active.get(runId)?.abort();
-  await updateRun(runId, { status: "cancelled" });
+  await updateRun(runId, { status: "cancelled", wakeAt: null });
+  // After the row: a crash in between gives a wake that finds the run over, never a lost cancel.
+  await setWake(runId, null);
 }
 
 // --- view --------------------------------------------------------------------
@@ -1444,6 +1686,7 @@ export async function runView(
   return {
     id: run.id,
     status: run.status,
+    wakeAt: run.status === "sleeping" ? (run.wakeAt?.toISOString() ?? null) : null,
     mode: run.mode,
     wizard: {
       title: def.title,
@@ -1462,7 +1705,8 @@ export async function runView(
             results: run.state.translated?.[run.lang] ?? {},
           }
         : null,
-    talk: await talkAllowed(run),
+    // Nobody to talk to while it sleeps, and nothing to say.
+    talk: run.status !== "sleeping" && (await talkAllowed(run)),
     step,
     answered: run.state.history.map((id) => stepOf(def, id)).filter((s): s is Step => Boolean(s)),
     values: run.state.values,
@@ -1487,7 +1731,7 @@ export async function runView(
     ),
     shown,
     progress: { done: run.status === "done" ? def.steps.length : index, total: def.steps.length },
-    canBack: run.state.history.length > 0 && run.status !== "running",
+    canBack: run.state.history.length > 0 && CAN_GO_BACK.has(run.status),
     error: run.error,
     // A step's own words as it starts ("working") are the wizard's: in its translation too.
     events: (await recentEvents(run.id, 0, 30)).map((ev) =>

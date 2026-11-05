@@ -254,7 +254,7 @@ export async function apiRuns(userId: string, filter: ApiRunsFilter = {}) {
     status === "done"
       ? eq(schema.run.status, "done")
       : status === "open"
-        ? inArray(schema.run.status, ["waiting_input", "running"])
+        ? inArray(schema.run.status, ["waiting_input", "sleeping", "running"])
         : undefined,
     filter.days
       ? gte(schema.run.createdAt, new Date(Date.now() - filter.days * 86_400_000))

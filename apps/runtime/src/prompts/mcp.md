@@ -149,6 +149,9 @@ Ask the person, then answer_ask with allow or skip.
 <!-- section: hint.sign_in -->
 A sign-in: the person types it on the run page (browserUrl).
 
+<!-- section: hint.sleeping -->
+The run waits until `until` and goes on by itself. Nothing is needed from the person meanwhile.
+
 <!-- section: hint.page -->
 Ask the fields in order; skip a field whose `when` does not hold on the answers so far (a hidden one is not required and not kept).
 

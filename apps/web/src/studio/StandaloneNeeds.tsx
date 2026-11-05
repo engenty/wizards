@@ -38,6 +38,7 @@ type Line = { text: string; tone: "ok" | "missing" | "optional" };
 /** What the gallery has no capability for, by its need id. */
 const WORDED: Partial<Record<Need, Key>> = {
   lists: "need.lists",
+  wait: "need.wait",
   memory: "need.memory",
   each: "need.each",
   "field:slot": "need.field:slot",

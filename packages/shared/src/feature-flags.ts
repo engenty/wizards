@@ -185,6 +185,12 @@ export const FEATURES = {
     label: "Dateien",
     hint: "File trees another party owns, mounted in a space and indexed where they live: a folder on this computer first (docs/plans/media-and-files.md).",
   },
+  durableRuns: {
+    kind: "release",
+    default: false,
+    label: "Runs that wait for days",
+    hint: "Wait steps: a run leaves every process and a clock wakes it. A deadline on automatic steps.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

@@ -155,6 +155,8 @@ const texts = {
     screen: "Dieser Teil braucht einen Bildschirm. Danach geht es hier weiter.",
     open: "Öffnen",
     working: "{step} – das dauert einen Moment.",
+    sleeping: "Das geht am {date} von selbst weiter. Du musst nichts tun.",
+    sleepingSoon: "Das geht gleich von selbst weiter. Du musst nichts tun.",
     reviewAsk: "Passt das so?",
     reviewOk: "Passt",
     reviewRedo: "Neue Version",
@@ -190,6 +192,8 @@ const texts = {
     screen: "This part needs a screen. You carry on here afterwards.",
     open: "Open",
     working: "{step} – this takes a moment.",
+    sleeping: "This goes on by itself on {date}. You don’t need to do anything.",
+    sleepingSoon: "This goes on by itself in a moment. You don’t need to do anything.",
     reviewAsk: "Is this right?",
     reviewOk: "Looks good",
     reviewRedo: "New version",
@@ -210,6 +214,18 @@ function say(lang: ThreadLang, key: Key, vars: Record<string, string | number> =
     text = text.replaceAll(`{${name}}`, String(value));
   }
   return text;
+}
+
+/** When a run goes on, as a person reads it; a chat knows no time zone, so it names the one it means. */
+function dayAndTime(iso: string, lang: ThreadLang): string {
+  return new Intl.DateTimeFormat(lang, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date(iso));
 }
 
 const SKIP_WORDS = new Set(["weiter", "skip", "-", "überspringen", "keine", "none"]);
@@ -473,6 +489,21 @@ export class ThreadDoor {
         await this.send(thread, {
           kind: "text",
           text: say(s.lang, "working", { step: report.step?.title ?? "…" }),
+        });
+      }
+      this.o.watch(thread);
+      return;
+    }
+    if ("wait" in w) {
+      // Said once, or when the person writes: for days this thread has nothing else to say.
+      const key = `wait:${w.wait}`;
+      if (s.said !== key || msg) {
+        s.said = key;
+        await this.send(thread, {
+          kind: "text",
+          text: w.until
+            ? say(s.lang, "sleeping", { date: dayAndTime(w.until, s.lang) })
+            : say(s.lang, "sleepingSoon"),
         });
       }
       this.o.watch(thread);

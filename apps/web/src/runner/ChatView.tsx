@@ -3,6 +3,7 @@ import {
   choiceLabel,
   DownloadButtons,
   FieldInput,
+  goesOnText,
   initialValues,
   isTouch,
   ListCheck,
@@ -1684,6 +1685,17 @@ export function ChatBody({
             ]}
           />
           <Idle placeholder={t("run.working")} />
+        </>
+      );
+    } else if (view.status === "sleeping") {
+      body = (
+        <>
+          <Thread
+            avatar={view.wizard.avatar}
+            costume={view.wizard.costume}
+            lines={[...before, bot("sleeping", goesOnText(view.wakeAt))]}
+          />
+          <Idle placeholder={t("run.leavePage")} />
         </>
       );
     } else if (view.status === "failed") {

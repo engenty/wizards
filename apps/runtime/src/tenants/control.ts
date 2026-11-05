@@ -1,4 +1,4 @@
-import { and, count, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, count, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { control, controlDb } from "../db/client.js";
 import { env } from "../env.js";
 import { currentTenant } from "./tenant.js";
@@ -143,8 +143,36 @@ export const RUNNER_STALE_MS = 30_000;
 export async function wakeRun(runId: string) {
   await controlDb
     .update(control.runIndex)
-    .set({ active: true, owner: null, seen: null })
+    .set({ active: true, owner: null, seen: null, wokenAt: new Date() })
     .where(eq(control.runIndex.runId, runId));
+}
+
+/**
+ * When a run that sleeps wakes, in the copy the clock reads; null: nothing due. Written before the
+ * run's own row: a crash in between gives one extra wake, which finds the run as it is, never a
+ * lost one.
+ */
+export async function setWake(runId: string, wakeAt: Date | null) {
+  await controlDb.update(control.runIndex).set({ wakeAt }).where(eq(control.runIndex.runId, runId));
+}
+
+/**
+ * The clock: what came due goes in line, in one statement over every tenant, so several runners
+ * running it are harmless. The run ages from the time it was due. A run that turns out not to be
+ * due puts its time back from its own row.
+ */
+export async function wakeDue(now = new Date()): Promise<number> {
+  const result = await controlDb
+    .update(control.runIndex)
+    .set({
+      active: true,
+      owner: null,
+      seen: null,
+      wakeAt: null,
+      wokenAt: sql`${control.runIndex.wakeAt}`,
+    })
+    .where(and(eq(control.runIndex.active, false), lte(control.runIndex.wakeAt, now)));
+  return result.rowsAffected;
 }
 
 /**
@@ -201,7 +229,10 @@ export async function disownRuns() {
     .where(eq(control.runIndex.owner, env.runner.id));
 }
 
-/** The runs in line: unowned, or whose owner fell silent. */
+/** How long a run has been in line for: since it last woke, else since it was made. */
+const inLineSince = sql<Date>`coalesce(${control.runIndex.wokenAt}, ${control.runIndex.createdAt})`;
+
+/** The runs in line, longest in line first: unowned, or whose owner fell silent. */
 export async function waitingRuns(): Promise<{ runId: string; tenantId: string }[]> {
   const stale = new Date(Date.now() - RUNNER_STALE_MS);
   return controlDb
@@ -217,7 +248,7 @@ export async function waitingRuns(): Promise<{ runId: string; tenantId: string }
         ),
       ),
     )
-    .orderBy(control.runIndex.createdAt);
+    .orderBy(inLineSince);
 }
 
 /** Where the runner holding a run is reached; null when none holds it or it named no address. */
@@ -262,7 +293,7 @@ export async function lineState() {
     .select({ id: control.runner.id, seen: control.runner.seen, lineAt: control.runner.lineAt })
     .from(control.runner);
   const [oldest] = await controlDb
-    .select({ createdAt: control.runIndex.createdAt })
+    .select({ createdAt: control.runIndex.createdAt, wokenAt: control.runIndex.wokenAt })
     .from(control.runIndex)
     .where(
       and(
@@ -274,9 +305,9 @@ export async function lineState() {
         ),
       ),
     )
-    .orderBy(control.runIndex.createdAt)
+    .orderBy(inLineSince)
     .limit(1);
-  return { runners, oldestWaiting: oldest?.createdAt ?? null };
+  return { runners, oldestWaiting: oldest ? (oldest.wokenAt ?? oldest.createdAt) : null };
 }
 
 export async function forgetRunner() {

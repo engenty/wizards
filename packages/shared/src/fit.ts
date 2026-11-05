@@ -51,6 +51,8 @@ export type Need =
   | `plugin:${string}`
   | `asset:${AssetKind}`
   | "motion-graphics"
+  /** A wait outlives the page: the standalone runner has no process that wakes it. */
+  | "wait"
   /** A widget runs in the runtime's widget host; the standalone runner has none yet. */
   | "widget"
   | "widget:video"
@@ -219,6 +221,10 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
       if (Object.values(step.data).some((ref) => listRef(dataRef(ref)))) {
         add("lists", true);
       }
+      break;
+    case "wait":
+      // Waiting needs a server that stays: the standalone runner has none.
+      add("wait", true);
       break;
     case "review":
       if (step.show.some((ref) => listRef(ref))) {

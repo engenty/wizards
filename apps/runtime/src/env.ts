@@ -36,6 +36,15 @@ const num = (key: string, fallback: number): number => {
   return Number.isFinite(v) && v > 0 ? v : fallback;
 };
 
+/** `a=1,b=2.5`: positive numbers by name; anything else is left out. */
+const minutesByName = (key: string): Record<string, number> =>
+  Object.fromEntries(
+    list(key)
+      .map((item) => item.split("="))
+      .map(([name, value]) => [name?.trim(), Number(value)] as const)
+      .filter(([name, value]) => name && Number.isFinite(value) && value > 0),
+  );
+
 const dataDir = resolve(str("DATA_DIR", "data"));
 
 /**
@@ -114,6 +123,17 @@ export const env = {
     heartbeatUrl: str("HEARTBEAT_URL"),
     /** The runs one process drives at once; the rest stay in line for its next free slot. */
     maxRuns: num("RUNNER_MAX_RUNS", 16),
+    /** How often the clock looks for runs whose wait is over. */
+    clockMs: num("RUNNER_CLOCK_MS", 60_000),
+    /**
+     * The longest a step may work, in minutes. `RUNNER_STEP_DEADLINES=default=480,agent=240`: per
+     * step type, `default` for the rest. Generous until real step lengths are in.
+     */
+    stepDeadlines: {
+      default: 8 * 60,
+      "motion-graphics": 12 * 60,
+      ...minutesByName("RUNNER_STEP_DEADLINES"),
+    } as Record<string, number>,
   },
   appUrl,
   /**

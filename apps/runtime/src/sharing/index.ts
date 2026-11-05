@@ -286,6 +286,7 @@ function standIn(wizard: WizardRow, userId: string): RunRow {
     origin: null,
     client: null,
     status: "done",
+    wakeAt: null,
     claim: 0,
     rev: 0,
     cursor: null,
