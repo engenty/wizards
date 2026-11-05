@@ -1,0 +1,1 @@
+ALTER TABLE `run_index` ADD `generation` integer DEFAULT 0 NOT NULL;

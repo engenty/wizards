@@ -146,6 +146,8 @@ services:
       API_HOST: 0.0.0.0
       RUNTIME_ROLE: runner
       RUNNER_URL: http://runner:8891
+      # The runs this runner drives at once; the rest stay in line.
+      RUNNER_MAX_RUNS: ${RUNNER_MAX_RUNS:-4}
       HEALTH_WATCHDOG: "1"
       # An outside monitor's heartbeat address: it alerts when the runner stops pinging.
       HEARTBEAT_URL: ${HEARTBEAT_URL:-}
