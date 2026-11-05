@@ -59,11 +59,12 @@ const off = () => {
   process.env.FEATURES = "broker=off";
 };
 
-const upload = async (name: string, mime: string, text: string) => {
+const upload = async (name: string, mime: string, text: string, folder?: string) => {
   const form = new FormData();
   form.append("file", new File([text], name, { type: mime }));
+  const into = folder ? `&parent=${folder}` : "";
   const res = await app.fetch(
-    new Request(url(`/api/studio/spaces/${spaceId}/files?kind=document`), {
+    new Request(url(`/api/studio/spaces/${spaceId}/files?kind=document${into}`), {
       method: "POST",
       headers: { cookie, origin: "http://localhost:5181" },
       body: form,
@@ -766,5 +767,229 @@ describe("a Wissen folder's audience", () => {
     expect(await reads(member, "table", fixture.T)).toBe(true);
     expect(await reads(guest, "page", nested)).toBe(true);
     expect(await reads(clientRole, "page", nested)).toBe(false);
+  });
+});
+
+/**
+ * A folder closed to guests, and the readers that asked nobody before: a plugin's `readPages`
+ * and `files`, and what a step is told about Knowledge (how much there is, its categories). A
+ * guest's run and a member's run, side by side.
+ */
+describe("a folder closed to guests: a plugin's reads, a step's counts", () => {
+  /** In the folder: a page, a table with a row, a document and the page made of it. `open` is outside. */
+  const at = { folder: "", page: "", table: "", row: "", file: "", pageOfFile: "", open: "" };
+  const guestRun = () => stepContext({ kind: "guest", id: "v1" });
+  const memberRun = () =>
+    ({
+      ...(stepContext({ kind: "person", id: "m1" }) as object),
+      holder: { kind: "person", id: "m1", role: "member" },
+    }) as never;
+
+  beforeAll(async () => {
+    on();
+    // The seed again: what the sentences above wrote is gone.
+    const reset = await send("PUT", `/api/studio/spaces/${spaceId}/rules`, { rules: [] });
+    expect(reset.status, await reset.clone().text()).toBe(200);
+    const page = async (body: Record<string, unknown>) =>
+      (await json(send("POST", `/api/studio/spaces/${spaceId}/pages`, body))).id as string;
+    at.folder = await page({ title: "Kalkulation" });
+    at.page = await page({
+      title: "Einkauf",
+      parentId: at.folder,
+      markdown: "Einkaufspreis Zirbe: 7 Euro.",
+    });
+    at.open = await page({ title: "Öffnungszeiten", markdown: "Montag bis Freitag." });
+    const made = await send("POST", `/api/studio/spaces/${spaceId}/tables`, {
+      title: "Lieferanten",
+      columns: [{ id: "name", name: "Name", type: "text" }],
+    });
+    at.table = (await made.json()).id;
+    at.row = (
+      await json(send("POST", `/api/studio/tables/${at.table}/rows`, { cells: { name: "Zirbenhof" } }))
+    ).id;
+    const moved = await send("POST", `/api/studio/spaces/${spaceId}/knowledge/move`, {
+      key: `t:${at.table}`,
+      parentId: at.folder,
+    });
+    expect(moved.status, await moved.clone().text()).toBe(200);
+    at.file = await upload("marge.txt", "text/plain", "# Marge\n\nMarge Zirbe: 38 Prozent.", at.folder);
+    const { items } = await json(send("GET", `/api/studio/spaces/${spaceId}/knowledge`));
+    at.pageOfFile = items.find((i: any) => i.kind === "page" && i.fileId === at.file).id;
+    // Two categories: a customer and a discount, on items in the folder and on the page outside.
+    const ids: Record<string, string> = {};
+    for (const c of [
+      { name: "Kunde", type: "choice", values: ["Zirbe", "Birke"] },
+      { name: "Rabatt", type: "number", unit: "%" },
+    ]) {
+      ids[c.name] = (await json(send("POST", `/api/studio/spaces/${spaceId}/categories`, c))).id;
+    }
+    for (const [key, name, value] of [
+      [`p:${at.page}`, "Kunde", "Zirbe"],
+      [`t:${at.table}`, "Kunde", "Zirbe"],
+      [`p:${at.open}`, "Kunde", "Birke"],
+      [`p:${at.page}`, "Rabatt", 40],
+      [`r:${at.row}`, "Rabatt", 60],
+      [`p:${at.open}`, "Rabatt", 5],
+    ] as const) {
+      const set = await send(
+        "PUT",
+        `/api/studio/spaces/${spaceId}/items/${key}/categories/${ids[name]}`,
+        { values: [value] },
+      );
+      expect(set.status, await set.clone().text()).toBe(200);
+    }
+    const put = await send(
+      "PUT",
+      `/api/studio/spaces/${spaceId}/knowledge/folders/${at.folder}/audience`,
+      { see: ["team"] },
+    );
+    expect(put.status, await put.clone().text()).toBe(200);
+    await flush();
+  }, 60_000);
+
+  it("a step is told how much its holder may read: the counts, the categories' values and ranges", async () => {
+    const { knowledgeBlock, knowledgeCounts } = await import("../src/services/knowledge");
+    const guest = rwx.subjectsOf(guestRun());
+    const member = rwx.subjectsOf(memberRun());
+    await local(async () => {
+      const all = await knowledgeCounts(spaceId, member);
+      const seen = await knowledgeCounts(spaceId, guest);
+      // The folder, the page in it and the page made of the document; the table; the document.
+      expect({
+        pages: all.pages - seen.pages,
+        tables: all.tables - seen.tables,
+        files: all.files - seen.files,
+      }).toEqual({ pages: 3, tables: 1, files: 1 });
+      const told = await knowledgeBlock(spaceId, guest);
+      expect(told).toContain(`${seen.pages} pages, ${seen.tables} tables, ${seen.files} files`);
+      expect(told).toContain("- Kunde (choice): Birke\n");
+      expect(told).toContain("- Rabatt (number, %): 5 … 5\n");
+      expect(told).not.toContain("Zirbe");
+      const theirs = await knowledgeBlock(spaceId, member);
+      expect(theirs).toContain(`${all.pages} pages, ${all.tables} tables, ${all.files} files`);
+      expect(theirs).toContain("- Kunde (choice): Zirbe, Birke\n");
+      expect(theirs).toContain("- Rabatt (number, %): 5 … 60\n");
+    });
+  });
+
+  it("space_list counts a category's items and values over what the run's holder may read", async () => {
+    const { spaceTools } = await import("../src/tools/space");
+    await local(async () => {
+      const of = async (ctx: never) => {
+        const listed = await (await spaceTools(ctx)).space_list.execute({});
+        return Object.fromEntries(listed.categories.map((c: any) => [c.name, c]));
+      };
+      const guest = await of(guestRun());
+      expect(guest.Kunde).toMatchObject({ items: 1, values: ["Birke (1)"] });
+      expect(guest.Rabatt).toMatchObject({ items: 1, range: "5 … 5" });
+      const member = await of(memberRun());
+      expect(member.Kunde).toMatchObject({ items: 3, values: ["Zirbe (2)", "Birke (1)"] });
+      expect(member.Rabatt).toMatchObject({ items: 3, range: "5 … 60" });
+    });
+  });
+
+  it("a plugin's readPages and files: nothing of the folder in a guest's run, all of it in a member's and in a job", async () => {
+    const { originData } = await import("../src/services/space-origin");
+    const { withCaller } = await import("../src/broker/caller");
+    const shop = originData("shop");
+    const where = { wizardId: fixture.W };
+    const inside = [at.folder, at.page, at.pageOfFile];
+    const pages = async (as: <T>(fn: () => Promise<T>) => Promise<T>, plugin = shop) =>
+      (await as(() => local(() => plugin.readPages(spaceId)))).map((p) => p.id);
+    const files = async (as: <T>(fn: () => Promise<T>) => Promise<T>) =>
+      (await as(() => local(() => shop.files(spaceId)))).map((f) => f.id);
+    const guestsRun = <T>(fn: () => Promise<T>) => withCaller({ who: { kind: "guest", id: "v1" }, where }, fn);
+    const membersRun = <T>(fn: () => Promise<T>) => withCaller({ who: { kind: "person", id: "m1" }, where }, fn);
+    const route = <T>(fn: () => Promise<T>) => rwx.readingAs(rwx.subjectsOfPerson("m1", "member"), fn);
+    const job = <T>(fn: () => Promise<T>) => rwx.readingAs([rwx.SYSTEM], fn);
+    const nobody = <T>(fn: () => Promise<T>) => fn();
+
+    // A tool in a guest's run: the page outside, nothing of the folder, by id, by text or by parent.
+    const guest = await guestsRun(() => local(() => shop.readPages(spaceId)));
+    expect(guest.map((p) => p.id)).toContain(at.open);
+    expect(guest.map((p) => p.id)).not.toEqual(expect.arrayContaining([expect.stringMatching(inside.join("|"))]));
+    expect(JSON.stringify(guest)).not.toContain("Zirbe");
+    expect(await guestsRun(() => local(() => shop.readPages(spaceId, { parent: at.folder })))).toEqual([]);
+    expect(await files(guestsRun)).not.toContain(at.file);
+    expect(await files(guestsRun)).toContain(fixture.D);
+    // A tool in a member's run, an HTTP route for a member, a job: all of it.
+    for (const as of [membersRun, route, job]) {
+      expect(await pages(as)).toEqual(expect.arrayContaining([...inside, at.open]));
+      expect(await files(as)).toEqual(expect.arrayContaining([at.file, fixture.D]));
+    }
+    expect(
+      (await membersRun(() => local(() => shop.readPages(spaceId, { parent: at.folder })))).map((p) => p.id),
+    ).toContain(at.page);
+    // Outside a job, a route or a call: the plugin alone, which no seed allows.
+    expect(await pages(nobody)).toEqual([]);
+    expect(await files(nobody)).toEqual([]);
+    // A deny for the plugin wins, in a job too; another plugin's job reads on.
+    await putRules([
+      { subjectKind: "plugin", subjectId: "shop", resourceKind: "page", resourceId: at.folder, r: "deny" },
+    ]);
+    const denied = await pages(job);
+    expect(denied).toContain(at.open);
+    expect(denied.filter((id) => inside.includes(id))).toEqual([]);
+    expect(await pages(job, originData("atlas"))).toEqual(expect.arrayContaining(inside));
+  });
+
+  it("a miss names no file and a page no sub-page that is closed to the run's holder", async () => {
+    const { spaceTools } = await import("../src/tools/space");
+    await local(async () => {
+      const guest = await spaceTools(guestRun());
+      const missed = await guest.space_document.execute({ path: "files/nirgends.txt" });
+      expect(missed.error).toContain("files/vertrag.txt");
+      expect(missed.error).not.toContain("marge");
+      const member = await spaceTools(memberRun());
+      expect((await member.space_document.execute({ path: "files/nirgends.txt" })).error).toContain(
+        "files/marge.txt",
+      );
+      // One sub-page of the folder closed to the member alone: the folder's page names the other.
+      await putRules([
+        { subjectKind: "person", subjectId: "m1", resourceKind: "page", resourceId: at.page, r: "deny" },
+      ]);
+      const folder = await member.page_read.execute({ path: "pages/kalkulation" });
+      expect(folder.page).toContain("sub-pages:");
+      expect(folder.page).not.toContain("pages/kalkulation/einkauf");
+      const owner = await spaceTools(stepContext({ kind: "person", id: B }));
+      expect((await owner.page_read.execute({ path: "pages/kalkulation" })).page).toContain(
+        "  - pages/kalkulation/einkauf",
+      );
+    });
+  });
+
+  it("a guest who may read nothing is told nothing about Knowledge", async () => {
+    await putRules(
+      (["page", "table", "document"] as const).map((resourceKind) => ({
+        subjectKind: "guest",
+        subjectId: null,
+        resourceKind,
+        resourceId: "*",
+        r: "deny",
+      })),
+    );
+    const { knowledgeBlock } = await import("../src/services/knowledge");
+    const { spaceTools } = await import("../src/tools/space");
+    await local(async () => {
+      expect(await knowledgeBlock(spaceId, rwx.subjectsOf(guestRun()))).toBe("");
+      expect(await knowledgeBlock(spaceId, rwx.subjectsOf(memberRun()))).toContain("pages");
+      // The tools stay: each read is the broker's, and a refusal names the item, not its content.
+      const read = await (await spaceTools(guestRun())).page_read.execute({ path: "pages/kalkulation" });
+      expect(read).toMatchObject({ error: expect.stringContaining("permission"), id: at.folder });
+    });
+  });
+
+  it("first reads that come at once seed the space once", async () => {
+    const { originData } = await import("../src/services/space-origin");
+    const shop = originData("shop");
+    await local(() => client.db.delete(client.schema.rwxRule));
+    // As the shop plugin's route asks: the files and the pages together.
+    await rwx.readingAs(rwx.subjectsOfPerson(B, "owner"), () =>
+      local(() => Promise.all([shop.files(spaceId), shop.readPages(spaceId)])),
+    );
+    const { rules } = await json(send("GET", `/api/studio/spaces/${spaceId}/rules`));
+    const keys = rules.map((r: any) => [r.subjectKind, r.subjectId ?? "", r.resourceKind, r.resourceId].join("|"));
+    expect(keys.length).toBe(new Set(keys).size);
+    expect(rules.filter((r: any) => r.subjectKind === "guest").length).toBe(4);
   });
 });

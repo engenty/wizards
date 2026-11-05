@@ -247,14 +247,20 @@ All of this is behind the `broker` switch, on by default. With it off, `decide`,
 writes a deny. No studio page draws the rules yet.
 
 Every reader takes its subjects from whoever it serves: the studio’s person (`whoOf(c)`), a
-run’s holder and wizard (`subjectsOf(ctx)`, `runHolder(run)`), Goose for its person. A plugin
-reading a document (`server.spaceData.readFile`) reads as whom it serves, and as itself: a tool
-in a step or a Work chat as its caller (`subjectsOfCaller`), an HTTP route as the person it
-answers, a job as the runtime itself. Anything else reads as the plugin alone, which no seed
-allows. The runtime itself is the subject `SYSTEM`, set with `readingAs([SYSTEM], …)` around a
-plugin’s job (`plugins/jobs.ts`) and nowhere else: no person, guest or run stands behind a job.
-It may read, write and run everything; a deny for the plugin beside it still wins. No rule can
-name it, no helper builds it from a request, `decideWith` knows it only by identity, and
+run’s holder and wizard (`subjectsOf(ctx)`, `runHolder(run)`), Goose for its person. What a step
+is told about Knowledge is counted the same way: how many pages, tables and files there are and
+the categories with their values and ranges (`knowledgeBlock`), and what `space_list` counts,
+hold only what the run’s holder and wizard may read.
+
+A plugin reading the space’s pages and documents (`server.spaceData.readPages`, `.files`,
+`.readFile`) reads as whom it serves, and as itself: a tool in a step or a Work chat as its
+caller (`subjectsOfCaller`), an HTTP route as the person it answers, a job as the runtime itself.
+Anything else reads as the plugin alone, which no seed allows: the lists come back empty and
+`readFile` is refused. The runtime itself is the subject `SYSTEM`, set with
+`readingAs([SYSTEM], …)` around a plugin’s job (`plugins/jobs.ts`) and nowhere else: no person,
+guest or run stands behind a job. It may read, write and run everything; a deny for the plugin
+beside it still wins. No rule can name it, no helper builds it from a request, `decideWith`
+knows it only by identity, and
 `test/rwx.test.ts` fails when a new file uses it. A call with no subject at all stays a no.
 
 The `capabilities` switch is on by default. It shows the studio’s Capabilities place, opens
@@ -291,7 +297,9 @@ All under `/api/studio`, for a signed-in person of the organization.
 - **The Manage-App’s side of the report.** The runtime posts to `POST /v1/broker/:tenant`, and the
   Manage-App has no endpoint for it yet.
 - **More of RWX.** No page in the studio draws the rules, and connections, mail, hosts and the
-  sandbox have no reader that asks RWX.
+  sandbox have no reader that asks RWX. `space_search` still says how many items pass its
+  `where` (`filtered`) without asking who reads, and what a plugin makes of pages it read in a
+  job (the shop’s products) is the plugin’s own data: the rules don’t follow it.
 - A webhook for critical rows, a choice per kind of what notifies, and one connection offered to
   several spaces.
 

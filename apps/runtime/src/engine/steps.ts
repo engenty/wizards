@@ -35,6 +35,7 @@ import {
 import { Agent } from "@mastra/core/agent";
 import { generateText, type JSONSchema7, jsonSchema, Output, parsePartialJson } from "ai";
 import type { z } from "zod";
+import { subjectsOf } from "../broker/rwx.js";
 import { extFor, loadAsset, loadAssetText } from "../files/storage.js";
 import { snapshotHtmlImages } from "../files/web-images.js";
 import {
@@ -632,8 +633,8 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     instructions ?? "",
     `Today is ${today(ctx)}.`,
     brandBlock(ctx),
-    // Knowledge: what the space holds for its wizards, and how to find and read it.
-    await knowledgeBlock(ctx.dataSpace.id),
+    // Knowledge: what the space holds for the run's holder and its wizard, and how to read it.
+    await knowledgeBlock(ctx.dataSpace.id, subjectsOf(ctx)),
     // Skills: always on whole, on demand by name and description (docs/plans/skills.md).
     skillsBlock(await skillsOf(ctx), {
       tools: takesTools(resolved),

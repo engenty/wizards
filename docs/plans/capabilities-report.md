@@ -110,10 +110,58 @@ computed opacity is 1. Not a product defect.
   covered by runtime tests only.
 - The hourly mail to admins and the report to Manage: Manage has no `POST /v1/broker/:tenant`
   yet (A7a).
-- The shop plugin (the only plugin reading documents) was not run end to end after #376; a
-  plugin's `readPages` and the counts in the steps' Knowledge prompt stay outside RWX.
+- The shop plugin (the only plugin reading the space's pages and documents): its reads were run
+  on 2026-11-05 inside a runtime from source, see „Since: the reads that asked nobody" below.
+  Not run: reading products out of a page or a price list (needs a text model), and its own
+  `test:runtime`, which fails 8 of 11 on main as it is (its step stub has no holder).
+- `space_search` answers `filtered`, how many items pass its `where`, without asking who reads;
+  the hits and `candidates` are filtered.
+- What a plugin makes of pages it read in a job is its own data: by reading the code, the
+  shop's products from a Wissen source over a folder closed to guests reach a guest's run
+  through the shop's tools. Not run, as making a product needs a model.
+- A page made of a document and its document can lie in different folders, and each is decided
+  by its own (seen in a run): the page moved into a closed folder leaves the document readable;
+  the page moved out of one is readable though its document is closed.
 - Per-person sign-in is not gated to the Team plan (B2); the Work bell's run link
   `/wizards/:id?run=` is not a route, the Protokoll uses `/edit/:id?run=` (B5).
+
+## Since: the reads that asked nobody
+
+2026-11-05, on main after v0.16.2. Read from the code, then changed:
+
+| Read | Before | Now |
+|---|---|---|
+| A plugin's `spaceData.readPages` | every page of the space, with its Markdown, to any caller | the pages its reader may read: whom the plugin serves, and the plugin (as `readFile` since #376) |
+| A plugin's `spaceData.files` | every document's name and size | documents its reader may read; logos, patterns and assets ask nobody, as before |
+| The steps' Knowledge block (`knowledgeBlock`) | pages, tables and files counted over the whole space; every category with all its values and its range | counted over what the run's holder and wizard may read; a value only closed items have is left out |
+| `space_list` without a filter | a category's items and each value's count over the whole space | the same counts as the block |
+| `space_document` on a miss | named up to 40 files of the space | names the files the caller may read |
+| `page_read` | listed every sub-page | lists the sub-pages the caller may read |
+| The space's details in `/api/v1` and Goose's view of the space | counts over the whole space | counts for the person, for Goose for the person |
+
+Which Knowledge tools a step is offered still follows what the space holds, not what the
+caller may read: each read is decided when it is made, and a refusal names the item.
+
+Found on the way: two first reads of a space at once (the shop's route lists files and pages
+together) seeded its rules twice, and the guests' rows, which have no subject id, came out
+double; the rules' `PUT` then refused the list. A space is seeded once now (`rulesOf`).
+
+Tests: `rwx.test.ts`, „a folder closed to guests": a guest's run and a member's run against one
+folder with a page, a table with a row, a document and two categories.
+
+The shop plugin (`plugins/shop` of the Manage repo, unchanged), its reads against the rules:
+
+| Read | Where | Reads as | Seen in the run |
+|---|---|---|---|
+| `readFile` | a document source's file (`dataOfSource`) | the admin of the route or the chat; the runtime in the job | 403 with the document's id for a person the folder is closed to |
+| `readPages` | a Wissen source's pages (`readWissenSource`) | the same | 1 page listed by the route for a person the folder is closed to, 3 in the job, 1 in the job with a deny for the plugin |
+| `readPages` | the assistant's `propose_source` | the person in the chat | by reading only |
+| `files`, `readPages` | the assistant's `list_wissen` | the person in the chat | the folder and its file missing |
+| `files`, `readPages` | `GET /wissen` | the person the route answers | the folder and its file missing |
+
+Its tools for a step (`shop.search` and the others) read the plugin's own tables, never the
+space's Knowledge. A Wissen source an admin starts by hand reads as that admin: where a rule
+closes a folder to them, the products made of its pages are marked gone until the job reads again.
 
 ## Status
 

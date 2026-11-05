@@ -417,10 +417,15 @@ export interface PluginSpaceData {
   list(space: string): Promise<PluginSpaceItem[]>;
   /**
    * The space's own pages (not a wizard's), whoever wrote them, with their Markdown: for a
-   * plugin that reads what the space knows. `parent`: only the pages under that page.
+   * plugin that reads what the space knows. `parent`: only the pages under that page. Only the
+   * pages its reader may read by the space's rules: whom the plugin was called for (a step's or
+   * a chat's person or guest, an HTTP route's person, the runtime itself in a job) and the plugin.
    */
   readPages(space: string, opts?: { parent?: string }): Promise<PluginSpacePage[]>;
-  /** The space's files of a kind (`document` when left out), newest first. */
+  /**
+   * The space's files of a kind (`document` when left out), newest first. Documents only as far
+   * as the reader may read them, as `readPages`.
+   */
   files(
     space: string,
     kind?: "logo" | "asset" | "document" | "pattern" | "picture",
