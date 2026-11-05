@@ -78,7 +78,12 @@ function WaitBanner({
                   ? run.wakeAt
                     ? t("runs.status.waiting_signalUntil", { time: longTime(run.wakeAt) })
                     : t("runs.status.waiting_signal")
-                  : t("runs.waitsForPerson", { step: run.stepTitle ?? "" })}
+                  : run.wakeAt
+                    ? t("runs.waitsForPersonUntil", {
+                        step: run.stepTitle ?? "",
+                        time: longTime(run.wakeAt),
+                      })
+                    : t("runs.waitsForPerson", { step: run.stepTitle ?? "" })}
         </div>
         {sleeping || listening ? (
           <div className="text-[0.8125rem] text-ink-2">{t("runs.waitsHint")}</div>
@@ -86,7 +91,7 @@ function WaitBanner({
       </div>
       {run.canAct ? (
         <div className="flex basis-full flex-wrap items-center gap-2">
-          {(sleeping || listening) && run.wakeAt ? (
+          {run.wakeAt ? (
             <Button
               variant="secondary"
               size="sm"

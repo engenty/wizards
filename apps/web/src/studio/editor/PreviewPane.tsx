@@ -280,6 +280,7 @@ export function PreviewPane({
           fieldErrors: {},
           submitPage: still,
           accept: still,
+          decline: still,
           regenerate: still,
           back: still,
           retry: still,

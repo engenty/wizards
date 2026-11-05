@@ -127,6 +127,9 @@ export function stateText(view: RunView, page: PageBinding | null, camera = fals
   }
   if (view.step?.type === "review") {
     lines.push(`review: ${view.step.title}`);
+    if (view.step.approve) {
+      lines.push("this review asks for a decision: approve or decline");
+    }
     for (const { step, output } of view.shown) {
       lines.push(
         `- ${step.id} "${step.title}": ${clip(output?.text, 600) || "(a picture or file, on the screen)"}`,
@@ -358,6 +361,13 @@ export function useLiveVoice(
             return "no review is open";
           }
           return (await r.accept(v.step.id)) ? "accepted" : (r.error ?? "refused");
+        case "decline_review":
+          if (v?.step?.type !== "review" || !v.step.approve) {
+            return "no review asks for a decision";
+          }
+          return (await r.decline(v.step.id, args.note ? String(args.note) : undefined))
+            ? "declined"
+            : (r.error ?? "refused");
         case "regenerate":
           if (v?.step?.type !== "review") {
             return "no review is open";

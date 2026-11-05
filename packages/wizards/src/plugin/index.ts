@@ -1016,7 +1016,9 @@ export interface PluginRunner {
  * data of a json step), or ask for one of the shown steps again.
  */
 export type PluginReviewAction =
-  | { type: "accept"; edits?: Record<string, string | Record<string, unknown>> }
+  | { type: "accept"; edits?: Record<string, string | Record<string, unknown>>; note?: string }
+  /** A review with `approve` is declined. */
+  | { type: "decline"; note?: string }
   | { type: "regenerate"; target: string; note: string; items?: number[] };
 
 /** A field of the page a run waits for, as the report lists it. */
@@ -1062,9 +1064,21 @@ export type PluginRunWaiting =
       title: string;
       known: Record<string, unknown>;
       fields: PluginRunField[];
+      /** Takes an answer until then; after that the run goes on without one. */
+      until?: string;
       hint: string;
     }
-  | { review: string; title: string; show: string[]; editable: boolean; hint: string }
+  | {
+      review: string;
+      title: string;
+      show: string[];
+      editable: boolean;
+      /** Takes an answer until then; after that the run goes on without one. */
+      until?: string;
+      /** Asks for a decision: approve (accept) or decline. */
+      approve?: boolean;
+      hint: string;
+    }
   | {
       ask: string;
       kind: "confirm";

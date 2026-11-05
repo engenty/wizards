@@ -140,6 +140,10 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
   }
   switch (step.type) {
     case "page":
+      // A deadline needs a server that stays.
+      if (step.timeout || step.remind) {
+        add("wait", true);
+      }
       for (const field of step.fields) {
         switch (field.kind) {
           case "audio":
@@ -229,6 +233,10 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
     case "review":
       if (step.show.some((ref) => listRef(ref))) {
         add("lists", true);
+      }
+      // A deadline needs a server that stays, and an approval a way past "Looks good".
+      if (step.timeout || step.remind || step.approve) {
+        add("wait", true);
       }
       break;
     case "result":
