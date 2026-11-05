@@ -23,7 +23,9 @@ import {
   otherwiseOf,
   type PageStep,
   pageNeeds,
+  RUN_DONE_SIGNAL,
   type Step,
+  signalMissing,
   textLang,
   type WaitStep,
   type WizardDefinition,
@@ -121,6 +123,15 @@ import {
   tierRefusalSaid,
 } from "./requirements.js";
 import { releaseResources, resourcesFor } from "./resources.js";
+import {
+  dropWait,
+  findSignal,
+  registerWait,
+  runScope,
+  SPACE_SCOPE,
+  sendSignal,
+  signalData,
+} from "./signals.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
 import { answersAsText, renderTemplate, resolveRef } from "./template.js";
 import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
@@ -258,13 +269,15 @@ async function updateRun(
       throw new RunConflict({ code: "runBusy" });
     }
   }
-  // A run that sleeps holds no credits: it reserves again when it wakes.
-  if (patch.status === "sleeping") {
+  // A run that waits holds no credits: it reserves again when it wakes.
+  if (patch.status === "sleeping" || patch.status === "waiting_signal") {
     await releaseRun(runId);
   }
   // A run that ended needs no credits held for it any more.
   if (patch.status === "done" || patch.status === "failed" || patch.status === "cancelled") {
     await releaseRun(runId);
+    await dropWait(runId);
+    await tellRunEnded(runId, patch.status);
     // Plugins hear of it; the run does not wait for them.
     void runEnded(runId, patch.status);
     if (patch.status !== "cancelled") {
@@ -275,6 +288,36 @@ async function updateRun(
     reportRun(runId, patch.status);
   }
   signalChanged(runId);
+}
+
+/**
+ * A run's end, as a signal keyed by its id: another run can wait for it. `data.status` says how it
+ * ended; a failed run that is tried again and then finishes says so once more.
+ */
+async function tellRunEnded(runId: string, status: "done" | "failed" | "cancelled") {
+  if (!(await durableRunsOn())) {
+    return;
+  }
+  try {
+    const run = await db.query.run.findFirst({
+      where: eq(schema.run.id, runId),
+      columns: { wizardId: true },
+    });
+    if (run) {
+      await sendSignal({
+        spaceId: await spaceIdOf(run),
+        scope: SPACE_SCOPE,
+        name: RUN_DONE_SIGNAL,
+        key: runId,
+        data: { status, wizardId: run.wizardId },
+        source: "run",
+        delivery: status,
+      });
+    }
+  } catch (err) {
+    // The run has ended either way; whoever waits for it has its timeout.
+    console.warn(`[run ${runId}] telling of its end:`, (err as Error).message);
+  }
 }
 
 function stepOf(def: WizardDefinition, id: string | null): Step | undefined {
@@ -539,8 +582,11 @@ async function driveClaimed(
     void withTenant(tenant, () => reportRun(runId, "running")).catch(() => undefined);
     void withTenant(tenant, () => loadRun(runId))
       .then((run) => {
-        // A run woken from its wait is still `sleeping` for the moment its drive reserves credits.
-        const working = run?.status === "running" || run?.status === "sleeping";
+        // A run woken from its wait still says so for the moment its drive reserves credits.
+        const working =
+          run?.status === "running" ||
+          run?.status === "sleeping" ||
+          run?.status === "waiting_signal";
         if (run && (!working || run.claim !== generation)) {
           abort.abort();
         }
@@ -1012,12 +1058,16 @@ async function withDeadline<T>(
   }
 }
 
+/** A wait for a signal with no deadline still ends some day: this long, and it is gone with the run. */
+const NO_DEADLINE_KEPT_MS = 365 * 86_400_000;
+
 /** A run that waits is kept past its start: its wait, and the same time to come back for it. */
-function keptUntil(run: RunRow, wakeAt: Date): Date | null {
+function keptUntil(run: RunRow, wakeAt: Date | null): Date | null {
   if (!run.expiresAt) {
     return null;
   }
-  const kept = wakeAt.getTime() + env.limits.resultTtlDays * 86_400_000;
+  const end = wakeAt ? wakeAt.getTime() : Date.now() + NO_DEADLINE_KEPT_MS;
+  const kept = end + env.limits.resultTtlDays * 86_400_000;
   return new Date(Math.max(run.expiresAt.getTime(), kept));
 }
 
@@ -1043,8 +1093,11 @@ function wakeTimeOf(run: RunRow, step: WaitStep): Date {
  * by already, and the run goes on at once.
  */
 async function enterWait(run: RunRow, step: WaitStep): Promise<boolean> {
-  const wakeAt = wakeTimeOf(run, step);
   await emitEvent(run.id, step.id, "step_started", step.title);
+  if (step.signal) {
+    return enterSignalWait(run, step);
+  }
+  const wakeAt = wakeTimeOf(run, step);
   if (wakeAt.getTime() <= Date.now()) {
     await finishWait(run, step, await waitOver(run, step));
     return false;
@@ -1058,24 +1111,81 @@ async function enterWait(run: RunRow, step: WaitStep): Promise<boolean> {
   return true;
 }
 
+/** The key a wait for a signal listens on, from the run's answers; empty fails the run. */
+function waitKeyOf(run: RunRow, step: WaitStep): string {
+  const key = waitKeyText(run, step);
+  if (!key) {
+    throw new NotedError(note("signalKeyEmpty", { key: step.signal?.key ?? "" }));
+  }
+  return key;
+}
+
+function waitKeyText(run: RunRow, step: WaitStep): string {
+  const scope = { def: run.definition, state: run.state, brand: {} };
+  return renderTemplate(step.signal?.key ?? "", scope).trim();
+}
+
+/**
+ * The wait is written first, then the run looks: a signal that came before is found here, and one
+ * that comes after finds the wait and wakes the run. Its wake meanwhile keeps the run in line.
+ */
+async function enterSignalWait(run: RunRow, step: WaitStep): Promise<boolean> {
+  const key = waitKeyOf(run, step);
+  const spaceId = await spaceIdOf(run);
+  await registerWait(run, spaceId, step, key);
+  const signal = await findSignal(run, spaceId, step, key);
+  if (signal) {
+    await dropWait(run.id);
+    await finishWait(run, step, await waitOver(run, step, signal));
+    return false;
+  }
+  const timeout = step.signal?.timeout;
+  const wakeAt = timeout ? new Date(Date.now() + waitDurationMs(timeout)) : null;
+  if (wakeAt) {
+    await setWake(run.id, wakeAt);
+  }
+  await updateRun(
+    run.id,
+    { status: "waiting_signal", wakeAt, expiresAt: keptUntil(run, wakeAt), error: null },
+    { status: "running" },
+  );
+  return true;
+}
+
 interface WaitOver {
   state: RunState;
   cursor: string | null;
+  said?: RunNote;
 }
 
-/** The wait is behind the run: its output, and the way on. */
-async function waitOver(run: RunRow, step: WaitStep): Promise<WaitOver> {
+/** The wait is behind the run: its output, and the way on. `signal`: what ended it, if anything. */
+async function waitOver(
+  run: RunRow,
+  step: WaitStep,
+  signal?: { id: string; data: Record<string, unknown> | null } | null,
+): Promise<WaitOver> {
   const state = structuredClone(run.state);
-  state.outputs[step.id] = { json: { waited: true }, at: new Date().toISOString() };
-  return { state, cursor: await advance(run, step.id, state) };
+  let json: Record<string, unknown> = { waited: true };
+  if (signal) {
+    json = { came: true, timedOut: false, data: signalData(step, signal.data) };
+    state.signals = [...(state.signals ?? []), signal.id];
+  } else if (step.signal) {
+    json = { came: false, timedOut: true };
+  }
+  state.outputs[step.id] = { json, at: new Date().toISOString() };
+  const said = step.signal ? note(signal ? "signalCame" : "signalTimedOut") : undefined;
+  return { state, cursor: await advance(run, step.id, state), said };
 }
 
-async function finishWait(run: RunRow, step: WaitStep, { state, cursor }: WaitOver) {
+async function finishWait(run: RunRow, step: WaitStep, { state, cursor, said }: WaitOver) {
   await updateRun(
     run.id,
     { state, cursor, status: cursor ? "running" : "done", wakeAt: null, error: null },
     { status: run.status },
   );
+  if (said) {
+    await emitEvent(run.id, step.id, "info", said);
+  }
   await emitEvent(run.id, step.id, "step_done", step.title);
 }
 
@@ -1094,21 +1204,25 @@ async function holdAgain(run: RunRow): Promise<RunNote | null> {
 }
 
 /**
- * A run that sleeps is woken: true when it goes on, false when it does not. The row decides, not
- * the wake: one that comes early or twice puts the time back and changes nothing. What else may
- * end a wait slots in here.
+ * A run that waits is woken: true when it goes on, false when it does not. The row decides, not
+ * the wake: one that comes early or twice, with no signal for it, puts the time back and changes
+ * nothing.
  */
 async function wakeFromWait(run: RunRow): Promise<boolean> {
   const step = stepOf(run.definition, run.cursor);
   if (step?.type !== "wait") {
-    await updateRun(run.id, { status: "running", wakeAt: null }, { status: "sleeping" });
+    await updateRun(run.id, { status: "running", wakeAt: null }, { status: run.status });
     return true;
   }
-  if (run.wakeAt && run.wakeAt.getTime() > Date.now()) {
+  const signal = step.signal
+    ? await findSignal(run, await spaceIdOf(run), step, waitKeyOf(run, step))
+    : null;
+  const due = run.wakeAt ? run.wakeAt.getTime() <= Date.now() : !step.signal;
+  if (!(signal || due)) {
     await setWake(run.id, run.wakeAt);
     return false;
   }
-  const over = await waitOver(run, step);
+  const over = await waitOver(run, step, signal);
   const next = stepOf(run.definition, over.cursor);
   let refused: RunNote | null = null;
   // A sleeping run gave its hold back, and a hold lapses anyway: it holds again before it spends.
@@ -1122,6 +1236,10 @@ async function wakeFromWait(run: RunRow): Promise<boolean> {
       return false;
     }
   }
+  if (step.signal) {
+    await dropWait(run.id);
+    await setWake(run.id, null);
+  }
   if (!refused) {
     await finishWait(run, step, over);
     return true;
@@ -1131,12 +1249,13 @@ async function wakeFromWait(run: RunRow): Promise<boolean> {
   await updateRun(
     run.id,
     {
-      ...over,
+      state: over.state,
+      cursor: over.cursor,
       status: "failed",
       wakeAt: null,
       error: saidText(refused, textLang(wizardLang(run.definition))),
     },
-    { status: "sleeping" },
+    { status: run.status },
   );
   return false;
 }
@@ -1148,7 +1267,7 @@ async function drive(runId: string, signal: AbortSignal) {
   await clearDeviceCalls(runId);
   while (!signal.aborted) {
     const run = await loadRun(runId);
-    if (run?.status === "sleeping") {
+    if (run?.status === "sleeping" || run?.status === "waiting_signal") {
       if (!(await wakeFromWait(run))) {
         return;
       }
@@ -1686,7 +1805,14 @@ export async function runView(
   return {
     id: run.id,
     status: run.status,
-    wakeAt: run.status === "sleeping" ? (run.wakeAt?.toISOString() ?? null) : null,
+    wakeAt:
+      run.status === "sleeping" || run.status === "waiting_signal"
+        ? (run.wakeAt?.toISOString() ?? null)
+        : null,
+    waitsFor:
+      run.status === "waiting_signal" && step?.type === "wait"
+        ? waitKeyText(run, step) || null
+        : null,
     mode: run.mode,
     wizard: {
       title: def.title,
@@ -1705,8 +1831,8 @@ export async function runView(
             results: run.state.translated?.[run.lang] ?? {},
           }
         : null,
-    // Nobody to talk to while it sleeps, and nothing to say.
-    talk: run.status !== "sleeping" && (await talkAllowed(run)),
+    // Nobody to talk to while it waits, and nothing to say.
+    talk: run.status !== "sleeping" && run.status !== "waiting_signal" && (await talkAllowed(run)),
     step,
     answered: run.state.history.map((id) => stepOf(def, id)).filter((s): s is Step => Boolean(s)),
     values: run.state.values,
@@ -1757,4 +1883,40 @@ export async function runView(
     expiresAt: run.expiresAt?.toISOString() ?? null,
     shareJob: run.status === "done" ? await latestShareJob(run.id) : null,
   };
+}
+
+/**
+ * A signal for this one run and the wait it stands at: "Testereignis senden", or what a person
+ * writes on a channel while the run waits. Null: the run does not wait for a signal now, or the
+ * data does not fit; then nothing is written, and what was said goes where the run stands.
+ */
+export async function signalRun(
+  runId: string,
+  input: {
+    data?: Record<string, unknown>;
+    source: string;
+    delivery?: string | null;
+    /** Only a wait for this name takes it; without, the wait the run stands at. */
+    only?: string;
+  },
+) {
+  const run = await loadRun(runId);
+  const step = run ? stepOf(run.definition, run.cursor) : undefined;
+  if (run?.status !== "waiting_signal" || step?.type !== "wait" || !step.signal) {
+    return null;
+  }
+  const { only, ...signal } = input;
+  if (only ? step.signal.name !== only : signalMissing(input.data, step.signal.fields).length) {
+    return null;
+  }
+  if (signalMissing(input.data, step.signal.fields).length) {
+    return null;
+  }
+  return sendSignal({
+    spaceId: await spaceIdOf(run),
+    scope: runScope(run.id),
+    name: step.signal.name,
+    key: waitKeyOf(run, step),
+    ...signal,
+  });
 }

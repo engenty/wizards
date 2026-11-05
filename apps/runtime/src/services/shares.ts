@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { keptStepIds } from "../broker/index.js";
 import { db, schema } from "../db/client.js";
 import { availableFormats } from "../engine/runner.js";
+import { purgeOldSignals } from "../engine/signals.js";
 import { env } from "../env.js";
 import {
   inlineAssetRefs,
@@ -171,5 +172,6 @@ export async function purgeExpiredRuns() {
   }
   await dropLinks(expired.map((r) => r.shareToken).filter((t): t is string => Boolean(t)));
   await dropRuns(expired.map((r) => r.id));
+  await purgeOldSignals();
   return expired.length;
 }

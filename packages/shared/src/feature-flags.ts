@@ -189,7 +189,7 @@ export const FEATURES = {
     kind: "release",
     default: false,
     label: "Runs that wait for days",
-    hint: "Wait steps: a run leaves every process and a clock wakes it. A deadline on automatic steps.",
+    hint: "Wait steps: a run leaves every process, and a clock or a signal wakes it. A deadline on automatic steps.",
   },
   ownKeys: {
     kind: "plan",

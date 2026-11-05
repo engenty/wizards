@@ -1036,13 +1036,18 @@ export interface PluginRunField {
   shown?: boolean;
 }
 
-/** What a run waits for: a page, a review, a question of a running step, or a time. */
+/** What a run waits for: a page, a review, a question of a running step, a time, or a signal. */
 export type PluginRunWaiting =
   | {
-      /** The step that waits. The run goes on by itself at `until`: tell the person, ask nothing. */
+      /**
+       * The step that waits. The run goes on by itself at `until` or when `signal` comes: tell the
+       * person, ask nothing.
+       */
       wait: string;
       title: string;
       until: string | null;
+      /** The signal it waits for; none: it waits for a time. */
+      signal?: string | null;
       hint: string;
     }
   | {
@@ -1071,7 +1076,14 @@ export interface PluginRunReport {
   mode: "test" | "live";
   /** The wizard's language: what to say to the person in. */
   lang: "de" | "en";
-  status: "waiting_input" | "sleeping" | "running" | "done" | "failed" | "cancelled";
+  status:
+    | "waiting_input"
+    | "sleeping"
+    | "waiting_signal"
+    | "running"
+    | "done"
+    | "failed"
+    | "cancelled";
   step: { id: string; type: string; title: string } | null;
   passed: string[];
   waitingFor?: PluginRunWaiting;
@@ -1144,6 +1156,15 @@ export interface PluginRuns {
   ): Promise<{ wizardId: string; token: string; title: string; lang: "de" | "en" }[]>;
   answerPage(runId: string, stepId: string, values: Record<string, unknown>): Promise<void>;
   review(runId: string, stepId: string, action: PluginReviewAction): Promise<void>;
+  /**
+   * What the person wrote while the run stands at a wait: a wait for `message.received` takes it
+   * as its signal. Null: this wait does not; the message goes nowhere else. A person's step takes
+   * what they write as the answer (`answerPage`), never both.
+   */
+  message(
+    runId: string,
+    input: { text: string; delivery?: string },
+  ): Promise<{ runs: number } | null>;
   /** A running step asks before it changes something in a connected account: allow it once, or skip. */
   answerAsk(runId: string, askId: string, answer: "allow" | "skip"): Promise<void>;
   control(runId: string, action: "back" | "retry" | "cancel"): Promise<void>;
@@ -1163,6 +1184,23 @@ export interface PluginRuns {
   ): Promise<{ text: string }>;
 }
 
+/** Signals (`server.signals`): something arrived, for the runs that wait for it. */
+export interface PluginSignals {
+  /**
+   * Writes the signal, then wakes every run in the space waiting for this name and key, of any of
+   * its wizards. Answers before any step runs, with how many runs woke. `delivery`: your id for
+   * this event; the same one again wakes nothing and answers what it answered first. `data` is
+   * read as `steps.<wait>.data.<field>`.
+   */
+  send(input: {
+    spaceId: string;
+    name: string;
+    key: string;
+    data?: Record<string, unknown>;
+    delivery?: string;
+  }): Promise<{ id: string; runs: number }>;
+}
+
 /** Keys a plugin keeps: sealed with the runtime's own key, as it seals a connection's tokens. */
 export interface PluginSecrets {
   /** Anything that is JSON, as a sealed string to keep in a table. */
@@ -1177,6 +1215,8 @@ export interface PluginServerApi {
   registerRunner(runner: PluginRunner): void;
   /** Runs the plugin's door drives. */
   runs: PluginRuns;
+  /** Signals for runs that wait for something. */
+  signals: PluginSignals;
   /**
    * The tenant's realtime speech model, for a live conversation a plugin drives itself (a call):
    * the key and the model the chat's live voice runs on. Throws with the status `503` and the

@@ -104,6 +104,9 @@ A running step asks before it changes something in a connected account (waitingF
 <!-- section: tool.control_run -->
 back: return to the previous page or review. retry: run the failed step again. cancel: stop the run.
 
+<!-- section: tool.send_signal -->
+Send a signal in the space of this wizard: every run of its wizards that waits for this name and key goes on. data ends up below `steps.<wait>.data`. delivery: your id for this event; the same delivery again wakes nothing and answers what it answered first. Answers the number of runs woken. A test run at its wait: this, with the key its report names.
+
 <!-- section: tool.list_files -->
 The files in the wizard's workspace (path, mime, size): widget HTML/JS/CSS, vendored libraries, reference data. Runs use a snapshot of it.
 
@@ -151,6 +154,9 @@ A sign-in: the person types it on the run page (browserUrl).
 
 <!-- section: hint.sleeping -->
 The run waits until `until` and goes on by itself. Nothing is needed from the person meanwhile.
+
+<!-- section: hint.waiting_signal -->
+The run waits for the signal `signal` and goes on by itself when it comes, or at `until` without it. Nothing is needed from the person meanwhile.
 
 <!-- section: hint.page -->
 Ask the fields in order; skip a field whose `when` does not hold on the answers so far (a hidden one is not required and not kept).

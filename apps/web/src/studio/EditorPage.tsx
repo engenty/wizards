@@ -1,4 +1,4 @@
-import { goesOnText } from "@engenty/wizards-runner";
+import { goesOnText, waitsSignalText } from "@engenty/wizards-runner";
 import { type ModelClass, TEXT_CLASSES } from "@engenty/wizards-shared/definition";
 import type { MissingModel, RunView } from "@engenty/wizards-shared/run";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -414,6 +414,7 @@ function Editor() {
     const failed = runView.status === "failed";
     const waiting = runView.status === "waiting_input";
     const sleeping = runView.status === "sleeping";
+    const listening = runView.status === "waiting_signal";
     const mine = runView.events.filter((ev) => ev.stepId === step.id).reverse();
     const started = mine.find((ev) => ev.type === "step_started");
     const latest = mine.find((ev) => ev.type !== "step_done");
@@ -424,11 +425,13 @@ function Editor() {
         ? (runView.error ?? said)
         : sleeping
           ? goesOnText(runView.wakeAt)
-          : waiting
-            ? t("editor.waitsForInput")
-            : said,
+          : listening
+            ? waitsSignalText(runView.waitsFor, runView.wakeAt)
+            : waiting
+              ? t("editor.waitsForInput")
+              : said,
       since:
-        failed || waiting || sleeping
+        failed || waiting || sleeping || listening
           ? null
           : started
             ? new Date(started.at).getTime()

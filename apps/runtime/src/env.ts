@@ -350,6 +350,8 @@ export const env = {
     syncedWizards: num("LIMIT_SYNCED_WIZARDS", 50),
     /** End-user runs (no account) and their shared links are deleted after this many days. */
     resultTtlDays: num("RESULT_TTL_DAYS", 7),
+    /** Signals one wizard's address takes in an hour. */
+    signalsPerHour: num("SIGNALS_PER_HOUR", 600),
     /** What a wizard keeps for a person (lists, files, accounts) goes when unused this long. */
     storeTtlDays: num("STORE_TTL_DAYS", 400),
   },

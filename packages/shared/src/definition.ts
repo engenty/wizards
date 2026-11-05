@@ -989,20 +989,85 @@ export function waitDurationMs(duration: string): number {
   return Number(duration.slice(0, -1)) * WAIT_UNIT_MS[unit];
 }
 
+/** What a signal is called: "invoice.paid", "lieferung-da". */
+export const signalNameSchema = z
+  .string()
+  .max(80)
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/, 'A signal\'s name, like "invoice.paid".');
+
+/** Names only the runtime writes: a run's end, a mailbox, a person on a channel. Nobody sends these. */
+const OWN_SIGNAL_PREFIXES = ["run.", "mail.", "message."];
+
+/** A name anyone with a way in may send. */
+export function signalNameOpen(name: string): boolean {
+  return !OWN_SIGNAL_PREFIXES.some((prefix) => name.startsWith(prefix));
+}
+
+/** A run's end, keyed by the run's id: another run can wait for it. */
+export const RUN_DONE_SIGNAL = "run.done";
+
 /**
- * A step that waits and needs no process meanwhile: for a time, or until a date. `until` is an
- * ISO date or a template such as "{{deadline}}"; a date gone by waits for nothing.
+ * What the person of a channel writes while the run waits. Only a wait for this name takes it: a
+ * chat message must not end a wait for a payment.
+ */
+export const MESSAGE_SIGNAL = "message.received";
+
+/** The field names a signal's data missing from this list; empty when it fits. */
+export function signalMissing(
+  data: unknown,
+  fields: readonly string[] | null | undefined,
+): string[] {
+  const given = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  return (fields ?? []).filter((id) => given[id] === undefined || given[id] === null);
+}
+
+/**
+ * A step that waits and needs no process meanwhile: for a time, until a date, or for a signal.
+ * `until` is an ISO date or a template such as "{{deadline}}"; a date gone by waits for nothing.
+ * A signal is matched by its name and key; `timeout` gives up after a time. `fields`: what its
+ * data must hold; only these reach the run.
  */
 export const waitStepSchema = z.object({
   ...stepBase,
   type: z.literal("wait"),
   for: waitDurationSchema.optional(),
   until: z.string().min(1).optional(),
+  signal: z
+    .object({
+      name: signalNameSchema,
+      key: z.string().min(1).max(500),
+      timeout: waitDurationSchema.optional(),
+      fields: z
+        .array(z.string().regex(/^[a-zA-Z_][a-zA-Z0-9_-]*$/))
+        .max(40)
+        .optional(),
+    })
+    .optional(),
 });
 export type WaitStep = z.infer<typeof waitStepSchema>;
 
-/** What a finished wait hands on, as `steps.<wait>.<key>`. */
-export const WAIT_OUTPUT_KEYS: readonly string[] = ["waited"];
+/** Whether `steps.<wait>.<key>` (with `.<field>` below `data`) is something this wait hands on. */
+export function waitHandsOn(step: WaitStep, key: string, more: string[]): boolean {
+  if (!step.signal) {
+    return key === "waited" && more.length === 0;
+  }
+  if (key === "data") {
+    return more.length === 1 && (!step.signal.fields || step.signal.fields.includes(more[0]));
+  }
+  return (key === "came" || key === "timedOut") && more.length === 0;
+}
+
+/** What a wait hands on, as refs for the editor's lists. */
+export function waitOutputRefs(step: WaitStep): string[] {
+  if (!step.signal) {
+    return [`steps.${step.id}.waited`];
+  }
+  return [
+    `steps.${step.id}.came`,
+    `steps.${step.id}.timedOut`,
+    ...(step.signal.fields ?? []).map((f) => `steps.${step.id}.data.${f}`),
+  ];
+}
 
 export const stepSchema = z.discriminatedUnion("type", [
   pageStepSchema,
@@ -1476,9 +1541,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     if (head === "lists") {
       return key === "count" && more.length === 0 && listIds.has(from ?? "");
     }
-    // `steps.<step>.<field>.p`: how probable the decision's answer is.
-    const probability = more.length === 1 && more[0] === "p";
-    if (head !== "steps" || !key || (more.length > 0 && !probability)) {
+    if (head !== "steps" || !key) {
       return false;
     }
     if (!(seenSteps.has(from) || (self && from === step.id))) {
@@ -1486,7 +1549,12 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     }
     const source = def.steps.find((s) => s.id === from);
     if (source?.type === "wait") {
-      return !probability && WAIT_OUTPUT_KEYS.includes(key);
+      return waitHandsOn(source, key, more);
+    }
+    // `steps.<step>.<field>.p`: how probable the decision's answer is.
+    const probability = more.length === 1 && more[0] === "p";
+    if (more.length > 0 && !probability) {
+      return false;
     }
     return (
       source?.type === "agent" &&
@@ -1868,11 +1936,14 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         }
         break;
       case "wait":
-        if (Boolean(step.for) === Boolean(step.until)) {
+        if ([step.for, step.until, step.signal].filter(Boolean).length !== 1) {
           issues.push({
             stepId: step.id,
-            message: 'A wait has "for" or "until": one of them.',
+            message: 'A wait has "for", "until" or "signal": one of them.',
           });
+        }
+        if (step.signal) {
+          checkTemplate(step, step.signal.key);
         }
         if (step.until) {
           checkTemplate(step, step.until);
@@ -2004,6 +2075,13 @@ export function branchValues(
     if (output.json && typeof output.json === "object" && !Array.isArray(output.json)) {
       for (const [key, value] of Object.entries(output.json)) {
         out[`steps.${stepId}.${key}`] = value;
+      }
+      // What a signal brought stays below `data`: its sender cannot set the step's own keys.
+      const data = (output.json as Record<string, unknown>).data;
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        for (const [key, value] of Object.entries(data)) {
+          out[`steps.${stepId}.data.${key}`] = value;
+        }
       }
     }
     for (const [key, p] of Object.entries(output.decided ?? {})) {

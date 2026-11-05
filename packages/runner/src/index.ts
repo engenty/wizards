@@ -65,6 +65,7 @@ export {
   RunnerBody,
   type RunSource,
   useDoneSignal,
+  waitsSignalText,
 } from "./RunnerView.js";
 export { ConnectionField, ListCheck, ListDownloads, ListTable, StoreButton } from "./store.js";
 export {

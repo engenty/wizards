@@ -214,6 +214,12 @@ import {
 import { runnersOf, wizardRunners } from "../services/runners.js";
 import { draftStepView, listResults, listRuns, startTestRun } from "../services/runs.js";
 import {
+  dropSignalAddress,
+  makeSignalAddress,
+  sendTestSignal,
+  signalAddress,
+} from "../services/signals.js";
+import {
   addCategoryValue,
   categoryRow,
   categoryValue,
@@ -1675,6 +1681,21 @@ export const studio = new Hono<Vars>()
     const cloud = managed ? null : await rotateInCloud(c.get("user").id, c.req.param("id"));
     return c.json({ ...rotated, cloud });
   })
+  // The wizard's address for signals from other services; its token and secret are said only here.
+  .get("/wizards/:id/signal-address", async (c) =>
+    c.json(await signalAddress(c.get("user").id, c.req.param("id"))),
+  )
+  .post("/wizards/:id/signal-address", async (c) => {
+    const { signed } = z.object({ signed: z.boolean() }).parse(await c.req.json());
+    return c.json(await makeSignalAddress(c.get("user").id, c.req.param("id"), { signed }));
+  })
+  .delete("/wizards/:id/signal-address", async (c) => {
+    await dropSignalAddress(c.get("user").id, c.req.param("id"));
+    return c.json({ ok: true });
+  })
+  .post("/wizards/:id/runs/:runId/test-signal", async (c) =>
+    c.json(await sendTestSignal(c.get("user").id, c.req.param("id"), c.req.param("runId"))),
+  )
   .post("/wizards/:id/duplicate", async (c) =>
     c.json(await duplicateWizard(c.get("user").id, c.req.param("id"))),
   )

@@ -4305,6 +4305,38 @@
                   "until": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "signal": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "maxLength": 80,
+                        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"
+                      },
+                      "key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "timeout": {
+                        "type": "string",
+                        "pattern": "^[1-9]\\d{0,3}(m|h|d)$"
+                      },
+                      "fields": {
+                        "maxItems": 40,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z_][a-zA-Z0-9_-]*$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "key"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [

@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import type { PluginRunReport, PluginRunSignal, PluginRuns } from "@engenty/wizards/plugin";
-import { LANGS, type Lang, textLang, wizardLang } from "@engenty/wizards-shared/definition";
+import {
+  LANGS,
+  type Lang,
+  MESSAGE_SIGNAL,
+  textLang,
+  wizardLang,
+} from "@engenty/wizards-shared/definition";
 import { noteText, type RunNote } from "@engenty/wizards-shared/run";
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, schema, withTenant } from "../db/client.js";
@@ -16,6 +22,7 @@ import {
   RunInputError,
   retry,
   reviewStep,
+  signalRun,
   submitPage,
 } from "../engine/runner.js";
 import { saveAsset } from "../files/storage.js";
@@ -128,6 +135,16 @@ export function runsApiFor(pluginId: string): PluginRuns {
     async report(runId, options) {
       const run = await waitRun(() => pluginRun(runId), options?.waitSeconds ?? 0);
       return (await runReportOf(run, options?.draft)) as PluginRunReport;
+    },
+    async message(runId, input) {
+      const run = await pluginRun(runId);
+      const sent = await signalRun(run.id, {
+        data: { text: input.text },
+        source: `plugin:${pluginId}`,
+        delivery: input.delivery,
+        only: MESSAGE_SIGNAL,
+      });
+      return sent ? { runs: sent.runs } : null;
     },
     async wizards(runner) {
       const rows = await db.query.wizard.findMany({
@@ -247,7 +264,7 @@ export function runsApiFor(pluginId: string): PluginRuns {
           noteText({ code: "runOver" }, wizardLang(run.definition)),
         );
       }
-      if (run.status === "sleeping") {
+      if (run.status === "sleeping" || run.status === "waiting_signal") {
         throw new ServiceError(
           "refused",
           noteText({ code: "runSleeps" }, wizardLang(run.definition)),
