@@ -35,7 +35,6 @@ export interface WaitingRun {
   about: string | null;
   /** What the step says to whoever answers it. */
   detail: string | null;
-  /** Who a run waiting for a signal waits to hear from is in `detail`; since and until as dates. */
   since: string;
   until: string | null;
 }
@@ -115,7 +114,7 @@ export async function runsFor(
     orderBy: [desc(schema.run.updatedAt)],
     limit: MOST,
   });
-  // What the team is asked, and what those named follow while it goes on by itself.
+  // What the team is asked.
   const asked = team.length
     ? await db.query.run.findMany({
         where: and(
