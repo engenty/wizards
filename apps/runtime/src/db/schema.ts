@@ -421,9 +421,9 @@ export const run = sqliteTable(
 );
 
 /**
- * A word to the owner about a run nobody watches: it waits for them, it is done, it failed, its
- * start was paused. Read in the studio's bell. Only started runs write one for now; nothing here
- * ties a notice to a start, so any run can.
+ * A word to a person about a run: it waits for them, it is done, it failed, its start was paused.
+ * The row is written with the status change and is the outbox: a sender tick delivers it
+ * (engine/notices.ts). The studio's bell reads the rows that are `shown`.
  */
 export const notice = sqliteTable(
   "notice",
@@ -438,10 +438,32 @@ export const notice = sqliteTable(
     startId: text("start_id"),
     /** A line of detail in the wizard's language: the page that waits, the error. */
     detail: text("detail"),
+    /** The member it is for; null: anyone in the studio (a paused start, a computer's one person). */
+    userId: text("user_id"),
+    /** For the run's visitor: no bell, only their mail and device. */
+    visitor: integer("visitor", { mode: "boolean" }).notNull().default(false),
+    /** What a `needs_you` waits on: `step:<id>` or `ask:<id>`. Once over, nobody is told. */
+    waitKey: text("wait_key"),
+    /** The bell shows it. False until the sender knows nobody is looking at the run. */
+    shown: integer("shown", { mode: "boolean" }).notNull().default(true),
+    /** When the sender looks at it next; null: nothing left to deliver. */
+    dueAt: integer("due_at", { mode: "timestamp_ms" }),
+    /** A sender holds it until then; one that died lets go by itself. */
+    claimUntil: integer("claim_until", { mode: "timestamp_ms" }),
+    /** Failed deliveries so far. */
+    attempts: integer("attempts").notNull().default(0),
+    /** Push is dealt with, sent or not needed. */
+    pushedAt: integer("pushed_at", { mode: "timestamp_ms" }),
+    /** Mail is dealt with, sent or not needed. */
+    mailedAt: integer("mailed_at", { mode: "timestamp_ms" }),
     readAt: integer("read_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
   },
-  (t) => [index("notice_tenant_at").on(t.tenantId, t.createdAt)],
+  (t) => [
+    index("notice_tenant_at").on(t.tenantId, t.createdAt),
+    index("notice_due").on(t.dueAt),
+    index("notice_run").on(t.runId),
+  ],
 );
 
 export const runEvent = sqliteTable(

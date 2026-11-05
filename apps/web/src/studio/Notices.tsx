@@ -9,8 +9,8 @@ import { cn } from "../ui";
 import { useDismiss } from "./AppFrame";
 
 /**
- * The bell in the top bar: a word to the owner about runs nobody watches — a start's run waits
- * for them, is done, failed, or its start was paused. Read in place; "Open" goes to the wizard.
+ * The bell in the top bar: a word to the person about runs they are not watching. A run waits for
+ * them, is done, failed, or its start was paused. Read in place; "Open" goes to the wizard.
  */
 
 interface Notice {

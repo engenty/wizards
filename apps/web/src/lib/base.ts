@@ -46,6 +46,40 @@ export function setRemoteRuntime(runtime: { base: string; ticket: string } | nul
 }
 
 /**
+ * A run's ticket from a link (a mail, a channel's hand-off: `/w/<token>/<run>?rt=…`). Taken from
+ * the address at once, so it does not stay in the address bar or get copied along, and kept for
+ * this tab, so a reload still opens the run. Every call about that run carries it.
+ */
+const linked = (() => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const url = new URL(window.location.href);
+  const runId = /\/w\/[^/]+\/([^/]+)/.exec(url.pathname)?.[1];
+  if (!runId) {
+    return null;
+  }
+  const key = `wizards.ticket.${runId}`;
+  const given = url.searchParams.get("rt");
+  if (given) {
+    url.searchParams.delete("rt");
+    window.history.replaceState(window.history.state, "", url);
+  }
+  // A page in a frame on another website may have no storage: the ticket then lasts until a reload.
+  let ticket = given;
+  try {
+    if (given) {
+      sessionStorage.setItem(key, given);
+    } else {
+      ticket = sessionStorage.getItem(key);
+    }
+  } catch {
+    // nothing kept
+  }
+  return ticket ? { path: `/api/runs/${runId}`, ticket } : null;
+})();
+
+/**
  * Where the wizards' pages are (`/api/config`'s `publicUrl`): the doors' origin when they are
  * served apart from the studio. Until the runtime answered, this origin.
  */
@@ -64,6 +98,10 @@ export function publicAddress(): string {
 export function withBase(path: string): string {
   if (remote && path.startsWith("/api/")) {
     return `${remote.base}${path}${path.includes("?") ? "&" : "?"}rt=${encodeURIComponent(remote.ticket)}`;
+  }
+  if (linked && (path === linked.path || path.startsWith(`${linked.path}/`))) {
+    const ticketed = `${path}${path.includes("?") ? "&" : "?"}rt=${encodeURIComponent(linked.ticket)}`;
+    return BASE ? `${BASE}${ticketed}` : ticketed;
   }
   if (!BASE || !path.startsWith("/") || path.startsWith("//")) {
     return path;

@@ -393,7 +393,7 @@ describe("what a started run does", () => {
     expect(
       await until(async () =>
         (
-          await client.withTenant(T, () => notices.listNotices())
+          await client.withTenant(T, () => notices.listNotices(USER))
         ).some((n) => n.runId === run?.id && n.kind === "done"),
       ),
     ).toBe(true);
@@ -408,7 +408,7 @@ describe("what a started run does", () => {
     expect(
       await until(async () =>
         (
-          await client.withTenant(T, () => notices.listNotices())
+          await client.withTenant(T, () => notices.listNotices(USER))
         ).some((n) => n.runId === run?.id && n.kind === "needs_you"),
       ),
     ).toBe(true);
@@ -434,7 +434,7 @@ describe("what a started run does", () => {
     expect(start.on).toBe(false);
     expect(start.pausedReason).toBeTruthy();
     expect(await runsOf(wizardId)).toHaveLength(0);
-    const list = await client.withTenant(T, () => notices.listNotices());
+    const list = await client.withTenant(T, () => notices.listNotices(USER));
     expect(list.some((n) => n.wizard.id === wizardId && n.kind === "paused")).toBe(true);
     // Paused, the clock leaves it alone.
     await clock.runDueSchedules(new Date("2026-11-02T08:00:10Z"));

@@ -1963,12 +1963,12 @@ export const studio = new Hono<Vars>()
   .post("/wizards/:id/starts/:startId/run", async (c) =>
     c.json(await runStartNow(c.get("user").id, c.req.param("id"), c.req.param("startId"))),
   )
-  .get("/notices", async (c) => c.json(await listNotices()))
+  .get("/notices", async (c) => c.json(await listNotices(c.get("user").id)))
   .post("/notices/read", async (c) => {
     const body = z
       .object({ ids: z.union([z.array(z.string()).max(200), z.literal("all")]) })
       .parse(await c.req.json());
-    await markNoticesRead(body.ids);
+    await markNoticesRead(c.get("user").id, body.ids);
     return c.json({ ok: true });
   })
 
