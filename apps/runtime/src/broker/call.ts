@@ -6,6 +6,7 @@ import type {
   ConnectorAction,
   ConnectorActionGroup,
   ConnectorDefinition,
+  InboundMessage,
   StreamPullResult,
 } from "../engenty/connections-sdk/types.js";
 import type { AskResult } from "../engine/asks.js";
@@ -104,6 +105,8 @@ export interface BrokerCallInput<T = unknown> {
   action: BrokerAction;
   input: unknown;
   ctx?: BrokerContext;
+  /** A call that went well and answered this leaves no line in the log. */
+  quietWhen?: (result: T) => boolean;
   /** What runs with the account; left out: the connector's action of that id, with `input`. */
   handler?: (account: Account) => Promise<T>;
 }
@@ -613,7 +616,9 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     if (effectId) {
       await effectDone(effectId, result);
     }
-    await line(kind, decision.outcome, rule, decision.reason, "ok", sizeOf(result), { firstUse });
+    if (!call.quietWhen?.(result)) {
+      await line(kind, decision.outcome, rule, decision.reason, "ok", sizeOf(result), { firstUse });
+    }
     if (connection.kind === "space_connection") {
       await markUsed(connection.row);
     }
@@ -651,11 +656,34 @@ export function brokerPullStream(input: {
     connection,
     action: { id: "pull_stream", kind: "read" },
     input: { since: since.toISOString(), limit },
+    // A read every minute that found nothing says nothing. What it found and what failed stay.
+    quietWhen: (result) => (result as StreamPullResult).items.length === 0,
     handler: ({ connector, ctx }) => {
       if (!connector.stream) {
         throw new Error(`${connector.name} has no stream.`);
       }
       return connector.stream.pull({ ...ctx, since: since.toISOString(), limit }, cursor);
+    },
+  });
+}
+
+/** One mail of a connector's stream by its id, for a run that comes to it later. Logged like a pull. */
+export function brokerReadMessage(input: {
+  connection: Extract<BrokerConnection, { kind: "space_connection" }>;
+  message: string;
+}): Promise<BrokerResult<InboundMessage | null>> {
+  const { connection, message } = input;
+  return brokerCall({
+    who: { kind: "runtime" },
+    where: { spaceId: connection.row.spaceId },
+    connection,
+    action: { id: "read_message", kind: "read" },
+    input: { message },
+    handler: ({ connector, ctx }) => {
+      if (!connector.stream?.read) {
+        throw new Error(`${connector.name} can't read one message.`);
+      }
+      return connector.stream.read({ ...ctx, since: new Date(0).toISOString(), limit: 1 }, message);
     },
   });
 }

@@ -128,6 +128,7 @@ import { newTurn, TurnAsks, turnOf } from "./durable-turn.js";
 import { emitEvent, recentEvents, saidInVisit, signalChanged, visitLeftOpen } from "./events.js";
 import { classifyFailure, type Failure } from "./failures.js";
 import { type InputError, type PageContext, readPageInput } from "./input.js";
+import { withMailText } from "./mail-watch.js";
 import {
   type Actor,
   type NoticeKind,
@@ -1446,12 +1447,12 @@ interface WaitOver {
 async function waitOver(
   run: RunRow,
   step: WaitStep,
-  signal?: { id: string; data: Record<string, unknown> | null } | null,
+  signal?: { id: string; data: Record<string, unknown> | null; source?: string } | null,
 ): Promise<WaitOver> {
   const state = structuredClone(run.state);
   let json: Record<string, unknown> = { waited: true };
   if (signal) {
-    json = { came: true, timedOut: false, data: signalData(step, signal.data) };
+    json = { came: true, timedOut: false, data: signalData(step, await withMailText(signal)) };
     state.signals = [...(state.signals ?? []), signal.id];
   } else if (step.signal) {
     json = { came: false, timedOut: true };

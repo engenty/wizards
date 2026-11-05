@@ -163,6 +163,14 @@ function collectAttachments(
 }
 
 /** A machine answered: out of office (RFC 3834 and its older spellings), or a bounce. */
+/**
+ * Gmail's own verdict on who sent a mail. Its `Authentication-Results` comes first; a sender can only
+ * add theirs below it, so the first is the only one read.
+ */
+function senderFailedChecks(headers: GmailPayload["headers"]): boolean {
+  return /\b(?:spf|dmarc)=fail\b/i.test(getHeader(headers, "Authentication-Results") ?? "");
+}
+
 function isAutoReply(headers: GmailPayload["headers"], from: string | null): boolean {
   const said = (name: string) => getHeader(headers, name)?.trim().toLowerCase();
   return (
@@ -182,6 +190,7 @@ function toInboundMessage(raw: GmailMessage): InboundMessage {
   return {
     attachments,
     auto_reply: isAutoReply(raw.payload?.headers, parsed.from_email),
+    sender_failed_checks: senderFailedChecks(raw.payload?.headers),
     // A mail to oneself is both, and did arrive.
     outgoing: labels.includes("SENT") && !labels.includes("INBOX"),
     body_html: extractBody(raw.payload, "text/html"),
@@ -782,6 +791,13 @@ export const gmailConnector: ConnectorDefinition = defineConnector({
   // Inbound message stream for module consumers (inbox, KB, …): incremental
   // via history.list (cursor = historyId), initial backfill via messages.list
   // over a date window. Never projected as an agent tool.
-  stream: { kind: "messages", pull: pullGmailStream },
+  stream: {
+    kind: "messages",
+    pull: pullGmailStream,
+    read: async (ctx, id) => {
+      const raw = await fetchMessageDetail(ctx, id);
+      return raw ? toInboundMessage(raw) : null;
+    },
+  },
   toolPrefix: "gmail",
 });

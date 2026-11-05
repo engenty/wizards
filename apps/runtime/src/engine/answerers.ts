@@ -17,7 +17,7 @@ import type { RunRow } from "./types.js";
  * | `person`, `owner` | The run's person: its member, its visitor, whoever holds its link  |
  * | `team`            | Those named under "Answered by" (`wizard.answerers`)               |
  * | any               | The organization's admins, the one person of a computer, and on a  |
- * |                   | test run the member who started it, so they can try it alone       |
+ * |                   | test run any member, so people building a wizard don't get stuck   |
  *
  * `person` and `owner` ask the same people: a run with an owner has that member as its person (a
  * start's run belongs to the start's owner), and a visitor's run has no owner, so it asks its own
@@ -70,7 +70,7 @@ export function mayAnswerStep(
   if (caller.local || (caller.role && isAdminRole(caller.role))) {
     return true;
   }
-  if (run.mode === "test" && caller.userId && caller.userId === run.userId) {
+  if (run.mode === "test" && caller.userId && caller.role !== "client") {
     return true;
   }
   if (whoOf(step) === "team") {
@@ -108,6 +108,22 @@ export function mayGoBackFrom(run: WaitingRun, caller: Caller, team: Answerers):
   const previous = stepOfRun(run, run.state.history.at(-1) ?? null);
   return (
     mayAnswerStep(run, stepOfRun(run), caller, team) && mayAnswerStep(run, previous, caller, team)
+  );
+}
+
+/**
+ * A visitor may take their own run back while the team has it: it is their request, and the team
+ * shouldn't work on what they dropped. True only then, for what they couldn't do by `mayAct`.
+ */
+export async function mayWithdraw(
+  run: Pick<RunRow, "cursor" | "definition" | "visitorId" | "status">,
+  caller: Caller,
+): Promise<boolean> {
+  return (
+    Boolean(caller.visitorId && caller.visitorId === run.visitorId) &&
+    run.status === "waiting_input" &&
+    whoOf(stepOfRun(run)) === "team" &&
+    (await answeringNarrowed())
   );
 }
 
@@ -155,6 +171,7 @@ export async function viewFor(view: RunView, run: RunRow, caller: Caller): Promi
   const narrowed: RunView = {
     ...view,
     answeredBy: waits && !may ? whoOf(step) : null,
+    canWithdraw: await mayWithdraw(run, caller),
     canBack: view.canBack && mayGoBackFrom(run, caller, team),
     ask: may ? view.ask : null,
     talk: may && view.talk,

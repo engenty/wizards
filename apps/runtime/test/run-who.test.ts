@@ -360,9 +360,9 @@ describe("on a step for the team", () => {
     expect(after?.rev).toBe(before?.rev);
   });
 
-  it("the run's own visitor is refused on every door", async () => {
+  it("the run's own visitor is refused on every door but taking it back", async () => {
     const { runId } = await onTeamStep();
-    for (const [name, method, path, body] of DOORS) {
+    for (const [name, method, path, body] of DOORS.filter(([n]) => n !== "cancel")) {
       const res = await call(runId, path, method, body, { visitor: "v-1" });
       expect([name, res.status]).toEqual([name, 403]);
     }
@@ -406,11 +406,12 @@ describe("on a step for the team", () => {
 
   it("an MCP client's person who isn't named is refused on each tool", async () => {
     const { runId } = await onTeamStep(undefined, "v-mcp");
-    // MCP reaches a run by being its own, or a test run: this one is made reachable as a test run.
+    // MCP reaches a run by being its own, or a test run, which any member may help along: this one
+    // is the member's own live run, and the team's step in it isn't theirs.
     await inTenant(() =>
       client.db
         .update(client.schema.run)
-        .set({ mode: "test", userId: "someone" })
+        .set({ userId: MAX })
         .where(eq(client.schema.run.id, runId)),
     );
     const refused = { code: "forbidden" };
@@ -438,7 +439,7 @@ describe("on a step for the team", () => {
       await expect(api.review(runId, "check", { type: "accept" })).rejects.toMatchObject(refused);
       await expect(api.answerAsk(runId, "a", "allow")).rejects.toMatchObject(refused);
       await expect(api.answerQuestion(runId, "ja")).rejects.toMatchObject(refused);
-      for (const action of ["back", "retry", "cancel"] as const) {
+      for (const action of ["back", "retry"] as const) {
         await expect(api.control(runId, action)).rejects.toMatchObject(refused);
       }
       await expect(api.upload(runId, file as never)).rejects.toMatchObject(refused);
@@ -448,6 +449,9 @@ describe("on a step for the team", () => {
       expect(report.outputs.map((o) => o.stepId)).not.toContain("made");
     });
     expect((await row(runId))?.status).toBe("waiting_input");
+    // It speaks for the visitor, who may take their run back.
+    await inTenant(() => api.control(runId, "cancel"));
+    expect((await row(runId))?.status).toBe("cancelled");
   });
 
   it("a plugin's door doesn't reach a member's run, nor hand on its link", async () => {
@@ -510,6 +514,43 @@ describe("on a step for the team", () => {
     expect(second.status).toBe(409);
     expect((await second.json()).error).toContain("Jonas Wieser");
     expect((await row(runId))?.state.values.intern).toBe("ok");
+  });
+
+  it("any member helps a colleague's test run along; a client doesn't, a live run stays narrow", async () => {
+    const test = await startRun([form, teamPage, end], { userId: MAX, mode: "test" });
+    signIn(JONAS);
+    expect((await call(test.runId, "/pages/form", "POST", { values: { kunde: "Hofer" } })).status).toBe(200);
+    expect(await waitsOn(test.runId, "team")).toBe(true);
+    signIn(ANNA);
+    expect((await call(test.runId, "/cancel")).status).toBe(200);
+    const other = await startRun([form, end], { userId: MAX, mode: "test" });
+    signIn(KIM, "client");
+    expect((await call(other.runId, "/cancel")).status).not.toBe(200);
+    const live = await startRun([form, end], { userId: MAX, mode: "live" });
+    signIn(JONAS);
+    expect((await call(live.runId, "/cancel")).status).toBe(403);
+    // The timeline's buttons keep their own rule: a test run's starter, and the admins.
+    signIn(JONAS);
+    expect((await call(other.runId, "/stop")).status).toBe(403);
+  });
+
+  it("a visitor may take their run back while the team has it, and the log says so", async () => {
+    const { runId } = await onTeamStep();
+    signIn(null);
+    const seen = (await (await call(runId, "", "GET", undefined, { visitor: "v-1" })).json()) as {
+      canWithdraw?: boolean;
+      answeredBy: string | null;
+    };
+    expect(seen).toMatchObject({ canWithdraw: true, answeredBy: "team" });
+    // Someone else's visitor is not them.
+    expect((await call(runId, "/cancel", "POST", {}, { visitor: "v-other" })).status).not.toBe(200);
+    expect((await row(runId))?.status).toBe("waiting_input");
+    expect((await call(runId, "/cancel", "POST", {}, { visitor: "v-1" })).status).toBe(200);
+    expect((await row(runId))?.status).toBe("cancelled");
+    const lines = await inTenant(() =>
+      client.db.query.runEvent.findMany({ where: eq(client.schema.runEvent.runId, runId) }),
+    );
+    expect(lines.filter((l) => l.note?.code === "runWithdrawn")).toHaveLength(1);
   });
 
   it("an admin answers though not named; a test run's starter answers alone", async () => {
@@ -663,7 +704,7 @@ describe("what a viewer sees", () => {
     await inTenant(() =>
       client.db
         .update(client.schema.run)
-        .set({ mode: "test", userId: "someone" })
+        .set({ userId: MAX })
         .where(eq(client.schema.run.id, runId)),
     );
     const report = await inTenant(() => services.runReport(MAX, runId));
@@ -934,11 +975,22 @@ describe("naming who answers", () => {
       )
     )?.answerers;
 
-  it("is for admins, and takes people of the organization only", async () => {
+  it("is for who edits the wizard, and takes people of the organization only", async () => {
     const { wizardId } = await startRun([teamPage, end], { answerers: [] });
+    const studioForMembers = (open: boolean) =>
+      inTenant(() =>
+        client.db
+          .update(client.schema.space)
+          .set({ membersStudio: open })
+          .where(eq(client.schema.space.id, "space-1")),
+      );
     signIn(JONAS);
+    // A member with the Studio closed to them edits nothing, this included.
     expect((await set(wizardId, [JONAS])).status).toBe(403);
-    expect(await named(wizardId)).toEqual([]);
+    await studioForMembers(true);
+    expect((await set(wizardId, [JONAS])).status).toBe(200);
+    expect(await named(wizardId)).toEqual([JONAS]);
+    await studioForMembers(false);
     signIn(LENA, "owner");
     expect((await set(wizardId, [JONAS, ANNA])).status).toBe(200);
     expect(await named(wizardId)).toEqual([JONAS, ANNA]);
@@ -946,6 +998,25 @@ describe("naming who answers", () => {
     expect(await named(wizardId)).toBe("admins");
     expect((await set(wizardId, ["left-the-firm"])).status).toBe(400);
     expect((await set(wizardId, [KIM])).status).toBe(400);
+  });
+
+  it("a wizard with a team step needs someone named before it is published", async () => {
+    const { wizardId } = await startRun([teamPage, end], { answerers: [] });
+    const publish = () =>
+      app.fetch(
+        new Request(`http://localhost:5181/api/studio/wizards/${wizardId}/publish`, {
+          method: "POST",
+        }),
+      );
+    signIn(LENA, "owner");
+    const refused = await publish();
+    expect(refused.status).toBe(400);
+    expect(((await refused.json()) as { error: string }).error).toContain("Beantwortet von");
+    expect((await set(wizardId, [JONAS])).status).toBe(200);
+    expect((await publish()).status).toBe(200);
+    // A choice as well: the admins, by name of their role.
+    expect((await set(wizardId, "admins")).status).toBe(200);
+    expect((await publish()).status).toBe(200);
   });
 
   it("stays out of a wizard's file", async () => {

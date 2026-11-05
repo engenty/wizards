@@ -59,6 +59,9 @@ let realPull: NonNullable<ConnectorDefinition["stream"]>["pull"];
 /** Stands in for Gmail: what a pull answers, and how it was called. */
 const pulls: { cursor: string | null; since?: string; limit?: number; connection: string }[] = [];
 let answer: (cursor: string | null, ctx: StreamPullCtx) => Promise<StreamPullResult>;
+/** Stands in for reading one mail: which ones were asked for, and what comes back. */
+const reads: string[] = [];
+let readAnswer: (message: string) => Promise<InboundMessage | null>;
 
 const T = "tenant-mail-watch";
 const base = { version: 2, title: "Mail", description: "", avatar: "round" };
@@ -86,6 +89,7 @@ beforeEach(() => {
   ANNA = `anna-${n}@kunde.at`;
   pulls.length = 0;
   answer = async (cursor) => ({ hasMore: false, items: [], nextCursor: cursor ?? "history-1" });
+  readAnswer = async () => mail({ body_text: "Aus dem Postfach gelesen." });
 });
 
 const mail = (over: Partial<InboundMessage> = {}): InboundMessage => ({
@@ -228,6 +232,10 @@ beforeAll(async () => {
   connector = googleConnectors.find((c) => c.id === "google-gmail") as ConnectorDefinition;
   const stream = connector.stream as NonNullable<ConnectorDefinition["stream"]>;
   realPull = stream.pull;
+  stream.read = async (_ctx, message) => {
+    reads.push(message);
+    return readAnswer(message);
+  };
   stream.pull = (ctx, cursor) => {
     pulls.push({
       cursor,
@@ -330,6 +338,61 @@ describe("a mail wakes a run", () => {
     expect(pulls.at(-1)?.connection).toBe(id);
     expect(await hasStatus(later, "done")).toBe(true);
     await inTenant(() => runner.cancel(first));
+  });
+
+  it("keeps a mail's text only where a run waits on it, and a later run reads it in the mailbox", async () => {
+    await own();
+    const waiting = await startIn(space, [waitFor(`thread:t-${n}`), end]);
+    expect(await rests(waiting)).toBe(true);
+    answer = async () => ({ hasMore: false, items: [mail()], nextCursor: "h" });
+    await nextMinute();
+    const rows = (await signalsOf(space)).filter((s) => s.delivery === `m-${n}`);
+    const of = (key: string) => rows.find((r) => r.key === key)?.data as Record<string, unknown>;
+    expect(of(`thread:t-${n}`).text).toBe("Passt, danke.");
+    expect(of(ANNA)).toMatchObject({ from: ANNA, subject: "Re: Angebot", message: `m-${n}` });
+    expect(of(ANNA)).not.toHaveProperty("text");
+
+    reads.length = 0;
+    const later = await startIn(space, [waitFor(ANNA), end]);
+    expect(await hasStatus(later, "done")).toBe(true);
+    expect(reads).toEqual([`m-${n}`]);
+    expect((await row(later))?.state.outputs.reply?.json).toMatchObject({
+      came: true,
+      data: { from: ANNA, text: "Aus dem Postfach gelesen." },
+    });
+  });
+
+  it("a mail gone from the mailbox still wakes the run, with no text", async () => {
+    await own();
+    const first = await startIn(space, [waitFor(`nobody-${n}@kunde.at`), end]);
+    expect(await rests(first)).toBe(true);
+    answer = async () => ({ hasMore: false, items: [mail()], nextCursor: "h" });
+    await nextMinute();
+    readAnswer = async () => null;
+    const later = await startIn(space, [waitFor(ANNA), end]);
+    expect(await hasStatus(later, "done")).toBe(true);
+    expect((await row(later))?.state.outputs.reply?.json).toMatchObject({
+      came: true,
+      data: { text: null },
+    });
+    await inTenant(() => runner.cancel(first));
+  });
+
+  it("a sender who failed the provider's checks wakes no wait on that sender, and their thread does", async () => {
+    await own();
+    const bySender = await startIn(space, [waitFor(ANNA), end]);
+    const byThread = await startIn(space, [waitFor(`thread:t-${n}`), end]);
+    expect(await rests(bySender)).toBe(true);
+    expect(await rests(byThread)).toBe(true);
+    answer = async () => ({
+      hasMore: false,
+      items: [mail({ sender_failed_checks: true })],
+      nextCursor: "h",
+    });
+    await nextMinute();
+    expect(await hasStatus(byThread, "done")).toBe(true);
+    expect((await row(bySender))?.status).toBe("waiting_signal");
+    await inTenant(() => runner.cancel(bySender));
   });
 });
 
@@ -696,20 +759,26 @@ describe("the switch", () => {
 });
 
 describe("the broker", () => {
-  it("keeps a line of every pull, as the runtime and by the admin's consent", async () => {
+  it("keeps a line of a pull that found mail, as the runtime and by the admin's consent; an empty one leaves none", async () => {
     const mine = await makeSpace(`Log ${n}`);
     const id = await mailbox(mine);
     const runId = await startIn(mine, [waitFor(ANNA), end]);
     expect(await rests(runId)).toBe(true);
+    const lines = () =>
+      inTenant(() =>
+        client.db.query.brokerLog.findMany({
+          where: and(
+            eq(client.schema.brokerLog.connectionId, id),
+            eq(client.schema.brokerLog.actionId, "pull_stream"),
+          ),
+        }),
+      );
     await nextMinute();
-    const line = await inTenant(() =>
-      client.db.query.brokerLog.findFirst({
-        where: and(
-          eq(client.schema.brokerLog.connectionId, id),
-          eq(client.schema.brokerLog.actionId, "pull_stream"),
-        ),
-      }),
-    );
+    expect(pulls.length).toBeGreaterThan(0);
+    expect(await lines()).toHaveLength(0);
+    answer = async () => ({ hasMore: false, items: [mail()], nextCursor: "h" });
+    await nextMinute();
+    const [line] = await lines();
     expect(line).toMatchObject({
       whoKind: "runtime",
       kind: "read",
@@ -767,6 +836,37 @@ describe("Gmail's pull", () => {
           : new Response(JSON.stringify(answered), { status: 200 });
       },
     }) as never;
+
+  it("reads Gmail's own verdict on a sender, not one the sender added below it", async () => {
+    const withHeaders = (headers: { name: string; value: string }[]) => {
+      const raw = message("in", ["INBOX"]);
+      return {
+        ...raw,
+        payload: { ...raw.payload, headers: [...headers, ...(raw.payload?.headers ?? [])] },
+      };
+    };
+    const verdict = async (headers: { name: string; value: string }[]) => {
+      const got = await realPull(
+        fakeCtx({
+          "/history": {
+            historyId: "9",
+            history: [{ id: "8", messagesAdded: [{ message: { id: "in", labelIds: ["INBOX"] } }] }],
+          },
+          "/messages/in": withHeaders(headers),
+        }),
+        "5",
+      );
+      return got.items[0].sender_failed_checks;
+    };
+    const said = (value: string) => ({ name: "Authentication-Results", value });
+    expect(await verdict([said("mx.google.com; spf=fail smtp.mailfrom=x; dmarc=fail")])).toBe(true);
+    expect(await verdict([said("mx.google.com; spf=pass; dmarc=fail")])).toBe(true);
+    expect(await verdict([said("mx.google.com; spf=softfail; dmarc=pass")])).toBe(false);
+    expect(await verdict([])).toBe(false);
+    expect(
+      await verdict([said("mx.google.com; spf=pass; dmarc=pass"), said("evil; spf=fail")]),
+    ).toBe(false);
+  });
 
   it("gives a mail's sender, thread and date, and marks the mailbox's own", async () => {
     const got = await realPull(

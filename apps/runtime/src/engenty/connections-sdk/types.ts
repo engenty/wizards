@@ -191,6 +191,8 @@ export interface InboundMessageAttachment {
  */
 export interface InboundMessage {
   attachments: InboundMessageAttachment[];
+  /** The provider checked the sender (SPF, DMARC) and it failed: `From` may be forged. */
+  sender_failed_checks?: boolean;
   /** An out-of-office answer or a bounce: a machine answered, not the person. */
   auto_reply?: boolean;
   body_html: string | null;
@@ -230,6 +232,8 @@ export interface ConnectorStreamCapability {
   /** Envelope discriminator; more kinds later. */
   kind: "messages";
   pull(ctx: StreamPullCtx, cursor: string | null): Promise<StreamPullResult>;
+  /** One message by its provider id; null when it is gone. */
+  read?(ctx: StreamPullCtx, message: string): Promise<InboundMessage | null>;
 }
 
 /**

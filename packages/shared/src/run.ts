@@ -364,6 +364,9 @@ const NOTES_EN = {
   stepDeclinedBy: "{name} declined “{step}”",
   answeredAlready: "{name} has answered this already.",
   notYourStep: "Someone else answers this step.",
+  teamNobodyNamed:
+    "Name who answers this wizard’s team steps first, under “Answered by” in the share dialog.",
+  runWithdrawn: "Withdrawn by the person who started the run",
   runResumed: "Picked up again after an interruption",
   effectMailMayBeSent:
     "The mail to {to} may have been sent already. The step won’t send it again. Check your outbox to see if it’s there.",
@@ -849,6 +852,9 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   stepDeclinedBy: "{name} hat „{step}“ abgelehnt",
   answeredAlready: "{name} hat das schon beantwortet.",
   notYourStep: "Diesen Schritt beantwortet jemand anderes.",
+  teamNobodyNamed:
+    "Leg zuerst im Teilen-Dialog unter „Beantwortet von“ fest, wer die Team-Schritte beantwortet.",
+  runWithdrawn: "Von der Person zurückgezogen, die den Lauf gestartet hat",
   runResumed: "Nach einer Unterbrechung weitergemacht",
   effectMailMayBeSent:
     "Mail an {to} wurde vielleicht schon gesendet. Der Schritt sendet sie nicht noch einmal. Schau im Postausgang nach, ob sie dort liegt.",
@@ -1377,6 +1383,8 @@ export interface RunView {
    * answer. Null where the viewer may answer, or nothing waits for an answer.
    */
   answeredBy: "person" | "owner" | "team" | null;
+  /** This viewer started the run and the team has it now: they may take it back. */
+  canWithdraw?: boolean;
   mode: "test" | "live";
   wizard: Pick<WizardDefinition, "title" | "description" | "avatar" | "costume" | "intro">;
   /** The language the wizard speaks, by its code: what is read aloud, and in which voice. */

@@ -7,12 +7,18 @@ import {
   textLang,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import { noteText, type RunNote } from "@engenty/wizards-shared/run";
+import { note, noteText, type RunNote } from "@engenty/wizards-shared/run";
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, schema, withTenant } from "../db/client.js";
-import { answeringNarrowed, doorCaller, mayAct, mayGoBackFrom } from "../engine/answerers.js";
+import {
+  answeringNarrowed,
+  doorCaller,
+  mayAct,
+  mayGoBackFrom,
+  mayWithdraw,
+} from "../engine/answerers.js";
 import { answerAsk } from "../engine/asks.js";
-import { watchRun } from "../engine/events.js";
+import { emitEvent, watchRun } from "../engine/events.js";
 import { fieldErrorsIn } from "../engine/input.js";
 import {
   answerTurn,
@@ -219,6 +225,12 @@ export function runsApiFor(pluginId: string): PluginRuns {
       await answerTurn(runId, answer).catch(refusedInput);
     },
     async control(runId, action) {
+      const opened = await pluginRun(runId);
+      if (action === "cancel" && (await mayWithdraw(opened, doorCaller(opened)))) {
+        await emitEvent(runId, opened.cursor, "stopped", note("runWithdrawn"));
+        await cancel(runId).catch(refusedInput);
+        return;
+      }
       const run = await pluginAnswerableRun(runId);
       if (
         action === "back" &&
