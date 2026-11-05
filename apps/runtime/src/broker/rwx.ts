@@ -5,13 +5,19 @@ import {
   AUDIENCES,
   type Audience,
   RWX_ALL,
+  RWX_ASKED,
   RWX_LIMITS,
+  RWX_PERMS,
   RWX_ROLES,
+  type RwxAskKind,
+  type RwxAskWho,
+  type RwxFlag,
   type RwxPerm,
   type RwxResourceKind,
   type RwxRule,
   type RwxRuleInput,
   type RwxSubjectKind,
+  rwxAsked,
 } from "@engenty/wizards-shared/rwx";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -36,9 +42,11 @@ import { logRuleChange } from "./log.js";
  *
  * Who asks: a guest (a visitor on a shared link), a person with their role, Goose for a person
  * (the person's own rules count too), a run (its holder and its wizard), a plugin, and the
- * runtime itself (`SYSTEM`). The rows are written by the space's admins (routes/rules.ts); every
- * space starts with the seed below, so turning the switch on changes nothing until an admin
- * writes a deny.
+ * runtime itself (`SYSTEM`). The rows are written by the space's admins, one at a time
+ * (routes/rules.ts), and by the places that own some of them: a Wissen folder's audience, a
+ * mount's form, „Für Kund:innen sichtbar“. Every space starts with the seed below, so turning the
+ * switch on changes nothing until an admin writes a deny. A rule no reader would ask is refused
+ * (`refusalOf`, by `RWX_ASKED`).
  */
 
 export type Perm = RwxPerm;
@@ -117,6 +125,15 @@ export const AGENT: Subject = Object.freeze({ kind: "agent", id: null }) as Subj
 export const subjectsOfPerson = (userId: string, role: Role): Subject[] => [
   { kind: "person", id: userId },
   { kind: "role", id: role },
+];
+
+/**
+ * An AI working for a person: what the person may, and what the space lets agents do. An agent's
+ * rows name no one: they hold for every person's AI.
+ */
+export const subjectsOfAgent = (userId: string, role: Role): Subject[] => [
+  ...subjectsOfPerson(userId, role),
+  AGENT,
 ];
 
 /** Goose for a person: its own rows for them, and the person's. */
@@ -647,93 +664,392 @@ function requireRuleAdmin(): void {
   }
 }
 
-const key = (r: RwxRuleInput) =>
-  [r.subjectKind, r.subjectId ?? "", r.resourceKind, r.resourceId].join("\u0000");
+const PERM_WORD: Record<Perm, string> = { r: "read", w: "change", x: "run" };
+const KIND_WORD: Record<RwxResourceKind, string> = {
+  document: "a document",
+  table: "a table",
+  page: "a page",
+  connection: "a connection",
+  mail: "mail",
+  host: "a host",
+  sandbox: "the sandbox",
+  wizard: "a wizard",
+  skill: "a skill",
+  setup: "the setup",
+  mount: "a mounted folder",
+};
+const SUBJECT_WORD: Record<RwxSubjectKind, string> = {
+  guest: "a guest",
+  person: "a person",
+  role: "a role",
+  goose: "Goose",
+  wizard: "a wizard",
+  plugin: "a plugin",
+  agent: "an AI working for a person",
+};
 
-/** A rule as a person wrote it, checked for what the schema cannot say. */
-function checkRule(r: RwxRuleInput): void {
-  const refuse = (what: string) => new ServiceError("invalid", what);
+/** Why nothing asks `perm` on a resource of `kind` for a subject of `subject`, or null where a reader does. */
+function unasked(subject: RwxSubjectKind, kind: RwxResourceKind, perm: Perm): string | null {
+  if (rwxAsked(subject, kind, perm)) {
+    return null;
+  }
+  if (kind === "connection") {
+    return "A connection has its own audience and rules, set on its page: no rule here is asked for it.";
+  }
+  if (!Object.keys(RWX_ASKED[kind]).length) {
+    return `Nothing asks a rule about ${KIND_WORD[kind]}: a connection's rules and a run's grant decide it.`;
+  }
+  if (!RWX_ASKED[kind][perm]) {
+    return `Nothing asks who may ${PERM_WORD[perm]} ${KIND_WORD[kind]}.`;
+  }
+  return `Nothing asks whether ${SUBJECT_WORD[subject]} may ${PERM_WORD[perm]} ${KIND_WORD[kind]}.`;
+}
+
+/**
+ * Why the runtime refuses a rule, or null where it takes it: what the schema cannot say about its
+ * subject and resource, then every flag in `flags` (all three, unless only some are being set)
+ * that no reader asks (`RWX_ASKED`). The sentence says why.
+ */
+export function refusalOf(
+  spaceId: string,
+  r: RwxRuleInput,
+  flags: readonly Perm[] = RWX_PERMS,
+): string | null {
   if (r.subjectKind === "guest" && r.subjectId !== null) {
-    throw refuse("A guest rule has no subject id.");
+    return "A guest rule has no subject id.";
+  }
+  if (r.subjectKind === "agent" && r.subjectId !== null) {
+    return "A rule for the AI working for a person has no subject id: it holds for every person's.";
   }
   if (r.subjectKind === "role" && !(RWX_ROLES as readonly string[]).includes(r.subjectId ?? "")) {
-    throw refuse("A role is member, admin or owner.");
+    return "A role is member, admin, owner or client.";
   }
-  if (r.subjectKind !== "guest" && !r.subjectId) {
-    throw refuse(`A ${r.subjectKind} rule names the ${r.subjectKind}'s id.`);
+  if (r.subjectKind !== "guest" && r.subjectKind !== "agent" && !r.subjectId) {
+    return `A ${r.subjectKind} rule names the ${r.subjectKind}'s id.`;
   }
   if (!r.resourceId.trim()) {
-    throw refuse("A rule names the resource's id, or * for all of the kind.");
+    return "A rule names the resource's id, or * for all of the kind.";
   }
-  if (r.r === null && r.w === null && r.x === null) {
-    throw refuse("A rule sets at least one of r, w and x.");
+  if (r.resourceKind === "setup" && r.resourceId !== RWX_ALL && r.resourceId !== spaceId) {
+    return "A space has one setup: its rule names the space's id, or *.";
+  }
+  for (const perm of flags) {
+    const why = r[perm] === null ? null : unasked(r.subjectKind, r.resourceKind, perm);
+    if (why) {
+      return `${why} The rule would be stored and never asked.`;
+    }
+  }
+  return null;
+}
+
+/** A mount's rules are its form's: it reads them back as its switches and replaces them whole. */
+const MOUNT_RULES =
+  "A mounted folder's rules are written with it: who sees it, which wizards use it and what the AI may do are set on the folder in Dateien.";
+
+const NO_FLAG = "A rule sets at least one of r, w and x.";
+
+/** What a rule names by its id, in its space: with the document behind a page or a table. */
+async function resourceIn(
+  spaceId: string,
+  kind: RwxResourceKind,
+  id: string,
+): Promise<Resource | null> {
+  const here = <T extends { spaceId: string }>(row: T | undefined) =>
+    row?.spaceId === spaceId ? row : null;
+  switch (kind) {
+    case "document": {
+      const file = here(
+        await db.query.spaceFile.findFirst({
+          columns: { spaceId: true },
+          where: eq(schema.spaceFile.id, id),
+        }),
+      );
+      return file && { kind, id };
+    }
+    case "page": {
+      const page = here(
+        await db.query.spacePage.findFirst({
+          columns: { spaceId: true, fileId: true },
+          where: eq(schema.spacePage.id, id),
+        }),
+      );
+      return page && { kind, id, fileId: page.fileId };
+    }
+    case "table": {
+      const table = here(
+        await db.query.spaceTable.findFirst({
+          columns: { spaceId: true, fileId: true },
+          where: eq(schema.spaceTable.id, id),
+        }),
+      );
+      return table && { kind, id, fileId: table.fileId };
+    }
+    case "wizard": {
+      const wizard = here(
+        await db.query.wizard.findFirst({
+          columns: { spaceId: true },
+          where: eq(schema.wizard.id, id),
+        }),
+      );
+      return wizard && { kind, id };
+    }
+    case "skill": {
+      const skill = here(
+        await db.query.spaceSkill.findFirst({
+          columns: { spaceId: true },
+          where: eq(schema.spaceSkill.id, id),
+        }),
+      );
+      return skill && { kind, id };
+    }
+    case "setup":
+      return id === spaceId ? { kind, id } : null;
+    default:
+      return null;
   }
 }
 
-export async function listRules(userId: string, spaceId: string): Promise<RwxRule[]> {
+/** The rule of a space about one subject and one resource: there is at most one. */
+const ruleAbout = (spaceId: string, r: RwxRuleInput) =>
+  db.query.rwxRule.findFirst({
+    where: and(
+      eq(schema.rwxRule.spaceId, spaceId),
+      eq(schema.rwxRule.subjectKind, r.subjectKind),
+      r.subjectId === null
+        ? isNull(schema.rwxRule.subjectId)
+        : eq(schema.rwxRule.subjectId, r.subjectId),
+      eq(schema.rwxRule.resourceKind, r.resourceKind),
+      eq(schema.rwxRule.resourceId, r.resourceId),
+    ),
+  });
+
+/** A rule in a few words, for the log: who, what, and each flag it sets. */
+const said = (r: RwxRuleInput) =>
+  `${r.subjectKind}${r.subjectId ? ` ${r.subjectId}` : ""} on ${r.resourceKind} ${r.resourceId}: ${
+    RWX_PERMS.filter((p) => r[p])
+      .map((p) => `${p} ${r[p]}`)
+      .join(", ") || "nothing"
+  }`;
+
+async function ruleOf(spaceId: string, ruleId: string): Promise<Rule> {
+  const rule = await db.query.rwxRule.findFirst({
+    where: and(eq(schema.rwxRule.spaceId, spaceId), eq(schema.rwxRule.id, ruleId)),
+  });
+  if (!rule) {
+    throw notFound();
+  }
+  if (rule.resourceKind === "mount") {
+    throw new ServiceError("refused", MOUNT_RULES);
+  }
+  return rule;
+}
+
+/** The space whose rules `userId` reads and writes: one of theirs, the switch on, an admin. */
+export async function rulesSpace(userId: string, spaceId: string) {
   const space = await ownedSpace(userId, spaceId);
   await requireBroker();
   requireRuleAdmin();
+  return space;
+}
+
+export async function listRules(userId: string, spaceId: string): Promise<RwxRule[]> {
+  const space = await rulesSpace(userId, spaceId);
   return (await rulesOf(space.id)).map(view);
 }
 
 /**
- * The whole list, as the page saves it: what is there is replaced. An empty list brings the seed
- * back the next time the space is read.
+ * One rule more, and no other rule touched. Refused: a rule no reader would ask (`refusalOf`), one
+ * on a mount (its form writes them), one about a resource the space does not have, and a second
+ * rule about the same subject and resource, which is changed instead.
  */
-export async function putRules(
+export async function addRule(
   userId: string,
   spaceId: string,
-  rules: RwxRuleInput[],
-): Promise<RwxRule[]> {
-  const space = await ownedSpace(userId, spaceId);
-  await requireBroker();
-  requireRuleAdmin();
-  if (rules.length > RWX_LIMITS.rules) {
-    throw new ServiceError("invalid", `A space holds at most ${RWX_LIMITS.rules} rules.`);
+  rule: RwxRuleInput,
+): Promise<RwxRule> {
+  const space = await rulesSpace(userId, spaceId);
+  const refuse = (what: string, data?: Record<string, unknown>) =>
+    new ServiceError("invalid", what, data);
+  if (rule.resourceKind === "mount") {
+    throw new ServiceError("refused", MOUNT_RULES);
   }
-  const seen = new Set<string>();
-  for (const r of rules) {
-    checkRule(r);
-    if (seen.has(key(r))) {
-      throw new ServiceError("invalid", "Two rules name the same subject and resource.");
-    }
-    seen.add(key(r));
+  if (rule.r === null && rule.w === null && rule.x === null) {
+    throw refuse(NO_FLAG);
   }
-  await db.transaction(async (tx) => {
-    await tx.delete(schema.rwxRule).where(eq(schema.rwxRule.spaceId, space.id));
-    if (rules.length) {
-      await tx.insert(schema.rwxRule).values(rules.map((r) => row(space.id, r, userId)));
-    }
-  });
+  const why = refusalOf(space.id, rule);
+  if (why) {
+    throw refuse(why);
+  }
+  if (
+    rule.resourceId !== RWX_ALL &&
+    !(await resourceIn(space.id, rule.resourceKind, rule.resourceId))
+  ) {
+    throw refuse(`This space has no ${rule.resourceKind} "${rule.resourceId}".`);
+  }
+  // Seeded first: a space's first rule would else leave it without its start set.
+  const rules = await rulesOf(space.id);
+  if (rules.length >= RWX_LIMITS.rules) {
+    throw refuse(`A space holds at most ${RWX_LIMITS.rules} rules.`);
+  }
+  const there = await ruleAbout(space.id, rule);
+  if (there) {
+    throw refuse("There is a rule about this subject and resource already: change that one.", {
+      rule: there.id,
+    });
+  }
+  const added = row(space.id, rule, userId);
+  await db.insert(schema.rwxRule).values(added);
   await logRuleChange({
     userId,
     spaceId: space.id,
     connectionId: "rwx",
-    summary: { rules: rules.length },
-    reason: `The RWX rules were replaced: ${rules.length} now.`,
+    summary: { added: added.id, [rule.resourceKind]: rule.resourceId },
+    reason: `An RWX rule was added: ${said(rule)}.`,
   });
-  return (await rulesOf(space.id)).map(view);
+  return view(await ruleOf(space.id, added.id));
 }
 
-export async function deleteRule(userId: string, spaceId: string, ruleId: string): Promise<void> {
-  const space = await ownedSpace(userId, spaceId);
-  await requireBroker();
-  requireRuleAdmin();
-  const gone = await db
-    .delete(schema.rwxRule)
-    .where(and(eq(schema.rwxRule.spaceId, space.id), eq(schema.rwxRule.id, ruleId)))
-    .returning({ id: schema.rwxRule.id });
-  if (!gone.length) {
-    throw notFound();
+/**
+ * One rule's flags changed, and no other rule touched: the flags named are set (null takes one
+ * away), the others stay. A flag set here is refused where no reader asks it; one the rule held
+ * before stays as it is.
+ */
+export async function changeRule(
+  userId: string,
+  spaceId: string,
+  ruleId: string,
+  flags: Partial<Record<Perm, RwxFlag | null>>,
+): Promise<RwxRule> {
+  const space = await rulesSpace(userId, spaceId);
+  const rule = await ruleOf(space.id, ruleId);
+  const set = RWX_PERMS.filter((p) => flags[p] !== undefined);
+  const next = { ...rule, ...Object.fromEntries(set.map((p) => [p, flags[p] ?? null])) };
+  if (next.r === null && next.w === null && next.x === null) {
+    throw new ServiceError("invalid", `${NO_FLAG} Remove the rule instead.`);
   }
+  const why = refusalOf(space.id, next, set);
+  if (why) {
+    throw new ServiceError("invalid", why);
+  }
+  await db
+    .update(schema.rwxRule)
+    .set({ r: next.r, w: next.w, x: next.x })
+    .where(and(eq(schema.rwxRule.spaceId, space.id), eq(schema.rwxRule.id, rule.id)));
+  await logRuleChange({
+    userId,
+    spaceId: space.id,
+    connectionId: "rwx",
+    summary: { changed: rule.id, [rule.resourceKind]: rule.resourceId },
+    reason: `An RWX rule was changed: ${said(next)}.`,
+  });
+  return view(next);
+}
+
+/** One rule removed, and no other rule touched. A mount's rules go with its form. */
+export async function deleteRule(userId: string, spaceId: string, ruleId: string): Promise<void> {
+  const space = await rulesSpace(userId, spaceId);
+  const rule = await ruleOf(space.id, ruleId);
+  await db
+    .delete(schema.rwxRule)
+    .where(and(eq(schema.rwxRule.spaceId, space.id), eq(schema.rwxRule.id, rule.id)));
   await logRuleChange({
     userId,
     spaceId: space.id,
     connectionId: "rwx",
     summary: { deleted: ruleId },
-    reason: "An RWX rule was deleted.",
+    reason: `An RWX rule was deleted: ${said(rule)}.`,
   });
+}
+
+// --- „Was darf …?“ for content -----------------------------------------------------------------
+
+/** Whom the question is about, and what: `GET /spaces/:id/rules/ask`. */
+export interface RwxQuestion {
+  who: RwxAskWho;
+  /** A person's id (a person, Goose for them, an AI working for them), a wizard's, a plugin's. */
+  id?: string;
+  /** A wizard's run: the person it is held for, by id; left out, a guest. */
+  for?: string;
+  resource: RwxAskKind;
+  /** The resource's id; the setup needs none. */
+  resourceId?: string;
+  perm: Perm;
+}
+
+/**
+ * The subjects a reader would ask for: a person and their role, Goose or an AI for them, a guest,
+ * a wizard's run with who holds it, and a plugin's job, which reads as the runtime itself with the
+ * plugin beside it (a tool of the plugin reads as whom it was called for).
+ */
+async function subjectsOfQuestion(q: RwxQuestion): Promise<Subject[]> {
+  const person = async (id: string | undefined) => {
+    if (!id) {
+      throw new ServiceError("invalid", `The question names the person's id.`);
+    }
+    return { id, role: await roleOf(id) };
+  };
+  switch (q.who) {
+    case "guest":
+      return subjectsOfGuest();
+    case "person": {
+      const p = await person(q.id);
+      return subjectsOfPerson(p.id, p.role);
+    }
+    case "goose": {
+      const p = await person(q.id);
+      return subjectsOfGoose(p.id, p.role);
+    }
+    case "agent": {
+      const p = await person(q.id);
+      return subjectsOfAgent(p.id, p.role);
+    }
+    case "wizard": {
+      if (!q.id) {
+        throw new ServiceError("invalid", "The question names the wizard's id.");
+      }
+      const holder = q.for ? await person(q.for) : null;
+      return [
+        ...(holder ? subjectsOfPerson(holder.id, holder.role) : subjectsOfGuest()),
+        { kind: "wizard", id: q.id },
+      ];
+    }
+    case "plugin": {
+      if (!q.id) {
+        throw new ServiceError("invalid", "The question names the plugin's id.");
+      }
+      return [SYSTEM, { kind: "plugin", id: q.id }];
+    }
+  }
+}
+
+/**
+ * „Was darf …?“ for content: whether who is asked about may read, change or run a document, a
+ * page or folder, a table, a wizard, a skill or the setup, with the rule that decides. It is the
+ * readers' own decision (`decideWith`, the folders and the document behind a page as they look
+ * them up), and nothing is read or run. What no reader asks has no answer: refused in words, as a
+ * rule about it is. Admins only.
+ */
+export async function askRule(
+  userId: string,
+  spaceId: string,
+  q: RwxQuestion,
+): Promise<{ decision: Decision; rule: RwxRule | null }> {
+  const space = await rulesSpace(userId, spaceId);
+  const why = unasked(q.who, q.resource, q.perm);
+  if (why) {
+    throw new ServiceError("invalid", why);
+  }
+  const id = q.resource === "setup" ? space.id : (q.resourceId ?? "");
+  const resource = await resourceIn(space.id, q.resource, id);
+  if (!resource) {
+    throw notFound();
+  }
+  const subjects = await subjectsOfQuestion(q);
+  const rules = await rulesOf(space.id);
+  const [item] = await withFolders(space.id, rules, [resource]);
+  const decision = decideWith(rules, subjects, item, q.perm);
+  const decided = decision.rule ? rules.find((r) => r.id === decision.rule) : undefined;
+  return { decision, rule: decided ? view(decided) : null };
 }
 
 // --- open to clients ---------------------------------------------------------------------------
@@ -752,9 +1068,7 @@ export async function setOpenToClients(
   resource: { kind: ClientOpenKind; id: string },
   open: boolean,
 ): Promise<void> {
-  const space = await ownedSpace(userId, spaceId);
-  await requireBroker();
-  requireRuleAdmin();
+  const space = await rulesSpace(userId, spaceId);
   await rulesOf(space.id);
   const where = and(
     eq(schema.rwxRule.spaceId, space.id),
