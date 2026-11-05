@@ -16,6 +16,7 @@ import { KIND, logText, time } from "./RunLog";
 export const STATUS: Record<string, Key> = {
   waiting_input: "runs.status.waiting_input",
   sleeping: "runs.status.sleeping",
+  waiting_signal: "runs.status.waiting_signal",
   running: "runs.status.running",
   done: "runs.status.done",
   failed: "runs.status.failed",
@@ -52,6 +53,7 @@ function WaitBanner({
   command: UseMutationResult<unknown, Error, Command>;
 }) {
   const sleeping = run.status === "sleeping";
+  const listening = run.status === "waiting_signal";
   const stop = async () => {
     const yes = await askConfirm(t("runs.stopAsk"), {
       detail: t("runs.stopDetail"),
@@ -66,15 +68,25 @@ function WaitBanner({
       <Hourglass className="mt-0.5 size-4 shrink-0 text-ink-3" />
       <div className="min-w-56 flex-1">
         <div className="font-medium text-[0.875rem]">
-          {sleeping && run.wakeAt
-            ? t("runs.waitsUntil", { time: longTime(run.wakeAt) })
-            : t("runs.waitsForPerson", { step: run.stepTitle ?? "" })}
+          {run.pause === "credits"
+            ? t("runs.status.waitsCredits")
+            : run.pause === "sign_in"
+              ? t("runs.status.waitsSignIn")
+              : sleeping && run.wakeAt
+                ? t("runs.waitsUntil", { time: longTime(run.wakeAt) })
+                : listening
+                  ? run.wakeAt
+                    ? t("runs.status.waiting_signalUntil", { time: longTime(run.wakeAt) })
+                    : t("runs.status.waiting_signal")
+                  : t("runs.waitsForPerson", { step: run.stepTitle ?? "" })}
         </div>
-        {sleeping ? <div className="text-[0.8125rem] text-ink-2">{t("runs.waitsHint")}</div> : null}
+        {sleeping || listening ? (
+          <div className="text-[0.8125rem] text-ink-2">{t("runs.waitsHint")}</div>
+        ) : null}
       </div>
       {run.canAct ? (
         <div className="flex basis-full flex-wrap items-center gap-2">
-          {sleeping ? (
+          {(sleeping || listening) && run.wakeAt ? (
             <Button
               variant="secondary"
               size="sm"
@@ -152,7 +164,9 @@ export function RunTimeline({
         ) : (
           <Chip tone="live">Live v{run.version}</Chip>
         )}
-        <Chip tone={run.status === "sleeping" ? "warn" : "neutral"}>
+        <Chip
+          tone={run.status === "sleeping" || run.status === "waiting_signal" ? "warn" : "neutral"}
+        >
           {STATUS[run.status] ? t(STATUS[run.status]) : run.status}
         </Chip>
         <span className="flex-1" />
@@ -176,12 +190,14 @@ export function RunTimeline({
             </button>
           ) : null}
           {run.label && run.startedBy ? " · " : ""}
-          {run.startedBy ? t("runs.startedBy", { name: run.startedBy }) : ""}
+          {run.startedBy ? t("runs.startedByName", { name: run.startedBy }) : ""}
         </p>
       ) : (
         <div className="h-2" />
       )}
-      {run.status === "sleeping" || run.status === "waiting_input" ? (
+      {run.status === "sleeping" ||
+      run.status === "waiting_signal" ||
+      run.status === "waiting_input" ? (
         <WaitBanner run={run} command={command} />
       ) : null}
       {/* Outside the banner: a refusal says the run moved on, and the banner goes with that. */}

@@ -8,6 +8,7 @@ import type {
   ConnectorDefinition,
 } from "../engenty/connections-sdk/types.js";
 import type { AskResult } from "../engine/asks.js";
+import { effectUnsure } from "../engine/events.js";
 import type { StepContext } from "../engine/types.js";
 import type { Role } from "../manage.js";
 import type { StoreScope } from "../store/index.js";
@@ -589,6 +590,16 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       return { ok: false, refused: sent.refused, reason: sent.reason };
     }
   }
+  /** The run's log says it too: that is where a person reads what to check. */
+  const sayUnsure = async () => {
+    if (call.where.runId && call.where.stepId) {
+      const to = (call.input as { to?: unknown } | null)?.to;
+      await effectUnsure(call.where.runId, call.where.stepId, {
+        tool: found?.summary ?? call.action.id,
+        ...(kind === "send" && typeof to === "string" ? { to } : {}),
+      });
+    }
+  };
   // It may have happened: never again without a person's yes, which answers the rule's ask as well.
   const again =
     effect?.state === "started"
@@ -604,6 +615,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     await (again === "nobody"
       ? line(kind, "deny", ONCE, MAY_HAVE_HAPPENED, "may_have_happened")
       : line(kind, "ask", ONCE, MAY_HAVE_HAPPENED, "declined"));
+    await sayUnsure();
     return { ok: false, refused: "may_have_happened", reason: MAY_HAVE_HAPPENED };
   }
   if (decision.outcome === "ask" && decision.admins) {
@@ -693,6 +705,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       await (open
         ? end("may_have_happened")
         : line(kind, "deny", ONCE, MAY_HAVE_HAPPENED, "may_have_happened"));
+      await sayUnsure();
       return { ok: false, refused: "may_have_happened", reason: MAY_HAVE_HAPPENED };
     }
   }

@@ -644,7 +644,17 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
   }
   // A step without tools of its own and without uploads: the run's device may answer it alone.
   attachTools(resolved, tools, step.tools.length === 0 && uploads.length === 0);
-  watchActions(tools, ctx.resources);
+  watchActions(
+    tools,
+    ctx.resources,
+    turn &&
+      (async () => {
+        if (!turn.acted) {
+          turn.acted = true;
+          await ctx.saveState();
+        }
+      }),
+  );
   const photos = await seenPhotos(step, ctx, resolved, uploads);
   const others = uploads.filter((u) => !photos.some((p) => p.upload === u));
   const formatHint =

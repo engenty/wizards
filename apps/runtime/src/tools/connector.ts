@@ -3,6 +3,7 @@ import { note } from "@engenty/wizards-shared/run";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import { effectIdOf } from "../broker/effect.js";
 import {
   type BrokerConnection,
   brokerCall,
@@ -239,8 +240,11 @@ export async function callConnection(
   if (!action) {
     throw new StepError(note("connectorNoAction", { name: service, id: call.action }));
   }
+  const effect = { visit: ctx.state.visits?.[ctx.stepId] };
   // A change out there is not repeated by a later try of the step (engine/runner.ts stepFailed).
-  ctx.resources.acted ||= kindOf(action.group) !== "read";
+  // With a row of its own the try is safe: the row answers, or says it may have happened.
+  ctx.resources.acted ||=
+    kindOf(action.group) !== "read" && !(await effectIdOf(whereOf(ctx), effect));
   const out = await brokerCall({
     who,
     where: whereOf(ctx),
@@ -250,7 +254,7 @@ export async function callConnection(
     ctx: {
       ask: ctx.ask,
       allowed: ctx.resources.allowed,
-      effect: { visit: ctx.state.visits?.[ctx.stepId] },
+      effect,
     },
     handler: async (account) => {
       await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));

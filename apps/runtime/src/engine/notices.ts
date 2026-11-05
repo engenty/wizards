@@ -191,6 +191,9 @@ function stillWaits(
   if (!key) {
     return run.status === "waiting_input";
   }
+  if (key.startsWith("pause:")) {
+    return run.status === "sleeping";
+  }
   return key.startsWith("ask:")
     ? run.ask?.id === key.slice(4)
     : run.status === "waiting_input" && run.cursor === key.slice(5);
