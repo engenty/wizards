@@ -419,10 +419,9 @@ Not built or not verified, as the sessions reported:
   holds names the plugin (`pluginName`) and says what stops once it is narrowed.
 - Isolated instances (A8), the company sign-in (Roadmap) and a page for the RWX rules are not built.
 - RWX, after the plugin's `readPages` and `files` and the steps' Knowledge counts came under it
-  (2026-11-05, see the report): `space_search` still counts what passes its `where` (`filtered`)
-  without a *who*; what a plugin makes of pages it read in a job is its own data, the rules
-  don't follow it; a page made of a document and its document can lie in different folders,
-  and only the page's folders are asked.
+  (2026-11-05, see the report): what a plugin makes of pages it read in a job is its own data,
+  the rules don't follow it; a page made of a document and its document can lie in different
+  folders, and only the page's folders are asked.
 
 ## Decided on 2026-11-05
 

@@ -908,6 +908,19 @@ describe("a folder closed to guests: a plugin's reads, a step's counts", () => {
     });
   });
 
+  it("space_search counts what its `where` leaves only among what the run's holder may read", async () => {
+    const { spaceTools } = await import("../src/tools/space");
+    await local(async () => {
+      const left = async (ctx: never, where: Record<string, unknown>) =>
+        (await (await spaceTools(ctx)).space_search.execute({ query: "Zirbe", where })).filtered;
+      // Zirbe: the page, the table and its row, all in the folder. Birke: the page outside.
+      expect(await left(memberRun(), { Kunde: "Zirbe" })).toBe(3);
+      expect(await left(guestRun(), { Kunde: "Zirbe" })).toBe(0);
+      expect(await left(memberRun(), { Kunde: ["Zirbe", "Birke"] })).toBe(4);
+      expect(await left(guestRun(), { Kunde: ["Zirbe", "Birke"] })).toBe(1);
+    });
+  });
+
   it("a plugin's readPages and files: nothing of the folder in a guest's run, all of it in a member's and in a job", async () => {
     const { originData } = await import("../src/services/space-origin");
     const { withCaller } = await import("../src/broker/caller");
