@@ -686,9 +686,17 @@ export const outputFieldSchema = z
     path: ["options"],
   });
 
+/**
+ * Who answers a page or a review: the run's own person (the default), the run's owner, or the people
+ * the share dialog names (`wizard.answerers`). A role, never a person: people are the install's.
+ */
+export const whoSchema = z.enum(["person", "owner", "team"]);
+export type Who = z.infer<typeof whoSchema>;
+
 export const pageStepSchema = z.object({
   ...stepBase,
   type: z.literal("page"),
+  who: whoSchema.optional(),
   fields: z.array(fieldSchema).min(1),
   /** Fields of which a decision shows one: see `group` on a field. */
   groups: z.array(fieldGroupSchema).max(6).optional(),
@@ -954,10 +962,13 @@ export function assembleSurface(
 export const reviewStepSchema = z.object({
   ...stepBase,
   type: z.literal("review"),
+  who: whoSchema.optional(),
   /** Step ids whose output is shown. */
   show: z.array(z.string()).min(1),
   edit: z.boolean().optional(),
   regenerate: z.boolean().optional(),
+  /** Approve or decline instead of accepting: `steps.<id>.approved`, `steps.<id>.note`. */
+  approve: z.boolean().optional(),
 });
 
 export const deliverableSchema = z.object({
@@ -1571,6 +1582,9 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     const source = def.steps.find((s) => s.id === from);
     if (source?.type === "wait") {
       return waitHandsOn(source, key, more);
+    }
+    if (source?.type === "review") {
+      return Boolean(source.approve) && (key === "approved" || key === "note") && !more.length;
     }
     // `steps.<step>.<field>.p`: how probable the decision's answer is.
     const probability = more.length === 1 && more[0] === "p";

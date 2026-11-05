@@ -133,8 +133,26 @@ export interface CriticalItem {
 }
 
 /** What waits under the bell: the held calls, and for an admin the broker's critical lines. */
+/** A run in Work's lists (services/work-runs.ts). */
+export interface WaitingRun {
+  runId: string;
+  wizardId: string;
+  spaceId: string;
+  wizard: string;
+  stepId: string;
+  step: string;
+  kind: "page" | "review" | "approve" | "question" | "pause";
+  status: string;
+  about: string | null;
+  detail: string | null;
+  since: string;
+  until: string | null;
+}
+
 export interface Waiting {
   approvals: Approval[];
+  /** Runs that need the person, and those that go on by themselves. */
+  runs?: { needs: WaitingRun[]; waits: WaitingRun[] };
   critical: CriticalItem[];
   /** Critical lines since the person last opened the bell. */
   unseen: number;
@@ -429,6 +447,18 @@ export function useWaiting() {
     queryKey: ["work-approvals"],
     queryFn: () => api.get<Waiting>(`${BASE}/approvals`),
     refetchInterval: poll,
+  });
+}
+
+/** A run's approval decided right from Work's list. */
+export function useDecideRun(run: Pick<WaitingRun, "runId" | "stepId">) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (approved: boolean) =>
+      api.post(`/api/runs/${run.runId}/reviews/${run.stepId}`, {
+        type: approved ? "approve" : "decline",
+      }),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["work-approvals"] }),
   });
 }
 

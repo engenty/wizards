@@ -33,7 +33,7 @@ import { guestSendCheck, recipientsOf } from "./send.js";
  * docs/plans/capabilities.md) decides by its audience and rules; a wizard's own sign-in by the
  * rules the code had before. „Mit Freigabe“ on a connection that signs in as the space is an
  * `ask` of the space's admins: the broker answers `needs_approval` and the caller holds the call
- * (a Work chat: `chat_approval`, the bell); once an admin approved it, the same call runs with
+ * (a Work chat: `approval`, the bell); once an admin approved it, the same call runs with
  * `ctx.approved` (A7).
  */
 

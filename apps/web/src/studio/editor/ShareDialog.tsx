@@ -16,6 +16,7 @@ import {
   Laptop,
   Link2,
   Lock,
+  Plus,
   Printer,
   Puzzle,
   QrCode,
@@ -271,6 +272,137 @@ function PageSection({ wizard }: { wizard: WizardDetail }) {
  * "Ereignisse": the wizard's address for other services. Address and secret are said once, as they
  * are made; after that they can only be made anew.
  */
+/** The people of the organization, as Settings shows them: read here to name who answers. */
+interface OrganizationPeople {
+  members: { userId: string; name: string; email: string; role: string }[];
+  canManage: boolean;
+}
+
+/**
+ * Who answers the steps with `who: "team"`. These are this organization's people, kept with the
+ * wizard here and never in its file. Only on a server: on a computer the one person answers it all.
+ */
+function AnswerersSection({ wizard }: { wizard: WizardDetail }) {
+  const qc = useQueryClient();
+  const id = useId();
+  const people = useQuery({
+    queryKey: ["organization"],
+    queryFn: () => api.get<OrganizationPeople>("/api/studio/organization"),
+  });
+  const save = useMutation({
+    mutationFn: (answerers: string[] | "admins") =>
+      api.patch(`/api/studio/wizards/${wizard.id}`, { answerers }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.wizard(wizard.id) }),
+  });
+  const [adding, setAdding] = useState(false);
+  const answerers = save.isPending && save.variables ? save.variables : wizard.answerers;
+  const named = Array.isArray(answerers) ? answerers : [];
+  const members = people.data?.members ?? [];
+  const may = Boolean(people.data?.canManage) && !wizard.readOnly;
+  const addable = members.filter((m) => m.role !== "client" && !named.includes(m.userId));
+  const initials = (name: string) =>
+    name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("");
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 id={id} className={heading}>
+            {t("share.answerers")}
+          </h3>
+          <p className="text-[0.8125rem] text-ink-3">{t("share.answerersHint")}</p>
+        </div>
+        <div className="flex shrink-0 gap-1 rounded-lg bg-paper-2 p-0.5">
+          {(["people", "admins"] as const).map((mode) => {
+            const on = mode === "admins" ? answerers === "admins" : answerers !== "admins";
+            return (
+              <button
+                key={mode}
+                type="button"
+                disabled={!may}
+                aria-pressed={on}
+                onClick={() => save.mutate(mode === "admins" ? "admins" : [])}
+                className={`rounded-md px-2.5 py-1 text-[0.8125rem] ${
+                  on ? "bg-paper text-ink shadow-sm" : "text-ink-3"
+                }`}
+              >
+                {t(mode === "admins" ? "share.answerersAdmins" : "share.answerersPeople")}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {answerers === "admins" ? (
+        <p className="text-[0.8125rem] text-ink-3">{t("share.answerersAdminsHint")}</p>
+      ) : (
+        <>
+          {named.length ? null : (
+            <p className="text-[0.8125rem] text-ink-3">{t("share.answerersNobody")}</p>
+          )}
+          {named.map((userId) => {
+            const person = members.find((m) => m.userId === userId);
+            const name = person?.name || person?.email || userId;
+            return (
+              <div key={userId} className="flex items-center gap-2.5">
+                <span className="grid size-7 place-items-center rounded-full bg-paper-2 font-medium text-[0.6875rem] text-ink-2">
+                  {initials(name)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[0.875rem]">{name}</span>
+                {may ? (
+                  <button
+                    type="button"
+                    aria-label={t("share.answerersRemove", { name })}
+                    className="text-ink-4 hover:text-ink"
+                    onClick={() => save.mutate(named.filter((n) => n !== userId))}
+                  >
+                    <X className="size-4" />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+          {may && addable.length ? (
+            adding ? (
+              <ul className="flex flex-col gap-1 rounded-xl bg-paper-2 p-1.5">
+                {addable.map((m) => (
+                  <li key={m.userId}>
+                    <button
+                      type="button"
+                      className="w-full truncate rounded-lg px-2.5 py-1.5 text-left text-[0.875rem] hover:bg-ink/5"
+                      onClick={() => {
+                        setAdding(false);
+                        save.mutate([...named, m.userId]);
+                      }}
+                    >
+                      {m.name || m.email}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div>
+                <Button size="sm" variant="secondary" onClick={() => setAdding(true)}>
+                  <Plus className="size-3.5" />
+                  {t("share.answerersAdd")}
+                </Button>
+              </div>
+            )
+          ) : null}
+        </>
+      )}
+      {people.data && !people.data.canManage ? (
+        <p className="text-[0.75rem] text-ink-4">{t("share.answerersOnlyAdmins")}</p>
+      ) : null}
+      {save.error ? (
+        <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+      ) : null}
+    </section>
+  );
+}
+
 function SignalsSection({ wizard }: { wizard: WizardDetail }) {
   const qc = useQueryClient();
   const id = useId();
@@ -1724,6 +1856,7 @@ function SharePanel({
             ) : null}
             {here ? null : <PageSection wizard={wizard} />}
             {durableRuns ? <SignalsSection wizard={wizard} /> : null}
+            {durableRuns && !local ? <AnswerersSection wizard={wizard} /> : null}
             {runners.data ? (
               <Ways
                 ways={ways}

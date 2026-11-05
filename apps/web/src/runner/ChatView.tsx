@@ -1653,7 +1653,24 @@ export function ChatBody({
       view,
       view.canBack && waiting && !run.busy ? () => void run.back() : undefined,
     );
-    if (view.status === "running" && view.ask) {
+    if (view.answeredBy) {
+      body = (
+        <>
+          <Thread
+            avatar={view.wizard.avatar}
+            costume={view.wizard.costume}
+            lines={[
+              ...before,
+              bot(
+                `elsewhere:${view.answeredBy}`,
+                t(view.answeredBy === "team" ? "run.answeredByTeam" : "run.answeredByOther"),
+              ),
+            ]}
+          />
+          <Idle />
+        </>
+      );
+    } else if (view.status === "running" && view.ask) {
       body = (
         <>
           <Thread

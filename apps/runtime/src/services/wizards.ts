@@ -20,6 +20,7 @@ import { listSpaceConnections } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { env } from "../env.js";
+import { managed, tenantMembers } from "../manage.js";
 import { saidOf } from "../model-errors.js";
 import { pluginToolsOf } from "../plugins/registry.js";
 import { dropLinks, putLink } from "../tenants/control.js";
@@ -104,6 +105,8 @@ export function wizardSummary(w: WizardRow) {
     publishedVersion: w.publishedVersion,
     shareToken: w.shareToken,
     shareEnabled: w.shareEnabled,
+    /** Who answers its steps with `who: "team"`. */
+    answerers: w.answerers,
     dailyRunLimit: w.dailyRunLimit,
     /** How many emails guests' runs send per day, from any address. */
     dailyMailLimit: w.dailyMailLimit,
@@ -545,9 +548,15 @@ export async function updateWizardSettings(
     spaceId?: string;
     runners?: RunnerSettings;
     translate?: boolean;
+    answerers?: string[] | "admins";
   },
 ) {
   const w = await writableWizard(userId, wizardId);
+  if (patch.answerers !== undefined) {
+    // Who may answer for the team is a right over the runs, so it is the organization's to give.
+    await requireAdmin();
+    await checkAnswerers(patch.answerers);
+  }
   if (patch.spaceId) {
     await requireWritable(await ownedSpace(userId, patch.spaceId));
   }
@@ -562,6 +571,20 @@ export async function updateWizardSettings(
     pushWizards();
   }
   return wizardSummary(await ownedWizard(userId, wizardId));
+}
+
+/** Those named under "Answered by" are people of the organization, and no client of it. */
+async function checkAnswerers(answerers: string[] | "admins") {
+  if (answerers === "admins" || !managed) {
+    return;
+  }
+  const { members } = await tenantMembers(currentTenant());
+  const unknown = answerers.filter(
+    (id) => !members.some((m) => m.userId === id && m.role !== "client"),
+  );
+  if (unknown.length) {
+    throw new ServiceError("invalid", "Someone named here is not in this organization.");
+  }
 }
 
 export async function rotateShareLink(userId: string, wizardId: string) {

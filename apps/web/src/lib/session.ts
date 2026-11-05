@@ -414,6 +414,8 @@ export interface WizardSummary {
   publishedVersion: number | null;
   shareToken: string;
   shareEnabled: boolean;
+  /** Who answers its steps with `who: "team"`: people by id, or the admins. */
+  answerers: string[] | "admins";
   dailyRunLimit: number;
   /** How it is offered: the runner its link opens, the ones switched on. Null: steps, chat beside it. */
   runners: { default: string; enabled: string[] } | null;
