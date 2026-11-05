@@ -703,10 +703,18 @@ export const outputFieldSchema = z
     path: ["options"],
   });
 
+/**
+ * Who answers a page or a review: the run's own person (the default), the run's owner, or the people
+ * the share dialog names (`wizard.answerers`). A role, never a person: people are the install's.
+ */
+export const whoSchema = z.enum(["person", "owner", "team"]);
+export type Who = z.infer<typeof whoSchema>;
+
 export const pageStepSchema = z.object({
   ...stepBase,
   ...personStep,
   type: z.literal("page"),
+  who: whoSchema.optional(),
   fields: z.array(fieldSchema).min(1),
   /** Fields of which a decision shows one: see `group` on a field. */
   groups: z.array(fieldGroupSchema).max(6).optional(),
@@ -973,6 +981,7 @@ export const reviewStepSchema = z.object({
   ...stepBase,
   ...personStep,
   type: z.literal("review"),
+  who: whoSchema.optional(),
   /** Step ids whose output is shown. */
   show: z.array(z.string()).min(1),
   edit: z.boolean().optional(),

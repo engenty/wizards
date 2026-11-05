@@ -1046,6 +1046,12 @@ export interface PluginRunField {
 /** What a run waits for: a page, a review, a question of a running step, a time, or a signal. */
 export type PluginRunWaiting =
   | {
+      /** Someone else answers this step: the run's owner, or the team. Tell the person, ask nothing. */
+      answeredBy: "person" | "owner" | "team";
+      title: string;
+      hint: string;
+    }
+  | {
       /**
        * The step that waits. The run goes on by itself at `until` or when `signal` comes: tell the
        * person, ask nothing.

@@ -725,6 +725,14 @@
                 "type": "string",
                 "const": "page"
               },
+              "who": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "owner",
+                  "team"
+                ]
+              },
               "fields": {
                 "minItems": 1,
                 "type": "array",
@@ -3953,6 +3961,14 @@
               "type": {
                 "type": "string",
                 "const": "review"
+              },
+              "who": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "owner",
+                  "team"
+                ]
               },
               "show": {
                 "minItems": 1,

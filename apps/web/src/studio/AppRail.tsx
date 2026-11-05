@@ -357,7 +357,8 @@ function WorkRail({
   nav: ReturnType<typeof useStudioPlugins>["nav"];
 }) {
   const bell = useWaiting().data;
-  const waiting = (bell?.approvals.length ?? 0) + (bell?.unseen ?? 0);
+  const waiting =
+    (bell?.approvals.length ?? 0) + (bell?.runs?.needs.length ?? 0) + (bell?.unseen ?? 0);
   // The places past the chats aren't built yet: behind `workWip`.
   const wip = useFeature("workWip");
   const places = wip ? WORK_PLACES : WORK_PLACES.filter((p) => p.place === "chats");
