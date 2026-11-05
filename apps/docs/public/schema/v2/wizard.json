@@ -834,6 +834,9 @@
                     "currency": {
                       "type": "string"
                     },
+                    "notify": {
+                      "type": "boolean"
+                    },
                     "multiple": {
                       "type": "boolean"
                     },

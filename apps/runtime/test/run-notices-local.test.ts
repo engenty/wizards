@@ -50,7 +50,7 @@ const flow = {
       id: "first",
       type: "page",
       title: "Erste",
-      fields: [{ id: "email", kind: "email", label: "E-Mail" }],
+      fields: [{ id: "email", kind: "email", label: "E-Mail", notify: true }],
     },
     {
       id: "second",

@@ -226,6 +226,8 @@ type Field = {
 }
 // kinds: text textarea number select multiselect date email url toggle color image file items connection list
 //        location audio signature slot
+//   email:     with notify: true it is the visitor's own address: they get a mail with a link that opens the run when
+//              it waits for them or ends. Never set it on a field that asks for someone else's address.
 //   location:  where the person is — the phone's position on a tap (with its accuracy), or an address they type.
 //              {{field}} → "Herrengasse 16, 8010 Graz (47.07071, 15.43950, ±12 m)" · {{field.lat}} {{field.lng}}
 //              {{field.accuracy}} (metres) · {{field.label}} (the address line) · {{field.map}} (a map link).
