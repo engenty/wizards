@@ -162,6 +162,20 @@ describe("what a step needs beyond a text model", () => {
     ]);
   });
 
+  it("a person's step with a deadline needs a process that stays, and an approval too", () => {
+    const def = { version: 2, title: "T", description: "", avatar: "round", steps: [] };
+    const page = { id: "a", type: "page", title: "A", fields: [], timeout: "1d" };
+    const review = { id: "b", type: "review", title: "B", show: [], approve: true };
+    const plain = { id: "c", type: "review", title: "C", show: [] };
+    expect(needs(page as never, def as unknown as WizardDefinition)).toEqual([
+      expect.objectContaining({ need: "wait", hard: true }),
+    ]);
+    expect(needs(review as never, def as unknown as WizardDefinition)).toEqual([
+      expect.objectContaining({ need: "wait", hard: true }),
+    ]);
+    expect(needs(plain as never, def as unknown as WizardDefinition)).toEqual([]);
+  });
+
   it("a file nobody reads later is soft", () => {
     const def = {
       title: "x",

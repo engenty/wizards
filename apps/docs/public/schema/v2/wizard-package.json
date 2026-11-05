@@ -942,6 +942,14 @@
                   "onFail": {
                     "type": "string"
                   },
+                  "timeout": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d{0,3}(m|h|d)$"
+                  },
+                  "remind": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d{0,3}(m|h|d)$"
+                  },
                   "type": {
                     "type": "string",
                     "const": "page"
@@ -4163,6 +4171,14 @@
                   "onFail": {
                     "type": "string"
                   },
+                  "timeout": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d{0,3}(m|h|d)$"
+                  },
+                  "remind": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d{0,3}(m|h|d)$"
+                  },
                   "type": {
                     "type": "string",
                     "const": "review"
@@ -4178,6 +4194,9 @@
                     "type": "boolean"
                   },
                   "regenerate": {
+                    "type": "boolean"
+                  },
+                  "approve": {
                     "type": "boolean"
                   }
                 },

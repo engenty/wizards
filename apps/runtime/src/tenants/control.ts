@@ -94,6 +94,8 @@ export async function indexRun(input: {
   runId: string;
   visitorId?: string | null;
   ipHash?: string | null;
+  /** A run that starts on a page with a deadline: when the clock wakes it. */
+  wakeAt?: Date | null;
 }) {
   const tenantId = currentTenant();
   runTenants.set(input.runId, tenantId);
@@ -102,6 +104,7 @@ export async function indexRun(input: {
     tenantId,
     visitorId: input.visitorId ?? null,
     ipHash: input.ipHash ?? null,
+    wakeAt: input.wakeAt ?? null,
   });
 }
 

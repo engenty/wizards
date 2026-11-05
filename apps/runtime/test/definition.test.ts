@@ -440,3 +440,49 @@ describe("a wizard's themes", () => {
     expect(parseWizard({ title: "x", style: { accent: "#ff7a1a" }, steps } as never).issues).toEqual([]);
   });
 });
+
+describe("a person's step: timeout, remind, approve", () => {
+  const page = (more: object) => ({
+    id: "ask",
+    type: "page",
+    title: "A",
+    fields: [{ id: "x", kind: "text", label: "X" }],
+    ...more,
+  });
+  const made = { id: "made", type: "agent", title: "M", instructions: "x", tools: [], output: { format: "text" } };
+  const end = { id: "done", type: "result", title: "E", deliverables: [] };
+  const issues = (...steps: object[]) =>
+    parseWizard({ version: 2, title: "T", description: "", avatar: "round", steps }).issues.map(
+      (i) => i.message,
+    );
+
+  it("takes 1 minute to 31 days", () => {
+    expect(issues(page({ timeout: "1m", }), end)).toEqual([]);
+    expect(issues(page({ timeout: "31d", remind: "30d" }), end)).toEqual([]);
+    expect(issues(page({ timeout: "32d" }), end).join()).toMatch(/"timeout" is at most 31 days/);
+    expect(issues(page({ remind: "745h" }), end).join()).toMatch(/"remind" is at most 31 days/);
+    expect(issues(page({ timeout: "0m" }), end).join()).toMatch(/A duration like/);
+    expect(issues(page({ timeout: "30s" }), end).join()).toMatch(/A duration like/);
+  });
+
+  it("reminds before the timeout", () => {
+    expect(issues(page({ timeout: "1d", remind: "1d" }), end).join()).toMatch(/not shorter/);
+    expect(issues(page({ timeout: "1h", remind: "2h" }), end).join()).toMatch(/not shorter/);
+    expect(issues(page({ remind: "2d" }), end)).toEqual([]);
+  });
+
+  it("a branch reads timedOut only of a step with a timeout", () => {
+    const next = [{ when: { field: "steps.ask.timedOut", op: "equals", value: true }, goto: "done" }];
+    expect(issues(page({ timeout: "1d", next }), end)).toEqual([]);
+    expect(issues(page({ next }), end).length).toBeGreaterThan(0);
+  });
+
+  it("approve needs a branch on the decision", () => {
+    const review = { id: "check", type: "review", title: "C", show: ["made"], approve: true };
+    expect(issues(made, review, end).join()).toMatch(/needs a branch on steps\.check\.approved/);
+    const next = [{ when: { field: "steps.check.approved", op: "equals", value: false }, goto: "done" }];
+    expect(issues(made, { ...review, next }, end)).toEqual([]);
+    const reads = [{ when: { field: "steps.check.note", op: "contains", value: "x" }, goto: "done" }];
+    expect(issues(made, { ...review, next: [...next, ...reads] }, end)).toEqual([]);
+  });
+});

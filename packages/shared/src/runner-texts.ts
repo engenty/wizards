@@ -57,6 +57,11 @@ const de: Record<RunnerKey, Line> = {
   "run.next": "Weiter",
   "run.back": "Zurück",
   "run.accept": "Passt so",
+  "run.approve": "Freigeben",
+  "run.decline": "Ablehnen",
+  "run.decisionNote": "z. B. Bitte den Preis noch einmal prüfen",
+  "run.answerBy":
+    "Du kannst bis {date}, {time} antworten. Danach geht der Wizard ohne deine Antwort weiter.",
   "run.edit": "Bearbeiten",
   "run.pickItem": "Nr. {n}",
   "run.pickedItem": "Nr. {n} neu",
@@ -362,6 +367,11 @@ const en = {
   "run.next": "Continue",
   "run.back": "Back",
   "run.accept": "Looks good",
+  "run.approve": "Approve",
+  "run.decline": "Decline",
+  "run.decisionNote": "e.g. Check the price again",
+  "run.answerBy":
+    "You can answer until {date}, {time}. After that the wizard goes on without your answer.",
   "run.edit": "Edit",
   "run.pickItem": "No. {n}",
   "run.pickedItem": "No. {n} again",

@@ -436,7 +436,7 @@ export const notice = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    kind: text("kind", { enum: ["needs_you", "done", "failed", "paused"] }).notNull(),
+    kind: text("kind", { enum: ["needs_you", "reminder", "done", "failed", "paused"] }).notNull(),
     wizardId: text("wizard_id")
       .notNull()
       .references(() => wizard.id, { onDelete: "cascade" }),
@@ -448,7 +448,7 @@ export const notice = sqliteTable(
     userId: text("user_id"),
     /** For the run's visitor: no bell, only their mail and device. */
     visitor: integer("visitor", { mode: "boolean" }).notNull().default(false),
-    /** What a `needs_you` waits on: `step:<id>` or `ask:<id>`. Once over, nobody is told. */
+    /** What a `needs_you` or `reminder` waits on: `step:<id>` or `ask:<id>`. Once over, nobody is told. */
     waitKey: text("wait_key"),
     /** The bell shows it. False until the sender knows nobody is looking at the run. */
     shown: integer("shown", { mode: "boolean" }).notNull().default(true),

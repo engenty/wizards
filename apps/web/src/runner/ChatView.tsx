@@ -1438,8 +1438,13 @@ function ReviewTurn({
       `review:${step.id}:replies`,
       <>
         <Reply primary busy={run.busy} onClick={() => void run.accept(step.id)}>
-          <Check className="size-4" /> {t("run.accept")}
+          <Check className="size-4" /> {t(step.approve ? "run.approve" : "run.accept")}
         </Reply>
+        {step.approve ? (
+          <Reply busy={run.busy} onClick={() => void run.decline(step.id)}>
+            {t("run.decline")}
+          </Reply>
+        ) : null}
         {regenerate && made.length > 1
           ? made.map(({ step: s }) => (
               <Reply key={s.id} on={target === s.id} onClick={() => setTarget(s.id)}>

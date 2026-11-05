@@ -1,5 +1,6 @@
 import { textLang, wizardLang } from "@engenty/wizards-shared/definition";
-import { and, desc, eq, inArray, isNull, lte, or, type SQL, sql } from "drizzle-orm";
+import { note } from "@engenty/wizards-shared/run";
+import { and, desc, eq, inArray, isNotNull, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { accountRunMail } from "../auth/account.js";
 import { control, controlDb, db, schema, withTenant } from "../db/client.js";
@@ -9,6 +10,7 @@ import { ManageError, managed, runMail } from "../manage.js";
 import { runViewTicketUntil, runWaitTicket } from "../secrets/signing.js";
 import { shareUrl, studioUrl } from "../services/wizards.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { emitEvent } from "./events.js";
 import { pushToRunDevice } from "./push.js";
 import type { RunRow } from "./types.js";
 
@@ -28,7 +30,7 @@ import type { RunRow } from "./types.js";
 
 export type NoticeKind = (typeof schema.notice.$inferSelect)["kind"];
 type NoticeRow = typeof schema.notice.$inferSelect;
-type NoticeValues = Omit<typeof schema.notice.$inferInsert, "id" | "tenantId" | "createdAt">;
+export type NoticeValues = Omit<typeof schema.notice.$inferInsert, "id" | "tenantId" | "createdAt">;
 
 /** Kept per tenant; older ones go as new ones come. */
 const KEEP = 200;
@@ -65,7 +67,13 @@ type RunFacts = Pick<
 export async function noticeFor(
   run: RunFacts,
   kind: NoticeKind,
-  options: { detail?: string | null; waitKey?: string | null; by?: Actor } = {},
+  options: {
+    detail?: string | null;
+    waitKey?: string | null;
+    by?: Actor;
+    /** A reminder is due later; anything else now. */
+    dueAt?: Date;
+  } = {},
 ): Promise<NoticeValues | null> {
   const durable = await durableOn();
   const words = {
@@ -97,7 +105,13 @@ export async function noticeFor(
   if (!member && !run.visitorId) {
     return null;
   }
-  return { ...words, userId: run.userId, visitor: !member, shown: false, dueAt: new Date() };
+  return {
+    ...words,
+    userId: run.userId,
+    visitor: !member,
+    shown: false,
+    dueAt: options.dueAt ?? new Date(),
+  };
 }
 
 /** Whether runs tell people through the outbox here. */
@@ -183,7 +197,10 @@ const forPerson = (userId: string) =>
     or(isNull(schema.notice.userId), eq(schema.notice.userId, userId)),
   );
 
-/** Whether the wait a `needs_you` speaks of is still on. */
+/** Whether a word says a run waits for someone: it means nothing once the wait is over. */
+const speaksOfWait = (kind: NoticeKind) => kind === "needs_you" || kind === "reminder";
+
+/** Whether the wait a `needs_you` or a `reminder` speaks of is still on. */
 function stillWaits(
   key: string | null,
   run: Pick<RunRow, "status" | "cursor"> & { ask?: RunRow["ask"] },
@@ -212,7 +229,7 @@ export async function listNotices(userId: string, limit = 50) {
         columns: { id: true, title: true, starts: true },
       })
     : [];
-  const waitingOn = rows.filter((r) => r.kind === "needs_you" && r.runId && !r.readAt);
+  const waitingOn = rows.filter((r) => speaksOfWait(r.kind) && r.runId && !r.readAt);
   const runs = waitingOn.length
     ? await db.query.run.findMany({
         where: inArray(schema.run.id, waitingOn.map((r) => r.runId) as string[]),
@@ -230,7 +247,7 @@ export async function listNotices(userId: string, limit = 50) {
       start: w?.starts.find((s) => s.id === r.startId) ?? null,
       detail: r.detail,
       // A wait someone answered asks for nothing any more.
-      read: r.readAt !== null || (r.kind === "needs_you" && (!run || !stillWaits(r.waitKey, run))),
+      read: r.readAt !== null || (speaksOfWait(r.kind) && (!run || !stillWaits(r.waitKey, run))),
       at: r.createdAt.toISOString(),
     };
   });
@@ -320,8 +337,9 @@ function linkOf(row: NoticeRow, run: RunRow, wizard: { id: string; shareToken: s
   }
   const most = row.createdAt.getTime() + LINK_MS;
   const until = new Date(Math.min(run.expiresAt?.getTime() ?? most, most));
-  const ticket =
-    row.kind === "needs_you" ? runWaitTicket(run.id, until) : runViewTicketUntil(run.id, until);
+  const ticket = speaksOfWait(row.kind)
+    ? runWaitTicket(run.id, until)
+    : runViewTicketUntil(run.id, until);
   return `${shareUrl(wizard.shareToken)}/${run.id}?rt=${encodeURIComponent(ticket)}`;
 }
 
@@ -355,7 +373,7 @@ async function mailOf(row: NoticeRow, run: RunRow): Promise<Delivery> {
     return "dealt";
   }
   const mail = {
-    kind: row.kind === "needs_you" ? ("waiting" as const) : (row.kind as "done" | "failed"),
+    kind: speaksOfWait(row.kind) ? ("waiting" as const) : (row.kind as "done" | "failed"),
     wizard: run.definition.title,
     url: linkOf(row, run, wizard),
     lang: textLang(run.lang ?? wizardLang(run.definition)),
@@ -379,8 +397,11 @@ async function pushOf(row: NoticeRow, run: RunRow): Promise<Delivery> {
   if (!managed || run.mode !== "live") {
     return "dealt";
   }
-  const kind =
-    row.kind === "needs_you" ? (row.waitKey?.startsWith("ask:") ? "asks" : "waiting") : row.kind;
+  const kind = speaksOfWait(row.kind)
+    ? row.waitKey?.startsWith("ask:")
+      ? "asks"
+      : "waiting"
+    : row.kind;
   try {
     await pushToRunDevice(run, kind as "asks" | "waiting" | "done" | "failed");
     return "dealt";
@@ -402,15 +423,26 @@ async function deliver(row: NoticeRow, now: Date) {
     columns: { viewedAt: true },
   });
   const viewed = index?.viewedAt?.getTime() ?? 0;
-  if (
-    row.kind === "needs_you" ? !stillWaits(row.waitKey, run) : viewed >= row.createdAt.getTime()
-  ) {
+  if (speaksOfWait(row.kind) ? !stillWaits(row.waitKey, run) : viewed >= row.createdAt.getTime()) {
     await settle(row, now);
     return;
   }
   if (now.getTime() - viewed < LOOKING_MS) {
     await later(row, new Date(now.getTime() + 30_000));
     return;
+  }
+  // A reminder says what a first word not yet delivered would say: one word, one mail.
+  if (row.kind === "reminder") {
+    await db
+      .delete(schema.notice)
+      .where(
+        and(
+          eq(schema.notice.runId, run.id),
+          eq(schema.notice.kind, "needs_you"),
+          eq(schema.notice.waitKey, row.waitKey ?? ""),
+          isNotNull(schema.notice.dueAt),
+        ),
+      );
   }
   if (!row.visitor && !row.shown) {
     await mark(row.id, { shown: true });
@@ -444,13 +476,23 @@ async function deliver(row: NoticeRow, now: Date) {
     return;
   }
   await finish(row);
+  if (row.kind === "reminder") {
+    await emitEvent(run.id, run.cursor, "info", note("reminderSent"));
+  }
 }
 
 /** Delivers what is due in the tenant at hand. */
 export async function deliverNotices(now = new Date()) {
   const rows = await claimDue(now);
+  const key = (row: NoticeRow) => `${row.runId} ${row.waitKey}`;
+  const reminded = new Set(rows.filter((row) => row.kind === "reminder").map(key));
   for (const row of rows) {
-    await deliver(row, now).catch((err) => console.error(`[notices] ${row.id}:`, err));
+    // The first word and the reminder came due together: the reminder says it.
+    const said = row.kind === "needs_you" && reminded.has(key(row));
+    await (said
+      ? db.delete(schema.notice).where(eq(schema.notice.id, row.id))
+      : deliver(row, now)
+    ).catch((err) => console.error(`[notices] ${row.id}:`, err));
   }
   if (rows.length) {
     await trim();
