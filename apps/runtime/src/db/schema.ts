@@ -1743,3 +1743,18 @@ export const runWait = sqliteTable(
   },
   (t) => [index("run_wait_match").on(t.spaceId, t.name, t.key)],
 );
+
+/**
+ * What a tool did outside, by the call that asked for it (docs/plans/durable-agents.md). A call
+ * the model made once keeps its id when the turn goes on after a crash, so it acts once.
+ */
+export const runEffect = sqliteTable("run_effect", {
+  /** `<turn>:<toolCallId>`. */
+  id: text("id").primaryKey(),
+  runId: text("run_id").notNull(),
+  stepId: text("step_id").notNull(),
+  tool: text("tool").notNull(),
+  state: text("state", { enum: ["started", "done", "failed"] }).notNull(),
+  output: text("output", { mode: "json" }).$type<unknown>(),
+  at: integer("at", { mode: "timestamp_ms" }).notNull(),
+});

@@ -118,6 +118,7 @@ import {
   tierRefusalSaid,
 } from "./requirements.js";
 import { releaseResources, resourcesFor } from "./resources.js";
+import { TurnAsks } from "./durable-turn.js";
 import { dropWait, durationMs, registerWait, takeSignal } from "./signals.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
 import { answersAsText, renderTemplate, resolveRef } from "./template.js";
@@ -1080,6 +1081,11 @@ async function drive(runId: string, signal: AbortSignal) {
     const space = await loadSpace(run);
     const state = structuredClone(run.state);
     try {
+      // A durable turn's id is on the row before it starts, so whoever goes on finds it.
+      if (step.type === "agent" && step.durable && state.turn?.stepId !== step.id) {
+        state.turn = { stepId: step.id, id: nanoid(18) };
+        await updateRun(runId, { state });
+      }
       const ctx = await makeContext(run, space, state, signal);
       // A guest's answers are checked once before any model works on them, and what a step
       // wrote for a guest before it is kept (docs/plans/guest-content-guards.md).
@@ -1105,6 +1111,7 @@ async function drive(runId: string, signal: AbortSignal) {
       }
       await syncRunCost(runId);
       state.outputs[step.id] = output;
+      delete state.turn;
       delete state.notes[step.id];
       delete state.redo?.[step.id];
       const cursor = await advance(run, step.id, state);
@@ -1120,6 +1127,15 @@ async function drive(runId: string, signal: AbortSignal) {
       }
       if (err instanceof LostClaim) {
         throw err;
+      }
+      if (err instanceof TurnAsks) {
+        // The turn stopped for a person: its conversation is stored, no runner holds anything.
+        await updateRun(runId, {
+          state: { ...state, turn: { ...(state.turn as NonNullable<RunState["turn"]>), question: err.question, answer: undefined } },
+          status: "waiting_input",
+        });
+        void pushRun(runId, "asks");
+        return;
       }
       console.error(`[run ${runId} step ${step.id}]`, err);
       await noteFreeTierRefusal(err);
@@ -1213,6 +1229,18 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
   state.history.push(stepId);
   const cursor = await advance(run, stepId, state);
   await updateRun(runId, { state, cursor, status: "running", error: null }, run);
+  kick(runId);
+}
+
+/** The person answers what a durable turn asked: the turn goes on with it, on any runner. */
+export async function answerTurn(runId: string, answer: string) {
+  const run = await loadRun(runId);
+  if (run?.status !== "waiting_input" || !run.state.turn?.question) {
+    throw new RunConflict({ code: "runBusy" });
+  }
+  const state = structuredClone(run.state);
+  state.turn = { ...(state.turn as NonNullable<RunState["turn"]>), answer, question: undefined };
+  await updateRun(runId, { state, status: "running", error: null }, run);
   kick(runId);
 }
 

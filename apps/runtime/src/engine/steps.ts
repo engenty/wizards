@@ -33,6 +33,7 @@ import {
   validateSurface,
 } from "@engenty/wizards-shared/surface";
 import { Agent } from "@mastra/core/agent";
+import { durableTurn } from "./durable-turn.js";
 import { generateText, type JSONSchema7, jsonSchema, Output, parsePartialJson } from "ai";
 import type { z } from "zod";
 import { extFor, loadAsset, loadAssetText } from "../files/storage.js";
@@ -670,6 +671,25 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
   // A decision needs no agent: its questions go to the classifier class in one call.
   if (isDecisionStep(step) && uploads.length === 0) {
     return decideStep(step, request, ctx);
+  }
+
+  if (step.durable && ctx.state.turn && !isHarnessVendor(resolved.vendor)) {
+    const result = await durableTurn({
+      turn: ctx.state.turn,
+      runId: ctx.runId,
+      stepId: step.id,
+      instructions: system,
+      model: agentModel(resolved),
+      tools,
+      message: request,
+      maxSteps: step.tools.includes("browser") || step.connections?.length ? 60 : 20,
+      signal: ctx.signal,
+    });
+    await ctx.chargeUsd(costOf(resolved, result.usage));
+    if (!result.text && !assets.length) {
+      throw new StepError(runNote("stepNotReturnResult"));
+    }
+    return { text: result.text, assets: assets.length ? assets : undefined, at: new Date().toISOString() };
   }
 
   const agent = new Agent({

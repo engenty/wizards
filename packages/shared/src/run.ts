@@ -71,6 +71,8 @@ export interface RunState {
   decisions?: Record<string, BranchDecision>;
   /** Pages whose fields a decision chose: the field ids kept, by page. */
   pages?: Record<string, { shown: string[] }>;
+  /** The durable agent step at work: its Mastra run, and what it asks of the person. */
+  turn?: { stepId: string; id: string; question?: string; answer?: string };
   /** Signals this run took, by id: each only once. */
   signals?: string[];
   /** How often each branch was taken, by "<step>→<goto>": loops stop at the rule's max. */

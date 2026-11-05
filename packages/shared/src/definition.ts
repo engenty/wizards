@@ -766,6 +766,11 @@ export const agentStepSchema = z.object({
    * ("lists.<id>"). The instructions read the entry as {{item.<column>}}, {{index}}, {{count}}.
    * The output is a table: the entry's columns and the step's output fields, one row per entry.
    */
+  /**
+   * The step keeps its conversation: after a crash or a deploy it goes on at the call it was at,
+   * and it may stop to ask a person (`ask_person`) without holding a runner.
+   */
+  durable: z.boolean().optional(),
   each: z.string().optional(),
   working: z.string().optional(),
 });
