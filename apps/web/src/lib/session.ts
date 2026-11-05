@@ -100,11 +100,15 @@ export interface UserProfile {
   phone: string;
 }
 
-/** The first letters of a name's words, at most two: what an avatar without a picture shows. */
+/**
+ * The first letters of a name's words, at most two: what an avatar without a picture shows. A
+ * word gives its first letter or digit, so a bracket or a sign before it is skipped („E-Mail
+ * (SMTP)“ is ES), and a word without one gives nothing („Wagner & Söhne“ is WS).
+ */
 export function initialsOf(name: string): string {
   return name
     .split(/\s+/)
-    .map((part) => part[0] ?? "")
+    .map((part) => part.match(/[\p{L}\p{N}]/u)?.[0] ?? "")
     .join("")
     .slice(0, 2)
     .toUpperCase();

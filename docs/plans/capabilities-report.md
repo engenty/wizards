@@ -114,8 +114,6 @@ computed opacity is 1. Not a product defect.
   on 2026-11-05 inside a runtime from source, see „Since: the reads that asked nobody" below.
   Not run: reading products out of a page or a price list (needs a text model), and its own
   `test:runtime`, which fails 8 of 11 on main as it is (its step stub has no holder).
-- `space_search` answers `filtered`, how many items pass its `where`, without asking who reads;
-  the hits and `candidates` are filtered.
 - What a plugin makes of pages it read in a job is its own data: by reading the code, the
   shop's products from a Wissen source over a folder closed to guests reach a guest's run
   through the shop's tools. Not run, as making a product needs a model.
