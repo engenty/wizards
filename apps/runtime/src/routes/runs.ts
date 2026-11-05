@@ -10,6 +10,7 @@ import {
 } from "@engenty/wizards-shared/definition";
 import { TableColumnValueError } from "@engenty/wizards-shared/engenty/data-tables";
 import {
+  note,
   noteText,
   type PublicField,
   type PublicWizard,
@@ -25,6 +26,7 @@ import { getConnInfo } from "@hono/node-server/conninfo";
 import { and, eq } from "drizzle-orm";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
+import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -50,6 +52,17 @@ import {
   spaceConnectionStateTenant,
 } from "../connectors/space-connections.js";
 import { db, schema, withTenant } from "../db/client.js";
+import {
+  answerersOf,
+  answeringNarrowed,
+  type Caller,
+  hiddenWhileAsked,
+  mayAct,
+  mayAnswerStep,
+  mayGoBackFrom,
+  stepOfRun,
+  viewFor,
+} from "../engine/answerers.js";
 import { answerAsk, pendingAsk } from "../engine/asks.js";
 import { answerDevice, offerDevice, openDeviceCalls } from "../engine/device.js";
 import { emitEvent, signalChanged, watchRun } from "../engine/events.js";
@@ -227,11 +240,54 @@ function visitorId(c: Context, create: boolean, embedded = false): string | null
 /** A view's kept state stays small: ticks and choices, not data. */
 const MAX_VIEW_STATE = 32_000;
 
+/**
+ * The run, if the caller may do what the request does. Reading takes opening the run. Anything else
+ * takes the right to answer it as it stands (engine/answerers.ts): a door is narrowed unless it says
+ * otherwise. `reads`: changes nothing of the run's, or checks for itself. `result`: works on what a
+ * run that is over made, which everyone who opens the run may share on.
+ */
 async function accessibleRun(
   c: Context,
   runId: string,
-  opts: { signed?: boolean; answers?: boolean } = {},
+  opts: { signed?: boolean; answers?: boolean; reads?: boolean; result?: boolean } = {},
 ) {
+  const run = await openedRun(c, runId, opts);
+  if (!run || c.req.method === "GET" || opts.reads) {
+    return run;
+  }
+  if (opts.result && (run.status === "done" || run.status === "failed")) {
+    return run;
+  }
+  const caller = await callerOf(c, run);
+  if (await mayAct(run, caller)) {
+    return run;
+  }
+  // The run went on from a step this person may answer: the first answer counts, and they hear whose.
+  const stepId = c.req.param("stepId");
+  const first = stepId ? run.state.answeredBy?.[stepId] : null;
+  if (first && mayAnswerStep(run, stepOfRun(run, stepId), caller, await answerersOf(run))) {
+    throw new HTTPException(409, {
+      res: refuse(c, note("answeredAlready", { name: first.name }), 409),
+    });
+  }
+  throw new HTTPException(403, { res: refuse(c, { code: "notYourStep" }, 403) });
+}
+
+/** Who is at this door, as the session, the visitor's cookie and the ticket say. */
+async function callerOf(c: Context, run: RunRow): Promise<Caller> {
+  const ticket = c.req.query("rt");
+  const user = await principalOf(c);
+  const member = user && user.tenantId === run.tenantId ? user : null;
+  return {
+    local: !managed && Boolean(user),
+    userId: member?.id,
+    role: member?.role,
+    visitorId: visitorId(c, false),
+    link: runTicketValid(run.id, ticket) || runWaitTicketValid(run.id, ticket),
+  };
+}
+
+async function openedRun(c: Context, runId: string, opts: { signed?: boolean; answers?: boolean }) {
   const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
   if (!run) {
     return null;
@@ -294,15 +350,23 @@ async function memberViewing(c: Context, run: RunRow): Promise<boolean> {
  * the space: the guest's page says so; a member looking at the run (Ergebnisse) sees it.
  */
 async function hiddenFrom(c: Context, run: RunRow): Promise<Set<string>> {
-  return (await memberViewing(c, run)) ? new Set() : keptStepIds(run);
+  if (await memberViewing(c, run)) {
+    return new Set();
+  }
+  return new Set([
+    ...(await keptStepIds(run)),
+    ...(await hiddenWhileAsked(run, await callerOf(c, run))),
+  ]);
 }
 
 async function viewOf(
   run: NonNullable<Awaited<ReturnType<typeof accessibleRun>>>,
   hide: ReadonlySet<string> = new Set(),
+  caller?: Caller,
 ) {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
-  return runView(run, await brandView(w?.spaceId ?? "", run.definition.themes), hide);
+  const view = await runView(run, await brandView(w?.spaceId ?? "", run.definition.themes), hide);
+  return caller ? viewFor(view, run, caller) : view;
 }
 
 /**
@@ -314,7 +378,7 @@ const mayActOnWait = (user: { id: string; role: Role }, run: RunRow) =>
 
 /** What "Continue now" and "Stop" answer to: the run, with who asks; else what to answer. */
 async function commandOnWait(c: Context) {
-  const run = await accessibleRun(c, c.req.param("id") ?? "");
+  const run = await accessibleRun(c, c.req.param("id") ?? "", { reads: true });
   const user = run && (await memberViewing(c, run)) ? await principalOf(c) : null;
   if (!(run && user && (await durableRunsOn()))) {
     return { refused: c.json(notFoundAnswer(c), 404) };
@@ -805,7 +869,7 @@ export const runRoutes = new Hono()
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
-    return c.json(await viewOf(run, await hiddenFrom(c, run)));
+    return c.json(await viewOf(run, await hiddenFrom(c, run), await callerOf(c, run)));
   })
   .get("/:id/stream", async (c) => {
     const id = c.req.param("id");
@@ -814,6 +878,7 @@ export const runRoutes = new Hono()
       return c.json(notFoundAnswer(c), 404);
     }
     const member = await memberViewing(c, first);
+    const caller = await callerOf(c, first);
     return streamSSE(c, async (stream) => {
       let pending = false;
       let closed = false;
@@ -826,8 +891,13 @@ export const runRoutes = new Hono()
         pending = false;
         const run = await db.query.run.findFirst({ where: eq(schema.run.id, id) });
         if (run && !closed) {
-          const hide = member ? new Set<string>() : await keptStepIds(run);
-          await stream.writeSSE({ event: "view", data: JSON.stringify(await viewOf(run, hide)) });
+          const hide = member
+            ? new Set<string>()
+            : new Set([...(await keptStepIds(run)), ...(await hiddenWhileAsked(run, caller))]);
+          await stream.writeSSE({
+            event: "view",
+            data: JSON.stringify(await viewOf(run, hide, caller)),
+          });
         }
       };
       // Calls the runner put to the device the run is watched from, each sent once per stream.
@@ -852,7 +922,18 @@ export const runRoutes = new Hono()
       });
       await stream.writeSSE({
         event: "view",
-        data: JSON.stringify(await viewOf(first, member ? new Set() : await keptStepIds(first))),
+        data: JSON.stringify(
+          await viewOf(
+            first,
+            member
+              ? new Set()
+              : new Set([
+                  ...(await keptStepIds(first)),
+                  ...(await hiddenWhileAsked(first, caller)),
+                ]),
+            caller,
+          ),
+        ),
       });
       await sendDeviceCalls();
       while (!closed) {
@@ -903,7 +984,7 @@ export const runRoutes = new Hono()
       .object({ values: z.record(z.string(), z.unknown()) })
       .parse(await c.req.json());
     try {
-      await submitPage(run.id, c.req.param("stepId"), values);
+      await submitPage(run.id, c.req.param("stepId"), values, await actorOf(c, run));
       return c.json({ ok: true });
     } catch (err) {
       return commandError(c, err);
@@ -936,7 +1017,7 @@ export const runRoutes = new Hono()
   })
   // A json step's data, edited in the studio by someone of the organization the run belongs to.
   .put("/:id/outputs/:stepId", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { result: true });
     const user = await principalOf(c);
     if (!run || !user || user.tenantId !== run.tenantId) {
       return c.json(notFoundAnswer(c), 404);
@@ -971,10 +1052,12 @@ export const runRoutes = new Hono()
           note: z.string().max(2000),
           items: z.array(z.number().int().min(0).max(50)).max(20).optional(),
         }),
+        z.object({ type: z.literal("approve"), note: z.string().max(2000).optional() }),
+        z.object({ type: z.literal("decline"), note: z.string().max(2000).optional() }),
       ])
       .parse(await c.req.json());
     try {
-      await reviewStep(run.id, c.req.param("stepId"), action);
+      await reviewStep(run.id, c.req.param("stepId"), action, await actorOf(c, run));
       return c.json({ ok: true });
     } catch (err) {
       return commandError(c, err);
@@ -984,6 +1067,13 @@ export const runRoutes = new Hono()
     const run = await accessibleRun(c, c.req.param("id"), { answers: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
+    }
+    // Back asks the step before again: that takes the right to answer it too.
+    if (
+      (await answeringNarrowed()) &&
+      !mayGoBackFrom(run, await callerOf(c, run), await answerersOf(run))
+    ) {
+      return refuse(c, { code: "notYourStep" }, 403);
     }
     try {
       // A result that is on its way somewhere stops going there when the person steps back.
@@ -1049,7 +1139,7 @@ export const runRoutes = new Hono()
   })
   // The viewer reads the run in another language from now on: null for the wizard's own.
   .post("/:id/lang", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true, reads: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1080,7 +1170,7 @@ export const runRoutes = new Hono()
   })
   // A finished result's text in the language the viewer reads the run in, kept on the run.
   .post("/:id/translate-result", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { result: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1277,7 +1367,7 @@ export const runRoutes = new Hono()
   })
   // --- a durable step stopped to ask the person --------------------------------
   .post("/:id/question", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1661,7 +1751,7 @@ export const runRoutes = new Hono()
   // The mobile app's device for this run: told when it is done, failed or waits for the person.
   // The run's page says it is in view, every 30 s: nobody is told what they are looking at.
   .post("/:id/seen", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true, reads: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1699,7 +1789,7 @@ export const runRoutes = new Hono()
     return c.json({ ok: true });
   })
   .post("/:id/share", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { result: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1713,7 +1803,7 @@ export const runRoutes = new Hono()
     }
   })
   .delete("/:id/share", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { result: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1722,7 +1812,7 @@ export const runRoutes = new Hono()
   })
   // "How did it go?" at the end of a run: the answer goes on to the Manage-App's feedback.
   .post("/:id/feedback", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { result: true });
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1774,7 +1864,7 @@ export const runRoutes = new Hono()
     }
   })
   .post("/:id/share/jobs", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { result: true });
     if (!run) {
       return c.json({ error: "not found" }, 404);
     }
@@ -1802,7 +1892,7 @@ export const runRoutes = new Hono()
     }
   })
   .post("/:id/share/jobs/:jobId/cancel", async (c) => {
-    const run = await accessibleRun(c, c.req.param("id"));
+    const run = await accessibleRun(c, c.req.param("id"), { result: true });
     if (!run) {
       return c.json({ error: "not found" }, 404);
     }

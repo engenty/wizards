@@ -13,6 +13,16 @@ import { note, type RunState, type RunTimeline, type RunView } from "@engenty/wi
 import { and, count, desc, eq, gte, inArray, isNull, max, or, sql } from "drizzle-orm";
 import { canSpend, MICROS_PER_CREDIT } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
+import {
+  answerersOf,
+  answeringNarrowed,
+  type Caller,
+  doorCaller,
+  hiddenWhileAsked,
+  mayAct,
+  mayGoBackFrom,
+  whoOf,
+} from "../engine/answerers.js";
 import { answerAsk } from "../engine/asks.js";
 import { emitEvent, recentEvents, watchRun } from "../engine/events.js";
 import { fieldErrorsIn } from "../engine/input.js";
@@ -31,10 +41,12 @@ import {
   runView,
   submitPage,
 } from "../engine/runner.js";
+import { managed } from "../manage.js";
 import { ModelUnavailableError, saidOf } from "../model-errors.js";
 import { prompt } from "../prompts.js";
 import { signedUrl } from "../secrets/signing.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { roleOf } from "./access.js";
 import { brandView } from "./brand.js";
 import { notFound, ServiceError } from "./errors.js";
 import { storedTranslation } from "./translations.js";
@@ -110,7 +122,7 @@ function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boo
           );
           await submitPage(runId, current.id, values);
         } else if (current?.type === "review" && acceptReviews) {
-          await reviewStep(runId, current.id, { type: "accept" });
+          await reviewStep(runId, current.id, { type: current.approve ? "approve" : "accept" });
         } else {
           land();
           return;
@@ -143,6 +155,20 @@ function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boo
  * from an MCP client (run_wizard). `test` narrows it to test runs; `live` takes every live run of
  * the tenant, what visitors started (the results `/api/v1/runs` lists with `runs:read`).
  */
+/** A person at an MCP or API door, as the role the Manage-App gives them. */
+async function callerOfUser(userId: string): Promise<Caller> {
+  return { userId, role: await roleOf(userId), local: !managed };
+}
+
+/** A run the caller may answer as it stands: `ownedRun` says they see it, this that it is theirs. */
+async function answerableRun(userId: string, runId: string): Promise<RunRow> {
+  const run = await ownedRun(userId, runId);
+  if (!(await mayAct(run, await callerOfUser(userId)))) {
+    throw new ServiceError("forbidden", { code: "notYourStep" });
+  }
+  return run;
+}
+
 async function ownedRun(userId: string, runId: string, only?: "test" | "live"): Promise<RunRow> {
   const run = await db.query.run.findFirst({
     where: and(
@@ -164,13 +190,25 @@ function moving(run: RunRow) {
   return run.status === "running" || (run.status === "waiting_input" && autopilots.has(run.id));
 }
 
-/** A run a plugin's door may drive: any run of the current tenant, by id. */
+/** A run a plugin's door may read: any run of the current tenant, by id. */
 export async function pluginRun(runId: string): Promise<RunRow> {
   const run = await db.query.run.findFirst({
     where: and(eq(schema.run.id, runId), eq(schema.run.tenantId, currentTenant())),
   });
   if (!run) {
     throw notFound();
+  }
+  return run;
+}
+
+/**
+ * A run a plugin's door may answer: the door speaks for the run's visitor (`plugins/runs.ts`), so
+ * it answers what asks them, and nothing asked of the organization.
+ */
+export async function pluginAnswerableRun(runId: string): Promise<RunRow> {
+  const run = await pluginRun(runId);
+  if (!(await mayAct(run, doorCaller(run)))) {
+    throw new ServiceError("forbidden", { code: "notYourStep" });
   }
   return run;
 }
@@ -266,7 +304,22 @@ async function browserUrl(run: RunRow): Promise<string | null> {
  * What a run waits for. `draft`: what a door that asks one field at a time has so far, so a
  * field's `shown` follows those answers as it follows the form on the screen.
  */
-async function waitingFor(run: RunRow, current: Step | null, draft?: Record<string, unknown>) {
+async function waitingFor(
+  run: RunRow,
+  current: Step | null,
+  draft?: Record<string, unknown>,
+  viewer?: Caller,
+) {
+  // What someone else is asked is theirs: the door hears that, and nothing of what it asks.
+  if (viewer && !(await mayAct(run, viewer))) {
+    return run.status === "waiting_input" && current
+      ? {
+          answeredBy: whoOf(current),
+          title: current.title,
+          hint: prompt("mcp", "hint.answered_by"),
+        }
+      : undefined;
+  }
   if (run.status === "running" && run.ask) {
     const ask = run.ask;
     return ask.kind === "confirm"
@@ -386,16 +439,21 @@ export async function runReport(
   waitSeconds = 0,
   only?: "test" | "live",
 ) {
-  return runReportOf(await waitWhileMoving(userId, runId, waitSeconds, only));
+  return runReportOf(
+    await waitWhileMoving(userId, runId, waitSeconds, only),
+    undefined,
+    await callerOfUser(userId),
+  );
 }
 
 /** The report of a run as it stands; `draft` as for `waitingFor`. */
-export async function runReportOf(run: RunRow, draft?: Record<string, unknown>) {
+export async function runReportOf(run: RunRow, draft?: Record<string, unknown>, viewer?: Caller) {
   const current = run.definition.steps.find((s) => s.id === run.cursor) ?? null;
   const base = `/api/runs/${run.id}`;
+  const hidden = viewer ? await hiddenWhileAsked(run, viewer) : [];
   const outputs = run.definition.steps.flatMap((step) => {
     const output = run.state.outputs[step.id];
-    if (!output) {
+    if (!output || hidden.includes(step.id)) {
       return [];
     }
     // A document, a dashboard or a widget drawn as one picture: for a door that shows pictures
@@ -441,7 +499,7 @@ export async function runReportOf(run: RunRow, draft?: Record<string, unknown>) 
           (run.status === "done" && s.id === run.cursor),
       )
       .map((s) => s.id),
-    waitingFor: await waitingFor(run, current, draft),
+    waitingFor: await waitingFor(run, current, draft, viewer),
     error: run.error,
     credits: Math.ceil(run.costMicros / MICROS_PER_CREDIT),
     events: (await recentEvents(run.id, 0, 15)).map((e) => ({
@@ -523,12 +581,17 @@ export async function startRun(
   if (first?.type !== "page" || !Object.keys(answers).length) {
     return { runId, refused: null };
   }
+  // A first page someone else answers isn't filled by whoever starts the run.
+  const started = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+  if (started && !(await mayAct(started, await callerOfUser(userId)))) {
+    return { runId, refused: null };
+  }
   const values = Object.fromEntries(
     first.fields.filter((f) => f.id in answers).map((f) => [f.id, answers[f.id]]),
   );
   // The run is there either way; what did not fit is answered again with answer_page.
   try {
-    await submitPage(runId, first.id, values);
+    await submitPage(runId, first.id, values, { userId });
     return { runId, refused: null };
   } catch (err) {
     if (err instanceof RunInputError) {
@@ -544,8 +607,8 @@ export async function answerRunPage(
   stepId: string,
   values: Record<string, unknown>,
 ) {
-  await ownedRun(userId, runId);
-  await submitPage(runId, stepId, values).catch(refusedInput);
+  await answerableRun(userId, runId);
+  await submitPage(runId, stepId, values, { userId }).catch(refusedInput);
 }
 
 export async function reviewRun(
@@ -554,8 +617,8 @@ export async function reviewRun(
   stepId: string,
   action: ReviewAction,
 ) {
-  await ownedRun(userId, runId);
-  await reviewStep(runId, stepId, action).catch(refusedInput);
+  await answerableRun(userId, runId);
+  await reviewStep(runId, stepId, action, { userId }).catch(refusedInput);
 }
 
 export async function controlRun(
@@ -563,7 +626,14 @@ export async function controlRun(
   runId: string,
   action: "back" | "retry" | "cancel",
 ) {
-  await ownedRun(userId, runId);
+  const run = await answerableRun(userId, runId);
+  if (
+    action === "back" &&
+    (await answeringNarrowed()) &&
+    !mayGoBackFrom(run, await callerOfUser(userId), await answerersOf(run))
+  ) {
+    throw new ServiceError("forbidden", { code: "notYourStep" });
+  }
   const command = { back: (id: string) => goBack(id, { userId }), retry, cancel }[action];
   await command(runId).catch(refusedInput);
 }
@@ -575,7 +645,7 @@ export async function answerRunAsk(
   askId: string,
   answer: "allow" | "skip",
 ) {
-  await ownedRun(userId, runId);
+  await answerableRun(userId, runId);
   if (!(await answerAsk(runId, askId, answer === "allow" ? { type: "done" } : { type: "skip" }))) {
     throw new ServiceError("refused", { code: "askClosed" });
   }
@@ -583,7 +653,7 @@ export async function answerRunAsk(
 
 /** Answers what a durable step asked: its turn goes on with that. */
 export async function answerRunQuestion(userId: string, runId: string, answer: string) {
-  await ownedRun(userId, runId);
+  await answerableRun(userId, runId);
   await answerTurn(runId, answer).catch(refusedInput);
 }
 

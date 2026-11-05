@@ -176,6 +176,8 @@ export function useRun(runId: string | null) {
         note,
         items: items?.length ? items : undefined,
       }),
+    decide: (stepId: string, approved: boolean, note?: string) =>
+      command(`reviews/${stepId}`, { type: approved ? "approve" : "decline", note }),
     back: () => command("back"),
     retry: () => command("retry"),
     translateResult: (stepId: string) => command("translate-result", { stepId }),

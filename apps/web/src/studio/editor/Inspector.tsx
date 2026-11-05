@@ -1144,6 +1144,15 @@ function StepBody({
               onChange={(v) => set({ ...step, regenerate: v })}
             />
           </div>
+          {durableRuns ? (
+            <div className="flex items-center justify-between">
+              <span className="text-[0.8125rem] text-ink-2">{t("inspector.approve")}</span>
+              <Switch
+                checked={Boolean(step.approve)}
+                onChange={(v) => set({ ...step, approve: v || undefined })}
+              />
+            </div>
+          ) : null}
         </Section>
       );
     case "result":
@@ -1549,6 +1558,38 @@ export function StepNav({
   );
 }
 
+/** Who answers a page or a review. A role: the people are named in the share dialog. */
+function WhoSection({
+  step,
+  set,
+}: {
+  step: Extract<Step, { type: "page" | "review" }>;
+  set: (step: Step) => void;
+}) {
+  const durableRuns = useFeature("durableRuns");
+  if (!durableRuns) {
+    return null;
+  }
+  return (
+    <Section title={t("inspector.who")}>
+      <Select
+        value={step.who ?? "person"}
+        onChange={(v) =>
+          set({ ...step, who: v === "person" ? undefined : (v as "owner" | "team") })
+        }
+        options={[
+          { value: "person", label: t("inspector.who.person") },
+          { value: "owner", label: t("inspector.who.owner") },
+          { value: "team", label: t("inspector.who.team") },
+        ]}
+      />
+      {step.who === "team" ? (
+        <p className="text-[0.75rem] text-ink-3">{t("inspector.whoTeamHint")}</p>
+      ) : null}
+    </Section>
+  );
+}
+
 export function Inspector(props: InspectorProps) {
   const { def, selected, readOnly = false } = props;
   // A read-only wizard takes no change, whatever a control inside still sends.
@@ -1703,6 +1744,7 @@ function StepInspector({
         <StepCost estimate={estimate.data} stepId={step.id} />
       </Section>
       <StepBody def={def} step={step} set={set} files={files} wizardId={wizardId} />
+      {step.type === "page" || step.type === "review" ? <WhoSection step={step} set={set} /> : null}
       {step.type !== "result" ? (
         <NextSection
           def={def}
@@ -1803,6 +1845,8 @@ function branchSources(def: WizardDefinition, step: Step): string[] {
       }
     } else if (s.type === "wait") {
       out.push(...waitOutputRefs(s));
+    } else if (s.type === "review" && s.approve) {
+      out.push(`steps.${s.id}.approved`, `steps.${s.id}.note`);
     }
   }
   out.push(...(def.lists ?? []).map((l) => `lists.${l.id}.count`));

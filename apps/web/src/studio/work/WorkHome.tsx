@@ -1,4 +1,4 @@
-import { MessageSquare, ShieldQuestion } from "lucide-react";
+import { Clock, FileQuestion, MessageSquare, ShieldQuestion } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router";
 import { Mascot } from "../../brand";
@@ -15,8 +15,10 @@ import {
   uploadFiles,
   useCreateChat,
   useDecide,
+  useDecideRun,
   useSidebar,
   useWaiting,
+  type WaitingRun,
 } from "./chats";
 import { usePublishedWizards, useTurnChoices, wizardChatLink } from "./choices";
 import { SpaceFilesDialog } from "./SpaceFilesDialog";
@@ -40,7 +42,12 @@ export function WorkHome() {
   const me = useMe().data;
   const spaceName = space?.name ?? "";
   const chats = (useSidebar(space?.id, "").data?.chats ?? []).filter((c) => !c.archived);
-  const approvals = useWaiting().data?.approvals ?? [];
+  const waiting = useWaiting().data;
+  const approvals = waiting?.approvals ?? [];
+  // Runs of this space: Work's start is the space's, the bell every space's.
+  const runsHere = (runs?: WaitingRun[]) => (runs ?? []).filter((r) => r.spaceId === space?.id);
+  const needsRuns = runsHere(waiting?.runs?.needs);
+  const waitsRuns = runsHere(waiting?.runs?.waits);
   const createChat = useCreateChat();
   const navigate = useNavigate();
   const composer = useRef<ComposerHandle>(null);
@@ -58,7 +65,7 @@ export function WorkHome() {
     .filter((c) => !shown.has(c.id))
     .sort((a, b) => (lastAt(b) > lastAt(a) ? 1 : -1))
     .slice(0, RECENT);
-  const needs = approvals.length + unread.length;
+  const needs = needsRuns.length + approvals.length + unread.length;
   const name = me?.user.name.split(" ")[0] ?? "";
 
   return (
@@ -123,6 +130,9 @@ export function WorkHome() {
         {needs ? (
           <Part label={t("work.home.needsYou")}>
             <div className="grid gap-3 sm:grid-cols-2">
+              {needsRuns.map((r) => (
+                <RunCard key={r.runId} run={r} />
+              ))}
               {approvals.map((a) => (
                 <ApprovalCard
                   key={a.id}
@@ -138,6 +148,17 @@ export function WorkHome() {
                 <UnreadCard key={c.id} chat={c} />
               ))}
             </div>
+          </Part>
+        ) : null}
+
+        {waitsRuns.length ? (
+          <Part label={t("work.home.waits")}>
+            <p className="-mt-1.5 text-[0.8125rem] text-ink-3">{t("work.home.waitsHint")}</p>
+            <ul className="grid">
+              {waitsRuns.map((r) => (
+                <RunLine key={r.runId} run={r} />
+              ))}
+            </ul>
           </Part>
         ) : null}
 
@@ -263,6 +284,90 @@ function ApprovalCard({ approval, chat, may }: { approval: Approval; chat: strin
         </NavLink>
       </div>
     </div>
+  );
+}
+
+/** Where Work opens a run. */
+export const runLink = (run: Pick<WaitingRun, "runId">) => `/work/r/${run.runId}`;
+
+/** Since when and until when a run waits, with whom it is about. */
+export function runFacts(run: WaitingRun) {
+  return [
+    run.about,
+    t("work.home.since", { when: when(run.since) }),
+    run.until ? t("work.home.until", { when: when(run.until) }) : t("work.home.noDeadline"),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** A run that waits for the person: answered in Work, an approval right here. */
+function RunCard({ run }: { run: WaitingRun }) {
+  const decide = useDecideRun(run);
+  const navigate = useNavigate();
+  const Icon = run.kind === "approve" ? ShieldQuestion : FileQuestion;
+  return (
+    <div className={cn(card, run.kind === "approve" && "border-ember/40")}>
+      <div className="flex items-start gap-2.5">
+        <Icon className="mt-0.5 size-4 shrink-0 text-ember" />
+        <div className="grid min-w-0 gap-0.5">
+          <p className="truncate text-[0.75rem] text-ink-3">
+            {run.wizard} · {run.step}
+          </p>
+          {run.detail ? (
+            <p className="line-clamp-3 font-medium text-[0.9375rem] text-ink">{run.detail}</p>
+          ) : null}
+          <p className="truncate text-[0.75rem] text-ink-3">{runFacts(run)}</p>
+        </div>
+      </div>
+      {decide.error ? (
+        <p className="text-[0.8125rem] text-danger">{(decide.error as Error).message}</p>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-2">
+        {run.kind === "approve" ? (
+          <>
+            <Button size="sm" disabled={decide.isPending} onClick={() => decide.mutate(true)}>
+              {t("run.approve")}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={decide.isPending}
+              onClick={() => decide.mutate(false)}
+            >
+              {t("run.decline")}
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" onClick={() => navigate(runLink(run))}>
+            {t(run.kind === "review" ? "work.home.review" : "work.home.answer")}
+          </Button>
+        )}
+        <NavLink to={runLink(run)} className="ml-auto text-[0.8125rem] text-ink-3 hover:text-ink">
+          {t("work.home.open")}
+        </NavLink>
+      </div>
+    </div>
+  );
+}
+
+/** A run that goes on by itself. */
+function RunLine({ run }: { run: WaitingRun }) {
+  return (
+    <li>
+      <NavLink
+        to={runLink(run)}
+        className="-mx-3 flex items-baseline gap-3 rounded-xl px-3 py-2.5 hover:bg-ink/5"
+      >
+        <Clock className="size-3.5 shrink-0 self-center text-ink-4" />
+        <div className="grid min-w-0 flex-1 gap-0.5">
+          <p className="truncate font-medium text-[0.9375rem] text-ink">
+            {run.wizard} · {run.step}
+          </p>
+          <p className="truncate text-[0.8125rem] text-ink-3">{runFacts(run)}</p>
+        </div>
+      </NavLink>
+    </li>
   );
 }
 

@@ -175,6 +175,9 @@ Ask the person this question, then answer_question with their words.
 <!-- section: hint.sign_in -->
 A sign-in: the person types it on the run page (browserUrl).
 
+<!-- section: hint.answered_by -->
+Someone else answers this step (`answeredBy`): the owner of the run, or the people named in the share dialog. Nothing you can answer. The run goes on once they have.
+
 <!-- section: hint.sleeping -->
 The run waits until `until` and goes on by itself. Nothing is needed from the person meanwhile.
 

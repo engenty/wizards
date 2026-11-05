@@ -5,6 +5,7 @@ import { decide, readableIds, subjectsOfPerson } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { personCaller } from "../elements/caller.js";
 import { elementCall } from "../elements/gate.js";
+import { answeringNarrowed, stepOfRun, whoOf } from "../engine/answerers.js";
 import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
 import { tenantInfo } from "../manage.js";
@@ -330,8 +331,11 @@ export async function clientForYou(who: ClientWho, spaceId: string) {
     openWizards(who, parent),
   ]);
   const titles = await titlesOf([...waiting, ...shared].map((r) => r.wizardId));
+  // What the firm's team is asked waits for them, not for the client.
+  const narrowed = await answeringNarrowed();
+  const theirs = waiting.filter((r) => !(narrowed && whoOf(stepOfRun(r)) === "team"));
   return {
-    waiting: waiting.map(resultOf(who, titles)),
+    waiting: theirs.map(resultOf(who, titles)),
     shared: shared.map(resultOf(who, titles)),
     wizards,
   };
