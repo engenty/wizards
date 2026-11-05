@@ -486,7 +486,7 @@ export async function writeDraft(
   if (input.note) {
     await addMessage(w.id, { role: "assistant", content: input.note, changed: true }, writer);
   }
-  emitDraftChanged({
+  await emitDraftChanged({
     wizardId: w.id,
     kind: "draft",
     revision: row.revision,

@@ -398,7 +398,7 @@ export async function syncWizard(
     // The public link lives in the control database, outside the transaction: set on every
     // sync, so one that failed to get there once is there after the next.
     await putLink(row.shareToken, "wizard", wizardId);
-    emitDraftChanged({
+    await emitDraftChanged({
       wizardId,
       kind: "draft",
       revision: row.revision,
