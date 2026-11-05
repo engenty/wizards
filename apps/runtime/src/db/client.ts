@@ -98,6 +98,103 @@ function tenantUrl(id: string, dbUrl: string | null): string {
   return `file:${join(env.dataDir, "tenants", `${id}.db`)}`;
 }
 
+/** How long a write waits for a transaction before it goes ahead and contends for the file itself. */
+const TRANSACTION_WAIT_MS = 5000;
+
+const READ_ONLY = /^\s*(select|pragma|explain)\b/i;
+
+/**
+ * A local file's statements run synchronously. When a write transaction stays open across an
+ * `await` (Mastra's fenced writes: a durable turn makes one per model step) and another write on
+ * this client takes a second connection, SQLite's busy handler spins on the only thread for
+ * `busy_timeout`: the transaction can't go on, and the write fails with SQLITE_BUSY after five
+ * seconds. So a write waits for the transaction here. Reads don't wait: WAL doesn't block them.
+ * A write made from inside a transaction, past `tx`, goes ahead after `TRANSACTION_WAIT_MS`.
+ */
+function gateWrites(client: Client): Client {
+  let open: Promise<void> | null = null;
+  const free = async () => {
+    const until = Date.now() + TRANSACTION_WAIT_MS;
+    while (open) {
+      const left = until - Date.now();
+      if (left <= 0) {
+        return;
+      }
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        open,
+        new Promise((resolve) => {
+          timer = setTimeout(resolve, left);
+        }),
+      ]);
+      clearTimeout(timer);
+    }
+  };
+  const transaction = async (mode?: "write" | "read" | "deferred") => {
+    await free();
+    let settle = () => {};
+    const mine = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    open = mine;
+    const done = () => {
+      if (open === mine) {
+        open = null;
+      }
+      settle();
+    };
+    try {
+      const tx = await client.transaction(mode);
+      return new Proxy(tx, {
+        get(target, prop) {
+          const value = Reflect.get(target, prop);
+          if (prop === "commit" || prop === "rollback" || prop === "close") {
+            return (...args: unknown[]) => {
+              const out = (value as (...a: unknown[]) => unknown).apply(target, args);
+              if (out instanceof Promise) {
+                return out.finally(done);
+              }
+              done();
+              return out;
+            };
+          }
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+    } catch (err) {
+      done();
+      throw err;
+    }
+  };
+  return new Proxy(client, {
+    get(target, prop) {
+      if (prop === "transaction") {
+        return transaction;
+      }
+      const value = Reflect.get(target, prop);
+      if (typeof value !== "function") {
+        return value;
+      }
+      if (
+        prop === "execute" ||
+        prop === "batch" ||
+        prop === "executeMultiple" ||
+        prop === "migrate"
+      ) {
+        return (...args: [never]) => {
+          const statement = args[0] as string | { sql?: string };
+          const sql = typeof statement === "string" ? statement : statement?.sql;
+          const reads = prop === "execute" && sql !== undefined && READ_ONLY.test(sql);
+          return open && !reads
+            ? free().then(() => (value as (...a: [never]) => unknown).apply(target, args))
+            : (value as (...a: [never]) => unknown).apply(target, args);
+        };
+      }
+      return value.bind(target);
+    },
+  });
+}
+
 function isBusy(err: unknown): boolean {
   for (let e = err; e; e = (e as { cause?: unknown }).cause) {
     if (String((e as { code?: unknown }).code ?? "").startsWith("SQLITE_BUSY")) {
@@ -176,7 +273,9 @@ async function openTenantNow(id: string): Promise<Db> {
     row = (await controlDb.query.tenant.findFirst({ where: eq(control.tenant.id, id) }))!;
   }
   const url = tenantUrl(id, row.dbUrl);
-  const client = open(url, url.startsWith("file:") ? "" : env.tenantDbAuthToken);
+  const local = url.startsWith("file:");
+  const opened = open(url, local ? "" : env.tenantDbAuthToken);
+  const client = local ? gateWrites(opened) : opened;
   clients.set(id, client);
   const db = makeTenantDb(client);
   // Every database is brought to the current schema when it is first opened.

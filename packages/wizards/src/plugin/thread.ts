@@ -253,6 +253,7 @@ const NO_WORDS = new Set(["nein", "no", "n", "nö", "nope", "false"]);
 type PageWaiting = Extract<PluginRunWaiting, { page: string }>;
 type ReviewWaiting = Extract<PluginRunWaiting, { review: string }>;
 type AskWaiting = Extract<PluginRunWaiting, { ask: string }>;
+type QuestionWaiting = Extract<PluginRunWaiting, { question: string }>;
 
 type Taken = { kind: "value"; value: unknown } | { kind: "again"; hint: string } | { kind: "wait" };
 
@@ -552,6 +553,8 @@ export class ThreadDoor {
       await this.page(thread, w, msg);
     } else if ("review" in w) {
       await this.review(thread, report, w, msg);
+    } else if ("question" in w) {
+      await this.question(thread, w, msg);
     } else {
       await this.ask(thread, w, msg);
     }
@@ -943,6 +946,27 @@ export class ThreadDoor {
           { id: "r:redo", title: say(s.lang, "reviewRedo") },
         ],
       });
+    }
+  }
+
+  /** A step asks in words: the next message is the answer. */
+  private async question(
+    thread: Thread,
+    w: QuestionWaiting,
+    msg: ThreadInbound | null,
+  ): Promise<void> {
+    const s = thread.state;
+    const key = `question:${w.question}`;
+    const answer = msg?.text?.trim();
+    if (s.said === key && answer) {
+      await this.o.runs.answerQuestion(thread.runId!, answer);
+      s.said = null;
+      await this.after(thread);
+      return;
+    }
+    if (s.said !== key || msg) {
+      s.said = key;
+      await this.send(thread, { kind: "text", text: w.question });
     }
   }
 

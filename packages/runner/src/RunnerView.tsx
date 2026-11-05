@@ -20,7 +20,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AskPanel } from "./AskPanel.js";
+import { AskPanel, QuestionPanel } from "./AskPanel.js";
 import { DataEditor, editableData, StudioData } from "./data.js";
 import {
   disableNotify,
@@ -433,6 +433,46 @@ function Working({
       </div>
       {compact ? null : <NotifyToggle />}
       {awake ? <p className="mt-3 text-[0.75rem] text-ink-4">{t("run.awake")}</p> : null}
+    </div>
+  );
+}
+
+/** Above a step's question: which step it is, and what it had done up to there. */
+function AskedAt({ view, compact }: { view: RunView; compact?: boolean }) {
+  const { Mascot } = runnerEnv();
+  const started = [...view.events]
+    .reverse()
+    .find((ev) => ev.type === "step_started" && ev.stepId === view.step?.id);
+  const since = started ? new Date(started.at).getTime() - 500 : 0;
+  const trail = view.events
+    .filter(
+      (ev) =>
+        (ev.type === "tool" || ev.type === "info") &&
+        ev.stepId === view.step?.id &&
+        new Date(ev.at).getTime() >= since &&
+        ev.note?.code !== "turnAsked",
+    )
+    .slice(-3);
+  return (
+    <div className="mb-8 flex animate-rise flex-col items-center text-center">
+      <Mascot
+        kind={view.wizard.avatar}
+        costume={view.wizard.costume}
+        size={compact ? 90 : 110}
+        fluffy
+      />
+      <h2 className="wizard-heading mt-2 font-display font-semibold text-[1.25rem] tracking-tight">
+        {view.step?.title}
+      </h2>
+      {trail.length ? (
+        <div className="mt-3 flex w-full max-w-sm flex-col gap-1">
+          {trail.map((ev) => (
+            <div key={ev.id} className="truncate text-[0.8125rem] text-ink-4">
+              {eventText(ev)}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -946,6 +986,13 @@ export function RunnerBody({
   let body: React.ReactNode = null;
   if (view.status === "running" && view.ask) {
     body = <AskPanel key={view.ask.id} runId={view.id} ask={view.ask} />;
+  } else if (view.status === "waiting_input" && view.question) {
+    body = (
+      <>
+        <AskedAt view={view} compact={compact} />
+        <QuestionPanel key={view.question} runId={view.id} question={view.question} />
+      </>
+    );
   } else if (view.status === "running") {
     body = <Working view={view} compact={compact} awake={awake} />;
   } else if (view.status === "sleeping" || view.status === "waiting_signal") {

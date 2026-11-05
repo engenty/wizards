@@ -11,6 +11,7 @@ import {
   ListTable,
   LiveBrowser,
   OutputView,
+  QuestionPanel,
   StoreButton,
   textHints,
   useDoneSignal,
@@ -1663,6 +1664,24 @@ export function ChatBody({
               bot(`ask:${view.ask.id}`, <AskPanel runId={view.id} ask={view.ask} />, {
                 wide: true,
               }),
+            ]}
+          />
+          <Idle />
+        </>
+      );
+    } else if (waiting && view.question) {
+      body = (
+        <>
+          <Thread
+            avatar={view.wizard.avatar}
+            costume={view.wizard.costume}
+            lines={[
+              ...before,
+              bot(
+                `question:${view.question}`,
+                <QuestionPanel runId={view.id} question={view.question} />,
+                { wide: true },
+              ),
             ]}
           />
           <Idle />

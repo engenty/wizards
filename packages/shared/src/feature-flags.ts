@@ -194,8 +194,8 @@ export const FEATURES = {
   durableRuns: {
     kind: "release",
     default: false,
-    label: "Runs that wait for days",
-    hint: "Wait steps: a run leaves every process, and a clock or a signal wakes it. A deadline on automatic steps. What a step did outside happens once. Retries over time and onFail; out of credits waits for a top-up.",
+    label: "Runs that last days",
+    hint: "Runs that wait for days and survive a restart: a clock or a signal wakes them, and a deadline holds automatic steps. What a step did outside happens once, an AI step goes on where it was and can stop to ask a person. Retries over time and onFail; out of credits waits for a top-up.",
   },
   startTriggers: {
     kind: "release",

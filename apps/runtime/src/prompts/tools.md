@@ -8,6 +8,11 @@ returns and when to use it.
 
 <!-- Technical: engineering owns everything below. -->
 
+<!-- A durable step (engine/durable-turn.ts) -->
+
+<!-- section: tool.ask_person -->
+Ask the person running the wizard a question and go on with their answer. The step stops until they answer, which can take days, and costs nothing meanwhile. Ask only what you cannot find out or decide yourself. One clear question at a time, in the language of the wizard. Returns { answer }.
+
 <!-- Web: search, fetch, HTTP (tools/index.ts) -->
 
 <!-- section: tool.web_search -->
