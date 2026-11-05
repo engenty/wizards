@@ -376,14 +376,22 @@ A step started again must not do its outside work twice: the mail sent, the orde
 
 ### Retries
 
+`engine/failures.ts` sorts errors, on the shapes the AI SDK and the gateways really throw. An unclear
+error is not retried.
+
 | Error | Retried | How |
 |---|---|---|
-| A provider's 429, 5xx, timeout, network | 3 times, after 1, 5, 30 minutes | the run goes `sleeping` with `wake_at`; no retry loop in memory |
-| A model refusal, a content rule, invalid output after its own retry | no | `onFail` or `failed` |
-| Out of credits | no | `waiting_input` with `waiting.kind = "credits"`; the owner tops up and it goes on |
-| A connection that needs signing in again | no | `waiting_input` for the connection's owner |
+| A provider's 429, 5xx, timeout, network | 3 times, after 1, 5, 30 minutes, or its `Retry-After` up to 6 hours | `sleeping` with `wake_at` and `state.pause = { kind: "retry" }`; the count is `state.retries`; no retry loop in memory |
+| A model refusal, a content rule, invalid output, a 4xx, anything unclear | no | `onFail` or `failed` |
+| Out of credits | no | `sleeping` with `state.pause = { kind: "credits" }`; it looks at the reservation every 5 minutes, so a top-up goes on by itself; after 30 days `failed` |
+| A connection that needs signing in again | no | the same with `{ kind: "sign_in", service }` |
+| Any of these after the step did something out there (`RunResources.acted`) | no, but a refused sign-in | `onFail` or `failed`; a retry starts the step from the top and would do it again. A person can still choose "try again" |
 
-`retry(runId)` (exists) starts the failed step again by hand.
+The two waits for a person sleep rather than go to `waiting_input`: `waiting_input` means a page or
+a review is on screen, and a sleeping run already holds no slot and no credits and survives a
+restart. The clock is what notices a top-up, so nothing has to tell the runtime about it.
+
+`retry(runId)` (exists) starts the failed step again by hand, with every try anew.
 
 ## The clock and incoming signals
 

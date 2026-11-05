@@ -7,7 +7,7 @@ import {
   shownFields,
   stepShape,
 } from "@engenty/wizards-shared/definition";
-import { note, type RunView, type StepOutput } from "@engenty/wizards-shared/run";
+import { note, type RunPause, type RunView, type StepOutput } from "@engenty/wizards-shared/run";
 import {
   ArrowLeft,
   ArrowRight,
@@ -300,13 +300,19 @@ function NotifyToggle() {
 }
 
 /** The heading of a run that waits for a time: the day and the hour it goes on, as the person reads them. */
-export function goesOnText(wakeAt: string | null): string {
+export function goesOnText(wakeAt: string | null, pause?: RunPause | null): string {
+  if (pause?.kind === "credits") {
+    return t("run.waitsCredits");
+  }
+  if (pause?.kind === "sign_in") {
+    return t("run.waitsSignIn", { service: pause.service });
+  }
   if (!wakeAt) {
     return t("run.goesOnSoon");
   }
   const when = new Date(wakeAt);
   const code = runnerLangCode();
-  return t("run.goesOn", {
+  return t(pause?.kind === "retry" ? "run.retryAt" : "run.goesOn", {
     date: new Intl.DateTimeFormat(code, { weekday: "long", day: "numeric", month: "long" }).format(
       when,
     ),
@@ -321,7 +327,7 @@ function Sleeping({ view, compact }: { view: RunView; compact?: boolean }) {
     <div className="flex animate-rise flex-col items-center pt-6 text-center">
       <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={compact ? 130 : 170} />
       <h2 className="wizard-heading mt-4 font-display font-semibold text-[1.375rem] tracking-tight">
-        {goesOnText(view.wakeAt)}
+        {goesOnText(view.wakeAt, view.pause)}
       </h2>
       <p className="mt-2 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
     </div>

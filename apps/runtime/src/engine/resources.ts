@@ -55,6 +55,8 @@ export class RunResources {
   private scope: StoreScope | null = null;
   /** Changes the person allowed for the rest of this run, as "<connection>:<action>". */
   readonly allowed = new Set<string>();
+  /** This try of the step did something that may not be repeated; the runner resets it per try. */
+  acted = false;
   private watchers = new Set<BrowserWatcher>();
   private cast: { page: Page; session: CDPSession } | null = null;
   /** The latest picture of the page, for a watcher who comes in between two changes. */

@@ -12,6 +12,8 @@ interface RunRow {
   status: string;
   label: string | null;
   wakeAt: string | null;
+  /** A person has to act first when this is `credits` or `sign_in`. */
+  pause: "retry" | "credits" | "sign_in" | null;
   version: number | null;
   createdAt: string;
   credits: number;
@@ -95,11 +97,15 @@ export function RunsPanel({
               <div className="truncate text-[0.8125rem] text-ink-2">{r.label}</div>
             ) : null}
             <div className="truncate text-[0.75rem] text-ink-3">
-              {r.status === "sleeping" && r.wakeAt
-                ? t("runs.status.sleepingUntil", { time: fmt.format(new Date(r.wakeAt)) })
-                : STATUS[r.status]
-                  ? t(STATUS[r.status])
-                  : r.status}
+              {r.pause === "credits"
+                ? t("runs.status.waitsCredits")
+                : r.pause === "sign_in"
+                  ? t("runs.status.waitsSignIn")
+                  : r.status === "sleeping" && r.wakeAt
+                    ? t("runs.status.sleepingUntil", { time: fmt.format(new Date(r.wakeAt)) })
+                    : STATUS[r.status]
+                      ? t(STATUS[r.status])
+                      : r.status}
               {r.stepTitle && r.status !== "done" ? ` · ${r.stepTitle}` : ""}
             </div>
           </div>
