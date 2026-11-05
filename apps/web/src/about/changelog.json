@@ -1,7 +1,41 @@
 [
   {
+    "version": "v0.16.2",
+    "timestamp": 1793905693,
+    "commits": [
+      {
+        "id": "380a289",
+        "message": "wait steps and the minute clock, behind durableRuns (#496)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "a8bda45",
+        "message": "several runs now go on at once, and a run no longer loses a wake-up or writes after another runner took it over (#495)",
+        "group": "Fixed",
+        "scope": "runner",
+        "breaking": false
+      },
+      {
+        "id": "b17f3f5",
+        "message": "a Wissen search answers in about a second, also while Ollama indexes (#493)",
+        "group": "Performance",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "ba0a275",
+        "message": "documentation updates (#490, #491)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.16.1",
-    "timestamp": 1793558922,
+    "timestamp": 1793559172,
     "commits": [
       {
         "id": "2cacfa3",
