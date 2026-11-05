@@ -338,14 +338,15 @@ describe("a signal and a run that waits", () => {
     expect((await row(runId))?.status).toBe("cancelled");
   });
 
-  it("a refusal of credits on waking fails the run past its wait", async () => {
+  it("a refusal of credits on waking lets the run wait for them past its wait", async () => {
     const { runId, spaceId } = await start([listening(), agent("after"), end]);
     expect(await rests(runId)).toBe(true);
     hold.answer = false;
     await inside(spaceId);
-    expect(await hasStatus(runId, "failed")).toBe(true);
+    expect(await hasStatus(runId, "sleeping")).toBe(true);
     hold.answer = true;
     const r = await row(runId);
+    expect(r?.state.pause).toEqual({ kind: "credits" });
     expect(r?.cursor).toBe("after");
     expect(r?.state.outputs.reply?.json).toMatchObject({ came: true });
     expect(await waitRow(runId)).toBeUndefined();
