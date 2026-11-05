@@ -1,7 +1,9 @@
 # Plan: fast creation and pages without waiting
 
 Status: plan, nothing built. From the review of ChatGPT's Intelligent UI on 2026-10-29, checked
-against `feat/work-mode` (v0.13.0, Work mode, spaces, model tiers) on 2026-10-30.
+against `feat/work-mode` (v0.13.0, Work mode, spaces, model tiers) on 2026-10-30. Part 4, the
+order and the fit with durable runs corrected on 2026-11-05, against `main` and the local branch
+`claude/durable-runs-combined` (762d1a6c), by reading the code. Nothing is measured yet.
 
 Scope: a new wizard shows its first page about two seconds after the wish, and a run moves from
 page to page without waiting on the server. The definition stays JSON and stays at version 2:
@@ -33,7 +35,7 @@ first page early, the whole flow while the person already reads.
 | Cost | Where |
 |---|---|
 | The High class with reasoning unless the person turned extra effort off (`extra === false` → Standard): it thinks before it writes | `runArchitect` in `apps/runtime/src/agents/architect.ts`, through `chatModel` and the space's model tier |
-| A system prompt of about 60 KB (about 15k tokens): the whole authoring guide, the surface catalog, an example wizard | `systemPrompt()` in `agents/architect.ts`, `apps/runtime/src/prompts/authoring.md` (54 KB) |
+| A system prompt of about 60 KB (about 15k tokens): the whole authoring guide, the surface catalog, an example wizard | `systemPrompt()` in `agents/architect.ts`, `apps/runtime/src/prompts/authoring.md` (56 KB) |
 | An agent loop of up to 45 steps: write, read the validator's issues, write again; widget, download and `check_widget` rounds | `MAX_STEPS` in `agents/architect.ts`, `how_you_work` in `apps/runtime/src/prompts/architect.md` |
 | Nothing on screen before `replace_wizard` is complete: the editor refetches on `change` | `apps/runtime/src/routes/wizard-stream.ts` |
 | On a computer with an AI client: the CLI starts per turn, then `get_authoring_guide`, `get_wizard`, then the write | `subscriptionTurn` in `apps/runtime/src/agents/subscription.ts`, called from `apps/runtime/src/services/architect.ts` |
@@ -492,7 +494,12 @@ while half-written. The text form takes that, without the JavaScript.
 | `<Agent id="concept" model="standard">instructions</Agent>` | `{ "type": "agent", "instructions": … }` |
 | `<Output format="json"><Text id="summary" /></Output>` | `output.fields` |
 | `<Widget id="map" />` | a widget step; its HTML and sample.json stay files the architect writes |
+| `<Wait id="remind" for="3d" />` | a wait step, as built in #496 |
 | `<Result>message</Result>` | `{ "type": "result", "message": … }` |
+
+Rule 1 carries what durable runs add (`signal`, `onFail`, `durable`, later `who` and `timeout`):
+they are keys, so they need no design here. Starts stay outside the definition, so the text form
+has none.
 
 ### The configurator in the text form
 
@@ -543,7 +550,7 @@ For a new wizard, before the architect.
 2. The prompt is short: the text form's rules, the tag signatures generated from the schemas
    (name, attributes, one line on what it is for), two or three worked examples. About 3k
    tokens instead of 15k. New: `packages/shared/src/catalog-prompt.ts`, so the list cannot fall
-   behind the schema.
+   behind the schema. It leaves out what a switch keeps off: `<Wait>` only with `durableRuns`.
 3. Every chunk goes through `parseWizardText(…, { partial: true })`. Each step that completes is
    saved to the draft; the editor and the test run show it at once (the existing `change`
    event on the wizard's stream).
@@ -551,7 +558,8 @@ For a new wizard, before the architect.
    the label), duplicate ids, a missing `result` step, a `next` to an unknown step (dropped), a
    `look` that does not fit (dropped). What remains goes to the architect.
 5. The architect runs in the background on the wizard that now exists: the issues left, widgets,
-   connectors, downloads, images. The step it works on shows "being prepared"; the person can
+   connectors, downloads, images, and starts where the switch is on (the architect gets those
+   tools with durable runs' PR 7). The step it works on shows "being prepared"; the person can
    already go through the pages.
 
 On a computer that thinks through an AI client (Claude Code, Codex, Cursor), the CLI starts
@@ -568,37 +576,84 @@ holds a copy so it can show a change at once and move to the next page without w
 run ahead of the server for a moment and then syncs: the server saves every change right after,
 checks it again and, where it disagrees, its state wins. Both, always; the browser alone, never.
 
-Three kinds of event, told apart from the definition alone:
+Three kinds of event, told apart from the definition and the run:
 
 | Kind | Examples | The person waits on | Saved on the server |
 |---|---|---|---|
 | Local | typing, a slider, a `when` on the same page, `calc`, a view's `Choice`, a checklist tick | nothing | within a second (below) |
-| Run | a page answered, back, the next page | nothing | at once, retried until the server confirms |
+| Run | a page answered, back, the next page | nothing | at once, one after the other, until the server confirms |
 | AI | a decided branch (`ask`), decided fields, an agent step, a connector call, `regenerate` | the server | it runs there |
 
-A new function in `packages/shared/src/definition.ts`:
+### First: the shortcut on the server
+
+Today `submitPage` always writes `running` and calls `kick`, even when the next step is a page. A
+runner then claims the run, and `drive()` does nothing but write `waiting_input`. A process
+without a runner (the studio, the doors) leaves that to the next look, every 2 s (`POLL_MS`).
+
+The shortcut: when the next step needs no runner, `submitPage` writes `waiting_input` and the new
+cursor in its one update, and does not call `kick`. Every client gets this, the chat runner and
+MCP included, and it needs no state in the browser.
 
 ```ts
-/**
- * The step a run goes to after this page, when the browser can know it: the rules hold or fail
- * on the answers alone and the next step is a page, a review or the result whose fields need
- * no decision. Null when the server must decide.
- */
+/** A step a run reaches with no runner: a page or review nothing has to decide or fill first. */
+export function needsNoRunner(step: Step, run: { startedBy: string | null }): boolean;
+```
+
+The slow path stays for:
+
+- anything but a page or a review: an AI step, a `wait`, the result (`drive()` ends the run);
+- a page with decided fields (`isDecidedField`): `drive()` decides them as the run arrives;
+- a run begun by a start (`run.startedBy`, which comes with durable runs' PR 7): `drive()` fills
+  its pages through `passStep`, with nobody there;
+- a decided branch (`state.deciding`);
+- later, a page or review with `who`, `timeout` or `remind`, which need a wake time.
+
+`pushRun` stays in `drive()`: it tells a phone in a pocket that a step that ran is over. A person
+who has just answered is looking.
+
+### Then: the next page in the browser
+
+The browser does not have the definition. `RunView` carries the current `step` only, and the whole
+definition must not reach a public link, because it holds the AI steps' instructions. So the
+server sends what the browser may do alone:
+
+```diff
+ export interface RunView {
+   …
++  /** Goes up with every write to the run: tells a late event from a new one. */
++  rev: number;
++  /** What was typed on this page and not sent yet (`run.unsent`), for who may answer it. */
++  unsent?: Record<string, unknown>;
++  /** The plain pages the run can reach from here without the server, by step id. */
++  ahead?: Record<string, { step: PageStep; next: { when?: When; goto: string }[] }>;
+ }
+```
+
+`next` is written out, "otherwise" and the next step in the list included. The server writes the
+pages as it writes the current one, in the viewer's language.
+
+A page goes into `ahead` when all of this holds:
+
+- `needsNoRunner` holds;
+- it needs nothing only the server has: no `pageNeeds`, `optionsFrom`, `cards` or `prefill`, and no
+  `connection`, `list` or `slot` field;
+- the rules leading to it read this run's answers only: no `ask`, no `max`, nothing from `steps.`
+  or `lists.`.
+
+Reviews and the result never go into it: they show outputs, and a result never shows on answers
+the server has not confirmed.
+
+```ts
+/** The next page, when `ahead` says which; null when the server must decide. */
 export function nextInBrowser(
-  def: WizardDefinition,
+  ahead: NonNullable<RunView["ahead"]>,
   stepId: string,
   values: Record<string, unknown>,
-  loops: Record<string, number>,
 ): string | null;
 ```
 
-The runner calls it when a page is answered. With a step id it shows that page at once and
-sends the answers with `submitPage` (`POST /api/runs/:id/pages/:stepId`, `submitPage` in
-`apps/runtime/src/engine/runner.ts`) without waiting. The server runs `followRules` again. When
-it lands somewhere else, its `cursor` (the run's column in `apps/runtime/src/db/schema.ts`) wins
-and the runner shows the server's page. Back goes through `history` in the browser the same way.
-
-With null, the runner waits as today.
+The runner calls it when a page is answered. With a step id it shows that page at once and sends
+the answers in the background. With null, the runner waits as today.
 
 ### Saving
 
@@ -608,35 +663,50 @@ the browser, more happens before the server hears of it, so saving becomes expli
 
 | What | How it reaches the server | Kept in |
 |---|---|---|
-| Answers being typed | `PUT /api/runs/:id/pages/:stepId/unsent`, 800 ms after the last change and when the tab is hidden | `RunState.unsent[stepId]` (new) |
-| A page answered | `POST /api/runs/:id/pages/:stepId` at once, with a sequence number; retried until confirmed | `values`, `history` and the run's `cursor`, as today |
+| Answers being typed | `PUT /api/runs/:id/pages/:stepId/unsent`, 800 ms after the last change and when the tab is hidden | `run.unsent` (new column) |
+| A page answered | `POST /api/runs/:id/pages/:stepId` with a sequence number, one at a time; retried until confirmed | `values`, `history` and the run's `cursor`, as today |
 | View state (a `Choice`, a checklist tick) | `PUT /api/runs/:id/views/:stepId`, 800 ms after the last change and when the tab is hidden | `outputs[step].view`, as today |
 | A first-pass step (Part 3) | saved to the draft as soon as its tag closes | the wizard's draft, as today |
 
 ```diff
- export interface RunState {
-   values: Record<string, unknown>;
-+  /**
-+   * Answers typed on a page and not sent yet, by page: a reload or another device shows them
-+   * again. Dropped when the page is sent.
-+   */
-+  unsent?: Record<string, Record<string, unknown>>;
-   outputs: Record<string, StepOutput>;
+ // apps/runtime/src/db/schema.ts, the run table
+     state: text("state", { mode: "json" }).$type<RunState>().notNull(),
++    /** Answers typed on a page and not sent yet, by page. No part of `state`, and no `rev`. */
++    unsent: text("unsent", { mode: "json" }).$type<Record<string, Record<string, unknown>>>(),
 ```
+
+`unsent` is a column of its own, for three reasons:
+
+- `submitPage` only writes while `rev` is unchanged. Typing that bumps `rev` every 800 ms would make
+  it fail with `runBusy`.
+- `drive()` writes the whole `state` back, which would drop what was typed meanwhile.
+- `PUT /views` answers 409 while a run is `running`. Answers being typed must save in any status.
+
+Saving it changes neither `state` nor `rev`. `submitPage` clears the page's entry in its own
+update. No step reads it, so unchecked text from a guest never reaches a model.
 
 How the runner keeps the promise:
 
-- **In order, once.** Each page sent carries a sequence number. The server applies them in
-  order and takes the same one twice as once, so a retry never answers a page twice.
+- **In order, once.** The runner sends one page at a time and waits for the answer before the
+  next. `requireWaiting` refuses a page while the run is `running`, so this works only with the
+  shortcut, and `ahead` holds only pages the shortcut covers. Each page carries a sequence number,
+  kept as `RunState.pagesSent`. A retry of a number the run already has answers as done, where it
+  would otherwise get `pageOutdated`.
 - **Not lost when the tab closes.** On `pagehide` the runner sends what is still open with
   `fetch(…, { keepalive: true })`. At most the last moment of typing can be lost.
 - **Shown, not claimed.** The next page shows before the server confirms. When it has not
   confirmed after two seconds, the runner says "Saving …"; when it cannot reach the server, it
   says the answers are not saved yet and keeps trying. It never shows a result or starts an AI
   step on answers the server has not confirmed.
+- **A late event does not pull the person back.** `useRun` replaces the whole view on every event.
+  While pages are in flight it keeps them apart from what arrives. A confirmed page answers with
+  its `rev`, and a view older than that is dropped.
 - **The server's state wins.** When the server refuses a page (an answer it finds invalid, a run
   that moved on in another tab or device), the runner loads the run again and shows the
   server's page. What was typed stays in `unsent`.
+- **View state waits its turn.** `writeRunState` also needs an unchanged `rev`, so a view's save can
+  make a review's answer fail, and the other way round. The runner sends what is open first, and
+  tries again on 409 once the run waits.
 - **The server is the record.** A runner always starts from the run on the server. Browser
   storage keeps nothing of its own; what is in flight lives in memory until confirmed. Another
   tab, another device, the runtime's MCP tools (`get_run`) and Work chats all read the same run.
@@ -674,11 +744,13 @@ Run it with saving, files and results: https://engenty.ai/w/<token>
 | pages, fields, looks, sections, `when`, `calc` | saving and coming back later |
 | choices, decided branches (ChatGPT decides them itself) | files, connectors, lists, connections |
 | the last AI step, as the message built from the answers | review, regenerate, downloads, widgets |
+| | `wait`, events, starts: a preview has no clock |
 
 It costs nothing to run for us, it needs no ChatGPT app, and the link at the end leads to the
 full wizard. What ChatGPT draws is a preview, not a run: nothing of it is saved on our server,
-so it is never offered as the wizard itself. The same text works as a prompt in other chats
-that build interfaces.
+so it is never offered as the wizard itself. A `wait` or an event goes in as one sentence ("Here
+the wizard waits three days"), and the link leads to the real run. The same text works as a prompt
+in other chats that build interfaces.
 
 Where: the studio's share dialog (`apps/web/src/studio/editor/ShareDialog.tsx`, "Copy for
 ChatGPT") and a new CLI command `wizards export --chatgpt <wizard>`
@@ -693,53 +765,82 @@ The studio is changing course in two ways, each with its own plan:
   it), with sources, connectors and plugins. The text form (Part 2) and the catalog prompt
   (Part 3) are how the model writes a wizard fast; they do not change how it finds a space's
   skills or tools. The architect's background turn (Part 3, step 5) is where those come in.
-- **Wizards become durable, long-running agents with a workflow and a human in the loop.** A
-  parallel plan covers that (`docs/plans/durable-agents.md`; the name may differ when it lands).
+- **Wizards become durable, long-running agents with a workflow and a human in the loop.**
+  `docs/plans/durable-agents.md` covers that, and it is being built now.
+
+Where the durable work stood on 2026-11-05:
+
+| PRs | What | State |
+|---|---|---|
+| 0, 1 | runner line, `wait` steps and the minute clock | on `main` (#495, #496) |
+| 3 | outside actions run once | open (#498) |
+| 2, 3, 4, 5, 7, 9, 11 | timeline, outside actions, durable agent steps, signals, starts, telling people, retries and `onFail` | together on the local branch `claude/durable-runs-combined`, not pushed |
+| | `who`, `timeout`, `remind` and `approve` on pages and reviews | not built, and no session has them |
+
+Its PR numbers are not those of the durable plan's list.
 
 Where the two plans meet:
 
 | | This plan | The durable-agents plan |
 |---|---|---|
 | State | On the server as the source of truth; the browser runs ahead and syncs (Part 4) | The same rule, for runs that last days |
-| Waiting | Page to page, in a second or two: nothing the person waits on, `nextInBrowser` | Long waits: a person's approval, a signal, a time; how a run sleeps and wakes |
+| Waiting | Page to page: no wait for a runner, then nothing the person waits on (`nextInBrowser`) | Long waits: a person's approval, a signal, a time; how a run sleeps and wakes |
 | Human in the loop | Pages and views a person fills in a session | Asking someone later, reminders, hand-overs |
 | What the model does at run time | Selects, never writes (`dynamic-flow.md`) | Decided there |
 
-This plan leaves the durable and waiting design to that plan. It only asks that a run which
-waits long still keeps `unsent` answers and view state on the server, so a page opened days later
-looks as it was left.
+This plan leaves the durable and waiting design to that plan. It asks three things of it:
+
+- A run that waits long keeps `unsent` answers and view state on the server, so a page opened days
+  later looks as it was left. `unsent` counts as a change for a waiting run's retention.
+- `who`, `timeout` and `remind`, when they come, take the slow path in Part 4, and `unsent` goes
+  only to who may answer that page. Nothing here waits for them.
+- `durable-agents.md`'s "With the fast-creation plan" says `RunState.typed`; it should say
+  `run.unsent`. That file is being edited on the combined branch, so the fix belongs there.
 
 ## Order
 
-Behind a switch `fastCreate` (registered in `packages/shared/src/feature-flags.ts`, set in
-`.features`) until Part 3 is done.
+Creation first: it is the largest gap, and the durable work barely touches it. What changes
+`submitPage` comes after the combined branch lands, because that branch rewrites much of
+`engine/runner.ts`.
+
+The first pass stays behind a switch `fastCreate` (registered in
+`packages/shared/src/feature-flags.ts`, set in `.features`) until it is done.
 
 1. **Measure.** Log per architect turn: time to the first token, reasoning, each tool round,
-   fix rounds, total; on the cloud and on a computer with each AI client. Seen in
-   `debug_logs`. This sets the baseline for the targets.
-2. **Pages without waiting.** 1a, 1b, 1c and Part 4: looks, sections, `calc`, saving typed
-   answers, `nextInBrowser`. Saving lands before `nextInBrowser`, in the same release. No model
-   change; every existing wizard gets faster between pages and keeps what was typed.
-3. **One catalog.** 1d and 1e: page components, `Choice`, `Toggle`, `Slider`, view state.
-4. **The text form.** Part 2: parse, print, the round trip over `examples/wizards`.
-5. **The fast first pass.** Part 3, behind `fastCreate`.
-6. **Copy for ChatGPT.** Part 5; needs only step 4.
+   fix rounds, total; on the cloud and on a computer with each AI client. Log page to page as well.
+   Seen in `debug_logs`. This sets the baseline for the targets.
+2. **The text form.** Part 2, on today's format: parse, print, the round trip over
+   `examples/wizards`. Keys are generic, so later additions need no new parser. Until 1c and 1d an
+   expression a condition cannot say is an issue, and Markdown in a page is not offered.
+3. **The fast first pass.** Part 3, behind `fastCreate`. It touches the same `agents/architect.ts`
+   as durable runs' PR 7 (starts tools): built on it once it lands. It writes plain pages until
+   step 6, so this step brings the speed and not yet the richer pages.
+4. **Copy for ChatGPT.** Part 5; needs only step 2.
+5. **The shortcut on the server.** Part 4, after the combined branch. It is small, and every client
+   gets it.
+6. **The format.** 1a, 1b, 1c: looks, sections, `calc`. Then 1d and 1e: page components, `Choice`,
+   `Toggle`, `Slider`, view state.
+7. **The next page in the browser.** Part 4: first `run.unsent` and saving what is typed, which is
+   worth having alone, then `rev`, `ahead`, `nextInBrowser`. Needs step 5.
 
 ## Changes by file
 
 | File | Change |
 |---|---|
-| `packages/shared/src/definition.ts` | field `min`/`max` widened, `increment`, `unit`, `look`; `section` on steps; `components` and `data` on pages; `whenSchema` with `calc`; `nextInBrowser`; validator issues |
+| `packages/shared/src/definition.ts` | field `min`/`max` widened, `increment`, `unit`, `look`; `section` on steps; `components` and `data` on pages; `whenSchema` with `calc`; `needsNoRunner`, `nextInBrowser`; validator issues |
 | `packages/shared/src/calc.ts` | new: the expression language, parser, evaluator, names |
 | `packages/shared/src/surface.ts` | `Field` on pages (`name` only), `CHAT_ONLY` without it; `Choice`, `Toggle`, `Slider`; `calc` and `as` in `bound` and `worded`; validator by place |
-| `packages/shared/src/run.ts` | `RunState.unsent`; comment on `StepOutput.view` |
+| `packages/shared/src/run.ts` | `RunView.rev`, `unsent`, `ahead`; `RunState.pagesSent`; comment on `StepOutput.view` |
+| `apps/runtime/src/db/schema.ts`, a tenant migration | `run.unsent` |
+| `apps/runtime/src/services/runs.ts` | the view: `rev`, `unsent` for who may answer, `ahead` |
 | `packages/shared/src/feature-flags.ts` | `fastCreate` |
-| `apps/runtime/src/routes/runs.ts` | `PUT /:id/pages/:stepId/unsent`; sequence numbers on `POST /:id/pages/:stepId` |
-| `apps/runtime/src/engine/runner.ts` | `submitPage`: sequence numbers, drops `unsent[stepId]` |
+| `apps/runtime/src/routes/runs.ts` | `PUT /:id/pages/:stepId/unsent`; sequence numbers and `rev` on `POST /:id/pages/:stepId` |
+| `apps/runtime/src/engine/runner.ts` | `submitPage`: the shortcut, sequence numbers, clears `unsent[stepId]` |
 | `packages/shared/src/wizard-text.ts` | new: `parseWizardText`, `printWizardText` |
 | `packages/shared/src/catalog-prompt.ts` | new: tag signatures from the schemas |
 | `packages/runner/src/fields.tsx` | slider, stepper, list looks |
-| `packages/runner/src/RunnerView.tsx` | sections in the progress bar; page components; advance in the browser |
+| `packages/runner/src/RunnerView.tsx` | sections in the progress bar; page components; advance in the browser; saves what is typed |
+| `apps/web/src/runner/useRun.ts` | pages in flight, one at a time; drops a view older than the last confirmed `rev` |
 | `packages/runner/src/surface.tsx` | `Field`, `Choice`, `Toggle`, `Slider`; `calc` props; view state saved |
 | `apps/runtime/src/services/architect.ts` | the fast first pass before the architect; deterministic fixes |
 | `apps/runtime/src/agents/architect.ts` | timing log; background turn after the first pass |
@@ -752,6 +853,8 @@ Behind a switch `fastCreate` (registered in `packages/shared/src/feature-flags.t
 
 ## Open questions
 
+- When do `who`, `timeout`, `remind` and `approve` come, and from which session? Asked of the
+  durable work on 2026-11-05. The slow path above is ready for them either way.
 - Does the architect also write the text form for edits, or keep `edit_wizard` on JSON?
   Printing makes both possible; one form for both is simpler for the model.
 - Can a CLI kept open reach two seconds on a computer with Claude Code, Codex or Cursor, or does
