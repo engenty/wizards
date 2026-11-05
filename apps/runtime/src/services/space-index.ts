@@ -5,7 +5,9 @@ import type { KnowledgeHit, KnowledgeSearch, Where } from "@engenty/wizards-shar
 import { embedMany } from "ai";
 import {
   and,
+  asc,
   eq,
+  gt,
   inArray,
   isNotNull,
   isNull,
@@ -168,7 +170,7 @@ async function writeUnits(scope: SQL, units: Unit[]) {
     );
   }
   if (units.some((u) => u.kind && !pictures.has(pictureKey(u)))) {
-    queuePictures();
+    queueVectors();
   }
 }
 
@@ -604,34 +606,97 @@ export async function flushIndex() {
     await working;
   }
   await working;
-  await picturesRunning;
+  await vectorsRunning;
 }
 
-// --- pictures -----------------------------------------------------------------------------
+// --- vectors in the background ------------------------------------------------------------
 // A picture's vector comes after its unit: a picture of a PDF page takes a second or more to
-// make and embed, and the index of a page someone types in must not wait for it. Tenant after
-// tenant, file after file, units without a vector of the embedding model at hand.
+// make and embed, and the index of a page someone types in must not wait for it. A text's comes
+// with its unit, unless the model failed, none was set up then, or another one is now: on a
+// Manage-App's runtime the binding changes without a word to the runtime. Tenant after tenant,
+// units without a vector of the embedding model at hand.
 
-const picturesWaiting = new Set<string>();
-let picturesRunning: Promise<void> | null = null;
+const vectorsWaiting = new Set<string>();
+let vectorsRunning: Promise<void> | null = null;
 
-/** Gives the pictures of the tenant at hand their vectors, soon. */
-export function queuePictures() {
-  picturesWaiting.add(currentTenant());
-  if (picturesRunning) {
+/** Gives the units of the tenant at hand the vectors they lack, soon. */
+export function queueVectors() {
+  vectorsWaiting.add(currentTenant());
+  if (vectorsRunning) {
     return;
   }
-  picturesRunning = (async () => {
-    while (picturesWaiting.size) {
-      const [tenant] = picturesWaiting;
-      picturesWaiting.delete(tenant);
-      await withTenant(tenant, embedPictures).catch((err) =>
-        console.error("[space-index] pictures", err),
-      );
+  vectorsRunning = (async () => {
+    while (vectorsWaiting.size) {
+      const [tenant] = vectorsWaiting;
+      vectorsWaiting.delete(tenant);
+      await withTenant(tenant, async () => {
+        await embedTexts();
+        await embedPictures();
+      }).catch((err) => console.error("[space-index] vectors", err));
     }
   })().finally(() => {
-    picturesRunning = null;
+    vectorsRunning = null;
   });
+}
+
+/** Texts sent at once: a search's question waits behind them in a busy Ollama. */
+const TEXT_BATCH = 32;
+
+/** The vectors of the text units that lack one of the model at hand. */
+async function embedTexts() {
+  const resolved = await embeddingModel().catch(() => null);
+  if (!resolved) {
+    return;
+  }
+  // Past a batch that failed: the next round tries it again.
+  let after = 0;
+  let inRow = 0;
+  const started = Date.now();
+  let done = 0;
+  for (;;) {
+    const todo = await db
+      .select({ id: schema.spaceChunk.id, text: schema.spaceChunk.text })
+      .from(schema.spaceChunk)
+      .where(
+        and(
+          isNull(schema.spaceChunk.kind),
+          gt(schema.spaceChunk.id, after),
+          or(isNull(schema.spaceChunk.model), ne(schema.spaceChunk.model, resolved.ref)),
+        ),
+      )
+      .orderBy(asc(schema.spaceChunk.id))
+      .limit(TEXT_BATCH);
+    if (!todo.length) {
+      break;
+    }
+    after = todo[todo.length - 1].id;
+    try {
+      const embedded = await embed(todo.map((u) => u.text));
+      if (!embedded) {
+        break;
+      }
+      // A unit written again in the meantime has a new id, and its vector already.
+      for (const [i, u] of todo.entries()) {
+        await db
+          .update(schema.spaceChunk)
+          .set({ embedding: vectorBytes(embedded.vectors[i]), model: embedded.model })
+          .where(eq(schema.spaceChunk.id, u.id));
+      }
+      done += todo.length;
+      inRow = 0;
+    } catch (err) {
+      // The model is not there or not working: the next round tries again.
+      if (++inRow >= 3) {
+        console.error("[space-index] embedding texts failed", (err as Error).message);
+        break;
+      }
+    }
+  }
+  if (done) {
+    console.log(
+      `[space-index] embedded ${done} texts with ${resolved.ref} in ${Math.round((Date.now() - started) / 1000)} s`,
+    );
+  }
 }
 
 /** The pictures of the bytes `hash`, by page (0: a picture file itself), made when asked for. */
@@ -1431,8 +1496,8 @@ export async function reindexAll() {
 
 /**
  * What the index lacks, added at start: image, video and sound assets it does not hold yet; where
- * the embedding model takes pictures, the picture files and PDFs without picture units, and the
- * pictures without a vector of the model at hand.
+ * the embedding model takes pictures, the picture files and PDFs without picture units; and the
+ * units without a vector of the model at hand.
  */
 export async function indexMissingAssets() {
   const rows = await db.all<{ id: string; kind: string; mime: string }>(sql`
@@ -1442,6 +1507,7 @@ export async function indexMissingAssets() {
   for (const row of rows.filter(indexedFile)) {
     queueIndex(`f:${row.id}`);
   }
+  queueVectors();
   if (!(await embeddingModel().catch(() => null))?.embedImage) {
     return;
   }
@@ -1453,5 +1519,4 @@ export async function indexMissingAssets() {
   for (const row of unseen.filter(indexedFile)) {
     queueIndex(`f:${row.id}`);
   }
-  queuePictures();
 }
