@@ -16,6 +16,7 @@ import { answerAsk } from "../engine/asks.js";
 import { emitEvent, recentEvents, watchRun } from "../engine/events.js";
 import { fieldErrorsIn } from "../engine/input.js";
 import {
+  answerTurn,
   cancel,
   createRun,
   goBack,
@@ -290,6 +291,13 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
   if (run.status !== "waiting_input" || !current) {
     return undefined;
   }
+  if (run.state.turn?.question && run.state.turn.stepId === current.id) {
+    return {
+      question: run.state.turn.question,
+      title: current.title,
+      hint: prompt("mcp", "hint.question"),
+    };
+  }
   if (current.type === "page") {
     // What the page knows from before it, the choices its fields take from data, the fields a
     // decision kept: a field left out here is not asked, as the run page leaves it out.
@@ -543,6 +551,12 @@ export async function answerRunAsk(
   if (!(await answerAsk(runId, askId, answer === "allow" ? { type: "done" } : { type: "skip" }))) {
     throw new ServiceError("refused", { code: "askClosed" });
   }
+}
+
+/** Answers what a durable step asked: its turn goes on with that. */
+export async function answerRunQuestion(userId: string, runId: string, answer: string) {
+  await ownedRun(userId, runId);
+  await answerTurn(runId, answer).catch(refusedInput);
 }
 
 /**

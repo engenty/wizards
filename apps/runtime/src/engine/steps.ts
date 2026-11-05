@@ -50,6 +50,7 @@ import {
   attachTools,
   costOf,
   isHarnessVendor,
+  keepsOwnLoop,
   type ResolvedModel,
   takesTools,
   textModel,
@@ -66,6 +67,7 @@ import { skillsBlock, skillsOf } from "../tools/skills.js";
 import { personUploads, type UploadRef } from "../tools/store.js";
 import { runWidgetStep } from "../widgets/step.js";
 import { decide } from "./decide.js";
+import { durableTurn, turnContext, turnOf } from "./durable-turn.js";
 import { prepareInputs } from "./prepare.js";
 import { runSurfaceStep } from "./surface.js";
 import {
@@ -229,17 +231,10 @@ export function ownJson(
 const MAX_FOUND = 40;
 
 /**
- * Runs a json step's agent as a stream and reports each entry of a top-level list once it is
- * complete in the JSON the agent is writing: "Rezepte: Shakshuka mit Feta". Returns what
- * `generate` would: the text, the steps and the usage.
+ * Reports each entry of a top-level list once it is complete in the JSON the agent is writing:
+ * "Rezepte: Shakshuka mit Feta". Fed with the text as it comes.
  */
-async function streamWithProgress(
-  agent: Agent,
-  message: Parameters<Agent["stream"]>[0],
-  options: { maxSteps: number; abortSignal: AbortSignal },
-  step: AgentStep,
-  ctx: StepContext,
-): Promise<{ text: string; steps?: { text?: string }[]; usage?: unknown; totalUsage?: unknown }> {
+function foundLines(step: AgentStep, ctx: StepContext) {
   const shape = outputSchema(step).shape;
   const reported = new Map<string, number>();
   let told = 0;
@@ -281,14 +276,12 @@ async function streamWithProgress(
       }
     }
   };
-  const stream = await agent.stream(message, options);
   // A model that answers in one piece (a local client) has nothing to report while it writes:
   // its entries come with the result.
   let whole = false;
-  for await (const chunk of stream.fullStream as AsyncIterable<any>) {
-    const payload = chunk.payload ?? chunk;
-    if (chunk.type === "text-delta") {
-      const delta: string = payload.text ?? payload.delta ?? "";
+  return {
+    written: () => written,
+    text: async (delta: string) => {
       whole ||= delta.length > 2_000;
       written += delta;
       // Parsing the growing answer every few hundred characters is enough to keep up.
@@ -296,13 +289,31 @@ async function streamWithProgress(
         checked = written.length;
         await report();
       }
+    },
+  };
+}
+
+/** Runs a json step's agent as a stream, with `foundLines`. Returns what `generate` would: the text, the steps and the usage. */
+async function streamWithProgress(
+  agent: Agent,
+  message: Parameters<Agent["stream"]>[0],
+  options: { maxSteps: number; abortSignal: AbortSignal },
+  step: AgentStep,
+  ctx: StepContext,
+): Promise<{ text: string; steps?: { text?: string }[]; usage?: unknown; totalUsage?: unknown }> {
+  const found = foundLines(step, ctx);
+  const stream = await agent.stream(message, options);
+  for await (const chunk of stream.fullStream as AsyncIterable<any>) {
+    const payload = chunk.payload ?? chunk;
+    if (chunk.type === "text-delta") {
+      await found.text(payload.text ?? payload.delta ?? "");
     } else if (chunk.type === "error") {
       throw payload.error ?? new Error("step stream error");
     }
   }
   const s = stream as any;
   return {
-    text: (await s.text) ?? written,
+    text: (await s.text) ?? found.written(),
     steps: await s.steps,
     usage: await s.usage,
     totalUsage: await s.totalUsage,
@@ -609,7 +620,16 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     makerClass: step.maker ? classIdOf(step, "standard") : undefined,
   });
   const uploads = await personUploads(ctx);
-  const { tools, assets, instructions } = await buildStepTools(step, ctx, resolved, uploads);
+  // An installed client or the run's device keeps its tool loop in a process of its own: nothing
+  // of it could go on elsewhere, so such a step runs as a step without `durable`.
+  const going = turnOf(ctx.state, step.id);
+  const turn = going && !keepsOwnLoop(resolved) ? going : undefined;
+  const { tools, assets, instructions } = await buildStepTools(
+    step,
+    turn ? turnContext(ctx, turn) : ctx,
+    resolved,
+    uploads,
+  );
   // A step written for the sandbox on a run without one works on in text: said in the run's log.
   if (step.tools.includes("sandbox") && !ctx.resources.sandboxCapabilities()) {
     await ctx.emit("info", { code: "noSandbox" });
@@ -672,13 +692,9 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     return decideStep(step, request, ctx);
   }
 
-  const agent = new Agent({
-    id: `step-${step.id}`,
-    name: step.title,
-    instructions: system,
-    model: agentModel(resolved),
-    tools,
-  });
+  if (going && !turn) {
+    await ctx.emit("info", { code: "noDurable" });
+  }
   // Working through a mailbox or a row of portals takes many small tool calls.
   const maxSteps = step.tools.includes("browser") || step.connections?.length ? 60 : 20;
   for (const [i, photo] of photos.entries()) {
@@ -700,12 +716,36 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
         },
       ]
     : request;
-  // A json step streams, so the person sees its entries as they are written (`found`).
-  const result =
-    step.output.format === "json"
-      ? await streamWithProgress(agent, message, { maxSteps, abortSignal: ctx.signal }, step, ctx)
-      : await agent.generate(message, { maxSteps, abortSignal: ctx.signal });
-  await ctx.chargeUsd(costOf(resolved, await totalUsage(result)));
+  let result: { text?: string; steps?: unknown };
+  if (turn) {
+    const end = await durableTurn(turn, ctx, {
+      instructions: system,
+      model: agentModel(resolved),
+      tools,
+      assets,
+      message,
+      maxSteps,
+      // Each model step is booked as it ends: a crash neither repeats nor loses the ones before it.
+      onStepUsage: (usage) => ctx.chargeUsd(costOf(resolved, usage)),
+      onText: step.output.format === "json" ? foundLines(step, ctx).text : undefined,
+    });
+    assets.splice(0, assets.length, ...end.assets);
+    result = { text: end.text, steps: [{ text: end.closing }] };
+  } else {
+    const agent = new Agent({
+      id: `step-${step.id}`,
+      name: step.title,
+      instructions: system,
+      model: agentModel(resolved),
+      tools,
+    });
+    // A json step streams, so the person sees its entries as they are written (`found`).
+    result =
+      step.output.format === "json"
+        ? await streamWithProgress(agent, message, { maxSteps, abortSignal: ctx.signal }, step, ctx)
+        : await agent.generate(message, { maxSteps, abortSignal: ctx.signal });
+    await ctx.chargeUsd(costOf(resolved, await totalUsage(result)));
+  }
   // `result.text` strings together what the model said between tool calls ("I open the page …").
   // A written result is its last message; structuring keeps everything, numbers may sit anywhere.
   const closing = String((result as any).steps?.at?.(-1)?.text ?? "").trim();

@@ -94,7 +94,8 @@ interface RunReport {
     | { page: string; title: string; fields: RunField[] }
     | { review: string; title: string; show: string[]; editable: boolean }
     | { ask: string; kind: "confirm"; reason: string; service: string; action: string }
-    | { ask: string; kind: "login"; reason: string; site: string };
+    | { ask: string; kind: "login"; reason: string; site: string }
+    | { question: string; title: string };
   error: string | null;
   credits: number;
   events: { step: string | null; type: string; message: string }[];
@@ -538,6 +539,35 @@ export class Fallback extends Component<
   }
 }
 
+/** What a step asks in words: the answer goes back through `answer_question`. */
+function QuestionForm({
+  question,
+  busy,
+  onAnswer,
+}: {
+  question: string;
+  busy: boolean;
+  onAnswer: (answer: string) => void;
+}) {
+  const [answer, setAnswer] = useState("");
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="font-medium text-[0.8125rem]">{question}</div>
+      <Textarea minRows={2} value={answer} onChange={(e) => setAnswer(e.target.value)} />
+      <div>
+        <Button
+          size="sm"
+          busy={busy}
+          disabled={!answer.trim()}
+          onClick={() => onAnswer(answer.trim())}
+        >
+          {t("question.send")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** The wizard as it greets a person on its own page, its flow one click away. */
 function WizardIntro({ view, onStart }: { view: FlowView; onStart: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
@@ -671,6 +701,15 @@ function RunPanel({
           })
         }
         open={open}
+      />
+    );
+  } else if (waiting && "question" in waiting) {
+    body = (
+      <QuestionForm
+        key={waiting.question}
+        question={waiting.question}
+        busy={busy}
+        onAnswer={(answer) => act("answer_question", { answer, waitSeconds: 3 })}
       />
     );
   } else if (waiting && "ask" in waiting) {

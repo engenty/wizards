@@ -46,7 +46,7 @@ import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { and, eq, lt, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
-import { enterVisit } from "../broker/effect.js";
+import { effectsOn, enterVisit } from "../broker/effect.js";
 import { grantNote, grantOf, type KnownConnector, kindOf } from "../broker/index.js";
 import { runHolder, subjectsOf } from "../broker/rwx.js";
 import { resolveConnector } from "../connectors/external.js";
@@ -103,6 +103,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { askPerson, clearStaleAsk } from "./asks.js";
 import { decide } from "./decide.js";
 import { clearDeviceCalls } from "./device.js";
+import { newTurn, TurnAsks } from "./durable-turn.js";
 import { emitEvent, recentEvents, signalChanged } from "./events.js";
 import { type InputError, type PageContext, readPageInput } from "./input.js";
 import { pushRun } from "./push.js";
@@ -518,7 +519,10 @@ async function driveClaimed(
     void withTenant(tenant, () => reportRun(runId, "running")).catch(() => undefined);
     void withTenant(tenant, () => loadRun(runId))
       .then((run) => {
-        if (run && (run.status !== "running" || run.claim !== generation)) {
+        if (run && run.claim !== generation) {
+          // Not a cancel: the turn of a durable step belongs to the runner that has the run now.
+          abort.abort("stop");
+        } else if (run && run.status !== "running") {
           abort.abort();
         }
         if (run && !longHoldReported && Date.now() - heldSince >= LONG_HOLD_MS) {
@@ -637,7 +641,8 @@ export function startRunner() {
 export async function stopRunner() {
   stopping = true;
   for (const abort of active.values()) {
-    abort.abort();
+    // A stop, not a cancel: a durable turn stays where it is for the next runner.
+    abort.abort("stop");
   }
   await disownRuns().catch(() => undefined);
 }
@@ -752,6 +757,7 @@ export async function makeContext(
     emit:
       own.emit ?? ((type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset)),
     call: { runId: run.id, stepId },
+    saveState: () => updateRun(run.id, { state }),
     chargeUsd: (usd) => addLocalCost(run.id, stepId, usd),
     saveAsset: (input) =>
       saveAsset({
@@ -1015,7 +1021,20 @@ async function drive(runId: string, signal: AbortSignal) {
     const space = await loadSpace(run);
     const state = structuredClone(run.state);
     try {
-      if (await enterVisit(step, state)) {
+      let changed = await enterVisit(step, state);
+      // A durable turn's id is on the row before it starts, so whoever goes on finds it.
+      if (
+        step.type === "agent" &&
+        step.durable &&
+        !step.call &&
+        !step.each &&
+        state.turn?.stepId !== step.id &&
+        (await effectsOn())
+      ) {
+        state.turn = newTurn(runId, step.id);
+        changed = true;
+      }
+      if (changed) {
         await updateRun(runId, { state });
       }
       const ctx = await makeContext(run, space, state, signal);
@@ -1046,6 +1065,7 @@ async function drive(runId: string, signal: AbortSignal) {
       delete state.notes[step.id];
       delete state.redo?.[step.id];
       delete state.visiting;
+      delete state.turn;
       const cursor = await advance(run, step.id, state);
       await updateRun(runId, { state, cursor, status: cursor ? "running" : "done", error: null });
       const masked = takeMasked(runId, step.id);
@@ -1059,6 +1079,17 @@ async function drive(runId: string, signal: AbortSignal) {
       }
       if (err instanceof LostClaim) {
         throw err;
+      }
+      if (err instanceof TurnAsks) {
+        // The turn stopped for a person: its conversation is stored and no runner holds anything.
+        await syncRunCost(runId);
+        await updateRun(runId, { state, status: "waiting_input" });
+        await emitEvent(runId, step.id, "info", {
+          code: "turnAsked",
+          params: { question: err.question.slice(0, 200) },
+        });
+        void pushRun(runId, "asks");
+        return;
       }
       console.error(`[run ${runId} step ${step.id}]`, err);
       await noteFreeTierRefusal(err);
@@ -1152,6 +1183,28 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
   state.history.push(stepId);
   const cursor = await advance(run, stepId, state);
   await updateRun(runId, { state, cursor, status: "running", error: null }, run);
+  kick(runId);
+}
+
+/** The person answers what a durable step asked: its turn goes on with that, on any runner. */
+export async function answerTurn(runId: string, answer: string) {
+  const run = await loadRun(runId);
+  if (!run) {
+    throw new RunConflict("Run not found");
+  }
+  const turn = run.state.turn;
+  if (run.status !== "waiting_input" || !turn?.question || run.cursor !== turn.stepId) {
+    throw new RunConflict({ code: "askClosed" });
+  }
+  const words = answer.trim().slice(0, 10_000);
+  // A guest's words are held to the same rules as their answers on a page.
+  if (guestRun(run) && (await guestChecksOn())) {
+    await checkGuestText({ text: words });
+  }
+  const state = structuredClone(run.state);
+  state.turn = { ...turn, answer: words };
+  await updateRun(runId, { state, status: "running", error: null }, run);
+  await emitEvent(runId, turn.stepId, "info", { code: "turnAnswered" });
   kick(runId);
 }
 
@@ -1283,6 +1336,7 @@ export async function goBack(runId: string) {
   // A decision that failed belongs to the step left behind, and so does a visit that stopped.
   delete state.deciding;
   delete state.visiting;
+  delete state.turn;
   await updateRun(runId, { state, cursor: previous, status: "waiting_input", error: null }, run);
 }
 
@@ -1291,7 +1345,10 @@ export async function retry(runId: string) {
   if (run?.status !== "failed") {
     throw new RunConflict("Nothing to retry");
   }
-  await updateRun(runId, { status: "running", error: null }, run);
+  // A turn that failed has dropped its snapshot: the step starts over with a new one.
+  const state = structuredClone(run.state);
+  delete state.turn;
+  await updateRun(runId, { state, status: "running", error: null }, run);
   kick(runId);
 }
 
@@ -1501,6 +1558,7 @@ export async function runView(
     ),
     brand,
     ask: run.status === "running" ? run.ask : null,
+    question: run.status === "waiting_input" ? (run.state.turn?.question ?? null) : null,
     lists,
     connections:
       step?.type === "page" && step.fields.some((f) => f.kind === "connection")

@@ -61,6 +61,8 @@ export interface StepContext {
   ask(ask: AskInput): Promise<AskResult | null>;
   /** Run and step every model call of this step is made for. */
   call: CallMeta;
+  /** Writes `state` to the run's row, for what must outlive this process in the middle of a step. */
+  saveState(): Promise<void>;
   /** Adds provider cost to the run where the runtime resolves models itself; the gateway books the rest. */
   chargeUsd(usd: number): Promise<void>;
   saveAsset(input: Omit<SaveAssetInput, "runId">): Promise<AssetRef>;

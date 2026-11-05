@@ -21,8 +21,11 @@ import type { Where } from "./call.js";
  * - A fixed `call` step: `<run>:<step>:<visit>`. It makes one call per visit, and the visit is
  *   counted on the run before it acts (`enterVisit`).
  *
- * No other call has an identity: a plugin's own calls, and a program's, which can make any number
- * of them under the one tool call id of `execute_typescript`.
+ * - A program's call in a durable turn: the program's tool call id, what it calls with what input,
+ *   and how often it did so before (`toolCallIdOf`). A crash repeats the whole program, and each of
+ *   its writes finds its row. A program that changes its input, say with the time, acts again.
+ *
+ * No other call has an identity: a plugin's own calls.
  */
 
 /** Which call this is, as far as the caller knows. */
@@ -48,7 +51,8 @@ export async function effectIdOf(where: Where, call?: EffectCall): Promise<strin
   return id && (await effectsOn()) ? id : null;
 }
 
-async function effectsOn(): Promise<boolean> {
+/** Whether what a run does is made to last: the switch of this whole plan. */
+export async function effectsOn(): Promise<boolean> {
   return feature("durableRuns", await remoteFeatures().catch(() => null));
 }
 

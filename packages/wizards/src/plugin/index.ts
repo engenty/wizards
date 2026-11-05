@@ -1055,7 +1055,9 @@ export type PluginRunWaiting =
       input: string;
       hint: string;
     }
-  | { ask: string; kind: "login"; reason: string; site: string; hint: string };
+  | { ask: string; kind: "login"; reason: string; site: string; hint: string }
+  /** An AI step stopped to ask the person something; `answerQuestion` goes on with their words. */
+  | { question: string; title: string; hint: string };
 
 /** What a run did so far, as the MCP tools report it: outputs with signed links, cost, errors. */
 export interface PluginRunReport {
@@ -1139,6 +1141,8 @@ export interface PluginRuns {
   review(runId: string, stepId: string, action: PluginReviewAction): Promise<void>;
   /** A running step asks before it changes something in a connected account: allow it once, or skip. */
   answerAsk(runId: string, askId: string, answer: "allow" | "skip"): Promise<void>;
+  /** An AI step stopped to ask the person something: goes on with their words. */
+  answerQuestion(runId: string, answer: string): Promise<void>;
   control(runId: string, action: "back" | "retry" | "cancel"): Promise<void>;
   /** Hears every change of the run until the function returned is called. */
   subscribe(runId: string, listener: (signal: PluginRunSignal) => void): () => void;

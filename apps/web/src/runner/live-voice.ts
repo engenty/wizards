@@ -65,6 +65,12 @@ export function stateText(view: RunView, page: PageBinding | null, camera = fals
     );
     return lines.join("\n");
   }
+  if (view.question) {
+    lines.push(
+      `question: "${view.question}"; ask the person, then answer_question with their words`,
+    );
+    return lines.join("\n");
+  }
   if (view.status === "running") {
     const latest = [...view.events]
       .reverse()
@@ -352,6 +358,16 @@ export function useLiveVoice(
               type: args.allow ? "done" : "skip",
             });
             return args.allow ? "allowed" : "skipped";
+          } catch (err) {
+            return `refused: ${(err as Error).message}`;
+          }
+        case "answer_question":
+          if (!v?.question) {
+            return "no question is open";
+          }
+          try {
+            await api.post(`/api/runs/${runId}/question`, { answer: String(args.answer ?? "") });
+            return "answered";
           } catch (err) {
             return `refused: ${(err as Error).message}`;
           }

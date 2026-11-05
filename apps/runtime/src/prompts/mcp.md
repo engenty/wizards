@@ -11,7 +11,7 @@ descriptions stay in the code.
 
 <!-- section: instructions -->
 engenty wizards: page-by-page AI wizards — the person answers pages, AI steps write, research and make images or videos, the person reviews, the result is files.
-Use one: list_wizards, then run_wizard straight away — its widget shows the wizard itself (show_wizard only when the person wants to see a wizard before running it), then follow waitingFor (answer_page, review_step, answer_ask, get_run with waitSeconds). Runs spend credits.
+Use one: list_wizards, then run_wizard straight away — its widget shows the wizard itself (show_wizard only when the person wants to see a wizard before running it), then follow waitingFor (answer_page, review_step, answer_ask, answer_question, get_run with waitSeconds). Runs spend credits.
 Build one: get_authoring_guide (schema + design rules), a close starter with get_starter, create_wizard, edit_wizard until "issues" is empty, check with start_test_run + get_test_run. Publish only when the person asks.
 A result on a wizard may list "present": people and other agents in that wizard now. Nobody is locked out; when people are editing, tell your user before larger changes.
 When a run needs the browser, hand over its browserUrl, the wizard's own run page. The studioUrl is for building only: never send someone who uses a wizard to the studio.
@@ -87,6 +87,7 @@ Start it right away — no show_wizard first: the widget shows the wizard's page
 - page: ask the person for the fields with inChat=true, in order, answer_page; fields with inChat=false (files, recordings, signatures) need the run page at browserUrl. A field with a when is asked only while its condition holds on the answers so far (shown says so for what is known now); fields the wizard decided against are not listed
 - review: show the outputs, then review_step
 - ask: answer_ask (allow/skip a change in a connected account) or the run page for a sign-in
+- question: a step asks the person something: answer_question with their words
 While status is running, get_run with waitSeconds. Hosts with MCP Apps also show the run as a widget the person can answer in.
 
 <!-- section: tool.get_run -->
@@ -97,6 +98,9 @@ Fill the page a run waits for: field id → value (items: an array of row object
 
 <!-- section: tool.review_step -->
 Answer the review a run waits for: accept (optionally with edited texts, step id → text, when the review is editable) or regenerate one step it shows, with a note what to change.
+
+<!-- section: tool.answer_question -->
+An AI step stopped to ask the person something (waitingFor.question). Ask them, then send their answer in their words: the step goes on with it. The run waits until then, for days if it has to.
 
 <!-- section: tool.answer_ask -->
 A running step asks before it changes something in a connected account (waitingFor.ask, kind confirm): allow it once, or skip it. Ask the person first.
@@ -151,6 +155,9 @@ This was interrupted and may have happened in ${service} already. Do it again?
 
 <!-- section: hint.confirm_again -->
 This was interrupted and may have happened already. Ask the person to check, then answer_ask: allow does it again, skip leaves it.
+
+<!-- section: hint.question -->
+Ask the person this question, then answer_question with their words.
 
 <!-- section: hint.sign_in -->
 A sign-in: the person types it on the run page (browserUrl).

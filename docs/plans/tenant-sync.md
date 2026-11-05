@@ -290,7 +290,7 @@ install (tenant "local")                     cloud runtime (tenant <org>)
 | The wizard's store | `store_holder`, `store_row`, `store_file`, `store_secret` | per person (`u:local` and `v:<visitor>`), and secrets are sealed per side |
 | A space's connected accounts | `plugin_connection` | sealed per side; connect again on each side |
 | Plugins' own tables | `plugin_migration` and the tables of the plugins' SQL files | unknown meaning and integer ids; a later opt-in per plugin |
-| Runs and results, test and live, on both sides | `run`, `run_event`, `run_cost`, `share_job`, `device_call`, the assets with a `run_id`, `DATA_DIR/films`; `run_index` and the `result` links in the control database | decided: runs stay where they ran; they hold end users' answers, and their working state belongs to the process that holds the run |
+| Runs and results, test and live, on both sides | `run`, `run_event`, `run_cost`, `run_effect`, `share_job`, `device_call`, the assets with a `run_id`, `DATA_DIR/films`, a durable step's `mastra_workflow_snapshot` and `mastra_workflow_run_owners`; `run_index` and the `result` links in the control database | decided: runs stay where they ran; they hold end users' answers, and their working state belongs to the process that holds the run |
 | Control database | `link`, `run_index`, `session`, `runner`, `ui_translation`, `marketplace_cache`, `plugin_*` | each side writes its own when it applies rows |
 
 **Per organization (Manage-App, read on both sides, never synced):** plan, `limits` (`projects`,

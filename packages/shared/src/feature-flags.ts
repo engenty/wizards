@@ -189,7 +189,7 @@ export const FEATURES = {
     kind: "release",
     default: false,
     label: "Runs that last days",
-    hint: "Runs that wait for days and survive a restart: what a step did outside happens once.",
+    hint: "Runs that wait for days and survive a restart: what a step did outside happens once, and an AI step goes on where it was and can stop to ask a person.",
   },
   ownKeys: {
     kind: "plan",

@@ -58,6 +58,7 @@ import { fromOwner } from "../engine/owner.js";
 import { pushAvailable, setPushDevice } from "../engine/push.js";
 import { liveResources } from "../engine/resources.js";
 import {
+  answerTurn,
   cancel,
   createRun,
   editOutput,
@@ -1176,6 +1177,22 @@ export const runRoutes = new Hono()
       .parse(await c.req.json());
     if (!(await answerAsk(run.id, c.req.param("askId"), answer))) {
       return refuse(c, { code: "askClosed" }, 409);
+    }
+    return c.json({ ok: true });
+  })
+  // --- a durable step stopped to ask the person --------------------------------
+  .post("/:id/question", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!run) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const { answer } = z
+      .object({ answer: z.string().trim().min(1).max(10_000) })
+      .parse(await c.req.json());
+    try {
+      await answerTurn(run.id, answer);
+    } catch (err) {
+      return commandError(c, err);
     }
     return c.json({ ok: true });
   })

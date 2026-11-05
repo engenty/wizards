@@ -2940,6 +2940,9 @@
                   "each": {
                     "type": "string"
                   },
+                  "durable": {
+                    "type": "boolean"
+                  },
                   "working": {
                     "type": "string"
                   }

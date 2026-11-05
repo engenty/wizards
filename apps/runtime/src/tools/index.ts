@@ -169,7 +169,10 @@ export async function buildStepTools(
           where: whereOf(ctx),
           url: safe,
           method,
-          effect: { turn: ctx.turn, toolCallId: toolCallIdOf(context) },
+          effect: {
+            turn: ctx.turn,
+            toolCallId: toolCallIdOf(context, "http_request", { method, url, headers, json }),
+          },
           ask: ctx.ask,
           handler: async (idempotencyKey) => {
             await ctx.emit("tool", `${method} ${safe.hostname}${safe.pathname}`);

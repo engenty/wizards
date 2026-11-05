@@ -767,6 +767,12 @@ export const agentStepSchema = z.object({
    * The output is a table: the entry's columns and the step's output fields, one row per entry.
    */
   each: z.string().optional(),
+  /**
+   * The step keeps its conversation: after a crash or a deploy it goes on at the call it was at,
+   * and it can stop to ask a person with no process waiting. Needs a model an API serves; not with
+   * `browser` or `sandbox`, `each` or `call`.
+   */
+  durable: z.boolean().optional(),
   working: z.string().optional(),
 });
 
@@ -1625,6 +1631,23 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
           }
         } else if (!step.instructions.trim()) {
           issues.push({ stepId: step.id, message: "An AI step needs instructions." });
+        }
+        if (step.durable) {
+          // What a turn had open is gone when it goes on: a browser's page, a sandbox's files.
+          for (const tool of ["browser", "sandbox"] as const) {
+            if (step.tools.includes(tool)) {
+              issues.push({
+                stepId: step.id,
+                message: `A durable step can't use "${tool}": what it has open is gone when the step goes on after an interruption.`,
+              });
+            }
+          }
+          if (step.each || step.call) {
+            issues.push({
+              stepId: step.id,
+              message: `"durable" does nothing on a step with "${step.each ? "each" : "call"}": it has no conversation to keep.`,
+            });
+          }
         }
         for (const c of step.connections ?? []) {
           if (!connectionIds.has(c)) {
