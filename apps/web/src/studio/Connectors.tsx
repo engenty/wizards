@@ -1,4 +1,5 @@
 import type {
+  ActionKindChoice,
   ConnectorView,
   ImportRequest,
   RegistryHit,
@@ -12,7 +13,8 @@ import { api } from "../lib/api";
 import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
 import { keys } from "../lib/keys";
-import { askConfirm, Button, Card, Chip, cn, IconButton, Input, Spinner } from "../ui";
+import { askConfirm, Button, Card, Chip, cn, IconButton, Input, Spinner, Tabs } from "../ui";
+import { ActionKinds, ConnectorByAddress } from "./ConnectorByAddress";
 
 /** A connector the product ships with: ready, or waiting for the server's OAuth client. */
 function Builtin({ connector }: { connector: ConnectorView }) {
@@ -87,21 +89,38 @@ function Imported({
   const base = `/api/studio/spaces/${spaceId}/connectors/${connector.id}`;
   const refresh = useMutation({ mutationFn: () => api.post(`${base}/refresh`), onSuccess: done });
   const remove = useMutation({ mutationFn: () => api.del(base), onSuccess: done });
+  // What an action does, as an admin says it: the rules of every connection on it go by it.
+  const kind = useMutation({
+    mutationFn: (change: { id: string; choice: ActionKindChoice }) =>
+      api.patch<ConnectorView>(`${base}/actions`, { actions: { [change.id]: change.choice } }),
+    onSuccess: (view) => {
+      qc.setQueryData<ConnectorView[]>(keys.connectors(spaceId), (old) =>
+        old?.map((c) => (c.id === view.id ? view : c)),
+      );
+      void qc.invalidateQueries({ queryKey: ["space-connections", spaceId] });
+    },
+  });
   const reads = connector.actions.filter((a) => a.group === "read").length;
   return (
     <div className="rounded-lg bg-paper ring-1 ring-border-soft">
-      <div className="flex items-center gap-3 p-3">
+      {/* On a phone the buttons go below the name. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-paper-2 text-ink-2">
           <Plug className="size-4" />
         </div>
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="min-w-0 flex-1 text-left"
+          className="min-w-0 flex-1 basis-44 text-left"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="truncate font-medium text-[0.875rem]">{connector.name}</span>
             <span className="font-mono text-[0.6875rem] text-ink-4">{connector.id}</span>
+            {connector.fromAddress ? (
+              <Chip tone="warn" title={t("connectors.uncheckedHint")}>
+                {t("connectors.unchecked")}
+              </Chip>
+            ) : null}
           </div>
           <div className="truncate text-[0.75rem] text-ink-3">
             {connector.domain} · {connector.sourceKind === "mcp" ? "MCP" : "OpenAPI"} ·{" "}
@@ -120,7 +139,7 @@ function Imported({
           </div>
         </button>
         {readOnly ? null : (
-          <>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             {onSetUp ? (
               <Button size="sm" variant="secondary" onClick={() => onSetUp(connector.id)}>
                 {t("capabilities.connectors.setUp")}
@@ -143,7 +162,7 @@ function Imported({
             >
               <Trash2 className="size-4" />
             </IconButton>
-          </>
+          </div>
         )}
       </div>
       {connector.needsOAuthClient ? (
@@ -151,12 +170,29 @@ function Imported({
           {t("connectors.needsClient")}
         </p>
       ) : null}
-      {(refresh.error ?? remove.error) ? (
+      {(refresh.error ?? remove.error ?? kind.error) ? (
         <p className="border-border-soft border-t px-3 py-2 text-[0.75rem] text-rose">
-          {((refresh.error ?? remove.error) as Error).message}
+          {((refresh.error ?? remove.error ?? kind.error) as Error).message}
         </p>
       ) : null}
-      {open && connector.actions.length ? (
+      {open && connector.actions.length && !readOnly ? (
+        <div className="border-border-soft border-t">
+          <p className="px-3 pt-2 text-[0.75rem] text-ink-3">{t("connectors.address.kindsHint")}</p>
+          <div className="max-h-80 overflow-y-auto">
+            <ActionKinds
+              actions={connector.actions}
+              disabled={kind.isPending}
+              onChange={(id, choice) => kind.mutate({ id, choice })}
+            />
+          </div>
+          {connector.actions.some((a) => a.group === "send") ? (
+            <p className="px-3 pb-2 text-[0.75rem] text-ink-3">
+              {t("connectors.address.recipientHint")}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {open && connector.actions.length && readOnly ? (
         <ul className="max-h-64 overflow-y-auto border-border-soft border-t px-3 py-2">
           {connector.actions.map((a) => (
             <li key={a.id} className="flex items-baseline gap-2 py-1 text-[0.75rem]">
@@ -272,8 +308,9 @@ function SourceRow({
 
 /**
  * The space's connectors: any service becomes one, found in the integrations registry by name
- * and imported from its OpenAPI spec or its MCP server. `readOnly`: the space is not changed
- * here, so the list is shown and nothing is imported, refreshed or removed.
+ * and imported from its OpenAPI spec or its MCP server, or added by its address where the
+ * registry does not list it (`ConnectorByAddress`). `readOnly`: the space is not changed here,
+ * so the list is shown and nothing is imported, refreshed or removed.
  */
 export function Connectors({
   spaceId,
@@ -296,6 +333,8 @@ export function Connectors({
   const [hits, setHits] = useState<RegistryHit[] | null>(null);
   const [service, setService] = useState<RegistryService | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  /** Where a new connector comes from: the registry, or its address. */
+  const [from, setFrom] = useState<"registry" | "address">("registry");
   const list = useQuery({
     queryKey: keys.connectors(spaceId),
     queryFn: () => api.get<ConnectorView[]>(`/api/studio/spaces/${spaceId}/connectors`),
@@ -316,6 +355,7 @@ export function Connectors({
   const openService = open.mutate;
   useEffect(() => {
     if (domain && !readOnly) {
+      setFrom("registry");
       openService(domain);
     }
   }, [domain, readOnly, openService]);
@@ -340,9 +380,11 @@ export function Connectors({
           ))}
         </div>
       ) : null}
-      <h3 className="mb-2 font-medium text-[0.75rem] text-ink-3 uppercase tracking-[0.07em]">
-        {t("connectors.imported")}
-      </h3>
+      {imported.length || readOnly ? (
+        <h3 className="mb-2 font-medium text-[0.75rem] text-ink-3 uppercase tracking-[0.07em]">
+          {t("connectors.imported")}
+        </h3>
+      ) : null}
       {imported.length ? (
         <div className="mb-4 flex flex-col gap-2">
           {imported.map((c) => (
@@ -356,10 +398,29 @@ export function Connectors({
           ))}
         </div>
       ) : null}
+      {readOnly ? null : (
+        <div className="mb-3 max-w-full overflow-x-auto">
+          <Tabs
+            label={t("connectors.from")}
+            value={from}
+            onChange={setFrom}
+            options={[
+              { id: "registry", label: t("connectors.from.registry") },
+              { id: "address", label: t("connectors.from.address") },
+            ]}
+          />
+        </div>
+      )}
       {readOnly ? (
         imported.length ? null : (
           <p className="text-[0.8125rem] text-ink-3">{t("connectors.noneImported")}</p>
         )
+      ) : from === "address" ? (
+        <ConnectorByAddress
+          spaceId={spaceId}
+          taken={connectors.map((c) => c.id)}
+          onDone={(id) => onSetUp?.(id)}
+        />
       ) : (
         <form
           className="flex gap-2"
@@ -380,10 +441,10 @@ export function Connectors({
           </Button>
         </form>
       )}
-      {search.error ? (
+      {from === "registry" && search.error ? (
         <p className="mt-3 text-[0.8125rem] text-rose">{(search.error as Error).message}</p>
       ) : null}
-      {hits && !service ? (
+      {from === "registry" && hits && !service ? (
         <div className="mt-3 flex flex-col gap-1">
           {hits.length ? null : (
             <p className="text-[0.8125rem] text-ink-3">{t("connectors.none")}</p>
@@ -410,7 +471,7 @@ export function Connectors({
           ) : null}
         </div>
       ) : null}
-      {service ? (
+      {from === "registry" && service ? (
         <div className="mt-4 flex flex-col gap-2">
           <div className="flex items-baseline justify-between gap-3">
             <div className="font-medium text-[0.875rem]">{service.domain}</div>

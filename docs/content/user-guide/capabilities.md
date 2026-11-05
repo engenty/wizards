@@ -46,7 +46,14 @@ each setting, the scripts a skill may bring, and the limits.
 Under Connectors, “In this space” lists the space’s **connections**. A connection is one account
 at a service that the space uses, such as Gmail · Orders or HubSpot · Sales. Below the list you
 see the built-in connectors that nobody connected yet, and under “More connectors” the ones from
-the integrations.sh registry.
+the integrations.sh registry and the ones you add by their address.
+
+**By address.** A service the registry doesn’t list, such as your own MCP server, comes in under
+“More connectors” with “By address”. You paste the address, check what engenty wizards read there,
+and import it. Such a connector is marked “not checked”: nobody has looked at the server, and its
+texts reach the AI as they are. A new connection on it is for admins only at first. On your
+computer the address may be a private one, such as `localhost`. In the cloud a private address is
+refused. [Connectors](./connectors.md#by-its-address) has the steps.
 
 A connection belongs to the space, not to the person who set it up. Its page says who set it up
 and when (“set up by Matthias on 12 Oct”), and when it was last used. It stays when that person
