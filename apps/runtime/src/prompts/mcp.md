@@ -191,3 +191,6 @@ Ask the fields in order; skip a field whose `when` does not hold on the answers 
 
 <!-- section: hint.review -->
 Show the person the outputs, then review_step: accept, or regenerate one with a note.
+
+<!-- section: hint.review_approve -->
+Show the person the outputs and ask them to decide. Then review_step: accept to approve, decline to decline, each with an optional note. Never decide for them.

@@ -15,7 +15,7 @@ import { useDismiss } from "./AppFrame";
 
 interface Notice {
   id: string;
-  kind: "needs_you" | "done" | "failed" | "paused";
+  kind: "needs_you" | "reminder" | "done" | "failed" | "paused";
   wizard: { id: string; title: string };
   runId: string | null;
   start: WizardStart | null;
@@ -26,6 +26,7 @@ interface Notice {
 
 const ICONS = {
   needs_you: { Icon: UserRound, tone: "bg-amber-tint text-amber" },
+  reminder: { Icon: UserRound, tone: "bg-amber-tint text-amber" },
   done: { Icon: Check, tone: "bg-moss-tint text-moss" },
   failed: { Icon: CircleAlert, tone: "bg-rose-tint text-rose" },
   paused: { Icon: PauseCircle, tone: "bg-rose-tint text-rose" },

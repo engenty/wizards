@@ -52,7 +52,10 @@ export interface RunSource {
   accept(
     stepId: string,
     edits?: Record<string, string | Record<string, unknown>>,
+    note?: string,
   ): Promise<boolean>;
+  /** A review with `approve` is declined. */
+  decline(stepId: string, note?: string): Promise<boolean>;
   regenerate(stepId: string, target: string, note: string, items?: number[]): Promise<boolean>;
   back(): Promise<boolean>;
   retry(): Promise<boolean>;
@@ -223,6 +226,7 @@ function PageForm({ view, run, step }: { view: RunView; run: Run; step: PageStep
           />
         ))}
       </div>
+      <AnswerBy view={view} />
       <Footer view={view} run={run} sticky>
         <Button type="submit" size="lg" busy={run.busy} disabled={pending.size > 0}>
           {step.cta || t("run.next")} <ArrowRight className="size-4" />
@@ -318,6 +322,27 @@ export function goesOnText(wakeAt: string | null, pause?: RunPause | null): stri
     ),
     time: new Intl.DateTimeFormat(code, { hour: "numeric", minute: "2-digit" }).format(when),
   });
+}
+
+/** Until when a person's step takes an answer, if it has a deadline. */
+function AnswerBy({ view }: { view: RunView }) {
+  if (view.status !== "waiting_input" || !view.wakeAt) {
+    return null;
+  }
+  const code = runnerLangCode();
+  const when = new Date(view.wakeAt);
+  return (
+    <p className="mt-4 text-[0.8125rem] text-ink-3">
+      {t("run.answerBy", {
+        date: new Intl.DateTimeFormat(code, {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        }).format(when),
+        time: new Intl.DateTimeFormat(code, { hour: "numeric", minute: "2-digit" }).format(when),
+      })}
+    </p>
+  );
 }
 
 /** Says what a run waiting for a signal waits for, and until when at most. */
@@ -541,6 +566,8 @@ function Review({
   const [editing, setEditing] = useState<Record<string, boolean>>({});
   // What the person wants changed, and which of the shown results it is about.
   const [note, setNote] = useState("");
+  // What the person says with their decision, at a review that asks for one.
+  const [decision, setDecision] = useState("");
   const made = view.shown.filter((x) => x.output);
   const [target, setTarget] = useState<string | null>(made.length === 1 ? made[0].step.id : null);
   // Steps with several results: the ones picked to be made again.
@@ -737,13 +764,40 @@ function Review({
           </Card>
         ) : null}
       </div>
+      {step.approve ? (
+        <Textarea
+          minRows={2}
+          maxRows={6}
+          value={decision}
+          placeholder={t("run.decisionNote")}
+          onChange={(e) => setDecision(e.target.value)}
+          className="mt-4"
+        />
+      ) : null}
+      <AnswerBy view={view} />
       <Footer view={view} run={run} sticky>
+        {step.approve ? (
+          <Button
+            size="lg"
+            variant="secondary"
+            busy={run.busy}
+            onClick={() => void run.decline(step.id, decision.trim() || undefined)}
+          >
+            {t("run.decline")}
+          </Button>
+        ) : null}
         <Button
           size="lg"
           busy={run.busy}
-          onClick={() => void run.accept(step.id, Object.keys(drafts).length ? drafts : undefined)}
+          onClick={() =>
+            void run.accept(
+              step.id,
+              Object.keys(drafts).length ? drafts : undefined,
+              decision.trim() || undefined,
+            )
+          }
         >
-          {t("run.accept")} <ArrowRight className="size-4" />
+          {t(step.approve ? "run.approve" : "run.accept")} <ArrowRight className="size-4" />
         </Button>
       </Footer>
     </div>

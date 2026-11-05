@@ -100,7 +100,7 @@ interface RunReport {
   waitingFor?:
     | { wait: string; title: string; until: string | null; pause?: RunPause }
     | { page: string; title: string; fields: RunField[] }
-    | { review: string; title: string; show: string[]; editable: boolean }
+    | { review: string; title: string; show: string[]; editable: boolean; approve?: boolean }
     | { ask: string; kind: "confirm"; reason: string; service: string; action: string }
     | { ask: string; kind: "login"; reason: string; site: string }
     | { question: string; title: string };
@@ -712,7 +712,11 @@ function RunPanel({
         outputs={report.outputs.filter((o) => waiting.show.includes(o.stepId))}
         targets={waiting.show}
         busy={busy}
+        approve={Boolean(waiting.approve)}
         onAccept={() => act("review_step", { stepId: waiting.review, action: { type: "accept" } })}
+        onDecline={() =>
+          act("review_step", { stepId: waiting.review, action: { type: "decline" } })
+        }
         onRegenerate={(target, note) =>
           act("review_step", {
             stepId: waiting.review,
@@ -1000,14 +1004,18 @@ function Review({
   outputs,
   targets,
   busy,
+  approve,
   onAccept,
+  onDecline,
   onRegenerate,
   open,
 }: {
   outputs: RunOutput[];
   targets: string[];
   busy: boolean;
+  approve: boolean;
   onAccept: () => void;
+  onDecline: () => void;
   onRegenerate: (target: string, note: string) => void;
   open: (url: string) => void;
 }) {
@@ -1032,8 +1040,13 @@ function Review({
         />
         <div className="flex gap-2">
           <Button busy={busy} onClick={onAccept}>
-            {t("run.accept")}
+            {t(approve ? "run.approve" : "run.accept")}
           </Button>
+          {approve ? (
+            <Button variant="secondary" busy={busy} onClick={onDecline}>
+              {t("run.decline")}
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             disabled={busy || !note.trim() || !target}

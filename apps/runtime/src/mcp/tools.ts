@@ -808,6 +808,11 @@ export function registerTools(server: McpServer, who: Principal) {
           z.object({
             type: z.literal("accept"),
             edits: z.record(z.string(), z.string()).optional(),
+            note: z.string().max(2000).optional(),
+          }),
+          z.object({
+            type: z.literal("decline").describe("Only when waitingFor.approve is true."),
+            note: z.string().max(2000).optional(),
           }),
           z.object({
             type: z.literal("regenerate"),

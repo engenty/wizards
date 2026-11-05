@@ -100,7 +100,10 @@ const statusOf = (runId: string) =>
   });
 
 /** A published wizard and a run on its first page, by whoever `who` says. */
-async function startRun(who: { userId?: string; visitorId?: string; mode?: "test" | "live" } = {}) {
+async function startRun(
+  who: { userId?: string; visitorId?: string; mode?: "test" | "live" } = {},
+  def: object = flow,
+) {
   return inTenant(async () => {
     // The cloud builds no wizards: the row comes as a computer would have published it.
     const created = { id: nanoid(12), shareToken: nanoid(16) };
@@ -109,10 +112,10 @@ async function startRun(who: { userId?: string; visitorId?: string; mode?: "test
       spaceId: SPACE,
       tenantId: T,
       title: flow.title,
-      draft: flow as never,
+      draft: def as never,
       publishedVersion: 1,
     });
-    const w = { draft: flow as never, shareToken: created.shareToken };
+    const w = { draft: def as never, shareToken: created.shareToken };
     const runId = await runner.createRun({
       wizardId: created.id,
       definition: w.draft,
@@ -737,5 +740,166 @@ describe("the link in a visitor's mail", () => {
     const old = signing.runWaitTicket(runId, new Date(Date.now() - 1000));
     expect((await api(runId, "", old, "GET")).status).toBe(404);
     expect((await api(runId, "/back", old)).status).toBe(404);
+  });
+});
+
+describe("a reminder", () => {
+  const reminding = {
+    ...flow,
+    steps: [{ ...second, id: "lead", title: "Vorweg" }, { ...second, remind: "1h" }, result],
+  };
+  const onFirst = { ...flow, steps: [{ ...second, remind: "1h" }, result] };
+  const kinds = (rows: { kind: string }[]) => rows.map((n) => n.kind).sort();
+  const reachSecond = async (runId: string) => {
+    await inTenant(() => runner.submitPage(runId, "lead", { more: "x" }));
+    expect(
+      await until(async () => {
+        const row = await inTenant(() =>
+          client.db.query.run.findFirst({ where: eq(client.schema.run.id, runId) }),
+        );
+        return row?.status === "waiting_input" && row.cursor === "second";
+      }),
+    ).toBe(true);
+  };
+
+  it("is written with the wait, due at `remind`, on the wait's key", async () => {
+    const { runId } = await startRun({ userId: USER }, reminding);
+    await reachSecond(runId);
+    const row = (await noticesOf(runId)).find((n) => n.kind === "reminder");
+    expect(row?.waitKey).toBe("step:second");
+    expect(row?.shown).toBe(false);
+    const late = (row?.dueAt?.getTime() ?? 0) - Date.now();
+    expect(late).toBeGreaterThan(59 * 60_000);
+    expect(late).toBeLessThanOrEqual(60 * 60_000);
+  });
+
+  it("goes out at its time, once: the bell, one mail, a line in the log", async () => {
+    const { runId } = await startRun({ userId: USER }, reminding);
+    await reachSecond(runId);
+    await deliver();
+    expect(mails).toHaveBeenCalledTimes(1);
+    mails.mockClear();
+    await deliver(inMinutes(30));
+    expect(mails).not.toHaveBeenCalled();
+    await deliver(inMinutes(61));
+    expect(mails).toHaveBeenCalledTimes(1);
+    expect(mails.mock.calls[0][0]).toMatchObject({ kind: "waiting" });
+    await deliver(inMinutes(62));
+    await deliver(inMinutes(200));
+    expect(mails).toHaveBeenCalledTimes(1);
+    const bell = await inTenant(() => notices.listNotices(USER));
+    expect(bell.find((n) => n.kind === "reminder")).toMatchObject({ read: false });
+    const log = await inTenant(() =>
+      client.db.select().from(client.schema.runEvent).where(eq(client.schema.runEvent.runId, runId)),
+    );
+    expect(log.filter((e) => e.note?.code === "reminderSent")).toHaveLength(1);
+  });
+
+  it("an answer settles it: nobody is reminded, and the bell has nothing", async () => {
+    const { runId } = await startRun({ userId: USER }, reminding);
+    await reachSecond(runId);
+    await inTenant(() => runner.submitPage(runId, "second", { more: "x" }));
+    expect(await until(async () => (await statusOf(runId)) === "done")).toBe(true);
+    mails.mockClear();
+    await deliver(inMinutes(61));
+    expect(mails.mock.calls.filter(([m]) => m.kind === "waiting")).toHaveLength(0);
+    expect(kinds(await noticesOf(runId))).not.toContain("reminder");
+  });
+
+  it("a stop settles it", async () => {
+    const { runId } = await startRun({ userId: USER }, reminding);
+    await reachSecond(runId);
+    await inTenant(() => runner.stopRun(runId, "Ana"));
+    mails.mockClear();
+    await deliver(inMinutes(61));
+    expect(mails).not.toHaveBeenCalled();
+    expect(kinds(await noticesOf(runId))).not.toContain("reminder");
+  });
+
+  it("while they look it waits; once they have left it goes", async () => {
+    const { runId } = await startRun({ userId: USER }, reminding);
+    await reachSecond(runId);
+    const at = inMinutes(61);
+    await client.controlDb
+      .update(client.control.runIndex)
+      .set({ viewedAt: at })
+      .where(eq(client.control.runIndex.runId, runId));
+    mails.mockClear();
+    await deliver(at);
+    expect(mails).not.toHaveBeenCalled();
+    await deliver(new Date(at.getTime() + notices.QUIET_MS + 1000));
+    expect(mails).toHaveBeenCalledTimes(1);
+  });
+
+  it("a first word not yet delivered goes with it: one word, one mail", async () => {
+    const { runId } = await startRun({ userId: USER }, reminding);
+    await reachSecond(runId);
+    // They looked just now, so the first word has been waiting for them to leave.
+    const at = inMinutes(61);
+    await client.controlDb
+      .update(client.control.runIndex)
+      .set({ viewedAt: new Date(at.getTime() - notices.LOOKING_MS - 1000) })
+      .where(eq(client.control.runIndex.runId, runId));
+    await deliver(new Date(at.getTime() + notices.QUIET_MS));
+    expect(mails).toHaveBeenCalledTimes(1);
+    expect(kinds(await noticesOf(runId))).toEqual(["reminder"]);
+  });
+
+  it("each wait has its own, and a new wait replaces the last", async () => {
+    const { runId } = await startRun({ userId: USER }, { ...flow, steps: [{ ...first, remind: "1h" }, second, result] });
+    const before = (await noticesOf(runId)).filter((n) => n.kind === "reminder");
+    expect(before).toHaveLength(1);
+    await inTenant(() => runner.submitPage(runId, "first", { iban: "x" }));
+    expect(
+      await until(async () => {
+        const row = await inTenant(() =>
+          client.db.query.run.findFirst({ where: eq(client.schema.run.id, runId) }),
+        );
+        return row?.status === "waiting_input" && row.cursor === "second";
+      }),
+    ).toBe(true);
+    await inTenant(() => runner.goBack(runId, { userId: USER }));
+    const after = (await noticesOf(runId)).filter((n) => n.kind === "reminder");
+    expect(after).toHaveLength(1);
+    expect(after[0].id).not.toBe(before[0].id);
+  });
+
+  it("createRun: whoever opened the first page and left is reminded, and told nothing before", async () => {
+    const { runId } = await startRun({ userId: USER }, onFirst);
+    expect(kinds(await noticesOf(runId))).toEqual(["reminder"]);
+    await deliver();
+    expect(mails).not.toHaveBeenCalled();
+    await deliver(inMinutes(61));
+    expect(mails).toHaveBeenCalledTimes(1);
+  });
+
+  it("an autopilot, a channel: nobody here is reminded", async () => {
+    const created = { id: nanoid(12), shareToken: nanoid(16) };
+    const runId = await inTenant(async () => {
+      await client.db.insert(client.schema.wizard).values({
+        ...created,
+        spaceId: SPACE,
+        tenantId: T,
+        title: flow.title,
+        draft: onFirst as never,
+        publishedVersion: 1,
+      });
+      return runner.createRun({
+        wizardId: created.id,
+        definition: onFirst as never,
+        files: [],
+        version: 1,
+        mode: "live",
+        userId: USER,
+        unattended: true,
+      });
+    });
+    expect(await noticesOf(runId)).toHaveLength(0);
+  });
+
+  it("with the switch off, no reminder", async () => {
+    process.env.FEATURES = "";
+    const { runId } = await startRun({ userId: USER }, onFirst);
+    expect(await noticesOf(runId)).toHaveLength(0);
   });
 });
