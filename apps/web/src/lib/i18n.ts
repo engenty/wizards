@@ -3079,6 +3079,7 @@ const de: Record<Key, Line> = {
   "protocol.outcome.done": "durchgeführt",
   "protocol.outcome.doneApproved": "durchgeführt mit Freigabe",
   "protocol.outcome.held": "wartet auf Freigabe durch die Admins",
+  "protocol.outcome.alreadyDone": "schon erledigt, nicht wiederholt",
   "protocol.outcome.signInFailed":
     "nicht durchgeführt: die Anmeldung ist abgelaufen oder wurde abgelehnt",
   "protocol.outcome.notDone": "nicht durchgeführt: {why}",
@@ -3097,6 +3098,8 @@ const de: Record<Key, Line> = {
     "die Adresse gehört weder zum Lauf noch zu einer Domain des Space",
   "protocol.refused.run_limit": "der Lauf hat seine E-Mails schon gesendet",
   "protocol.refused.day_limit": "die Gäste dieses Wizards haben die E-Mails für heute gesendet",
+  "protocol.refused.may_have_happened":
+    "es ist vielleicht schon passiert und wurde nicht wiederholt",
   "protocol.why.audience": "die Verbindung ist nicht für diese Person",
   "protocol.why.audienceFor": "die Verbindung ist nur für {audience}",
   "protocol.why.actions": "die Verbindung ist nicht für diese Aktion",
@@ -7168,6 +7171,7 @@ const en = {
   "protocol.outcome.done": "done",
   "protocol.outcome.doneApproved": "done with approval",
   "protocol.outcome.held": "waiting for the admins’ approval",
+  "protocol.outcome.alreadyDone": "done before, not repeated",
   "protocol.outcome.signInFailed": "not done: the sign-in ran out or was refused",
   "protocol.outcome.notDone": "not done: {why}",
   "protocol.outcome.refused": "refused: {why}",
@@ -7185,6 +7189,7 @@ const en = {
     "the address is neither the run’s own nor in one of the space’s domains",
   "protocol.refused.run_limit": "the run has sent all its emails",
   "protocol.refused.day_limit": "this wizard’s guests have sent today’s emails",
+  "protocol.refused.may_have_happened": "it may have happened already and wasn’t repeated",
   "protocol.why.audience": "the connection isn’t for them",
   "protocol.why.audienceFor": "the connection is for {audience} only",
   "protocol.why.actions": "the connection isn’t for this action",

@@ -46,7 +46,9 @@ function ConfirmPanel({ runId, ask }: { runId: string; ask: ConfirmAsk }) {
           <Icon className="size-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-[0.8125rem] text-ink-3">{t("ask.wants", { service: ask.service })}</p>
+          <p className="text-[0.8125rem] text-ink-3">
+            {t(ask.again ? "ask.again" : "ask.wants", { service: ask.service })}
+          </p>
           <h2 className="wizard-heading font-display font-semibold text-[1.25rem] leading-snug tracking-tight">
             {ask.reason}
           </h2>
@@ -55,6 +57,11 @@ function ConfirmPanel({ runId, ask }: { runId: string; ask: ConfirmAsk }) {
       <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-paper-2 p-4 text-[0.8125rem] leading-relaxed ring-1 ring-border-soft">
         {ask.input}
       </pre>
+      {ask.again ? (
+        <p className="mt-3 text-[0.8125rem] text-ink-2">
+          {t("ask.againHint", { service: ask.service })}
+        </p>
+      ) : null}
       {ask.once ? null : (
         <div className="mt-5 flex items-center gap-4">
           <Switch checked={remember} onChange={setRemember} label={t("ask.allowRest")} />
@@ -68,10 +75,10 @@ function ConfirmPanel({ runId, ask }: { runId: string; ask: ConfirmAsk }) {
       ) : null}
       <div className="action-bar mt-6 flex items-center justify-between gap-3">
         <Button variant="ghost" disabled={busy} onClick={() => void answer({ type: "skip" })}>
-          {t("ask.deny")}
+          {t(ask.again ? "ask.againDeny" : "ask.deny")}
         </Button>
         <Button busy={busy} onClick={() => void answer({ type: "done", remember })}>
-          {t("ask.allow")}
+          {t(ask.again ? "ask.againAllow" : "ask.allow")}
         </Button>
       </div>
     </div>

@@ -88,6 +88,7 @@ function buildAction(
       return executeHttpAction({
         accessToken: ctx.accessToken,
         fetchImpl: ctx.fetchImpl,
+        ...(ctx.idempotencyKey ? { idempotencyKey: ctx.idempotencyKey } : {}),
         input: args,
         invoke: action.invoke,
         record: current,

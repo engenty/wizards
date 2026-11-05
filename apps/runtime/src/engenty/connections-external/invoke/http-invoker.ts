@@ -87,6 +87,8 @@ export function buildHttpRequest(params: {
   accessToken: string;
   auth: StoredAuthConfig;
   baseUrl: string;
+  /** Goes into the operation's own idempotency header, where its spec declares one. */
+  idempotencyKey?: string;
   input: Record<string, unknown>;
   invoke: Extract<ActionInvoke, { kind: "http" }>;
   /** Static headers the API requires on every request (registry facts). */
@@ -126,6 +128,13 @@ export function buildHttpRequest(params: {
     }
     // cookie params are unsupported in v1 — ignored by design.
   }
+  if (params.idempotencyKey) {
+    for (const param of invoke.params) {
+      if (param.location === "header" && /^idempotency[-_]?key$/iu.test(param.name)) {
+        headers.set(param.name, params.idempotencyKey);
+      }
+    }
+  }
 
   const url = new URL(baseUrl.replace(/\/+$/u, "") + path);
   for (const [name, value] of query) {
@@ -155,6 +164,7 @@ export function buildHttpRequest(params: {
 export async function executeHttpAction(params: {
   accessToken: string;
   fetchImpl: typeof fetch;
+  idempotencyKey?: string;
   input: Record<string, unknown>;
   /** Injectable DNS lookup for tests; production resolves for real. */
   lookupImpl?: LookupFn;
@@ -180,6 +190,7 @@ export async function executeHttpAction(params: {
     accessToken,
     auth: record.auth_config,
     baseUrl: record.base_url,
+    ...(params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : {}),
     input,
     invoke,
     requiredHeaders: record.required_headers,

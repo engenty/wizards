@@ -59,6 +59,14 @@ export function inProgram(): boolean {
   return program.getStore() === true;
 }
 
+/**
+ * The id of the tool call a tool runs for. A tool called by a program has none of its own: it would
+ * read the program's, shared with every other call the program makes.
+ */
+export function toolCallIdOf(context: { agent?: { toolCallId?: string } } | undefined) {
+  return inProgram() ? undefined : context?.agent?.toolCallId;
+}
+
 /** Heap of one program's QuickJS runtime. */
 const MEMORY_LIMIT_MB = 64;
 

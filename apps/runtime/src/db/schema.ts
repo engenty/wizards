@@ -1720,3 +1720,25 @@ export const syncMerge = sqliteTable(
   },
   (t) => [index("sync_merge_item").on(t.kind, t.item, t.createdAt)],
 );
+
+/**
+ * What a run did outside, by the call that asked for it (broker/effect.ts): a call found `done`
+ * answers with its output and does not act again, one found `started` may have happened.
+ */
+export const runEffect = sqliteTable(
+  "run_effect",
+  {
+    /** `<turn>:<toolCallId>`, or `<run>:<step>:<visit>` where no tool call asks. */
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    stepId: text("step_id").notNull(),
+    /** What acted: `<connection>:<action>`, or `host:<name>`. */
+    tool: text("tool").notNull(),
+    state: text("state", { enum: ["started", "done", "failed"] }).notNull(),
+    output: text("output", { mode: "json" }).$type<unknown>(),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("run_effect_run").on(t.runId)],
+);

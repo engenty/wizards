@@ -18,7 +18,7 @@ import { spaceConnectionOf } from "../connectors/space-connections.js";
 import type { ConnectorAction } from "../engenty/connections-sdk/types.js";
 import { type StepContext, StepError } from "../engine/types.js";
 import { prompt } from "../prompts.js";
-import { inProgram } from "./code.js";
+import { inProgram, toolCallIdOf } from "./code.js";
 import { holderWho, stepWho } from "./plugin.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
 import { resolveFile } from "./store.js";
@@ -147,6 +147,8 @@ function refusalNote(refused: Refusal, service: string): string {
       return prompt("tools", "note.connector_needs_approval", { service });
     case "ai_step_writes":
       return prompt("tools", "note.connector_ai_step_writes", { service });
+    case "may_have_happened":
+      return prompt("tools", "note.connector_may_have_happened", { service });
     default:
       return prompt("tools", "note.connector_refused", { service });
   }
@@ -234,13 +236,22 @@ export async function callConnection(
     connection: held,
     action: { id: action.id, kind: kindOf(action.group) },
     input: input ?? {},
-    ctx: { ask: ctx.ask, allowed: ctx.resources.allowed },
+    ctx: {
+      ask: ctx.ask,
+      allowed: ctx.resources.allowed,
+      effect: { visit: ctx.state.visits?.[ctx.stepId] },
+    },
     handler: async (account) => {
       await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
       return action.handler(await sendContent(input ?? {}, ctx), account.ctx);
     },
   });
   if (!out.ok) {
+    if (out.refused === "may_have_happened") {
+      throw new StepError(
+        note("stepCallMayHaveHappened", { service, action: action.summary || action.id }),
+      );
+    }
     throw new StepError(
       out.refused === "declined" || out.refused === "nobody"
         ? note("stepCallNotAllowed", { service })
@@ -280,7 +291,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
     });
   }
 
-  const call = (action: ConnectorAction, input: unknown) =>
+  const call = (action: ConnectorAction, input: unknown, toolCallId?: string) =>
     attempt(async () => {
       const out = await brokerCall({
         who,
@@ -288,7 +299,11 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
         connection: held,
         action: { id: action.id, kind: kindOf(action.group) },
         input: input ?? {},
-        ctx: { ask: ctx.ask, allowed: ctx.resources.allowed },
+        ctx: {
+          ask: ctx.ask,
+          allowed: ctx.resources.allowed,
+          effect: { turn: ctx.turn, toolCallId },
+        },
         handler: async (account) => {
           await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
           return keepContent(
@@ -325,7 +340,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
             .join(" ")
             .slice(0, 1100),
           inputSchema: action.inputSchema as z.ZodType<any>,
-          execute: (input) => call(action, input),
+          execute: (input, context) => call(action, input, toolCallIdOf(context)),
         }),
       ]),
     );
@@ -370,10 +385,10 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
         action: z.string(),
         input: z.record(z.string(), z.unknown()).optional(),
       }),
-      execute: ({ action: id, input }) => {
+      execute: ({ action: id, input }, context) => {
         const action = usable.find((a) => a.id === id);
         return action
-          ? call(action, input)
+          ? call(action, input, toolCallIdOf(context))
           : Promise.resolve({ error: `No action "${id}". Use ${prefix}_actions to find one.` });
       },
     }),
