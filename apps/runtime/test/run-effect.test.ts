@@ -323,6 +323,11 @@ describe("a call of a durable turn", () => {
     expect(out).toMatchObject({ ok: false, refused: "may_have_happened" });
     expect(acted).toHaveLength(0);
     expect((await effectsOf(runId))[0].state).toBe("started");
+    // The run's log says what to check, for the person reading its timeline.
+    const said = await inTenant(() =>
+      client.db.query.runEvent.findMany({ where: (t, { eq }) => eq(t.runId, runId) }),
+    );
+    expect(said.filter((e) => e.type === "effect_unsure")).toHaveLength(1);
     expect((await logOf(runId))[0]).toMatchObject({
       outcome: "deny",
       rule: "once",
@@ -504,6 +509,19 @@ describe("a fixed step's call in a real run", () => {
         params: { service: "HubSpot", action: "Create a contact" },
       }),
     ).toContain("HubSpot");
+  });
+
+  it("tries again after a service's short trouble: the row keeps it to one action", async () => {
+    throwing = Object.assign(new Error("status 503"), { statusCode: 503 });
+    const runId = await startRun(plain);
+    await inTenant(() => runner.submitPage(runId, "start", { email: "lead@b.at" }));
+    const row = await settled(runId, "sleeping", "failed");
+    throwing = null;
+    expect(row.status).toBe("sleeping");
+    expect(row.state.pause).toEqual({ kind: "retry" });
+    // The same visit: the try that comes finds this row.
+    expect(row.state.visiting).toBe("save");
+    await inTenant(() => runner.cancel(runId));
   });
 
   it("asks a person who is there, and acts again only on their yes", async () => {

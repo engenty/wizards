@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { validateWizard, type WizardDefinition } from "@engenty/wizards-shared/definition";
 import { createTool } from "@mastra/core/tools";
+import { APICallError } from "ai";
 import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -339,6 +340,42 @@ describe("a turn", () => {
     expect(r?.error).toContain("tool call ids");
     expect(acted).toEqual(["person-0"]);
     expect(modelCalls).toBe(2);
+  });
+
+  const unavailable = () =>
+    new APICallError({
+      message: "status 503",
+      url: "http://x",
+      requestBodyValues: {},
+      statusCode: 503,
+      responseHeaders: {},
+      isRetryable: true,
+    });
+
+  it("doesn't start a failed turn over once it acted: its calls would get new ids", async () => {
+    script = (options) => {
+      if (resultsOf(options, "send").length) {
+        throw unavailable();
+      }
+      return call(`call_${modelCalls}`, "send", { to: "anna" });
+    };
+    const id = await startRun(definitionOf(agentStep()));
+    expect(await until(async () => (await row(id))?.status === "failed")).toBe(true);
+    const r = await row(id);
+    expect(r?.state.turn?.acted).toBe(true);
+    expect(acted).toEqual(["anna"]);
+  });
+
+  it("tries a failed turn again that didn't act", async () => {
+    script = () => {
+      throw unavailable();
+    };
+    const id = await startRun(definitionOf(agentStep()));
+    expect(await until(async () => (await row(id))?.status === "sleeping")).toBe(true);
+    const r = await row(id);
+    expect(r?.state.pause).toEqual({ kind: "retry" });
+    expect(r?.state.turn?.acted).toBeUndefined();
+    await inTenant(() => runner.cancel(id));
   });
 
   it("keeps a program's writes: run again, the same program acts on nothing twice", async () => {
