@@ -9,7 +9,7 @@ import {
   waitDurationMs,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import { note, type RunState, type RunView } from "@engenty/wizards-shared/run";
+import { note, type RunState, type RunTimeline, type RunView } from "@engenty/wizards-shared/run";
 import { and, count, desc, eq, gte, inArray, isNull, max, or, sql } from "drizzle-orm";
 import { canSpend, MICROS_PER_CREDIT } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
@@ -622,6 +622,8 @@ export async function draftStepView(
       updatedAt: now,
     }),
     definition: def,
+    label: null,
+    driving: false,
     status,
     wakeAt:
       step.type === "wait" && step.for ? new Date(now.getTime() + waitDurationMs(step.for)) : null,
@@ -642,10 +644,17 @@ export async function draftStepView(
   return { ...view, events: [] };
 }
 
-export async function listRuns(userId: string, wizardId: string) {
+/** A wizard's runs, newest first; with `q`, those whose label holds those words. */
+export async function listRuns(userId: string, wizardId: string, q?: string) {
   const w = await ownedWizard(userId, wizardId);
+  const words = q?.trim();
   const rows = await db.query.run.findMany({
-    where: eq(schema.run.wizardId, w.id),
+    where: and(
+      eq(schema.run.wizardId, w.id),
+      words
+        ? sql`${schema.run.label} LIKE ${`%${words.replace(/[\\%_]/g, (c) => `\\${c}`)}%`} ESCAPE '\\'`
+        : undefined,
+    ),
     orderBy: [desc(schema.run.createdAt)],
     limit: 100,
   });
@@ -665,6 +674,7 @@ export async function listRuns(userId: string, wizardId: string) {
     id: r.id,
     mode: r.mode,
     status: r.status,
+    label: r.label,
     wakeAt: r.wakeAt?.toISOString() ?? null,
     version: r.version,
     createdAt: r.createdAt.toISOString(),
@@ -674,6 +684,39 @@ export async function listRuns(userId: string, wizardId: string) {
     /** The token of its shared result (`/s/<token>`); null while it is not shared. */
     shareToken: r.status === "done" ? r.shareToken : null,
   }));
+}
+
+/** How many lines of a run's log its timeline shows; a run of weeks may have thousands. */
+const TIMELINE_LINES = 500;
+
+/** One run for its timeline in the runs panel. `canAct`: the person looking may push it on or stop it. */
+export async function runTimeline(run: RunRow, canAct: boolean): Promise<RunTimeline> {
+  const [lines] = await db
+    .select({ n: count() })
+    .from(schema.runEvent)
+    .where(eq(schema.runEvent.runId, run.id));
+  const [started] = await db
+    .select({ note: schema.runEvent.note })
+    .from(schema.runEvent)
+    .where(and(eq(schema.runEvent.runId, run.id), eq(schema.runEvent.type, "run_started")))
+    .limit(1);
+  const name = started?.note?.params?.name;
+  return {
+    id: run.id,
+    mode: run.mode,
+    status: run.status,
+    label: run.label,
+    version: run.version,
+    createdAt: run.createdAt.toISOString(),
+    wakeAt: run.status === "sleeping" ? (run.wakeAt?.toISOString() ?? null) : null,
+    credits: Math.ceil(run.costMicros / MICROS_PER_CREDIT),
+    stepTitle: run.definition.steps.find((s) => s.id === run.cursor)?.title ?? null,
+    startedBy: typeof name === "string" ? name : null,
+    canAct,
+    steps: run.definition.steps.map((s) => ({ id: s.id, title: s.title })),
+    events: await recentEvents(run.id, 0, TIMELINE_LINES),
+    total: lines?.n ?? 0,
+  };
 }
 
 /** What the results of a space are narrowed to. */

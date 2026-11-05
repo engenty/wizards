@@ -1163,6 +1163,11 @@ export const currentWizardSchema = z
     /** Shown on the first page above the first question. */
     intro: z.string().optional(),
     /**
+     * What tells this wizard's runs apart in the runs panel, a template of answers such as
+     * `{{kunde}} · {{angebot}}`. Filled and stored on the run as its answers arrive.
+     */
+    label: z.string().max(200).optional(),
+    /**
      * The language the wizard speaks to people: its texts, the runner's words, its numbers and
      * dates, by its two-letter code ("en", "de", "it"). Any language, not only those engenty's own
      * strings are written in; `validateWizard` checks it names a real one. Without one it is read
@@ -1266,6 +1271,9 @@ export function dataRef(raw: string): string {
     .replace(/^\{\{\s*/, "")
     .replace(/\s*\}\}$/, "");
 }
+
+/** What a template may read beside the wizard's own steps and answers: the runner fills these. */
+const RUNNER_REFS = new Set(["brand", "facts", "today", "notes"]);
 
 export interface ValidationIssue {
   stepId?: string;
@@ -1949,6 +1957,17 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       }
     }
     seenSteps.add(step.id);
+  }
+  // A run's label fills as the run goes on: it may read any step and any answer of the wizard.
+  for (const ref of templateRefs(def.label ?? "")) {
+    const [head, second] = ref.split(".");
+    if (
+      head === "steps"
+        ? !(second && seenSteps.has(second))
+        : !(seenFields.has(head) || RUNNER_REFS.has(head))
+    ) {
+      issues.push({ message: `The label reads "{{${ref}}}", which this wizard doesn't have.` });
+    }
   }
   return issues;
 }

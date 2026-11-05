@@ -60,6 +60,7 @@ import { liveResources } from "../engine/resources.js";
 import {
   cancel,
   createRun,
+  durableRunsOn,
   editOutput,
   GuestBudgetError,
   goBack,
@@ -70,8 +71,10 @@ import {
   reviewStep,
   runView,
   spaceIdOf,
+  stopRun,
   submitPage,
   talkAllowed,
+  wakeNow,
   writeRunState,
 } from "../engine/runner.js";
 import { basePath, env } from "../env.js";
@@ -86,10 +89,12 @@ import { errorText, ModelUnavailableError, noteOf } from "../model-errors.js";
 import { listDownload, renderDownload, stepHtml } from "../render/downloads.js";
 import { HTML_RESPONSE_CSP } from "../render/guard.js";
 import { runTicketValid, runViewTicketValid, verifySignedUrl } from "../secrets/signing.js";
+import { isAdminRole, MEMBERS_EDIT_ONLY } from "../services/access.js";
 import { brandView } from "../services/brand.js";
 import { clientMayOpen } from "../services/client-portal.js";
 import { ServiceError } from "../services/errors.js";
 import { publicRunners, servePageRunner } from "../services/runners.js";
+import { runTimeline } from "../services/runs.js";
 import {
   sharedRun,
   sharedStepIds,
@@ -266,6 +271,22 @@ async function viewOf(
 ) {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
   return runView(run, await brandView(w?.spaceId ?? "", run.definition.themes), hide);
+}
+
+/**
+ * What "Continue now" and "Stop" answer to: the run, for the owner and the admins of its
+ * organization, with who they are; else what to answer.
+ */
+async function commandOnWait(c: Context) {
+  const run = await accessibleRun(c, c.req.param("id") ?? "");
+  const user = run && (await memberViewing(c, run)) ? await principalOf(c) : null;
+  if (!(run && user && (await durableRunsOn()))) {
+    return { refused: c.json(notFoundAnswer(c), 404) };
+  }
+  if (!isAdminRole(user.role)) {
+    return { refused: refuse(c, MEMBERS_EDIT_ONLY, 403) };
+  }
+  return { run, by: user.name || user.email };
 }
 
 function commandError(c: Context, err: unknown) {
@@ -956,6 +977,39 @@ export const runRoutes = new Hono()
     }
     await cancel(run.id);
     return c.json({ ok: true });
+  })
+  // A run's timeline in the runs panel, for the people of its organization.
+  .get("/:id/timeline", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    const user = run && (await memberViewing(c, run)) ? await principalOf(c) : null;
+    if (!(run && user && (await durableRunsOn()))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    return c.json(await runTimeline(run, isAdminRole(user.role)));
+  })
+  .post("/:id/wake-now", async (c) => {
+    const asked = await commandOnWait(c);
+    if (asked.refused) {
+      return asked.refused;
+    }
+    try {
+      await wakeNow(asked.run.id, asked.by);
+      return c.json({ ok: true });
+    } catch (err) {
+      return commandError(c, err);
+    }
+  })
+  .post("/:id/stop", async (c) => {
+    const asked = await commandOnWait(c);
+    if (asked.refused) {
+      return asked.refused;
+    }
+    try {
+      await stopRun(asked.run.id, asked.by);
+      return c.json({ ok: true });
+    } catch (err) {
+      return commandError(c, err);
+    }
   })
   // The viewer reads the run in another language from now on: null for the wizard's own.
   .post("/:id/lang", async (c) => {
