@@ -197,6 +197,14 @@ export async function durableTurn(input: {
   const context = new RequestContext();
   context.set(TURN, id);
 
+  // A cancel stops the turn. A deploy's stop does not: the turn stays for the next runner.
+  const onAbort = () => {
+    if (input.signal.reason !== "stop") {
+      agent.abortRunStream(id);
+    }
+  };
+  input.signal.addEventListener("abort", onAbort, { once: true });
+
   let asked: string | null = null;
   const callbacks = {
     onSuspended: (data: { suspendPayload?: { question?: string } }) => {
@@ -228,12 +236,16 @@ export async function durableTurn(input: {
       }, 25);
       check.unref();
     });
-    const text = await Promise.race([result.output.text as Promise<string>, stopped]);
+    const gone = new Promise<never>((_, reject) => {
+      input.signal.addEventListener("abort", () => reject(new Error("The turn was stopped.")), { once: true });
+    });
+    const text = await Promise.race([result.output.text as Promise<string>, stopped, gone]);
     if (asked !== null) {
       throw new TurnAsks(asked);
     }
     return { text: text as string, usage: await result.output.totalUsage };
   } finally {
+    input.signal.removeEventListener("abort", onAbort);
     held.delete(id);
   }
 

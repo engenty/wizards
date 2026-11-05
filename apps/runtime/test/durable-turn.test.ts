@@ -72,6 +72,15 @@ describe("a durable agent step across processes", () => {
     expect(count(l, "EFFECT mail 2")).toBe(1);
   });
 
+  it("a person cancels in the middle of a turn: nothing more is called", { timeout: 120_000 }, () => {
+    const dir = mkdtempSync(join(tmpdir(), "wizards-turn-cancel-"));
+    phase(dir, "start", { TURN_CANCEL_AT: "1" });
+    const l = lines(dir);
+    console.log(l.map((x) => x.split(" ").slice(1).join(" ")).join("\n"));
+    expect(l.at(-1)).toContain("status=cancelled");
+    expect(count(l, "EFFECT mail 2")).toBe(0);
+  });
+
   it("the turn asks a person: no process holds it, the answer goes on in another", { timeout: 200_000 }, () => {
     const dir = mkdtempSync(join(tmpdir(), "wizards-turn-ask-"));
     phase(dir, "start", { TURN_ASK: "1" });

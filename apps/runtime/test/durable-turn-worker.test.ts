@@ -63,6 +63,7 @@ vi.mock("../src/engine/requirements.js", async (original) => ({
 }));
 
 let stopNow: (() => Promise<void>) | null = null;
+let cancelNow: (() => Promise<void>) | null = null;
 vi.mock("../src/tools/index.js", async (original) => ({
   ...(await original<typeof import("../src/tools/index.js")>()),
   buildStepTools: async () => ({
@@ -78,6 +79,11 @@ vi.mock("../src/tools/index.js", async (original) => ({
             say("kill -9");
             process.kill(process.pid, "SIGKILL");
             await new Promise(() => undefined);
+          }
+          if (process.env.TURN_CANCEL_AT === String(n) && cancelNow) {
+            say("cancelled by the person");
+            await cancelNow();
+            return { sent: n };
           }
           if (process.env.TURN_STOP_AT === String(n) && stopNow) {
             say("stopping as a deploy does");
@@ -165,13 +171,21 @@ describe.runIf(PHASE)(`turn phase ${PHASE}`, () => {
         await runner.answerTurn(id, "the big one");
       }
     });
+    cancelNow = () => client.withTenant(T, () => runner.cancel(id));
     runner.startRunner();
     const read = () =>
       client.withTenant(T, () => client.db.query.run.findFirst({ where: eq(client.schema.run.id, id) }));
     await until(async () => {
       const r = await read();
-      return r?.status === "done" || r?.status === "failed" || r?.status === "waiting_input";
+      return (
+        r?.status === "done" ||
+        r?.status === "failed" ||
+        r?.status === "waiting_input" ||
+        r?.status === "cancelled"
+      );
     }, 80_000);
+    // Whatever still runs after an end would show here.
+    await new Promise((res) => setTimeout(res, 1500));
     const r = await read();
     const effects = await client.withTenant(T, () => client.db.query.runEffect.findMany());
     say(

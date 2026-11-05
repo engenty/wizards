@@ -213,4 +213,43 @@ describe("wait until something arrives", () => {
     expect(await hasStatus(id, "done")).toBe(true);
     expect((await row(id))?.state.outputs.reply?.json).toMatchObject({ came: true, subject: "Früh" });
   });
+
+  it("a mail in a watched mailbox reaches the run that waits for its sender", async () => {
+    const { watchMailbox } = await import("../src/engine/mail-watch");
+    const { id, spaceId } = await start(waiting());
+    expect(await hasStatus(id, "waiting_signal")).toBe(true);
+    const pulls: (string | null)[] = [];
+    const mail = {
+      attachments: [],
+      body_html: null,
+      body_text: "Passt, danke.",
+      cc: [],
+      from_email: "Anna@Example.com",
+      from_name: "Anna",
+      provider_message_id: "m1",
+      provider_thread_id: "t1",
+      received_at: null,
+      subject: "Re: Angebot",
+      to: [],
+    };
+    const out = await client.withTenant(T, () =>
+      watchMailbox({
+        spaceId,
+        connection: "gmail",
+        cursor: "c0",
+        pull: async (cursor) => {
+          pulls.push(cursor);
+          return { hasMore: false, items: [mail], nextCursor: "c1" };
+        },
+      }),
+    );
+    expect(pulls).toEqual(["c0"]);
+    expect(out.cursor).toBe("c1");
+    expect(await hasStatus(id, "done")).toBe(true);
+    expect((await row(id))?.state.outputs.reply?.json).toMatchObject({
+      came: true,
+      subject: "Re: Angebot",
+      thread: "t1",
+    });
+  });
 });

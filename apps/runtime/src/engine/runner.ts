@@ -615,7 +615,8 @@ export function startRunner() {
 export async function stopRunner() {
   stopping = true;
   for (const abort of active.values()) {
-    abort.abort();
+    // A stop, not a cancel: a durable turn stays where it is for the next runner.
+    abort.abort("stop");
   }
   await disownRuns().catch(() => undefined);
 }
