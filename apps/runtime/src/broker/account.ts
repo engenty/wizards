@@ -200,7 +200,7 @@ export async function spaceAccount(
       id: row.id,
       connector_id: connector.id,
       auth_kind: connector.auth.kind,
-      autonomous_mode: "read_only",
+      autonomous_mode: row.autonomousMode,
       connected_by: row.setUpBy,
       created_at: signedInAt.toISOString(),
       display_name: row.name,

@@ -67,6 +67,8 @@ export async function sendSignal(input: {
   source: string;
   /** The sender's id for this delivery; without one every call is a signal of its own. */
   delivery?: string | null;
+  /** When it happened, where that is not now: a run only hears what came since it began. */
+  at?: Date;
 }): Promise<SentSignal> {
   const row = {
     id: `sig_${nanoid(16)}`,
@@ -78,7 +80,7 @@ export async function sendSignal(input: {
     data: input.data ?? null,
     source: input.source,
     runs: null,
-    at: new Date(),
+    at: input.at ?? new Date(),
   };
   const made = await db.insert(schema.runSignal).values(row).onConflictDoNothing().returning();
   if (made[0]) {
