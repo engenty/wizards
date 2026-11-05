@@ -4,7 +4,7 @@ import type { SessionUser } from "../auth/index.js";
 import { subjectsOfPerson } from "../broker/rwx.js";
 import { feature, remoteFeatures } from "../features.js";
 import { type LiveEvent, openStreams, subscribe } from "../live/hub.js";
-import { itemView } from "../live/views.js";
+import { heardChanges, itemView } from "../live/views.js";
 import { asRole } from "../services/access.js";
 import { chatChangesFor } from "../services/work-chats.js";
 import { requestLang, say } from "./lang.js";
@@ -71,10 +71,17 @@ export const liveRoutes = new Hono<Vars>().get("/", async (c) => {
       lang: requestLang(c),
       who: subjectsOfPerson(user.id, user.role),
     };
-    const unsubscribe = await subscribe(user.tenantId, since, send, {
-      key: `${user.role}|${reader.lang}`,
-      read: (x) => asRole(user.role, () => itemView(reader, x)),
-    });
+    const unsubscribe = await subscribe(
+      user.tenantId,
+      since,
+      send,
+      {
+        key: `${user.role}|${reader.lang}`,
+        read: (x) => asRole(user.role, () => itemView(reader, x)),
+      },
+      // A member hears nothing of the Studio of a space closed to them.
+      (changes) => asRole(user.role, () => heardChanges(changes)),
+    );
     const end = () => {
       if (closed) {
         return;

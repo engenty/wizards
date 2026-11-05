@@ -1,3 +1,4 @@
+import type { LiveItem } from "@engenty/wizards-shared/live";
 import { note } from "@engenty/wizards-shared/run";
 import type {
   PullAnswer,
@@ -14,6 +15,7 @@ import { getBlob, hasBlob, putBlobOf } from "../files/blobs.js";
 import { managed, tenantInfo } from "../manage.js";
 import { currentRole, isAdminRole, MEMBERS_EDIT_ONLY, mayBuild } from "../services/access.js";
 import { ServiceError } from "../services/errors.js";
+import { studioSpaces } from "../services/members-studio.js";
 import { spaceLimit } from "../services/spaces.js";
 import { publishWizard, rotateShareLink, shareUrl } from "../services/wizards.js";
 import { codeOf } from "../tenants/control.js";
@@ -43,13 +45,20 @@ function requireSchema(theirs: string) {
   }
 }
 
-/** The organization as an install meets it: its schema, its number of spaces, its spaces. */
+/**
+ * The organization as an install meets it: its schema, its number of spaces, its spaces. The
+ * install of a member meets the spaces whose Studio is open to members; the others refuse its
+ * pulls and pushes (services/members-studio.ts), so they are not offered to it.
+ */
 export async function syncOverview(): Promise<SyncOverview> {
-  const spaces = await db.query.space.findMany({
-    where: eq(schema.space.tenantId, currentTenant()),
-    columns: { id: true, name: true, origin: true },
-    orderBy: [schema.space.createdAt],
-  });
+  const open = await studioSpaces();
+  const spaces = (
+    await db.query.space.findMany({
+      where: eq(schema.space.tenantId, currentTenant()),
+      columns: { id: true, name: true, origin: true },
+      orderBy: [schema.space.createdAt],
+    })
+  ).filter((s) => !open || open.has(s.id));
   const info = managed ? await tenantInfo(currentTenant()).catch(() => null) : null;
   const limit = await spaceLimit();
   return {
@@ -63,6 +72,15 @@ export async function syncOverview(): Promise<SyncOverview> {
       spaces.map(async (s) => ({ id: s.id, name: s.name, seq: await spaceSeq(s.id) })),
     ),
   };
+}
+
+/**
+ * What of the feed's changes an install hears as spaces to pull (`GET /sync/live`): for a
+ * member's install, none of a space whose Studio is closed to members.
+ */
+export async function syncHears<T extends LiveItem>(changes: T[]): Promise<T[]> {
+  const open = await studioSpaces();
+  return open ? changes.filter((x) => !x.spaceId || open.has(x.spaceId)) : changes;
 }
 
 /**

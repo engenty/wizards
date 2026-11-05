@@ -74,9 +74,10 @@ const PUBLISHING: [string, RegExp][] = [
 
 /**
  * The space of an item, by the kind and id the studio's addresses name it with
- * (`/spaces/:id`, `/wizards/:id`, …; `runs` for a run's wizard), and what follows them.
+ * (`/spaces/:id`, `/wizards/:id`, …; `runs` for a run's wizard), and what follows them. `null`
+ * for what is in no space, or in none that is still there.
  */
-async function spaceOfItem(kind: string, id: string, sub?: string): Promise<string | null> {
+export async function spaceOfItem(kind: string, id: string, sub?: string): Promise<string | null> {
   const one = async <T extends { spaceId: string }>(found: Promise<T | undefined>) =>
     (await found)?.spaceId ?? null;
   const tenant = currentTenant();
@@ -146,6 +147,9 @@ async function spaceOfItem(kind: string, id: string, sub?: string): Promise<stri
               columns: { spaceId: true },
             }),
           );
+    case "presence":
+      // Who is in a wizard, page or table (`/presence/:kind/:item`) is in that item's space.
+      return sub ? spaceOfItem(`${id}s`, sub) : null;
     default:
       return null;
   }
@@ -157,6 +161,23 @@ async function spaceOfItem(kind: string, id: string, sub?: string): Promise<stri
  */
 export async function closedToMe(spaceId: string): Promise<boolean> {
   return (await ruledMember()) && !(await openToMembers(spaceId));
+}
+
+/**
+ * The spaces whose Studio the person at hand reaches, where the rule narrows them: the ones open
+ * to members. `null` for everyone the rule does not count for, who reaches every space. For what
+ * is sent unasked (the live stream, the sync's listing): a space that is not among them, closed
+ * or gone, is not named.
+ */
+export async function studioSpaces(): Promise<Set<string> | null> {
+  if (!(await ruledMember())) {
+    return null;
+  }
+  const open = await db.query.space.findMany({
+    where: and(eq(schema.space.tenantId, currentTenant()), eq(schema.space.membersStudio, true)),
+    columns: { id: true },
+  });
+  return new Set(open.map((s) => s.id));
 }
 
 /**

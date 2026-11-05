@@ -1,4 +1,4 @@
-import { subscribe } from "./hub.js";
+import { type Hears, type LiveEvent, subscribe } from "./hub.js";
 
 /**
  * Which install wrote what (docs/plans/live-changes.md, 7): the feed numbers a push of an install
@@ -38,7 +38,8 @@ export function pushedBy(tenant: string, install: string, seq: number): boolean 
 
 /**
  * The cloud's live call for one install: the spaces with changes, without what the install
- * pushed itself. `hear` gets hello, reset and changes; the answer stops it.
+ * pushed itself, and without what `hears` leaves out for its caller. `hear` gets hello, reset and
+ * changes; the answer stops it.
  */
 export async function followFor(
   tenantId: string,
@@ -49,8 +50,9 @@ export async function followFor(
       | { event: "hello" | "reset"; seq: number }
       | { event: "changes"; seq: number; spaces: string[] },
   ) => void,
+  hears?: Hears,
 ): Promise<() => void> {
-  return subscribe(tenantId, since, (e) => {
+  const send = (e: LiveEvent) => {
     if (e.event === "changes") {
       const spaces = new Set<string>();
       for (const x of e.items) {
@@ -63,5 +65,6 @@ export async function followFor(
     } else if (e.event === "hello" || e.event === "reset") {
       hear(e);
     }
-  });
+  };
+  return subscribe(tenantId, since, send, undefined, hears);
 }

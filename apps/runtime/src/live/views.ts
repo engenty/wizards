@@ -10,7 +10,7 @@ import { embeddingModel } from "../models.js";
 import { mayBuild, spaceWritable } from "../services/access.js";
 import { cloudLinked, cloudState } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
-import { closedToMe, studioOpen } from "../services/members-studio.js";
+import { spaceOfItem, studioOpen, studioSpaces } from "../services/members-studio.js";
 import { presentIn } from "../services/presence.js";
 import { getPage, getRow, getTableHeader } from "../services/space-data.js";
 import { fileView, spaceFiles } from "../services/space-files.js";
@@ -169,28 +169,61 @@ const ITEM_VIEWS: Record<LiveKind, ((r: Reader, x: LiveItem) => Promise<unknown>
 };
 
 /**
- * What the Studio alone shows of a space: a member whose Studio the space is closed to gets no view
- * of these, and the browser asks the studio API, which refuses it (services/members-studio.ts).
- * The space itself, its files and connectors are what Work reads in every space.
+ * What the Studio alone shows of a space: its wizards with their translations and build chats,
+ * its pages, tables, rows and categories, its skills, and who is in an item. The space itself,
+ * its files and connectors are what Work reads in every space.
  */
 const STUDIO_KINDS = new Set<LiveKind>([
   "wizard",
   "translation",
+  "message",
   "page",
   "table",
   "row",
+  "category",
+  "skill",
   "presence",
 ]);
 
+/** The space a change is in. Who is in an item (`presence`) is in the item's space. */
+async function spaceOfChange(x: LiveItem): Promise<string | null> {
+  if (x.spaceId || x.kind !== "presence" || !x.parent) {
+    return x.spaceId;
+  }
+  return spaceOfItem("presence", x.parent, x.item.slice(x.parent.length + 1));
+}
+
+/**
+ * What of the feed's changes the person at hand hears. A member hears nothing of what the Studio
+ * alone shows of a space closed to them (services/members-studio.ts): not that it changed, not
+ * its kind or id. A change that names no space still there (a row that went with its table)
+ * says nothing of whose it was, so a member does not hear it either; the item it went with says
+ * so in its own space.
+ */
+export async function heardChanges<T extends LiveItem>(changes: T[]): Promise<T[]> {
+  if (!changes.some((x) => STUDIO_KINDS.has(x.kind))) {
+    return changes;
+  }
+  const open = await studioSpaces();
+  if (!open) {
+    return changes;
+  }
+  const heard: T[] = [];
+  for (const x of changes) {
+    if (!STUDIO_KINDS.has(x.kind) || open.has((await spaceOfChange(x)) ?? "")) {
+      heard.push(x);
+    }
+  }
+  return heard;
+}
+
+/** The view of a change the reader hears (`heardChanges` comes first, in the hub). */
 export async function itemView(r: Reader, x: LiveItem): Promise<unknown> {
   const read = ITEM_VIEWS[x.kind];
   if (!read) {
     return undefined;
   }
   try {
-    if (x.spaceId && STUDIO_KINDS.has(x.kind) && (await closedToMe(x.spaceId))) {
-      return undefined;
-    }
     return await read(r, x);
   } catch (err) {
     if (gone(err)) {

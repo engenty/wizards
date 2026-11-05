@@ -38,10 +38,17 @@ export interface Views {
   read: (x: LiveItem) => Promise<unknown>;
 }
 
+/**
+ * What of the feed's changes a stream's reader hears (live/views.ts, with the reader's role). The
+ * rest is not sent to that stream; a batch with nothing left is no event at all.
+ */
+export type Hears = <T extends LiveItem>(changes: T[]) => Promise<T[]>;
+
 interface Subscriber {
   since: number;
   send: (e: LiveEvent) => void;
   views?: Views;
+  hears?: Hears;
 }
 
 interface TenantFeed {
@@ -66,6 +73,7 @@ export async function subscribe(
   since: number | null,
   send: (e: LiveEvent) => void,
   views?: Views,
+  hears?: Hears,
 ): Promise<() => void> {
   const { newest, gap } = await withTenant(tenantId, async () => {
     const newest = await newestSeq();
@@ -78,7 +86,7 @@ export async function subscribe(
     const oldest = await oldestSeq();
     return { newest, gap: oldest === null || oldest > since + 1 };
   });
-  const sub: Subscriber = { since: since === null || gap ? newest : since, send, views };
+  const sub: Subscriber = { since: since === null || gap ? newest : since, send, views, hears };
   send(gap ? { event: "reset", seq: newest } : { event: "hello", seq: newest });
   let feed = feeds.get(tenantId);
   if (!feed) {
@@ -188,9 +196,22 @@ async function read(feed: TenantFeed) {
       if (!mine.length) {
         continue;
       }
+      let heard = mine;
+      if (sub.hears) {
+        try {
+          heard = await sub.hears(mine);
+        } catch (err) {
+          // Not known what this reader may hear: nothing is sent, and the next tick asks again.
+          console.error(`[live ${feed.id}] what a reader hears:`, err);
+          continue;
+        }
+      }
       const seq = mine[mine.length - 1].seq;
       sub.since = seq;
-      sub.send({ event: "changes", seq, items: await withViews(dedupe(mine), sub.views, read) });
+      if (heard.length) {
+        const items = await withViews(dedupe(heard), sub.views, read);
+        sub.send({ event: "changes", seq, items });
+      }
     }
   }
   if (Date.now() - feed.prunedAt > PRUNE_EVERY_MS) {

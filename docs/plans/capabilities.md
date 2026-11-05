@@ -394,11 +394,12 @@ Not built or not verified, as the sessions reported:
 
 - The Manage-App's receiving endpoint `POST /v1/broker/:tenant` for the broker's report (A7a): the
   runtime posts, nobody receives.
-- A member's Goose in a closed space has no space: no Wissen, skills, space tools or own sign-ins
-  there; this turn of the assistant (`/assistant/turn`) has no test, only Goose's sign-ins do.
-- The live stream still names a closed space's changed items to a member (ids, no views), and
-  `/api/v1/sync` and `/sync/live` still list closed spaces; MCP's `run_wizard` and `get_run`
-  stay open, as Work runs wizards in every space.
+- A member still hears and lists what Work reads of a closed space, as Work shows it: the live
+  stream sends the space itself, its files, connectors and chats, and `/api/v1/me`, `/wizards` and
+  `/spaces` list the space and its wizards. MCP's `run_wizard` and `get_run` stay open too, as
+  Work runs wizards in every space.
+- The live feed's number (`hello`, `Last-Event-ID`) counts every change in the organization: a
+  member sees that something changed, not what or where. A stream resumes by it after a drop.
 - Signing in as each person is not gated to the Team plan (B2, B3).
 - A5 converted the old plugin connections with the audience „alle“: guests reach them until an
   admin narrows them.

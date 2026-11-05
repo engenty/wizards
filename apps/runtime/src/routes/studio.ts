@@ -186,7 +186,7 @@ import {
   valueContents,
 } from "../services/knowledge.js";
 import { writeSummary } from "../services/knowledge-model.js";
-import { closedToMe } from "../services/members-studio.js";
+import { closedToMe, spaceOfItem, studioSpaces } from "../services/members-studio.js";
 import {
   applyAddresses,
   finishOnboarding,
@@ -1746,9 +1746,18 @@ export const studio = new Hono<Vars>()
   })
   // --- the two-way sync of the spaces with the account's organization (sync/client.ts) ---
   // --- who is in a wizard, page or table: a signal, never a lock (docs/plans/live-changes.md, 8) ---
-  .get("/presence/:kind", async (c) =>
-    c.json(await presentByItem(z.enum(PRESENCE_KINDS).parse(c.req.param("kind")))),
-  )
+  .get("/presence/:kind", async (c) => {
+    const kind = z.enum(PRESENCE_KINDS).parse(c.req.param("kind"));
+    const present = await presentByItem(kind);
+    // A member sees who is in the items of the spaces whose Studio is open to them.
+    const open = await studioSpaces();
+    for (const item of open ? Object.keys(present) : []) {
+      if (!open?.has((await spaceOfItem("presence", kind, item)) ?? "")) {
+        delete present[item];
+      }
+    }
+    return c.json(present);
+  })
   .get("/presence/:kind/:item", async (c) =>
     c.json(await presentIn(z.enum(PRESENCE_KINDS).parse(c.req.param("kind")), c.req.param("item"))),
   )

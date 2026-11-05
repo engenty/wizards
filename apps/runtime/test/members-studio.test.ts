@@ -361,7 +361,7 @@ describe("members in the Studio, the other doors", () => {
     expect((await v1("o", `/space?space=${closed}`)).status).toBe(200);
   });
 
-  it("the live stream: a member hears a closed space's changes without their views", async () => {
+  it("the live stream: a member hears nothing of a closed space's Studio", async () => {
     switches(["capabilities", "liveChanges"]);
     const res = await get("/api/studio/live", member);
     expect(res.status).toBe(200);
@@ -374,14 +374,15 @@ describe("members in the Studio, the other doors", () => {
     while (!text.includes("event: hello")) {
       text += decoder.decode((await reader.read()).value, { stream: true });
     }
+    // The open space's table comes last: once it is heard, the closed one's was due before.
     const inClosed = await make(closed, "Gehälter");
     const inOpen = await make(open, "Leads 2");
     type Change = { item: string; view?: unknown };
     const heard = new Map<string, Change>();
     const until = Date.now() + 8000;
-    while ((!heard.has(inClosed) || !heard.has(inOpen)) && Date.now() < until) {
+    while (!heard.has(inOpen) && Date.now() < until) {
       text += decoder.decode((await reader.read()).value, { stream: true });
-      for (const block of text.split("\n\n")) {
+      for (const block of text.split("\n\n").slice(0, -1)) {
         const data = block.split("\n").find((l) => l.startsWith("data: "));
         if (block.includes("event: changes") && data) {
           for (const item of (JSON.parse(data.slice(6)) as { items: Change[] }).items) {
@@ -391,10 +392,9 @@ describe("members in the Studio, the other doors", () => {
       }
     }
     await reader.cancel();
-    expect(heard.get(inClosed)).toBeDefined();
-    expect(heard.get(inClosed)?.view).toBeUndefined();
     expect(heard.get(inOpen)?.view).toMatchObject({ id: inOpen });
-    // The view the stream held back: the studio API refuses it.
+    expect(text).not.toContain(inClosed);
+    // What the stream held back: the studio API refuses it.
     expect((await get(`/api/studio/tables/${inClosed}`, member)).status).toBe(403);
   }, 20_000);
 

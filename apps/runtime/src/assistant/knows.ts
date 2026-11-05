@@ -19,6 +19,7 @@ import { pluginToolsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
 import { earlierChats, readChat, searchChats } from "../services/assistant-chats.js";
 import { asLang, marketplaceDetail, searchMarketplace } from "../services/marketplace.js";
+import { studioSpaces } from "../services/members-studio.js";
 import { listWizards } from "../services/wizards.js";
 import { serverText } from "../texts.js";
 import { attempt } from "../tools/shared.js";
@@ -251,17 +252,29 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
           const runIds = [...new Set(usage.months.flatMap((m) => m.runs.map((r) => r.runId)))];
           const runs = runIds.length
             ? await db
-                .select({ id: schema.run.id, wizard: schema.wizard.title, mode: schema.run.mode })
+                .select({
+                  id: schema.run.id,
+                  wizard: schema.wizard.title,
+                  spaceId: schema.wizard.spaceId,
+                  mode: schema.run.mode,
+                })
                 .from(schema.run)
                 .innerJoin(schema.wizard, eq(schema.wizard.id, schema.run.wizardId))
                 .where(inArray(schema.run.id, runIds))
             : [];
           const byRun = new Map(runs.map((r) => [r.id, r]));
+          // A member reads no wizard's use in a space whose Studio is closed to them.
+          const open = await studioSpaces();
           return {
             months: usage.months.map((m) => {
               const perWizard = new Map<string, number>();
               for (const r of m.runs) {
-                const title = byRun.get(r.runId)?.wizard ?? "(a run of another install)";
+                const run = byRun.get(r.runId);
+                const title = !run
+                  ? "(a run of another install)"
+                  : open && !open.has(run.spaceId)
+                    ? "(wizards of spaces whose Studio is closed to you)"
+                    : run.wizard;
                 perWizard.set(title, (perWizard.get(title) ?? 0) + r.credits);
               }
               return {
