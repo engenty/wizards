@@ -656,6 +656,23 @@ export const nextRuleSchema = z
   });
 export type NextRule = z.infer<typeof nextRuleSchema>;
 
+/** "90m", "6h", "2d": how long a `wait` lasts. */
+export const waitDurationSchema = z
+  .string()
+  .regex(/^[1-9]\d{0,3}(m|h|d)$/, 'A duration like "90m", "6h" or "2d".');
+
+const WAIT_UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000 } as const;
+
+/**
+ * What a person's step (a page, a review) may add. Without them it waits for its answer as long as
+ * it takes. `timeout`: give up after this long, `steps.<id>.timedOut` is true and `next` decides.
+ * `remind`: remind whoever is asked after this long, once.
+ */
+const personStep = {
+  timeout: waitDurationSchema.optional(),
+  remind: waitDurationSchema.optional(),
+};
+
 const stepBase = {
   id,
   title: z.string().min(1),
@@ -688,6 +705,7 @@ export const outputFieldSchema = z
 
 export const pageStepSchema = z.object({
   ...stepBase,
+  ...personStep,
   type: z.literal("page"),
   fields: z.array(fieldSchema).min(1),
   /** Fields of which a decision shows one: see `group` on a field. */
@@ -953,11 +971,14 @@ export function assembleSurface(
 
 export const reviewStepSchema = z.object({
   ...stepBase,
+  ...personStep,
   type: z.literal("review"),
   /** Step ids whose output is shown. */
   show: z.array(z.string()).min(1),
   edit: z.boolean().optional(),
   regenerate: z.boolean().optional(),
+  /** Approve or decline instead of "Looks good": `steps.<id>.approved`, `steps.<id>.note`. */
+  approve: z.boolean().optional(),
 });
 
 export const deliverableSchema = z.object({
@@ -988,13 +1009,6 @@ export const resultStepSchema = z.object({
    */
   share: z.array(shareOptionSchema).max(12).optional(),
 });
-
-/** "90m", "6h", "2d": how long a `wait` lasts. */
-export const waitDurationSchema = z
-  .string()
-  .regex(/^[1-9]\d{0,3}(m|h|d)$/, 'A duration like "90m", "6h" or "2d".');
-
-const WAIT_UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000 } as const;
 
 /** What a duration lasts, in milliseconds. */
 export function waitDurationMs(duration: string): number {
@@ -1068,6 +1082,21 @@ export function waitHandsOn(step: WaitStep, key: string, more: string[]): boolea
     return more.length === 1 && (!step.signal.fields || step.signal.fields.includes(more[0]));
   }
   return (key === "came" || key === "timedOut") && more.length === 0;
+}
+
+/** Whether `steps.<page or review>.<key>` is something this person's step hands on. */
+export function personStepHandsOn(step: PageStep | ReviewStep, key: string): boolean {
+  if (key === "timedOut") {
+    return Boolean(step.timeout);
+  }
+  return step.type === "review" && Boolean(step.approve) && (key === "approved" || key === "note");
+}
+
+/** What a person's step hands on, as refs for the editor's lists. */
+export function personStepRefs(step: PageStep | ReviewStep): string[] {
+  return ["timedOut", "approved", "note"]
+    .filter((key) => personStepHandsOn(step, key))
+    .map((key) => `steps.${step.id}.${key}`);
 }
 
 /** What a wait hands on, as refs for the editor's lists. */
@@ -1358,6 +1387,43 @@ export interface ValidationIssue {
   message: string;
 }
 
+/** The longest a person's step waits or reminds. */
+const PERSON_WAIT_MAX_MS = 31 * 86_400_000;
+
+function personStepIssues(step: PageStep | ReviewStep): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  for (const [name, duration] of [
+    ["timeout", step.timeout],
+    ["remind", step.remind],
+  ] as const) {
+    if (duration && waitDurationMs(duration) > PERSON_WAIT_MAX_MS) {
+      issues.push({
+        stepId: step.id,
+        message: `"${name}" is at most 31 days; it says ${duration}.`,
+      });
+    }
+  }
+  if (step.timeout && step.remind && waitDurationMs(step.remind) >= waitDurationMs(step.timeout)) {
+    issues.push({
+      stepId: step.id,
+      message: `"remind" comes before "timeout": ${step.remind} is not shorter than ${step.timeout}.`,
+    });
+  }
+  // A decline with no way of its own would go on to the next step, as an approval does.
+  const approved = `steps.${step.id}.approved`;
+  if (
+    step.type === "review" &&
+    step.approve &&
+    !(step.next ?? []).some((rule) => conditionsOf(rule.when).some((c) => c.field === approved))
+  ) {
+    issues.push({
+      stepId: step.id,
+      message: `A review with "approve" needs a branch on ${approved}: a decline would go on like an approval.`,
+    });
+  }
+  return issues;
+}
+
 const TEMPLATE_RE = /\{\{\s*([^}]+?)\s*\}\}/g;
 
 export function templateRefs(template: string): string[] {
@@ -1571,6 +1637,13 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     const source = def.steps.find((s) => s.id === from);
     if (source?.type === "wait") {
       return waitHandsOn(source, key, more);
+    }
+    if (
+      (source?.type === "page" || source?.type === "review") &&
+      more.length === 0 &&
+      personStepHandsOn(source, key)
+    ) {
+      return true;
     }
     // `steps.<step>.<field>.p`: how probable the decision's answer is.
     const probability = more.length === 1 && more[0] === "p";
@@ -2050,6 +2123,9 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       } else if (!stepIds.has(step.onFail)) {
         issues.push({ stepId: step.id, message: `onFail goes to unknown step "${step.onFail}".` });
       }
+    }
+    if (step.type === "page" || step.type === "review") {
+      issues.push(...personStepIssues(step));
     }
     for (const rule of step.next ?? []) {
       if (rule.goto !== "end" && !stepIds.has(rule.goto)) {
