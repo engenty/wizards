@@ -279,7 +279,7 @@ const wizard: KindDef = {
         where: eq(schema.wizard.id, id),
         columns: { revision: true },
       });
-      emitDraftChanged({
+      await emitDraftChanged({
         wizardId: id,
         kind: "draft",
         revision: row?.revision ?? 0,

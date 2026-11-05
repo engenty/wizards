@@ -85,7 +85,5 @@ leaves an install. The runner id is `<hostname>-<random>`; run ids stay `nanoid(
 ## Not built
 
 - A runner serves one browser container (`BROWSER_CDP_URL`); several runners share it.
-- The studio's draft events (`services/draft-events.ts`) are process-local; one web process is
-  assumed.
 - Plugin jobs' "already running" guard is per process; `pluginJob.lastRunAt` keeps two runners
   from both starting a job within its interval only by chance.

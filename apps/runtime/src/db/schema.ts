@@ -50,6 +50,7 @@ import {
 import type { Grant } from "../broker/grant.js";
 import type { ImportedConnectorRecord } from "../engenty/connections-external/types.js";
 import type { DeviceAnswer, DeviceOffer, DeviceRequest } from "../engine/device.js";
+import type { DraftChange } from "../services/draft-events.js";
 
 const now = sql`(unixepoch() * 1000)`;
 const createdAt = () => integer("created_at", { mode: "timestamp_ms" }).notNull().default(now);
@@ -410,6 +411,45 @@ export const runEvent = sqliteTable(
  * A call the runner put to the run's device, open until the device answers or the runner stops
  * waiting: the stream (any web process) carries it to the phone, and the answer comes back here.
  */
+/** What an AI client did with the MCP server, by app id: the test on "Integrate" (mcp/seen.ts). */
+export const mcpAppSeen = sqliteTable("mcp_app_seen", {
+  app: text("app").primaryKey(),
+  at: integer("at").notNull(),
+  toolAt: integer("tool_at"),
+  widgetAt: integer("widget_at"),
+});
+
+/** An app's tool calls the model policy allowed or refused, per person ("": no name known). */
+export const mcpAppCheck = sqliteTable(
+  "mcp_app_check",
+  {
+    app: text("app").notNull(),
+    person: text("person").notNull(),
+    kind: text("kind").notNull(),
+    allowed: integer("allowed").notNull().default(0),
+    refused: integer("refused").notNull().default(0),
+    at: integer("at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.app, t.person] })],
+);
+
+/** A change to a wizard's draft or files, for the studio's open tabs in any process (services/draft-events.ts). */
+export const draftChange = sqliteTable(
+  "draft_change",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    wizardId: text("wizard_id")
+      .notNull()
+      .references(() => wizard.id, { onDelete: "cascade" }),
+    change: text("change", { mode: "json" }).$type<DraftChange>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("draft_change_wizard").on(t.wizardId, t.id),
+    index("draft_change_at").on(t.createdAt),
+  ],
+);
+
 export const deviceCall = sqliteTable(
   "device_call",
   {

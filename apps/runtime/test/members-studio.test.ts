@@ -279,7 +279,8 @@ describe("members in the Studio, switch on", () => {
     });
     expect(connection.status).toBe(403);
     expect((await get(`/api/studio/spaces/${open}/connections`, member)).status).toBe(200);
-    expect((await send("PUT", `/api/studio/spaces/${open}/rules`, member, { rules: [] })).status).toBe(403);
+    const rule = { subjectKind: "guest", subjectId: null, resourceKind: "wizard", resourceId: wizard, r: "deny" };
+    expect((await send("POST", `/api/studio/spaces/${open}/rules`, member, rule)).status).toBe(403);
     // The owner keeps everything.
     expect((await send("PATCH", `/api/studio/wizards/${wizard}`, owner, { shareEnabled: true })).status).toBe(200);
     expect((await get(`/api/studio/spaces/${open}/rules`, owner)).status).toBe(200);

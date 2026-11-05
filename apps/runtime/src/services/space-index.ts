@@ -1013,6 +1013,61 @@ async function readableUnits(
 }
 
 /**
+ * How many of a filter's items `who` may read: a page or a file by its own rule, a table and its
+ * rows by the table's, a mounted file where they may use its mount. What a search says its
+ * `where` left, so the number never counts what its caller cannot see.
+ */
+async function readableSize(
+  spaceId: string,
+  who: Subject[],
+  filter: Filtered,
+  mounts: { id: string }[],
+): Promise<number> {
+  if (!(await brokerOn())) {
+    return filter.size;
+  }
+  const rowsOf = new Map<string, number>();
+  const rows = [...filter.rows];
+  for (let i = 0; i < rows.length; i += 500) {
+    for (const r of await db.query.spaceTableRow.findMany({
+      where: inArray(schema.spaceTableRow.id, rows.slice(i, i + 500)),
+      columns: { tableId: true },
+    })) {
+      rowsOf.set(r.tableId, (rowsOf.get(r.tableId) ?? 0) + 1);
+    }
+  }
+  const [pages, files, tables] = await Promise.all([
+    pageResources([...filter.pages]).then((r) => readable(spaceId, who, r)),
+    readable(
+      spaceId,
+      who,
+      [...filter.files].map((id) => ({ kind: "document", id })),
+    ),
+    tableResources([...new Set([...filter.tables, ...rowsOf.keys()])]).then((r) =>
+      readable(spaceId, who, r),
+    ),
+  ]);
+  const usable = new Set(mounts.map((m) => m.id));
+  let mounted = 0;
+  const inMounts = [...filter.mounted];
+  for (let i = 0; usable.size && i < inMounts.length; i += 500) {
+    for (const f of await db.query.spaceMountFile.findMany({
+      where: inArray(schema.spaceMountFile.id, inMounts.slice(i, i + 500)),
+      columns: { mountId: true },
+    })) {
+      mounted += usable.has(f.mountId) ? 1 : 0;
+    }
+  }
+  return (
+    [...filter.pages].filter((id) => pages.has(id)).length +
+    [...filter.files].filter((id) => files.has(id)).length +
+    [...filter.tables].filter((id) => tables.has(id)).length +
+    [...rowsOf].reduce((n, [table, count]) => n + (tables.has(table) ? count : 0), 0) +
+    mounted
+  );
+}
+
+/**
  * Searches Knowledge for `who`: items whose categories pass `where` and that they may read, then
  * the units the keywords, the trigrams and the vectors rank best, merged by rank (RRF), then the
  * classifier's judgement of each of the CANDIDATES best. Gives up to `limit` items with their
@@ -1087,6 +1142,7 @@ export async function searchKnowledge(
   }
   // The mounts of Dateien the caller may use: their words and their vectors, beside Knowledge's.
   const mounts = await usableMounts(spaceId, opts.who ?? []);
+  const left = filter ? await readableSize(spaceId, opts.who ?? [], filter, mounts) : null;
   const mounted = filter ? [...filter.mounted] : null;
   if (mounts.length && !(mounted && !mounted.length)) {
     const inMounts = and(
@@ -1142,7 +1198,7 @@ export async function searchKnowledge(
       hits: [],
       candidates: 0,
       checked: false,
-      filtered: filter?.size ?? null,
+      filtered: left,
       hidden: [],
       late: embedded === undefined,
     };
@@ -1218,7 +1274,7 @@ export async function searchKnowledge(
     hits,
     candidates: candidates.length,
     checked: judged !== null,
-    filtered: filter?.size ?? null,
+    filtered: left,
     hidden,
     late: embedded === undefined,
   };

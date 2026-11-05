@@ -1,12 +1,6 @@
 import type { Where, Who } from "../broker/call.js";
 import { whereOf, whoOf } from "../broker/call.js";
-import {
-  AGENT,
-  type Subject,
-  subjectsOf,
-  subjectsOfGoose,
-  subjectsOfPerson,
-} from "../broker/rwx.js";
+import { type Subject, subjectsOf, subjectsOfAgent, subjectsOfGoose } from "../broker/rwx.js";
 import type { StepContext } from "../engine/types.js";
 import type { Role } from "../manage.js";
 import type { SkillSandbox } from "../tools/skills.js";
@@ -67,7 +61,7 @@ export function personCaller(input: {
     space: input.space,
     who: whoOf(`u:${input.userId}`, input.role),
     // An AI for the person: what the person may, and what the space lets agents do (Dateien).
-    subjects: [...subjectsOfPerson(input.userId, input.role), AGENT],
+    subjects: subjectsOfAgent(input.userId, input.role),
     where: {
       spaceId: input.space.id,
       ...(input.chatId ? { chatId: input.chatId } : {}),

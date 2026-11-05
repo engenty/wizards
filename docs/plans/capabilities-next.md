@@ -182,5 +182,4 @@ not hold is the one that hurts.
 
 ## Seen on the way
 
-- The tile of „E-Mail (SMTP)“ shows „E(“.
 - `docs/plans/broker.md` still opens with „nothing built“.

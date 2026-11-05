@@ -868,7 +868,7 @@ describe("a runtime of a Manage-App", () => {
       forgetTenant("tenant-b");
       expect(await (await list("Bearer wz_key_of_b")).text()).not.toContain("outside EU Private");
       const { checkedApps } = await import("../src/mcp/seen");
-      expect(checkedApps("tenant-b")).toMatchObject([{ kind: "subscription", allowed: 1, refused: 1 }]);
+      expect(await checkedApps("tenant-b")).toMatchObject([{ kind: "subscription", allowed: 1, refused: 1 }]);
       // When the Manage-App can't say what the policy allows, the app waits.
       tenantBDown = true;
       forgetTenant("tenant-b");

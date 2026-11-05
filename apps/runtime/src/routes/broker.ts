@@ -136,7 +136,7 @@ const memberOf = (user: SessionUser): string | undefined =>
   managed && !isAdminRole(currentRole()) ? user.id : undefined;
 
 /** The organization's people by id, with their role; alone, the one person; for a member, themselves. */
-async function peopleOf(user: SessionUser, own?: string): Promise<ProtocolPerson[]> {
+export async function peopleOf(user: SessionUser, own?: string): Promise<ProtocolPerson[]> {
   if (!managed) {
     return [{ id: user.id, name: (await userProfile(user)).name, role: "owner" }];
   }

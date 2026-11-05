@@ -2007,16 +2007,16 @@ export const studio = new Hono<Vars>()
     // Not done is an answer too: the app's file is no plain JSON, here is what to paste.
     return c.json(done.outcome);
   })
-  // What each AI client did with the MCP server since the start: the test on "Integrate".
-  .get("/integrations/seen", (c) => c.json(seenApps(c.get("user").tenantId)))
+  // What each AI client did with the MCP server: the test on "Integrate".
+  .get("/integrations/seen", async (c) => c.json(await seenApps(c.get("user").tenantId)))
   // The apps members used on the spaces, allowed or refused by the organization's model policy.
   // Who used which app is for the organization's owners and admins.
-  .get("/model-policy/apps", (c) => {
+  .get("/model-policy/apps", async (c) => {
     const user = c.get("user");
     if (!mayChangeModels(user)) {
       return c.json({ error: say(c, "onlyOrganizationAdminsChange"), code: "forbidden" }, 403);
     }
-    return c.json({ apps: checkedApps(user.tenantId) });
+    return c.json({ apps: await checkedApps(user.tenantId) });
   })
   .get("/local/models", (c) => (managed ? c.notFound() : c.json(localModelSettings())))
   .put("/local/models", async (c) => {
