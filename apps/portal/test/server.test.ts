@@ -25,6 +25,44 @@ const ACCESS = token({ sub: "wagner", tenant: "t1", role: "client", name: "Wagne
 
 const calls: { url: string; init: RequestInit }[] = [];
 
+/** A team's public space, as the Manage-App answers it. */
+const SPACE = {
+  slug: "steuer",
+  title: "Steuer",
+  headline: "Die Steuer, ohne Umwege",
+  lang: "de",
+  brand: {
+    name: "Kanzlei Maier",
+    logoUrl: null,
+    theme: { accent: "#123456", second: null, background: null, display: null, body: null, dark: false },
+  },
+  imprint: { name: "Kanzlei Maier GmbH", lines: ["Hauptstraße 1"], website: "https://maier.example" },
+  wizards: [
+    {
+      slug: "erklaerung",
+      title: "Steuererklärung",
+      description: "Einmal beschreiben, fertig.",
+      avatar: "round",
+      lang: "de",
+      results: [{ title: "Bescheid", kind: "document", formats: ["pdf"] }],
+      effort: { fields: 3, reviews: 1, minutes: 5, uploads: false },
+      steps: [{ title: "Angaben", by: "you" }],
+      runUrl: "https://run.test/w/token-1",
+    },
+    {
+      slug: "demo",
+      title: "Noch nicht gebaut",
+      description: "Ein Beispiel.",
+      avatar: "drop",
+      lang: "de",
+      results: [],
+      effort: { fields: 0, reviews: 0, minutes: 1, uploads: false },
+      steps: [],
+      runUrl: "https://run.test/w/demo-1",
+    },
+  ],
+};
+
 vi.stubGlobal("fetch", async (input: string | URL, init: RequestInit = {}) => {
   const url = String(input);
   calls.push({ url, init });
@@ -38,7 +76,24 @@ vi.stubGlobal("fetch", async (input: string | URL, init: RequestInit = {}) => {
     return Response.json({ access_token: ACCESS, refresh_token: "r1" });
   }
   if (url.startsWith("https://manage.test/v1/pages/host/")) {
-    return Response.json({ team: { id: "t1", name: "Kanzlei Maier", slug: "maier", lang: "de" }, page: null, portal: true });
+    const host = decodeURIComponent(url.slice(url.lastIndexOf("/") + 1));
+    if (host === "broken.wizards.test") {
+      return new Response("no", { status: 500 });
+    }
+    if (host === "nobody.wizards.test") {
+      return new Response("{}", { status: 404 });
+    }
+    const team = { id: "t1", name: "Kanzlei Maier", slug: "maier", lang: "de" };
+    if (host === "held.wizards.test") {
+      return Response.json({ team, page: null, portal: false, paused: true });
+    }
+    if (host === "former.wizards.test") {
+      return Response.json({ team, page: null, portal: false, movedTo: "https://maier.wizards.test" });
+    }
+    if (host === "open.wizards.test") {
+      return Response.json({ team, page: SPACE, portal: false });
+    }
+    return Response.json({ team, page: null, portal: true });
   }
   return Response.json({ url, auth: new Headers(init.headers).get("authorization") ?? null }, {
     headers: { "set-cookie": "runtime=1" },
@@ -159,5 +214,86 @@ describe("the portal server", () => {
     }
     expect(statuses.slice(0, 30).every((s) => s === 302)).toBe(true);
     expect(statuses.at(-1)).toBe(429);
+  });
+});
+
+describe("a team's public pages", () => {
+  const on = (host: string, path = "/") =>
+    app.fetch(new Request(`https://${host}${path}`, { headers: { host } }));
+
+  it("sends the root to the team's space", async () => {
+    const res = await on("open.wizards.test");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/steuer");
+  });
+
+  it("serves the space page as HTML a search engine reads, kept a minute", async () => {
+    const res = await on("open.wizards.test", "/steuer");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("public, max-age=60");
+    expect(res.headers.get("x-robots-tag")).toBeNull();
+    const html = await res.text();
+    expect(html).toContain("<title>Steuer · Kanzlei Maier</title>");
+    expect(html).toContain("Die Steuer, ohne Umwege");
+    expect(html).toContain("Steuererklärung");
+    expect(html).toContain("https://run.test/w/token-1");
+  });
+
+  it("sends a wizard's address to its run page, or says the demo wizard is not built", async () => {
+    const res = await on("open.wizards.test", "/steuer/erklaerung");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://run.test/w/token-1");
+    const demo = await on("open.wizards.test", "/steuer/demo");
+    expect(demo.status).toBe(200);
+    expect(await demo.text()).toContain("Noch nicht gebaut");
+  });
+
+  it("shows the empty page for an unknown space, wizard or team, and a team without a page", async () => {
+    for (const [host, path] of [
+      ["open.wizards.test", "/other"],
+      ["open.wizards.test", "/steuer/other"],
+      ["open.wizards.test", "/a/b/c"],
+      ["nobody.wizards.test", "/"],
+      ["maier.wizards.test", "/"],
+    ]) {
+      const res = await on(host, path);
+      expect(res.status, `${host}${path}`).toBe(404);
+      expect(await res.text()).toContain("Hier ist noch nichts.");
+    }
+  });
+
+  it("follows a former address to the current one", async () => {
+    const res = await on("former.wizards.test", "/steuer");
+    expect(res.status).toBe(301);
+    expect(res.headers.get("location")).toBe("https://maier.wizards.test/steuer");
+  });
+
+  it("shows a held page as paused, and keeps that nowhere", async () => {
+    const res = await on("held.wizards.test", "/steuer");
+    expect(res.status).toBe(503);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.text()).toContain("Diese Seite ist pausiert.");
+  });
+
+  it("never reads a Manage-App that doesn't answer as no team, and keeps no failure", async () => {
+    const res = await on("broken.wizards.test", "/steuer");
+    expect(res.status).toBe(503);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.text()).toContain("gerade nicht erreichbar");
+    const before = calls.length;
+    await on("broken.wizards.test", "/steuer");
+    expect(calls.length).toBe(before + 1);
+  });
+
+  it("leaves the client part where it is", async () => {
+    const res = await on("open.wizards.test", "/portal");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+  });
+
+  it("sends the portal's own origin to the portal", async () => {
+    const res = await on("portal.test");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/portal");
   });
 });

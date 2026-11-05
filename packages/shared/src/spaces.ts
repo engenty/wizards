@@ -149,10 +149,19 @@ export const PAGE_LIMITS = { slug: 48, title: 80, headline: 160, intro: 600 } as
 export const PAGE_SLUG = /^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/;
 
 /**
- * Addresses a public space never takes on `<team>.wizards.page`: the client portal's
- * (docs/plans/client-portal.md). The Manage-App keeps the same word reserved.
+ * Addresses a public space never takes on `<team>.wizards.page`: the client portal's, the portal
+ * app's health check and the visitors' routes (docs/plans/org-page.md). The Manage-App keeps the
+ * same words reserved.
  */
-export const RESERVED_PAGE_SLUGS: readonly string[] = ["portal"];
+export const RESERVED_PAGE_SLUGS: readonly string[] = [
+  "portal",
+  "health",
+  "chat",
+  "kontakt",
+  "contact",
+  "termin",
+  "booking",
+];
 
 /** A name as a page address: `Müller & Söhne GmbH` → `mueller-soehne-gmbh`. */
 export function pageSlugOf(name: string): string {

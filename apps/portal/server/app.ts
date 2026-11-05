@@ -3,48 +3,16 @@ import { extname, join, normalize } from "node:path";
 import { type Context, Hono } from "hono";
 import { currentSession, finishSignIn, signOut, startSignIn, takeHandover } from "./auth.js";
 import { env } from "./env.js";
+import { faceOf, hostOf } from "./face.js";
+import { publicPages } from "./page/routes.js";
 import { OWN, PORTAL } from "./paths.js";
 
 /**
- * The portal server (docs/plans/client-portal.md): the client's sign-in, and two forwards. The
- * client contract (`/api/v1/client`) gets the session's token; a run's own routes get the run's
+ * The portal server (docs/plans/client-portal.md, docs/plans/org-page.md): a team's public pages
+ * (page/routes.tsx), the client's sign-in, and two forwards. The client contract (`/api/v1/client`) gets the session's token; a run's own routes get the run's
  * ticket, which only the contract hands out. It decides nothing itself: the runtime decides every
  * call as the token's person.
  */
-
-/** What a team's portal shows before sign-in, from the Manage-App (its public page by host). */
-interface Face {
-  team: { id: string; name: string; slug: string; lang: string };
-  page: unknown;
-  portal: boolean;
-}
-
-const faces = new Map<string, { at: number; face: Face | null }>();
-
-async function faceOf(host: string): Promise<Face | null> {
-  const hit = faces.get(host);
-  if (hit && Date.now() - hit.at < 60_000) {
-    return hit.face;
-  }
-  const res = await fetch(`${env.manageUrl}/v1/pages/host/${encodeURIComponent(host)}`, {
-    signal: AbortSignal.timeout(10_000),
-  }).catch(() => null);
-  const face = res?.ok ? ((await res.json()) as Face) : null;
-  faces.set(host, { at: Date.now(), face });
-  return face;
-}
-
-/** The team's host a request came to; in development the portal's own may stand for one. */
-function hostOf(c: Context): string {
-  const host = (
-    c.req.header("x-forwarded-host")?.split(",")[0]?.trim() ||
-    c.req.header("host") ||
-    ""
-  )
-    .split(":")[0]
-    .toLowerCase();
-  return env.devTeamHost && host === new URL(env.portalUrl).hostname ? env.devTeamHost : host;
-}
 
 /** Headers a forward passes on: what the body is and the language, never the browser's cookies. */
 function forwarded(c: Context, extra: Record<string, string> = {}): Headers {
@@ -233,7 +201,8 @@ export const app = new Hono()
       ? c.notFound()
       : page(c);
   })
-  .get("/", (c) => c.redirect("/portal"));
+  // The rest of the host: the team's public pages.
+  .route("/", publicPages);
 
 function runRoute(c: Context) {
   const { runId, ticket } = c.req.param() as { runId: string; ticket: string };

@@ -62,6 +62,10 @@
     {
       "includes": ["apps/web/src/**", "!apps/web/src/**/*.test.ts"],
       "linter": { "rules": { "suspicious": { "noFocusedTests": "off" } } }
+    },
+    {
+      "includes": ["apps/portal/server/page/**"],
+      "linter": { "rules": { "correctness": { "useJsxKeyInIterable": "off" } } }
     }
   ],
   "css": { "parser": { "tailwindDirectives": true } }

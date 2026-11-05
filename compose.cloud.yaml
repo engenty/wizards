@@ -170,11 +170,12 @@ services:
       retries: 3
       start_period: 60s
 
-  # The client portal (docs/plans/client-portal.md): a firm's clients at
-  # `<team>.wizards.page/portal`. Its own app on its own image: it signs clients in through the
-  # Manage-App and reaches the runtime only over HTTP, the client contract at the `api` service and
-  # a run's own routes at the doors. The proxy sends it `/portal` on every `*.wizards.page` host
-  # (ahead of the Manage-App's router for those hosts) and on PORTAL_URL's host. The Manage-App's
+  # A team's host (docs/plans/org-page.md, docs/plans/client-portal.md): its public pages, and a
+  # firm's clients at `<team>.wizards.page/portal`. Its own app on its own image: it asks the
+  # Manage-App for the page by host, signs clients in through it and reaches the runtime only over
+  # HTTP, the client contract at the `api` service and a run's own routes at the doors. The proxy
+  # sends it every `*.wizards.page` host (the bare domain and `www.` stay the Manage-App's, which
+  # sends them to engenty.ai) and PORTAL_URL's host. The Manage-App's
   # RUNTIMES entry names `portalUrl` and `portalSecret` (= PORTAL_CLIENT_SECRET).
   portal:
     image: ghcr.io/engenty/engenty-wizards-portal:${IMAGE_TAG:-latest}
