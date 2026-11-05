@@ -104,6 +104,7 @@ import { switchedOffRunners } from "../services/runners.js";
 import { spaceFiles } from "../services/space-files.js";
 import { spaceProfile } from "../services/spaces.js";
 import { storedTranslation } from "../services/translations.js";
+import { decidedHeld, holdReview } from "../services/work-approvals.js";
 import { latestShareJob } from "../sharing/state.js";
 import { listRows, listSecrets, scopeOf } from "../store/index.js";
 import {
@@ -119,6 +120,7 @@ import {
   wakeRun,
 } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { whoOf } from "./answerers.js";
 import { type AskResult, askPerson, clearStaleAsk } from "./asks.js";
 import { decide } from "./decide.js";
 import { clearDeviceCalls } from "./device.js";
@@ -131,6 +133,7 @@ import {
   type NoticeKind,
   type NoticeValues,
   noticeFor,
+  noticesFor,
   noticeWrites,
 } from "./notices.js";
 import { pushRun } from "./push.js";
@@ -273,24 +276,26 @@ const TOLD: Partial<Record<RunRow["status"], NoticeKind>> = {
 
 /**
  * The reminder of a person's step, written with the wait and due at `remind`. It goes by the same
- * key as the wait, so an answer or a timeout settles it, and it replaces the last wait's. Whoever
- * opened the page themselves has left by then, if they are not looking: it has no `by`.
+ * key as the wait, so an answer or a timeout settles it, and it replaces the last wait's. It reaches
+ * whoever the step asks. Whoever opened the page themselves has left by then, if they are not
+ * looking: it has no `by`.
  */
-async function reminderOf(
-  run: Parameters<typeof noticeFor>[0],
+async function remindersOf(
+  run: Parameters<typeof noticesFor>[0],
   step: Step | undefined,
-): Promise<NoticeValues | null> {
+): Promise<NoticeValues[]> {
   if (!isPersonStep(step) || !step.remind || !(await durableRunsOn())) {
-    return null;
+    return [];
   }
-  return noticeFor(run, "reminder", {
+  return noticesFor(run, "reminder", {
+    step,
     waitKey: `step:${step.id}`,
     detail: step.title,
     dueAt: new Date(Date.now() + waitDurationMs(step.remind)),
   });
 }
 
-/** The notices a status change writes, if it tells anyone. A notice never breaks a run. */
+/** The notices a status change writes, one per person told. A notice never breaks a run. */
 async function noticesOfStatus(
   runId: string,
   patch: Partial<typeof schema.run.$inferInsert>,
@@ -307,17 +312,45 @@ async function noticesOfStatus(
     }
     const cursor = patch.cursor === undefined ? run.cursor : patch.cursor;
     const step = stepOf(run.definition, cursor);
-    const told = await noticeFor(run, kind, {
+    const told = await noticesFor(run, kind, {
       by,
+      step: kind === "needs_you" ? step : null,
       waitKey: kind === "needs_you" && cursor ? `step:${cursor}` : null,
       detail:
         kind === "needs_you" ? step?.title : kind === "failed" ? (patch.error ?? run.error) : null,
     });
-    const reminder = kind === "needs_you" ? await reminderOf(run, step) : null;
-    return [told, reminder].filter((n) => n !== null);
+    return kind === "needs_you" ? [...told, ...(await remindersOf(run, step))] : told;
   } catch (err) {
     console.error(`[notices] run ${runId}:`, err);
     return [];
+  }
+}
+
+/**
+ * What a run's move does to a held approval: a review with `approve` for the team is held while the
+ * run waits on it. A held row never breaks a run.
+ */
+async function moveHeld(runId: string, patch: Partial<typeof schema.run.$inferInsert>) {
+  if (!((patch.status || patch.cursor !== undefined) && (await durableRunsOn()))) {
+    return;
+  }
+  try {
+    const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+    if (!run) {
+      return;
+    }
+    const step = stepOf(run.definition, run.cursor);
+    await holdReview(
+      run,
+      run.status === "waiting_input" &&
+        step?.type === "review" &&
+        step.approve &&
+        whoOf(step) === "team"
+        ? { stepId: step.id, title: step.title }
+        : null,
+    );
+  } catch (err) {
+    console.error(`[approvals] run ${runId}:`, err);
   }
 }
 
@@ -350,9 +383,13 @@ async function updateRun(
     })
     .where(where);
   // The notices go in with the status: all of it happens, or none.
-  const notices = (await noticesOfStatus(runId, patch, by)).flatMap((n) => noticeWrites(n, where));
+  const notices = await noticesOfStatus(runId, patch, by);
   const result = notices.length
-    ? ((await db.batch([...notices, write] as never)) as { rowsAffected: number }[]).at(-1)
+    ? (
+        (await db.batch([...noticeWrites(notices, where), write] as never)) as {
+          rowsAffected: number;
+        }[]
+      ).at(-1)
     : await write;
   if (result?.rowsAffected === 0) {
     if (held) {
@@ -362,6 +399,7 @@ async function updateRun(
       throw new RunConflict({ code: "runBusy" });
     }
   }
+  await moveHeld(runId, patch);
   // A run that waits holds no credits: it reserves again when it wakes.
   if (patch.status === "sleeping" || patch.status === "waiting_signal") {
     await releaseRun(runId);
@@ -608,7 +646,7 @@ export async function createRun(input: {
       ...deadline,
     })
     .onConflictDoNothing({ target: [schema.run.wizardId, schema.run.occurrence] });
-  // Whoever starts a run stands on its first page: today that tells nobody, by `noticeFor`'s rule.
+  // Whoever starts a run stands on its first page: today that tells nobody, by `noticesFor`'s rule.
   const facts = {
     id,
     wizardId: input.wizardId,
@@ -618,19 +656,25 @@ export async function createRun(input: {
     unattended: input.unattended ?? false,
     impersonatedBy: currentImpersonator()?.adminId ?? null,
     startedBy: input.startedBy ?? null,
+    mode: input.mode,
   };
   const notices = waits
     ? [
-        await noticeFor(facts, "needs_you", {
+        ...(await noticesFor(facts, "needs_you", {
           detail: first.title,
           waitKey: `step:${first.id}`,
           by: { userId: input.userId, visitorId: input.visitorId },
-        }),
-        await reminderOf(facts, first),
-      ].flatMap((n) => (n ? noticeWrites(n, eq(schema.run.id, id)) : []))
+          step: first,
+        })),
+        ...(await remindersOf(facts, first)),
+      ]
     : [];
   const inserted = notices.length
-    ? ((await db.batch([insert, ...notices] as never)) as { rowsAffected: number }[])[0]
+    ? (
+        (await db.batch([insert, ...noticeWrites(notices, eq(schema.run.id, id))] as never)) as {
+          rowsAffected: number;
+        }[]
+      )[0]
     : await insert;
   if (inserted.rowsAffected === 0) {
     await releaseRun(id);
@@ -1583,6 +1627,7 @@ async function answerGoesOn(
   state: RunState,
   cursor: string | null,
   patch: Partial<typeof schema.run.$inferInsert> = {},
+  by?: Actor,
 ) {
   const next = stepOf(run.definition, cursor);
   let refused: RunNote | null = null;
@@ -1603,6 +1648,7 @@ async function answerGoesOn(
         run.id,
         { ...patch, state, cursor, status: "running", wakeAt: null, error: null },
         run,
+        by,
       );
     }
   } catch (err) {
@@ -1764,7 +1810,7 @@ async function tellPerson(run: RunRow, stepId: string, pause: RunPause) {
       detail: saidText(said, textLang(wizardLang(run.definition))),
     });
     if (notice) {
-      await db.batch(noticeWrites(notice, eq(schema.run.id, run.id)));
+      await db.batch(noticeWrites(notice, eq(schema.run.id, run.id)) as never);
     }
   } catch (err) {
     // A notice never breaks a run.
@@ -2074,7 +2120,12 @@ async function drive(runId: string, signal: AbortSignal) {
       }
       continue;
     }
-    if ((step.type === "page" || step.type === "review") && run.startedBy) {
+    // What the team is asked waits for the team, also on a started run.
+    if (
+      (step.type === "page" || step.type === "review") &&
+      run.startedBy &&
+      !(whoOf(step) === "team" && (await durableRunsOn()))
+    ) {
       // Nobody is there: the start's answers fill the page, its setting passes the review.
       const state = structuredClone(run.state);
       const cursor = await passStep(run, step, state);
@@ -2092,7 +2143,10 @@ async function drive(runId: string, signal: AbortSignal) {
       continue;
     }
     if (step.type === "page" || step.type === "review") {
-      await waitForAnswer(run, step, {});
+      // Reached right from someone's answer: they know, they did it. After a step that worked it
+      // is news again.
+      const { lastBy } = run.state;
+      await waitForAnswer(run, step, {}, undefined, lastBy?.next === step.id ? lastBy : undefined);
       // A step that ran is over and the next one is the person's: a phone in a pocket hears it.
       void pushRun(runId, "waiting");
       return;
@@ -2240,10 +2294,39 @@ async function passStep(
 
 // --- commands ----------------------------------------------------------------
 
-/** A person's step is behind the run: its timeline says so, as for a step that ran by itself. */
-async function tellAnswered(run: RunRow, stepId: string) {
-  if (await durableRunsOn()) {
-    await emitEvent(run.id, stepId, "step_done", stepOf(run.definition, stepId)?.title ?? stepId);
+/**
+ * A person's step is behind the run: its timeline says so, as for a step that ran by itself, and
+ * says who, where someone in the organization answered it.
+ */
+async function tellAnswered(
+  run: RunRow,
+  stepId: string,
+  by?: Actor,
+  said: "stepAnsweredBy" | "stepApprovedBy" | "stepDeclinedBy" = "stepAnsweredBy",
+) {
+  if (!(await durableRunsOn())) {
+    return;
+  }
+  const title = stepOf(run.definition, stepId)?.title ?? stepId;
+  const name = by?.userId ? await nameOf(by.userId) : null;
+  if (name) {
+    await emitEvent(run.id, stepId, "info", note(said, { name, step: title }));
+  }
+  await emitEvent(run.id, stepId, "step_done", title);
+}
+
+/**
+ * Keeps who gave an answer with the run: the wait it leads to right there tells them nothing, and
+ * the next person who tries to answer the step hears who was first. Nothing without the switch.
+ */
+async function keepAnswerer(state: RunState, stepId: string, next: string | null, by?: Actor) {
+  if (!(by && (await durableRunsOn()))) {
+    return;
+  }
+  state.lastBy = { userId: by.userId ?? null, visitorId: by.visitorId ?? null, next };
+  const name = by.userId ? await nameOf(by.userId) : null;
+  if (by.userId && name) {
+    state.answeredBy = { ...state.answeredBy, [stepId]: { userId: by.userId, name } };
   }
 }
 
@@ -2251,6 +2334,11 @@ async function requireWaiting(runId: string, stepId: string) {
   const run = await loadRun(runId);
   if (!run) {
     throw new RunConflict("Run not found");
+  }
+  // The first answer counts: the next one hears whose it was.
+  const first = run.state.answeredBy?.[stepId];
+  if (first && (run.status !== "waiting_input" || run.cursor !== stepId)) {
+    throw new RunConflict(note("answeredAlready", { name: first.name }));
   }
   const open = run.status === "waiting_input" || run.status === "done";
   if (!open || run.cursor !== stepId) {
@@ -2268,7 +2356,13 @@ async function requireWaiting(runId: string, stepId: string) {
   return run;
 }
 
-export async function submitPage(runId: string, stepId: string, input: Record<string, unknown>) {
+/** `by`: who answers, as the door established it; none for what the engine does itself. */
+export async function submitPage(
+  runId: string,
+  stepId: string,
+  input: Record<string, unknown>,
+  by?: Actor,
+) {
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
   if (step?.type !== "page") {
@@ -2336,8 +2430,9 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
   handOnAnswer(step, state);
   state.history.push(stepId);
   const cursor = await advance(run, stepId, state);
-  await answerGoesOn(run, step, state, cursor, { label: await labelOf(run.definition, state) });
-  await tellAnswered(run, stepId);
+  await keepAnswerer(state, stepId, cursor, by);
+  await answerGoesOn(run, step, state, cursor, { label: await labelOf(run.definition, state) }, by);
+  await tellAnswered(run, stepId, by);
   kick(runId);
 }
 
@@ -2433,7 +2528,11 @@ export type ReviewAction =
   | { type: "decline"; note?: string }
   | { type: "regenerate"; target: string; note: string; items?: number[] };
 
-export async function reviewStep(runId: string, stepId: string, action: ReviewAction) {
+/**
+ * `accept` on a review with `approve` approves it, so every door that accepts can approve. `by`: who
+ * answers, as the door established it; none for what the engine does itself.
+ */
+export async function reviewStep(runId: string, stepId: string, action: ReviewAction, by?: Actor) {
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
   if (step?.type !== "review") {
@@ -2464,17 +2563,27 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
     if (words && step.approve && guestRun(run) && (await guestChecksOn())) {
       await checkGuestText({ text: words });
     }
+    const approved = action.type === "accept";
     handOnAnswer(
       step,
       state,
-      step.approve
-        ? { approved: action.type === "accept", ...(words ? { note: words } : {}) }
-        : undefined,
+      step.approve ? { approved, ...(words ? { note: words } : {}) } : undefined,
     );
     state.history.push(stepId);
     const cursor = await advance(run, stepId, state);
-    await answerGoesOn(run, step, state, cursor);
-    await tellAnswered(run, stepId);
+    await keepAnswerer(state, stepId, cursor, by);
+    await answerGoesOn(run, step, state, cursor, {}, by);
+    if (step.approve && whoOf(step) === "team" && (await durableRunsOn())) {
+      await decidedHeld(run, { stepId, title: step.title }, approved, by?.userId ?? null).catch(
+        (err) => console.error(`[approvals] run ${runId}:`, err),
+      );
+    }
+    await tellAnswered(
+      run,
+      stepId,
+      by,
+      step.approve ? (approved ? "stepApprovedBy" : "stepDeclinedBy") : "stepAnsweredBy",
+    );
     kick(runId);
     return;
   }
@@ -2510,6 +2619,9 @@ export async function goBack(runId: string, by?: Actor) {
   delete state.retries;
   delete state.pause;
   delete state.turn;
+  // Asked again: whoever answered it before no longer has.
+  delete state.answeredBy?.[previous];
+  delete state.lastBy;
   await waitForAnswer(
     run,
     stepOf(run.definition, previous),
@@ -2759,6 +2871,8 @@ export async function runView(
       run.status === "waiting_signal" && step?.type === "wait"
         ? waitKeyText(run, step) || null
         : null,
+    // Who the viewer is: the door says (`viewFor`, engine/answerers.ts).
+    answeredBy: null,
     mode: run.mode,
     wizard: {
       title: def.title,

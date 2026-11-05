@@ -155,6 +155,7 @@ const texts = {
     screen: "Dieser Teil braucht einen Bildschirm. Danach geht es hier weiter.",
     open: "Öffnen",
     working: "{step} – das dauert einen Moment.",
+    answeredElsewhere: "Jemand aus dem Team kümmert sich jetzt darum. Danach geht es hier weiter.",
     sleeping: "Das geht am {date} von selbst weiter. Du musst nichts tun.",
     sleepingSoon: "Das geht gleich von selbst weiter. Du musst nichts tun.",
     waitsCredits:
@@ -201,6 +202,7 @@ const texts = {
     screen: "This part needs a screen. You carry on here afterwards.",
     open: "Open",
     working: "{step} – this takes a moment.",
+    answeredElsewhere: "Someone from the team is on it now. This goes on here after that.",
     sleeping: "This goes on by itself on {date}. You don’t need to do anything.",
     sleepingSoon: "This goes on by itself in a moment. You don’t need to do anything.",
     waitsCredits:
@@ -509,6 +511,16 @@ export class ThreadDoor {
           kind: "text",
           text: say(s.lang, "working", { step: report.step?.title ?? "…" }),
         });
+      }
+      this.o.watch(thread);
+      return;
+    }
+    if ("answeredBy" in w) {
+      // Theirs to answer, not the person's here: said once, then the thread waits for the run.
+      const key = `elsewhere:${report.step?.id ?? ""}`;
+      if (s.said !== key || msg) {
+        s.said = key;
+        await this.send(thread, { kind: "text", text: say(s.lang, "answeredElsewhere") });
       }
       this.o.watch(thread);
       return;

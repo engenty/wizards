@@ -1,4 +1,4 @@
-import { textLang, wizardLang } from "@engenty/wizards-shared/definition";
+import { type Step, textLang, wizardLang } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
 import { and, desc, eq, inArray, isNotNull, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -10,6 +10,7 @@ import { ManageError, managed, runMail } from "../manage.js";
 import { runViewTicketUntil, runWaitTicket } from "../secrets/signing.js";
 import { shareUrl, studioUrl } from "../services/wizards.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { answerersOf, teamToAsk, whoOf } from "./answerers.js";
 import { emitEvent } from "./events.js";
 import { pushToRunDevice } from "./push.js";
 import type { RunRow } from "./types.js";
@@ -24,8 +25,9 @@ import type { RunRow } from "./types.js";
  * - a member's run: its member, by bell, mail and the device the app gave the run
  * - a visitor's run: the visitor, by that device, and by mail at an `email` field with `notify`
  * - a channel's run: nobody here, its door says it (packages/wizards/src/plugin/thread.ts)
+ * - a step with `who: "team"`: each person who may answer it, by bell and mail, on any of these runs
  *
- * Nobody is told what they did themselves on their own page (`by`), or while they look at the run.
+ * Nobody is told what they did themselves (`by`), or while they look at the run.
  */
 
 export type NoticeKind = (typeof schema.notice.$inferSelect)["kind"];
@@ -57,15 +59,67 @@ export interface Actor {
 
 type RunFacts = Pick<
   RunRow,
-  "id" | "wizardId" | "userId" | "visitorId" | "runner" | "unattended" | "impersonatedBy"
+  "id" | "wizardId" | "userId" | "visitorId" | "runner" | "unattended" | "impersonatedBy" | "mode"
 > & { startedBy: RunRow["startedBy"] };
 
 /**
- * The one place that decides whether a status change tells someone, and returns the row to write
- * with it. Every path that makes a run wait comes here: `drive`, `createRun`, `goBack`, an ask.
+ * What a status change writes, one row per person told. `step`: the step the run now waits on. A
+ * step for the team reaches its people from any door, and from them only the one who answered right
+ * before is left out. A test run stays with who tries it, and a computer has one person: for those,
+ * and every other step, it is the run's own person.
+ */
+export async function noticesFor(
+  run: RunFacts,
+  kind: NoticeKind,
+  options: {
+    detail?: string | null;
+    waitKey?: string | null;
+    by?: Actor;
+    step?: Step | null;
+    /** A reminder is due later; anything else now. */
+    dueAt?: Date;
+  } = {},
+): Promise<NoticeValues[]> {
+  if (
+    speaksOfWait(kind) &&
+    whoOf(options.step) === "team" &&
+    managed &&
+    run.mode === "live" &&
+    !(run.unattended || run.impersonatedBy) &&
+    (await durableOn())
+  ) {
+    const asked = await teamToAsk(await answerersOf(run));
+    return asked
+      .filter((id) => id !== options.by?.userId)
+      .map((userId) => ({
+        kind,
+        wizardId: run.wizardId,
+        runId: run.id,
+        startId: run.startedBy?.startId ?? null,
+        detail: options.detail?.slice(0, 300) ?? null,
+        waitKey: options.waitKey ?? null,
+        userId,
+        visitor: false,
+        shown: false,
+        dueAt: options.dueAt ?? new Date(),
+      }));
+  }
+  // On a computer its one person answers for the team: whoever came here through the link, and
+  // through whichever door, they are told.
+  const own =
+    whoOf(options.step) === "team" && !managed
+      ? await noticeFor({ ...run, runner: null }, kind, { ...options, by: undefined })
+      : await noticeFor(run, kind, options);
+  return own ? [own] : [];
+}
+
+/**
+ * The one place that decides whether a status change tells the run's own person, and returns the
+ * row to write with it. Every path that makes a run wait comes here: `drive`, `createRun`, `goBack`,
+ * an ask.
  */
 export async function noticeFor(
-  run: RunFacts,
+  run: Omit<RunFacts, "mode">,
   kind: NoticeKind,
   options: {
     detail?: string | null;
@@ -123,27 +177,33 @@ export async function durableOn(): Promise<boolean> {
  * The statements that write a notice, for a batch with the status change. `guard` says when the
  * change happens: both go in one transaction, and with the guard false neither does anything.
  */
-export function noticeWrites(values: NoticeValues, guard: SQL) {
+export function noticeWrites(notice: NoticeValues | NoticeValues[], guard: SQL) {
+  const notices = Array.isArray(notice) ? notice : [notice];
   const exists = sql`EXISTS (SELECT 1 FROM ${schema.run} WHERE ${guard})`;
-  // The same word twice about one run says nothing new: a run that waits again replaces it.
-  const replace = db
-    .delete(schema.notice)
-    .where(
-      and(
-        eq(schema.notice.runId, values.runId as string),
-        eq(schema.notice.kind, values.kind),
-        isNull(schema.notice.readAt),
-        exists,
+  // The same word twice about one run says nothing new: a run that waits again replaces it. Once per
+  // kind, or the second person told would take the first one's row with it.
+  const replaces = [...new Set(notices.map((n) => n.kind))].map((kind) =>
+    db
+      .delete(schema.notice)
+      .where(
+        and(
+          eq(schema.notice.runId, notices[0]?.runId as string),
+          eq(schema.notice.kind, kind),
+          isNull(schema.notice.readAt),
+          exists,
+        ),
       ),
-    );
-  const write = db.run(sql`
+  );
+  const writes = notices.map((values) =>
+    db.run(sql`
     INSERT INTO ${schema.notice}
       (id, tenant_id, kind, wizard_id, run_id, start_id, detail, user_id, visitor, wait_key, shown, due_at, created_at)
     SELECT ${nanoid(12)}, ${currentTenant()}, ${values.kind}, ${values.wizardId}, ${values.runId ?? null},
       ${values.startId ?? null}, ${values.detail ?? null}, ${values.userId ?? null}, ${values.visitor ? 1 : 0},
       ${values.waitKey ?? null}, ${values.shown ? 1 : 0}, ${values.dueAt?.getTime() ?? null}, ${Date.now()}
-    WHERE ${exists}`);
-  return [replace, write] as const;
+    WHERE ${exists}`),
+  );
+  return [...replaces, ...writes];
 }
 
 /** A word that belongs to no run: a start that paused. For the bell. */
@@ -332,6 +392,9 @@ export function visitorAddress(run: Pick<RunRow, "definition" | "state">): strin
  * the run is kept, at most `LINK_MS`.
  */
 function linkOf(row: NoticeRow, run: RunRow, wizard: { id: string; shareToken: string }) {
+  if (askedOfAnother(row, run)) {
+    return `${env.appUrl}/work/r/${run.id}`;
+  }
   if (!row.visitor) {
     return `${studioUrl(wizard.id)}?run=${run.id}`;
   }
@@ -342,6 +405,10 @@ function linkOf(row: NoticeRow, run: RunRow, wizard: { id: string; shareToken: s
     : runViewTicketUntil(run.id, until);
   return `${shareUrl(wizard.shareToken)}/${run.id}?rt=${encodeURIComponent(ticket)}`;
 }
+
+/** The row asks someone other than the run's own person: one of those who answer for the team. */
+const askedOfAnother = (row: NoticeRow, run: RunRow) =>
+  Boolean(row.userId) && row.userId !== run.userId;
 
 type Delivery = "dealt" | "again";
 
@@ -356,8 +423,9 @@ function afterFailure(err: unknown, channel: string, row: NoticeRow): Delivery {
 }
 
 async function mailOf(row: NoticeRow, run: RunRow): Promise<Delivery> {
-  // A test run stays in the studio; a client's run in their portal, whose link a mail cannot know yet.
-  if (run.mode !== "live" || run.clientSpaceId) {
+  // A test run stays in the studio; a client's run in their portal, whose link a mail cannot know
+  // yet. Whoever answers for the team is of the firm: their link goes to the run in Work.
+  if (run.mode !== "live" || (run.clientSpaceId && !askedOfAnother(row, run))) {
     return "dealt";
   }
   const address = row.visitor ? visitorAddress(run) : null;
@@ -384,8 +452,8 @@ async function mailOf(row: NoticeRow, run: RunRow): Promise<Delivery> {
       await accountRunMail(mail);
     } else if (address) {
       await runMail({ ...mail, tenantId: currentTenant(), to: { email: address } });
-    } else if (run.userId) {
-      await runMail({ ...mail, tenantId: currentTenant(), to: { userId: run.userId } });
+    } else if (row.userId) {
+      await runMail({ ...mail, tenantId: currentTenant(), to: { userId: row.userId } });
     }
     return "dealt";
   } catch (err) {
@@ -394,7 +462,8 @@ async function mailOf(row: NoticeRow, run: RunRow): Promise<Delivery> {
 }
 
 async function pushOf(row: NoticeRow, run: RunRow): Promise<Delivery> {
-  if (!managed || run.mode !== "live") {
+  // The run's device is its own person's: it says nothing to someone else's question.
+  if (!managed || run.mode !== "live" || askedOfAnother(row, run)) {
     return "dealt";
   }
   const kind = speaksOfWait(row.kind)
@@ -422,7 +491,8 @@ async function deliver(row: NoticeRow, now: Date) {
     where: eq(control.runIndex.runId, run.id),
     columns: { viewedAt: true },
   });
-  const viewed = index?.viewedAt?.getTime() ?? 0;
+  // Who looks at the run is its own person: that says nothing about someone else who is asked.
+  const viewed = askedOfAnother(row, run) ? 0 : (index?.viewedAt?.getTime() ?? 0);
   if (speaksOfWait(row.kind) ? !stillWaits(row.waitKey, run) : viewed >= row.createdAt.getTime()) {
     await settle(row, now);
     return;

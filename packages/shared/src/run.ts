@@ -133,6 +133,13 @@ export interface RunState {
   retries?: { step: string; count: number; since: string; told?: RunPause["kind"] };
   /** Why a run that sleeps is not at a `wait` step; gone once it wakes. */
   pause?: RunPause;
+  /** Who answered each page or review of someone in the organization, by step. */
+  answeredBy?: Record<string, { userId: string; name: string }>;
+  /**
+   * Who gave the last answer, and the step it led to: a wait reached right there tells them nothing,
+   * since they did it themselves. A step that worked in between is news to them again.
+   */
+  lastBy?: { userId?: string | null; visitorId?: string | null; next: string | null };
   /** The durable agent step at work (engine/durable-turn.ts); gone when the step has finished. */
   turn?: RunTurn;
 }
@@ -352,6 +359,11 @@ const NOTES_EN = {
   runWaitOver: "The wait is over",
   runWokenBy: "{name} chose “Continue now”",
   runStoppedBy: "{name} stopped the run",
+  stepAnsweredBy: "{name} answered “{step}”",
+  stepApprovedBy: "{name} approved “{step}”",
+  stepDeclinedBy: "{name} declined “{step}”",
+  answeredAlready: "{name} has answered this already.",
+  notYourStep: "Someone else answers this step.",
   runResumed: "Picked up again after an interruption",
   effectMailMayBeSent:
     "The mail to {to} may have been sent already. The step won’t send it again. Check your outbox to see if it’s there.",
@@ -831,6 +843,11 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   runWaitOver: "Die Wartezeit ist vorbei",
   runWokenBy: "{name} hat „Jetzt weitermachen“ gewählt",
   runStoppedBy: "{name} hat den Lauf gestoppt",
+  stepAnsweredBy: "{name} hat „{step}“ beantwortet",
+  stepApprovedBy: "{name} hat „{step}“ freigegeben",
+  stepDeclinedBy: "{name} hat „{step}“ abgelehnt",
+  answeredAlready: "{name} hat das schon beantwortet.",
+  notYourStep: "Diesen Schritt beantwortet jemand anderes.",
   runResumed: "Nach einer Unterbrechung weitergemacht",
   effectMailMayBeSent:
     "Mail an {to} wurde vielleicht schon gesendet. Der Schritt sendet sie nicht noch einmal. Schau im Postausgang nach, ob sie dort liegt.",
@@ -1353,6 +1370,11 @@ export interface RunView {
   pause: RunPause | null;
   /** Who a run that waits for a signal waits to hear from; null otherwise. */
   waitsFor: string | null;
+  /**
+   * This step is someone else's to answer, and whose: the viewer reads along and has nothing to
+   * answer. Null where the viewer may answer, or nothing waits for an answer.
+   */
+  answeredBy: "person" | "owner" | "team" | null;
   mode: "test" | "live";
   wizard: Pick<WizardDefinition, "title" | "description" | "avatar" | "costume" | "intro">;
   /** The language the wizard speaks, by its code: what is read aloud, and in which voice. */
