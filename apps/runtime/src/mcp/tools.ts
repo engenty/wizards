@@ -830,14 +830,17 @@ export function registerTools(server: McpServer, who: Principal) {
           z.object({
             type: z.literal("accept"),
             edits: z.record(z.string(), z.string()).optional(),
+            note: z.string().max(2000).optional(),
           }),
           z.object({
             type: z.literal("regenerate"),
             target: z.string().describe("One of waitingFor.show."),
             note: z.string().max(2000),
           }),
-          z.object({ type: z.literal("approve"), note: z.string().max(2000).optional() }),
-          z.object({ type: z.literal("decline"), note: z.string().max(2000).optional() }),
+          z.object({
+            type: z.literal("decline").describe("Only on a review that asks for approval."),
+            note: z.string().max(2000).optional(),
+          }),
         ]),
         waitSeconds,
       }),

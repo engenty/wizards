@@ -2264,12 +2264,14 @@ export async function writeRunState(
 }
 
 export type ReviewAction =
-  | { type: "accept"; edits?: Record<string, string | Record<string, unknown>> }
-  | { type: "approve"; note?: string }
+  | { type: "accept"; edits?: Record<string, string | Record<string, unknown>>; note?: string }
   | { type: "decline"; note?: string }
   | { type: "regenerate"; target: string; note: string; items?: number[] };
 
-/** `by`: who answers, as the door established it; none for what the engine does itself. */
+/**
+ * `accept` on a review with `approve` approves it, so every door that accepts can approve. `by`: who
+ * answers, as the door established it; none for what the engine does itself.
+ */
 export async function reviewStep(runId: string, stepId: string, action: ReviewAction, by?: Actor) {
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
@@ -2277,39 +2279,12 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
     throw new RunConflict("Not a review");
   }
   const state = structuredClone(run.state);
-  // A review that decides is approved or declined, and is never just looked at.
-  if (
-    action.type === "approve" || action.type === "decline"
-      ? !step.approve
-      : step.approve && action.type === "accept"
-  ) {
-    throw new RunConflict({ code: "pageOutdated" });
+  if (action.type === "decline" && !step.approve) {
+    throw new RunConflict({ code: "notAnApproval" });
   }
-  if (action.type === "approve" || action.type === "decline") {
-    const words = (action.note ?? "").slice(0, 2000);
-    if (guestRun(run) && (await guestChecksOn())) {
-      await checkGuestText({ text: words });
-    }
-    const approved = action.type === "approve";
-    state.outputs[stepId] = {
-      json: { approved, note: words },
-      at: new Date().toISOString(),
-    };
-    state.history.push(stepId);
-    const cursor = await advance(run, stepId, state);
-    await keepAnswerer(state, stepId, cursor, by);
-    await updateRun(runId, { state, cursor, status: "running", error: null }, run);
-    if (whoOf(step) === "team" && (await durableRunsOn())) {
-      await decidedHeld(run, { stepId, title: step.title }, approved, by?.userId ?? null).catch(
-        (err) => console.error(`[approvals] run ${runId}:`, err),
-      );
-    }
-    await tellAnswered(run, stepId, by, approved ? "stepApprovedBy" : "stepDeclinedBy");
-    kick(runId);
-    return;
-  }
-  if (action.type === "accept") {
-    for (const [target, edit] of Object.entries(action.edits ?? {})) {
+  if (action.type === "accept" || action.type === "decline") {
+    const edits = action.type === "accept" ? action.edits : undefined;
+    for (const [target, edit] of Object.entries(edits ?? {})) {
       const output = state.outputs[target];
       if (!step.edit || !step.show.includes(target) || !output) {
         continue;
@@ -2324,11 +2299,32 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
         await checkGuestText({ text: typeof edit === "string" ? edit : JSON.stringify(edit) });
       }
     }
+    const words = action.note?.trim().slice(0, 2000) || undefined;
+    if (words && step.approve && guestRun(run) && (await guestChecksOn())) {
+      await checkGuestText({ text: words });
+    }
+    const approved = action.type === "accept";
+    if (step.approve) {
+      state.outputs[stepId] = {
+        json: { approved, ...(words ? { note: words } : {}) },
+        at: new Date().toISOString(),
+      };
+    }
     state.history.push(stepId);
     const cursor = await advance(run, stepId, state);
     await keepAnswerer(state, stepId, cursor, by);
     await updateRun(runId, { state, cursor, status: "running", error: null }, run);
-    await tellAnswered(run, stepId, by);
+    if (step.approve && whoOf(step) === "team" && (await durableRunsOn())) {
+      await decidedHeld(run, { stepId, title: step.title }, approved, by?.userId ?? null).catch(
+        (err) => console.error(`[approvals] run ${runId}:`, err),
+      );
+    }
+    await tellAnswered(
+      run,
+      stepId,
+      by,
+      step.approve ? (approved ? "stepApprovedBy" : "stepDeclinedBy") : "stepAnsweredBy",
+    );
     kick(runId);
     return;
   }

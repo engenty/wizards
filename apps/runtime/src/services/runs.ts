@@ -122,7 +122,7 @@ function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boo
           );
           await submitPage(runId, current.id, values);
         } else if (current?.type === "review" && acceptReviews) {
-          await reviewStep(runId, current.id, { type: current.approve ? "approve" : "accept" });
+          await reviewStep(runId, current.id, { type: "accept" });
         } else {
           land();
           return;

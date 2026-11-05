@@ -358,6 +358,7 @@ const NOTES_EN = {
   stepApprovedBy: "{name} approved “{step}”",
   stepDeclinedBy: "{name} declined “{step}”",
   answeredAlready: "{name} has answered this already.",
+  notAnApproval: "This review has nothing to decline.",
   notYourStep: "Someone else answers this step.",
   runResumed: "Picked up again after an interruption",
   effectMailMayBeSent:
@@ -856,6 +857,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   stepApprovedBy: "{name} hat „{step}“ freigegeben",
   stepDeclinedBy: "{name} hat „{step}“ abgelehnt",
   answeredAlready: "{name} hat das schon beantwortet.",
+  notAnApproval: "Bei dieser Prüfung gibt es nichts abzulehnen.",
   notYourStep: "Diesen Schritt beantwortet jemand anderes.",
   runResumed: "Nach einer Unterbrechung weitergemacht",
   effectMailMayBeSent:
