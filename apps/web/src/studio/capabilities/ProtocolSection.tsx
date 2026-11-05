@@ -23,9 +23,10 @@ import { Link, useSearchParams } from "react-router";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { type Space, useCurrentSpace } from "../../lib/session";
+import { type Space, useCurrentSpace, useIsAdmin } from "../../lib/session";
 import { Button, Chip, cn, Dialog, Select, Spinner, Switch, Tabs } from "../../ui";
 import { SearchField, Section } from "../space/Section";
+import { useSpaceConnections } from "./ConnectorsSection";
 import {
   actionWord,
   answerCondition,
@@ -44,8 +45,11 @@ import {
  * Fähigkeiten › Audit (docs/plans/capabilities.md, B5; docs/plans/broker.md, "The log",
  * "„Was darf …?“"): every call the broker decided in this space, in plain words, with filters and
  * a detail per line. Beside its title: the question an admin asks of the rules before anything
- * runs, and how the admins hear of critical lines, each in a dialog. For owners and admins: the runtime answers a member with 403, and the
- * section is not in a member's menu (`sections.ts`).
+ * runs, and how the admins hear of critical lines, each in a dialog.
+ *
+ * Owners and admins read every line. A member reads their own: what they called, what Goose
+ * called for them and what their runs called. The runtime sends a member nothing else, and their
+ * page says so and leaves out the filter by who, the question and the notifications.
  */
 
 type Opened = "ask" | "notify";
@@ -53,25 +57,33 @@ type Opened = "ask" | "notify";
 export function ProtocolSection() {
   const [params, setParams] = useSearchParams();
   const { space } = useCurrentSpace();
+  const admin = useIsAdmin();
   // „Was darf …?“ and the notifications open over the log; a link may name one (`?show=`).
   const shown = params.get("show");
-  const opened: Opened | null = shown === "ask" || shown === "notify" ? shown : null;
+  const opened: Opened | null = admin && (shown === "ask" || shown === "notify") ? shown : null;
   const open = (next: Opened | null) => setParams(next ? { show: next } : {}, { replace: true });
 
+  // What „Was darf …?“ picks from: the admins' alone.
   const choices = useQuery({
     queryKey: ["broker-choices", space?.id],
     queryFn: () => api.get<ProtocolChoices>(`/api/studio/spaces/${space?.id}/broker/choices`),
-    enabled: Boolean(space),
+    enabled: Boolean(space) && admin,
   });
 
   if (!space) {
     return null;
   }
+  if (!admin) {
+    return (
+      <div className="flex flex-col gap-9 pb-20">
+        <Log spaceId={space.id} own />
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-9 pb-20">
       <Log
         spaceId={space.id}
-        choices={choices.data}
         action={
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" onClick={() => open("ask")}>
@@ -139,12 +151,13 @@ function useSettled(value: string, ms = 300): string {
 
 function Log({
   spaceId,
-  choices,
+  own = false,
   action,
 }: {
   spaceId: string;
-  choices: ProtocolChoices | undefined;
-  action: ReactNode;
+  /** A member's page: their own lines, so no filter by who. */
+  own?: boolean;
+  action?: ReactNode;
 }) {
   const [outcome, setOutcome] = useState<OutcomeFilter>("all");
   const [who, setWho] = useState("");
@@ -153,6 +166,8 @@ function Log({
   const [text, setText] = useState("");
   const q = useSettled(text).trim();
   const [open, setOpen] = useState<string | null>(null);
+  // The space's connections open to this person: all of them for an admin.
+  const connections = useSpaceConnections(spaceId).data?.connections ?? [];
 
   const filters = { outcome, who, connection, range, q };
   const log = useInfiniteQuery({
@@ -189,10 +204,15 @@ function Log({
   const lines = log.data?.pages.flatMap((p) => p.lines) ?? [];
   const filtered =
     outcome !== "all" || who !== "" || connection !== "" || range !== "all" || q !== "";
-  const spaceConnections = new Set(choices?.connections.map((c) => c.id));
+  const spaceConnections = new Set(connections.map((c) => c.id));
 
   return (
-    <Section title={t("capabilities.protocol")} hint={t("protocol.hint")} action={action} plain>
+    <Section
+      title={t("capabilities.protocol")}
+      hint={t(own ? "protocol.own.hint" : "protocol.hint")}
+      action={action}
+      plain
+    >
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <Tabs
@@ -207,21 +227,23 @@ function Log({
             ]}
           />
         </div>
-        <div className="grid gap-2 sm:grid-cols-3">
-          <Select
-            value={who}
-            onChange={setWho}
-            placeholder={t("protocol.filter.everyone")}
-            options={WHO_KINDS.map((kind) => ({
-              value: kind,
-              label: t(`protocol.filter.who.${kind}`),
-            }))}
-          />
+        <div className={cn("grid gap-2", own ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
+          {own ? null : (
+            <Select
+              value={who}
+              onChange={setWho}
+              placeholder={t("protocol.filter.everyone")}
+              options={WHO_KINDS.map((kind) => ({
+                value: kind,
+                label: t(`protocol.filter.who.${kind}`),
+              }))}
+            />
+          )}
           <Select
             value={connection}
             onChange={setConnection}
             placeholder={t("protocol.filter.everyConnection")}
-            options={(choices?.connections ?? []).map((c) => ({
+            options={connections.map((c) => ({
               value: c.id,
               label: c.connector ? `${c.connector.name} · ${c.name}` : c.name,
             }))}
@@ -238,7 +260,7 @@ function Log({
         <SearchField
           value={text}
           onChange={setText}
-          placeholder={t("protocol.search")}
+          placeholder={t(own ? "protocol.own.search" : "protocol.search")}
           busy={log.isFetching && !log.isFetchingNextPage}
         />
 
@@ -250,7 +272,7 @@ function Log({
           </div>
         ) : lines.length === 0 ? (
           <p className="py-12 text-center text-[0.9375rem] text-ink-3">
-            {t(filtered ? "protocol.emptyFiltered" : "protocol.empty")}
+            {t(filtered ? "protocol.emptyFiltered" : own ? "protocol.own.empty" : "protocol.empty")}
           </p>
         ) : (
           <ul className="flex flex-col gap-2">

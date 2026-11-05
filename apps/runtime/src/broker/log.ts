@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { CriticalKind } from "@engenty/wizards-shared/connectors";
-import { and, desc, eq, gt, inArray, lt, not, or, type SQL, sql } from "drizzle-orm";
+import { and, desc, eq, exists, gt, inArray, lt, not, or, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
 
@@ -191,6 +191,8 @@ export interface LogQuery {
   /** Rows older than this one: the next page. */
   before?: LogCursor;
   limit?: number;
+  /** Only this person's own lines (`ownLines`): what a member reads of the log. */
+  own?: string;
 }
 
 /** Where a page of the log ended: the last row's time and id (rows of one millisecond go by id). */
@@ -221,10 +223,34 @@ function likeOf(text: string): string {
   return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
+/**
+ * A person's own lines: the calls they made themselves (an AI step of their run calls as them)
+ * and the ones Goose made for them, and the fixed steps of a run held for them, which call as
+ * the step. Part of the query, so a page, a cursor and a search count nobody else's lines.
+ */
+function ownLines(userId: string): SQL {
+  const log = schema.brokerLog;
+  return or(
+    and(inArray(log.whoKind, ["person", "goose"]), eq(log.whoId, userId)),
+    and(
+      eq(log.whoKind, "step"),
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(schema.run)
+          .where(and(eq(schema.run.id, log.runId), eq(schema.run.userId, userId))),
+      ),
+    ),
+  ) as SQL;
+}
+
 /** A space's log, newest first, filtered. */
 export async function logOfSpace(spaceId: string, query: LogQuery = {}): Promise<LoggedRow[]> {
   const log = schema.brokerLog;
   const where: SQL[] = [eq(log.spaceId, spaceId)];
+  if (query.own) {
+    where.push(ownLines(query.own));
+  }
   if (query.connection) {
     where.push(eq(log.connectionId, query.connection));
   }
@@ -285,18 +311,26 @@ export async function logOfSpace(spaceId: string, query: LogQuery = {}): Promise
       ) as SQL,
     );
   }
-  return db.query.brokerLog.findMany({
-    where: and(...where),
-    orderBy: [desc(log.at), desc(log.id)],
-    limit: Math.min(Math.max(query.limit ?? LOG_PAGE, 1), LOG_PAGE),
-  });
+  return db
+    .select()
+    .from(log)
+    .where(and(...where))
+    .orderBy(desc(log.at), desc(log.id))
+    .limit(Math.min(Math.max(query.limit ?? LOG_PAGE, 1), LOG_PAGE));
 }
 
-/** One line of a space's log. */
-export async function logLine(spaceId: string, id: string): Promise<LoggedRow | null> {
-  const row = await db.query.brokerLog.findFirst({
-    where: and(eq(schema.brokerLog.spaceId, spaceId), eq(schema.brokerLog.id, id)),
-  });
+/** One line of a space's log; with `own`, only where it is that person's own. */
+export async function logLine(
+  spaceId: string,
+  id: string,
+  own?: string,
+): Promise<LoggedRow | null> {
+  const log = schema.brokerLog;
+  const [row] = await db
+    .select()
+    .from(log)
+    .where(and(eq(log.spaceId, spaceId), eq(log.id, id), ...(own ? [ownLines(own)] : [])))
+    .limit(1);
   return row ?? null;
 }
 

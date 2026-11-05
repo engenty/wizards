@@ -31,6 +31,7 @@ const outside = (dir: string) => files.filter((f) => !f.path.startsWith(dir));
 const OPEN_FETCHERS = new Set([
   "tools/index.ts", // web_fetch; http_request calls brokerHost
   "tools/net-guard.ts", // the guard itself
+  "tools/web-search.ts", // web_search asks our own gateway: no account of a space, a public query
 ]);
 
 describe("one reader of a connection's secret", () => {

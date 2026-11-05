@@ -1,12 +1,15 @@
 ---
 title: Audit
-description: Every time a wizard, a chat or Goose used a connection of your space, allowed or not – what critical means, and how to try a rule before anything runs.
-version: 0.13.0
+description: Every time a wizard, a chat or Goose used a connection of your space, allowed or not – what critical means, what a member sees, and how to try a rule before anything runs.
+version: 0.16.2
 ---
 
 **[Capabilities](./capabilities.md) › Audit** shows every call your space’s wizards, Work chats and
 Goose made to a connection. Each call is one line, whether it ran or not.
-Only the owner and the admins of the organization see the audit. Members don’t find it in their menu.
+
+The owner and the admins of the organization see every line. A member sees only their own lines,
+in a space that lets members use the studio. [What a member sees](#what-a-member-sees) says which
+lines those are.
 
 ## What a line says
 
@@ -36,13 +39,33 @@ the fields, their sizes and one short value that is no secret.
 Above the lines you choose:
 
 - **All**, **Refused**, **Critical** or **Waiting for approval**;
-- who called: guests, members, admins, Goose, plugins or fixed steps;
+- who called: guests, members, admins, Goose, plugins or fixed steps. Only admins have this
+  filter, because a member’s lines are all their own;
 - one connection;
 - a time range, from the last hour to all time;
 - a search. It finds a person’s name, a connection’s, a wizard’s, an action, a reason and the
   short value of the input.
 
 The newest lines come first. “Load more” shows older ones.
+
+## What a member sees
+
+As a member you see your own calls and nobody else’s:
+
+- what you called yourself, in a Work chat or in an AI step of a run you started;
+- what Goose called for you;
+- what the fixed steps of your runs called.
+
+Each of your lines opens like any other, with the input’s fields, the rule that decided and your
+run’s grant. The filters and the search only ever count your own lines. A search for a colleague’s
+name finds nothing.
+
+Three things stay with the admins:
+
+- the filter by who, **Who may do what?** and the notifications;
+- the name of a connection that is not open to you. A call of yours that such a connection
+  refused shows without the connection’s name;
+- what you called while you were an admin yourself. Those lines stay admins’ lines.
 
 ## Critical
 
@@ -56,6 +79,8 @@ A line is critical when someone should hear of it:
 - a connection was used for the first time;
 - someone changed a rule.
 
+A member’s own lines show the mark too. Only the admins hear of them.
+
 The admins hear of a critical line at once, under the bell in Work. Where no admin was in the app,
 they get one email an hour with the critical lines since the last one. The bell icon beside the
 audit’s title, or **Settings › Notifications**, lets an admin turn the bell and the hourly email off
@@ -65,6 +90,7 @@ or on for the space.
 
 Rules are easier to understand when you can try them. **Who may do what?**, the button beside the
 audit’s title, answers a question before anything runs, for example “May Julia send an email in this space?”.
+Only the owner and the admins have it.
 
 1. Choose **who**: a person of your organization, a guest, Goose, or a fixed step in a guest’s or
    a member’s run.
