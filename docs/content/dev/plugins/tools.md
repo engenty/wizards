@@ -127,6 +127,13 @@ picks the tool, and no model copies its answer.
 A step that is running keeps the tools it started with. When a plugin loads again, the change
 reaches the next step.
 
+## When a run starts again
+
+A step can start again after a crash or a deploy. What it did through a connection is kept and
+happens once. A plugin’s tool isn’t kept, so it may run twice with the same input. Make it safe to
+repeat, for example with an id of your own that the other service takes once. The step’s `runId`
+and `stepId` make a good part of that id.
+
 ## Write a good tool
 
 - One job per tool. Two small tools are easier for a model to choose between than one with a

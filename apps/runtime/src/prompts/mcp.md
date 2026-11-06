@@ -60,7 +60,7 @@ Create a wizard from your JSON, or copy a starter. The draft may still have issu
 
 <!-- section: tool.edit_wizard -->
 Apply ops to the draft atomically, in order:
-- set_meta {title?, description?, avatar?, costume? (null takes it off), intro? (null removes), themes? (theme ids in order; null removes)}
+- set_meta {title?, description?, avatar?, costume? (null takes it off), intro? (null removes), themes? (theme ids in order; null removes), label? (what tells this wizard's runs apart, a template of answers; null removes)}
 - set_theme {theme}: a theme of the space (see "type Theme"), made or replaced, worn first by this wizard
 - set_lists {lists} / set_connections {connections}: replace the wizard's lists or connections as a whole
 - upsert_step {step (complete), before?|after?}: replaces the step with that id, else inserts it (default: before the final result step)

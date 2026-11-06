@@ -26,6 +26,9 @@ run on, and without one the next step in the list follows.
 
 A rule has `when` or `ask`, not both. Use `ask` where a rule on one field cannot say it.
 
+A [wait](./runs-that-last.md) branches on what ended it, a [person’s step](./runs-that-last.md#a-persons-step) on
+`timedOut` or `approved`, and `onFail` [sends a failed step’s run on](./runs-that-last.md#when-a-step-fails).
+
 ## Conditions
 
 ```json

@@ -3952,7 +3952,8 @@ const de: Record<Key, Line> = {
   "share.answerersPeople": "Personen",
   "share.answerersAdmins": "Admins",
   "share.answerersAdminsHint": "Alle Admins deiner Organisation beantworten sie.",
-  "share.answerersNobody": "Noch steht hier niemand, darum kannst du den Wizard nicht veröffentlichen.",
+  "share.answerersNobody":
+    "Noch steht hier niemand, darum kannst du den Wizard nicht veröffentlichen.",
   "share.answerersAdd": "Person hinzufügen",
   "share.answerersRemove": "{name} entfernen",
   "inspector.who": "Wer beantwortet das?",

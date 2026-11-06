@@ -191,6 +191,29 @@ It answers `{ text, object }`. Without a model set up it throws an error with th
 and the code `no_model`: a route that lets it through answers just that, and the studio half
 says it in the person’s language.
 
+## Signals
+
+A run can wait for something to arrive ([Signals](../wizard-format/runs-that-last.md#signals)). A
+plugin tells it:
+
+```ts
+const { id, runs } = await server.signals.send({
+  spaceId,
+  name: "invoice.paid",
+  key: invoice.email,
+  data: { amount: invoice.amount },
+  delivery: event.id,
+});
+```
+
+- It writes the signal, then wakes every run in the space that waits for this name and key, of any
+  of its wizards. It answers before any step runs, with how many runs woke.
+- `delivery` is your id for this event. The same one again wakes nothing and answers what it answered
+  first. Webhooks get sent twice, so give one.
+- `key` compares without case. `data` holds at most 64 KB and reads as `steps.<wait>.data.<field>`.
+- A name that starts with `run.`, `mail.` or `message.` is the runtime’s and can’t be sent.
+- With the switch `durableRuns` off, it throws.
+
 ## Jobs
 
 ```ts
