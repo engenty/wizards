@@ -47,7 +47,8 @@ their children by id. A prop is a value, or `{ "path": "/key/…" }` into the da
 | `Image`, `Gallery`, `Video`, `Audio`, `File` | A picture, pictures side by side, a clip, a recording, a file with its name (a PDF or picture shows itself) |
 | `Actions`, `Button` | Buttons that make the result again or open a file |
 
-A view in a [Work chat](#views-in-a-work-chat) has three more components and one more button.
+A view in a [Work chat](#views-in-a-work-chat) has three more components and one more button. A wizard’s
+views can [ask for a value](#inputs-in-a-view) that changes the view.
 
 `candidates` replaces `components` when the view should change per run. Each candidate is a piece
 with a `description`, and a decision picks the pieces that fit: no chart when there is nothing to
@@ -55,6 +56,34 @@ chart. `group` and `groups` work as on [pages](./pages-and-fields.md#fields-that
 and `required` pieces always show.
 
 The MCP tool `get_authoring_guide` lists every component with its props.
+
+### Inputs in a view
+
+A wizard’s views have three inputs. What the person sets there changes the view at once and is kept
+with the run, so a reload or another device shows the same view.
+
+| Component | Props |
+|---|---|
+| `Choice` | `state`, `options` (values, or `{ "label", "value" }`), `default`, `look: "list"` |
+| `Toggle` | `state`, `label`, `default` |
+| `Slider` | `state`, `min`, `max`, `increment`, `unit`, `label`, `default` |
+
+`state` names the value. Paths and [calculations](#calculated-values) read it by that name, like a
+data key. It is unique in its view and is not also a data key. These inputs work in surface steps
+and in a step’s `output.surface`, not on pages, where a field asks, and not in a Work chat.
+
+```json
+[
+  { "id": "root", "component": "Column", "children": ["people", "list"] },
+  { "id": "people", "component": "Choice", "state": "servings", "default": 2,
+    "options": [{ "label": "2 Personen", "value": 2 }, { "label": "4 Personen", "value": 4 }] },
+  { "id": "list", "component": "Checklist", "items": { "path": "/ingredients" }, "labelKey": "name",
+    "detail": { "calc": "round(amount * servings / 2)", "format": "{} {unit}" } }
+]
+```
+
+A `Checklist` takes `detail` next to `detailKey`: it is worked out per entry, and its names read the
+entry’s columns too.
 
 ### Calculated values
 

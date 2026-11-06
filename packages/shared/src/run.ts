@@ -51,7 +51,8 @@ export interface StepOutput {
   assets?: AssetRef[];
   /**
    * What the person did in the step's view, kept with the run: a checklist's ticks by component
-   * id, a widget's own state (`wizard.save`).
+   * id, the value of each Choice, Toggle and Slider by its `state`, a widget's own state
+   * (`wizard.save`).
    */
   view?: Record<string, unknown>;
   /** Widgets: what loading it with this run's data showed. */

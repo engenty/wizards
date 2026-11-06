@@ -1151,7 +1151,10 @@
                         "Gallery",
                         "Ref",
                         "Form",
-                        "Field"
+                        "Field",
+                        "Choice",
+                        "Toggle",
+                        "Slider"
                       ]
                     },
                     "children": {
@@ -2821,7 +2824,10 @@
                                 "Gallery",
                                 "Ref",
                                 "Form",
-                                "Field"
+                                "Field",
+                                "Choice",
+                                "Toggle",
+                                "Slider"
                               ]
                             },
                             "children": {
@@ -3602,7 +3608,10 @@
                         "Gallery",
                         "Ref",
                         "Form",
-                        "Field"
+                        "Field",
+                        "Choice",
+                        "Toggle",
+                        "Slider"
                       ]
                     },
                     "children": {
@@ -3699,7 +3708,10 @@
                               "Gallery",
                               "Ref",
                               "Form",
-                              "Field"
+                              "Field",
+                              "Choice",
+                              "Toggle",
+                              "Slider"
                             ]
                           },
                           "children": {

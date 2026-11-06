@@ -21,6 +21,8 @@ import { type FieldShape, type ListShape, type ObjectShape, shapeAt } from "./sh
  *
  * A chat's view (Work, `show_view`) may also ask: a `Form` of `Field`s, a `Ref` to a thing of the
  * space, a Button that asks the AI. A wizard asks on its pages, so its views take none of them.
+ * A wizard's views have `Choice`, `Toggle` and `Slider`: what the person sets there is view state,
+ * kept with the run under the `state` name, which paths and calc read like a data key.
  */
 
 export const SURFACE_COMPONENTS = [
@@ -57,6 +59,10 @@ export const SURFACE_COMPONENTS = [
   "Ref",
   "Form",
   "Field",
+  // Views of a wizard only: a choice the person makes in the view, kept with the run.
+  "Choice",
+  "Toggle",
+  "Slider",
 ] as const;
 export type SurfaceComponentName = (typeof SURFACE_COMPONENTS)[number];
 
@@ -133,6 +139,9 @@ const REQUIRED: Partial<Record<SurfaceComponentName, string[]>> = {
   Form: ["children", "submit"],
   // A chat's view needs "kind" and "label" as well: askIssues checks by place.
   Field: ["name"],
+  Choice: ["state", "options"],
+  Toggle: ["state", "label"],
+  Slider: ["state", "min", "max"],
 };
 
 /** `ask` (a chat's view only): the person asks the AI the button's `prompt`, or its label. */
@@ -208,12 +217,14 @@ function repeatedIds(components: SurfaceComponent[]): Set<string> {
 }
 
 /** What can be wrong with the calculations of a component: their text, `as`, and given what the place holds, their names. */
-function componentCalcIssues(c: SurfaceComponent, allowed: Set<string> | null): SurfaceIssue[] {
+function componentCalcIssues(c: SurfaceComponent, given: Set<string> | null): SurfaceIssue[] {
   const issues: SurfaceIssue[] = [];
   for (const [key, value] of Object.entries(c)) {
     if (key === "id" || key === "component" || key === "children") {
       continue;
     }
+    // A Checklist's `detail` is worked out per entry: it reads the entry's columns too.
+    const allowed = c.component === "Checklist" && key === "detail" ? null : given;
     for (const spec of calcsIn(value)) {
       const node = parsedCalc(spec.calc);
       if ("error" in node) {
@@ -395,7 +406,8 @@ function shapeIssues(byId: Map<string, SurfaceComponent>, root: ObjectShape): Su
         continue;
       }
       const reads = c.component === "Link" && (k === "title" || k === "subtitle" || k === "meta");
-      const scope = reads ? opened : entry;
+      const perEntry = c.component === "Checklist" && k === "detail";
+      const scope = reads ? opened : perEntry ? items : entry;
       const paths: string[] = [];
       const walk = (v: unknown) => {
         if (isPath(v)) {
@@ -487,7 +499,9 @@ export function validateSurface(
   }
   issues.push(...askIssues(components, byId, options));
   const repeated = repeatedIds(components);
-  const keys = dataKeys ? new Set(dataKeys) : null;
+  const states = stateNames(components);
+  issues.push(...viewInputIssues(components, new Set(dataKeys ?? shapeKeys(data)), options));
+  const keys = dataKeys ? new Set([...dataKeys, ...states]) : null;
   for (const c of components) {
     issues.push(...componentCalcIssues(c, repeated.has(c.id) ? null : keys));
     for (const prop of REQUIRED[c.component] ?? []) {
@@ -524,7 +538,7 @@ export function validateSurface(
     if (dataKeys) {
       for (const path of pathsOf(c)) {
         const key = path.startsWith("/") ? path.split("/")[1] : null;
-        if (key !== null && !dataKeys.includes(key)) {
+        if (key !== null && !dataKeys.includes(key) && !states.includes(key)) {
           issues.push({ message: `"${c.id}" reads "${path}", which no data provides.` });
         }
       }
@@ -549,7 +563,109 @@ export function validateSurface(
     issues.push({ message: "Components hold each other in a loop." });
     return issues;
   }
-  return data && !Array.isArray(data) ? [...issues, ...shapeIssues(byId, data)] : issues;
+  return data && !Array.isArray(data)
+    ? [
+        ...issues,
+        ...shapeIssues(byId, {
+          ...data,
+          fields: {
+            ...data.fields,
+            ...Object.fromEntries(states.map((s) => [s, { kind: "text" as const, label: s }])),
+          },
+        }),
+      ]
+    : issues;
+}
+
+const VIEW_INPUTS: ReadonlySet<string> = new Set(["Choice", "Toggle", "Slider"]);
+
+/** The names a view's inputs keep their values under. */
+function stateNames(components: SurfaceComponent[]): string[] {
+  return components.flatMap((c) => {
+    const state = (c as Record<string, unknown>).state;
+    return VIEW_INPUTS.has(c.component) && typeof state === "string" ? [state] : [];
+  });
+}
+
+const shapeKeys = (data: string[] | ObjectShape | undefined) =>
+  data && !Array.isArray(data) ? Object.keys(data.fields) : [];
+
+/**
+ * A view's inputs: never on a page, whose inputs are its fields and answers, nor in a chat's view.
+ * A `state` name is one of its own, and what each needs has the right form.
+ */
+function viewInputIssues(
+  components: SurfaceComponent[],
+  dataKeys: Set<string>,
+  { chat, page }: { chat?: boolean; page?: string[] },
+): SurfaceIssue[] {
+  const issues: SurfaceIssue[] = [];
+  const seen = new Set<string>();
+  const repeated = repeatedIds(components);
+  const checklists = new Set(
+    components.filter((c) => c.component === "Checklist").map((c) => c.id),
+  );
+  for (const c of components) {
+    if (!VIEW_INPUTS.has(c.component)) {
+      continue;
+    }
+    const props = c as Record<string, unknown>;
+    if (page) {
+      issues.push({
+        message: `${c.component} "${c.id}" is for a wizard's views; on a page, a field asks.`,
+      });
+    }
+    if (chat) {
+      issues.push({ message: `${c.component} "${c.id}" is for a wizard's views, not a chat's.` });
+    }
+    if (repeated.has(c.id)) {
+      issues.push({ message: `${c.component} "${c.id}" stands in a repeat; it has one value.` });
+    }
+    const state = props.state;
+    if (typeof state === "string") {
+      if (!/^[a-zA-Z][a-zA-Z0-9_]{0,40}$/.test(state)) {
+        issues.push({ message: `${c.component} "${c.id}": state is letters, digits and _.` });
+      }
+      if (seen.has(state)) {
+        issues.push({ message: `The state "${state}" is named twice in this view.` });
+      }
+      if (dataKeys.has(state)) {
+        issues.push({ message: `The state "${state}" is also a data key of this view.` });
+      }
+      // Ticks are kept under their component's id, next to the view's state.
+      if (checklists.has(state)) {
+        issues.push({ message: `The state "${state}" is also the id of a Checklist.` });
+      }
+      seen.add(state);
+    }
+    if (c.component === "Choice") {
+      const options = props.options;
+      const fits = (o: unknown) =>
+        typeof o === "string" ||
+        typeof o === "number" ||
+        (Boolean(o) &&
+          typeof o === "object" &&
+          "value" in (o as object) &&
+          "label" in (o as object));
+      if (!(Array.isArray(options) && options.length && options.every(fits))) {
+        issues.push({
+          message: `Choice "${c.id}" needs "options": values, or { label, value }.`,
+        });
+      }
+      if (props.look !== undefined && props.look !== "list") {
+        issues.push({ message: `Choice "${c.id}": look is "list".` });
+      }
+    }
+    if (c.component === "Slider") {
+      const { min, max, increment } = props;
+      if (typeof min !== "number" || typeof max !== "number" || min >= max) {
+        issues.push({ message: `Slider "${c.id}": min and max are numbers, min below max.` });
+      } else if (typeof increment === "number" && (increment <= 0 || increment > max - min)) {
+        issues.push({ message: `Slider "${c.id}": increment does not fit from min to max.` });
+      }
+    }
+  }
+  return issues;
 }
 
 /** What a view may ask, and how: a chat's only, one Form, its Fields in it and named once. */
