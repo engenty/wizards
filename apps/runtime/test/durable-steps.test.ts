@@ -79,6 +79,10 @@ vi.mock("../src/broker/effect.js", async (original) => ({
   ...(await original<typeof import("../src/broker/effect.js")>()),
   effectsOn: async () => switchOn,
 }));
+vi.mock("../src/safety.js", async (original) => ({
+  ...(await original<typeof import("../src/safety.js")>()),
+  guestChecksOn: async () => false,
+}));
 vi.mock("../src/engine/requirements.js", async (original) => ({
   ...(await original<typeof import("../src/engine/requirements.js")>()),
   missingModelsSaid: async () => [],
@@ -829,7 +833,7 @@ describe("a turn of 60 model steps", () => {
     const { buildStepTools } = await import("../src/tools/index.js");
     const { tools } = await buildStepTools(
       {} as never,
-      { stepId: "plain", runId: "plain", signal: new AbortController().signal, emit: async () => {} } as never,
+      { stepId: "plain", signal: new AbortController().signal, emit: async () => {} } as never,
       {} as never,
       [],
     );
