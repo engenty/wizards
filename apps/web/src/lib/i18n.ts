@@ -3965,7 +3965,6 @@ const de: Record<Key, Line> = {
   "inspector.who.owner": "Wem der Lauf gehört",
   "inspector.who.team": "Das Team",
   "inspector.whoTeamHint": "Wer genau, legst du im Teilen-Dialog unter „Beantwortet von“ fest.",
-  "inspector.approve": "Freigeben oder ablehnen",
   "share.signalsAdd": "Hinzufügen",
   "share.signalsOnce": "Adresse und Geheimnis siehst du nur jetzt",
   "share.signalsOnceHint":
@@ -8699,7 +8698,6 @@ const en = {
   "inspector.who.owner": "The run’s owner",
   "inspector.who.team": "The team",
   "inspector.whoTeamHint": "You name the people in the share dialog, under “Answered by”.",
-  "inspector.approve": "Approve or decline",
   "share.signalsAdd": "Add",
   "share.signalsOnce": "You only see the address and secret now",
   "share.signalsOnceHint":
