@@ -48,6 +48,7 @@ The default export is a `WizardsPluginFactory`: `(wizards: WizardsPluginApi) => 
 | `sharedUrl(path): string` | The full address of a shared route, the same for every tenant |
 | `claims.take(key)`, `.put(key)`, `.drop(key)`, `.holder(key)`, `.mine(key)` | [Keys across tenants](./server.md#keys-across-tenants). Each key for one tenant at a time; `holder` gives the tenant’s ref for `inTenant` |
 | `channels.get()`, `.request({ userId, country, wish?, lang })`, `.withdraw()`, `.book({ kind: "sms" \| "call" \| "whatsapp", quantity, key, runId? })` | [Numbers of the Manage-App](./server.md#numbers-of-the-manage-app). `get`: `{ number, request, shared, allowed }` or `null` without a Manage-App |
+| `signals.send({ spaceId, name, key, data?, delivery? })` | [The server half](./server.md#signals). Wakes the runs that wait for it. `{ id, runs }` |
 | `registerMigrations(folder: string)` | [Tables](./tables.md). The folder is relative to the plugin’s |
 | `on(event, listener)` | [Events](./events.md). `event`: `"run.done"`, `"run.failed"`, `"run.cancelled"`, `"space.created"`, `"space.updated"`, `"space.deleted"`, `"space.file.ready"`, `"space.file.removed"` |
 | `every(name, everyMs, handler)` | [Jobs](./server.md#jobs). Per tenant that has the plugin, at most once per `everyMs` (a minute at least). `handler({ tenantId, lastRun, signal })` |

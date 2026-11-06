@@ -60,10 +60,12 @@ ${sandbox}
 <!-- Technical: engineering owns everything below. -->
 
 <!-- section: guide -->
-<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON. -->
+<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON; durable is the section below, or nothing. -->
 engenty wizards: a wizard is a page-by-page flow an end user walks through on a shared link. Pages ask questions; AI steps research, write, draw images, render video, build documents and dashboards, or write into other systems. You author the wizard as JSON; the person who asked you is the ADMIN, the people who later open the link are END USERS.
 
 ${schema}
+
+${durable}
 
 ${principles}
 
@@ -430,6 +432,42 @@ Templates (in instructions/prompt): {{fieldId}} · {{steps.stepId}} (whole outpu
   · {{lists.listId}} (the stored list as a table, as it is when the step starts) · {{fileField}} (the names of the uploads, for read_document)
   · {{locationField}} {{locationField.lat|lng|accuracy|label|map}} · {{audioField}} (the transcript) · {{signatureField}} (asset://ID)
 A template may only use fields asked and steps run EARLIER.
+
+<!-- section: durable -->
+<!-- Only while the switch durableRuns is on: authoringGuide() and the architect's system prompt leave it out otherwise. -->
+Runs that last days. A run can wait for hours or days: nothing runs meanwhile, it spends no credits, and it survives restarts. A flow that spans days uses wait steps, never an agent step that loops and checks the time. Durations are written "90m", "6h", "2d"; keep every wait under 31 days.
+
+type WaitStep = { type: "wait", for?: Duration, until?: string, signal?: { name, key, timeout?: Duration, fields?: string[] } }
+// Exactly one of for, until, signal.
+// for: from the moment the run gets here. until: an ISO date or a template ("{{deadline}}"). A date gone by waits for nothing; text that is no date fails the run.
+// signal: something arrived from outside. Only a signal with this name and this key ends the wait; keys compare without case, and key is a template.
+//   A signal that came after the run began and before it got here counts too, for 30 days. One signal reaches every run that waits for it.
+//   timeout: give up after this long and go on. Without it the run waits until the signal comes or someone stops it, so give one unless the wait truly has no end.
+//   fields: what its data must hold. A signal without them ends nothing, and only these fields reach the run.
+// What it hands on, for next rules and {{templates}}: after for or until, steps.<id>.waited. After a signal, steps.<id>.came, steps.<id>.timedOut, steps.<id>.data.<field>.
+// Signal names you choose yourself look like "invoice.paid". Three names the runtime writes:
+//   "mail.received": a mail in a mailbox of the space. key: the sender's address, or "thread:{{steps.send.thread_id}}" for a reply to a mail an earlier step sent (give that step an output field with the thread id). data: from, name, subject, text, thread, message, at. Mail the mailbox sent itself, machine answers, and a sender who fails SPF or DMARC checks wake no wait on that sender.
+//   "message.received": what the person writes on a channel while the run waits. key: "person".
+//   "run.done": another run ended. key: that run's id.
+// Example: { "id": "reply", "type": "wait", "title": "Wait for the reply", "signal": { "name": "mail.received", "key": "thread:{{steps.send.thread_id}}", "timeout": "3d" },
+//            "next": [{ "when": { "field": "steps.reply.timedOut", "op": "equals", "value": true }, "goto": "remind" }] }
+
+On a page or a review:
+  who?: "person"|"owner"|"team"  // who answers. person (default): whoever does the run. owner: the run's owner. team: the people the admin names in the share dialog. The validator can't see them: a wizard with a team step can't be published until someone is named. On a test run the member who tests answers.
+  timeout?: Duration             // go on without an answer after this long: steps.<id>.timedOut is true, and a next rule on it decides. Without a rule the next step follows, and the page's fields stay empty. At most 31 days.
+  remind?: Duration              // remind whoever is asked after this long, once. Shorter than timeout. At most 31 days.
+On a review:
+  approve?: true                 // approve or decline instead of "Looks good": steps.<id>.approved, steps.<id>.note. It needs a next rule on steps.<id>.approved, or a decline would go on like an approval. A timeout hands on approved: false with timedOut: true. A start's passReviews never approves. Use it before anything that can't be taken back.
+On an agent step:
+  durable?: true                 // after a crash or a deploy the step goes on at the call it was at, and it gets the tool ask_person: it stops and asks with nothing running, for days if it must. It needs a model an API serves. Not with browser or sandbox, each or call. Use it for a long step that acts in other systems or may have to ask.
+On any step:
+  onFail?: stepId                // where the run goes when this step fails for good, at most three times; without it the run fails. Short trouble at a provider is tried again by itself after 1, 5 and 30 minutes, out of credits or an expired sign-in waits until someone acts, so onFail is for what is really over. A step that already acted outside is not tried again by itself.
+On the wizard:
+  label?: string                 // what tells its runs apart in the runs panel, a template of answers: "{{customer}} · {{offer}}".
+
+An automatic step has a time limit of 8 hours, 12 for motion graphics. What a step did through a connection or a request other than GET happens once, even after a crash: when it can't be known whether it happened, nothing is repeated and the step is told.
+
+Tell the admin what only they can do, in the share dialog: under "Events" they make the address another service sends to, or switch on a mailbox; under "Answered by" they name who answers team steps. To them, a signal is an "event".
 
 <!-- section: widgets -->
 Widgets — when to use: the result must look the same every run, animate, or be explored (a map with

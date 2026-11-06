@@ -24,6 +24,8 @@ export const wizardOpSchema = z.discriminatedUnion("op", [
     intro: z.string().nullable().optional(),
     /** The themes the wizard offers, in its order (ids of the space's themes); null removes them. */
     themes: z.array(z.string()).max(8).nullable().optional(),
+    /** What tells the wizard's runs apart, a template of answers; null removes it. */
+    label: z.string().max(200).nullable().optional(),
   }),
   z.object({
     op: z.literal("upsert_step"),
@@ -78,7 +80,7 @@ export function applyOps(def: WizardDefinition, ops: WizardOp[]): unknown {
     const steps = next.steps;
     switch (op.op) {
       case "set_meta": {
-        const { op: _, intro, costume, themes, ...meta } = op;
+        const { op: _, intro, costume, themes, label, ...meta } = op;
         Object.assign(
           next,
           Object.fromEntries(Object.entries(meta).filter(([, v]) => v !== undefined)),
@@ -97,6 +99,11 @@ export function applyOps(def: WizardDefinition, ops: WizardOp[]): unknown {
           delete next.themes;
         } else if (themes !== undefined) {
           next.themes = themes;
+        }
+        if (label === null) {
+          delete next.label;
+        } else if (label !== undefined) {
+          next.label = label;
         }
         return;
       }

@@ -1,619 +1,330 @@
-# Plan: wizards as durable agents with a person in the loop
+# Plan: wizards as durable runs with a person in the loop
 
-Status: built in parts. On `main`: the runner's fix for runs in parallel (#495) and, behind the
-switch `durableRuns` (off by default), wait steps and the minute clock (#496). The rest is not
-built. Written on 2026-10-30 against `feat/work-mode` (v0.13.x) as a plan. The open questions
-were decided on 2026-10-31 ("Decisions", at the end).
+Status: built, behind the switch `durableRuns` (off by default), except PR 0, which needs no switch.
+Rewritten on 2026-11-06 to what was built. PRs 0 and 1 are on main. PR 3 is open as
+[#498](https://github.com/engenty/wizards/pull/498). PRs 2 to 11 stand together on the local branch
+`claude/durable-runs-combined`, not merged with main and not pushed. Nothing more goes to main until
+Matthias lifts that hold. Starts have their own plan (`starts.md`, behind `startTriggers`). "Before the switch
+flips" below holds what is left.
 
-Scope: a wizard run that lasts hours or days. It follows its steps, branches and waits, survives
-restarts of every process, and stops for a person where it needs one (approve, answer, take over),
-then goes on. What this plan covers: the run's statuses, what the definition gains, where a person
-sees and answers, who may answer, durability, the clock and incoming signals, credits per step,
-retention, the run's timeline, the clock's design, the order of PRs.
+Scope: a run that lasts hours or days. It follows its steps, branches and waits, survives restarts of
+every process, and stops for a person where it needs one, then goes on.
 
-Not in scope: how a run begins without a person (`starts.md`, phase 1 on `feat/starts`), how
-pages move without waiting on the server (`fast-creation.md`), parallel branches (one cursor per
-run stays), Engenties as chat members (`work-chats.md`, "After step 3").
-
-## Why
-
-A run today is a stepped form that runs once while someone watches. It cannot do what a campaign,
-an onboarding or a complaint needs: "on day 1 send the offer; when the order is paid, thank them;
-if nothing came after 3 days, send a reminder; when they complain, a person from the team
-answers". The analysis of 2026-10-10 found six missing pieces. They still hold on `feat/work-mode`:
-
-| # | Missing | Today |
-|---|---|---|
-| 1 | A timed wait | No status for it. `askPerson` (`engine/asks.ts`) waits at most 15 minutes, in a runner's memory |
-| 2 | A wait for a signal | Nothing delivers an outside event to a running run |
-| 3 | Starts without a person | `starts.md`; schedules built on `feat/starts`, not merged |
-| 4 | Waiting runs kept | A live run gets `expiresAt` = start + `RESULT_TTL_DAYS` (7); `purgeExpiredRuns` deletes it whatever its status |
-| 5 | Credits per step | `createRun` holds the whole run's estimate (`reserveForRun`) until the run ends |
-| 6 | A step someone else answers | A page or review waits for the run's own person; only Work chats' approvals let an admin decide |
-
-What already carries the weight:
-
-- **State after every step.** `drive()` (`engine/runner.ts`) writes `state` and `cursor` after
-  each step. A run whose runner dies goes back in line after 30 s and goes on from its cursor.
-- **The line in the control database.** `run_index` holds `active`, `owner`, `seen`. `wakeRun`,
-  `claimRun`, `restRun` move a run in and out of it; every runner polls it every 2 s
-  (`runner-process.md`). A run that waits is not in the line and holds no slot.
-- **Questions in the row.** `run.ask` and `run.answer` carry a question across processes.
-- **The gate on the tool** (`work-chats.md`, PR #273). A tool with `risk: outside` stores its
-  call in `chat_approval`. The asker or an admin approves, the stored call runs once, the result
-  goes back to the AI.
-- **Needs you** on Work's start page (`WorkHome.tsx`): pending approvals and unread chats. The
-  bell counts approvals.
-- **Decisions and loops** (`dynamic-flow.md`): `next` rules, `ask` branches through `decide()`,
-  loop `max`, `each`.
+Not in scope: pages moving without waiting on the server (`fast-creation.md`), parallel branches (one
+cursor per run stays), Engenties as chat members (`work-chats.md`, "After step 3").
 
 ## Rules
 
-1. **The engine stays ours.** Wizards keep their own runner and line. Mastra is used inside
-   agent steps (as today) and for an agent step's thread (below), not as the run engine. A
-   wizard's flow is code-owned (`dynamic-flow.md`, rule 1); Mastra's workflows would be a
-   second flow model next to the definition.
-2. **One step per wake.** A runner takes a run, does steps until the run waits, then gives it
-   back. Nothing waits in a process's memory longer than one step.
-3. **The clock is outside the run.** A waiting run has a wake time in a column. One statement
-   a minute wakes what is due. No timer in memory, no process that must stay up for a run.
-4. **Signals are rows.** Whatever arrives is written first, then matched to the runs that wait
-   for it. A signal that comes before its run waits is not lost.
-5. **The live view reads the database.** The studio, Work and the runner show what the rows
-   say (`watchRun`, the live feed), so it does not matter which process moved the run.
-6. **Heavy steps stay workers.** The browser, the sandbox and media steps run in a runner as
-   today. The tick and the signal intake need neither, so they can later move to an edge layer.
-7. **Additive format.** Every addition to the definition is optional. `DEFINITION_VERSION`
-   stays 2 (`definition-versions.md`).
-8. **A person's step is never answered by the AI or by a signal.** A timeout can move the run
-   past it, as the author wrote. Nobody's answer is invented.
+1. **The flow stays ours, Mastra works inside a turn.** See "Who owns what".
+2. **One drive per wake.** A runner takes a run, does steps until the run waits, then gives it back.
+   Nothing waits in a process's memory.
+3. **The clock is outside the run.** A waiting run has a wake time in a column. One statement a minute
+   wakes what is due.
+4. **Signals are rows.** Whatever arrives is written first, then matched. A signal that comes before
+   its run waits is not lost.
+5. **The live view reads the database**, so it does not matter which process moved the run.
+6. **Additive format.** Every addition to the definition is optional. `DEFINITION_VERSION` stays 2.
+7. **A person's step is never answered by the AI or by a signal.** A timeout can move the run past it,
+   as the author wrote. Nobody's answer is invented.
+
+## Who owns what
+
+| Layer | Owner | Why |
+|---|---|---|
+| Flow between steps | ours: `drive()`, `run.cursor`, `run.state` | `goBack` works from done and failed, `reviewStep` jumps to any shown step with a note, `next` rules jump anywhere. A Mastra graph runs its entries in order, with no jump |
+| Line and takeover | ours: `run_index` | One line over all tenants with a limit per tenant. Mastra recovers at boot only, per instance, with no limit on concurrent runs |
+| Clock and signals | ours: rows and one sweep | Mastra's sleep is a timer in memory: a 31-day sleep ran at once, and a restart started a 20 s sleep over. `waitForEvent` was removed from Mastra |
+| Inside an agent turn | Mastra `DurableAgent` | Checkpoints per model step, claims with fenced writes on libSQL, stops a superseded owner |
+| Outside actions once | ours: `run_effect` | Mastra repeats an interrupted tool call by design. Its stable `toolCallId` gives us the key |
+
+We look at this again when Mastra's timed waits survive a restart, recovery works while other
+processes run, its default engine's writes are fenced and dynamic workflows are out of beta. Inngest
+would replace the line, the sweep and retries, the cheap part, and needs a server beside every runtime.
+A local install is one process with no server (`runner-process.md`).
 
 ## The run's statuses
 
-| Status (code) | Status (UI, en / de) | Means | In the line | Wake time |
-|---|---|---|---|---|
-| `running` | running / läuft | A runner works on a step | yes | — |
-| `waiting_input` | needs you, waiting for {name} / braucht dich, wartet auf {name} | A page, a review, an approval or a question waits for a person | no | the timeout, if any |
-| `sleeping` (new) | waits until {time} / wartet bis {time} | A `wait` step for a time | no | the time |
-| `waiting_signal` (new) | waits for {signal} / wartet auf {signal} | A `wait` step for a signal | no | the timeout, if any |
-| `done` | done / fertig | The result is there | no | — |
-| `failed` | failed / fehlgeschlagen | A step failed for good. Retry stays possible | no | — |
-| `cancelled` | stopped / gestoppt | A person stopped it | no | — |
-
-- The code keeps `cancelled`: renaming a stored value buys nothing. The UI says "stopped".
-- "Sleeping" stays a code word. The UI says what happens: "waits until Tuesday 8:00".
-- A run in `waiting_input` today waits for its own person. With `who` (below) it can wait for
-  someone else. Which one is in the new column `run.waiting`.
-
-### New columns
-
-| Table | Column | Holds |
+| Status (code) | Means | Wake time |
 |---|---|---|
-| `run` | `wake_at` (ms) | When the run wakes: the end of a `wait`, a timeout, a retry's next try. Null: nothing due |
-| `run` | `waiting` (JSON) | What it waits on: `{ kind: "page" \| "review" \| "approval" \| "question" \| "time" \| "signal" \| "credits", stepId, who?, signal?: { name, key }, since, remindAt? }`. Null while running or finished |
-| `run` | `contact` | The key a run is found by: an e-mail, a phone number, a row id. Set from the step that names it (`signal.key`), shown in lists |
-| `run_index` (control) | `wake_at` | The same wake time, so one statement can sweep every tenant |
+| `running` | A runner works on a step | none |
+| `waiting_input` | A page, a review or a question waits for a person | the timeout, if any |
+| `sleeping` | A `wait` for a time, a retry, or a wait for credits or a sign-in (`state.pause`) | the time |
+| `waiting_signal` | A `wait` for a signal | the timeout, if any |
+| `done`, `failed`, `cancelled` | Over. A failed run can be tried again. The UI says "stopped" for `cancelled` | none |
 
-Status, `waiting` and `wake_at` are written in one update. The control copy of `wake_at` is
-written next to `restRun`. When the two disagree, the tenant's row wins: a wake that finds the
-run already moved on does nothing.
+The UI never says "sleeping" or "signal": it says "waits until Tuesday 8:00" and "Events" / „Ereignisse“.
 
 ## What the definition gains
 
-All optional. An existing wizard parses, validates and runs as before. Version stays 2.
+The format's page is `docs/content/dev/wizard-format/runs-that-last.md`, and the authoring guide's
+section is `prompts/authoring.md`, `durable`, which the guide leaves out while the switch is off.
 
-### A `wait` step
+| Where | Key | PR |
+|---|---|---|
+| `wait` step | `for`, `until`, `signal: { name, key, timeout?, fields? }`. Outputs `waited`, or `came`, `timedOut`, `data.<field>` | 1, 5 |
+| `agent` | `durable` | 4 |
+| `page`, `review` | `timeout`, `remind`, `timedOut`, `who` | 8, 10 |
+| `review` | `approve`: `approved`, `note` | 8, 10 |
+| Any step | `onFail` | 11 |
+| Wizard | `label` | 2 |
+| `email` field | `notify`: the visitor's own address, mailed at a wait and at the end | 9 |
 
-```diff
- export const stepSchema = z.discriminatedUnion("type", [
-   pageStepSchema,
-   agentStepSchema,
-   …
-+  waitStepSchema,
- ]);
+Validator: a `wait` has one of `for`, `until`, `signal`. `timeout` and `remind` are at most 31 days, and
+`remind` is shorter than `timeout`. A review with `approve` has a branch on `approved`. `onFail` names
+another step. `durable` refuses `browser` and `sandbox`, and says it does nothing with `each` or `call`.
 
-+const durationSchema = z.object({
-+  minutes: z.number().int().min(0).optional(),
-+  hours: z.number().int().min(0).optional(),
-+  days: z.number().int().min(0).max(31).optional(),
-+});
-+
-+export const waitStepSchema = z
-+  .object({
-+    ...stepBase,
-+    type: z.literal("wait"),
-+    /** Wait this long from the moment the run reaches the step. */
-+    for: durationSchema.optional(),
-+    /** Or until this time: a template that gives an ISO date ("{{steps.plan.sendAt}}"). */
-+    until: z.string().optional(),
-+    /** Or until this signal comes for this run. */
-+    signal: z
-+      .object({
-+        /** One of the wizard's `signals`. */
-+        name: z.string(),
-+        /** Which run it is for: a template, e.g. "{{email}}". */
-+        key: z.string(),
-+      })
-+      .optional(),
-+    /** With `signal`: give up after this long. Then `steps.<id>.came` is false. */
-+    timeout: durationSchema.optional(),
-+    /** Shown in the runner and the run's timeline while it waits. */
-+    working: z.string().optional(),
-+  })
-+  .refine((s) => [s.for, s.until, s.signal].filter(Boolean).length === 1, {
-+    message: 'A wait step has one of "for", "until" or "signal".',
-+  });
-```
+## Data
 
-- The output of a `wait` step is JSON: `{ came: boolean, at, signal?: { name, at, data } }`.
-  Rules read it as they read any agent step's output: `steps.<id>.came`,
-  `steps.<id>.signal.data.amount`. Branching after a timeout is an ordinary `next` rule:
+| Table | Adds | PR |
+|---|---|---|
+| `run_index` (control) | `generation`, `wake_at`, `woken_at`, `viewed_at` | 0, 1, 9 |
+| `run` | `claim`, `rev`, `wake_at`, `label`, `driving` | 0, 1, 2, 4 |
+| `run_effect` | `id, run_id, step_id, tool, state, output, at` | 3 |
+| `run_signal` | `id, space_id, scope, name, key, delivery, data, source, runs, at`; unique on the delivery. Kept 30 days | 5 |
+| `run_wait` | `run_id, wizard_id, space_id, name, key, fields, since` | 5 |
+| `mail_cursor` | Per connection: `cursor, since, next_at, read_at, error, failures` | 6 |
+| `notice` | The outbox, widened to any run | 7, 9 |
+| `chat_approval` → `approval` | `chat_id` nullable, `run_id`, `step_id`, `held_for` also `team` | 10 |
+| `wizard` | `answerers`, `signal_token`, `signal_secret` | 5, 10 |
+| Mastra's `mastra_workflow_*` | In the tenant database, kept out of `purgeExpiredRuns` and sync | 4 |
 
-  ```json
-  { "type": "wait", "id": "paid", "title": "Wait for the payment",
-    "signal": { "name": "order.paid", "key": "{{email}}" }, "timeout": { "days": 3 },
-    "next": [{ "when": { "field": "steps.paid.came", "op": "equals", "value": false }, "goto": "remind" }] }
-  ```
+Migrations only add, except `0059` to `0062`, which rename and rebuild `chat_approval`. That is behind
+`workMode`, and a process on the old code touching it during a rolling deploy fails.
 
-- The least wait is one minute, the longest 31 days (7 on Free, see "Decisions"). A wait in a loop needs the loop's `max`
-  (the validator already warns about loops; a loop with a wait becomes an error).
-- A page right after a `wait` is shown when the run wakes, not before.
+## The line
 
-### Signals the wizard listens for
+- `take` claims, then drives without holding up `lookAtLine`. `RUNNER_MAX_RUNS` caps a process.
+- `restRun` acts only `WHERE owner = this runner`. `wakeRun` clears the owner, so a wake during a rest
+  keeps the run in line.
+- `run_index.generation` counts claims and goes on the tenant row as `run.claim`. `updateRun` inside
+  `drive` needs it: no row changed means another runner holds the run, and `drive` stops quietly.
+- A person's write needs `run.rev` as they read it. The second of two answers gets `runBusy`.
 
-```diff
- export const wizardSchema = z.object({
-   …
-+  /**
-+   * The outside events the wizard's `wait` steps listen for. Declared here so the validator
-+   * checks every `wait.signal.name`, and the share dialog can show where to send them.
-+   */
-+  signals: z
-+    .array(
-+      z.object({
-+        name: z.string().regex(/^[a-z][a-z0-9_.-]{0,59}$/),
-+        /** What it means, in the wizard's language: "The order was paid." The UI shows this. */
-+        description: z.string().min(1),
-+        /** The data it brings: a shape as in `output.schema`. */
-+        data: outputShapeSchema.optional(),
-+      }),
-+    )
-+    .max(20)
-+    .optional(),
- });
-```
+## The clock
 
-### A person's step: `who`, `timeout`, `remind`
+- Reaching a wait: the control copy of `wake_at` first, then the tenant row. A crash in between gives
+  one harmless extra wake, never a lost one.
+- Once a minute: every process that serves `runner` puts in line whatever came due. Several running
+  it is harmless. Woken and not due, the run puts the time back from its own row and returns.
+- On a wake the run holds credits again. Refused, it waits for them.
+- `expiresAt` moves to the wake time plus `RESULT_TTL_DAYS`. A wait for a signal with no timeout counts
+  as a year.
+- An automatic step has a deadline, 8 hours and 12 for motion graphics (`RUNNER_STEP_DEADLINES`). Past
+  it the step fails and its slot comes free.
 
-Pages and reviews gain three properties. A page with `who` is the handoff: a question or a task
-for someone other than the run's person. A review with `approve` is the approval.
+## Signals
 
-```diff
-+/** Who answers a page or review. Default "person": the run's own person, as today. */
-+const whoSchema = z.enum(["person", "owner", "team"]);
-+
-+const personStep = {
-+  who: whoSchema.optional(),
-+  /** Give up waiting after this long; then `steps.<id>.timedOut` is true and `next` decides. */
-+  timeout: durationSchema.optional(),
-+  /** Remind whoever is asked after this long, once. */
-+  remind: durationSchema.optional(),
-+};
+- `POST /api/public/signals/<token>` on the doors, no sign-in, `{ name, key, data?, delivery? }`. Its
+  answer is `{ id, runs }` before any step runs. An HMAC in `x-wizards-signature` when the address has
+  a secret, 422 when the data does not fit, 600 an hour per address.
+- A token belongs to one wizard and matches only that wizard's runs. A signal from inside the space
+  (plugin, MCP, mailbox, a run's end) reaches the space.
+- A wait writes `run_wait` first, then looks for a signal since the run began. The intake writes the
+  signal first, then wakes. That closes the race.
+- The delivery key is unique per space, name and key. A webhook sent again or a mail pulled again is
+  one signal, not two. Keys compare trimmed and in lower case.
+- A signal's data stays under `.data`, so a sender can't set `came` or `timedOut`.
+- `run.`, `mail.`, `message.` belong to the runtime. A run's end writes `run.done`, keyed by its id. A
+  channel's message is the signal `message.received`, taken only by a wait for that name. A person's
+  step takes it as the answer, never both.
 
- export const pageStepSchema = z.object({
-   ...stepBase,
-+  ...personStep,
-   type: z.literal("page"),
-   …
-+  /** For `who` other than the person: what they are asked to do, shown above the fields. */
-+  instructions: z.string().optional(),
- });
+## A mailbox as a source
 
- export const reviewStepSchema = z.object({
-   ...stepBase,
-+  ...personStep,
-   type: z.literal("review"),
-   show: z.array(z.string()).min(1),
-   edit: z.boolean().optional(),
-   regenerate: z.boolean().optional(),
-+  /** Approve or decline instead of "Looks good": `steps.<id>.approved`, `steps.<id>.note`. */
-+  approve: z.boolean().optional(),
- });
-```
+`engine/mail-watch.ts` pulls from a stored cursor, once a minute, only while a run waits on that space's
+mail and only for a connection that signs in as the space and that an admin switched on. One mail makes
+two signals, by sender and by `thread:<id>`. Own mail and machine answers wake nothing. A sender whose
+provider says SPF or DMARC failed loses the sender's signal, not the thread's.
 
-| The author wants | Written as |
+A mail keeps its text only where a run waits on it as it is read. Everyone else's mail stays in the row
+as headers, and a run that comes to one later reads its text from the mailbox (`withMailText`). Only reads
+that found mail, and failures, leave an Audit line. The cursor is saved after the signals are sent, and
+the message id as delivery key makes a crash in between harmless. Only Gmail has a stream.
+
+## A durable agent step
+
+`drive()` puts `state.turn = { stepId, id }` on the row, then runs the turn (`engine/durable-turn.ts`):
+
+- the end kept in `run_effect` `<turn>:end`: use it, nothing runs
+- `state.turn.answer` set: `resume`
+- otherwise `recover`, and on no snapshot `stream`. `DURABLE_AGENT_RUN_ACTIVE` means the old lease; wait
+  up to 25 s (it lapses in 15 s)
+
+`ask_person` suspends the turn and writes `waiting_input`. The answer comes back on any runner. A cancel
+stops the calls. A deploy's stop must not cancel. Costs book per model step. Tools stay closures over the
+run and are rebuilt per process. Local tenant clients have an always-on write gate, because Mastra holds
+a write transaction across awaits. A turn that acted and fails is not retried by itself, since a retry
+gets new call ids. A person can still choose to try again.
+
+`test/durable-turn.test.ts` runs on every Mastra upgrade. `browser` and `sandbox` stay out of durable
+steps in v1.
+
+## Outside actions once
+
+Key: `<turn>:<toolCallId>`, or a visit counter for `call` steps. The wrap point is `brokerCall`
+(`broker/effect.ts`), plus `http_request` other than GET. Found done: the stored result, no action. Found
+started: it may have happened, so the model hears that and a person is told (`effect_unsure`). Never
+repeated alone. `browser_*`, `run_command`, plugin tools, a GET and connectors inside `execute_typescript`
+stay outside, and the authoring guide lists them.
+
+## Retries
+
+`engine/failures.ts` sorts errors, on the shapes the AI SDK and the gateways really throw. An unclear error
+is final.
+
+| Error | What happens |
 |---|---|
-| Wait until tomorrow 8:00 | `wait` with `until` |
-| Wait 3 days | `wait` with `for` |
-| Wait for the payment, at most 3 days | `wait` with `signal` and `timeout` |
-| A manager approves the offer | `review` with `approve`, `who: "team"` |
-| Someone from the team answers the complaint | `page` with `who: "team"`, `instructions`, a text field |
-| The owner fills in what the start could not | `page` with `who: "owner"` (what `starts.md` does by rule today) |
-| The customer confirms, else go on after 2 days | `page` with `timeout`, a `next` rule on `timedOut` |
+| A provider's 429, 5xx, timeout, network | 3 tries, after 1, 5, 30 minutes or `Retry-After` up to 6 hours: `sleeping`, `state.pause = { kind: "retry" }`, count in `state.retries` |
+| Out of credits | `sleeping`, `{ kind: "credits" }`, looks every 5 minutes. After 30 days `failed` |
+| A sign-in ran out | The same, `{ kind: "sign_in", service }` |
+| Anything else, or the step already acted | `onFail`, at most 3 times, or `failed` |
 
-- `who` names a role, never a person. People are this install's: the share dialog names them on
-  the wizard row (`wizard.answerers`, below), as `starts.md` keeps starts off the definition.
-- `timedOut` and `approved` are read by `next` rules like any output. With no rule, a timed-out
-  step goes to the next step in the list, and its fields stay empty.
-- A timed-out `approve` hands on `approved: false` with `timedOut: true`: a rule on either value
-  never sends what nobody approved, and the author can still tell the two apart. A review with
-  `approve` needs a branch on `approved`, or a decline would go on like an approval. A start's
-  `passReviews` does not pass it: nobody gives an approval by a setting.
-- An answer and a timeout each write on the `rev` they read. The loser finds the run moved on. A
-  timeout that loses to a write that is no answer (a translation) looks again, so no wake is lost.
-- A step with `timeout` or `remind` gives its hold back while it waits and holds again as it goes
-  on, on an answer as on a timeout. Refused: the answer stays and the run waits for credits.
-- Take over in a chat runner (a person writes to the customer in the wizard's place) is a page
-  with `who: "team"` whose answer the chat shows as the wizard's message. The runner part of it
-  comes later, with Engenties ("Decisions", 8).
+## Telling people
 
-### Agent steps that last
+The `notice` row is written with the status change and is the outbox. A sender tick on a runner claims due
+rows, then delivers: the bell (the row itself), the device, the mail. A crash can't lose one.
 
-```diff
- export const agentStepSchema = z.object({
-   …
-+  /** The space's skills this step loads, by name; default: the space's own modes. */
-+  skills: z.array(z.string()).max(12).optional(),
-+  /**
-+   * The step may stop to ask a person (`ask_person`) and its outside tools wait for approval.
-+   * Its conversation is kept, so it goes on where it stopped, after a restart too.
-+   */
-+  durable: z.boolean().optional(),
-+  /** Who answers its questions and approvals; default "person". */
-+  who: whoSchema.optional(),
-+  /** At most this many credits for the step; then it stops and asks the owner. */
-+  credits: z.number().int().min(1).optional(),
- });
-```
-
-- `skills` is the per-step choice `skills.md` left for later. It adds no version.
-- A `durable` step runs its Mastra agent with a memory thread per run and step
-  (`run:<runId>:<stepId>`), stored as Work chats store theirs. A tool call that waits (a
-  question, an approval) ends the step's turn. The run goes `waiting_input` with
-  `waiting.kind = "question" | "approval"`. The answer goes back into the thread and the step's
-  next turn starts from it, on whichever runner takes the run.
-- Approvals use the gate of Work chats. `chat_approval` becomes `approval` with `chat_id` or
-  `run_id` + `step_id` (Work is behind `workMode` and unreleased, so the table changes outright).
-- A step without `durable` works as today: one turn, `maxSteps` 20 or 60, the 15-minute ask.
-
-### Failure and retries
-
-```diff
- const stepBase = {
-   id,
-   title: z.string().min(1),
-   description: z.string().optional(),
-   next: z.array(nextRuleSchema).optional(),
-+  /** Where the run goes when the step fails for good; default: the run fails. */
-+  onFail: z.string().optional(),
- };
-```
-
-Retries need no property. The runtime retries what is worth retrying (below); `onFail` decides
-what happens after.
-
-### The validator
-
-| Check | Issue |
-|---|---|
-| `wait` has exactly one of `for`, `until`, `signal` | error |
-| `wait.signal.name` is one of `signals` | error |
-| `timeout`, `remind`, `for` between 1 minute and 31 days; `remind` shorter than `timeout` | error |
-| A review with `approve` has a branch on `steps.<id>.approved` | error |
-| A loop through a `wait` without `max` | error |
-| `onFail` names a step | error |
-| `who: "team"` on a wizard whose share settings name no one | warning at publish: "Nobody is set to answer “{step}”." |
-| `durable` on a step without tools that wait | warning |
-
-`apps/docs/public/schema/v2/wizard.json` is generated again. The authoring guide gets the new
-steps and one rule: "A flow that spans days uses `wait` steps, never an agent step that loops
-and checks the time."
+- A member's run: its member. A visitor's run: the device, and mail only at an `email` field with
+  `notify`, because the address may be a customer's and the mail has a link that opens the run. A channel's
+  run: its door says it. A team step: each person who may answer, by bell and mail.
+- Nobody is told what they did themselves or while they look at the run. No mail to someone who saw the run
+  in the last 10 minutes. A wait reached right after an answer tells nobody who just answered.
+- `remind` is a notice due at its time, not a wake. A wait for credits or a sign-in writes one too.
+- Mail goes through Manage's `/v1/run-mail`, with a long `runWaitTicket` in the link.
+  `engenty-wizards-manage`, branch `feat/run-mail`, merges first.
 
 ## Where a person sees and answers
 
-| Place | Shows | Answers |
-|---|---|---|
-| Work › Needs you (`WorkHome.tsx`) | Runs waiting for me next to the approvals and unread chats: the wizard, the step, the contact, since when, until when | Opens the run's page or review in Work (`/work/r/<runId>`, the runner inside Work). Approvals of a `durable` step use the same card as chat approvals |
-| Work's sidebar | "Waiting for you" (`work.waiting`) lists the same | the same |
-| The bell | One count: approvals, runs waiting for me, finished and failed started runs (the `notice` table of `feat/starts`) | links to the run |
-| E-mail | "{wizard} needs you: {step}" with one button, "Open". Sent once when the run starts waiting for someone who has not seen it in 10 minutes, and once more at `remind` | the link opens the run |
-| Push | the installed studio and the mobile app (`engine/push.ts` gains owner and team targets next to the visitor's device) | the same link |
-| The runner, for the run's own person | while the run waits for someone else: "{name} from the team looks at it. You get an e-mail when it goes on." While it waits for a time: "Goes on {time}." | nothing to answer |
-| The studio's runs panel | the timeline (below) and the actions "Go on now", "Stop", "Retry", "Send a test signal" | |
-
-- A visitor who left an e-mail on a page gets the run's link by e-mail when the run reaches a page
-  for them again ("Weitermachen" on wizards.page, `starts.md`). The mail goes out through the
-  account (the cloud's mail), with the space's name as sender name and reply-to. The space's own
-  mailbox comes later.
-- A run on a channel (WhatsApp, SMS, the chat runner) asks its person in that channel, as today.
-  The person's next message there is the answer.
+| Place | Shows |
+|---|---|
+| Work › Needs you | Runs waiting for me beside approvals and unread chats. Opens `/work/r/<id>`. Approvals use the chat's card |
+| Work's sidebar | "Waiting for you", and "Waiting" for runs that need nobody now |
+| The bell, mail, device | See above |
+| The runner, for the run's own person | "Goes on {time}", or that the team has it, with "Withdraw" for a visitor |
+| The runs panel | Log, label, "Continue now", "Stop", "Send test event" |
 
 ## Who may answer
 
-| `who` | Who may answer | Who sees it in Needs you |
-|---|---|---|
-| `person` (default) | The run's person: its `userId`, its `visitorId`, or whoever holds the run's link (as today) | the person, if signed in |
-| `owner` | The run's owner: the one who started it, or for a started run the start's owner | the owner |
-| `team` | The people named in the share dialog under "Answered by" (`wizard.answerers`: user ids, or "admins") | each of them |
-| any | Admins of the organization, always (as for approvals) | only in the space's list, not in their own Needs you |
+`engine/answerers.ts`, `mayAnswerStep`. `accessibleRun` refuses every non-GET unless the route opts out, and
+a test fails when a new write route is neither listed nor given another rule.
 
-- The first answer counts. The page's submit already checks the cursor (`requireWaiting`). A
-  second person gets "Anna answered this already" and the run as it is now.
-- Each answer records who gave it (`run_event`, below). The run's result shows it.
-- `wizard.answerers` is this install's data, like `wizard.starts`. A `.wizard` file carries the
-  role, never the people.
-- A person who may answer may also stop the run. Only the owner and admins may "Go on now" past
-  a wait.
-- Members-only answering on wizards.page (`starts.md`, "On wizards.page") uses the same rule:
-  the link goes there once members-only spaces exist, until then into Work.
-
-## Durability
-
-### What is kept per step
-
-| What | Where | Already |
-|---|---|---|
-| Answers, outputs, cursor, decisions, loops | `run.state`, `run.cursor` | yes |
-| What the run waits on and until when | `run.status`, `run.waiting`, `run.wake_at`, `run_index.wake_at` | new |
-| A durable agent step's conversation | its Mastra thread | new |
-| Outside actions done | `run_effect` (new): `(run_id, step_id, attempt, call, input_hash, state: started \| done \| failed, output)` | new |
-| Signals received | `run_signal` (new, below) | new |
-
-### After a restart
-
-- A runner that stops hands its runs back (`disownRuns`); one that dies loses them after 30 s.
-  Either way the next runner starts the step from the top. That is how it works today.
-- Waiting runs are not in anyone's hands. They wait in rows. Nothing is lost when every
-  process is down. When the tick runs again, it wakes everything that came due meanwhile, once.
-- A local install that was off overnight wakes what came due at its next start. Signals sent to
-  it while it was off wait in the cloud for a linked install and arrive at its start ("Decisions", 3).
-
-### Steps that run twice
-
-A step started again must not do its outside work twice: the mail sent, the order placed.
-
-- Every tool with `risk: outside` (and every connector action that writes) goes through
-  `run_effect`. Before it acts, it writes `started` with the input's hash. After, `done` with the
-  output.
-- On a second attempt of the same step, the same call with the same input finds `done` and gets
-  the stored output without acting.
-- A call that finds `started` without `done` did not report back: it may have happened. The
-  run asks the owner ("Did the mail to anna@… go out?") as an approval, never redoes it alone.
-- A service that takes an idempotency key gets the effect's id (mail through Resend, payment
-  providers).
-- Steps without outside effects (models, reading) simply run again. What they cost the first
-  time is booked; that is the price of a crash.
-
-### Retries
-
-`engine/failures.ts` sorts errors, on the shapes the AI SDK and the gateways really throw. An unclear
-error is not retried.
-
-| Error | Retried | How |
-|---|---|---|
-| A provider's 429, 5xx, timeout, network | 3 times, after 1, 5, 30 minutes, or its `Retry-After` up to 6 hours | `sleeping` with `wake_at` and `state.pause = { kind: "retry" }`; the count is `state.retries`; no retry loop in memory |
-| A model refusal, a content rule, invalid output, a 4xx, anything unclear | no | `onFail` or `failed` |
-| Out of credits | no | `sleeping` with `state.pause = { kind: "credits" }`; it looks at the reservation every 5 minutes, so a top-up goes on by itself; after 30 days `failed` |
-| A connection that needs signing in again | no | the same with `{ kind: "sign_in", service }` |
-| Any of these after the step did something out there (`RunResources.acted`) | no, but a refused sign-in | `onFail` or `failed`; a retry starts the step from the top and would do it again. A person can still choose "try again" |
-
-The two waits for a person sleep rather than go to `waiting_input`: `waiting_input` means a page or
-a review is on screen, and a sleeping run already holds no slot and no credits and survives a
-restart. The clock is what notices a top-up, so nothing has to tell the runtime about it.
-
-`retry(runId)` (exists) starts the failed step again by hand, with every try anew.
-
-## The clock and incoming signals
-
-### The tick
-
-Every process that serves `runner` (and `all` on a local install) runs once a minute:
-
-```sql
-UPDATE run_index SET active = 1, owner = NULL, seen = NULL
-WHERE active = 0 AND wake_at IS NOT NULL AND wake_at <= :now
-```
-
-That is the whole clock. The line does the rest: a runner claims the run, `drive()` loads it,
-sees `sleeping` or `waiting_*` with `wake_at` passed, moves it to `running` in one conditional
-update (`… WHERE status = 'sleeping' AND wake_at <= :now`, so two runners cannot both wake it),
-writes the `wait` step's output (`came: false`) or `timedOut: true`, and goes on. A `remind`
-wakes nothing: it is a `notice` row written with the wait, due at its time, which the sender
-settles when the wait is over.
-
-Several runners running the statement at once is harmless. The health check (`health.ts`) reports
-the last tick. A due run more than 5 minutes late is a health warning.
-
-### Signals
-
-```text
-POST /api/public/signals/<token>      (doors, no sign-in)
-{ "name": "order.paid", "key": "anna@example.com", "data": { "amount": 129 } }
-→ 202 { "id": "sig_…", "runs": 1 }
-```
-
-| Piece | Does |
+| `who` | Who may answer |
 |---|---|
-| `run_signal` (tenant DB) | `id, space_id, wizard_id?, name, key, data, at, source`. Kept 30 days |
-| `run_wait` (tenant DB) | `run_id, step_id, name, key, since`: one row per run waiting for a signal; an index on `(name, key)` |
-| The intake | writes the signal, finds `run_wait` rows with the same name and key in the space, writes the signal's id into each run's `waiting`, and wakes them. Answers before any step runs |
-| A run reaching a `wait` | first looks for a signal with its name and key that came since the run started and that it has not taken. Found: the step is done at once. Else it writes `run_wait` and goes `waiting_signal` |
-| The token | one per wizard, made in the share dialog ("Events"), shown once, kept as a hash (like the starts webhook). An optional secret signs the body (`X-Signature`, HMAC) |
+| `person` (default), `owner` | The run's person: its member, its visitor, whoever holds its link. A start's run has the start's owner as member |
+| `team` | Those named under "Answered by" (`wizard.answerers`), or the admins. Never a visitor, a link or a client |
+| any | Admins, the one person of a computer, and on a test run any non-client member |
 
-Sources besides the address, all writing the same row:
+- Back takes the right to answer both the step now and the step before.
+- The first answer counts: 409 "Jonas answered this already". Reads stay open to whoever opens the run, but a
+  visitor or link holder on someone else's step gets `answeredBy` and nothing of the step, then or later.
+- Whoever edits the wizard names the answerers, through `PUT /wizards/:id/answerers`. In the cloud, publishing
+  with a team step and nobody named is refused. A list emptied later still reaches the admins on running runs.
+- Someone named may cancel. "Continue now" and "Stop" stay with admins and a test run's starter (`mayActOnWait`).
+- A visitor may withdraw while the team has their run (`mayWithdraw`), and the log says so.
 
-| Source | How |
-|---|---|
-| A plugin | `server.signals.send({ name, key, data })` in the plugin SDK (`packages/wizards/src/plugin`). Contacts, shop and appointments send their events this way |
-| A channel | an inbound message on WhatsApp or SMS is the signal `message` with the sender's number as key |
-| A table row | starts phase 2's `record.changed` sends `row.added` / `row.changed` with the row id as key |
-| Another run | `run.done` sends `wizard.done` with the run's `contact` as key |
-| MCP and the assistant | a tool `send_signal`, for tests and for AI clients |
-| The studio | "Send a test signal" in the runs panel |
+## Credits
 
-- A signal moves runs that wait. A start begins new runs (`starts.md`). One event may do both:
-  the intake writes the signal, the starts watcher reads the same row.
-- One signal reaches every run that waits for it: a contact in two campaigns hears the payment
-  in both. Each run takes a signal once.
-- A signal no run waits for stays 30 days. A run that reaches its `wait` later takes it, so
-  "the payment came before the reminder step" works.
-
-## Credits per step
-
-Today `createRun` holds the whole estimate and `syncRunCost` books each step. For a run of days,
-the hold blocks credits for days, and a run admitted on Monday may find nothing left on Friday.
-
-| When | What is held | What happens without enough |
-|---|---|---|
-| The run starts | the estimate up to the first step that waits (page, review, `wait`), at least 1 credit | refused, as today (`NoCreditsError`) |
-| The run wakes or a person answers | the estimate up to the next step that waits | the run goes `waiting_input`, `waiting.kind = "credits"`, the owner is told: "{wizard} stopped: the credits ran out. It goes on when you add credits." |
-| Each step ends | the hold is released, the real cost booked (as today) | |
-| A `durable` agent step | its `credits` limit, or the class's estimate × 3 per turn | it stops and asks the owner to allow more |
-| Waiting | nothing | |
-
-- The hold is keyed by run and step attempt instead of by run. The account's hold API needs a
-  step key next to the run id: a change in the closed admin app, plain in shape.
-- `estimate.ts` gains `estimateSegment(def, from)`: the steps from `from` to the next waiting step
-  on every branch, the dearest branch counted.
-- Local install without credits: nothing changes, as `canSpend()` returns true.
+A run holds on starting and again on each wake, and spends what steps cost. A step with `timeout` or `remind`
+gives its hold back while it waits and holds again as it goes on. Refused, the answer stays and the run waits
+for credits. Waiting costs nothing. Manage counts a hold for 24 hours, and reserving again replaces it.
 
 ## Retention
 
 | Run | Kept until |
 |---|---|
-| Finished (`done`, `failed`, `cancelled`) | `RESULT_TTL_DAYS` after it finished (today: after its start) |
-| `sleeping`, `waiting_signal` | `RESULT_TTL_DAYS` after its `wake_at` (the timeout); a signal wait without timeout: 31 days after it began |
-| `waiting_input` for someone other than the person | `RESULT_TTL_DAYS` after its timeout, else 31 days |
-| `waiting_input` for the person (a visitor left a page) | `RESULT_TTL_DAYS` after its last change (today: after its start) |
+| Waiting with a wake time | That time plus `RESULT_TTL_DAYS` |
+| Waiting for a signal with no timeout | A year plus `RESULT_TTL_DAYS` |
 | Signals | 30 days |
-| A test run | as today |
 
-`expiresAt` is set again whenever status or `wake_at` changes. `purgeExpiredRuns` stays as it is.
-A run past its expiry while waiting is stopped and its owner told before it goes.
+## The run's log
 
-## The run's timeline
+`RUN_EVENT_TYPES` adds `run_started`, `wait` (with until when), `woken` (by what), `stopped` (by whom),
+`resumed`, `effect_unsure`. The runs panel, `get_run` and a plugin's `subscribe` read the same rows.
 
-`run_event` already holds `step_started`, `step_done`, `tool`, `info`, `error`. It gains:
+## With fast-creation
 
-| Type | Message and data |
-|---|---|
-| `waiting` | for whom or what, until when |
-| `woke` | by what: the time, a signal, an answer, a timeout, "Go on now" by {name} |
-| `signal` | name, key, source; matched or kept |
-| `answered` | by whom, which step |
-| `approval` | asked, approved or declined, by whom |
-| `effect` | an outside action done, its effect id |
-| `retry` | which try, when the next |
-| `credits` | held and booked for a step |
+`nextInBrowser` returns null when the next step is a `wait`, a page or review with `who` other than `person`,
+or a step with a `timeout`. The server's state wins over what someone is still typing.
 
-- The studio's runs panel shows a run as a timeline: steps, the gaps of waiting ("waited 2 days
-  for the payment"), who answered. Work's run view shows the same, shorter.
-- `get_run` (MCP) and the admin app's `debug_run` read the same events.
-- The runs panel filters by status. Its count per wizard says how many wait and for what.
+## PRs
 
-## The clock: a minute sweep or a Durable Object per run
-
-| | Minute sweep in the control database | A Durable Object per run (Cloudflare) |
+| # | PR | State |
 |---|---|---|
-| What it is | one `UPDATE` a minute in each runner | an object per run with an alarm at `wake_at`; it calls the runtime when it fires |
-| Change to the code | `run_index.wake_at` and a timer next to `startRunner` | a new service at the edge, a second place where a run's waiting state lives, an authenticated call into each runtime |
-| Local install | works as is | does not exist there: the sweep would be needed anyway |
-| Our VPS and Coolify | works as is | a second platform to run, pay and watch |
-| Precision | up to a minute late | to the second |
-| Signals while the runtime is down | lost until it is up (the cloud's doors are up separately) | the object can take them and hold them |
-| Scale | one indexed query a minute; fine for a long way at our size | per run, without limit |
-
-**Recommendation: the minute sweep.** It is the smallest change, it works the same on a local
-install, the VPS and the cloud, and it keeps one place for a run's state. The rules above (one
-step per wake, the clock outside, signals as rows, the live view from the database) keep a later
-move open: the intake and the tick can run at an edge layer that writes the same rows, without
-changing the engine. That move is worth it only when signals must be taken while the runtime is
-down, or when waits shorter than a minute matter.
-
-## With the fast-creation plan
-
-`fast-creation.md` lets the browser move from page to page and keeps the server as the record.
-Here the server owns every wait.
-
-- `nextInBrowser` returns null when the next step is a `wait`, a page or review with `who` other
-  than `person`, or any step with a `timeout`. The runner then waits on the server, as it does
-  for an AI step.
-- What someone types stays on the run on a team page too: Anna starts an answer on her phone and
-  finishes it on her computer. Where it is stored is fast-creation's to say.
-- A page that times out while the person is typing: the server's state wins, the runner loads the
-  run again and shows where it is now. What was typed stays on the run and in the timeline.
-
-## Words
-
-- The UI never says "workflow", "trigger" or "signal" alone. A wizard has steps. A wait for a
-  signal shows the signal's `description`: "waits until the order is paid".
-- "Sleeping" is a code word only. The UI says "waits until {time}" / „wartet bis {time}“.
-- "Needs you" / „Braucht dich“ and "Waiting for you" / „Wartet auf dich“ as Work has them.
-- A stopped run: "stopped" / „gestoppt“.
-
-## Order of PRs
-
-Each PR behind `durableRuns` (`packages/shared/src/feature-flags.ts`), into `feat/work-mode` or
-its successor. Each one is usable and tested on its own.
-
-| # | PR | Holds | Needs |
-|---|---|---|---|
-| 1 | `feat(runtime): wait steps and the minute tick` | `waitStepSchema` with `for` and `until`; `sleeping`; `run.wake_at`, `run.waiting`, `run_index.wake_at`; the tick; `drive()` waking; retention per status; the runner's "Goes on {time}"; the diagram's wait node | — |
-| 2 | `feat(studio): a run's timeline` | the new `run_event` types; the runs panel timeline; "Go on now", "Stop" | 1 |
-| 3 | `feat(runtime): signals` | `signals` on the wizard; `wait.signal` and `timeout`; `waiting_signal`; `run_signal`, `run_wait`; the public route and its token in the share dialog; `send_signal` (MCP); "Send a test signal" | 1 |
-| 4 | `feat(runtime): timeouts and approvals on person steps` | `timeout`, `remind`, `timedOut` on pages and reviews; `approve` on reviews; `onFail` | 1 |
-| 5 | `feat(work): runs waiting for you in Needs you` | `who`; `wizard.answerers` and "Answered by" in the share dialog; who may answer; runs in Needs you and the sidebar; the run inside Work | 4 |
-| 6 | `feat(runtime): tell people a run waits for them` | e-mail and push to owner and team; the bell's one count | 5, the `notice` table from `feat/starts` (merged first or taken over) |
-| 7 | `feat(runtime): credits held per step` | `estimateSegment`; the hold per step; `waiting.kind = "credits"`; the admin app's step key | 1, the closed admin app |
-| 8 | `feat(runtime): outside actions run once, retries over time` | `run_effect`; the effect check in the tool gate and connector writes; retries as `sleeping` | 1 |
-| 9 | `feat(runtime): durable agent steps` | `durable`, `who`, `credits`, `skills` on agent steps; the thread per step; `ask_person`; `chat_approval` → `approval` | 5, 8 |
-| 10 | `feat(runtime): signals from plugins, channels, tables and runs` | `server.signals.send`; channel messages; `record.changed`; `wizard.done` | 3; starts phase 2 for tables |
-| 11 | `docs: long-running wizards` and the architect | the authoring guide, the architect's prompt and tools, `steps.md`, `test-and-share.md`, the plugin docs; the switch flips in a release | all |
-
-Tests in `apps/runtime/test/durable.test.ts`: a wait across a restart (the process stops, a new one
-wakes the run once); two runners waking the same run; a signal before the wait and one after; a
-timeout branch; a team page answered by two people at once; a step with an outside effect run
-twice; a run out of credits after a wake, then topped up; retention of a run that waits 30 days.
-
-## Changes by file
-
-| File | Change |
-|---|---|
-| `packages/shared/src/definition.ts` | `waitStepSchema`, `durationSchema`, `signals`, `who`/`timeout`/`remind`/`instructions` on pages, `approve` on reviews, `durable`/`who`/`credits`/`skills` on agent steps, `onFail`; validator cases |
-| `packages/shared/src/run.ts` | `RunStatus` gains `sleeping`, `waiting_signal`; `RunWaiting`; `RunView.waiting` |
-| `packages/shared/src/feature-flags.ts` | `durableRuns` |
-| `apps/runtime/src/db/schema.ts`, migrations | `run.wake_at`, `run.waiting`, `run.contact`; `run_signal`, `run_wait`, `run_effect`; `chat_approval` → `approval`; `run_event` types; `wizard.answerers`; control `run_index.wake_at` |
-| `apps/runtime/src/tenants/control.ts` | `sleepRun(runId, wakeAt)`, `wakeDue()` |
-| `apps/runtime/src/engine/runner.ts` | the `wait` step; waking in `drive()`; timeouts; `who`; holds per segment; retries as sleeping; `onFail` |
-| `apps/runtime/src/engine/signals.ts` (new) | intake, matching, taking a signal at a `wait` |
-| `apps/runtime/src/engine/effects.ts` (new) | `run_effect` around outside tools and connector writes |
-| `apps/runtime/src/engine/steps.ts` | durable agent steps: thread, `ask_person`, the gate, `credits`, `skills` |
-| `apps/runtime/src/credits/credits.ts`, `estimate.ts` | holds per step, `estimateSegment` |
-| `apps/runtime/src/routes/signals.ts` (new), `app.ts` | the public route (doors) |
-| `apps/runtime/src/services/work-chats.ts`, `routes/work.ts` | approvals from runs; runs waiting for a person |
-| `apps/runtime/src/engine/push.ts`, `notices.ts` | owner and team targets; mail |
-| `apps/runtime/src/services/runs.ts` | `expiresAt` per status |
-| `apps/runtime/src/mcp/tools.ts` | `send_signal`; `get_run` with `waiting` and the timeline |
-| `packages/wizards/src/plugin` | `server.signals.send` |
-| `apps/web/src/studio/work/WorkHome.tsx`, `ChatSidebar.tsx` | runs in Needs you and Waiting for you; the run inside Work |
-| `apps/web/src/studio/editor/RunsPanel.tsx`, `FlowDiagram.tsx`, `ShareDialog.tsx` | timeline and actions; wait nodes and timeout edges; "Answered by", "Events" |
-| `packages/runner` | "Goes on {time}", "{name} looks at it", team pages with `instructions` |
-| `apps/runtime/src/authoring/guide.ts` | the new steps and the rule against looping agent steps |
+| 0 | Runner line: parallel takes, wakes that stay, fenced writes | merged, [#495](https://github.com/engenty/wizards/pull/495) |
+| 1 | Wait steps and the clock | merged, [#496](https://github.com/engenty/wizards/pull/496) |
+| 2 | Timeline, "Continue now", "Stop", label | combined |
+| 3 | Outside actions once | open, [#498](https://github.com/engenty/wizards/pull/498), combined |
+| 4 | Durable agent steps | combined |
+| 5 | Signals | combined |
+| 6 | A mailbox wakes a run | combined |
+| 7 | Starts | combined |
+| 8 | Timeouts and reminders | combined |
+| 9 | Telling people, with Manage's `feat/run-mail` | combined |
+| 10 | Who may answer, runs in Needs you | combined |
+| 11 | Retries, `onFail` | combined |
+| 12 | Docs, and the PR that flips the switch | docs combined, flip waits |
 
 ## Decisions
 
-Decided on 2026-10-31.
+Decided by Matthias, 2026-10-31 to 2026-11-06:
 
-| # | Question | Decision |
-|---|---|---|
-| 1 | Pause besides stop | No pause in v1. Owner and admins have "Go on now" and "Stop". A pause comes when a campaign needs to be held |
-| 2 | Waiting runs on a new version | No. A run keeps the definition it started on. The runs panel says "runs on version N" and offers "Stop these runs" |
-| 3 | Signals while a local install is off | The cloud takes signals for a linked local install, and the install fetches them at its start. Without a linked account the share dialog says signals arrive only while the computer runs |
-| 4 | Limits per plan | Free: 10 waiting runs, a wait of at most 7 days, no signals. Pro: 1,000 waiting runs, 31 days. Team: no limit on runs, 31 days. A local install has no limits |
-| 5 | The price of waiting | Free. Waiting costs a row |
-| 6 | Parallel branches | No. One cursor. `remind` and `timeout` cover "remind while waiting". A second track is a second run, started by `wizard.done` or a signal |
-| 7 | The word for a signal | "Events" / „Ereignisse“ as the share dialog's section. A step shows its signal's `description`. "Signal" stays a code word |
-| 8 | Take over in a chat runner | Later, with Engenties. PR 5 holds team pages only |
-| 9 | Who the team is | A list per wizard ("Answered by": people or "admins"), chosen from the space's members |
-| 10 | Mail to a visitor | Through the account, with the space's name as sender name and reply-to. The space's connected mailbox later |
-| 11 | The longest wait | 31 days in the format, 7 days on Free |
+| Question | Decision |
+|---|---|
+| Timeline buttons | Admins, and the starter of a test run |
+| A mail's text | Headers for all, text only where a run waits on it; a later run reads it in the mailbox |
+| A sender failing SPF or DMARC | Wakes no wait on that sender |
+| Mail Audit lines | Only reads that found mail, and failures |
+| Who names answerers | Whoever edits the wizard |
+| A team step with nobody named | Publishing is refused |
+| Test run with `who: "team"` | Any member may answer, cancel or retry; live runs stay narrow |
+| `/cancel` by someone named | Allowed |
+| A visitor while the team has their run | May withdraw |
+| A notice for the next page right after an answer | None |
+| A timed-out approval | `approved: false`, `timedOut: true` |
+| `approve` with no branch on `approved` | A validator error |
+| `passReviews` | Never approves |
+| A `remind` on a first page | Goes out |
+| An answer refused credits | Kept |
+| Back over a timed-out page | Allowed |
+| "Continue now" on a person's step | The same rule as the timeline buttons |
+| Switch off | A new run ignores `timeout` and `remind` |
+| Pause besides stop | None in v1 |
+| Waiting runs on a new version | A run keeps the definition it started on |
+| Parallel branches | No. One cursor |
+| The longest wait | 31 days, 7 on Free. Not enforced yet, see below |
+
+## Differs from the plan of 2026-10-30
+
+Left out on purpose: `run.waiting` and `run.contact` (status and `state` carry it), `wizard.signals` (names are
+free, and `wait.signal.fields` says what data must hold), `instructions` on a page, `who`, `credits` and `skills`
+on an agent step, `estimateSegment` and holds per step (reserving again on a wake does it), an input hash for
+`run_effect` (the call id replaces it), a memory thread for durable steps (`DurableAgent` replaces it), a Durable
+Object per run (the sweep works the same on a local install, the VPS and the cloud).
+
+## Before the switch flips
+
+Not built:
+
+- Limits per plan (Free: 10 waiting runs, 7 days, no signals; Pro: 1,000, 31 days). `wait.for` and
+  `wait.signal.timeout` have no 31-day cap in the validator.
+- The cloud taking signals for a linked local install while it is off.
+- Studio controls for `onFail` and `notify`. Both exist only in the definition and the guide.
+- `POST /v1/push` in Manage, and APNs or FCM there. Push has never arrived.
+- Outlook and IMAP streams.
+
+Must happen:
+
+- The mobile app's copies learn `sleeping`, `question`, `pause`, `approve`, `decline`, the deadline line and the
+  new event types.
+- `RUNNER_MAX_RUNS=4` on the cloud. A release with it runs a week without new errors, which also gives real step
+  lengths for the deadline.
+- Merge with main, regenerate the migrations in one line, then Manage's `feat/run-mail` first.
+- The `engenty/` copies PR 3 edits reach upstream, or `sync-engenty.mjs` overwrites them.
+- A visitor who opens a mail's link on another device can't withdraw. Decide whether that stays.
+
+Not tested together: real models on the combined branch, PR 9's Manage part, a real mail, push, a real mailbox with
+real OAuth and a real `Authentication-Results`, a real Manage-App role, the cloud's split roles, a 2-day wait across
+a deploy on staging, Docker sandbox after a recovery, a signed call from a real service, a real channel plugin.
+
+Known and left: HMAC has no timestamp, so a signed call without a delivery key can be replayed. If a process crashes
+between writing `run.done` and waking, a waiter with no timeout stays asleep. A hung step holds its slot until its
+deadline.
