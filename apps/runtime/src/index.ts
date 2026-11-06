@@ -143,7 +143,7 @@ if (!managed && env.serves.studio) {
   void moveFilesAtStart().catch((err) => console.error("[move-files]", err));
 }
 // Assets came into the index later than documents: what is not there yet goes in once.
-if (env.serves.studio) {
+if (env.serves.vectors) {
   const { indexMissingAssets } = await import("./services/space-index.js");
   for (const id of await knownTenants()) {
     void withTenant(id, () => indexMissingAssets()).catch((err) =>

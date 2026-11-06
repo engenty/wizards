@@ -29,7 +29,13 @@ beforeAll(async () => {
 
 describe("RUNTIME_ROLE=api", () => {
   it("serves MCP and the API, and what every process needs", async () => {
-    expect(env.serves).toEqual({ studio: false, doors: false, runner: false, api: true });
+    expect(env.serves).toEqual({
+      studio: false,
+      doors: false,
+      runner: false,
+      api: true,
+      vectors: false,
+    });
     expect((await get("/api/health")).status).toBe(200);
     // Known, and closed without a key or token.
     expect((await get("/api/v1/me")).status).toBe(401);

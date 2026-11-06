@@ -28,6 +28,8 @@ const local = <T>(fn: () => T | Promise<T>) => client.withTenant("local", fn);
 /** Answers a text with a vector; while set, the OpenAI-style endpoint fails. */
 let down = false;
 let calls = 0;
+/** The texts of each call. */
+let sent: string[][] = [];
 const realFetch = globalThis.fetch;
 
 async function units() {
@@ -35,14 +37,14 @@ async function units() {
 }
 
 /** A unit as it stands in the index: with a vector of `model`, or none. */
-async function addUnit(ref: string, model: string | null) {
+async function addUnit(ref: string, model: string | null, text = `Text ${ref}`) {
   await local(() =>
     client.db.insert(client.schema.spaceChunk).values({
       spaceId,
       plugin: "test",
       ref,
       idx: 0,
-      text: `Text ${ref}`,
+      text,
       embedding: model ? Buffer.from(new Float32Array([0, 1]).buffer) : null,
       model,
     }),
@@ -69,6 +71,7 @@ beforeAll(async () => {
       return reply({ error: { message: "down" } }, 400);
     }
     const body = JSON.parse(String(init?.body));
+    sent.push(body.input);
     return reply({
       data: (body.input as string[]).map((_, index) => ({ embedding: [1, 0], index })),
       usage: { prompt_tokens: 1, total_tokens: 1 },
@@ -109,20 +112,56 @@ describe("vectors of the model at hand", () => {
     expect(calls).toBe(0);
   });
 
-  it("keeps the old vector while the model fails, and catches up in a later round", async () => {
+  it("keeps the old vector while the model fails, and leaves it alone for a while", async () => {
     const { flushIndex, queueVectors } = await import("../src/services/space-index");
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     await addUnit("later", "openai/text-embedding-3-small");
     down = true;
     await local(() => queueVectors());
     await flushIndex();
-    expect((await units()).find((r) => r.ref === "later")?.model).toBe(
-      "openai/text-embedding-3-small",
-    );
+    const model = async () => (await units()).find((r) => r.ref === "later")?.model;
+    expect(await model()).toBe("openai/text-embedding-3-small");
+    expect(error.mock.calls[0]?.[0]).toContain("again in 20 min");
     down = false;
-    error.mockRestore();
+    // Paused: the model that just failed is asked nothing, whatever its state now.
+    calls = 0;
     await local(() => queueVectors());
     await flushIndex();
-    expect((await units()).find((r) => r.ref === "later")?.model).toBe(MODEL);
+    expect(calls).toBe(0);
+    expect(await model()).toBe("openai/text-embedding-3-small");
+    // Twenty minutes on, a round catches up.
+    const later = Date.now() + 21 * 60_000;
+    const now = vi.spyOn(Date, "now").mockReturnValue(later);
+    await local(() => queueVectors());
+    await flushIndex();
+    now.mockRestore();
+    error.mockRestore();
+    expect(await model()).toBe(MODEL);
+  });
+
+  it("sends long texts in calls of their own size", async () => {
+    const { flushIndex, queueVectors } = await import("../src/services/space-index");
+    await addUnit("long-1", null, "a".repeat(10_000));
+    await addUnit("long-2", null, "b".repeat(10_000));
+    await addUnit("long-3", null, "c".repeat(20_000));
+    await addUnit("short", null);
+    sent = [];
+    await local(() => queueVectors());
+    await flushIndex();
+    expect(sent.map((texts) => texts.length)).toEqual([1, 1, 1, 1]);
+    expect((await units()).every((r) => r.model === MODEL)).toBe(true);
+  });
+
+  it("leaves the texts to one process: a runner serves the studio's routes too", async () => {
+    const { env } = await import("../src/env");
+    const { flushIndex, queueVectors } = await import("../src/services/space-index");
+    await addUnit("not-here", null);
+    env.serves.vectors = false;
+    calls = 0;
+    await local(() => queueVectors());
+    await flushIndex();
+    env.serves.vectors = true;
+    expect(calls).toBe(0);
+    expect((await units()).find((r) => r.ref === "not-here")?.model).toBeNull();
   });
 });

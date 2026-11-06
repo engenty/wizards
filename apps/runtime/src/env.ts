@@ -110,6 +110,8 @@ export const env = {
     doors: ["doors", "web", "runner", "all"].includes(role()),
     runner: ["runner", "all"].includes(role()),
     api: ["api", "studio", "web", "runner", "all"].includes(role()),
+    /** The index's sweeps, in one process of a runtime: a runner serves the studio's routes too. */
+    vectors: ["studio", "web", "all"].includes(role()),
   },
   runner: {
     /** This runner's name in the control database; a new one each start. */
