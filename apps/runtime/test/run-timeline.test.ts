@@ -445,6 +445,37 @@ describe("the routes", () => {
     }
   });
 
+  it("the timeline says what a run waits for, and when the team answers", async () => {
+    as("owner");
+    const hears = await start([
+      {
+        id: "hears",
+        type: "wait",
+        title: "Antwort",
+        signal: { name: "invoice.paid", key: "Anna@Example.com" },
+      },
+      end,
+    ]);
+    expect(await until(async () => (await row(hears))?.status === "waiting_signal")).toBe(true);
+    const waiting = (await (await timeline(hears)).json()) as {
+      signal: { name: string; key: string } | null;
+      teamStep: boolean;
+    };
+    expect(waiting.signal).toEqual({ name: "invoice.paid", key: "anna@example.com" });
+    expect(waiting.teamStep).toBe(false);
+    await client.withTenant(T, () => runner.cancel(hears));
+
+    const team = await start([{ ...page, who: "team" }, end]);
+    expect(await until(async () => (await row(team))?.status === "waiting_input")).toBe(true);
+    const asked = (await (await timeline(team)).json()) as {
+      signal: unknown;
+      teamStep: boolean;
+    };
+    expect(asked.signal).toBeNull();
+    expect(asked.teamStep).toBe(true);
+    await client.withTenant(T, () => runner.cancel(team));
+  });
+
   it("the timeline is for the people of the organization, and says who may act", async () => {
     const id = await start([pause, end], { label: "Hofer" });
     expect(await rests(id)).toBe(true);

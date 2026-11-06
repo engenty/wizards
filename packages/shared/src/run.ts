@@ -1394,6 +1394,10 @@ export interface RunTimeline {
   stepTitle: string | null;
   /** Who started it, as its log says; null: a visitor, or the one person of this computer. */
   startedBy: string | null;
+  /** What it waits for while it waits for a signal: the name, and the key as this run filled it. */
+  signal: { name: string; key: string } | null;
+  /** The step it stands on is answered by the team. */
+  teamStep: boolean;
   /** Whether the person looking may use "Continue now" and "Stop": the owner and the admins, on a test run whoever started it. */
   canAct: boolean;
   /** The steps of the definition the run started on, for their titles. */
