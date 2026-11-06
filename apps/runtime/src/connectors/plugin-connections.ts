@@ -25,13 +25,21 @@ import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { managed } from "../manage.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { builtinConnector, connectorFetch, resolveEnv, usable, viaAccount } from "./builtin.js";
+import {
+  builtinConnector,
+  connectorFetch,
+  resolveEnv,
+  signInFetch,
+  usable,
+  viaAccount,
+} from "./builtin.js";
 import { connectRedirectUri as redirectUri } from "./index.js";
 import {
   keepSpaceSignIn,
   type SpaceConnectionRow,
   type StoredTokens,
 } from "./space-connections.js";
+import { standInUrl } from "./stand-ins.js";
 import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-account.js";
 
 /*
@@ -204,11 +212,12 @@ export async function finishPluginOAuth(
           code: answer.code,
           codeVerifier: state.verifier,
           config: connector.auth.oauth2,
+          fetchImpl: connector.auth.oauth2.fetchImpl ?? signInFetch,
           redirectUri: redirectUri(),
           resolveEnv,
         });
   const account = (await connector.auth.oauth2
-    .resolveAccount?.(tokens.accessToken, fetch)
+    .resolveAccount?.(tokens.accessToken, signInFetch)
     .catch(() => null)) ?? { label: connector.name };
   const stored: StoredTokens = {
     accessToken: tokens.accessToken,
@@ -296,14 +305,16 @@ export function pluginConnections(plugin: string): PluginConnections {
       }
       await connector.auth.oauth2.registerClient?.();
       const pkce = createOAuth2Pkce();
-      const url = await buildAuthorizationUrl({
-        connector,
-        pkce,
-        redirectUri: redirectUri(),
-        scopes,
-        state: seal({ ...base, verifier: pkce.codeVerifier } satisfies PluginOAuthState),
-        resolveEnv,
-      });
+      const url = standInUrl(
+        await buildAuthorizationUrl({
+          connector,
+          pkce,
+          redirectUri: redirectUri(),
+          scopes,
+          state: seal({ ...base, verifier: pkce.codeVerifier } satisfies PluginOAuthState),
+          resolveEnv,
+        }),
+      );
       return { url };
     },
 

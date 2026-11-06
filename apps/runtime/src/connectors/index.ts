@@ -19,8 +19,16 @@ import { NotedError } from "../model-errors.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { deleteSecret, peekSecret, putSecret, type StoreScope } from "../store/index.js";
 import { type ServerKey, serverText } from "../texts.js";
-import { connectorFetch, MAIL_CONNECTORS, resolveEnv, usable, viaAccount } from "./builtin.js";
+import {
+  connectorFetch,
+  MAIL_CONNECTORS,
+  resolveEnv,
+  signInFetch,
+  usable,
+  viaAccount,
+} from "./builtin.js";
 import { resolveConnector } from "./external.js";
+import { standInUrl } from "./stand-ins.js";
 import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-account.js";
 
 /** The connectors a person can pick for each kind of connection. */
@@ -272,14 +280,16 @@ export async function startOAuth(
     exp: Date.now() + 15 * 60_000,
     lang,
   };
-  return buildAuthorizationUrl({
-    connector,
-    pkce,
-    redirectUri: connectRedirectUri(),
-    scopes: scopesFor(connection, connector),
-    state: seal(state),
-    resolveEnv,
-  });
+  return standInUrl(
+    await buildAuthorizationUrl({
+      connector,
+      pkce,
+      redirectUri: connectRedirectUri(),
+      scopes: scopesFor(connection, connector),
+      state: seal(state),
+      resolveEnv,
+    }),
+  );
 }
 
 /** The language a sign-in was started in, a wizard's or a plugin's; null where it names none. */
@@ -321,12 +331,13 @@ export async function finishOAuth(
           code: answer.code,
           codeVerifier: state.verifier,
           config: connector.auth.oauth2,
+          fetchImpl: connector.auth.oauth2.fetchImpl ?? signInFetch,
           redirectUri: connectRedirectUri(),
           resolveEnv,
         });
   // A provider that will not name the account still connected it.
   const account = (await connector.auth.oauth2
-    .resolveAccount?.(tokens.accessToken, fetch)
+    .resolveAccount?.(tokens.accessToken, signInFetch)
     .catch(() => null)) ?? { label: connector.name };
   const stored: StoredConnection = {
     accessToken: tokens.accessToken,
