@@ -4,6 +4,11 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.17.2] - 2026-11-06
+- ADDED **[studio]** A plugin's repository or zip becomes a Connector with its Skills, and Entdecken shows it as one hit (#527)
+- DOCS Documentation updates (#524, #525)
+- FIXED **[knowledge]** The index's sweep leaves the embedding model room for searches (#528)
+
 ## [0.17.1] - 2026-11-06
 - ADDED **[capabilities]** A plugin for Claude Code or Cursor becomes a connector with its skills (#521)
 - ADDED **[capabilities]** Rechte, one page for who may read, change and run what (#520)

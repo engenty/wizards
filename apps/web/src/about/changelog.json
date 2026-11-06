@@ -1,8 +1,42 @@
 [
   {
-    "version": "v0.17.1",
-    "timestamp": 1793946899,
+    "version": "v0.17.2",
+    "timestamp": 1793951559,
     "commits": [
+      {
+        "id": "08f9b3e",
+        "message": "the index's sweep leaves the embedding model room for searches (#528)",
+        "group": "Fixed",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "1f5d416",
+        "message": "a plugin's repository or zip becomes a Connector with its Skills, and Entdecken shows it as one hit (#527)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "6bfe434",
+        "message": "documentation updates (#524, #525)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.17.1",
+    "timestamp": 1793947131,
+    "commits": [
+      {
+        "id": "dcfb01d",
+        "message": "a connection limits its calls per run and day, the wizard's mails per day get a field, and the editor warns where a fixed step would wait (#522)",
+        "group": "Added",
+        "scope": "broker",
+        "breaking": false
+      },
       {
         "id": "3fb562a",
         "message": "one process embeds the index's texts, in calls the model can finish, and waits after a failure (#523)",
