@@ -28,6 +28,9 @@ overrides:
   # with known fixes: fast-uri link confusion, ip-address quadratic parsing.
   fast-uri: ^3.1.9
   ip-address: ^10.7.4
+  # follow-redirects 1.16.1 can carry custom credentials across a redirect (via axios, in
+  # html-to-docx). html-to-docx also bundles its own copy, which this does not change.
+  follow-redirects: ^1.16.2
   # @ag-ui/core 0.0.x (the openui-chat example) asks for zod 3, which has the same memory issue;
   # its schemas are plain objects, enums and unions that zod 4 reads alike.
   "@ag-ui/core>zod": 4.6.6
