@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react";
 import { CameraDialog, canRecordClips, shrinkImage } from "./camera";
 import { canUseMedia, isTouch } from "./device";
 import { api, runBase, withBase } from "./env.js";
+import { ListChoice, NumberInput, NumberSlider, NumberStepper } from "./field-looks.js";
 import { choiceLabel, lang, t } from "./i18n.js";
 import { LocationField } from "./location";
 import { ScanDialog } from "./scan";
@@ -770,15 +771,35 @@ export function FieldInput({
       );
       break;
     case "number":
-      control = (
-        <Input
-          inputMode="decimal"
-          autoComplete="off"
-          value={str}
-          placeholder={field.placeholder}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      );
+      control =
+        field.look === "slider" && field.min !== undefined && field.max !== undefined ? (
+          <NumberSlider
+            label={field.label}
+            value={value}
+            min={field.min}
+            max={field.max}
+            increment={field.increment}
+            unit={field.unit}
+            onChange={onChange}
+          />
+        ) : field.look === "stepper" ? (
+          <NumberStepper
+            value={value}
+            min={field.min}
+            max={field.max}
+            increment={field.increment}
+            unit={field.unit}
+            placeholder={field.placeholder}
+            onChange={onChange}
+          />
+        ) : (
+          <NumberInput
+            value={str}
+            unit={field.unit}
+            placeholder={field.placeholder}
+            onChange={onChange}
+          />
+        );
       break;
     case "select": {
       const options = field.options ?? [];
@@ -791,6 +812,15 @@ export function FieldInput({
           runId={runId}
           onChange={onChange}
           disabled={shut}
+        />
+      ) : field.look === "list" ? (
+        <ListChoice
+          name={field.id}
+          value={str}
+          options={options}
+          disabled={shut}
+          label={choiceLabel}
+          onChange={onChange}
         />
       ) : options.length <= 5 && options.every((o) => o.length <= 28) ? (
         <Segmented

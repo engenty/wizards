@@ -203,8 +203,14 @@ type Field = {
   vat?: { rate?: number, field?: fieldId }                    // items only; VAT % fixed or read from a field
   currency?: "EUR"|...                                        // items only
   multiple?: boolean            // image / file: several files, in the order the person puts them (they can drag them)
-  min?: number, max?: number    // image / file with multiple: how many files at least / at most (up to 30). Set max wherever
-                                //   every file costs something later (a video clip per photo)
+  min?: number, max?: number    // image / file with multiple: how many files at least / at most (whole numbers, up to 30). Set max
+                                //   wherever every file costs something later (a video clip per photo).
+                                //   number: the lowest and highest value allowed
+  increment?: number            // number: the value moves in steps of this size (500: 2000, 2500, 3000)
+  unit?: string                 // number: the sign or word after the value ("€", "Personen", "m²"), at most 16 characters
+  look?: "slider"|"stepper"|"list" // how the field is drawn. number: "slider" (needs min and max; for a value within a range, like a
+                                //   budget) or "stepper" (minus and plus; for small counts). select: "list" (one row per choice, for
+                                //   choices that need a line of text). Without it the runner picks: short choices as buttons, long ones as a dropdown
   camera?: boolean              // file: also offer the camera, for papers the person has not scanned (image always offers it)
   video?: boolean               // file: the camera also records a short clip (up to 30 s); the clip is a file like any other
   listen?: boolean              // file: a recording (video/audio) is listened to before the next step: {{field.speech}} gives what is
