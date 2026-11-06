@@ -9,6 +9,7 @@ import {
   type WizardDefinition,
   wizardSchema,
 } from "@engenty/wizards-shared/definition";
+import { needs } from "@engenty/wizards-shared/fit";
 import { bound, validateSurface, worded } from "@engenty/wizards-shared/surface";
 import { describe, expect, it } from "vitest";
 import { readPageInput } from "../src/engine/input";
@@ -342,6 +343,23 @@ describe("1d: a page laid out with components", () => {
     );
     expect(said(page(null, { demo: "steps.estimate.total" })).join()).toContain(
       'only with "components"',
+    );
+  });
+
+  it("a page that reads a stored list says it needs one", () => {
+    const def = wizard([
+      {
+        id: "ask",
+        type: "page",
+        title: "Frage",
+        fields,
+        components: layout(),
+        data: { rows: "lists.kunden" },
+      },
+      end,
+    ]);
+    expect(needs(def.steps[0], def)).toContainEqual(
+      expect.objectContaining({ stepId: "ask", need: "lists" }),
     );
   });
 
