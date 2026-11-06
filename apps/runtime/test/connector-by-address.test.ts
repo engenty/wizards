@@ -90,7 +90,11 @@ const json = (body: unknown, status = 200) =>
 const called: { host: string; tool: string; args: unknown }[] = [];
 
 /** An MCP server over streamable HTTP, as far as listing and calling tools goes. */
-function mcpServer(allowed: (req: Request) => boolean = () => true) {
+function mcpServer(
+  allowed: (req: Request) => boolean = () => true,
+  /** What it calls itself in its handshake. */
+  info: { name: string; title?: string } = { name: "played" },
+) {
   return async (req: Request): Promise<Response> => {
     if (!allowed(req)) {
       return new Response("unauthorized", {
@@ -114,7 +118,7 @@ function mcpServer(allowed: (req: Request) => boolean = () => true) {
       return result({
         protocolVersion: message.params?.protocolVersion,
         capabilities: { tools: {} },
-        serverInfo: { name: "played", version: "1.0.0" },
+        serverInfo: { ...info, version: "1.0.0" },
       });
     }
     if (message.id === undefined) {
@@ -193,7 +197,9 @@ const servers: Record<string, (req: Request) => Promise<Response> | Response> = 
       : new Response("not found", { status: 404 }),
   // Answers anybody.
   "open.example.net": (req) =>
-    new URL(req.url).pathname === "/mcp" ? mcpServer()(req) : new Response("no", { status: 404 }),
+    new URL(req.url).pathname === "/mcp"
+      ? mcpServer(() => true, { name: "open-list", title: "Offene Kundenliste" })(req)
+      : new Response("no", { status: 404 }),
   "api.shop.example.co.uk": (req) =>
     new URL(req.url).pathname === "/openapi.json" ? json(SPEC) : new Response("no", { status: 404 }),
 };
@@ -299,6 +305,8 @@ describe("a pasted MCP address that describes its sign-in", () => {
       fromAddress: true,
       privateAddress: false,
       signIn: { described: "oauth2", needsOAuthClient: false, keyIn: null },
+      // It answers nobody without a sign-in, its name included.
+      title: null,
     });
   });
 
@@ -382,6 +390,8 @@ describe("a pasted MCP address that wants a key in a header", () => {
       external.previewSource(space, { sourceUrl, signIn: { ...header, value: "k-1" } }),
     );
     expect(preview.toolsPending).toBe(false);
+    // With the key it says what it calls itself: a name where it has no title.
+    expect(preview.title).toBe("played");
     expect(preview.actions.map((a) => [a.id, a.group])).toEqual([
       ["search_customers", "read"],
       ["export_report", "write"],
@@ -465,6 +475,8 @@ describe("a pasted MCP address that answers without a sign-in", () => {
       suggestedId: "open-example",
       toolsPending: false,
       signIn: { described: "none" },
+      // The server's own title is the name to suggest; its id still comes from its host.
+      title: "Offene Kundenliste",
     });
     const { connector } = await asAdmin(() =>
       external.importConnector("user-a", space, {

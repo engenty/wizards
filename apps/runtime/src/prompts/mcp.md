@@ -44,7 +44,7 @@ The person's spaces. Each holds wizards, a brand and MCP servers. Name a space b
 The person's wizards, newest first, each with its space's name and where that space comes from. Ids are for the tools: never show them to the person.
 
 <!-- section: tool.get_wizard -->
-A wizard's draft with its revision and validator issues, whether it differs from the published version, and its links.
+A wizard's draft with its revision, validator issues and warnings, whether it differs from the published version, and its links. A warning names a step that saves and publishes but fails in a run as the space's rules are now.
 
 <!-- section: tool.validate_wizard -->
 Check a wizard JSON without saving it. Returns ok and the issues.
@@ -60,11 +60,11 @@ Apply ops to the draft atomically, in order:
 - upsert_step {step (complete), before?|after?}: replaces the step with that id, else inserts it (default: before the final result step)
 - remove_step {stepId}
 - move_step {stepId, before|after}
-Returns the new revision and the issues.
+Returns the new revision, the issues and the warnings (see get_wizard).
 
 <!-- section: tool.replace_wizard -->
 <!-- Also the studio architect's: its wizard exists before the chat opens, so it writes a new one with this. -->
-Replace the whole draft: for a new wizard, a rewrite, or anything edit_wizard can't do in a few ops. Returns the new revision and the validator's issues.
+Replace the whole draft: for a new wizard, a rewrite, or anything edit_wizard can't do in a few ops. Returns the new revision, the validator's issues and the warnings (see get_wizard).
 
 <!-- section: tool.publish_wizard -->
 Publish the draft as a new version behind the share link. Refused while the draft has issues. Only when the person asked for it.
@@ -121,6 +121,10 @@ Load a widget step of the draft in a real browser with its sample data (or the d
 
 <!-- section: param.run_wizard.theme -->
 The widget's look: the id of a theme the wizard names (its definition's themes), brand or default. Left out: host, this app's own look. Only when the person asks for the wizard's look.
+
+<!-- section: note.step_needs_approval -->
+<!-- A warning on a draft: a fixed step on a connection of the space whose rule asks the admins. kind: read | write | destructive | send. -->
+Step "${step}" will fail in a run: the connection "${connection}" asks the space's admins before the action "${action}" (${kind}), and a run does not wait for them. An admin of the space can set that rule to allowed on the connection's page; tell your user.
 
 <!-- section: note.present -->
 <!-- In a tool result on a wizard while people edit it; who: "Ana (page 2), Ben", verb: is | are. -->

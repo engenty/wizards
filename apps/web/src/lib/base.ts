@@ -13,13 +13,23 @@ export const BASE = String(import.meta.env.VITE_APP_BASE ?? "").replace(/\/+$/, 
  */
 export const STUDIO = `${BASE}/studio`;
 
-/** The studio's own pages: the first part of a path after `/studio/` that is no organization's address. */
+/**
+ * The studio's own pages: the first part of a path after `/studio/` that is no organization's
+ * address. Every first part of a route in `StudioApp` (App.tsx) is here (base.test.ts checks
+ * it): one that is missing is read as an organization's address, and the studio then starts
+ * below it (`/studio/capabilities/capabilities/…`).
+ */
 export const STUDIO_PAGES = new Set([
   "",
   "new",
   "edit",
-  "settings",
   "space",
+  "skills",
+  "capabilities",
+  "work",
+  "client",
+  "settings",
+  "account",
   "setup",
   "start",
   "sign-in",

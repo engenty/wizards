@@ -35,12 +35,18 @@ export function keepHint(slug: string) {
 /**
  * In the cloud every studio address names its organization, `/studio/<address>/…`: the address
  * says where someone is, and a link opens the same organization for whoever follows it. A local
- * install has one organization and keeps `/studio/`.
+ * install has one organization and keeps `/studio/`, signed in or not (`local`: what the runtime
+ * says of itself before anyone is known).
  */
-export function placeOf(path: string, me: Me | null | undefined): Place {
+export function placeOf(path: string, me: Me | null | undefined, local = false): Place {
   const rest = path.slice(STUDIO.length);
   const first = rest.split("/")[1] ?? "";
   if (!me) {
+    // A local install has no organizations: no part of its address names one, a plugin's page
+    // (`/studio/contacts`) included.
+    if (local) {
+      return { kind: "here", root: STUDIO };
+    }
     // Not signed in: an address stays as it is, and the sign-in names its organization.
     return { kind: "here", root: STUDIO_PAGES.has(first) ? STUDIO : `${STUDIO}/${first}` };
   }

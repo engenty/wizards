@@ -97,6 +97,10 @@ export interface SourcePreview {
   host: string;
   suggestedId: string;
   suggestedToolPrefix: string;
+  /**
+   * A name to suggest: a description's title, the registry's name, or what a pasted MCP server
+   * calls itself in its handshake (its title, else its name) once it lists its tools.
+   */
   title: string | null;
   /** Each action with what the importer read it as (`group`) and its input fields. */
   actions: ConnectorActionView[];

@@ -57,8 +57,8 @@ What a pasted address still cannot do:
   (piece 4 says so too).
 - A reload does not say which actions came or went, and a new action runs under its guessed kind
   until an admin looks.
-- The server’s own name is not read: the connector is named after its host until the admin types
-  a name.
+- The server’s own name is read only where it lists its tools at „Prüfen“, without a sign-in or
+  with a typed key. One that needs OAuth is named after its host until the admin types a name.
 
 What the code did:
 

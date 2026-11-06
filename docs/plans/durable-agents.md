@@ -1,8 +1,9 @@
 # Plan: wizards as durable agents with a person in the loop
 
-Status: plan, nothing built. Written on 2026-10-30 against `feat/work-mode` (v0.13.x). Behind a
-new switch `durableRuns`, off by default. The open questions were decided on 2026-10-31
-("Decisions", at the end).
+Status: built in parts. On `main`: the runner's fix for runs in parallel (#495) and, behind the
+switch `durableRuns` (off by default), wait steps and the minute clock (#496). The rest is not
+built. Written on 2026-10-30 against `feat/work-mode` (v0.13.x) as a plan. The open questions
+were decided on 2026-10-31 ("Decisions", at the end).
 
 Scope: a wizard run that lasts hours or days. It follows its steps, branches and waits, survives
 restarts of every process, and stops for a person where it needs one (approve, answer, take over),

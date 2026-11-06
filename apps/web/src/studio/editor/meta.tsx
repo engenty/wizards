@@ -11,17 +11,35 @@ import {
   LayoutDashboard,
   LayoutTemplate,
   ListChecks,
+  Plug,
   Video,
   Wand2,
 } from "lucide-react";
 import { lang, t } from "../../lib/i18n";
+
+type AgentStep = Extract<Step, { type: "agent" }>;
+
+/**
+ * A fixed step: an agent step with a `call`. It runs one action of a connection or one tool of
+ * a plugin, once and with no model, so the editor never shows it as an AI step.
+ */
+export function isFixedStep(
+  step: Step,
+): step is AgentStep & { call: NonNullable<AgentStep["call"]> } {
+  return step.type === "agent" && Boolean(step.call);
+}
+
+/** What a fixed step calls, in one line: the connection and its action, or the plugin's tool. */
+export function callSummary(call: NonNullable<AgentStep["call"]>): string {
+  return "connection" in call ? `${call.connection} · ${call.action}` : call.tool;
+}
 
 export function stepIcon(step: Step) {
   switch (step.type) {
     case "page":
       return ListChecks;
     case "agent":
-      return Bot;
+      return step.call ? Plug : Bot;
     case "generate":
       return step.asset === "image"
         ? Image
@@ -76,7 +94,7 @@ export function waitSummary(step: Extract<Step, { type: "wait" }>): string {
 }
 
 export function typeLabel(step: Step): string {
-  return t(`type.${step.type}` as "type.page");
+  return isFixedStep(step) ? t("type.fixed") : t(`type.${step.type}` as "type.page");
 }
 
 const TOOLS = ["web_search", "web_fetch", "browser", "sandbox", "image", "http", "pages", "code"];
@@ -91,6 +109,9 @@ export function stepSummary(step: Step): string {
     case "page":
       return step.fields.map((f) => f.label).join(" · ");
     case "agent": {
+      if (step.call) {
+        return callSummary(step.call);
+      }
       return step.tools.map(toolLabel).join(" · ") || step.instructions.slice(0, 90);
     }
     case "generate": {

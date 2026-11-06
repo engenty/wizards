@@ -529,6 +529,10 @@ async function prepare(input: SourceInput) {
     specOverrides: surface?.spec_overrides ?? [],
     transport: surface ? resolveMcpTransport(surface) : null,
   };
+  /** The headers the server's tools were last asked with: its fixed ones, then a typed key. */
+  let asked: Record<string, string> = Object.fromEntries(
+    source.requiredHeaders.map((header) => [header.name, header.value]),
+  );
   let prepared = await prepareSource({
     ...source,
     deferMcpTools: input.sourceKind === "mcp" && surfaceRequiresAuth(surface),
@@ -555,6 +559,8 @@ async function prepare(input: SourceInput) {
       pasted,
       privateAddress,
       described: mapped.ok ? mapped.auth : null,
+      fetchImpl,
+      asked,
     };
   }
   let described: StoredAuthConfig | null;
@@ -574,6 +580,7 @@ async function prepare(input: SourceInput) {
     if (signIn?.kind === "header" && signIn.value) {
       // The key the admin typed lists the tools now. A key the server refuses is said in words.
       const value = signIn.scheme ? `${signIn.scheme.trim()} ${signIn.value}` : signIn.value;
+      asked = { ...asked, [signIn.name]: value };
       prepared = await prepareSource({
         ...source,
         deferOnUnauthorized: false,
@@ -591,7 +598,46 @@ async function prepare(input: SourceInput) {
     // Its tools list answered without a sign-in: it needs none.
     described = { kind: "none" };
   }
-  return { ...resolved, prepared, blockers, pasted, privateAddress, described };
+  return { ...resolved, prepared, blockers, pasted, privateAddress, described, fetchImpl, asked };
+}
+
+/** How long the question for a server's own name may take: the preview does not wait on it. */
+const SERVER_NAME_TIMEOUT_MS = 8_000;
+
+/**
+ * What an MCP server calls itself in its handshake: `serverInfo.title`, else `serverInfo.name`.
+ * The code that lists the tools keeps nothing of the handshake (it is engenty's, copied and not
+ * edited here), so a pasted address is greeted once more for its name. Whatever goes wrong
+ * leaves the name to the host.
+ */
+async function serverNameOf(params: {
+  endpoint: string;
+  fetchImpl: typeof fetch;
+  headers: Record<string, string>;
+}): Promise<string | null> {
+  const sdk = await import("@modelcontextprotocol/client");
+  const url = new URL(params.endpoint);
+  const options = { fetch: params.fetchImpl, requestInit: { headers: params.headers } };
+  for (const kind of ["streamable-http", "sse"] as const) {
+    const transport =
+      kind === "sse"
+        ? new sdk.SSEClientTransport(url, options)
+        : new sdk.StreamableHTTPClientTransport(url, options);
+    const client = new sdk.Client({ name: "engenty-wizards", version: "1.0.0" });
+    try {
+      await client.connect(transport, { timeout: SERVER_NAME_TIMEOUT_MS });
+      const info = client.getServerVersion();
+      return (info?.title ?? info?.name ?? "").trim().slice(0, 80) || null;
+    } catch {
+      // The other transport, or no name.
+    } finally {
+      if ("terminateSession" in transport) {
+        await transport.terminateSession().catch(() => undefined);
+      }
+      await client.close().catch(() => undefined);
+    }
+  }
+  return null;
 }
 
 /** A two-letter country ending's second level: `co.uk`, `com.au`, `or.at`. */
@@ -677,6 +723,18 @@ export async function previewSource(
     }
     const { prepared, surface } = found;
     const host = hostOf(input.sourceUrl);
+    // A pasted MCP server that listed its tools says its own name; the registry names the rest.
+    const own =
+      found.pasted &&
+      sourceKind === "mcp" &&
+      !prepared.deferred_mcp_tools &&
+      !prepared.normalized.title
+        ? await serverNameOf({
+            endpoint: input.sourceUrl,
+            fetchImpl: found.fetchImpl,
+            headers: found.asked,
+          })
+        : null;
     const names = await freeNames(
       spaceId,
       surface
@@ -688,7 +746,7 @@ export async function previewSource(
       host,
       suggestedId: names.id,
       suggestedToolPrefix: names.toolPrefix,
-      title: prepared.normalized.title ?? surface?.name ?? null,
+      title: prepared.normalized.title ?? surface?.name ?? own,
       actions: prepared.normalized.actions.map((a) => actionView({}, a)),
       blockers: found.blockers,
       dropped: prepared.normalized.dropped_count,

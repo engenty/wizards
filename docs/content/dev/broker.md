@@ -272,7 +272,9 @@ the admins. It reads the rule as it is, so the warning is gone once the rule say
 read, a rule on *Nie*, a paused connection and a wizard’s own connection never warn. The warnings
 are `StepWarning[]` (shared) on the wizard’s state and on the answer of `PUT /wizards/:id/draft`,
 beside `issues`. They are no issue: the draft saves and publishes. The editor words them in
-`apps/web/src/studio/editor/step-warnings.ts`.
+`apps/web/src/studio/editor/step-warnings.ts`. MCP’s `get_wizard`, `edit_wizard` and
+`replace_wizard` answer them too, each with a `message` a model can read
+(`note.step_needs_approval` in `prompts/mcp.md`).
 
 ## The run’s grant
 
@@ -549,6 +551,10 @@ a new connection on it defaults to the audience `admins`.
 - **A server without SSE.** A server that answers 401 to streamable HTTP and 405 to the SSE try
   loses its 401 on the way. Where its own OAuth documents are there, it is read as one that wants
   a sign-in: its tools come once an account is connected.
+- **Its name.** The preview’s `title` is the name to suggest. For a pasted MCP server that listed
+  its tools, the preview greets it once more and takes what it calls itself (`serverNameOf`:
+  `serverInfo.title`, else `serverInfo.name`). A server that wants a sign-in first, or one that
+  fails this second greeting, keeps its host as the name. Its id always comes from its host.
 
 ### A connector that brings skills
 

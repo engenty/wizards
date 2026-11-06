@@ -50,6 +50,7 @@ import {
   Upload,
 } from "lucide-react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import { withBase } from "@/lib/base";
 import { Mascot } from "../../brand";
 import { lang, t } from "../../lib/i18n";
@@ -80,7 +81,7 @@ import {
 import { ModelClassControl, StepCost, useEstimate } from "./estimate";
 import { conditionText, percent } from "./FlowDiagram";
 import { HoldToDelete } from "./HoldToDelete";
-import { stepIcon, stepSummary, TYPE_TONE, toolLabel, typeLabel } from "./meta";
+import { isFixedStep, stepIcon, stepSummary, TYPE_TONE, toolLabel, typeLabel } from "./meta";
 import { ShareEditor } from "./ShareEditor";
 import { StepWarnings } from "./StepWarnings";
 import { SurfaceBody } from "./SurfaceEditor";
@@ -761,6 +762,92 @@ function WidgetMissing({
   );
 }
 
+/** A value of a fixed step's call as it is written: a template as text, anything else as JSON. */
+const callValue = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value));
+
+function CallRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <Label>{label}</Label>
+      <div className="break-words rounded-md bg-paper-2 px-2.5 py-1.5 font-mono text-[0.8125rem] text-ink-2">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A fixed step: what it calls and with which inputs, to read. It runs with no model, so it has
+ * no task, no tools and no class, and its result is the action's answer. The call itself is
+ * changed in the chat; here stay the title and the words shown while it works.
+ */
+function FixedStepBody({
+  def,
+  step,
+  set,
+}: {
+  def: WizardDefinition;
+  step: Extract<Step, { type: "agent" }> & {
+    call: NonNullable<Extract<Step, { type: "agent" }>["call"]>;
+  };
+  set: (s: Step) => void;
+}) {
+  const { call } = step;
+  const plugins = useStudioPlugins().plugins;
+  const connection =
+    "connection" in call ? def.connections?.find((c) => c.id === call.connection) : undefined;
+  const toolTitle =
+    "tool" in call
+      ? plugins.flatMap((plugin) => plugin.tools).find((tool) => tool.id === call.tool)?.title
+      : undefined;
+  const inputs = Object.entries(call.input ?? {});
+  return (
+    <>
+      <Section title={t("inspector.call")}>
+        <p className="text-[0.8125rem] text-ink-3">{t("inspector.callHint")}</p>
+        {"connection" in call ? (
+          <>
+            <CallRow label={t("inspector.callConnection")}>
+              {connection?.title ? `${connection.title} (${call.connection})` : call.connection}
+            </CallRow>
+            <CallRow label={t("inspector.callAction")}>{call.action}</CallRow>
+            {connection?.spaceConnection ? (
+              <Link
+                to={`/capabilities/connectors?show=${encodeURIComponent(connection.spaceConnection)}`}
+                className="self-start font-medium text-[0.8125rem] text-ink underline underline-offset-2"
+              >
+                {t("stepWarning.openConnection")}
+              </Link>
+            ) : null}
+          </>
+        ) : (
+          <CallRow label={t("inspector.callTool")}>
+            {toolTitle ? `${toolTitle} (${call.tool})` : call.tool}
+          </CallRow>
+        )}
+      </Section>
+      <Section title={t("inspector.callInput")}>
+        {inputs.length ? (
+          inputs.map(([key, value]) => (
+            <CallRow key={key} label={key}>
+              {callValue(value)}
+            </CallRow>
+          ))
+        ) : (
+          <p className="text-[0.8125rem] text-ink-3">{t("inspector.callNoInput")}</p>
+        )}
+      </Section>
+      <Section title={t("inspector.output")}>
+        <Input
+          placeholder={t("inspector.working")}
+          value={step.working ?? ""}
+          onChange={(e) => set({ ...step, working: e.target.value || undefined })}
+        />
+      </Section>
+    </>
+  );
+}
+
 function StepBody({
   def,
   step,
@@ -845,6 +932,9 @@ function StepBody({
         </Section>
       );
     case "agent":
+      if (isFixedStep(step)) {
+        return <FixedStepBody def={def} step={step} set={set} />;
+      }
       return (
         <>
           <Section title={t("inspector.task")}>
