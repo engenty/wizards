@@ -186,7 +186,7 @@ export function ListChoice({
               checked={on}
               disabled={shut}
               onChange={() => onChange(option)}
-              className="size-4 shrink-0 accent-ember"
+              className="size-[1.125rem] shrink-0 appearance-none rounded-full border border-input bg-card transition-[border] checked:border-[0.3rem] checked:border-ember"
             />
             <span>{label(option)}</span>
           </label>
