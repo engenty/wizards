@@ -1,3 +1,4 @@
+import type { BundleView } from "@engenty/wizards-shared/bundles";
 import {
   CONNECTION_ACTION_KINDS,
   CONNECTION_AUDIENCES,
@@ -27,14 +28,20 @@ import { Connectors } from "../Connectors";
 import { SignInButtons, SignInPanel, useConnectedMessage, useSignIn } from "../connection-sign-in";
 import { useDetail, useSettingsMenu } from "../settings-menu";
 import { Section } from "../space/Section";
+import { BundleNote, BundleRemove, BundleSkills, useBundles } from "./Bundle";
 import { limitText, readLimit, usedToday } from "./connection-words";
 
 /*
  * Fähigkeiten › Connectors (docs/plans/capabilities.md, "Connections"): the space's connections
  * under „Im Space“, the built-in connectors as names, and the imported ones with the registry
  * search below. A connection opens with `?show=<id>`; `?setup=<connector id or domain>` opens the
- * setup with that connector chosen. Admins set up and change; a member reads the connections
- * open to them and signs in where each person does.
+ * setup with that connector chosen, `?address=<a repository on GitHub>` reads that address under
+ * „Per Adresse“. Admins set up and change; a member reads the connections open to them and
+ * signs in where each person does.
+ *
+ * A connection whose connector came with a plugin for Claude Code or Cursor (`bundleId`,
+ * docs/plans/capabilities-next.md, piece 4) says so on its page, lists the Skills that came
+ * with it, and is removed together with them (`Bundle.tsx`).
  *
  * A connection guests reach (for everyone, as the space) is marked in the list, and the admins
  * get a note above it that narrows each to members. Each person signing in is the plan's to
@@ -253,9 +260,11 @@ export function ConnectorsSection() {
   const spaceId = space?.id ?? "";
   const show = params.get("show");
   const setup = params.get("setup");
+  const address = params.get("address");
   const writable = admin && !space?.readOnly;
   const connections = useSpaceConnections(spaceId);
   const connectors = useConnectors(spaceId);
+  const bundles = useBundles(spaceId, admin);
   const list = connections.data?.connections ?? [];
   const picked = list.find((c) => c.id === show) ?? null;
   useDetail(picked ? titleOf(picked) : null);
@@ -295,6 +304,7 @@ export function ConnectorsSection() {
               key={picked.id}
               connection={picked}
               connector={connectors.data?.find((c) => c.id === picked.connectorId)}
+              bundle={bundles.data?.find((b) => b.id === picked.bundleId)}
               writable={writable}
               onGone={() => pick("all")}
             />
@@ -307,6 +317,7 @@ export function ConnectorsSection() {
               connectors={connectors.data ?? []}
               writable={writable}
               setup={setup}
+              address={address}
               onOpen={pick}
               onSetUp={startSetup}
               onSetUpDone={() => setParams({}, { replace: true })}
@@ -326,6 +337,7 @@ function Overview({
   connectors,
   writable,
   setup,
+  address,
   onOpen,
   onSetUp,
   onSetUpDone,
@@ -337,6 +349,8 @@ function Overview({
   connectors: ConnectorView[];
   writable: boolean;
   setup: string | null;
+  /** A repository to read under „Per Adresse“ (`?address=`). */
+  address: string | null;
   onOpen: (id: string) => void;
   onSetUp: (connectorId: string) => void;
   onSetUpDone: () => void;
@@ -345,12 +359,12 @@ function Overview({
   const more = useRef<HTMLDivElement>(null);
   const resolved = setup && connectors.length ? resolveSetup(setup, connectors) : null;
   const domain = resolved && "domain" in resolved ? resolved.domain : null;
-  // A service still to import: the registry's part below opens it.
+  // A service still to import, or an address to read: the part below opens it.
   useEffect(() => {
-    if (domain) {
+    if (domain || address) {
       more.current?.scrollIntoView({ block: "start", behavior: "smooth" });
     }
-  }, [domain]);
+  }, [domain, address]);
   const builtin = unusedBuiltins(connectors, connections, unsetConnectors);
   return (
     <>
@@ -448,6 +462,7 @@ function Overview({
             embedded
             onSetUp={writable ? onSetUp : undefined}
             domain={domain}
+            address={address}
           />
         </Section>
       </div>
@@ -752,11 +767,14 @@ function SetupCard({
 function ConnectionPage({
   connection: c,
   connector,
+  bundle,
   writable,
   onGone,
 }: {
   connection: SpaceConnectionView;
   connector: ConnectorView | undefined;
+  /** What its connector came with, where a plugin brought it together with skills. */
+  bundle: BundleView | undefined;
   writable: boolean;
   onGone: () => void;
 }) {
@@ -869,6 +887,7 @@ function ConnectionPage({
           ) : null}
         </div>
       </div>
+      {bundle ? <BundleNote bundle={bundle} writable={writable} onConnector /> : null}
 
       <Card className="flex flex-col gap-5 p-3.5 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -1135,6 +1154,8 @@ function ConnectionPage({
         ) : null}
       </Card>
 
+      {bundle ? <BundleSkills bundle={bundle} writable={writable} /> : null}
+
       {writable ? (
         <div className="px-1">
           {removing ? (
@@ -1178,6 +1199,7 @@ function ConnectionPage({
           ) : null}
         </div>
       ) : null}
+      {bundle && writable ? <BundleRemove bundle={bundle} onGone={onGone} /> : null}
     </div>
   );
 }

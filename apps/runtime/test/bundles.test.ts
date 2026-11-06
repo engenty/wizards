@@ -46,6 +46,7 @@ const DNS: Record<string, string> = {
   "open.example.net": "93.184.215.17",
   "mcp.keys.example.org": "93.184.215.16",
   "more.example.net": "93.184.215.19",
+  "design.example.net": "93.184.215.20",
 };
 vi.mock("node:dns/promises", () => ({
   lookup: async (host: string) => {
@@ -214,6 +215,27 @@ const servers: Record<string, (req: Request) => Promise<Response> | Response> = 
     new URL(req.url).pathname === "/mcp" ? mcpServer()(req) : new Response("no", { status: 404 }),
   "more.example.net": (req) =>
     new URL(req.url).pathname === "/mcp" ? mcpServer()(req) : new Response("no", { status: 404 }),
+  // Wants a sign-in over streamable HTTP, does not speak SSE, and describes OAuth itself.
+  "design.example.net": (req) => {
+    const { pathname } = new URL(req.url);
+    if (pathname === "/.well-known/oauth-protected-resource/mcp") {
+      return json({ resource: "https://design.example.net/mcp" });
+    }
+    if (pathname === "/.well-known/oauth-authorization-server") {
+      return json({
+        authorization_endpoint: "https://design.example.net/authorize",
+        token_endpoint: "https://design.example.net/token",
+        registration_endpoint: "https://design.example.net/register",
+        grant_types_supported: ["authorization_code"],
+      });
+    }
+    if (pathname !== "/mcp") {
+      return new Response("no", { status: 404 });
+    }
+    return req.method === "POST"
+      ? new Response("unauthorized", { status: 401, headers: { "www-authenticate": "Bearer" } })
+      : new Response(null, { status: 405 });
+  },
   // Asks for a key in a header and describes nothing.
   "mcp.keys.example.org": (req) =>
     new URL(req.url).pathname === "/mcp"
@@ -877,6 +899,25 @@ describe("a plugin with a server and no skills", () => {
     ).rejects.toThrow(/The server “notes” could not be imported/);
     expect(await asAdmin(() => bundles.listBundles("user-a", space))).toEqual([]);
     expect((await asAdmin(() => skills.listSkills("user-a", space))).skills).toEqual([]);
+  });
+});
+
+describe("a server that wants a sign-in and speaks streamable HTTP only", () => {
+  it("is read by its own OAuth documents: its tools come once an account is connected", async () => {
+    repos["acme/design"] = {
+      ".claude-plugin/plugin.json": JSON.stringify({ name: "design" }),
+      ".mcp.json": JSON.stringify({
+        mcpServers: { design: { type: "http", url: "https://design.example.net/mcp" } },
+      }),
+    };
+    const { preview } = await asAdmin(() =>
+      bundles.previewBundle("user-a", space, at("acme/design"), "en"),
+    );
+    expect(preview?.leftOut).toEqual([]);
+    expect(preview?.servers[0].source).toMatchObject({
+      toolsPending: true,
+      signIn: { described: "oauth2", needsOAuthClient: false },
+    });
   });
 });
 

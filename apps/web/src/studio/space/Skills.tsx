@@ -18,6 +18,7 @@ import {
   CircleOff,
   type LucideIcon,
   Pencil,
+  Plug,
   Plus,
   Search,
   Sparkles,
@@ -90,12 +91,26 @@ export function ModeSwitch({
   );
 }
 
-/** Where a skill came from, as a chip: written here, uploaded, or its address on skills.sh. */
+/**
+ * Where a skill came from, as a chip: written here, uploaded, its address on skills.sh, or the
+ * Connector it came with (the plugin's name where it brought no connector).
+ */
 export function SourceChip({
   skill,
 }: {
-  skill: Pick<SkillSummary, "source" | "origin" | "official">;
+  skill: Pick<SkillSummary, "source" | "origin" | "official" | "bundle">;
 }) {
+  if (skill.bundle) {
+    return (
+      <Chip
+        tone="warn"
+        icon={<Plug className="size-3" />}
+        title={t("skills.bundle.chipHint", { name: skill.bundle.name })}
+      >
+        {skill.bundle.connectors[0]?.name ?? skill.bundle.name}
+      </Chip>
+    );
+  }
   if (skill.source === "skills.sh" && skill.origin) {
     const source = skill.origin.split("/").slice(0, 2).join("/");
     return skill.official ? (

@@ -1,4 +1,8 @@
-import type { DiscoverAnswer, DiscoverConnector } from "@engenty/wizards-shared/discover";
+import type {
+  DiscoverAnswer,
+  DiscoverBundle,
+  DiscoverConnector,
+} from "@engenty/wizards-shared/discover";
 import type { SkillHit } from "@engenty/wizards-shared/skills";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BadgeCheck, Check, type LucideIcon, Plug, ScrollText, Search } from "lucide-react";
@@ -17,6 +21,10 @@ import { RegistrySkillPreview } from "../space/Skills";
  * skills.sh and integrations.sh, the words in the address (`?q=`) so a search can be shared. A
  * skill is looked at or added here; a connector is set up on Connectors, by an admin. What the
  * space has already is marked „Im Space“.
+ *
+ * A repository that holds a plugin with a server and skills is one hit, „Connector mit Skills“
+ * (docs/plans/capabilities-next.md, piece 4): its skills and its service's connector are left
+ * out of the two lists, and an admin sets it up under „Per Adresse“.
  */
 
 const EXAMPLES: Key[] = ["discover.example1", "discover.example2", "discover.example3"];
@@ -103,8 +111,17 @@ export function DiscoverResults({
   });
 
   const data = found.data;
+  // A repository that holds both stands for its skills and its connector: one hit, not two.
+  const bundles = data?.bundles ?? [];
+  const covered = {
+    skills: new Set(bundles.flatMap((b) => b.covers.skills)),
+    connectors: new Set(bundles.flatMap((b) => b.covers.connectors)),
+  };
+  const skills = (data?.skills ?? []).filter((hit) => !covered.skills.has(hit.ref));
+  const connectors = (data?.connectors ?? []).filter((hit) => !covered.connectors.has(hit.domain));
   const nothing =
     data &&
+    !bundles.length &&
     !data.skills.length &&
     !data.connectors.length &&
     !data.errors.skills &&
@@ -136,14 +153,26 @@ export function DiscoverResults({
         <p className="px-1 text-[0.875rem] text-ink-3">{t("discover.none", { q: asked })}</p>
       ) : (
         <>
+          {bundles.length ? (
+            <Group
+              title={t("discover.bundle.title")}
+              hint={t("discover.bundle.hint")}
+              count={bundles.length}
+              empty=""
+            >
+              {bundles.map((hit) => (
+                <BundleResult key={hit.repo} hit={hit} admin={admin} />
+              ))}
+            </Group>
+          ) : null}
           {skillsOn ? (
             <Group
               title={t("space.skills")}
-              count={data.skills.length}
+              count={skills.length}
               error={data.errors.skills}
               empty={t("discover.groupNone", { directory: "skills.sh" })}
             >
-              {data.skills.map((hit) => (
+              {skills.map((hit) => (
                 <SkillResult
                   key={hit.ref}
                   hit={hit}
@@ -157,11 +186,11 @@ export function DiscoverResults({
           ) : null}
           <Group
             title={t("capabilities.connectors")}
-            count={data.connectors.length}
+            count={connectors.length}
             error={data.errors.connectors}
             empty={t("discover.groupNone", { directory: "integrations.sh" })}
           >
-            {data.connectors.map((hit) => (
+            {connectors.map((hit) => (
               <ConnectorResult key={hit.domain} hit={hit} admin={admin} />
             ))}
           </Group>
@@ -194,12 +223,15 @@ export function DiscoverResults({
 /** One directory's results: a heading with how many, then the rows, or why there are none. */
 function Group({
   title,
+  hint,
   count,
   error,
   empty,
   children,
 }: {
   title: string;
+  /** What the group is, beside its title, in place of how many. */
+  hint?: string;
   count: number;
   error?: string;
   empty: string;
@@ -207,9 +239,13 @@ function Group({
 }) {
   return (
     <section className="flex flex-col gap-2.5">
-      <div className="flex items-baseline gap-2 px-1">
+      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-1">
         <h2 className="font-display font-semibold text-lg leading-tight">{title}</h2>
-        {count ? <span className="text-[0.8125rem] text-ink-3">{count}</span> : null}
+        {hint ? (
+          <span className="text-[0.8125rem] text-ink-3">{hint}</span>
+        ) : count ? (
+          <span className="text-[0.8125rem] text-ink-3">{count}</span>
+        ) : null}
       </div>
       {error ? (
         <p className="px-1 text-[0.875rem] text-rose">{error}</p>
@@ -318,6 +354,57 @@ function SkillResult({
           {t("skills.add")}
         </Button>
       )}
+    </Row>
+  );
+}
+
+/** A repository that holds a server and skills: looked at on GitHub, set up under „Per Adresse“. */
+function BundleResult({ hit, admin }: { hit: DiscoverBundle; admin: boolean }) {
+  const navigate = useNavigate();
+  const address = `https://github.com/${hit.repo}`;
+  const found = hit.covers.skills.length;
+  return (
+    <Row
+      icon={Plug}
+      name={hit.name}
+      line={hit.description || undefined}
+      chip={
+        hit.official ? (
+          <Chip tone="live" icon={<BadgeCheck className="size-3" />}>
+            {t("skills.official")}
+          </Chip>
+        ) : (
+          <Chip tone="warn">{t("skills.unchecked")}</Chip>
+        )
+      }
+      source={[
+        hit.repo,
+        t("discover.bundle.connector"),
+        t(found === 1 ? "discover.bundle.skill" : "discover.bundle.skills", { n: found }),
+        t("discover.bundle.unused"),
+      ].join(" · ")}
+    >
+      <a
+        href={address}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex h-8 items-center rounded-full px-3 font-medium text-[0.8125rem] text-ink-2 transition hover:bg-accent hover:text-ink coarse:h-10"
+      >
+        {t("skills.open")}
+      </a>
+      {hit.added ? (
+        <InSpace />
+      ) : admin ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() =>
+            navigate(`/capabilities/connectors?address=${encodeURIComponent(address)}`)
+          }
+        >
+          {t("discover.setUp")}
+        </Button>
+      ) : null}
     </Row>
   );
 }

@@ -1,7 +1,7 @@
 ---
 title: Capabilities
 description: One place for what your wizards, Work chats and Goose may use – skills, the space’s connections to other services, the audit of every call, who may read, change and run what, and a search for more.
-version: 0.17.0
+version: 0.17.1
 ---
 
 **Capabilities** in the app bar, after Resources, holds what a space’s wizards, Work chats and
@@ -257,6 +257,10 @@ runs it. Mail, the hosts a wizard requests and commands in the sandbox follow a 
 and [what the run may reach](./protocol.md), not these rights.
 
 ## Discover
+
+A repository that holds a plugin with an MCP server and skills shows as one result, “Connector
+with skills”, in place of its skills and its service’s connector. An admin sets it up with
+[its address](./connectors.md#a-connector-that-brings-skills).
 
 Discover searches skills.sh for skills and integrations.sh for connectors at once. You view a skill
 whole and add it right in the results. A connector’s result has “Set up” for the admins, which

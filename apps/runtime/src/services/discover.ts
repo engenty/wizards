@@ -1,8 +1,9 @@
 import type { RegistryHit } from "@engenty/wizards-shared/connectors";
-import type { DiscoverConnector } from "@engenty/wizards-shared/discover";
+import type { DiscoverBundle, DiscoverConnector } from "@engenty/wizards-shared/discover";
 import { featureOn } from "@engenty/wizards-shared/features";
 import type { SkillHit } from "@engenty/wizards-shared/skills";
 import { eq } from "drizzle-orm";
+import { discoverBundles } from "../bundles/discover.js";
 import { searchRegistry } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { currentFeatures } from "../features.js";
@@ -16,6 +17,8 @@ import { ownedSpace } from "./spaces.js";
  * Fähigkeiten › Entdecken (docs/plans/capabilities.md, part B6): one search over skills.sh and
  * integrations.sh. Both are asked at once, each with its own time to answer; one that fails or
  * takes too long leaves its list empty and says so, and the other still shows what it found.
+ * A repository among the skills that is a plugin with a server over http is named as one hit
+ * (`bundles/discover.ts`); where GitHub does not answer in time, the lists stand as they are.
  */
 
 /** How long one directory may take before the search goes on without it. */
@@ -69,6 +72,7 @@ async function markSetUp(spaceId: string, hits: RegistryHit[]): Promise<Discover
 export interface DiscoverFound {
   skills: SkillHit[];
   connectors: DiscoverConnector[];
+  bundles: DiscoverBundle[];
   errors: { skills?: ServerKey; connectors?: ServerKey };
 }
 
@@ -85,7 +89,7 @@ export async function discover(
   const space = await ownedSpace(userId, spaceId);
   const q = query.trim().slice(0, 100);
   if (q.length < 2) {
-    return { skills: [], connectors: [], errors: {} };
+    return { skills: [], connectors: [], bundles: [], errors: {} };
   }
   const [skills, connectors] = await Promise.allSettled([
     // Skills stay out while their own switch is off.
@@ -101,9 +105,12 @@ export async function discover(
   if (connectors.status === "rejected") {
     errors.connectors = "connectorsRegistryDown";
   }
+  const foundSkills = skills.status === "fulfilled" ? skills.value : [];
+  const foundConnectors = connectors.status === "fulfilled" ? connectors.value : [];
   return {
-    skills: skills.status === "fulfilled" ? skills.value : [],
-    connectors: connectors.status === "fulfilled" ? connectors.value : [],
+    skills: foundSkills,
+    connectors: foundConnectors,
+    bundles: await within(discoverBundles(space.id, foundSkills, foundConnectors)).catch(() => []),
     errors,
   };
 }

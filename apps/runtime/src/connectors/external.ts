@@ -532,6 +532,14 @@ async function prepare(input: SourceInput) {
   let prepared = await prepareSource({
     ...source,
     deferMcpTools: input.sourceKind === "mcp" && surfaceRequiresAuth(surface),
+  }).catch(async (err) => {
+    // A server that answers 401 to streamable HTTP and does not speak SSE fails on the second
+    // try, and the 401 is lost. Its own OAuth documents say what it was: it wants a sign-in,
+    // and its tools come once an account is connected.
+    if (pasted && input.sourceKind === "mcp" && (await probeOAuth(input.sourceUrl, fetchImpl))) {
+      return prepareSource({ ...source, deferMcpTools: true });
+    }
+    throw err;
   });
   if (surface) {
     const mapped = mapAuth({

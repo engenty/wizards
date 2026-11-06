@@ -1,7 +1,7 @@
 ---
 title: Skills
 description: Instructions your wizards work by – always, or when a wizard needs one. Add them from skills.sh, upload them or write your own.
-version: 0.13.0
+version: 0.17.1
 ---
 
 A skill is a set of instructions your wizards work by: how you write, what a quote must hold, how
@@ -50,6 +50,11 @@ comes as a zip upload.
 The **Discover** tab of Capabilities › Overview searches skills.sh and integrations.sh at once: you view or add a
 skill right in the results, marked “In this space” once the space has it.
 
+**With a connector.** A plugin for Claude Code or Cursor can bring skills together with a
+connector: see [A connector that brings skills](./connectors.md#a-connector-that-brings-skills).
+Such a skill shows its connector’s name in the list. A wizard that loads it is told which
+connector it came with.
+
 ## Run a skill’s scripts
 
 Some skills bring scripts in Python or JavaScript, such as one that fills a PDF form. A script
@@ -72,6 +77,11 @@ the whole `SKILL.md`, “Preview” shows the instructions as they read. A file 
 A skill from skills.sh stays as it came. When skills.sh has a newer version, the skill’s page
 says so, and you see the changes before you take them (“View changes”). To change it yourself,
 copy it as your own skill.
+
+A skill that came with a connector stays as it came too. You set when it applies and whether its
+scripts run. To change its text, choose “Copy as your own skill”: the copy is yours. You can’t
+delete it by itself. Switch it off, or remove the connector with everything it brought. Its
+page says where it came from, and admins take an update there when the plugin has changed.
 
 “Download as .zip” gives you the skill’s folder, for another tool or another space.
 
