@@ -2093,6 +2093,7 @@ const de: Record<Key, Line> = {
   "video.chat": "Chat",
   "type.page": "Seite",
   "type.agent": "KI-Schritt",
+  "type.fixed": "Fester Schritt",
   "type.generate": "Erzeugen",
   "type.surface": "Ansicht",
   "type.widget": "Widget",
@@ -2475,6 +2476,14 @@ const de: Record<Key, Line> = {
   "inspector.insertAnswers": "Antworten einsetzen mit",
   "inspector.insertField": "feld",
   "inspector.insertResults": ", frühere Ergebnisse mit",
+  "inspector.call": "Aufruf",
+  "inspector.callHint":
+    "Dieser Schritt ruft genau eine Aktion auf, einmal und ohne KI. Was sie antwortet, ist sein Ergebnis. Ändern lässt er sich im Chat.",
+  "inspector.callConnection": "Verbindung",
+  "inspector.callAction": "Aktion",
+  "inspector.callTool": "Werkzeug eines Plugins",
+  "inspector.callInput": "Eingaben",
+  "inspector.callNoInput": "Die Aktion bekommt keine Eingaben.",
   "inspector.tools": "Werkzeuge",
   "inspector.personAccounts": "Konten der Person",
   "inspector.personAccountsHint":
@@ -2908,7 +2917,7 @@ const de: Record<Key, Line> = {
   "connection.youNotYet": "du noch nicht",
   "connection.rules": "Was die Verbindung darf",
   "connection.askHint":
-    "„Mit Freigabe“ fragt die Admins des Space. Bis jemand zustimmt, wartet die Aktion.",
+    "„Mit Freigabe“ fragt die Admins des Space. In einem Work-Chat wartet die Aktion, bis jemand zustimmt. Ein Lauf wartet nicht: ein fester Schritt schlägt dort fehl.",
   "connection.askHintMember":
     "Du nutzt diese Verbindung in deinen Wizards und Chats. Freigaben gehen an die Admins des Space.",
   "connection.use": "Nutzung",
@@ -6652,6 +6661,7 @@ const en = {
   "video.chat": "Chat",
   "type.page": "Page",
   "type.agent": "AI step",
+  "type.fixed": "Fixed step",
   "type.generate": "Generate",
   "type.surface": "View",
   "type.widget": "Widget",
@@ -7029,6 +7039,14 @@ const en = {
   "inspector.insertAnswers": "Insert answers with",
   "inspector.insertField": "field",
   "inspector.insertResults": ", earlier results with",
+  "inspector.call": "Call",
+  "inspector.callHint":
+    "This step calls one action, once and without AI. Its answer is the step’s result. Change it in the chat.",
+  "inspector.callConnection": "Connection",
+  "inspector.callAction": "Action",
+  "inspector.callTool": "A plugin’s tool",
+  "inspector.callInput": "Input",
+  "inspector.callNoInput": "The action gets no input.",
   "inspector.tools": "Tools",
   "inspector.personAccounts": "The person’s accounts",
   "inspector.personAccountsHint":
@@ -7451,7 +7469,7 @@ const en = {
   "connection.youNotYet": "not you yet",
   "connection.rules": "What the connection may do",
   "connection.askHint":
-    "“With approval” asks the space’s admins. The action waits until one of them agrees.",
+    "“With approval” asks the space’s admins. In a Work chat the action waits until one of them agrees. A run doesn’t wait: a fixed step fails there.",
   "connection.askHintMember":
     "You use this connection in your wizards and chats. Approvals go to the space’s admins.",
   "connection.use": "Use",

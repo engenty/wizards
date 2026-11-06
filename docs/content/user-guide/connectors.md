@@ -78,7 +78,8 @@ description. This is how you add your own MCP server. Admins do it under “More
 
 1. Paste the address and choose “Check”. engenty wizards reads what answers there: whether it is
    an MCP server or an OpenAPI description, its host and its actions.
-2. Give it a name and a short name. Its actions start with the short name.
+2. Give it a name and a short name. The name starts as what an MCP server calls itself, or as
+   its host. Its actions start with the short name.
 3. Choose the sign-in. What the server describes itself comes first: a sign-in with OAuth, an API
    key, or none. If the server asks for a sign-in and describes none, choose “Key in a header”
    and name the header, or “None”.

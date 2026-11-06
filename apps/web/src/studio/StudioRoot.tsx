@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router";
 import { Splash } from "../App";
 import { Mascot } from "../brand";
 import { STUDIO, setStudioRoot, withBase } from "../lib/base";
+import { useConfig } from "../lib/features";
 import { t } from "../lib/i18n";
 import { keepHint, type Place, placeOf } from "../lib/place";
 import { type Me, signOut, useMe } from "../lib/session";
@@ -11,14 +12,18 @@ import { Button } from "../ui";
 
 export function StudioRoot({ children }: { children: ReactNode }) {
   const me = useMe();
+  const config = useConfig();
   // Decided once, when the person is known: a later answer of /me does not move the studio again.
   const decided = useRef<{ place: Place; tenant: string | null } | null>(null);
-  if (me.isLoading) {
+  // Nobody signed in: what the runtime says of itself decides whether an address names an
+  // organization. Decided before it answered, a local install's page would be read as one, and
+  // the studio would stay below it after the sign-in.
+  if (me.isLoading || (!me.data && config.isLoading)) {
     return <Splash />;
   }
   if (!decided.current) {
     decided.current = {
-      place: placeOf(window.location.pathname, me.data),
+      place: placeOf(window.location.pathname, me.data, config.data?.mode === "local"),
       tenant: me.data?.tenant.id ?? null,
     };
   }

@@ -81,4 +81,22 @@ describe("a studio address elsewhere", () => {
     expect(placeOf("/studio/acme/new", null)).toEqual({ kind: "here", root: "/studio/acme" });
     expect(placeOf("/studio/new", null)).toEqual({ kind: "here", root: "/studio" });
   });
+
+  it("reads none of the studio's pages as an organization", () => {
+    // Signed out, `capabilities` was taken for one: the studio started at /studio/capabilities.
+    for (const page of ["capabilities/connectors", "work/c/1", "skills", "client", "account"]) {
+      expect(placeOf(`/studio/${page}`, null)).toEqual({ kind: "here", root: "/studio" });
+      expect(placeOf(`/studio/${page}`, me)).toEqual({
+        kind: "move",
+        root: "/studio/fuchs",
+        to: `/studio/fuchs/${page}`,
+      });
+    }
+  });
+
+  it("never reads an organization from a local install's address, signed in or not", () => {
+    // A plugin's page is in no list: only the runtime knows it has no organizations.
+    expect(placeOf("/studio/contacts", null, true)).toEqual({ kind: "here", root: "/studio" });
+    expect(placeOf("/studio/contacts", null)).toEqual({ kind: "here", root: "/studio/contacts" });
+  });
 });

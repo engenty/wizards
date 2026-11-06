@@ -1,3 +1,4 @@
+import type { StepWarning } from "@engenty/wizards-shared/connectors";
 import { DEFINITION_VERSION, upgradeDefinition } from "@engenty/wizards-shared/definition";
 import type { CallToolResult, McpServer, ToolCallback } from "@modelcontextprotocol/server";
 import { z } from "zod";
@@ -129,6 +130,22 @@ function annotationsOf(config: { readOnly?: boolean; destructive?: boolean; open
     destructiveHint: !readOnly && (config.destructive ?? false),
     openWorldHint: config.openWorld ?? false,
   };
+}
+
+/**
+ * A draft's warnings as a client reads them: the data the studio gets, and the sentence beside
+ * it. The studio words a warning itself; a model has only this.
+ */
+function worded(warnings: StepWarning[]) {
+  return warnings.map((warning) => ({
+    ...warning,
+    message: prompt("mcp", "note.step_needs_approval", {
+      step: warning.stepId,
+      connection: warning.connection.name,
+      action: warning.action.id,
+      kind: warning.action.kind,
+    }),
+  }));
 }
 
 /** What a client tells its person when people edit the wizard it just changed. */
@@ -444,6 +461,7 @@ export function registerTools(server: McpServer, who: Principal) {
         revision: s.revision,
         draft: s.draft,
         issues: s.issues,
+        warnings: worded(s.warnings),
         publishedVersion: s.publishedVersion,
         dirty: s.dirty,
         shareEnabled: s.shareEnabled,
@@ -527,8 +545,8 @@ export function registerTools(server: McpServer, who: Principal) {
       studio: true,
     },
     async ({ wizardId, ...input }) => {
-      const { revision, issues } = await editWizard(who.userId, wizardId, input, writer);
-      return { revision, issues };
+      const { revision, issues, warnings } = await editWizard(who.userId, wizardId, input, writer);
+      return { revision, issues, warnings: worded(warnings) };
     },
   );
 
@@ -543,13 +561,13 @@ export function registerTools(server: McpServer, who: Principal) {
       studio: true,
     },
     async ({ wizardId, ...input }) => {
-      const { revision, issues } = await writeDraft(
+      const { revision, issues, warnings } = await writeDraft(
         who.userId,
         wizardId,
         { ...input, definition: authored(input.definition) },
         writer,
       );
-      return { revision, issues };
+      return { revision, issues, warnings: worded(warnings) };
     },
   );
 

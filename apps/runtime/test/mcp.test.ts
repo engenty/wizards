@@ -387,3 +387,81 @@ describe("who else is in a wizard", () => {
     });
   });
 });
+
+describe("a draft's warnings", () => {
+  it("come with get_wizard and with every write, as data and in words", async () => {
+    const client = await connect();
+    const created = await call(client, "create_wizard", { note: "Für die Warnung." });
+    const { wizardId } = created.body;
+    const blank = await call(client, "get_wizard", { wizardId });
+    expect(blank.body.warnings).toEqual([]);
+
+    // A connection of the space, new: Senden is on „Mit Freigabe“, and a run waits for nobody.
+    const { withTenant } = await import("../src/db/client");
+    const connections = await import("../src/connectors/space-connections");
+    const { DEFAULT_CONNECTION_RULES } = await import("@engenty/wizards-shared/connectors");
+    const row = await withTenant("local", () =>
+      connections.createSpaceConnection("local", blank.body.spaceId, {
+        connectorId: "smtp",
+        name: "Bestellungen",
+        signIn: "space",
+        rules: DEFAULT_CONNECTION_RULES,
+        actions: [],
+      }),
+    );
+    const definition = {
+      version: 2,
+      title: "Bestätigung",
+      description: "Schickt eine Bestätigung.",
+      avatar: "dome",
+      connections: [{ id: "mail", spaceConnection: row.id }],
+      steps: [
+        { id: "start", type: "page", title: "Du", fields: [{ id: "email", kind: "email", label: "E-Mail" }] },
+        {
+          id: "send",
+          type: "agent",
+          title: "Senden",
+          call: {
+            connection: "mail",
+            action: "send_message",
+            input: { to: "{{email}}", subject: "Danke", body_text: "Angekommen." },
+          },
+          output: { format: "json" },
+        },
+        { id: "done", type: "result", title: "Fertig", deliverables: [] },
+      ],
+    };
+    const written = await call(client, "replace_wizard", {
+      wizardId,
+      baseRevision: blank.body.revision,
+      definition,
+    });
+    expect(written.isError).toBe(false);
+    expect(written.body.issues).toEqual([]);
+    const warning = {
+      stepId: "send",
+      kind: "needs_approval",
+      connection: { id: row.id, name: "Bestellungen" },
+      action: { id: "send_message", kind: "send" },
+      message: expect.stringMatching(
+        /^Step "send" will fail in a run: the connection "Bestellungen" asks the space's admins before the action "send_message" \(send\)/,
+      ),
+    };
+    expect(written.body.warnings).toEqual([warning]);
+    expect((await call(client, "get_wizard", { wizardId })).body.warnings).toEqual([warning]);
+
+    // A write that leaves the step as it is still says so; the rule on „Erlaubt“ ends it.
+    const edited = await call(client, "edit_wizard", {
+      wizardId,
+      baseRevision: written.body.revision,
+      ops: [{ op: "set_meta", title: "Bestätigung per Mail" }],
+    });
+    expect(edited.body.warnings).toEqual([warning]);
+    await withTenant("local", () =>
+      connections.updateSpaceConnection("local", row.id, {
+        rules: { ...DEFAULT_CONNECTION_RULES, send: "allow" },
+      }),
+    );
+    expect((await call(client, "get_wizard", { wizardId })).body.warnings).toEqual([]);
+  });
+});
