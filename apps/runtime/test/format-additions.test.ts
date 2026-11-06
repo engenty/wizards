@@ -269,3 +269,98 @@ describe("1c: calculated values", () => {
     expect(validateSurface(components, shape)[0].message).toContain('reads "nope"');
   });
 });
+
+describe("1d: a page laid out with components", () => {
+  const fields = [
+    { id: "budget", label: "B", kind: "number" },
+    { id: "name", label: "N", kind: "text" },
+  ];
+  const estimate = {
+    id: "estimate",
+    type: "agent",
+    title: "Schätzung",
+    instructions: "Schätze.",
+    output: {
+      format: "json",
+      fields: [{ id: "total", kind: "number", description: "Die Summe" }],
+    },
+  };
+  const layout = (more: object[] = [], keep: string[] = ["b", "n"]) => [
+    { id: "root", component: "Column", children: [...keep, ...more.map((m: any) => m.id)] },
+    { id: "b", component: "Field", name: "budget" },
+    { id: "n", component: "Field", name: "name" },
+    ...more,
+  ];
+  const page = (components: unknown, data?: object) =>
+    wizard([
+      estimate,
+      {
+        id: "ask",
+        type: "page",
+        title: "Frage",
+        fields,
+        ...(components ? { components } : {}),
+        ...(data ? { data } : {}),
+      },
+      end,
+    ]);
+
+  it("places its fields, with figures between them that read answers and data", () => {
+    const fit = {
+      id: "fit",
+      component: "Metric",
+      label: "Anteil",
+      value: { calc: "demo / budget", as: "percent" },
+    };
+    expect(said(page(layout([fit]), { demo: "steps.estimate.total" }))).toEqual([]);
+  });
+
+  it("a page without components is as it was", () => {
+    expect(said(page(null))).toEqual([]);
+  });
+
+  it("every field has its place, once", () => {
+    expect(said(page(layout([], ["b"]).slice(0, 2))).join()).toContain('"name" has no place');
+    const twice = layout([{ id: "again", component: "Field", name: "budget" }]);
+    expect(said(page(twice)).join()).toContain('"budget" is placed 2 times');
+  });
+
+  it("a Field names a field of this page and says nothing else", () => {
+    const other = layout([{ id: "x", component: "Field", name: "nope" }]);
+    expect(said(page(other)).join()).toContain('names "nope"');
+    const words = layout();
+    (words[1] as any).label = "Budget";
+    expect(said(page(words)).join()).toContain('"name" and nothing else');
+  });
+
+  it("what it reads has to be there", () => {
+    const fit = { id: "fit", component: "Metric", label: "A", value: { calc: "nope * 2" } };
+    expect(said(page(layout([fit]))).join()).toContain('reads "nope"');
+    expect(said(page(layout(), { demo: "steps.nope.total" })).length).toBeGreaterThan(0);
+    expect(said(page(layout(), { budget: "steps.estimate.total" })).join()).toContain(
+      "also a field",
+    );
+    expect(said(page(null, { demo: "steps.estimate.total" })).join()).toContain(
+      'only with "components"',
+    );
+  });
+
+  it("the usual checks hold: a root, children that exist", () => {
+    expect(said(page([{ id: "b", component: "Field", name: "budget" }])).join()).toContain("root");
+  });
+
+  it("a Field stays out of a wizard's other views, and asks in full in a chat", () => {
+    const view = [
+      { id: "root", component: "Column", children: ["f"] },
+      { id: "f", component: "Field", name: "x" },
+    ];
+    expect(validateSurface(view)[0].message).toContain("is for a chat's view");
+    const form = [
+      { id: "root", component: "Form", submit: "Los", children: ["f"] },
+      { id: "f", component: "Field", name: "x" },
+    ];
+    const chat = validateSurface(form, undefined, { chat: true }).map((i) => i.message);
+    expect(chat).toContain('Field "f" needs "kind".');
+    expect(chat).toContain('Field "f" needs "label".');
+  });
+});

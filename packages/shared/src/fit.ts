@@ -103,6 +103,8 @@ function templatesOf(step: Step): string[] {
     case "widget":
     case "surface":
       return Object.values(step.data).map((ref) => `{{${dataRef(ref)}}}`);
+    case "page":
+      return Object.values(step.data ?? {}).map((ref) => `{{${dataRef(ref)}}}`);
     default:
       return [];
   }
@@ -222,7 +224,8 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
       add(step.video ? "widget:video" : "widget", true);
       break;
     case "surface":
-      if (Object.values(step.data).some((ref) => listRef(dataRef(ref)))) {
+    case "page":
+      if (Object.values(step.data ?? {}).some((ref) => listRef(dataRef(ref)))) {
         add("lists", true);
       }
       break;

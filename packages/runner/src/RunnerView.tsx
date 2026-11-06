@@ -36,6 +36,7 @@ import { FieldInput, type Values } from "./fields";
 import { eventText, noteLine, runnerLangCode, setChoiceLabels, t } from "./i18n.js";
 import { DownloadButtons, OutputView } from "./outputs";
 import { ListCheck, ListDownloads, ListTable, StoreButton } from "./store";
+import { SurfaceView } from "./surface.js";
 import { Button, Card, cn, LinkedText, Spinner, Textarea } from "./ui.js";
 
 /**
@@ -177,6 +178,33 @@ function PageForm({ view, run, step }: { view: RunView; run: Run; step: PageStep
   );
   const shown = shownFields(fields, view.known ?? {}, values);
   const submit = () => void run.submitPage(step.id, values);
+  const fieldInput = (f: (typeof shown)[number]) => (
+    <FieldInput
+      key={f.id}
+      field={f}
+      value={values[f.id]}
+      values={values}
+      runId={view.id}
+      view={view}
+      error={run.fieldErrors[f.id]}
+      closed={view.closed?.[f.id]}
+      onChange={(v) => setValues((prev) => ({ ...prev, [f.id]: v }))}
+      onBusy={(busy) =>
+        setPending((prev) => {
+          if (prev.has(f.id) === busy) {
+            return prev;
+          }
+          const next = new Set(prev);
+          if (busy) {
+            next.add(f.id);
+          } else {
+            next.delete(f.id);
+          }
+          return next;
+        })
+      }
+    />
+  );
 
   // The keyboard's action key says what it does: "next" between fields, "go" on the last one.
   useEffect(() => {
@@ -227,35 +255,21 @@ function PageForm({ view, run, step }: { view: RunView; run: Run; step: PageStep
         description={step.description}
         kicker={first ? view.wizard.intro : null}
       />
-      <div className="flex flex-col gap-7">
-        {shown.map((f) => (
-          <FieldInput
-            key={f.id}
-            field={f}
-            value={values[f.id]}
-            values={values}
-            runId={view.id}
-            view={view}
-            error={run.fieldErrors[f.id]}
-            closed={view.closed?.[f.id]}
-            onChange={(v) => setValues((prev) => ({ ...prev, [f.id]: v }))}
-            onBusy={(busy) =>
-              setPending((prev) => {
-                if (prev.has(f.id) === busy) {
-                  return prev;
-                }
-                const next = new Set(prev);
-                if (busy) {
-                  next.add(f.id);
-                } else {
-                  next.delete(f.id);
-                }
-                return next;
-              })
-            }
-          />
-        ))}
-      </div>
+      {step.components ? (
+        <SurfaceView
+          surface={{
+            components: step.components,
+            data: { ...view.pageData, ...values },
+          }}
+          assetUrl={(id) => withBase(`${runBase(view.id)}/assets/${id}`)}
+          field={(name) => {
+            const f = shown.find((s) => s.id === name);
+            return f ? fieldInput(f) : null;
+          }}
+        />
+      ) : (
+        <div className="flex flex-col gap-7">{shown.map(fieldInput)}</div>
+      )}
       <AnswerBy view={view} />
       <Footer view={view} run={run} sticky>
         <Button type="submit" size="lg" busy={run.busy} disabled={pending.size > 0}>

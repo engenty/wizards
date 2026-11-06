@@ -62,6 +62,40 @@ A number field can have a range and a unit. The server refuses a value outside `
 Without `look`, a number is a text box, up to five short choices are buttons, and longer ones are a
 dropdown.
 
+## How a page is laid out
+
+Without `components`, a page’s fields stand one under the other. With them, a page is laid out from
+the [surface catalog](./views-and-widgets.md#surfaces): text, figures, images and callouts between its
+fields.
+
+```json
+{
+  "id": "budget", "type": "page", "title": "Wie hoch ist dein Budget?",
+  "fields": [
+    { "id": "budget", "label": "Budget", "kind": "number", "unit": "€",
+      "min": 2000, "max": 30000, "increment": 500, "look": "slider" },
+    { "id": "name", "label": "Projektname", "kind": "text" }
+  ],
+  "components": [
+    { "id": "root", "component": "Column", "children": ["b", "share", "n"] },
+    { "id": "b", "component": "Field", "name": "budget" },
+    { "id": "share", "component": "Metric", "label": "Davon für die Demo",
+      "value": { "calc": "demo / budget", "as": "percent" } },
+    { "id": "n", "component": "Field", "name": "name" }
+  ],
+  "data": { "demo": "steps.estimate.total" }
+}
+```
+
+Each field of the page is placed by exactly one `Field`, which has only a `name`: the field itself
+says how it asks. A field whose `when` does not hold draws nothing where it is placed. Paths and
+[calculations](./views-and-widgets.md#calculated-values) read the page’s answers by field id, as the
+person types, and the keys of `data`, which reads what a surface step’s `data` reads. A key of
+`data` is not also a field id.
+
+Only the run page draws `components`. A page answered in a chat, in a call or by an AI client
+asks its fields one after the other.
+
 ## Uploads
 
 The runtime checks each file an `image` or `file` field receives, from the run page or a runner

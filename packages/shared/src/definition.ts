@@ -745,6 +745,14 @@ export const pageStepSchema = z.object({
   /** Fields of which a decision shows one: see `group` on a field. */
   groups: z.array(fieldGroupSchema).max(6).optional(),
   cta: z.string().optional(),
+  /**
+   * How the page is laid out, from the surface catalog: its fields placed with `Field`, with text,
+   * figures, images and callouts between them. Without it the fields stand one under the other.
+   * Paths and calc read the page's answers by field id, as the person types, and the keys of `data`.
+   */
+  components: surfaceComponentsSchema.optional(),
+  /** What the components read besides the answers: key → steps.id.key, lists.id, brand.name or today. */
+  data: z.record(z.string(), z.string()).optional(),
 });
 
 /** A host name a step may list in `hosts`: labels of letters, digits and dashes, or `*.` before them. */
@@ -1844,8 +1852,52 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
   };
 
   for (const step of def.steps) {
+    /** What a view's `data` reads: identifiers as keys, and things this wizard has. */
+    const checkDataRefs = (data: Record<string, string>, whose: string) => {
+      for (const [key, ref] of Object.entries(data)) {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+          issues.push({
+            stepId: step.id,
+            message: `${whose} data key "${key}" is not an identifier.`,
+          });
+        }
+        const list = listRef(dataRef(ref));
+        if (list) {
+          if (!listIds.has(list)) {
+            issues.push({
+              stepId: step.id,
+              message: `${whose} data reads an unknown list "${list}".`,
+            });
+          }
+        } else {
+          checkTemplate(step, `{{${dataRef(ref)}}}`);
+        }
+      }
+    };
     switch (step.type) {
       case "page": {
+        if (step.data && !step.components) {
+          issues.push({ stepId: step.id, message: 'A page reads "data" only with "components".' });
+        }
+        if (step.components) {
+          checkDataRefs(step.data ?? {}, "Page");
+          const fieldNames = step.fields.map((f) => f.id);
+          for (const key of Object.keys(step.data ?? {})) {
+            if (fieldNames.includes(key)) {
+              issues.push({
+                stepId: step.id,
+                message: `Page data key "${key}" is also a field of this page; they read the same name.`,
+              });
+            }
+          }
+          for (const issue of validateSurface(
+            step.components,
+            [...fieldNames, ...Object.keys(step.data ?? {})],
+            { page: fieldNames },
+          )) {
+            issues.push({ stepId: step.id, message: `Page: ${issue.message}` });
+          }
+        }
         const groups = new Set<string>();
         for (const g of step.groups ?? []) {
           if (groups.has(g.id)) {
@@ -2071,25 +2123,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         }
         break;
       case "surface": {
-        for (const [key, ref] of Object.entries(step.data)) {
-          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
-            issues.push({
-              stepId: step.id,
-              message: `Surface data key "${key}" is not an identifier.`,
-            });
-          }
-          const list = listRef(dataRef(ref));
-          if (list) {
-            if (!listIds.has(list)) {
-              issues.push({
-                stepId: step.id,
-                message: `Surface data reads an unknown list "${list}".`,
-              });
-            }
-          } else {
-            checkTemplate(step, `{{${dataRef(ref)}}}`);
-          }
-        }
+        checkDataRefs(step.data, "Surface");
         const groups = new Set((step.groups ?? []).map((g) => g.id));
         for (const c of step.candidates ?? []) {
           if (c.components[0]?.id !== c.id) {
