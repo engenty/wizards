@@ -32,9 +32,10 @@ import { isAdminRole, requireAdmin, requireWritableSpace } from "../services/acc
 import { notFound, ServiceError } from "../services/errors.js";
 import { ownedSpace } from "../services/spaces.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { connectorFetch, resolveEnv, viaAccount } from "./builtin.js";
+import { connectorFetch, resolveEnv, signInFetch, viaAccount } from "./builtin.js";
 import { resolveConnector } from "./external.js";
 import { connectRedirectUri as redirectUri } from "./index.js";
+import { standInUrl } from "./stand-ins.js";
 import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-account.js";
 
 /*
@@ -618,14 +619,16 @@ export async function startSpaceConnectionOAuth(
   }
   await connector.auth.oauth2.registerClient?.();
   const pkce = createOAuth2Pkce();
-  return buildAuthorizationUrl({
-    connector,
-    pkce,
-    redirectUri: redirectUri(),
-    scopes,
-    state: seal({ ...base, verifier: pkce.codeVerifier } satisfies SpaceConnectionOAuthState),
-    resolveEnv,
-  });
+  return standInUrl(
+    await buildAuthorizationUrl({
+      connector,
+      pkce,
+      redirectUri: redirectUri(),
+      scopes,
+      state: seal({ ...base, verifier: pkce.codeVerifier } satisfies SpaceConnectionOAuthState),
+      resolveEnv,
+    }),
+  );
 }
 
 /** A state the callback can tell is a space connection's: the tenant to finish it in, or null. */
@@ -660,12 +663,13 @@ export async function finishSpaceConnectionOAuth(
           code: answer.code,
           codeVerifier: state.verifier,
           config: connector.auth.oauth2,
+          fetchImpl: connector.auth.oauth2.fetchImpl ?? signInFetch,
           redirectUri: redirectUri(),
           resolveEnv,
         });
   // A provider that will not name the account still connected it.
   const account = (await connector.auth.oauth2
-    .resolveAccount?.(tokens.accessToken, fetch)
+    .resolveAccount?.(tokens.accessToken, signInFetch)
     .catch(() => null)) ?? { label: connector.name };
   const stored: StoredTokens = {
     accessToken: tokens.accessToken,

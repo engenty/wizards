@@ -424,6 +424,24 @@ A wizard declares a connection to it; the person running the wizard connects the
 get the connector's actions as tools: reading is allowed, anything that changes the account asks
 the person first, deleting always. `ENGENTY_INTEGRATIONS_REGISTRY_URL` points at another registry.
 
+### Stand-ins for tests
+
+To try a built-in connector without an account at the service, run an emulator of the service on
+your computer and name it in `CONNECTOR_STAND_INS`: pairs `address=stand-in`, separated by commas.
+
+```
+CONNECTOR_STAND_INS=https://accounts.google.com=http://localhost:4002,https://oauth2.googleapis.com/token=http://localhost:4002/oauth2/token,https://www.googleapis.com=http://localhost:4002,https://gmail.googleapis.com=http://localhost:4002
+GOOGLE_OAUTH_CLIENT_ID=<a client the emulator knows>
+GOOGLE_OAUTH_CLIENT_SECRET=<its secret>
+```
+
+A connector's request whose address starts with the first part goes to the stand-in, with the rest
+of the address kept, and so does the page a person signs in on. Where several first parts fit, the
+longest counts. Only a named stand-in may be on this computer; every other address keeps the
+check for the public internet. [emulate](https://github.com/vercel-labs/emulate) answers this way
+for Google (Gmail, Calendar, Drive), Slack and GitHub. The runtime prints the pairs when it
+starts. Never set this on a server people use: their sign-ins would go to the stand-in.
+
 ## Marketplace
 
 The wizards a person can start from on "new" are entries of the marketplace. The marketplace is

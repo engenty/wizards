@@ -18,6 +18,7 @@ import { gmailConnector as mailGmail } from "./gmail.js";
 import { imapConnector } from "./imap.js";
 import { outlookConnector as mailOutlook } from "./outlook.js";
 import { smtpConnector } from "./smtp.js";
+import { withStandIns } from "./stand-ins.js";
 import { googleThroughAccount } from "./via-account.js";
 
 /**
@@ -100,6 +101,14 @@ export function missingSetup(connector: ConnectorDefinition): string | null {
 
 /**
  * Connector actions reach addresses that come from a person or a spec (an S3 endpoint, an API's
- * base URL): every request is checked to stay on the public internet.
+ * base URL): every request is checked to stay on the public internet. Only a stand-in the server's
+ * owner named for tests may be on this computer (stand-ins.ts).
  */
-export const connectorFetch = createGuardedFetch();
+export const connectorFetch = withStandIns(createGuardedFetch());
+
+/**
+ * A sign-in's own requests go to addresses the connector's definition fixes: the exchange of the
+ * code for tokens, their refresh, the account's name. The plain fetch, or the stand-in named for
+ * tests. A connector that brings its own fetch for them keeps it.
+ */
+export const signInFetch = withStandIns((input, init) => fetch(input, init));

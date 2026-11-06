@@ -169,6 +169,8 @@ export const env = {
   authSecret: appSecret(),
   /** Where OAuth providers send people back after connecting an account; default <APP_URL>/api/connect/callback. */
   connectRedirectUrl: str("CONNECT_REDIRECT_URL"),
+  /** Stand-ins for the services connectors reach, for tests: pairs `address=stand-in` (connectors/stand-ins.ts). */
+  connectorStandIns: str("CONNECTOR_STAND_INS"),
   /** Encrypts connected accounts and kept browser sessions; falls back to the app secret. */
   storeKey: str("STORE_ENC_KEY"),
   devLogin: process.env.NODE_ENV !== "production" && str("DEV_LOGIN") === "1",

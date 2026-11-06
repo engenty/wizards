@@ -1,6 +1,6 @@
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import { and, eq } from "drizzle-orm";
-import { connectorFetch, resolveEnv } from "../connectors/builtin.js";
+import { connectorFetch, resolveEnv, signInFetch } from "../connectors/builtin.js";
 import {
   candidates,
   connectorFor,
@@ -114,6 +114,7 @@ async function refreshed(
       ? await refreshThroughAccount(data.refreshToken)
       : await refreshAccessToken({
           config: connector.auth.oauth2,
+          fetchImpl: connector.auth.oauth2.fetchImpl ?? signInFetch,
           refreshToken: data.refreshToken,
           resolveEnv,
         });
