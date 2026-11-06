@@ -4,6 +4,17 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.17.1] - 2026-11-06
+- ADDED **[capabilities]** A plugin for Claude Code or Cursor becomes a connector with its skills (#521)
+- ADDED **[capabilities]** Rechte, one page for who may read, change and run what (#520)
+- ADDED **[studio]** Add an MCP server or an OpenAPI description by its address (#519)
+- ADDED **[broker]** A stopped run calls nothing more, and admins pause a connection (#518)
+- ADDED **[broker]** RWX rules one at a time, refused where nothing asks them, and „Was darf …?“ for content (#516)
+- ADDED **[connectors]** The runtime takes an MCP server or an OpenAPI description by its address (#515)
+- FIXED **[knowledge]** One process embeds the index's texts, in calls the model can finish, and waits after a failure (#523)
+- FIXED A search counts only what its caller may read, initials skip brackets, tests leave the machine's Ollama alone (#517)
+- FIXED **[mcp]** The studio hears what clients did from another process (#514)
+
 ## [0.17.0] - 2026-11-05
 - ADDED **[portal]** The portal app draws a team's public pages (#510)
 - ADDED **[broker]** A guest's run posts to the Slack channel its published step fixes (#505)
