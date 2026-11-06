@@ -929,9 +929,8 @@ The first pass stays behind a switch `fastCreate` (registered in
 4. **Copy for ChatGPT.** Part 5; needs only step 2.
 5. **The shortcut on the server.** Part 4, after the combined branch is on `main`, since it sits in
    that branch's `answerGoesOn`. It is small, and every client gets it.
-6. **The format.** Built, on the combined branch (Part 1). How it reaches `main` is Matthias's call:
-   with that branch when the hold lifts, or moved over on its own, which nobody has tried. Its
-   commits are split by section, but they sit on the durable work and change `engine/runner.ts`.
+6. **The format.** Built, on the combined branch (Part 1). It reaches `main` with that branch when
+   the hold lifts, not on its own (Matthias, 2026-11-06).
 7. **The next page in the browser.** Part 4: first `run.unsent` and saving what is typed, which is
    worth having alone, then `rev`, `ahead`, `nextInBrowser`. Needs step 5.
 
