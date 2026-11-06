@@ -161,6 +161,7 @@ import {
 } from "./signals.js";
 import { startedRunEnded, startOf } from "./starts.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
+import { surfaceData } from "./surface.js";
 import { answersAsText, fillLabel, renderTemplate, resolveRef } from "./template.js";
 import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
 import { SignInNeeded, StepError } from "./types.js";
@@ -2748,6 +2749,27 @@ export async function availableFormats(step: Step, run: RunRow, wanted?: Format[
  * What the page's fields start with: an earlier step's result where they name one, and for a
  * choice whose default leads to a step without a model here, the first value that does not.
  */
+/** What a page's `components` read besides its answers. A step that stays in the space stays there. */
+async function pageDataOf(
+  refs: Record<string, string>,
+  run: RunRow,
+  def: WizardDefinition,
+  name: string,
+  hide: ReadonlySet<string>,
+): Promise<Record<string, unknown>> {
+  const open = Object.entries(refs).filter(([, ref]) => {
+    const [head, id] = dataRef(ref).split(".");
+    return !(head === "steps" && hide.has(id));
+  });
+  const scope = {
+    def,
+    state: run.state,
+    brand: { name },
+    ...(open.some(([, ref]) => listRef(dataRef(ref))) ? { lists: await storedLists(run) } : {}),
+  };
+  return surfaceData(Object.fromEntries(open), { def, state: run.state, scope });
+}
+
 function prefillOf(
   step: PageStep,
   run: RunRow,
@@ -2901,6 +2923,9 @@ export async function runView(
     answered: run.state.history.map((id) => stepOf(def, id)).filter((s): s is Step => Boolean(s)),
     values: run.state.values,
     prefill: step?.type === "page" ? prefillOf(step, run, closed) : {},
+    ...(step?.type === "page" && step.data
+      ? { pageData: await pageDataOf(step.data, run, def, brand.name, hide) }
+      : {}),
     ...(step?.type === "page" ? viewContext(await pageContext(run, step)) : {}),
     ...(run.mode === "test" && run.state.decisions
       ? {

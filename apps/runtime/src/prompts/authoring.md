@@ -193,7 +193,13 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   A step only some runs take sits right after the step that branches to it; that step's otherwise branch
 //   leads every other run past it, and the step itself goes on as the next in the list.
 
-type PageStep = { type: "page", fields: Field[] (1–5 per page), groups?: { id, instructions, optional? }[], cta?: string }
+type PageStep = { type: "page", fields: Field[] (1–5 per page), groups?: { id, instructions, optional? }[], cta?: string,
+  components?: SurfaceComponent[],   // how the page is laid out, for a page with a key figure or an explanation between its fields; from the surface catalog.
+                                     //   Each field of the page is placed by exactly one { id, component: "Field", name: fieldId }, which says nothing else: the field says how it asks.
+                                     //   A field whose when does not hold draws nothing. Paths and calc read the page's answers by field id, as the person types, and the keys of data.
+                                     //   Without components the fields stand one under the other, which is right for most pages.
+  data?: { key: ref }                // what the components read besides the answers: steps.id.key, lists.id, brand.name or today. A key is not also a field id.
+}
 // Decided fields: a field with ask: "statement" is shown when a decision finds the statement true of the run;
 //   fields with group: groupId are alternatives of which the decision shows one ("How should we reach the person?"),
 //   or none when the group is optional. Decided once as the run reaches the page. Such a page has up to 12 fields

@@ -72,8 +72,11 @@ const CONTAINERS: ReadonlySet<string> = new Set([
   "Form",
 ]);
 
-/** Only a chat's view has these: a wizard asks on its pages, and its run has no space to open. */
-const CHAT_ONLY: ReadonlySet<string> = new Set(["Form", "Field", "Ref"]);
+/**
+ * Only a chat's view has these: a wizard asks on its pages, and its run has no space to open. A
+ * page has `Field` too, as a place for one of its own fields (`name` only).
+ */
+const CHAT_ONLY: ReadonlySet<string> = new Set(["Form", "Ref"]);
 
 /**
  * The kinds of a Field, the runner's own field kinds (definition.ts FIELD_KINDS) that need
@@ -128,7 +131,8 @@ const REQUIRED: Partial<Record<SurfaceComponentName, string[]>> = {
   Gallery: ["items"],
   Ref: ["title", "open"],
   Form: ["children", "submit"],
-  Field: ["name", "kind", "label"],
+  // A chat's view needs "kind" and "label" as well: askIssues checks by place.
+  Field: ["name"],
 };
 
 /** `ask` (a chat's view only): the person asks the AI the button's `prompt`, or its label. */
@@ -457,12 +461,12 @@ function shapeIssues(byId: Map<string, SurfaceComponent>, root: ObjectShape): Su
  * What can be wrong with a surface: an unknown or missing component, no root, a child that is
  * not there, an id twice, a loop, a prop missing, and — given the data keys a run will provide,
  * or the step's schema — a path into data nothing provides. `chat`: a chat's view, which may ask
- * (one Form, its Fields, Refs, `ask`).
+ * (one Form, its Fields, Refs, `ask`). `page`: a page's layout, with the ids of its fields.
  */
 export function validateSurface(
   raw: unknown,
   data?: string[] | ObjectShape,
-  options: { chat?: boolean } = {},
+  options: { chat?: boolean; page?: string[] } = {},
 ): SurfaceIssue[] {
   const dataKeys = Array.isArray(data) ? data : undefined;
   const parsed = surfaceComponentsSchema.safeParse(raw);
@@ -481,7 +485,7 @@ export function validateSurface(
   if (!byId.has("root")) {
     issues.push({ message: 'A surface has a component with id "root".' });
   }
-  issues.push(...askIssues(components, byId, Boolean(options.chat)));
+  issues.push(...askIssues(components, byId, options));
   const repeated = repeatedIds(components);
   const keys = dataKeys ? new Set(dataKeys) : null;
   for (const c of components) {
@@ -552,12 +556,15 @@ export function validateSurface(
 function askIssues(
   components: SurfaceComponent[],
   byId: Map<string, SurfaceComponent>,
-  chat: boolean,
+  { chat, page }: { chat?: boolean; page?: string[] },
 ): SurfaceIssue[] {
   const issues: SurfaceIssue[] = [];
   if (!chat) {
+    if (page) {
+      issues.push(...pageFieldIssues(components, page));
+    }
     for (const c of components) {
-      if (CHAT_ONLY.has(c.component)) {
+      if (CHAT_ONLY.has(c.component) || (c.component === "Field" && !page)) {
         issues.push({
           message: `${c.component} "${c.id}" is for a chat's view; a wizard asks on its pages.`,
         });
@@ -602,6 +609,11 @@ function askIssues(
     if (!inForm.has(c.id)) {
       issues.push({ message: `Field "${c.id}" sits in a Form.` });
     }
+    for (const prop of ["kind", "label"]) {
+      if (f[prop] === undefined) {
+        issues.push({ message: `Field "${c.id}" needs "${prop}".` });
+      }
+    }
     if (typeof f.kind === "string" && !(FORM_FIELD_KINDS as readonly string[]).includes(f.kind)) {
       issues.push({
         message: `Field "${c.id}": kind is one of ${FORM_FIELD_KINDS.join(", ")}.`,
@@ -616,6 +628,49 @@ function askIssues(
     }
     if (typeof f.name === "string" && !/^[a-zA-Z][a-zA-Z0-9_]{0,40}$/.test(f.name)) {
       issues.push({ message: `Field "${c.id}": name is letters, digits and _.` });
+    }
+  }
+  return issues;
+}
+
+/**
+ * A page's layout places its fields: each by exactly one `Field`, which names it and says nothing
+ * else, since the field itself says how it asks.
+ */
+function pageFieldIssues(components: SurfaceComponent[], fields: string[]): SurfaceIssue[] {
+  const issues: SurfaceIssue[] = [];
+  const placed = new Map<string, number>();
+  const repeated = repeatedIds(components);
+  for (const c of components) {
+    if (c.component !== "Field") {
+      continue;
+    }
+    const f = c as Record<string, unknown>;
+    const name = typeof f.name === "string" ? f.name : "";
+    if (f.kind !== undefined || f.label !== undefined) {
+      issues.push({
+        message: `Field "${c.id}" only places a field of this page: "name" and nothing else.`,
+      });
+    }
+    if (name && !fields.includes(name)) {
+      issues.push({ message: `Field "${c.id}" names "${name}", which this page does not have.` });
+    }
+    if (repeated.has(c.id)) {
+      issues.push({ message: `Field "${c.id}" stands in a repeat; a field is placed once.` });
+    }
+    if (name) {
+      placed.set(name, (placed.get(name) ?? 0) + 1);
+    }
+  }
+  for (const field of fields) {
+    const times = placed.get(field) ?? 0;
+    if (times !== 1) {
+      issues.push({
+        message:
+          times === 0
+            ? `The field "${field}" has no place: each field of the page is placed by one Field.`
+            : `The field "${field}" is placed ${times} times; each is placed once.`,
+      });
     }
   }
   return issues;
