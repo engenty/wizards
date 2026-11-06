@@ -15,6 +15,7 @@ import {
   type TextClass,
   textClassOf,
   type WizardDefinition,
+  whenCalc,
 } from "@engenty/wizards-shared/definition";
 import {
   type Capability,
@@ -126,8 +127,8 @@ type Facts = Record<string, Known>;
 
 /** Whether a rule matches given what is known: true, false, or null = it may go either way. */
 function ruleHolds(rule: NextRule, facts: Facts): boolean | null {
-  // A decision may go either way.
-  if (rule.ask) {
+  // A decision may go either way, and so may a calculation, as far as what is known here goes.
+  if (rule.ask || whenCalc(rule.when) !== null) {
     return null;
   }
   let all: boolean | null = true;

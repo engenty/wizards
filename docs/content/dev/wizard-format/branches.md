@@ -52,6 +52,20 @@ for example `{ "field": "steps.check.urgent.p", "op": "gt", "value": 0.8 }`.
 The same conditions show or hide fields on a page. See
 [Pages and fields](./pages-and-fields.md#fields-that-show-only-when-they-fit).
 
+## A test conditions cannot write
+
+Where conditions can say it, use conditions. For the rest, `when` takes a calculation, on a branch
+and on a field:
+
+```json
+{ "when": { "calc": "budget > steps.estimate.total * 2" }, "goto": "large" }
+```
+
+Names read the same as `field` in a condition: an answer by field id, `steps.<id>.<key>` and
+`lists.<id>.count`. The language is in [Calculated values](./views-and-widgets.md#calculated-values).
+A test that cannot be worked out, such as one on an empty answer, does not hold. The studio shows
+such a test as its text.
+
 ## A step only some runs take
 
 Put it right after the step that branches to it. That step’s otherwise rule leads every other run

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import { z } from "zod";
+import { calcNames, calcSchema, calcScope, calcTruthy, calcValue, parsedCalc } from "./calc.js";
 import { tableColumnsSchema } from "./engenty/data-tables/columns.js";
 import { readNumber } from "./numbers.js";
 import { type ObjectShape, outputShapeSchema, shapeOfFields } from "./shape.js";
@@ -524,7 +525,12 @@ export const conditionSchema = z.object({
 export type Condition = z.infer<typeof conditionSchema>;
 
 /** One condition, or several that must all hold. */
-export const whenSchema = z.union([conditionSchema, z.array(conditionSchema).min(1)]);
+export const whenSchema = z.union([
+  conditionSchema,
+  z.array(conditionSchema).min(1),
+  /** A test conditions cannot write: `budget > demo * 2`, `size == "Groß" or count(items) > 50`. */
+  calcSchema,
+]);
 export type When = z.infer<typeof whenSchema>;
 
 /** What a card of a choice shows: the columns of the table the choices come from. */
@@ -1454,7 +1460,7 @@ function personStepIssues(step: PageStep | ReviewStep): ValidationIssue[] {
   if (
     step.type === "review" &&
     step.approve &&
-    !(step.next ?? []).some((rule) => conditionsOf(rule.when).some((c) => c.field === approved))
+    !(step.next ?? []).some((rule) => whenNames(rule.when).includes(approved))
   ) {
     issues.push({
       stepId: step.id,
@@ -1872,16 +1878,19 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
           }
         }
         for (const field of step.fields) {
-          for (const c of conditionsOf(field.when)) {
-            const own = step.fields.some((f) => f.id === c.field && f.id !== field.id);
-            if (!own && !knownBefore(step, c.field)) {
+          for (const name of whenNames(field.when)) {
+            const own = step.fields.some((f) => f.id === name && f.id !== field.id);
+            if (!own && !knownBefore(step, name)) {
               issues.push({
                 stepId: step.id,
-                message: `Field "${field.id}": "when" reads "${c.field}", which is neither on this page nor known before it.`,
+                message: `Field "${field.id}": "when" reads "${name}", which is neither on this page nor known before it.`,
               });
             }
+          }
+          for (const c of conditionsOf(field.when)) {
             issues.push(...conditionIssues(step.id, c));
           }
+          issues.push(...whenCalcIssues(step.id, field.when, `Field "${field.id}"`));
           if (field.optionsFrom) {
             const problem =
               field.kind !== "select" && field.kind !== "multiselect" && field.kind !== "slot"
@@ -2242,12 +2251,15 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       }
       // A branch reads what the person answered (on any page), an output field of this or an
       // earlier agent step, or the row count of a stored list.
-      for (const c of conditionsOf(rule.when)) {
-        if (!fieldIds.has(c.field) && !knownBefore(step, c.field, true)) {
-          issues.push({ stepId: step.id, message: `Branch reads unknown field "${c.field}".` });
+      for (const name of whenNames(rule.when)) {
+        if (!fieldIds.has(name) && !knownBefore(step, name, true)) {
+          issues.push({ stepId: step.id, message: `Branch reads unknown field "${name}".` });
         }
+      }
+      for (const c of conditionsOf(rule.when)) {
         issues.push(...conditionIssues(step.id, c));
       }
+      issues.push(...whenCalcIssues(step.id, rule.when, "Branch"));
     }
     seenSteps.add(step.id);
   }
@@ -2432,7 +2444,38 @@ function isEmptyValue(v: unknown): boolean {
 
 /** The conditions of a rule or a field, as a list: one, several, or none. */
 export function conditionsOf(when: When | undefined): Condition[] {
-  return when === undefined ? [] : Array.isArray(when) ? when : [when];
+  if (when === undefined || whenCalc(when) !== null) {
+    return [];
+  }
+  return Array.isArray(when) ? when : [when as Condition];
+}
+
+/** The calculation a `when` tests, if it is one. */
+export function whenCalc(when: When | undefined): string | null {
+  return when && !Array.isArray(when) && "calc" in when ? when.calc : null;
+}
+
+/** What a `when` reads: the fields of its conditions, or the names of its calculation. */
+export function whenNames(when: When | undefined): string[] {
+  const calc = whenCalc(when);
+  if (calc === null) {
+    return conditionsOf(when).map((c) => c.field);
+  }
+  const node = parsedCalc(calc);
+  return "error" in node ? [] : calcNames(node);
+}
+
+/** What is wrong with the calculation a `when` tests. */
+function whenCalcIssues(
+  stepId: string,
+  when: When | undefined,
+  whose: string,
+): { stepId: string; message: string }[] {
+  const calc = whenCalc(when);
+  const node = calc === null ? null : parsedCalc(calc);
+  return node && "error" in node
+    ? [{ stepId, message: `${whose}: "when" cannot be worked out: ${node.error}` }]
+    : [];
 }
 
 export function conditionMatches(c: Condition, values: Record<string, unknown>): boolean {
@@ -2468,6 +2511,10 @@ export function conditionMatches(c: Condition, values: Record<string, unknown>):
 
 /** Whether every condition holds; no conditions hold trivially. */
 export function whenHolds(when: When | undefined, values: Record<string, unknown>): boolean {
+  const calc = whenCalc(when);
+  if (calc !== null) {
+    return calcTruthy(calcValue(calc, calcScope(values)));
+  }
   return conditionsOf(when).every((c) => conditionMatches(c, values));
 }
 
@@ -2510,11 +2557,7 @@ export function shownFields(
 /** The references the `when` of a page's fields read outside the page: what the page must know. */
 export function pageNeeds(fields: Field[]): string[] {
   const own = new Set(fields.map((f) => f.id));
-  return [
-    ...new Set(
-      fields.flatMap((f) => conditionsOf(f.when).map((c) => c.field)).filter((r) => !own.has(r)),
-    ),
-  ];
+  return [...new Set(fields.flatMap((f) => whenNames(f.when)).filter((r) => !own.has(r)))];
 }
 
 /** At most this many choices come from data. */
