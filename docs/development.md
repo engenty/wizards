@@ -222,8 +222,8 @@ library (`vite-plugin-dts` and the like) need the JavaScript API, which TypeScri
 The version is the `version` of the root `package.json`; a release is the tag `vX.Y.Z` on `main`.
 `main` takes changes only through pull requests, releases too: the release commit comes in as a
 pull request, and the tag is set on its squash-merged commit afterwards.
-Before `1.0` a **minor** bump is a notable or breaking change, a **patch** is fixes and small
-features. The version says which release this is; the commit says which build.
+Before `1.0` a **minor** bump is a major feature or a breaking change, a **patch** is everything
+else, smaller features too. The version says which release this is; the commit says which build.
 
 When a release is cut (adopted 2026-10-18): a merge is not a release, and `main` is always
 releasable. Cut one when a feature is complete and its switch flips on, when a fix must reach the
