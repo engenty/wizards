@@ -1,4 +1,5 @@
 import { DataMenu, editableData, HtmlFrame, JsonSchemaDialog } from "@engenty/wizards-runner";
+import type { StepWarning } from "@engenty/wizards-shared/connectors";
 import {
   ASPECT_RATIOS,
   CONDITION_OPS,
@@ -81,6 +82,7 @@ import { conditionText, percent } from "./FlowDiagram";
 import { HoldToDelete } from "./HoldToDelete";
 import { stepIcon, stepSummary, TYPE_TONE, toolLabel, typeLabel } from "./meta";
 import { ShareEditor } from "./ShareEditor";
+import { StepWarnings } from "./StepWarnings";
 import { SurfaceBody } from "./SurfaceEditor";
 import { ThemeLook } from "./ThemeLook";
 
@@ -1221,6 +1223,8 @@ interface InspectorProps {
   update: Update;
   onSelect: (id: string | null) => void;
   issues: { stepId?: string; message: string }[];
+  /** Steps that save and publish and fail in a run as the space's rules are now. */
+  warnings: StepWarning[];
   files: WorkspaceFile[];
   wizardId: string;
   /** The wizard's space: its themes are the looks the wizard can wear. */
@@ -1249,8 +1253,9 @@ export function StepNav({
   selected,
   onSelect,
   issues,
+  warnings,
   run,
-}: Pick<InspectorProps, "def" | "selected" | "onSelect" | "issues"> & {
+}: Pick<InspectorProps, "def" | "selected" | "onSelect" | "issues" | "warnings"> & {
   run?: { shown: boolean; at: string | null; onShow: () => void } | null;
 }) {
   const result = def.steps.find((s) => s.type === "result") ?? null;
@@ -1350,6 +1355,7 @@ export function StepNav({
           const Icon = stepIcon(step);
           const active = step.id === selected;
           const broken = issues.some((issue) => issue.stepId === step.id);
+          const warned = warnings.some((warning) => warning.stepId === step.id);
           return (
             <div key={step.id} className="flex shrink-0 items-center">
               {i > 0 ? <span className="h-px w-3 bg-border-soft" /> : null}
@@ -1370,6 +1376,8 @@ export function StepNav({
                 <Icon className="size-4" />
                 {broken ? (
                   <span className="-top-0.5 -right-0.5 absolute size-2.5 rounded-full bg-rose ring-2 ring-card" />
+                ) : warned ? (
+                  <span className="-top-0.5 -right-0.5 absolute size-2.5 rounded-full bg-amber ring-2 ring-card" />
                 ) : run?.at === step.id ? (
                   <span className="-top-0.5 -right-0.5 absolute size-2.5 animate-pulse rounded-full bg-ember ring-2 ring-card" />
                 ) : null}
@@ -1457,6 +1465,7 @@ function StepInspector({
   update,
   onSelect,
   issues,
+  warnings,
   files,
   wizardId,
   decisions,
@@ -1546,6 +1555,10 @@ function StepInspector({
           ))}
         </div>
       ) : null}
+      <StepWarnings
+        className="mx-5 mb-4"
+        warnings={warnings.filter((warning) => warning.stepId === step.id)}
+      />
       <Section>
         <Input
           value={step.title}

@@ -1155,6 +1155,7 @@ function SettingsView({
   const qc = useQueryClient();
   const id = useId();
   const [limit, setLimit] = useState(String(wizard.dailyRunLimit));
+  const [mails, setMails] = useState(String(wizard.dailyMailLimit));
   const { shareSections } = useStudioPlugins();
   const refresh = () =>
     Promise.all([
@@ -1214,6 +1215,27 @@ function SettingsView({
             />
             <span className="text-[0.875rem] text-ink-2">{t("share.runs")}</span>
           </div>
+          <div className="flex items-center gap-2.5">
+            <Input
+              aria-label={t("share.guestMails")}
+              inputMode="numeric"
+              className="w-24 text-right"
+              disabled={locked}
+              value={mails}
+              onChange={(e) => setMails(e.target.value.replace(/\D/g, ""))}
+              onBlur={() => {
+                // None is a limit too: with 0 the guests' runs send nothing.
+                const n = mails === "" ? Number.NaN : Number(mails);
+                if (n >= 0 && n <= 10_000 && n !== wizard.dailyMailLimit) {
+                  patch.mutate({ dailyMailLimit: n });
+                } else {
+                  setMails(String(wizard.dailyMailLimit));
+                }
+              }}
+            />
+            <span className="text-[0.875rem] text-ink-2">{t("share.guestMails")}</span>
+          </div>
+          <p className="text-[0.8125rem] text-ink-3">{t("share.guestMailsHint")}</p>
           {perDay !== null && estimate.data ? (
             <p className="text-[0.8125rem] text-ink-3 tabular-nums">
               {t("estimate.share", {

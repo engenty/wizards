@@ -242,6 +242,12 @@ This action on ${service} needs the approval of the space's admins, which cannot
 <!-- section: note.connector_paused -->
 ${service} is paused: an admin of the space stopped all use of it for now. Do not try it again or another way; say in your result that it waits until the connection is resumed.
 
+<!-- section: note.connector_calls_per_run -->
+${service} takes only so many calls from one run, and this run has made them. Do not try it again or another way; work with what you have, and say in your result what could not be done.
+
+<!-- section: note.connector_calls_per_day -->
+${service} takes only so many calls a day, and today's are made. Do not try it again or another way; say in your result that it can be done again tomorrow.
+
 <!-- section: note.run_ended -->
 This run has ended, so nothing more is called for it. Stop here; do not try it again or another way.
 

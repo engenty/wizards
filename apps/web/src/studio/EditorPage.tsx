@@ -720,6 +720,7 @@ function Editor() {
             update={save}
             onSelect={select}
             issues={w.issues}
+            warnings={w.warnings}
             files={w.files}
             wizardId={w.id}
             spaceId={w.spaceId}
@@ -740,6 +741,7 @@ function Editor() {
       selected={showRun && drawerRun ? null : (selected ?? "__wizard")}
       onSelect={select}
       issues={w.issues}
+      warnings={w.warnings}
       run={drawerRun ? { shown: showRun, at: activeStep, onShow: () => setShowRun(true) } : null}
     />
   );

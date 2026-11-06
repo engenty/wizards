@@ -15,7 +15,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import type { GuideSpaceConnection } from "../authoring/guide.js";
-import { inAudience, logRuleChange, type Who } from "../broker/index.js";
+import { callsToday, inAudience, logRuleChange, type Who } from "../broker/index.js";
 import { db, schema } from "../db/client.js";
 import {
   buildAuthorizationUrl,
@@ -82,6 +82,9 @@ export const newConnectionSchema = z.object({
   actions: z.array(z.string().max(200)).max(200).default([]),
 });
 
+/** A limit on a connection's calls: a whole number from 1, or null for none. */
+const callLimit = z.number().int().min(1).max(CONNECTION_LIMITS.calls).nullable();
+
 export const connectionPatchSchema = z.object({
   name: z.string().trim().min(1).max(CONNECTION_LIMITS.name).optional(),
   /** How it signs in: a change forgets the sign-ins of the way it leaves. */
@@ -89,6 +92,9 @@ export const connectionPatchSchema = z.object({
   audience: z.enum(CONNECTION_AUDIENCES).optional(),
   rules: rulesSchema.optional(),
   actions: z.array(z.string().max(200)).max(200).optional(),
+  /** The calls one run makes through it at most, and the calls it takes per day; null: no limit. */
+  callsPerRun: callLimit.optional(),
+  callsPerDay: callLimit.optional(),
 });
 
 export type NewConnection = z.infer<typeof newConnectionSchema>;
@@ -186,6 +192,7 @@ export async function spaceConnectionViews(
           ),
         )
     : [];
+  const today = await callsToday(rows.map((row) => row.id));
   return Promise.all(
     rows.map(async (row) => {
       const found = await resolveConnector(spaceId, row.connectorId);
@@ -236,6 +243,9 @@ export async function spaceConnectionViews(
         signedIn: theirs.length,
         pausedAt: row.pausedAt?.toISOString() ?? null,
         pausedBy: row.pausedBy,
+        callsPerRun: row.callsPerRun,
+        callsPerDay: row.callsPerDay,
+        callsToday: today.get(row.id) ?? 0,
       };
     }),
   );
@@ -345,6 +355,8 @@ export async function updateSpaceConnection(
       ...(patch.audience !== undefined ? { audience: patch.audience } : {}),
       ...(patch.rules !== undefined ? { rules: patch.rules } : {}),
       ...(actions !== undefined ? { actions } : {}),
+      ...(patch.callsPerRun !== undefined ? { callsPerRun: patch.callsPerRun } : {}),
+      ...(patch.callsPerDay !== undefined ? { callsPerDay: patch.callsPerDay } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.spaceConnection.id, row.id))
@@ -354,11 +366,13 @@ export async function updateSpaceConnection(
       .delete(schema.spaceConnectionSignIn)
       .where(eq(schema.spaceConnectionSignIn.connectionId, row.id));
   }
-  // How it signs in, who may use it, and what each kind of action may do: a change there is heard of.
+  // How it signs in, who may use it, what each kind of action may do and how many calls it takes:
+  // a change there is heard of.
   const rulesChanged =
     patch.rules !== undefined && JSON.stringify(patch.rules) !== JSON.stringify(row.rules);
   const audienceChanged = patch.audience !== undefined && patch.audience !== row.audience;
-  if (rulesChanged || audienceChanged || signInChanged) {
+  const limits = changedLimits(row, updated);
+  if (rulesChanged || audienceChanged || signInChanged || limits) {
     await logRuleChange({
       userId,
       spaceId: row.spaceId,
@@ -367,6 +381,7 @@ export async function updateSpaceConnection(
         ...(signInChanged ? { signIn: `${row.signIn} → ${updated.signIn}` } : {}),
         ...(audienceChanged ? { audience: `${row.audience} → ${updated.audience}` } : {}),
         ...(rulesChanged ? { rules: changedRules(row.rules, updated.rules) } : {}),
+        ...(limits ? { limits } : {}),
       },
       reason: [
         signInChanged
@@ -376,6 +391,7 @@ export async function updateSpaceConnection(
           : "",
         audienceChanged ? `The audience is now ${updated.audience}.` : "",
         rulesChanged ? `The rules changed: ${changedRules(row.rules, updated.rules)}.` : "",
+        limits ? `The limits changed: ${limits}.` : "",
       ]
         .filter(Boolean)
         .join(" "),
@@ -389,6 +405,23 @@ function changedRules(before: ConnectionRules, after: ConnectionRules): string {
   return (Object.keys(after) as (keyof ConnectionRules)[])
     .filter((k) => before[k] !== after[k])
     .map((k) => `${k}: ${before[k]} → ${after[k]}`)
+    .join(", ");
+}
+
+/** "calls per run: none → 20, calls per day: 500 → none"; empty where no limit changed. */
+function changedLimits(
+  before: Pick<SpaceConnectionRow, "callsPerRun" | "callsPerDay">,
+  after: Pick<SpaceConnectionRow, "callsPerRun" | "callsPerDay">,
+): string {
+  const said = (limit: number | null) => (limit === null ? "none" : String(limit));
+  return (
+    [
+      ["calls per run", before.callsPerRun, after.callsPerRun],
+      ["calls per day", before.callsPerDay, after.callsPerDay],
+    ] as const
+  )
+    .filter(([, was, is]) => was !== is)
+    .map(([name, was, is]) => `${name}: ${said(was)} → ${said(is)}`)
     .join(", ");
 }
 

@@ -44,8 +44,12 @@ export {
 export { brokerHost, type HostResult } from "./host.js";
 export { keptStepIds } from "./kept.js";
 export {
+  CALLS_PER_DAY,
+  CALLS_PER_RUN,
+  type CallLimits,
   CRITICAL_KINDS,
   type CriticalKind,
+  callsToday,
   criticalOf,
   criticalSince,
   cursorOf,

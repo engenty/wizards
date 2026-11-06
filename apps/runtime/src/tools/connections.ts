@@ -110,6 +110,10 @@ export function connectionRefusalNote(refused: Refusal, service: string): string
       return prompt("tools", "note.connector_needs_approval", { service });
     case "paused":
       return prompt("tools", "note.connector_paused", { service });
+    case "calls_per_run":
+      return prompt("tools", "note.connector_calls_per_run", { service });
+    case "calls_per_day":
+      return prompt("tools", "note.connector_calls_per_day", { service });
     case "run_ended":
       return prompt("tools", "note.run_ended");
     default:

@@ -293,7 +293,7 @@ const DE: Partial<Record<ServerKey, Line>> = {
   "criticalKind.refused_write": "Abgelehnt: ein Schreiben, Löschen oder Senden",
   "criticalKind.outside_audience": "Ein Gast hat eine Verbindung erreicht, die nicht für Gäste ist",
   "criticalKind.host_not_in_grant": "Eine Anfrage an einen Host, den der Lauf nicht erreichen darf",
-  "criticalKind.limit_reached": "Ein Limit ist erreicht",
+  "criticalKind.limit_reached": "Eine Grenze ist erreicht",
   "criticalKind.sign_in_failed": "Eine Anmeldung ist abgelaufen oder wurde abgelehnt",
   "criticalKind.first_use": "Eine Verbindung wurde zum ersten Mal verwendet",
   "criticalKind.rule_changed": "Eine Regel wurde geändert",

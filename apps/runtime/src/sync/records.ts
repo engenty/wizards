@@ -213,6 +213,7 @@ const wizard: KindDef = {
         draft: w.draft,
         shareEnabled: w.shareEnabled,
         dailyRunLimit: w.dailyRunLimit,
+        dailyMailLimit: w.dailyMailLimit,
         starter: w.starter,
         starterRevision: w.starterRevision,
         runners: w.runners,
@@ -241,6 +242,10 @@ const wizard: KindDef = {
       draft,
       shareEnabled: bool(r.shareEnabled, true),
       ...(num(r.dailyRunLimit) ? { dailyRunLimit: num(r.dailyRunLimit) as number } : {}),
+      // None is a number too: guests' runs send nothing.
+      ...(num(r.dailyMailLimit) !== null
+        ? { dailyMailLimit: Math.max(0, Math.round(num(r.dailyMailLimit) as number)) }
+        : {}),
       starter: str(r.starter),
       starterRevision: num(r.starterRevision),
       runners: (r.runners ?? null) as never,

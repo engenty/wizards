@@ -66,6 +66,8 @@ export function ProtocolSection() {
   const shown = params.get("show");
   const opened: Opened | null = admin && (shown === "ask" || shown === "notify") ? shown : null;
   const open = (next: Opened | null) => setParams(next ? { show: next } : {}, { replace: true });
+  // A connection's page leads here with its lines alone (`?connection=`).
+  const connection = params.get("connection") ?? "";
 
   // What „Was darf …?“ picks from: the admins' alone.
   const choices = useQuery({
@@ -80,7 +82,7 @@ export function ProtocolSection() {
   if (!admin) {
     return (
       <div className="flex flex-col gap-9 pb-20">
-        <Log spaceId={space.id} own />
+        <Log spaceId={space.id} own connection={connection} />
       </div>
     );
   }
@@ -88,6 +90,7 @@ export function ProtocolSection() {
     <div className="flex flex-col gap-9 pb-20">
       <Log
         spaceId={space.id}
+        connection={connection}
         action={
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" onClick={() => open("ask")}>
@@ -156,16 +159,19 @@ function useSettled(value: string, ms = 300): string {
 function Log({
   spaceId,
   own = false,
+  connection: first = "",
   action,
 }: {
   spaceId: string;
   /** A member's page: their own lines, so no filter by who. */
   own?: boolean;
+  /** The connection the list starts filtered to. */
+  connection?: string;
   action?: ReactNode;
 }) {
   const [outcome, setOutcome] = useState<OutcomeFilter>("all");
   const [who, setWho] = useState("");
-  const [connection, setConnection] = useState("");
+  const [connection, setConnection] = useState(first);
   const [range, setRange] = useState<Range>("week");
   const [text, setText] = useState("");
   const q = useSettled(text).trim();

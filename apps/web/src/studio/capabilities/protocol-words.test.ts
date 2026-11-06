@@ -189,4 +189,31 @@ describe("plain words", () => {
       "Regeln geändert",
     );
   });
+
+  it("in German: a connection's limit has its own words, apart from a guest's mails", () => {
+    setLang("de");
+    const refused = (result: string, rule: string) => outcomeOf({ outcome: "deny", result, rule });
+    expect(refused("calls_per_run", "limits.run")).toEqual({
+      tone: "refused",
+      text: "abgelehnt: der Lauf hat die Aufrufe gemacht, die die Verbindung je Lauf annimmt",
+    });
+    expect(refused("calls_per_day", "limits.day").text).toBe(
+      "abgelehnt: die Verbindung hat ihre Aufrufe für heute angenommen",
+    );
+    // A guest's mails read as they did: the two limits never share a sentence.
+    expect(refused("run_limit", "guest_send").text).toMatch(/E-Mails und Nachrichten/);
+    expect(refused("calls_per_run", "limits.run").text).not.toMatch(/E-Mail|Nachricht/);
+    expect(ruleWord("limits.run")).toBe("Die Grenzen der Verbindung für Aufrufe");
+    expect(ruleWord("limits.day")).toBe(ruleWord("limits.run"));
+    // A call that took its place and has not ended yet is no failure.
+    expect(outcomeOf({ outcome: "allow", result: null, rule: "rules.read" })).toEqual({
+      tone: "held",
+      text: "läuft noch",
+    });
+    // A changed limit says so; with a rule changed beside it, the line is a changed rule.
+    const change = (fields: Record<string, number>, sample: string) =>
+      actionWord({ actionId: "change_rules", actionName: null, input: { fields, sample } });
+    expect(change({ limits: 24 }, "limits: calls per run: none → 20")).toBe("Grenzen geändert");
+    expect(change({ rules: 18, limits: 24 }, "rules: write: ask → allow")).toBe("Regeln geändert");
+  });
 });

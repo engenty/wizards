@@ -181,6 +181,8 @@ export const BROKER_REFUSALS = [
   "channel_not_fixed",
   "run_limit",
   "day_limit",
+  "calls_per_run",
+  "calls_per_day",
   "run_ended",
   "paused",
 ] as const;
@@ -305,6 +307,8 @@ export const CONNECTION_LIMITS = {
   name: 80,
   /** Connections one space may hold. */
   perSpace: 200,
+  /** The most calls a connection's limit may name, per run or per day. */
+  calls: 1_000_000,
 };
 
 /** A connection of a space as the studio lists it; never a secret. */
@@ -351,6 +355,12 @@ export interface SpaceConnectionView {
   pausedAt: string | null;
   /** Who paused it, by name where the organization still knows them. */
   pausedByName?: string | null;
+  /** How many calls one run makes through it at most, whoever calls. Null: no limit. */
+  callsPerRun: number | null;
+  /** How many calls it takes per day (UTC), runs, chats and plugins together. Null: no limit. */
+  callsPerDay: number | null;
+  /** The calls it took today (UTC), as the limit per day counts them. */
+  callsToday: number;
 }
 
 /**
@@ -359,6 +369,19 @@ export interface SpaceConnectionView {
  */
 export function reachedByGuests(c: { audience: ConnectionAudience; signIn: ConnectionSignIn }) {
   return c.audience === "all" && c.signIn === "space";
+}
+
+/**
+ * What the editor warns of on a step; never an error, the wizard saves and publishes.
+ * `needs_approval`: a fixed step calls an action of a connection of the space whose rule for that
+ * kind of action is „Mit Freigabe“. That asks the space's admins, and nothing in a run waits for
+ * them, so the step fails there (docs/plans/capabilities-next.md, 2b).
+ */
+export interface StepWarning {
+  stepId: string;
+  kind: "needs_approval";
+  connection: { id: string; name: string };
+  action: { id: string; kind: ConnectionActionKind };
 }
 
 /** A field an `api_key` connector asks for when someone signs in. */

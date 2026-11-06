@@ -156,8 +156,13 @@ A connection on a connector that is “not checked” starts with Admins.
 | Send | Sending emails and messages to others |
 
 Each rule is Allowed, With approval or Never. A new connection reads freely, asks for approval
-before a change or a send, and never deletes. With approval asks the space’s admins, and the action
-waits until one of them agrees.
+before a change or a send, and never deletes. With approval asks the space’s admins. In a Work
+chat the action waits until one of them agrees. A wizard’s run doesn’t wait: a fixed step with
+such a rule fails there, and the editor warns you on that step
+([Capabilities](./capabilities.md#connectors)).
+
+**How often.** An admin can limit a connection’s calls per run and per day. Empty means no limit.
+[Limits](./capabilities.md#limits) has the details.
 
 Members see the connections open to them, with their rules, but change nothing. Where each person
 signs in, they sign in right there.

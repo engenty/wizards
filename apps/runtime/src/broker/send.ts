@@ -2,7 +2,7 @@ import { and, eq, gte, inArray, isNull, notLike, or } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import type { Refusal, Where, Who } from "./call.js";
 import { channelInGrant, type Grant, grantOf } from "./grant.js";
-import { summarizeInput, writeLog } from "./log.js";
+import { startOfToday, summarizeInput, writeLog } from "./log.js";
 import { runOver } from "./over.js";
 
 /*
@@ -153,12 +153,6 @@ export function inMailDomains(address: string, domains: string[]): boolean {
     })
   );
 }
-
-/** Today's first moment, as the per-day count sees it. */
-const startOfToday = () => {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-};
 
 /**
  * How often guests sent through this run, and through this wizard today: mails and posts, a

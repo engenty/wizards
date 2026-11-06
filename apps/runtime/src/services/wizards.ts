@@ -1,4 +1,5 @@
 import { versionChanges } from "@engenty/wizards-shared/changes";
+import type { StepWarning } from "@engenty/wizards-shared/connectors";
 import {
   type AgentStep,
   DEFINITION_VERSION,
@@ -15,6 +16,7 @@ import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { applyOps, OpError, type WizardOp } from "../authoring/ops.js";
+import { decide, kindOf } from "../broker/index.js";
 import { listConnectors, resolveConnector } from "../connectors/external.js";
 import { listSpaceConnections } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
@@ -271,6 +273,59 @@ async function spaceConnectionIssues(spaceId: string, draft: WizardDefinition) {
   return issues;
 }
 
+/**
+ * The fixed steps of a draft that fail in a run as the space's rules are now
+ * (docs/plans/capabilities-next.md, 2b): a `call` on a connection of the space whose rule for
+ * that kind of action is „Mit Freigabe“ asks the space's admins, and nothing in a run waits for
+ * them. The broker's own decision says so, read from the rule as it is: the warning is gone once
+ * the rule says „Erlaubt“, and a wizard's own connection or a read never has one. No issue: the
+ * wizard saves and publishes.
+ */
+export async function stepWarnings(
+  spaceId: string,
+  draft: WizardDefinition,
+): Promise<StepWarning[]> {
+  const fixed = draft.steps.filter(
+    (s) => s.type === "agent" && s.call && "connection" in s.call,
+  ) as (AgentStep & { call: { connection: string; action: string } })[];
+  const ofSpace = new Map(
+    (draft.connections ?? []).flatMap((c) =>
+      c.spaceConnection ? [[c.id, c.spaceConnection]] : [],
+    ),
+  );
+  if (!fixed.some((step) => ofSpace.has(step.call.connection))) {
+    return [];
+  }
+  const rows = await listSpaceConnections(spaceId);
+  const warnings: StepWarning[] = [];
+  for (const step of fixed) {
+    const row = rows.find((r) => r.id === ofSpace.get(step.call.connection));
+    const connector = row ? (await resolveConnector(spaceId, row.connectorId))?.connector : null;
+    const action = connector?.actions.find((a) => a.id === step.call.action);
+    if (!(row && connector && action)) {
+      continue;
+    }
+    const kind = kindOf(action.group);
+    // As the step of an admin's run: in every audience, so only the rule speaks.
+    const decision = decide({
+      who: { kind: "step", for: { kind: "admin" } },
+      where: {},
+      connection: { kind: "space_connection", row, connector },
+      actionId: action.id,
+      kind,
+    });
+    if (decision.outcome === "ask" && decision.admins) {
+      warnings.push({
+        stepId: step.id,
+        kind: "needs_approval",
+        connection: { id: row.id, name: row.name },
+        action: { id: action.id, kind },
+      });
+    }
+  }
+  return warnings;
+}
+
 /** Everything wrong with a draft: its structure, its workspace files, its space's connectors and plugins. */
 export async function checkDraft(spaceId: string, draft: WizardDefinition, files?: string[]) {
   return [
@@ -304,6 +359,8 @@ export async function wizardState(w: WizardRow) {
       w.draft,
       files.map((f) => f.path),
     ),
+    /** Steps that save and publish and fail in a run as the space's rules are now. */
+    warnings: await stepWarnings(w.spaceId, w.draft),
     dirty:
       !published ||
       JSON.stringify(published.definition) !== JSON.stringify(w.draft) ||
@@ -495,7 +552,7 @@ export async function writeDraft(
     note: input.note ?? null,
     touched: changedSteps(w.draft, draft),
   });
-  return { revision: row.revision, issues, draft };
+  return { revision: row.revision, issues, warnings: await stepWarnings(w.spaceId, draft), draft };
 }
 
 export async function editWizard(

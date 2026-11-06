@@ -1,3 +1,4 @@
+import type { StepWarning } from "@engenty/wizards-shared/connectors";
 import {
   type EngentyCostume,
   type ModelClass,
@@ -418,6 +419,8 @@ export interface WizardSummary {
   shareToken: string;
   shareEnabled: boolean;
   dailyRunLimit: number;
+  /** How many emails and messages its guests' runs send per day, all of them together. */
+  dailyMailLimit: number;
   /** How it is offered: the runner its link opens, the ones switched on. Null: steps, chat beside it. */
   runners: { default: string; enabled: string[] } | null;
   /** Its page offers it in the viewer's language, translated on request. */
@@ -435,6 +438,8 @@ export interface WizardDetail extends WizardSummary {
   draft: WizardDefinition;
   files: WorkspaceFile[];
   issues: { stepId?: string; message: string }[];
+  /** Steps that save and publish and fail in a run as the space's rules are now. */
+  warnings: StepWarning[];
   blank: boolean;
   dirty: boolean;
   /** Shown and run here, changed elsewhere: its space is read-only. */

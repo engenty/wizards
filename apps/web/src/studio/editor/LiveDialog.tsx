@@ -18,6 +18,7 @@ import { type Key, lang, t } from "../../lib/i18n";
 import { type PublishResult, useMe, useSpaces, type WizardDetail } from "../../lib/session";
 import { Button, cn, Dialog, Spinner } from "../../ui";
 import { pageAddress, pageUrl } from "../space/page-address";
+import { StepWarnings } from "./StepWarnings";
 
 /**
  * "Änderungen live schalten": the draft becomes the version people run, from a dialog that
@@ -306,6 +307,9 @@ function LivePanel({
           </Button>
         </div>
       ) : null}
+
+      {/* No error: these steps publish, and fail in a run until the connection's rule changes. */}
+      <StepWarnings warnings={wizard.warnings} steps={wizard.draft.steps} className="rounded-xl" />
 
       <ul className="flex flex-col gap-1.5 text-[0.8125rem] text-ink-3">
         {notes.map((note) => (

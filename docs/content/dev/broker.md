@@ -99,6 +99,10 @@ A space connection can pause: `paused_at` and `paused_by` on its row, set by
 the broker refuses every call through it. Nothing else changes: the sign-ins, the rules and the
 audience stay.
 
+A space connection can limit its calls: `calls_per_run` and `calls_per_day` on its row, both empty
+on a new one, set with `PATCH /connections/:id` (admins only). See
+[A connection’s limits](#a-connections-limits).
+
 ## A stop that holds
 
 Two things are asked before anything else, on every call. Neither trusts what a step or a chat
@@ -121,10 +125,44 @@ the revoke. Three things to know:
   connection and for a bound host (`not_in_grant`).
 
 **The pause.** For a space connection `brokerCall` reads `paused_at` again on every call
-(`pauseOf` in `broker/account.ts`) and puts it on the row before `decide` sees it. So a step whose
+(`stateOf` in `broker/account.ts`, which reads the limits with it) and puts it on the row before
+`decide` sees it. So a step whose
 tools hold the row from before the pause is refused at its next call, and so is a chat turn. A
 connection that was removed since is refused the same way, as `not_connected`. The account is not
 read and no token is renewed for a call that is refused here.
+
+## A connection’s limits
+
+A space connection takes at most `calls_per_run` calls from one run and `calls_per_day` calls a
+day. Empty means no limit, and a new connection has both empty. They count for every caller: an
+admin, a member, a guest, an AI step, a fixed step, Goose, a plugin’s own job. A wizard’s own
+connection has none.
+
+- **What counts.** A call the broker lets through to the service, whatever comes of it: one that
+  fails counts, and one still under way. A call that is refused, one that waits for an approval
+  and a changed rule count for nothing. `counted()` in `broker/log.ts` says so in one place, from
+  the lines of `broker_log`: there is no counter beside the log.
+- **Per run** counts the lines of that connection with the call’s `run_id`. A call with no run (a
+  Work chat, Goose, a plugin’s job) is bound by the day only.
+- **Per day** counts the connection’s lines since midnight UTC (`startOfToday`), runs, chats and
+  jobs together.
+- **One write.** A call that would run takes its place first: `takePlace` writes the call’s line
+  with one `INSERT … SELECT … WHERE` whose condition is the count. Of two calls at once only one
+  gets the last place, in whichever process they run. The line has no `result` while the action
+  runs, and `closeLine` fills in `result`, `duration_ms` and `result_size` at its end. These are
+  the only rows of `broker_log` that are written twice. A connection without a limit keeps
+  writing its line once, at the end.
+- **Read at the call.** The limits come from `stateOf` with the pause, so a changed limit binds a
+  step or a chat turn that read the row before.
+- **Past a limit** the call is refused as `calls_per_run` or `calls_per_day`, with the rule
+  `limits.run` or `limits.day`, and the action does not run. Where the limits cannot be counted
+  (the database fails), `takePlace` throws and the call does not run either.
+- **A guest’s mails keep their numbers.** `guestSendCheck` runs before, with `run_limit` and
+  `day_limit`. A connection’s limits come on top, under their own names.
+
+`spaceConnectionViews` adds `callsPerRun`, `callsPerDay` and `callsToday` (`callsToday` in
+`broker/log.ts`) to each view. A changed limit is logged with `logRuleChange`; its input is the one
+field `limits` (`calls per run: none → 20`), which is how the Audit tells it from other changes.
 
 ## `decide`
 
@@ -156,13 +194,13 @@ brokerCall({ who, where, connection, action: { id, kind? }, input, ctx?, handler
   → { ok: true, result, account } | { ok: false, refused, reason }
 ```
 
-![brokerCall asks whether the run is over and whether the connection pauses, reads the account, checks the grant, decides, checks a guest’s send and asks where it must, then runs the action. Each check can refuse, and every call goes to broker_log](../../assets/diagrams/broker-order.svg)
+![brokerCall asks whether the run is over and whether the connection pauses, reads the account, checks the grant, decides, checks a guest’s send, asks where it must and takes the call’s place under a space connection’s limits, then runs the action. Each check can refuse, and every call goes to broker_log](../../assets/diagrams/broker-order.svg)
 
 In order, it:
 
 1. refuses a call of a run that is over (`runOver`, above): `run_ended`;
-2. reads a space connection’s pause again and refuses a paused one (`paused`), and one that was
-   removed (`not_connected`);
+2. reads a space connection’s pause and limits again and refuses a paused one (`paused`), and one
+   that was removed (`not_connected`);
 3. reads the account. A sign-in that ran out and can’t be renewed is logged as `sign_in_failed`
    and refused as `not_connected`;
 4. checks the grant where one binds the call (`grantBinds`: a wizard’s own connection, in a run,
@@ -175,7 +213,9 @@ In order, it:
 9. on an ask of the person, runs when `ctx.allowed` holds `<connection>:<action>` (“for the rest of
    the run”) or `ctx.confirmed` is set and the call deletes nothing. Otherwise it calls `ctx.ask`.
    With no one to ask it refuses with `nobody`, and on a no with `declined`;
-10. runs the action (the connector’s handler, or `handler`), marks the space connection used and
+10. takes the call’s place under a space connection’s limits (`takePlace`, above). With none left
+    it refuses with `calls_per_run` or `calls_per_day`;
+11. runs the action (the connector’s handler, or `handler`), marks the space connection used and
     logs the call. An error the action throws is logged and thrown on. A 401 or a lost OAuth grant
     is logged as `sign_in_failed`.
 
@@ -204,12 +244,35 @@ has words for each:
 | `channel_not_fixed` | A guest’s post to a channel that the published step does not fix |
 | `run_limit` | A guest’s run has sent its mails and posts (`GUEST_MAILS_PER_RUN`, 3) |
 | `day_limit` | The wizard’s guests have sent today’s mails and posts (`wizard.dailyMailLimit`, 50 unless set) |
+| `calls_per_run` | The run has made the calls the space connection takes from one run |
+| `calls_per_day` | The space connection has taken today’s calls |
 | `run_ended` | The call’s run was stopped, is done or failed. The rule says which: `run.cancelled`, `run.done`, `run.failed` |
 | `paused` | An admin paused the space connection |
 
 The model reads each refusal in words from `prompts/tools.md`, through `refusalNote`
 (`tools/connector.ts`) and `connectionRefusalNote` (`tools/connections.ts`): `note.run_ended` and
-`note.connector_paused` for these two.
+`note.connector_paused` for these two, `note.connector_calls_per_run` and
+`note.connector_calls_per_day` for a connection’s limits. A fixed step that a limit refuses fails
+with a note of its own (`stepCallsPerRun`, `stepCallsPerDay`). A share job reaches a space
+connection only through its agent’s tools, so it reads the model’s note. A plugin’s call throws
+the broker’s reason.
+
+A connection’s limits have refusals of their own, apart from `run_limit` and `day_limit`. Four
+readers word a refusal (the Audit, a model, a fixed step, the Audit’s filter by result), and three
+of them see the refusal alone, not the rule beside it. With one name for both, a model would be
+told of mails where a connection’s calls ran out.
+
+### A fixed step that would wait
+
+„Mit Freigabe“ holds a call only in a Work chat. In a run nothing waits: a fixed step whose call
+asks the space’s admins gets `needs_approval` and fails. `stepWarnings(spaceId, draft)` in
+`services/wizards.ts` finds these steps before a run does. For each fixed step on a space
+connection it asks `decide` as the step of an admin’s run, and warns where the answer is an ask of
+the admins. It reads the rule as it is, so the warning is gone once the rule says *Erlaubt*. A
+read, a rule on *Nie*, a paused connection and a wizard’s own connection never warn. The warnings
+are `StepWarning[]` (shared) on the wizard’s state and on the answer of `PUT /wizards/:id/draft`,
+beside `issues`. They are no issue: the draft saves and publishes. The editor words them in
+`apps/web/src/studio/editor/step-warnings.ts`.
 
 ## The run’s grant
 
@@ -274,7 +337,9 @@ once from the run’s definition and writes it. `inGrant` always lets `list_tool
 `input_summary`, `outcome`, `rule`, `reason`, `result`, `result_size`, `critical` and
 `critical_kind`. `summarizeInput` keeps the input’s field names and sizes, one clipped value whose
 field name doesn’t look like a secret, and a SHA-256 of the whole. No token, key, password or body
-is ever written. A log that can’t be written never stops the call.
+is ever written. A log that can’t be written never stops the call. The one exception is a call
+through a space connection with a limit: its line is how it takes its place, so it is written
+before the action runs and filled in after ([A connection’s limits](#a-connections-limits)).
 
 Admins read the whole log of a space. A member reads their own lines, where the space’s Studio is
 open to members (`services/members-studio.ts`). `ownLines(userId)` in `broker/log.ts` says which
@@ -301,15 +366,19 @@ member’s own call: the input’s summary, the outcome, the rule, the reason an
 | `refused_write` | A change, delete or send was refused |
 | `outside_audience` | A guest’s call was refused by a connection’s audience |
 | `host_not_in_grant` | `http_request` to a host the grant doesn’t include |
-| `limit_reached` | `run_limit` or `day_limit` |
+| `limit_reached` | `run_limit` or `day_limit`, each time. `calls_per_run` or `calls_per_day`, the first time in that run or on that day |
 | `sign_in_failed` | A sign-in ran out, or the service refused it |
 | `first_use` | A space connection’s first call that ran |
-| `rule_changed` | An admin changed RWX rules, or a connection’s rules, audience or way of signing in, or paused or resumed a connection (`logRuleChange`) |
+| `rule_changed` | An admin changed RWX rules, or a connection’s rules, audience, limits or way of signing in, or paused or resumed a connection (`logRuleChange`) |
 
 A call that a paused connection refuses is not critical, whatever its kind. The admins paused it
 themselves and heard of that, and the hourly mail about critical lines may go through that very
 connection. A refused call of a run that is over follows the rule above: critical where it wanted
 to change, delete or send.
+
+A connection’s limit is heard of once per run or day: the first call it refuses is critical, the
+ones after it are refused and logged (`limitHeard`). A model that tries again, and the hourly mail
+going through that connection, add no further critical lines.
 
 A critical row goes four ways:
 
@@ -430,9 +499,9 @@ All under `/api/studio`, for a signed-in person of the organization.
 
 | Route | What it does | Who |
 |---|---|---|
-| `GET /spaces/:id/connections` | The space’s connections, each with who set it up and, where a plugin holds it, the plugin (`plugin`, `pluginName`). `reachedByGuests` (shared) says which ones guests reach: `audience: "all"` and `signIn: "space"` | Everyone; a member sees the ones in their audience |
+| `GET /spaces/:id/connections` | The space’s connections, each with who set it up and, where a plugin holds it, the plugin (`plugin`, `pluginName`). `reachedByGuests` (shared) says which ones guests reach: `audience: "all"` and `signIn: "space"`. `callsPerRun` and `callsPerDay` are its limits (null: none), `callsToday` the calls it took today | Everyone; a member sees the ones in their audience |
 | `POST /spaces/:id/connections` | Sets one up: connector, name, `signIn`, `audience`. `signIn: "person"` answers `403 { code: "plan" }` where the plan’s switch `personSignIn` is off | Admins |
-| `PATCH /connections/:id`, `DELETE /connections/:id` | Changes its name, `signIn`, audience, rules or the actions it is for, or removes it. A changed `signIn` forgets the sign-ins of the way it leaves; to `person` it answers `403 { code: "plan" }` without `personSignIn`, and `400` on a plugin’s connection | Admins |
+| `PATCH /connections/:id`, `DELETE /connections/:id` | Changes its name, `signIn`, audience, rules, limits (`callsPerRun`, `callsPerDay`: a whole number from 1, or null for none) or the actions it is for, or removes it. A changed `signIn` forgets the sign-ins of the way it leaves; to `person` it answers `403 { code: "plan" }` without `personSignIn`, and `400` on a plugin’s connection | Admins |
 | `POST /connections/:id/pause`, `POST /connections/:id/resume` | Pauses the connection, or resumes it. The view carries `pausedAt` and `pausedByName`. Logged as a changed rule | Admins |
 | `POST`, `DELETE /connections/:id/sign-in` | Signs the space in or out: `{ credentials }`, or `{ oauth: true }` for a sign-in page | Admins |
 | `POST`, `DELETE /connections/:id/my-sign-in` | The person’s own sign-in, where each person signs in | Everyone in the audience |

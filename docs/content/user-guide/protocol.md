@@ -22,7 +22,8 @@ A line reads like a sentence:
 - **On which connection**, such as “HubSpot · Sales”.
 - **Where**: in a run of a wizard, in a test run, in a Work chat or with Goose.
 - **What came of it**: *done*, *refused* with the reason in words, or *waiting for the admins’
-  approval*.
+  approval*. A call through a connection with a [limit](./capabilities.md#limits) reads *still
+  running* until it ends.
 
 A refused line has a red frame. A critical line has an orange one and the mark *critical*.
 
@@ -79,10 +80,12 @@ A line is critical when someone should hear of it:
 - a write, a delete or a send was refused;
 - a guest’s run reached a connection that is only for members or admins;
 - a run asked for a host the wizard doesn’t allow;
-- a limit was reached, such as the emails a guest’s run may send;
+- a limit was reached: the emails a guest’s run may send, or a connection’s calls per run or per
+  day. A connection’s limit is critical once, at the first call it refuses in that run or on
+  that day;
 - a sign-in ran out or the service refused it;
 - a connection was used for the first time;
-- someone changed a rule, or paused or resumed a connection.
+- someone changed a rule or a connection’s limits, or paused or resumed a connection.
 
 What a paused connection refuses is not critical. The admins paused it themselves and heard of
 that.

@@ -1600,6 +1600,10 @@ export const spaceConnection = sqliteTable(
     pausedAt: integer("paused_at", { mode: "timestamp_ms" }),
     /** The admin who paused it. */
     pausedBy: text("paused_by"),
+    /** How many calls one run makes through it at most, whoever calls (broker/call.ts). Null: no limit. */
+    callsPerRun: integer("calls_per_run"),
+    /** How many calls it takes per day (UTC), runs, chats and plugins together. Null: no limit. */
+    callsPerDay: integer("calls_per_day"),
   },
   (t) => [index("space_connection_space").on(t.spaceId)],
 );
@@ -1623,7 +1627,10 @@ export const spaceConnectionSignIn = sqliteTable(
 
 /**
  * Every call that reaches outside through the broker (`broker/call.ts`): who called, where, which
- * connection and action, what was decided and how it went. Append-only; a secret never goes in.
+ * connection and action, what was decided and how it went. A secret never goes in. Rows are only
+ * added, with one exception: a call through a connection of the space that has a limit writes its
+ * row when it starts, which is how it takes its place under the limit, and its end fills in
+ * `result`, `duration_ms` and `result_size` (broker/log.ts, `takePlace`).
  */
 export const brokerLog = sqliteTable(
   "broker_log",
@@ -1653,7 +1660,7 @@ export const brokerLog = sqliteTable(
     /** Which rule decided (broker/call.ts `decide`): `grant`, `audience`, `rules.write`, `policy`, …; null where none did. */
     rule: text("rule"),
     reason: text("reason"),
-    /** ok, declined, nobody, not_connected, or the error's class. */
+    /** ok, declined, nobody, not_connected, or the error's class; null while a call that took a place under a limit runs. */
     result: text("result"),
     resultSize: integer("result_size"),
     critical: integer("critical", { mode: "boolean" }).notNull().default(false),

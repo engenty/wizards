@@ -217,15 +217,26 @@ export async function spaceAccount(
 }
 
 /**
- * Whether a connection of the space pauses, as it is now: read on every call, so a pause stops a
- * step or a chat turn that read the row before it. Null where the connection is gone.
+ * What a connection of the space says of a call now: whether it pauses, its limits, and whether
+ * it was used before. Read on every call, so a pause or a limit binds a step or a chat turn that
+ * read the row before it, and only the first call of all is a first use. Null where the
+ * connection is gone.
  */
-export async function pauseOf(
+export async function stateOf(
   id: string,
-): Promise<Pick<SpaceConnectionRow, "pausedAt" | "pausedBy"> | null> {
+): Promise<Pick<
+  SpaceConnectionRow,
+  "pausedAt" | "pausedBy" | "callsPerRun" | "callsPerDay" | "lastUsedAt"
+> | null> {
   const row = await db.query.spaceConnection.findFirst({
     where: eq(schema.spaceConnection.id, id),
-    columns: { pausedAt: true, pausedBy: true },
+    columns: {
+      pausedAt: true,
+      pausedBy: true,
+      callsPerRun: true,
+      callsPerDay: true,
+      lastUsedAt: true,
+    },
   });
   return row ?? null;
 }

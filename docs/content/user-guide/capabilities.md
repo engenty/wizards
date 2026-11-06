@@ -110,6 +110,11 @@ With approval on a connection that signs in as the space asks the space’s admi
 under the bell in Work until one of them agrees. Where each person signs in, With approval asks
 that person.
 
+A wizard’s run doesn’t wait for the admins. A fixed step whose rule is With approval fails in a
+run. The editor warns you on such a step: it names the connection and the rule, and leads to the
+connection’s page. An admin sets the rule to Allowed there. A member asks an admin. The warning
+is no error: the wizard still saves and publishes.
+
 **What a guest’s run may send.** A guest starts a wizard from its link, and nobody of your team
 watches the run. So the rules above are not all that counts for it:
 
@@ -117,7 +122,9 @@ watches the run. So the rules above are not all that counts for it:
   space’s own mail domains.
 - It posts to Slack only from a fixed step, and only to the channel written into that step of the
   published wizard. A channel taken from what the guest typed is refused.
-- One run sends three emails and messages in all. A wizard’s guests send a set number per day.
+- One run sends three emails and messages in all. A wizard’s guests send a set number per day:
+  50 unless you change it under Settings in the wizard’s
+  [share dialog](./test-and-share.md#share).
 
 Your members’ runs are not bound by this. The [Audit](./protocol.md) shows each refusal with its
 reason.
@@ -125,6 +132,28 @@ reason.
 Members see the connections open to them, with their rules, and change nothing. Where each person
 signs in, they sign in right there. [Connectors](./connectors.md#connections-in-the-space) has the
 details, and how a wizard uses a connector of its own.
+
+### Limits
+
+An admin can limit how often a connection is called. “Limits” is on the connection’s page, below
+its rules:
+
+| Limit | Counts |
+|---|---|
+| Calls per run | Each run of a wizard for itself |
+| Calls per day | All runs, chats and plugins together. The day starts at midnight UTC |
+
+An empty field means no limit, and a new connection has none. A limit holds for everyone: admins,
+members, guests, AI steps, fixed steps, Goose and what a plugin does by itself. A call counts once
+it reaches the service, even when the service then fails. A call that a rule refused, or that
+waits for approval, doesn’t count.
+
+Once a limit is reached, the connection refuses further calls, in that run or until the next day.
+The [Audit](./protocol.md) shows each refused call with its reason, and the admins hear of the
+first one. A changed limit is a critical line there too. “Use” on the page counts today’s calls,
+and “View in the audit” shows the connection’s lines.
+
+A guest’s emails keep their own numbers, described above. The connection’s limits apply as well.
 
 ### Pause a connection
 
