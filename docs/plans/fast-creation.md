@@ -1,7 +1,8 @@
 # Plan: fast creation and pages without waiting
 
-Status: Part 1 is built on `claude/durable-runs-combined` (`a719337c` to `fe9b26d3`, on GitHub, no
-PR) and is not on `main`. Parts 2 to 5 are a plan. From the review of ChatGPT's Intelligent UI on
+Status: part of the durable work. Part 1 is built on `claude/durable-runs-combined` (`a719337c` to
+`fe9b26d3`, the ids from before its rebase on `main`; no PR). Parts 2 to 5 are a plan, to be built
+on the same branch. Nothing of it is on `main` but this text (Order). From the review of ChatGPT's Intelligent UI on
 2026-10-29, checked against `feat/work-mode` (v0.13.0, Work mode, spaces, model tiers) on
 2026-10-30. Part 4, the order and the fit with durable runs corrected on 2026-11-06, against `main`
 and that branch at 6bac6ed0, by reading the code. Part 1 brought in line with what was built the
@@ -86,8 +87,7 @@ model.
 
 ## Part 1 — the format
 
-Built on 2026-11-06 on `claude/durable-runs-combined`, ahead of the order below, because Matthias
-asked for it there. The sections below say what was built. The files are in "Changes by file".
+Built on 2026-11-06 on `claude/durable-runs-combined`, because Matthias asked for it there. The sections below say what was built. The files are in "Changes by file".
 
 | Part | Commits |
 |---|---|
@@ -885,7 +885,7 @@ Where the durable work stood on 2026-11-06:
 | 12 | docs, and the PR that flips `durableRuns` | docs on the branch, the flip waits |
 
 Nothing more of it goes to `main` until Matthias lifts that hold (`durable-agents.md`, on the
-branch).
+branch). This plan is built on the same branch and comes under the same hold.
 
 Where the two plans meet:
 
@@ -902,13 +902,13 @@ it was left. `unsent` counts as a change for a waiting run's retention.
 
 ## Order
 
-Creation first: it is the largest gap, and the durable work barely touches it. What changes
-`submitPage` comes after the combined branch lands, because that branch rewrites much of
-`engine/runner.ts`. Steps 1, 2 and 4 wait for nothing. Step 3 needs the combined branch only for
-the starts tools, and can come first with those added afterwards.
+This plan is part of the durable work (Matthias, 2026-11-06). All of it is built and tested on
+`claude/durable-runs-combined`, which is kept rebased on `main`. Nothing of it goes to `main` until
+Matthias decides, after step 7: there is no PR for that branch until then, and no step below lands
+on its own. So nothing here waits for `main`. The steps follow what each needs.
 
-Step 6 was built first, out of this order, so what is next is steps 1 to 3. Part 1 makes pages
-richer and does not make creating a wizard faster; that is steps 2 and 3.
+Part 1 is built. It makes pages richer and does not make creating a wizard faster; that is steps 2
+and 3, and creation comes first because it is the largest gap.
 
 The first pass stays behind a switch `fastCreate` (registered in
 `packages/shared/src/feature-flags.ts`, set in `.features`) until it is done.
@@ -920,19 +920,27 @@ The first pass stays behind a switch `fastCreate` (registered in
    9 ms with the runner in the same process (20 answers); a median of 873 ms and at most 1947 ms with
    studio and runner as separate processes (30 answers, seen by a polling client). No architect
    turn was measured.
-2. **The text form.** Part 2, on today's format: parse, print, the round trip over
-   `examples/wizards`. Keys are generic, so later additions need no new parser. Until Part 1 is on
-   `main` an expression a condition cannot say is an issue, and Markdown in a page is not offered.
-3. **The fast first pass.** Part 3, behind `fastCreate`. It touches the same `agents/architect.ts`
-   as durable runs' PR 7 (starts tools), so whichever lands second merges with the other. It writes
-   plain pages until Part 1 is on `main`, so this step brings the speed and not yet the richer pages.
+2. **The text form.** Part 2, with Part 1's format: parse, print, the round trip over
+   `examples/wizards`. `calc`, page `components` and Markdown in a page are there from the start.
+3. **The fast first pass.** Part 3, behind `fastCreate`, with the richer pages and the starts tools
+   (`list_starts`, `set_starts`) that are already on the branch.
 4. **Copy for ChatGPT.** Part 5; needs only step 2.
-5. **The shortcut on the server.** Part 4, after the combined branch is on `main`, since it sits in
-   that branch's `answerGoesOn`. It is small, and every client gets it.
-6. **The format.** Built, on the combined branch (Part 1). It reaches `main` with that branch when
-   the hold lifts, not on its own (Matthias, 2026-11-06).
-7. **The next page in the browser.** Part 4: first `run.unsent` and saving what is typed, which is
+5. **The shortcut on the server.** Part 4, in the branch's `answerGoesOn`. It is small, and every
+   client gets it.
+6. **The next page in the browser.** Part 4: first `run.unsent` and saving what is typed, which is
    worth having alone, then `rev`, `ahead`, `nextInBrowser`. Needs step 5.
+7. **Test it all together.** Durable runs and this plan, on the one branch:
+   - what `durable-agents.md` lists as not tested together: real models, Manage's part of telling
+     people, a real mail, push, a real mailbox, the cloud's split roles, a 2-day wait across a deploy
+     on staging, and the rest of that list;
+   - what Part 1 lists as not tried: phone width, a translated run, page `data` reading a real AI
+     step, a run with `calc` on a branch;
+   - the targets of Part 3, on the cloud and on a computer with each AI client, and the test at the
+     end of Part 4's "Saving".
+
+Then Matthias decides whether the branch goes to `main`. A merge is not a release. Part 1 has no
+switch, so it goes live with the first release after that merge; `durableRuns` and `fastCreate` stay
+off until they are flipped.
 
 ## Changes by file
 
