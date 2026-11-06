@@ -1,7 +1,10 @@
 # Plan: the broker
 
-Status: plan, nothing built. Written on 2026-10-31 against `feat/work-mode`. Part A of
-`docs/plans/capabilities.md` builds it; the connections plan (artifact “Verbindungen in Quellen”,
+Status: built in parts. Written on 2026-10-31 against `feat/work-mode` as a plan; phases 0 to 2
+are built (RWX with its page Fähigkeiten › Rechte, the broker's call and log, the Audit, the
+notifications, „Was darf …?“), phase 3 (its own process) is not. What the code does is in
+`docs/content/dev/broker.md`; what comes next in `docs/plans/capabilities-next.md`. Part A of
+`docs/plans/capabilities.md` built it; the connections plan (artifact “Verbindungen in Quellen”,
 claude.ai/artifact/GUtiTfPMVvoe1EcgRes3fh) named it first.
 
 The broker is the one place every outside effect of the AI goes through: a read or write on a

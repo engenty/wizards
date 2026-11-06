@@ -68,7 +68,7 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 | tables and pages wizards keep | data | Daten | |
 | instructions in the Agent Skills format the wizards follow | skill; always on, on demand, off | der Skill, die Skills; immer an, bei Bedarf, aus | Fähigkeit, Fertigkeit |
 | a space's place for its skills, connectors, audit and search | Capabilities (the place only) | Fähigkeiten (the place only) | Werkzeuge, Tools; Fähigkeit for one skill |
-| a space's sections of Capabilities | Overview, Skills, Connectors, Audit; the Overview's tabs In this space, Discover | Übersicht, Skills, Connectors, Audit; die Tabs Im Space, Entdecken | Log, Protokoll (for the audit) |
+| a space's sections of Capabilities | Overview, Skills, Connectors, Audit, Rights; the Overview's tabs In this space, Discover | Übersicht, Skills, Connectors, Audit, Rechte; die Tabs Im Space, Entdecken | Log, Protokoll (for the audit) |
 | one account at a service a space uses, set up by its admins | connection | die Verbindung | account, Zugang (for the connection itself) |
 | how a connection signs in | As the space; Each person signs in | Als Space; Jede Person meldet sich an | shared login, as the organization |
 | who may use a connection | Admins, Members, Everyone | Admins, Mitglieder, Alle | |
@@ -77,6 +77,9 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 | every call to a connection, one line each | the audit; a critical line | das Audit; eine kritische Zeile | log, audit log, Protokoll, Verlauf |
 | what a run may reach, fixed when it starts | the run's grant | was der Lauf darf | Freigabe (that is an admin's yes), permissions |
 | the one gate every connector call passes (developers' word, not in the app) | the broker | der Broker | gatekeeper, Türsteher (in text) |
+| who may read, change and run what in a space, and its page in Capabilities | Rights; read, change, run; may, may not; an exception | Rechte; lesen, ändern, ausführen; darf, darf nicht; eine Ausnahme | Berechtigungen, permissions, Zugriffsrechte |
+| the groups Rights names | Admins, Members, Guests, Clients | Admins, Mitglieder, Gäste, Kund:innen | |
+| an AI working for a person in a Work chat or a connected app | the AI in Work | die KI in Work | agent (in text) |
 | a space's table of who may read, write or run what (developers' word, behind `broker`) | RWX rule | RWX-Regel | ACL |
 | people of an organization | owner, admin, member | Inhaber:in, Admin, Mitglied | user (for a role) |
 | someone at a wizard's link who is no member | guest | der Gast, die Gäste | visitor, Besucher (in text) |

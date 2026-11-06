@@ -688,9 +688,17 @@ const SUBJECT_WORD: Record<RwxSubjectKind, string> = {
   agent: "an AI working for a person",
 };
 
-/** Why nothing asks `perm` on a resource of `kind` for a subject of `subject`, or null where a reader does. */
-function unasked(subject: RwxSubjectKind, kind: RwxResourceKind, perm: Perm): string | null {
-  if (rwxAsked(subject, kind, perm)) {
+/**
+ * Why nothing asks `perm` on a resource of `kind` for a subject of `subject` (a role by its id),
+ * or null where a reader does.
+ */
+function unasked(
+  subject: RwxSubjectKind,
+  kind: RwxResourceKind,
+  perm: Perm,
+  subjectId?: string | null,
+): string | null {
+  if (rwxAsked(subject, kind, perm, subjectId)) {
     return null;
   }
   if (kind === "connection") {
@@ -701,6 +709,9 @@ function unasked(subject: RwxSubjectKind, kind: RwxResourceKind, perm: Perm): st
   }
   if (!RWX_ASKED[kind][perm]) {
     return `Nothing asks who may ${PERM_WORD[perm]} ${KIND_WORD[kind]}.`;
+  }
+  if (rwxAsked(subject, kind, perm)) {
+    return `Nothing asks whether a client may ${PERM_WORD[perm]} ${KIND_WORD[kind]}: only Goose does, and a client reaches no studio.`;
   }
   return `Nothing asks whether ${SUBJECT_WORD[subject]} may ${PERM_WORD[perm]} ${KIND_WORD[kind]}.`;
 }
@@ -734,7 +745,7 @@ export function refusalOf(
     return "A space has one setup: its rule names the space's id, or *.";
   }
   for (const perm of flags) {
-    const why = r[perm] === null ? null : unasked(r.subjectKind, r.resourceKind, perm);
+    const why = r[perm] === null ? null : unasked(r.subjectKind, r.resourceKind, perm, r.subjectId);
     if (why) {
       return `${why} The rule would be stored and never asked.`;
     }

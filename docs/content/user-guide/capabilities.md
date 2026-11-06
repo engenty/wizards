@@ -1,6 +1,6 @@
 ---
 title: Capabilities
-description: One place for what your wizards, Work chats and Goose may use – skills, the space’s connections to other services, the audit of every call, and a search for more.
+description: One place for what your wizards, Work chats and Goose may use – skills, the space’s connections to other services, the audit of every call, who may read, change and run what, and a search for more.
 version: 0.17.0
 ---
 
@@ -8,7 +8,7 @@ version: 0.17.0
 Goose may use. On a phone you find it in the “More” menu. It belongs to the space you are in, and
 each space has its own.
 
-It opens on the **Overview**, then has three more sections. None of them has a menu of its own:
+It opens on the **Overview**, then has four more sections. None of them has a menu of its own:
 the list of sections stays beside the page.
 
 | Section | What it holds | Who sees it |
@@ -17,6 +17,7 @@ the list of sections stays beside the page.
 | **Skills** | Instructions your wizards work by. See [Skills](./skills.md) | Everyone who uses the studio |
 | **Connectors** | The space’s connections to other services, the built-in connectors and the ones from the registry | Everyone who uses the studio. Members see the connections open to them |
 | **Audit** | Every call to a connection, allowed or not. See [Audit](./protocol.md) | The owner and the admins see every line. A member sees their own |
+| **Rights** | Who may read, change and run what in the space. See [Rights](#rights) | The owner and the admins |
 
 The old addresses still work: `/skills` opens Capabilities › Skills, the connectors’ old address
 in the settings opens Capabilities › Connectors, and `/capabilities/discover` opens the Overview’s
@@ -165,6 +166,67 @@ every connection, and the line says the run is *stopped*. A call that was alread
 finishes. A stopped run can’t be continued. Stopping a run is the one way to take back what it may
 reach, and there is no other.
 
+## Rights
+
+**Rights** is the one place where the owner and the admins see and change who may read, change
+and run what in the space. Nobody else sees it.
+
+**What everyone may do.** The top of the page lists what each group may do with everything in the
+space, as long as no exception says otherwise.
+
+| Group | Who it is | Can you change it |
+|---|---|---|
+| Admins | The owner and the admins | No. What they may do is fixed |
+| Members | The people working in the space, also in Work | Yes, each right has a switch |
+| Guests | Someone at a shared link or a public page, without signing in | Yes, for the rights a guest can have |
+| Clients | Your clients, signed in to their client space. Shown where client spaces are on | Yes |
+
+Each row is one right. Rights names only what engenty wizards checks, and it words each right as
+far as the check goes.
+
+| Right | What it covers |
+|---|---|
+| “Read documents”, “Read pages and folders”, “Read tables” | Reading Knowledge, wherever it is read: the studio, a wizard’s step, a Work chat, Goose, the search, a shared link |
+| “Have Goose change pages”, “Have Goose change the space’s setup” | Goose writes a page of Knowledge or the space’s info and brand for you only with this right. Someone who writes in the studio themselves doesn’t need it |
+| “Let the AI find wizards”, “Let the AI start wizards” | The AI in Work and in connected apps such as Claude or Codex lists and starts a wizard for you only with this right. A member starts any wizard themselves in Work and in the studio, and a guest reaches a wizard by its link. For clients the rights read “See wizards” and “Start wizards”, and hold in their client space |
+| “Use skills”, “Run the scripts of skills” | A wizard’s step, a Work chat and Goose read a skill for you, and a skill’s scripts run in your runs and chats |
+
+A switch that is off means that nothing allows it for the whole group. An exception can still
+allow it for one person or one thing. The AI in Work and Goose may do what the person they work
+for may. An exception can allow them less.
+
+**Exceptions.** Below the groups you see every other rule of the space as a sentence, for example
+*Guests may not read the folder “Internal prices”.* A “may not” always holds, even where another
+rule allows it. Under each sentence it says where the rule is set.
+
+| It says | How you change it |
+|---|---|
+| “Set on this page.” | “Remove” takes the exception away |
+| “Set in Knowledge, under ‘Who sees this folder’.” | “Change it there” opens that dialog for the page or folder |
+| “Set in Files, on the folder itself.” | “Change it there” opens the mounted folder, where you set who sees it, which wizards use it and what the AI in Work may do |
+| “Set with ‘Visible to clients’.” | “Change it there” opens the document or table in Knowledge, or the Clients part for a wizard |
+
+**Add an exception.** “Add an exception” asks who, “may not” or “may”, what to do, and with what:
+a document, a page or folder, a table, a wizard, a skill or the space’s setup. You choose a group,
+one person, Goose for one person, the AI in Work, a wizard or a plugin. The form offers only what
+engenty wizards checks, and it shows the sentence before you add it. What holds for a whole group
+with everything of a kind is set at the top, not here.
+
+**Connections have their own rules.** Who uses a connection and what it may do is set on the
+connection’s page, not here. Rights shows how many connections the space has and how many of them
+guests reach, and “Open Connectors” leads there.
+
+**Who may do what?** On this page the question is about content. Choose a person, a guest, Goose
+or the AI in Work for a person, a wizard in a guest’s or a person’s run, or a plugin, then what
+they want to do with which document, page, table, wizard or skill. The answer says yes or no and
+names the rule that decided, with where it is set. Nothing is read or run for it. For a
+connection, ask in the Audit.
+
+Rights does not cover everything. A member who may use the studio changes pages, tables and the
+space’s setup there, and starts any wizard of the space in Work. A guest who has a wizard’s link
+runs it. Mail, the hosts a wizard requests and commands in the sandbox follow a connection’s rules
+and [what the run may reach](./protocol.md), not these rights.
+
 ## Discover
 
 Discover searches skills.sh for skills and integrations.sh for connectors at once. You view a skill
@@ -184,6 +246,7 @@ space. There is no switch for one person.
 | Skills, knowledge, data | Add and change | Add and change | – |
 | Connections | Set up, choose how they sign in, set the rules and who may use them | Use the ones open to members. The rules are locked | Their Work chats use the ones open to them |
 | Audit | Every line, **Who may do what?** and the notifications | Their own lines | No |
+| Rights | See and change them | No | No |
 | Own sign-ins | In their menu | In their menu | In their menu |
 
 Approvals always go to the space’s admins, never to a member. On your computer you are the only
