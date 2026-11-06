@@ -818,6 +818,11 @@ export async function runTimeline(run: RunRow, canAct: boolean): Promise<RunTime
     .where(and(eq(schema.runEvent.runId, run.id), eq(schema.runEvent.type, "run_started")))
     .limit(1);
   const name = started?.note?.params?.name;
+  const wait =
+    run.status === "waiting_signal"
+      ? await db.query.runWait.findFirst({ where: eq(schema.runWait.runId, run.id) })
+      : null;
+  const step = run.definition.steps.find((s) => s.id === run.cursor);
   return {
     id: run.id,
     mode: run.mode,
@@ -831,8 +836,10 @@ export async function runTimeline(run: RunRow, canAct: boolean): Promise<RunTime
         : null,
     pause: run.status === "sleeping" ? (run.state.pause?.kind ?? null) : null,
     credits: Math.ceil(run.costMicros / MICROS_PER_CREDIT),
-    stepTitle: run.definition.steps.find((s) => s.id === run.cursor)?.title ?? null,
+    stepTitle: step?.title ?? null,
     startedBy: typeof name === "string" ? name : null,
+    signal: wait ? { name: wait.name, key: wait.key } : null,
+    teamStep: run.status === "waiting_input" && whoOf(step) === "team",
     canAct,
     steps: run.definition.steps.map((s) => ({ id: s.id, title: s.title })),
     events: await recentEvents(run.id, 0, TIMELINE_LINES),

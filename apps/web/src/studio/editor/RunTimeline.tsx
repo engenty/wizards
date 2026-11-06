@@ -1,16 +1,11 @@
 import type { RunEvent, RunTimeline as Timeline } from "@engenty/wizards-shared/run";
-import {
-  type UseMutationResult,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { Check, ChevronLeft, Copy, Hourglass, Play, Square } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Check, ChevronLeft, Copy } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { eventText, type Key, lang, t } from "../../lib/i18n";
 import { Button, Chip, cn, IconButton } from "../../ui";
-import { askConfirm } from "../../ui/confirm";
+import { useRunActions, WaitBanner, waitsNow } from "./RunControls";
 import { KIND, logText, time } from "./RunLog";
 
 export const STATUS: Record<string, Key> = {
@@ -23,15 +18,6 @@ export const STATUS: Record<string, Key> = {
   cancelled: "runs.status.cancelled",
 };
 
-const longTime = (at: string) =>
-  new Intl.DateTimeFormat(lang, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(at));
-
 const dayOf = (at: string) =>
   new Intl.DateTimeFormat(lang, { weekday: "long", day: "numeric", month: "long" }).format(
     new Date(at),
@@ -41,84 +27,6 @@ const dayOf = (at: string) =>
 const shown = (ev: RunEvent) => ev.type !== "step_started";
 
 const textOf = (ev: RunEvent) => (ev.type === "step_done" ? t("runs.status.done") : eventText(ev));
-
-type Command = "wake-now" | "stop";
-
-/** What a run that waits for something offers, and what it says while it does. */
-function WaitBanner({
-  run,
-  command,
-}: {
-  run: Timeline;
-  command: UseMutationResult<unknown, Error, Command>;
-}) {
-  const sleeping = run.status === "sleeping";
-  const listening = run.status === "waiting_signal";
-  const stop = async () => {
-    const yes = await askConfirm(t("runs.stopAsk"), {
-      detail: t("runs.stopDetail"),
-      action: t("runs.stop"),
-    });
-    if (yes) {
-      command.mutate("stop");
-    }
-  };
-  return (
-    <div className="flex flex-wrap items-start gap-3 rounded-xl bg-paper-2 p-3">
-      <Hourglass className="mt-0.5 size-4 shrink-0 text-ink-3" />
-      <div className="min-w-56 flex-1">
-        <div className="font-medium text-[0.875rem] first-letter:uppercase">
-          {run.pause === "credits"
-            ? t("runs.status.waitsCredits")
-            : run.pause === "sign_in"
-              ? t("runs.status.waitsSignIn")
-              : sleeping && run.wakeAt
-                ? t("runs.waitsUntil", { time: longTime(run.wakeAt) })
-                : listening
-                  ? run.wakeAt
-                    ? t("runs.status.waiting_signalUntil", { time: longTime(run.wakeAt) })
-                    : t("runs.status.waiting_signal")
-                  : run.wakeAt
-                    ? t("runs.waitsForPersonUntil", {
-                        step: run.stepTitle ?? "",
-                        time: longTime(run.wakeAt),
-                      })
-                    : t("runs.waitsForPerson", { step: run.stepTitle ?? "" })}
-        </div>
-        {sleeping || listening ? (
-          <div className="text-[0.8125rem] text-ink-2">{t("runs.waitsHint")}</div>
-        ) : null}
-      </div>
-      {run.canAct ? (
-        <div className="flex basis-full flex-wrap items-center gap-2">
-          {run.wakeAt ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              busy={command.isPending && command.variables === "wake-now"}
-              disabled={command.isPending}
-              onClick={() => command.mutate("wake-now")}
-            >
-              <Play className="size-3.5" />
-              {t("runs.wakeNow")}
-            </Button>
-          ) : null}
-          <span className="flex-1" />
-          <Button
-            variant="danger"
-            size="sm"
-            busy={command.isPending && command.variables === "stop"}
-            disabled={command.isPending}
-            onClick={() => void stop()}
-          >
-            <Square className="size-3.5" />
-            {t("runs.stop")}
-          </Button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 /** One run in the runs panel: where it stands, what it did, and what can be done while it waits. */
 export function RunTimeline({
@@ -135,21 +43,13 @@ export function RunTimeline({
   /** Back to the list, narrowed to the runs with this label. */
   onFilter: (label: string) => void;
 }) {
-  const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const query = useQuery({
     queryKey: ["run-timeline", runId],
     queryFn: () => api.get<Timeline>(`/api/runs/${runId}/timeline`),
     refetchInterval: 5000,
   });
-  const command = useMutation({
-    mutationFn: (which: Command) => api.post(`/api/runs/${runId}/${which}`),
-    // A refusal means the run moved on: either way the timeline shows what is true now.
-    onSettled: () => {
-      void query.refetch();
-      void queryClient.invalidateQueries({ queryKey: ["runs", wizardId] });
-    },
-  });
+  const actions = useRunActions(runId, wizardId, () => query.refetch());
   const run = query.data;
   if (!run) {
     return null;
@@ -200,14 +100,10 @@ export function RunTimeline({
       ) : (
         <div className="h-2" />
       )}
-      {run.status === "sleeping" ||
-      run.status === "waiting_signal" ||
-      run.status === "waiting_input" ? (
-        <WaitBanner run={run} command={command} />
-      ) : null}
+      {waitsNow(run.status) ? <WaitBanner run={run} actions={actions} /> : null}
       {/* Outside the banner: a refusal says the run moved on, and the banner goes with that. */}
-      {command.error ? (
-        <p className="px-3 pt-2 text-[0.8125rem] text-rose">{command.error.message}</p>
+      {actions.error ? (
+        <p className="px-3 pt-2 text-[0.8125rem] text-rose">{actions.error.message}</p>
       ) : null}
       <div className="mt-1 flex h-10 items-center gap-2 pr-1.5 pl-3">
         <span className="font-medium text-[0.75rem] text-ink-3 uppercase tracking-[0.07em]">
