@@ -1,7 +1,7 @@
 ---
 title: The broker
 description: The one path every connector call takes in engenty wizards – who calls, what decides, what a run may reach, what is logged and heard, the RWX rules and the routes the studio uses.
-version: 0.17.0
+version: 0.17.1
 ---
 
 Every call a wizard step, a Work chat, Goose, a share target or a plugin makes to a connected
@@ -516,11 +516,16 @@ All under `/api/studio`, for a signed-in person of the organization.
 | `GET /spaces/:id/broker/log/:line` | One line, with the run’s grant and status. The Audit’s “Stop run” reads the status and calls `POST /api/runs/:id/cancel` | Admins. A member: their own line; 404 for another person’s |
 | `GET /spaces/:id/broker/ask?who=&for=&resource=&action=&in=` | „Was darf …?“: `decide`’s outcome, rule and reason. A guest’s post to a channel is answered as the call is: a fixed step gets the connection’s rule and the condition in its reason, any other caller `deny` by `guest_send`. Nothing runs and nothing is logged | Admins (403 for a member) |
 | `GET /spaces/:id/broker/choices` | The people and the space’s connections with their actions, for the question | Admins (403 for a member) |
-| `GET /spaces/:id/discover?q=` | Skills from skills.sh and connectors from integrations.sh, marked where the space has them | Everyone; 404 while `capabilities` is off |
+| `GET /spaces/:id/discover?q=` | Skills from skills.sh and connectors from integrations.sh, marked where the space has them. `bundles` names each repository among the skills that is a plugin with a server over http, with the hits it stands for (`covers`) | Everyone; 404 while `capabilities` is off |
 | `POST /spaces/:id/connectors/preview` | Reads an address before it is imported: `{ sourceUrl, sourceKind?, signIn? }`. Answers what is there (`mcp` or `openapi`), each action with its guessed kind and input fields, the sign-in the source describes, the id and tool prefix its host suggests, and `privateAddress` | Admins of a space that can be changed here |
 | `POST /spaces/:id/connectors` | Imports a connector. For a pasted address `domain`, `id` and `toolPrefix` may be left out, `signIn` is the admin’s choice (`described`, `header` with a name, `none`) and `actionKinds` what single actions do | Admins |
 | `POST /spaces/:id/connectors/:connectorId/refresh` | „Aktionen neu laden“: reads the source again, with the sign-in of a signed-in connection on that connector. The broker reads the sign-in, so it is logged as `list_tools` | Admins |
 | `PATCH /spaces/:id/connectors/:connectorId/actions` | What single actions do: `{ actions: { <id>: { kind, recipientField? } \| null } }`; `null` takes one back to the guess | Admins |
+| `POST /spaces/:id/bundles/preview` | Reads a plugin for Claude Code or Cursor: `{ address, path?, servers? }`, or a form with `file` and the rest as JSON in `options`. Answers `{ preview, plugins }`: the name and version, each server over http as an address is read, the skills, what is left out, and a `hash`; `plugins` where the repository holds several | Admins of a space that can be changed here |
+| `POST /spaces/:id/bundles` | Takes it: the same source, `hash`, `servers` (per server’s name: `take`, `id`, `toolPrefix`, `name`, `signIn`, `actionKinds`), `skills` (the folders to take). Answers the bundle, the connectors and warnings | Admins |
+| `GET /spaces/:id/bundles` | What came together, each with its connectors, connections and skills | Admins |
+| `GET /bundles/:id/update`, `POST /bundles/:id/update` | What the origin has now (`update`, or `upload: true` for one from a file), and taking it: `{ hash }`, or a form with the new `file` | Admins |
+| `GET /bundles/:id/removal`, `DELETE /bundles/:id` | What removing takes and the wizards that use its connections, and removing all of it | Admins |
 
 ### A connector from an address
 
@@ -541,6 +546,61 @@ a new connection on it defaults to the audience `admins`.
   the preview and the import refuse a private address with `connectorPrivateAddress`.
 - **Token calls.** An imported connector’s code exchange, refresh and client registration go
   through the same guarded fetch (`ConnectorOAuth2Config.fetchImpl`).
+- **A server without SSE.** A server that answers 401 to streamable HTTP and 405 to the SSE try
+  loses its 401 on the way. Where its own OAuth documents are there, it is read as one that wants
+  a sign-in: its tools come once an account is connected.
+
+### A connector that brings skills
+
+A plugin for Claude Code or Cursor, taken into a space (`apps/runtime/src/bundles/`). The studio
+has no word for it: it shows a connector with its skills. The record is a `space_bundle`.
+
+- **Reading** (`read.ts`). The source is a zip: a public repository’s archive from
+  `codeload.github.com` through the guarded fetch (`fetch.ts`), or an uploaded `.zip` or `.plugin`.
+  At most 60 MB and 50,000 files; a manifest or MCP file at most 1 MB; a skill’s files under the
+  limits of an uploaded skill. Read are `.claude-plugin/plugin.json` (optional), `.mcp.json` and
+  the manifest’s `mcpServers`, `skills/` and the manifest’s `skills`; for Cursor
+  `.cursor-plugin/plugin.json`, `mcp.json`, and a `plugin.json` at the root. A `marketplace.json`
+  lists the plugins of a repository that holds several: the preview answers with them, and `path`
+  or `…/tree/<branch>/<folder>` names one.
+- **Taken.** Each server over http (`type` `http`, `streamable-http`, `sse`, or a `url` without a
+  type) goes through `importConnector` with the bundle’s id. Its headers with a fixed value are
+  kept as the record’s `required_headers`. A header that holds a key (`Bearer ${TOKEN}`) becomes
+  the sign-in where the server describes none. The connector is from an address: „nicht geprüft“,
+  admins first, a private address only on a runtime that is not managed. Each skill becomes a
+  `space_skill` with `source: "plugin"`, `origin` its folder in the plugin, `mode: "demand"`,
+  scripts off.
+- **Left out, and named** (`leftOut`): commands, agents, hooks, Cursor rules, and servers with a
+  `reason`: `stdio`, `socket`, `noAddress`, `variable` (an address with `${…}` and no default),
+  `file` (an MCP bundle), `address`, `refused` (with the words in `detail`), `count`. A skill
+  whose `SKILL.md` cannot be read is left out as `invalid`.
+- **The record.** `space_bundle` holds the name, version, format, origin (`github` with
+  repository, branch and folder, or `upload` with the file’s name), a hash of what was taken, and
+  what was left out. `bundle_id` is on `space_skill`, `space_connector` and `space_connection`; a
+  connection gets it from its connector when it is set up. `space_connection.plugin` is something
+  else: an engenty plugin that set a connection up.
+- **Skills and no server, a server and no skills.** Skills alone come as skills with a bundle that
+  has no connector. A server alone comes as a connector with a bundle. Neither is refused.
+- **Read only.** `PATCH /skills/:id` refuses a change to the content of a bundle’s skill, and
+  `DELETE` refuses it. `mode` and `runScripts` change. A copy is `own` and has no bundle.
+- **The link.** A skill’s view names its bundle and the bundle’s connectors (`SkillSummary.bundle`),
+  a connector’s view its bundle (`ConnectorView.bundle`). `skill_load` tells the step which
+  connector the skill came with and what its tools’ names start with. `allowed-tools` is not read.
+- **Update.** The origin is read again and its hash compared. Taken are skills that are new,
+  changed or gone, and new servers. A skill that changed keeps its name, `mode` and `runScripts`.
+  Connectors, connections and sign-ins are not touched. A connector whose server the origin no
+  longer names leaves the bundle (`bundle_id` null) and stays: no sign-in is sent to an address
+  that changed. A new server that cannot be imported as it stands is named in `notTaken`.
+- **Removal.** `DELETE /bundles/:id` removes the connections on the bundle’s connectors, the
+  connectors, the skills and the record in one transaction.
+- **Entdecken.** For up to six repositories among a search’s skills, the manifest and the MCP file
+  at the root are read from `raw.githubusercontent.com` (`bundles/discover.ts`,
+  `GITHUB_RAW_URL` for tests) and kept for an hour.
+
+Not built: private repositories and hosts other than github.com; npm, archive and command
+sources of a marketplace; a plugin’s `userConfig` and its `oauth.clientId`; moving a connector to
+a changed address; a branch name with a slash in `…/tree/<branch>/<folder>`; the bundle’s record
+in the sync of a local space.
 
 ## Not built
 

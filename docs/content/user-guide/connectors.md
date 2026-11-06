@@ -1,7 +1,7 @@
 ---
 title: Connectors
-description: Services a wizard works in for the person who runs it – built in, from the registry or by their address.
-version: 0.17.0
+description: Services a wizard works in for the person who runs it – built in, from the registry, by their address or brought by a plugin with its skills.
+version: 0.17.1
 ---
 
 **[Capabilities](./capabilities.md) › Connectors** lists the services the space’s wizards, Work
@@ -108,6 +108,57 @@ address reaches such addresses. In the cloud a private address is refused.
 **Reload actions.** Some servers list their actions only to a signed-in account. Set up the
 connection, sign in, then choose “Reload actions” on the connector. It asks the server with that
 sign-in, and what you set for each action stays. Only admins check an address and reload actions.
+
+## A connector that brings skills
+
+A plugin for Claude Code or Cursor often holds two things that belong together: an MCP server for
+a service, and [skills](./skills.md) that say how to work with it. engenty wizards takes both
+into a space. There is no extra name for the result: it is a connector with its skills, and
+“plugin” only says where it came from.
+
+Admins add one under “More connectors”, with “By address”:
+
+1. Paste the address of the plugin’s repository on GitHub, such as
+   `https://github.com/makenotion/claude-code-notion-plugin`, and choose “Check”. A plugin in a
+   folder of a repository has the folder in its address: `…/tree/main/customer-support`. “Upload a
+   zip” takes a plugin as a `.zip` or `.plugin` file.
+2. A repository that holds several plugins lists them. Choose one.
+3. Read what engenty wizards found: the plugin’s name and version, each MCP server over http, the
+   skills, and what it doesn’t take.
+4. Each server becomes a connector. Correct its name, its sign-in and what each action does, as
+   for [an address](#by-its-address). With several servers, untick the ones you don’t want.
+5. Untick the skills you don’t want. “Import” adds the rest and opens “Add connection” with the
+   first connector.
+
+**What comes along, and what doesn’t.**
+
+| In the plugin | In the space |
+|---|---|
+| MCP servers over http (streamable HTTP, SSE) | A connector each, marked “not checked”. A new connection on it is for admins only at first |
+| Skills (`skills/<name>/SKILL.md`, and the folders the plugin’s manifest names) | Skills, “on demand”. Their scripts stay off until you switch them on |
+| Commands, agents, hooks, Cursor rules | Not taken. The form names them |
+| MCP servers started on the command line | Not taken. engenty wizards reaches a server by its address only |
+| A server whose address needs a value from you | Not taken. Paste the finished address under “By address” |
+
+A plugin with skills and no server over http brings its skills alone. One with a server and no
+skills brings its connector alone.
+
+**On the connector’s page.** A connection on such a connector says where it came from: the plugin,
+its repository and version, and what it brought. Below the connection’s settings the page lists
+the skills, each with when it applies. They are listed under Skills too, with the connector’s
+name.
+
+**Update.** When the repository has changed, the page offers “Update” and says what is new:
+skills added, changed or gone, and new servers. The connection and its sign-in stay as they are.
+A server the plugin no longer names stays in the space as a connector of its own. A plugin from
+a file updates with “Upload a new file”.
+
+**Remove.** “Remove connector, connection and skills” takes everything the plugin brought at
+once. Before it does, it names the wizards that use the connection. They won’t run through after
+that.
+
+The **Discover** tab shows such a plugin as one result, “Connector with skills”, where a
+repository on skills.sh holds an MCP server too. “Set up” opens this form with its address.
 
 ## What a wizard may do
 

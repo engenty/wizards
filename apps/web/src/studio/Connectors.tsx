@@ -15,6 +15,7 @@ import { t } from "../lib/i18n";
 import { keys } from "../lib/keys";
 import { askConfirm, Button, Card, Chip, cn, IconButton, Input, Spinner, Tabs } from "../ui";
 import { ActionKinds, ConnectorByAddress } from "./ConnectorByAddress";
+import { useBundleRemoval } from "./capabilities/Bundle";
 
 /** A connector the product ships with: ready, or waiting for the server's OAuth client. */
 function Builtin({ connector }: { connector: ConnectorView }) {
@@ -89,6 +90,8 @@ function Imported({
   const base = `/api/studio/spaces/${spaceId}/connectors/${connector.id}`;
   const refresh = useMutation({ mutationFn: () => api.post(`${base}/refresh`), onSuccess: done });
   const remove = useMutation({ mutationFn: () => api.del(base), onSuccess: done });
+  // One a plugin brought together with skills goes with them, all at once.
+  const removeAll = useBundleRemoval(spaceId);
   // What an action does, as an admin says it: the rules of every connection on it go by it.
   const kind = useMutation({
     mutationFn: (change: { id: string; choice: ActionKindChoice }) =>
@@ -123,6 +126,9 @@ function Imported({
             ) : null}
           </div>
           <div className="truncate text-[0.75rem] text-ink-3">
+            {connector.bundle
+              ? `${t("bundle.fromPlugin", { name: connector.bundle.name })} · `
+              : ""}
             {connector.domain} · {connector.sourceKind === "mcp" ? "MCP" : "OpenAPI"} ·{" "}
             {t(AUTH_LABEL[connector.auth] as "connectors.authNone")} ·{" "}
             {connector.toolsPending
@@ -153,14 +159,16 @@ function Imported({
               )}
             </IconButton>
             <IconButton
-              label={t("connectors.remove")}
+              label={connector.bundle ? t("bundle.removeAll") : t("connectors.remove")}
               className="hover:text-rose"
               onClick={async () =>
-                (await askConfirm(t("connectors.removeConfirm", { name: connector.name }))) &&
-                remove.mutate()
+                connector.bundle
+                  ? removeAll.mutate(connector.bundle)
+                  : (await askConfirm(t("connectors.removeConfirm", { name: connector.name }))) &&
+                    remove.mutate()
               }
             >
-              <Trash2 className="size-4" />
+              {removeAll.isPending ? <Spinner className="size-4" /> : <Trash2 className="size-4" />}
             </IconButton>
           </div>
         )}
@@ -170,9 +178,9 @@ function Imported({
           {t("connectors.needsClient")}
         </p>
       ) : null}
-      {(refresh.error ?? remove.error ?? kind.error) ? (
+      {(refresh.error ?? remove.error ?? removeAll.error ?? kind.error) ? (
         <p className="border-border-soft border-t px-3 py-2 text-[0.75rem] text-rose">
-          {((refresh.error ?? remove.error ?? kind.error) as Error).message}
+          {((refresh.error ?? remove.error ?? removeAll.error ?? kind.error) as Error).message}
         </p>
       ) : null}
       {open && connector.actions.length && !readOnly ? (
@@ -309,8 +317,9 @@ function SourceRow({
 /**
  * The space's connectors: any service becomes one, found in the integrations registry by name
  * and imported from its OpenAPI spec or its MCP server, or added by its address where the
- * registry does not list it (`ConnectorByAddress`). `readOnly`: the space is not changed here,
- * so the list is shown and nothing is imported, refreshed or removed.
+ * registry does not list it (`ConnectorByAddress`), which also takes a plugin's repository or
+ * zip. `readOnly`: the space is not changed here, so the list is shown and nothing is imported,
+ * refreshed or removed.
  */
 export function Connectors({
   spaceId,
@@ -318,6 +327,7 @@ export function Connectors({
   embedded,
   onSetUp,
   domain,
+  address,
 }: {
   spaceId: string;
   readOnly?: boolean;
@@ -327,6 +337,8 @@ export function Connectors({
   onSetUp?: (connectorId: string) => void;
   /** A service of the registry to open at once (`?setup=<domain>`). */
   domain?: string | null;
+  /** An address to read at once under „Per Adresse“ (`?address=`): a plugin's repository. */
+  address?: string | null;
 }) {
   const unsetConnectors = useFeature("unsetConnectors");
   const [query, setQuery] = useState("");
@@ -334,7 +346,14 @@ export function Connectors({
   const [service, setService] = useState<RegistryService | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   /** Where a new connector comes from: the registry, or its address. */
-  const [from, setFrom] = useState<"registry" | "address">("registry");
+  const [from, setFrom] = useState<"registry" | "address">(
+    address && !readOnly ? "address" : "registry",
+  );
+  useEffect(() => {
+    if (address && !readOnly) {
+      setFrom("address");
+    }
+  }, [address, readOnly]);
   const list = useQuery({
     queryKey: keys.connectors(spaceId),
     queryFn: () => api.get<ConnectorView[]>(`/api/studio/spaces/${spaceId}/connectors`),
@@ -420,6 +439,7 @@ export function Connectors({
           spaceId={spaceId}
           taken={connectors.map((c) => c.id)}
           onDone={(id) => onSetUp?.(id)}
+          start={address}
         />
       ) : (
         <form

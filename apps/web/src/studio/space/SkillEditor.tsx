@@ -24,10 +24,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import { api } from "../../lib/api";
 import { withBase } from "../../lib/base";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
+import { useIsAdmin } from "../../lib/session";
 import {
   askConfirm,
   Button,
@@ -42,6 +44,7 @@ import {
 } from "../../ui";
 import { CodeEditor } from "../../ui/code-editor";
 import { frontmatterLines } from "../../ui/code-editor/frontmatter";
+import { BundleNote, BundleRemove, useBundles } from "../capabilities/Bundle";
 import { useAutosave } from "./data";
 import { InlineText } from "./Section";
 import { FileNotes, MODE_ICON, SideHead, SourceChip } from "./Skills";
@@ -50,7 +53,9 @@ import { FileNotes, MODE_ICON, SideHead, SourceChip } from "./Skills";
  * One skill, opened (docs/plans/skills.md): its name and description in the header, its
  * instructions as text or as the `SKILL.md` they are, when it counts, whether its scripts run,
  * and its files in a dialog. A skill of the space's own saves as it is typed; one from skills.sh
- * is read only, offers a newer version when skills.sh has one, and is copied to be changed.
+ * is read only, offers a newer version when skills.sh has one, and is copied to be changed. One
+ * that came with a Connector (a plugin for Claude Code or Cursor) is read only too: it names its
+ * Connector, is copied to be changed, and goes when the Connector is removed with what it brought.
  */
 
 const MODES: SkillMode[] = ["always", "demand", "off"];
@@ -475,7 +480,13 @@ function SkillForm({
 }) {
   const qc = useQueryClient();
   const fromRegistry = skill.source === "skills.sh";
-  const locked = skill.readOnly || fromRegistry;
+  // It came with a Connector: it stays as it came, and a copy is the space's own.
+  const fromBundle = Boolean(skill.bundle);
+  const locked = skill.readOnly || fromRegistry || fromBundle;
+  const admin = useIsAdmin();
+  const bundle = useBundles(skill.spaceId, admin && fromBundle).data?.find(
+    (b) => b.id === skill.bundle?.id,
+  );
   const [draft, setDraft] = useState<Draft>({
     name: skill.name,
     description: skill.description,
@@ -632,7 +643,7 @@ function SkillForm({
           >
             <Download className="size-4" /> {t("skills.download")}
           </a>
-          {skill.readOnly ? null : (
+          {skill.readOnly || fromBundle ? null : (
             <MoreMenu
               items={[
                 ...(fromRegistry ? [] : [{ label: t("skills.copy"), onPick: () => copy.mutate() }]),
@@ -648,6 +659,7 @@ function SkillForm({
       </header>
 
       {fromRegistry ? <UpdateBanner skill={skill} /> : null}
+      {bundle ? <BundleNote bundle={bundle} writable={!skill.readOnly} /> : null}
       {error ? <p className="px-1 text-[0.875rem] text-rose">{error}</p> : null}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -693,6 +705,15 @@ function SkillForm({
           ) : null}
           {fromRegistry ? (
             <p className="px-1 text-[0.8125rem] text-ink-3">{t("skills.readOnlyNote")}</p>
+          ) : null}
+          {skill.bundle ? (
+            <p className="px-1 text-[0.8125rem] text-ink-3">
+              {skill.bundle.connectors.length
+                ? t("skills.bundle.readOnlyNote", {
+                    name: skill.bundle.connectors.map((c) => c.name).join(", "),
+                  })
+                : t("skills.bundle.readOnlyNotePlugin", { name: skill.bundle.name })}
+            </p>
           ) : null}
         </section>
 
@@ -753,9 +774,59 @@ function SkillForm({
             </div>
           ) : null}
 
+          {skill.bundle ? (
+            <div className="flex flex-col gap-2">
+              <SideHead title={t("skills.origin")} />
+              <Card className="p-4">
+                <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-y-2 text-[0.8125rem]">
+                  {skill.bundle.connectors.length ? (
+                    <>
+                      <dt className="text-ink-3">{t("skills.bundle.connector")}</dt>
+                      <dd>
+                        <Link to="/capabilities/connectors" className="underline hover:text-ink">
+                          {skill.bundle.connectors.map((c) => c.name).join(", ")}
+                        </Link>
+                      </dd>
+                    </>
+                  ) : null}
+                  <dt className="text-ink-3">{t("skills.bundle.plugin")}</dt>
+                  <dd className="break-words">{skill.bundle.name}</dd>
+                  {skill.origin ? (
+                    <>
+                      <dt className="text-ink-3">{t("skills.bundle.folder")}</dt>
+                      <dd className="break-all font-mono text-[0.75rem]">{skill.origin}</dd>
+                    </>
+                  ) : null}
+                  {license ? (
+                    <>
+                      <dt className="text-ink-3">{t("skills.license")}</dt>
+                      <dd className="break-words">{license}</dd>
+                    </>
+                  ) : null}
+                </dl>
+              </Card>
+              {skill.readOnly ? null : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="self-start"
+                  busy={copy.isPending}
+                  onClick={() => copy.mutate()}
+                >
+                  <Copy className="size-4" /> {t("skills.copy")}
+                </Button>
+              )}
+            </div>
+          ) : null}
+
           {filesFirst ? null : files}
         </aside>
       </div>
+
+      {/* One that brought no connector has no Connector's page: it is removed from here. */}
+      {bundle && !bundle.connectors.length && !skill.readOnly ? (
+        <BundleRemove bundle={bundle} onGone={onGone} />
+      ) : null}
 
       <FileDialog
         file={opened}

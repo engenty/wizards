@@ -20,6 +20,9 @@ process.env.FEATURES = "capabilities=on,skills=on";
 // A public address the host guard lets through without asking DNS; the fetch below answers it.
 const INTEGRATIONS = "https://93.184.215.14";
 process.env.ENGENTY_INTEGRATIONS_REGISTRY_URL = INTEGRATIONS;
+// GitHub's raw files, where a repository says whether it is a plugin with a server.
+const RAW = "https://93.184.215.15";
+process.env.GITHUB_RAW_URL = RAW;
 
 type App = { fetch: (req: Request) => Response | Promise<Response> };
 let app: App;
@@ -40,6 +43,8 @@ const local = <T>(fn: () => T | Promise<T>) => client.withTenant("local", fn);
 
 /** Which directory answers in this test, and what each saw. */
 const down = { skills: false, connectors: false };
+/** The files GitHub has at a repository's root, by `owner/name/HEAD/<path>`. */
+const raw: Record<string, string> = {};
 const asked: string[] = [];
 const realFetch = globalThis.fetch;
 
@@ -73,6 +78,11 @@ beforeAll(async () => {
           { domain: "stripe.com", name: "Stripe", description: "Payments.", kinds: ["openapi", "cli"] },
         ],
       });
+    }
+    if (address.startsWith(`${RAW}/`)) {
+      asked.push(address);
+      const file = raw[address.slice(RAW.length + 1)];
+      return file === undefined ? new Response("no", { status: 404 }) : new Response(file);
     }
     return realFetch(input, init);
   });
@@ -158,8 +168,75 @@ describe("Entdecken", () => {
 
   it("asks nobody for fewer than two letters", async () => {
     asked.length = 0;
-    expect(await discover("p")).toEqual({ skills: [], connectors: [], errors: {} });
+    expect(await discover("p")).toEqual({ skills: [], connectors: [], bundles: [], errors: {} });
     expect(asked).toEqual([]);
+  });
+
+  it("names a repository that holds a server and skills as one hit, with what it stands for", async () => {
+    // Nothing at the repositories' roots says plugin: the lists stand alone.
+    expect((await discover("pdf")).bundles).toEqual([]);
+    // One of them is a plugin whose server is Notion's: its skill and that connector are one.
+    raw["someone/tools/HEAD/.claude-plugin/plugin.json"] = JSON.stringify({
+      name: "PDF tools",
+      description: "PDF skills and a server.",
+    });
+    raw["someone/tools/HEAD/.mcp.json"] = JSON.stringify({
+      mcpServers: {
+        notion: { type: "http", url: "https://mcp.notion.so/mcp" },
+        local: { command: "npx", args: ["x"] },
+      },
+    });
+    // What a repository says is kept for an hour: another one is asked.
+    raw["anthropics/skills/HEAD/.mcp.json"] = JSON.stringify({
+      mcpServers: { files: { command: "npx", args: ["files"] } },
+    });
+    const bundles = await import("../src/bundles/discover");
+    const found = await local(() =>
+      bundles.discoverBundles(
+        spaceId,
+        [
+          { ref: "someone/tools/pdf-forms", name: "pdf-forms", source: "someone/tools", installs: 1, official: false, added: false },
+          { ref: "other/repo/pdf", name: "pdf", source: "other/repo", installs: 1, official: false, added: false },
+        ],
+        [
+          { domain: "notion.so", name: "Notion", description: "", kinds: ["mcp"] },
+          { domain: "stripe.com", name: "Stripe", description: "", kinds: ["openapi"] },
+        ],
+      ),
+    );
+    // Asked before, with nothing there: the answer is kept, so only the new repository is read.
+    expect(found).toEqual([]);
+    raw["fresh/plugin/HEAD/.claude-plugin/plugin.json"] = raw["someone/tools/HEAD/.claude-plugin/plugin.json"];
+    raw["fresh/plugin/HEAD/.mcp.json"] = raw["someone/tools/HEAD/.mcp.json"];
+    const fresh = await local(() =>
+      bundles.discoverBundles(
+        spaceId,
+        [
+          { ref: "fresh/plugin/pdf-forms", name: "pdf-forms", source: "fresh/plugin", installs: 1, official: false, added: false },
+          { ref: "fresh/plugin/pdf-read", name: "pdf-read", source: "fresh/plugin", installs: 1, official: false, added: false },
+          { ref: "anthropics/skills/pdf", name: "pdf", source: "anthropics/skills", installs: 1, official: true, added: true },
+        ],
+        [
+          { domain: "notion.so", name: "Notion", description: "", kinds: ["mcp"] },
+          { domain: "stripe.com", name: "Stripe", description: "", kinds: ["openapi"] },
+        ],
+      ),
+    );
+    expect(fresh).toEqual([
+      {
+        repo: "fresh/plugin",
+        name: "PDF tools",
+        description: "PDF skills and a server.",
+        format: "claude",
+        hosts: ["mcp.notion.so"],
+        official: false,
+        added: false,
+        covers: {
+          skills: ["fresh/plugin/pdf-forms", "fresh/plugin/pdf-read"],
+          connectors: ["notion.so"],
+        },
+      },
+    ]);
   });
 
   it("is not there while the capabilities switch is off", async () => {

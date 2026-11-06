@@ -1,7 +1,8 @@
 # Plan: Fähigkeiten, the next four pieces
 
 Status: planned on 2026-11-05, every decision taken the same day. Piece 1 (1a the runtime, 1b
-the studio and the docs), 2a, 2b and 3 are built (2026-11-06), the rest is not. Follows
+the studio and the docs), 2a, 2b, 3 and 4 (4a the runtime, 4b the studio and the docs) are built
+(2026-11-06), the rest is not. Follows
 `docs/plans/capabilities.md` and `docs/plans/broker.md`, which are built. Page with the mockups:
 the artifact “Fähigkeiten Next Steps” (claude.ai/artifact/2WB6P59ZJgxPYi9rr2h53m). Checked
 against `main` at v0.16.2 plus #500–#509.
@@ -13,7 +14,7 @@ against `main` at v0.16.2 plus #500–#509.
 | 1 | A server by its address (built) | The runtime reads an address; no screen takes one, and an MCP server outside the registry fails at import | „Per Adresse“ in Connectors: check, correct, import |
 | 2 | Limits, stopping, pausing (2a, 2b built) | Only a guest's mails are counted; a stopped run can still call; a connection can only be removed | Calls per run and day, a stop that holds, „Verbindung pausieren“ |
 | 3 | Rechte | Rules are written in four places and listed nowhere; some are stored and never asked | One page: who may what, the exceptions as sentences |
-| 4 | A Connector that brings skills | Nothing links a skill to a connection; nothing reads a plugin | A Claude Code or Cursor plugin becomes a Connector with its Skills |
+| 4 | A Connector that brings skills (built) | Nothing links a skill to a connection; nothing reads a plugin | A Claude Code or Cursor plugin becomes a Connector with its Skills |
 
 Found while checking, and it matters now: „Mit Freigabe“ holds a call only in Work chats
 (`chat_approval`). In a wizard's run nothing waits: `needs_approval` goes back to the model, and a
@@ -189,7 +190,29 @@ Found while building, and not changed:
 
 ## 4. A Connector that brings skills
 
-What the code does:
+Built on 2026-11-06: 4a in `apps/runtime/src/bundles/` (`read.ts`, `fetch.ts`, `index.ts`,
+`discover.ts`), `routes/bundles.ts` and `test/bundles.test.ts`; 4b in `studio/PluginByAddress.tsx`
+and `studio/capabilities/Bundle.tsx`. How it works now is in `docs/content/dev/broker.md` („A
+connector that brings skills“) and `docs/content/user-guide/connectors.md`. What follows is the
+state before, and the design.
+
+What it still does not do:
+
+- Only public repositories on github.com, and an uploaded zip. No private repository, no GitLab,
+  no npm, archive or command source of a marketplace.
+- A server whose address needs a value (`${…}` without a default, a plugin's `userConfig`) is
+  left out. A plugin's own OAuth client (`oauth.clientId`) is not used.
+- „Aktualisieren“ takes skills and new servers. It never moves a connector to a changed address:
+  the old connector leaves the bundle and stays, the new address comes as a new connector. A new
+  server that needs a choice at its sign-in is named and not taken.
+- A skill names its connector through the bundle. `allowed-tools` is still read nowhere, so a
+  plugin with several servers does not say which skill belongs to which.
+- Entdecken finds a plugin at a repository's root only, and only where skills.sh lists one of
+  its skills. It does not count the plugin's skills.
+- The sync of a local space carries a plugin's skills with their source, not the record.
+- A branch name with a slash cannot be told from a folder in `…/tree/<branch>/<folder>`.
+
+What the code did:
 
 - Skills (`space_skill`) and connections share Fähigkeiten and Entdecken; nothing links them. A
   skill's `allowed-tools` is kept in `meta` and never read. Sources are `own`, `upload`,

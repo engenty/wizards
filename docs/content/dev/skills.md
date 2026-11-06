@@ -1,7 +1,7 @@
 ---
 title: Skills
 description: The skills of a space – the SKILL.md engenty wizards reads, its limits, the studio’s routes, the two tools a step reads skills with and how their scripts run in the sandbox.
-version: 0.13.0
+version: 0.17.1
 ---
 
 A space’s skills are instructions in the Agent Skills format that its AI steps follow. They sit
@@ -113,6 +113,13 @@ Under `/api/studio`, signed in as for the studio:
 
 `mode` is `always`, `demand` or `off`. A skill from skills.sh changes its `mode` and
 `runScripts` only. Its content changes with an update. An upload takes up to 32 MB.
+
+`source` is `own`, `upload`, `skills.sh` or `plugin`. A skill with the source `plugin` came with
+a connector, from a plugin for Claude Code or Cursor
+([A connector that brings skills](./broker.md#a-connector-that-brings-skills)). Its view names
+what it came with (`bundle`: the plugin’s name and its connectors). It changes its `mode` and
+`runScripts` only, `DELETE` refuses it, and `skill_load` answers with a `connector` line: which
+connector it came with and what that connector’s tools start with.
 
 ## skills.sh
 
