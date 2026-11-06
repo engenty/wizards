@@ -1,5 +1,5 @@
 import type { Surface, SurfaceComponent } from "@engenty/wizards-shared/surface";
-import { bound } from "@engenty/wizards-shared/surface";
+import { bound as boundTo } from "@engenty/wizards-shared/surface";
 import {
   Check,
   ChevronRight,
@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { lang, t } from "./i18n.js";
+
+/** A prop's value, numbers written as the person's language writes them. */
+const bound = (value: unknown, data: unknown, row?: unknown) => boundTo(value, data, row, lang);
+
 import { Markdown } from "./outputs.js";
 import { FormView, type SurfaceChat } from "./surface-form.js";
 import { cn, Dialog, Tabs as Segments } from "./ui.js";

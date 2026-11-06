@@ -7,6 +7,7 @@ import {
   type ResultStep,
   type Step,
   type WizardDefinition,
+  whenCalc,
 } from "@engenty/wizards-shared/definition";
 import type { BranchDecision, RunEstimate, ShownDecision } from "@engenty/wizards-shared/run";
 import {
@@ -394,7 +395,7 @@ function conditionLabel(rule: NonNullable<Step["next"]>[number]): string {
     ? t("editor.whenAsk", { text: rule.ask })
     : isOtherwise(rule)
       ? t("editor.otherwise")
-      : conditionsOf(rule.when).map(conditionText).join(" · ");
+      : (whenCalc(rule.when) ?? conditionsOf(rule.when).map(conditionText).join(" · "));
   return rule.max ? `${label} (${t("editor.atMost", { count: rule.max })})` : label;
 }
 

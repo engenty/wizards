@@ -31,6 +31,7 @@ import {
   WIZARD_LANGS,
   type WizardDefinition,
   waitOutputRefs,
+  whenCalc,
 } from "@engenty/wizards-shared/definition";
 import { readNumber } from "@engenty/wizards-shared/numbers";
 import type { BranchDecision, RunEstimate } from "@engenty/wizards-shared/run";
@@ -230,7 +231,21 @@ function ConditionEditor({
   label?: string;
   noneLabel?: string;
 }) {
+  const calc = whenCalc(when);
   const [first, ...rest] = conditionsOf(when);
+  if (calc !== null) {
+    // A test conditions cannot write: its text, which empties back to no condition.
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[0.8125rem] text-ink-2">{label}</span>
+        <Input
+          value={calc}
+          className="font-mono text-[0.8125rem]"
+          onChange={(e) => onChange(e.target.value ? { calc: e.target.value } : undefined)}
+        />
+      </div>
+    );
+  }
   const set = (c: Condition | null) =>
     onChange(c ? (rest.length ? [c, ...rest] : c) : rest.length ? rest : undefined);
   const needsValue = first && first.op !== "empty" && first.op !== "notEmpty";
@@ -2519,6 +2534,7 @@ function NextSection({
                   {chip(Boolean(rule.ask))}
                   <span className="min-w-0 flex-1 truncate text-[0.8125rem] text-ink">
                     {rule.ask ??
+                      whenCalc(rule.when) ??
                       conditionsOf(rule.when)
                         .map(conditionText)
                         .join(` ${t("editor.branch.and")} `)}

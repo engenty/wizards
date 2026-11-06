@@ -5,6 +5,7 @@ import {
   listRef,
   type NextRule,
   type WizardDefinition,
+  whenCalc,
 } from "./definition.js";
 import { type ItemFormat, type MarketplaceLang, marketLabel } from "./marketplace.js";
 
@@ -47,6 +48,10 @@ function condition(definition: WizardDefinition, rule: NextRule, lang: Marketpla
   }
   if (rule.when === undefined) {
     return marketLabel("outline", "otherwise", lang);
+  }
+  const calc = whenCalc(rule.when);
+  if (calc !== null) {
+    return calc;
   }
   const parts = conditionsOf(rule.when).map((c) => conditionText(definition, c, lang));
   return parts.length

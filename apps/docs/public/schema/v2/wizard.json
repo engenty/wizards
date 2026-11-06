@@ -693,6 +693,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -999,6 +1013,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -1205,6 +1233,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -2895,6 +2937,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -3144,6 +3200,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -3351,6 +3421,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -3740,6 +3824,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -3972,6 +4070,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -4161,6 +4273,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -4357,6 +4483,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },

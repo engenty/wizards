@@ -56,6 +56,30 @@ and `required` pieces always show.
 
 The MCP tool `get_authoring_guide` lists every component with its props.
 
+### Calculated values
+
+Next to `{ "path": … }`, a prop can be worked out from what the view holds:
+
+```json
+{ "id": "share", "component": "Metric", "label": "Davon für die Demo",
+  "value": { "calc": "demo / budget", "as": "percent" } }
+```
+
+| | |
+|---|---|
+| Values | numbers, `"text"`, `true`, `false` |
+| Names | a key of the view’s data; inside a repeat, a column of the entry |
+| Operators | `+ - * / %`, `== != < <= > >=`, `and or not`, `( )` |
+| Functions | `round(x, digits)`, `min(…)`, `max(…)`, `sum(list, column)`, `count(list)`, `if(test, a, b)` |
+
+There is no assignment, no other call and no property access but dotted names. A value that cannot
+be worked out, such as a division by zero, shows “–”. The validator checks that every name exists at
+that place.
+
+A calculation takes the same `map` and `format` as a path. `as` writes a number in the viewer’s
+language: `number` with its separators, `percent` as a share (0.5 is 50 %). It works on a path too.
+In `format`, `{}` is the value and `{column}` a column of the entry it is drawn in.
+
 ### Views in a Work chat
 
 In a Work chat, the space’s AI shows a view with its tool `show_view`. It uses the same catalog,
