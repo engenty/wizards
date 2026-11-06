@@ -817,6 +817,11 @@
                   "description": {
                     "type": "string"
                   },
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 24
+                  },
                   "next": {
                     "type": "array",
                     "items": {
@@ -1323,6 +1328,11 @@
                   },
                   "description": {
                     "type": "string"
+                  },
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 24
                   },
                   "next": {
                     "type": "array",
@@ -3009,6 +3019,11 @@
                   "description": {
                     "type": "string"
                   },
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 24
+                  },
                   "next": {
                     "type": "array",
                     "items": {
@@ -3253,6 +3268,11 @@
                   "description": {
                     "type": "string"
                   },
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 24
+                  },
                   "next": {
                     "type": "array",
                     "items": {
@@ -3454,6 +3474,11 @@
                   },
                   "description": {
                     "type": "string"
+                  },
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 24
                   },
                   "next": {
                     "type": "array",
@@ -3839,6 +3864,11 @@
                   "description": {
                     "type": "string"
                   },
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 24
+                  },
                   "next": {
                     "type": "array",
                     "items": {
@@ -4066,6 +4096,11 @@
                   "description": {
                     "type": "string"
                   },
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 24
+                  },
                   "next": {
                     "type": "array",
                     "items": {
@@ -4249,6 +4284,11 @@
                   },
                   "description": {
                     "type": "string"
+                  },
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 24
                   },
                   "next": {
                     "type": "array",
@@ -4440,6 +4480,11 @@
                   },
                   "description": {
                     "type": "string"
+                  },
+                  "section": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 24
                   },
                   "next": {
                     "type": "array",

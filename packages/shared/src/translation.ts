@@ -64,6 +64,10 @@ function visitTexts(def: WizardDefinition, visit: Visit, choices: Visit) {
     visit(step.description, (t) => {
       step.description = t;
     });
+    visit(step.section, (t) => {
+      // A longer word in another language must not cost the wizard its translation.
+      step.section = t.slice(0, 24);
+    });
     if ("working" in step) {
       visit(step.working, (t) => {
         step.working = t;
@@ -82,6 +86,9 @@ function visitTexts(def: WizardDefinition, visit: Visit, choices: Visit) {
         step.cta = t;
       });
       for (const field of step.fields) {
+        visit(field.unit, (t) => {
+          field.unit = t.slice(0, 16);
+        });
         visit(field.label, (t) => {
           field.label = t;
         });
