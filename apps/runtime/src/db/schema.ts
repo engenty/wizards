@@ -1,4 +1,9 @@
 import {
+  BUNDLE_FORMATS,
+  type BundleLeftOut,
+  type BundleOrigin,
+} from "@engenty/wizards-shared/bundles";
+import {
   CONNECTION_AUDIENCES,
   CONNECTION_SIGN_INS,
   type ConnectionRules,
@@ -531,10 +536,46 @@ export const spaceConnector = sqliteTable(
       .references(() => space.id, { onDelete: "cascade" }),
     id: text("id").notNull(),
     record: text("record", { mode: "json" }).$type<ImportedConnectorRecord>().notNull(),
+    /** The `space_bundle` it came with, where a plugin brought it together with skills. */
+    bundleId: text("bundle_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [primaryKey({ columns: [t.spaceId, t.id] })],
+);
+
+/**
+ * What came together (docs/plans/capabilities-next.md, piece 4): a plugin for Claude Code or
+ * Cursor, taken into a space from a repository on GitHub or an uploaded zip. Its MCP servers over
+ * http are `space_connector` rows, its skills `space_skill` rows, and a connection set up on one
+ * of its connectors carries the id too. `space_connection.plugin` is something else: an engenty
+ * plugin that set a connection up.
+ */
+export const spaceBundle = sqliteTable(
+  "space_bundle",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => space.id, { onDelete: "cascade" }),
+    /** The plugin's name, as its manifest says it. */
+    name: text("name").notNull(),
+    version: text("version"),
+    description: text("description"),
+    /** Whose manifest was read. */
+    format: text("format", { enum: BUNDLE_FORMATS }).notNull(),
+    /** Where it came from: a repository, a branch or tag and a folder, or a file's name. */
+    origin: text("origin", { mode: "json" }).$type<BundleOrigin>().notNull(),
+    /** Of what was taken: „Aktualisieren“ is offered where the origin's differs. */
+    hash: text("hash").notNull(),
+    /** What the plugin holds and the space does not take: commands, agents, hooks, other servers. */
+    leftOut: text("left_out", { mode: "json" }).$type<BundleLeftOut[]>().notNull().default([]),
+    addedBy: text("added_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("space_bundle_space").on(t.spaceId)],
 );
 
 /**
@@ -1196,9 +1237,14 @@ export const spaceSkill = sqliteTable(
     /** Its scripts run in the sandbox of a step that has one: switched on by a person, never by default. */
     runScripts: integer("run_scripts", { mode: "boolean" }).notNull().default(false),
     source: text("source", { enum: SKILL_SOURCES }).notNull().default("own"),
-    /** skills.sh: `owner/repo/skill`, and the hash of what it had when added. */
+    /**
+     * skills.sh: `owner/repo/skill`, and the hash of what it had when added. A plugin's skill:
+     * its folder in the plugin, and the hash of what the plugin had.
+     */
     origin: text("origin"),
     originHash: text("origin_hash"),
+    /** The `space_bundle` it came with: such a skill is read only and goes with its bundle. */
+    bundleId: text("bundle_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -1533,6 +1579,8 @@ export const spaceConnection = sqliteTable(
     connectorId: text("connector_id").notNull(),
     /** The plugin that set it up through `server.connections`, where one did. */
     plugin: text("plugin"),
+    /** The `space_bundle` its connector came with: removing the bundle takes the connection too. */
+    bundleId: text("bundle_id"),
     /** What people call it: „Vertrieb“, „Bestellungen“. */
     name: text("name").notNull(),
     /** A `space` sign-in: the account as the provider names it; null until signed in. */

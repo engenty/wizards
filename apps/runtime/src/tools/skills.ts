@@ -8,7 +8,7 @@ import type { StepContext } from "../engine/types.js";
 import { getBlob } from "../files/blobs.js";
 import { prompt } from "../prompts.js";
 import type { Sandbox } from "../sandbox/index.js";
-import { activeSkills } from "../services/skills.js";
+import { activeSkills, skillConnectors } from "../services/skills.js";
 import { attempt, clip } from "./shared.js";
 
 /**
@@ -223,11 +223,21 @@ export function skillToolsOf(skills: Skills, caller: ElementCaller): Record<stri
               const placed = await place(k);
               // In the sandbox, the files for its scripts are there too.
               const files = placed?.folder ? [...k.files, ...k.blobFiles] : k.files;
+              // A plugin brought it together with a connector: the step hears which one.
+              const connectors = await skillConnectors(k);
               return {
                 name: k.name,
                 instructions: clip(k.body, 60_000),
                 files: files.map((f) => f.path).sort(),
                 ...placed,
+                ...(connectors.length
+                  ? {
+                      connector: prompt("tools", "note.skill_connector", {
+                        names: connectors.map((c) => c.name).join(", "),
+                        prefixes: connectors.map((c) => `${c.toolPrefix}_`).join(", "),
+                      }),
+                    }
+                  : {}),
               };
             },
           );

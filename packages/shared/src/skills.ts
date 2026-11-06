@@ -10,8 +10,11 @@
 export const SKILL_MODES = ["always", "demand", "off"] as const;
 export type SkillMode = (typeof SKILL_MODES)[number];
 
-/** Where it came from: written in the studio, uploaded, or added from skills.sh. */
-export const SKILL_SOURCES = ["own", "upload", "skills.sh"] as const;
+/**
+ * Where it came from: written in the studio, uploaded, added from skills.sh, or brought by a
+ * plugin together with a connector (`bundles.ts`).
+ */
+export const SKILL_SOURCES = ["own", "upload", "skills.sh", "plugin"] as const;
 export type SkillSource = (typeof SKILL_SOURCES)[number];
 
 export const SKILL_LIMITS = {
@@ -171,6 +174,13 @@ export interface SkillBlobFile {
   bytes: number;
 }
 
+/** What a skill came with: the record of a plugin taken into the space, and its connectors. */
+export interface SkillBundle {
+  id: string;
+  name: string;
+  connectors: { id: string; name: string }[];
+}
+
 /** A skill as the list shows it. */
 export interface SkillSummary {
   id: string;
@@ -178,9 +188,14 @@ export interface SkillSummary {
   description: string;
   mode: SkillMode;
   source: SkillSource;
-  /** skills.sh: `owner/repo/skill`. */
+  /** skills.sh: `owner/repo/skill`. A plugin's: its folder in the plugin. */
   origin: string | null;
   official: boolean;
+  /**
+   * A plugin's: what it came with, by the plugin's name, and the connectors that came with it.
+   * Such a skill is read only; a copy of it is the space's own.
+   */
+  bundle: SkillBundle | null;
   /** Its scripts run in the sandbox of a step that has one. Off until someone switches it on. */
   runScripts: boolean;
   /** Its files beside the `SKILL.md`, the ones for scripts too. */
