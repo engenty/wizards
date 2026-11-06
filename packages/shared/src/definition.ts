@@ -573,9 +573,23 @@ export const fieldSchema = z.object({
   notify: z.boolean().optional(),
   /** image / file: several files; the value is then a list, in the order the person put them. */
   multiple: z.boolean().optional(),
-  /** image / file with `multiple`: how many files at least and at most (up to 30). */
-  min: z.number().int().min(1).max(MAX_FILES).optional(),
-  max: z.number().int().min(1).max(MAX_FILES).optional(),
+  /**
+   * image / file with `multiple`: how many files at least and at most (whole numbers, 1 to 30).
+   * number: the lowest and the highest value the person may give.
+   */
+  min: z.number().optional(),
+  max: z.number().optional(),
+  /** number: the value moves in steps of this size (500: 2000, 2500, 3000 …). */
+  increment: z.number().positive().optional(),
+  /** number: the sign or word after the value ("€", "Personen", "m²"). */
+  unit: z.string().max(16).optional(),
+  /**
+   * How the field is drawn, where its kind has more than one way; without it the runner picks as
+   * it always did. number: "slider" (needs min and max; the value stands large above it) or
+   * "stepper" (minus and plus). select: "list" (one row with a round button per choice, for
+   * choices that need a line of text).
+   */
+  look: z.enum(["slider", "stepper", "list"]).optional(),
   /** file: also offer the camera, for documents the person only has on paper. Images always offer it. */
   camera: z.boolean().optional(),
   /** file: the camera also records short video clips. */
@@ -1454,6 +1468,48 @@ export function templateRefs(template: string): string[] {
  * Structural checks the schema cannot express: ids, references between steps,
  * templates naming things that exist by the time the step runs.
  */
+/** What `min`, `max`, `increment`, `unit` and `look` allow on a field of its kind. */
+function fieldShapeIssues(field: Field): string[] {
+  const issues: string[] = [];
+  const say = (text: string) => issues.push(`Field "${field.id}": ${text}`);
+  const { min, max, increment, unit, look } = field;
+  const number = field.kind === "number";
+  const files = (field.kind === "image" || field.kind === "file") && Boolean(field.multiple);
+  if (min !== undefined || max !== undefined) {
+    if (!number && !files) {
+      say(
+        '"min" and "max" bound a number field or count the files of an image or file field with "multiple".',
+      );
+    } else if (files) {
+      for (const n of [min, max]) {
+        if (n !== undefined && (!Number.isInteger(n) || n < 1 || n > MAX_FILES)) {
+          say(`"min" and "max" count files: whole numbers from 1 to ${MAX_FILES}.`);
+          break;
+        }
+      }
+    }
+    if (min !== undefined && max !== undefined && min > max) {
+      say("min is larger than max.");
+    }
+  }
+  if ((increment !== undefined || unit !== undefined) && !number) {
+    say(`"increment" and "unit" belong to a number field; kind is "${field.kind}".`);
+  }
+  if (increment !== undefined && min !== undefined && max !== undefined && increment > max - min) {
+    say("increment is larger than the range from min to max.");
+  }
+  if (look === "slider" || look === "stepper") {
+    if (!number) {
+      say(`look "${look}" draws a number field; kind is "${field.kind}".`);
+    } else if (look === "slider" && (min === undefined || max === undefined)) {
+      say('look "slider" needs "min" and "max".');
+    }
+  } else if (look === "list" && field.kind !== "select") {
+    say(`look "list" draws a select field; kind is "${field.kind}".`);
+  }
+  return issues;
+}
+
 export function validateWizard(def: WizardDefinition, files?: string[]): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const stepIds = new Set<string>();
@@ -1563,18 +1619,8 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
             message: `Field "${field.id}": ${notShown(field.list ?? "")}`,
           });
         }
-        if (field.min !== undefined || field.max !== undefined) {
-          if ((field.kind !== "image" && field.kind !== "file") || !field.multiple) {
-            issues.push({
-              stepId: step.id,
-              message: `Field "${field.id}": "min" and "max" count the files of an image or file field with "multiple".`,
-            });
-          } else if (field.min !== undefined && field.max !== undefined && field.min > field.max) {
-            issues.push({
-              stepId: step.id,
-              message: `Field "${field.id}": min is larger than max.`,
-            });
-          }
+        for (const message of fieldShapeIssues(field)) {
+          issues.push({ stepId: step.id, message });
         }
         if (field.scan && field.kind !== "text") {
           issues.push({

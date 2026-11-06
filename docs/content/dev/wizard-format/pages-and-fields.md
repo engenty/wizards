@@ -27,8 +27,9 @@ field has a `label` and a `kind`, and may have `required`, `placeholder`, `help`
 | Kind | What the person gives | Keys of its own |
 |---|---|---|
 | `text`, `textarea` | A line, or a few paragraphs | `scan` (text): fill it from a QR code or barcode |
-| `number`, `date`, `email`, `url` | A number, a date, an address, a link | |
-| `select`, `multiselect` | One or several of `options` | `optionsFrom`, `cards` |
+| `number` | A number | `min`, `max`, `increment`, `unit`, `look` |
+| `date`, `email`, `url` | A date, an address, a link | |
+| `select`, `multiselect` | One or several of `options` | `optionsFrom`, `cards`; `look` (select) |
 | `toggle` | Yes or no | |
 | `color` | A colour | |
 | `image` | Photos, taken or uploaded | `multiple`, `min`, `max` (up to 30) |
@@ -40,6 +41,26 @@ field has a `label` and a `kind`, and may have `required`, `placeholder`, `help`
 | `slot` | One appointment time, shown by day | `options` or `optionsFrom`, as ISO 8601 date-times |
 | `connection` | Connects one of their accounts | `connection`: the id of a wizard connection |
 | `list` | Checks and corrects a stored list | `list`: the id of a wizard list |
+
+## Numbers and how a field looks
+
+A number field can have a range and a unit. The server refuses a value outside `min` and `max`.
+
+```json
+{ "id": "budget", "label": "Budget", "kind": "number", "unit": "€",
+  "min": 2000, "max": 30000, "increment": 500, "default": 17000, "look": "slider" }
+```
+
+`look` says how a field is drawn, where its kind has more than one way:
+
+| `look` | Kind | What it draws |
+|---|---|---|
+| `slider` | `number`, with `min` and `max` | The value large, above a slider. Until the person moves it, it shows “–” and holds no answer, unless the field has a `default`. |
+| `stepper` | `number` | Minus and plus around the value, which can also be typed. |
+| `list` | `select` | One row with a round button per choice, for choices that need a line of text. |
+
+Without `look`, a number is a text box, up to five short choices are buttons, and longer ones are a
+dropdown.
 
 ## Uploads
 

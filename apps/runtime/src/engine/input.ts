@@ -213,6 +213,16 @@ export function readPageInput(
       });
       continue;
     }
+    if (field.kind === "number" && typeof v === "number") {
+      if (field.min !== undefined && v < field.min) {
+        errors.push({ field: field.id, message: note("numberAtLeast", { min: field.min }) });
+        continue;
+      }
+      if (field.max !== undefined && v > field.max) {
+        errors.push({ field: field.id, message: note("numberAtMost", { max: field.max }) });
+        continue;
+      }
+    }
     if (field.kind === "select" && !empty(v) && !field.options?.includes(String(v))) {
       errors.push({ field: field.id, message: note("invalidChoice") });
       continue;
