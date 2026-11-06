@@ -225,6 +225,7 @@ export async function spaceConnectionViews(
         pluginName: row.plugin
           ? (loadedPlugin(row.plugin)?.source.manifest.name ?? row.plugin)
           : null,
+        bundleId: row.bundleId,
         account:
           row.signIn === "space" && row.secret
             ? {
@@ -310,6 +311,8 @@ export async function createSpaceConnection(
       spaceId,
       connectorId: found.connector.id,
       plugin,
+      // Its connector came with a plugin for Claude Code or Cursor: it goes with that, too.
+      bundleId: found.bundleId,
       name: input.name,
       signIn: input.signIn,
       // A server nobody checked reaches the AI with its own texts: the admins use it first.

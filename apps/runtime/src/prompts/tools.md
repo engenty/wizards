@@ -160,6 +160,10 @@ No file "${path}" in ${skill}. Its files: ${files}.
 <!-- section: note.skill_folder -->
 This skill's folder is in the sandbox at ${folder}: its SKILL.md and every file. Run its scripts with run_command from the working directory, e.g. python3 ${folder}/scripts/<file>.py, and install what they import first (pip install, npm install). Write what you make outside ${folder}.
 
+<!-- In skill_load's answer for a skill a plugin brought together with a connector. `names`: the connectors; `prefixes`: what their tools' names start with. -->
+<!-- section: note.skill_connector -->
+This skill came together with the connector ${names}. Where this step has a connection to it, its actions are the tools whose names start with ${prefixes}. Without such a tool, follow the skill as far as it goes and say what you could not reach.
+
 <!-- section: note.skill_scripts_refused -->
 This skill's scripts may not run for whoever this step works for: the space's rules keep them closed. Follow its instructions without them.
 

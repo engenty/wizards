@@ -253,6 +253,31 @@ const EN = {
   skillsRegistryMissing: "skills.sh has no skill at {ref}.",
   skillUpdateChanged:
     "skills.sh changed the skill again since you looked. Look at the changes once more.",
+  // A Connector that brings skills: a plugin for Claude Code or Cursor (bundles/).
+  skillOfBundleReadOnly:
+    "A skill that came with a connector stays as it is. Copy it as your own skill to change it.",
+  skillOfBundleStays:
+    "This skill came with a connector. Switch it off, or remove the connector with everything it brought.",
+  bundleNotARepository:
+    "This is no address of a repository on GitHub. It looks like https://github.com/owner/name.",
+  bundleRepoNotFound: "GitHub has no public repository {repo}, or not this branch of it.",
+  bundleRepoDown: "GitHub did not answer. Try again in a moment.",
+  bundleTooLarge: "This is too large. A repository or a zip may have {mb} MB and 50,000 files.",
+  bundleUploadKind: "Upload a plugin as a .zip or a .plugin file.",
+  bundleManifestUnreadable: "{file} in the plugin is not valid JSON.",
+  bundleNoFolder: "The plugin has no folder “{path}”.",
+  bundleNoPlugin:
+    "Nothing here is a plugin for Claude Code or Cursor. A plugin has a manifest, an MCP file or a skills folder.",
+  bundleChoose: "This repository holds several plugins. Choose one of them.",
+  bundleNothingToTake:
+    "This plugin brings nothing a space takes: no MCP server over http and no skill.",
+  bundleAlreadyThere:
+    "The space has “{name}” from here already. Update it on its connector’s page.",
+  bundleChanged: "The plugin changed since you looked. Check it once more.",
+  bundleServerUnknown: "The plugin names no server “{key}”.",
+  bundleServerFailed:
+    "The server “{key}” could not be imported. Leave it out or correct it, then try again: {detail}",
+  bundleUploadAgain: "This one came from a file. Upload the new file to update it.",
 } as const satisfies Record<string, Line>;
 export type ServerKey = keyof typeof EN;
 
@@ -501,6 +526,32 @@ const DE: Partial<Record<ServerKey, Line>> = {
   skillsRegistryMissing: "Auf skills.sh gibt es keinen Skill unter {ref}.",
   skillUpdateChanged:
     "skills.sh hat den Skill seitdem wieder geändert. Sieh dir die Änderungen noch einmal an.",
+  skillOfBundleReadOnly:
+    "Ein Skill, der mit einem Connector kam, bleibt, wie er ist. Kopiere ihn als eigenen Skill, um ihn zu ändern.",
+  skillOfBundleStays:
+    "Dieser Skill kam mit einem Connector. Schalte ihn aus oder entferne den Connector mit allem, was er mitgebracht hat.",
+  bundleNotARepository:
+    "Das ist keine Adresse eines Repositorys auf GitHub. Sie sieht so aus: https://github.com/owner/name.",
+  bundleRepoNotFound:
+    "GitHub hat kein öffentliches Repository {repo}, oder nicht diesen Branch davon.",
+  bundleRepoDown: "GitHub antwortet nicht. Versuch es gleich noch einmal.",
+  bundleTooLarge:
+    "Das ist zu groß. Ein Repository oder ein Zip darf {mb} MB und 50.000 Dateien haben.",
+  bundleUploadKind: "Lade ein Plugin als .zip oder .plugin hoch.",
+  bundleManifestUnreadable: "{file} im Plugin ist kein gültiges JSON.",
+  bundleNoFolder: "Das Plugin hat keinen Ordner „{path}“.",
+  bundleNoPlugin:
+    "Hier liegt kein Plugin für Claude Code oder Cursor. Ein Plugin hat ein Manifest, eine MCP-Datei oder einen Ordner mit Skills.",
+  bundleChoose: "In diesem Repository liegen mehrere Plugins. Wähle eines davon.",
+  bundleNothingToTake:
+    "Dieses Plugin bringt nichts mit, was ein Space übernimmt: keinen MCP-Server über http und keinen Skill.",
+  bundleAlreadyThere:
+    "Der Space hat „{name}“ von hier schon. Aktualisiere es auf der Seite seines Connectors.",
+  bundleChanged: "Das Plugin hat sich geändert, seit du es angesehen hast. Prüfe es noch einmal.",
+  bundleServerUnknown: "Das Plugin nennt keinen Server „{key}“.",
+  bundleServerFailed:
+    "Der Server „{key}“ ließ sich nicht importieren. Lass ihn weg oder korrigiere ihn und versuch es dann noch einmal: {detail}",
+  bundleUploadAgain: "Das kam aus einer Datei. Lade die neue Datei hoch, um es zu aktualisieren.",
 };
 
 export const SERVER_TEXTS: Texts<ServerKey> = { en: EN, de: DE };
