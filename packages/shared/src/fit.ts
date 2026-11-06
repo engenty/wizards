@@ -146,6 +146,9 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
       if (step.timeout || step.remind) {
         add("wait", true);
       }
+      if (Object.values(step.data ?? {}).some((ref) => listRef(dataRef(ref)))) {
+        add("lists", true);
+      }
       for (const field of step.fields) {
         switch (field.kind) {
           case "audio":
@@ -224,8 +227,7 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
       add(step.video ? "widget:video" : "widget", true);
       break;
     case "surface":
-    case "page":
-      if (Object.values(step.data ?? {}).some((ref) => listRef(dataRef(ref)))) {
+      if (Object.values(step.data).some((ref) => listRef(dataRef(ref)))) {
         add("lists", true);
       }
       break;
