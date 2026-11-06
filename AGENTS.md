@@ -16,7 +16,7 @@
 
 - A merge is not a release. `main` is always releasable; a release is cut on purpose with `pnpm release`.
 - Cut one when a feature is complete and its switch flips on, when a fix must reach the people on `latest`, or when the day ends with user-facing changes merged. Otherwise wait. At most one release per half day, unless `latest` is broken.
-- Before 1.0 the version follows the content: minor for a feature or a breaking change, patch for fixes only.
+- Before 1.0 the version follows the content: minor for a major feature or a breaking change, patch for everything else, smaller features too.
 - Read before you cut: `pnpm release --changelog` writes the Unreleased block of `CHANGELOG.md`. If it does not read like a note a user would want, it is not a release yet.
 - A long feature lands behind a switch in `.features`, in small PRs; the PR that flips the switch names the feature.
 - Releases are pull requests too: `pnpm release` commits on `release/vX.Y.Z`; after the merge, `pnpm release:tag` tags main's release commit and pushes the tag (docs/development.md). The tag ships: npm, the GitHub release, the cloud.
