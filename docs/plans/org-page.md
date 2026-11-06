@@ -1,7 +1,7 @@
 # Plan: the organization's page
 
-Status: planned 2026-11-01. Step 1 built on 2026-11-05: the portal app draws the public pages, on
-every release after it; the proxy still sends the host to the Manage-App until its route changes.
+Status: planned 2026-11-01. Step 1 done on 2026-11-06: the portal app serves the host in production
+since v0.17.0, and the Manage-App's renderer is gone.
 Builds on the client portal (`docs/plans/client-portal.md`,
 decision "The organization's page"), the public space page the Manage-App renders today
 (`engenty-wizards-manage` `apps/server/src/pages/`), the `pages` switch and „Wer sieht“ for Wissen
@@ -77,8 +77,9 @@ in the Manage-App name `portal`, `health`, `chat`, `kontakt`, `contact`, `termin
 1. **The app serves the host.** The portal app renders the public space page as the Manage-App
    did (same data, same look), Coolify routes the host to it, the Manage-App's renderer goes.
    The host's answer also says `paused` and `movedTo`; a Manage-App that doesn't answer shows 503,
-   never "nothing here". Done when every page looks the same from the portal app: the example
-   pages' HTML came out identical on 2026-11-05.
+   never "nothing here". Done: the example pages' HTML came out identical on 2026-11-05, the live
+   page's on 2026-11-06. The Manage-App keeps the bare domain and `www.`, and answers a team's host
+   with 503 while the portal app is away.
 2. **The home and its settings.** `home` and `spaces` in the page data, Settings › Organisation ›
    Öffentliche Seite in Studio, the home in the app; plan checks in the Manage-App.
 3. **Wizards and contact.** The two Pro capabilities: the wizards on the home and the contact
