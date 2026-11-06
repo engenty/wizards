@@ -364,3 +364,107 @@ describe("1d: a page laid out with components", () => {
     expect(chat).toContain('Field "f" needs "label".');
   });
 });
+
+describe("1e: inputs in a wizard's views", () => {
+  const view = (...more: object[]) => [
+    { id: "root", component: "Column", children: more.map((m: any) => m.id) },
+    ...more,
+  ];
+  const choice = {
+    id: "people",
+    component: "Choice",
+    state: "servings",
+    default: 2,
+    options: [
+      { label: "2 Personen", value: 2 },
+      { label: "4 Personen", value: 4 },
+    ],
+  };
+  const messages = (...args: Parameters<typeof validateSurface>) =>
+    validateSurface(...args).map((i) => i.message);
+
+  it("are fine in a view, and read like a data key", () => {
+    const figure = { id: "m", component: "Metric", label: "L", value: { calc: "servings * 2" } };
+    const path = { id: "t", component: "Text", text: { path: "/servings" } };
+    expect(messages(view(choice, figure, path), [])).toEqual([]);
+    expect(
+      messages(view(choice, figure, path), { kind: "object", fields: {} } as never),
+    ).toEqual([]);
+    const toggle = { id: "x", component: "Toggle", state: "vegan", label: "Vegan" };
+    const slider = { id: "y", component: "Slider", state: "size", min: 1, max: 9, increment: 2 };
+    expect(messages(view(toggle, slider), [])).toEqual([]);
+  });
+
+  it("the example from the plan, a recipe whose quantities follow the choice", () => {
+    const components = view(choice, {
+      id: "list",
+      component: "Checklist",
+      items: { path: "/ingredients" },
+      labelKey: "name",
+      detail: { calc: "round(amount * servings / 2)", format: "{} {unit}" },
+    });
+    expect(messages(components, ["ingredients"])).toEqual([]);
+    const shape = {
+      kind: "object",
+      fields: {
+        ingredients: {
+          kind: "list",
+          of: {
+            kind: "object",
+            fields: {
+              name: { kind: "text" },
+              amount: { kind: "number" },
+              unit: { kind: "text" },
+            },
+          },
+        },
+      },
+    } as never;
+    expect(messages(components, shape)).toEqual([]);
+    (components[2] as any).detail = { calc: "nope * servings" };
+    expect(messages(components, shape).join()).toContain('reads "nope"');
+    expect(
+      bound({ calc: "round(amount * servings / 2)", format: "{} {unit}" }, { servings: 4 }, {
+        amount: 100,
+        unit: "g",
+      }),
+    ).toBe("200 g");
+  });
+
+  it("never on a page, and never in a chat's view", () => {
+    const page = wizard([
+      {
+        id: "ask",
+        type: "page",
+        title: "Frage",
+        fields: [{ id: "f", label: "F", kind: "text" }],
+        components: view({ id: "b", component: "Field", name: "f" }, choice),
+      },
+      end,
+    ]);
+    expect(said(page).join()).toContain("on a page, a field asks");
+    expect(messages(view(choice), [], { chat: true }).join()).toContain("not a chat's");
+  });
+
+  it("a state name is its own", () => {
+    expect(messages(view(choice, { ...choice, id: "again" }), []).join()).toContain("named twice");
+    expect(messages(view(choice), ["servings"]).join()).toContain("also a data key");
+    const list = { id: "servings", component: "Checklist", items: [] };
+    expect(messages(view(choice, list), []).join()).toContain("id of a Checklist");
+  });
+
+  it("each has what it needs", () => {
+    expect(messages(view({ id: "c", component: "Choice", state: "a" }), []).join()).toContain(
+      'needs "options"',
+    );
+    expect(
+      messages(view({ id: "c", component: "Choice", state: "a", options: [] }), []).join(),
+    ).toContain("values, or { label, value }");
+    expect(messages(view({ id: "t", component: "Toggle", state: "a" }), []).join()).toContain(
+      'needs "label"',
+    );
+    expect(
+      messages(view({ id: "s", component: "Slider", state: "a", min: 5, max: 1 }), []).join(),
+    ).toContain("min below max");
+  });
+});

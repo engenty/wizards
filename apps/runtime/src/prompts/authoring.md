@@ -555,6 +555,8 @@ Components and props (a prop may be a literal or {"path": "/key/..."} into the d
 - File { file: an asset id or {"path": ...}, name, mime?, preview?: false } — a file with its name and Open; a PDF or picture shows itself unless preview is false
 - Video { src, poster? } / Audio { src, title? } — a clip or a recording, an asset id or {"path": ...}
 - Gallery { items: [asset ids] or {"path": ...}, srcKey?, captionKey? } — pictures side by side; srcKey / captionKey: the keys of entries that are objects
+- Choice { state, options: [values] or [{ label, value }], default?, look?: "list" } / Toggle { state, label, default? } / Slider { state, min, max, increment?, unit?, label?, default? } — only in a wizard's views (surface steps, output.surface): what the person sets there changes the view at once and is kept with the run, without a step of its own. Paths and calc read it by its state name, like a data key ("round(amount * servings / 2)"). A state name is unique in its view and is no data key. On a page, a field asks instead
+A Checklist may take detail: {"calc": "round(amount * servings / 2)", "format": "{} {unit}"} next to detailKey: worked out per entry, its names read the entry's columns.
 A path may put its value into words: {"path": "in_fridge", "map": {"true": "da", "false": "einkaufen"}}, {"path": "minutes", "format": "{} Min"}.
 Design it like an app, not a report: lead with a headline, the key figure or the chips; one Card per thing, never a Table of things; ordered work is Steps, things to get are a Checklist, sets are grouped by their key. A Table only for figures people compare across columns.
 Keep it small: what the person needs to see first, then the details. Never invent numbers: bind them by path.
