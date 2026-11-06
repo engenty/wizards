@@ -168,12 +168,12 @@ describe("the triggers", () => {
     const space = readFileSync(join(migrations, "0031_space.sql"), "utf8");
     expect(space).toContain(liveTriggerSql(LIVE_TABLES));
     expect(space).toContain(liveTriggerSql([PRESENCE_TABLE]));
-    // The table of held calls was made anew since (0059 to 0061), and 0062 made its triggers again.
+    // The table of held calls was made anew since (0063 to 0065), and 0066 made its triggers again.
     const held = (t: { table: string }) => t.table === "approval";
     for (const table of CHAT_TABLES.filter((t) => !held(t))) {
       expect(space).toContain(liveTriggerSql([table]));
     }
-    expect(readFileSync(join(migrations, "0062_approval_live.sql"), "utf8")).toContain(
+    expect(readFileSync(join(migrations, "0066_approval_live.sql"), "utf8")).toContain(
       liveTriggerSql(CHAT_TABLES.filter(held)),
     );
   });
