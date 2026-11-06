@@ -1,11 +1,15 @@
+import { calcNames, calcScope, calcValue, parseCalc } from "@engenty/wizards-shared/calc";
 import {
   type PageStep,
+  ruleMatches,
+  whenHolds,
   sectionOf,
   sectionsOf,
   validateWizard,
   type WizardDefinition,
   wizardSchema,
 } from "@engenty/wizards-shared/definition";
+import { bound, validateSurface, worded } from "@engenty/wizards-shared/surface";
 import { describe, expect, it } from "vitest";
 import { readPageInput } from "../src/engine/input";
 
@@ -126,5 +130,142 @@ describe("1b: sections", () => {
 
   it("a wizard without sections has none", () => {
     expect(sectionsOf(wizard([page("a"), end]))).toEqual([]);
+  });
+});
+
+describe("1c: calculated values", () => {
+  const work = (source: string, values: object = {}) => calcValue(source, calcScope(values));
+
+  it("works out numbers and texts, answers as typed included", () => {
+    expect(work("demo / budget", { demo: 9000, budget: "18000" })).toBe(0.5);
+    expect(work("1 + 2 * 3")).toBe(7);
+    expect(work("(1 + 2) * 3")).toBe(9);
+    expect(work("-2 + 5")).toBe(3);
+    expect(work("7 % 3")).toBe(1);
+    expect(work("0.1 + 0.2")).toBe(0.3);
+    expect(work('size == "Groß"', { size: "Groß" })).toBe(true);
+    expect(work('"2" == 2')).toBe(true);
+  });
+
+  it("the functions, and nothing else", () => {
+    expect(work("round(2.345, 2)")).toBe(2.35);
+    expect(work("round(2.5)")).toBe(3);
+    expect(work("min(3, 1, 2)")).toBe(1);
+    expect(work("max(a)", { a: [1, 5] })).toBe(5);
+    expect(work("count(items)", { items: [1, 2] })).toBe(2);
+    expect(work("sum(items, price)", { items: [{ price: 2 }, { price: "3" }, {}] })).toBe(5);
+    expect(work("sum(items)", { items: [1, 2] })).toBe(3);
+    expect(work('if(a > 1, "viel", "wenig")', { a: 2 })).toBe("viel");
+    expect(parseCalc("eval(1)")).toHaveProperty("error");
+    expect(parseCalc("constructor(1)")).toHaveProperty("error");
+    expect(parseCalc("if(1, 2)")).toHaveProperty("error");
+  });
+
+  it("what is not its language does not read", () => {
+    for (const source of ["a = 1", "a[0]", "a;b", "`x`", "1 +", "(1", '"x', "a b", "a.b()"]) {
+      expect(parseCalc(source), source).toHaveProperty("error");
+    }
+  });
+
+  it("what cannot be worked out is empty", () => {
+    expect(work("1 / 0")).toBeUndefined();
+    expect(work("a + 1")).toBeUndefined();
+    expect(work("a > 1")).toBeUndefined();
+    expect(work('a + 1', { a: "nichts" })).toBeUndefined();
+    expect(work("a == 1")).toBe(false);
+    expect(work('a == ""')).toBe(true);
+    expect(work("not a")).toBe(true);
+  });
+
+  it("names read own values only, as a key or key by key", () => {
+    expect(work("steps.a.b", { "steps.a.b": 3 })).toBe(3);
+    expect(work("row.x", { row: { x: 4 } })).toBe(4);
+    expect(work("a.__proto__", { a: {} })).toBeUndefined();
+    expect(work("constructor.name", {})).toBeUndefined();
+  });
+
+  it("lists the names it reads, without what a function names", () => {
+    const node = parseCalc("sum(items, price) + if(a, b, lists.x.count)");
+    expect("error" in node ? [] : calcNames(node).sort()).toEqual(["a", "b", "items", "lists.x.count"]);
+  });
+
+  it("is a third form of when, the same for fields and branches", () => {
+    const when = { calc: "budget > demo * 2" };
+    expect(whenHolds(when, { budget: 100, demo: 10 })).toBe(true);
+    expect(whenHolds(when, { budget: 10, demo: 10 })).toBe(false);
+    expect(whenHolds(when, {})).toBe(false);
+    expect(ruleMatches({ when, goto: "x" } as never, { budget: 100, demo: 10 })).toBe(true);
+    expect(whenHolds({ field: "a", op: "equals", value: "1" }, { a: "1" })).toBe(true);
+  });
+
+  const page = (extra: object = {}) => ({
+    id: "ask",
+    type: "page",
+    title: "Frage",
+    fields: [
+      { id: "budget", label: "B", kind: "number" },
+      { id: "note", label: "N", kind: "text", ...extra },
+    ],
+  });
+
+  it("the validator reads a when's calculation like its conditions", () => {
+    expect(said(wizard([page({ when: { calc: "budget > 2" } }), end]))).toEqual([]);
+    expect(said(wizard([page({ when: { calc: "nope > 2" } }), end])).join()).toContain(
+      '"when" reads "nope"',
+    );
+    expect(said(wizard([page({ when: { calc: "budget >" } }), end])).join()).toContain(
+      "cannot be worked out",
+    );
+    const branch = (calc: string) =>
+      wizard([{ ...page(), next: [{ when: { calc }, goto: "done" }] }, end]);
+    expect(said(branch("budget > 2"))).toEqual([]);
+    expect(said(branch("nope > 2")).join()).toContain('Branch reads unknown field "nope"');
+  });
+
+  it("a prop may be a calculation, written as the wizard writes numbers", () => {
+    const data = { demo: 9000, budget: 18000 };
+    expect(bound({ calc: "demo / budget", as: "percent" }, data, undefined, "de")).toMatch(/^50\s%$/);
+    expect(bound({ calc: "demo", as: "number" }, data, undefined, "de")).toBe("9.000");
+    expect(bound({ calc: "demo * 0" }, data)).toBe(0);
+    expect(bound({ calc: "1 / 0" }, data)).toBe("–");
+    expect(bound({ calc: "if(demo <= budget, 1, 2)", map: { "1": "im Rahmen" } }, data)).toBe(
+      "im Rahmen",
+    );
+    expect(bound({ calc: "amount * 2" }, data, { amount: 3 })).toBe(6);
+    expect(bound({ path: "/demo", as: "number" }, data, undefined, "de")).toBe("9.000");
+    expect(bound({ path: "/demo" }, data)).toBe(9000);
+  });
+
+  it("format takes the columns of its row", () => {
+    expect(worded(200, { format: "{} {unit}" }, { row: { unit: "g" } })).toBe("200 g");
+    expect(worded(200, { format: "{} {other}" }, { row: {} })).toBe("200 {other}");
+  });
+
+  it("a view's calculations are checked at their place", () => {
+    const view = (value: object) => [
+      { id: "root", component: "Column", children: ["m"] },
+      { id: "m", component: "Metric", label: "L", value },
+    ];
+    expect(validateSurface(view({ calc: "a + 1" }), ["a"])).toEqual([]);
+    expect(validateSurface(view({ calc: "b + 1" }), ["a"])[0].message).toContain("reads \"b\"");
+    expect(validateSurface(view({ calc: "a +" }), ["a"])[0].message).toContain("cannot be worked out");
+    expect(validateSurface(view({ calc: "a", as: "money" }), ["a"])[0].message).toContain('"as"');
+  });
+
+  it("inside a repeat, a calculation reads the row", () => {
+    const components = [
+      { id: "root", component: "List", children: { path: "/rows", componentId: "row" } },
+      { id: "row", component: "Metric", label: "L", value: { calc: "amount * 2" } },
+    ];
+    expect(validateSurface(components, ["rows"])).toEqual([]);
+    const shape = {
+      kind: "object",
+      fields: {
+        rows: { kind: "list", of: { kind: "object", fields: { amount: { kind: "number" } } } },
+      },
+    } as never;
+    expect(validateSurface(components, shape)).toEqual([]);
+    components[1].value = { calc: "nope * 2" };
+    expect(validateSurface(components, shape)[0].message).toContain('reads "nope"');
   });
 });

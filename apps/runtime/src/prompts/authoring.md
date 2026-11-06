@@ -173,7 +173,7 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   section: the part of the wizard the step belongs to, at most 24 characters ("Budget"). The progress bar names each once, in the
 //   order of the steps, and stays the same on every branch. A step without one belongs to the part before it. For a wizard of 3 parts
 //   or more. The steps of a section stand together: "A", "B", "A" is an issue.
-// Branch = { when: Condition | Condition[], goto: stepId | "end", max? }
+// Branch = { when: Condition | Condition[] | { calc }, goto: stepId | "end", max? }
 //        | { ask: "a statement about the run", goto: stepId | "end", max? }
 //        | { goto: stepId | "end" }   // otherwise: where the run goes when no other branch holds (one per step)
 //   ask: a decision reads the person's answers and what the steps made so far and takes the branch when the
@@ -184,6 +184,7 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   the check passes": a decision step branches back to the writing step) — give it max (at most 10 without);
 //   the step that runs again sees what it made last time.
 // Condition = { field, op: "equals"|"notEquals"|"in"|"notEmpty"|"empty"|"gt"|"lt"|"contains", value? }
+// { calc: "budget > steps.estimate.total * 2" }: for a test conditions cannot write; names read as `field` does. The language is under the surface catalog. Anything a condition can say stays a condition.
 //   field is a page field id, an output field of this or an earlier agent step as "steps.<stepId>.<fieldId>",
 //   or how many rows a stored list has as "lists.<listId>.count"
 //   gt / lt compare numbers (value is a number); contains looks into a multiselect, a list output or a text;
@@ -223,7 +224,7 @@ type Field = {
   list?: listId                 // kind "list": the page shows that stored list for the person to check, correct and extend
   prefill?: "steps.<id>.<key>"  // what the field starts with, from an earlier step. An "items" field takes a table whose
                                 //   columns are exactly its column ids — the step proposes the positions, the person corrects them
-  when?: Condition | Condition[] // the field is shown only while this holds: it reads another field of the SAME page (decided as
+  when?: Condition | Condition[] | { calc } // the field is shown only while this holds: it reads another field of the SAME page (decided as
                                 //   the person types) or anything known before the page (an earlier answer, steps.<id>.<field>).
                                 //   A hidden field is not required and not kept; its {{template}} is empty.
   optionsFrom?: "steps.<id>.<key>" | "steps.<id>.<key>.<column>" | "lists.<id>.<column>"
@@ -517,6 +518,8 @@ one-off pages stay "generate" steps. A widget is code in the wizard's WORKSPACE 
 <!-- section: surfaces -->
 <!-- The surface catalog: what a model needs to compose a view (also used by engine/steps.ts). -->
 A surface is a flat JSON array of components; the one with id "root" is drawn. Containers list their children by id.
+A prop may also be {"calc": "demo / budget", "as"?: "number"|"percent", "map"?, "format"?}: a calculation in a closed language, worked out in the browser. Values: numbers, "text", true, false. Names: a data key, a column of the entry inside a repeat. Operators: + - * / %, == != < <= > >=, and or not, ( ). Functions: round(x, digits), min(…), max(…), sum(list, column), count(list), if(test, a, b). Nothing else: no assignment, no other calls. What cannot be worked out (an empty answer, a division by zero) shows "–". `format` takes {} for the value and {column} for a column of the entry. `as` works on a path too.
+
 Components and props (a prop may be a literal or {"path": "/key/..."} into the data):
 - Column { children: [ids] } — vertical stack (use for root); Column and Grid may also repeat one component per entry: children {"path", "componentId"}
 - Text { text, variant?: "h3"|"h4"|"lead"|"body"|"muted" } — "lead": the one opening line in the wizard's voice

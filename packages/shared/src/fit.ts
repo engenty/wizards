@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import {
   type AssetKind,
-  conditionsOf,
   dataRef,
   type FieldKind,
   type Format,
@@ -15,6 +14,7 @@ import {
   type ToolId,
   templateRefs,
   type WizardDefinition,
+  whenNames,
 } from "./definition.js";
 import type { ClosedChoice } from "./run.js";
 
@@ -401,7 +401,7 @@ export function unavoidableFrom(
         continue;
       }
       const target = rule.goto === "end" ? def.steps.length : (index.get(rule.goto) ?? -1);
-      if (rule.ask || !conditionsOf(rule.when).every((c) => c.field in known)) {
+      if (rule.ask || !whenNames(rule.when).every((name) => name in known)) {
         if (target >= 0) {
           out.push(target);
         }

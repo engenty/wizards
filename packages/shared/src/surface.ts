@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import { z } from "zod";
+import { calcNames, calcScope, evalCalc, parsedCalc } from "./calc.js";
 import { type FieldShape, type ListShape, type ObjectShape, shapeAt } from "./shape.js";
 
 /**
@@ -14,7 +15,9 @@ import { type FieldShape, type ListShape, type ObjectShape, shapeAt } from "./sh
  * surface's data. A `List`, `Table` or `Group` repeats over an array: inside a repeated row, a
  * path without a leading slash reads the row ("name"), one with a slash the whole data. A path
  * may turn what it reads into words: `map` looks the value up (`{ "true": "im Kühlschrank" }`),
- * `format` sets it into a text ("{} Min").
+ * `format` sets it into a text ("{} Min"). Next to `path`, a prop may be `{ "calc": "demo / budget" }`,
+ * worked out from the data and the row (calc.ts); it takes the same `map` and `format`, and both
+ * take `as` ("number", "percent") to write a number in the wizard's locale.
  *
  * A chat's view (Work, `show_view`) may also ask: a `Form` of `Field`s, a `Ref` to a thing of the
  * space, a Button that asks the AI. A wizard asks on its pages, so its views take none of them.
@@ -157,6 +160,76 @@ export interface SurfaceIssue {
 
 const isPath = (v: unknown): v is { path: string } =>
   Boolean(v && typeof v === "object" && !Array.isArray(v) && typeof (v as any).path === "string");
+
+const isCalc = (v: unknown): v is { calc: string; as?: unknown } =>
+  Boolean(v && typeof v === "object" && !Array.isArray(v) && typeof (v as any).calc === "string");
+
+/** Every `{ calc }` in a prop's value. */
+function calcsIn(value: unknown): { calc: string; as?: unknown }[] {
+  if (isCalc(value)) {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap(calcsIn);
+  }
+  return value && typeof value === "object" ? Object.values(value).flatMap(calcsIn) : [];
+}
+
+/** What a calculation names at the top: `row.total` reads the key `row`. */
+const headOf = (name: string) => name.split(".")[0];
+
+/** The components drawn for each entry of a list: their calculations read that entry too. */
+function repeatedIds(components: SurfaceComponent[]): Set<string> {
+  const byId = new Map(components.map((c) => [c.id, c]));
+  const out = new Set<string>();
+  const mark = (cid: string) => {
+    if (!out.has(cid)) {
+      out.add(cid);
+      const c = byId.get(cid);
+      if (c) {
+        childIds(c).forEach(mark);
+      }
+    }
+  };
+  for (const c of components) {
+    if (c.children && !Array.isArray(c.children)) {
+      mark(c.children.componentId);
+    }
+    const view = (c as Record<string, unknown>).view;
+    if (c.component === "Link" && typeof view === "string") {
+      mark(view);
+    }
+  }
+  return out;
+}
+
+/** What can be wrong with the calculations of a component: their text, `as`, and given what the place holds, their names. */
+function componentCalcIssues(c: SurfaceComponent, allowed: Set<string> | null): SurfaceIssue[] {
+  const issues: SurfaceIssue[] = [];
+  for (const [key, value] of Object.entries(c)) {
+    if (key === "id" || key === "component" || key === "children") {
+      continue;
+    }
+    for (const spec of calcsIn(value)) {
+      const node = parsedCalc(spec.calc);
+      if ("error" in node) {
+        issues.push({ message: `"${c.id}": "${spec.calc}" cannot be worked out: ${node.error}` });
+        continue;
+      }
+      if (spec.as !== undefined && spec.as !== "number" && spec.as !== "percent") {
+        issues.push({ message: `"${c.id}": "as" is "number" or "percent".` });
+      }
+      if (allowed) {
+        for (const name of calcNames(node)) {
+          if (!allowed.has(headOf(name))) {
+            issues.push({ message: `"${c.id}" reads "${name}", which no data provides.` });
+          }
+        }
+      }
+    }
+  }
+  return issues;
+}
 
 /**
  * The ids a component draws: its children, the views of its tabs. A Link's view is drawn only
@@ -335,6 +408,15 @@ function shapeIssues(byId: Map<string, SurfaceComponent>, root: ObjectShape): Su
           say(c, path, scope);
         }
       }
+      for (const spec of calcsIn(value)) {
+        const node = parsedCalc(spec.calc);
+        for (const name of "error" in node ? [] : calcNames(node)) {
+          const head = headOf(name);
+          if (!(head in root.fields) && !(scope !== undefined && hasKey(scope, head))) {
+            issues.push({ message: `"${c.id}" reads "${name}", which no data provides.` });
+          }
+        }
+      }
     }
     const kids = c.children;
     if (Array.isArray(kids)) {
@@ -400,7 +482,10 @@ export function validateSurface(
     issues.push({ message: 'A surface has a component with id "root".' });
   }
   issues.push(...askIssues(components, byId, Boolean(options.chat)));
+  const repeated = repeatedIds(components);
+  const keys = dataKeys ? new Set(dataKeys) : null;
   for (const c of components) {
+    issues.push(...componentCalcIssues(c, repeated.has(c.id) ? null : keys));
     for (const prop of REQUIRED[c.component] ?? []) {
       if ((c as Record<string, unknown>)[prop] === undefined) {
         issues.push({ message: `${c.component} "${c.id}" needs "${prop}".` });
@@ -552,7 +637,13 @@ export function pointer(data: unknown, path: string): unknown {
  * A prop's value: a literal as it is, a path read from the data — or, without a leading slash,
  * from the row a List or Table repeats over.
  */
-export function bound(value: unknown, data: unknown, row?: unknown): unknown {
+export function bound(value: unknown, data: unknown, row?: unknown, locale?: string): unknown {
+  if (isCalc(value)) {
+    const node = parsedCalc(value.calc);
+    const raw = "error" in node ? undefined : evalCalc(node, calcScope(row, data));
+    // What cannot be worked out is empty, and says so.
+    return raw === undefined ? "–" : worded(raw, value, { row, locale });
+  }
   if (!isPath(value)) {
     return value;
   }
@@ -561,12 +652,25 @@ export function bound(value: unknown, data: unknown, row?: unknown): unknown {
     : row === undefined
       ? undefined
       : pointer(row, `/${value.path.replace(/\./g, "/")}`);
-  return worded(raw, value as { map?: unknown; format?: unknown });
+  return worded(raw, value as { as?: unknown; map?: unknown; format?: unknown }, { row, locale });
 }
 
-/** A value turned into words as its path says: looked up in `map`, set into `format`. */
-export function worded(raw: unknown, spec: { map?: unknown; format?: unknown }): unknown {
+/**
+ * A value turned into words as its path or calc says: written as `as` says ("number" with the
+ * locale's separators, "percent"), looked up in `map`, set into `format`, whose `{}` is the value
+ * and `{column}` a column of the row it is drawn in.
+ */
+export function worded(
+  raw: unknown,
+  spec: { as?: unknown; map?: unknown; format?: unknown },
+  at: { row?: unknown; locale?: string } = {},
+): unknown {
   let v = raw;
+  if (typeof v === "number" && (spec.as === "number" || spec.as === "percent")) {
+    v = new Intl.NumberFormat(at.locale, spec.as === "percent" ? { style: "percent" } : {}).format(
+      v,
+    );
+  }
   const map = spec.map;
   if (map && typeof map === "object" && !Array.isArray(map)) {
     const key = String(v);
@@ -575,7 +679,14 @@ export function worded(raw: unknown, spec: { map?: unknown; format?: unknown }):
     }
   }
   if (typeof spec.format === "string" && v !== undefined && v !== null && v !== "") {
-    v = spec.format.replace("{}", Array.isArray(v) ? v.join(", ") : String(v));
+    const row = at.row;
+    v = spec.format
+      .replace("{}", Array.isArray(v) ? v.join(", ") : String(v))
+      .replace(/\{(\w+)\}/g, (whole, column: string) =>
+        row && typeof row === "object" && Object.hasOwn(row, column)
+          ? String((row as Record<string, unknown>)[column] ?? "")
+          : whole,
+      );
   }
   return v;
 }
