@@ -243,7 +243,11 @@ for credits. Waiting costs nothing. Manage counts a hold for 24 hours, and reser
 ## With fast-creation
 
 `nextInBrowser` returns null when the next step is a `wait`, a page or review with `who` other than `person`,
-or a step with a `timeout`. The server's state wins over what someone is still typing.
+or a step with a `timeout` or `remind`. `remindersOf` writes the reminder with the wait as the run reaches the
+page, so the browser can't go to such a page alone. The server's state wins over what someone is still typing.
+
+The rest is in `fast-creation.md` Part 4: the server shortcut in `answerGoesOn`, and `run.unsent` for what is
+typed.
 
 ## PRs
 
