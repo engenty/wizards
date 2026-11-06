@@ -14,13 +14,12 @@ import {
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { lang, t } from "./i18n.js";
-
-/** A prop's value, numbers written as the person's language writes them. */
-const bound = (value: unknown, data: unknown, row?: unknown) => boundTo(value, data, row, lang);
-
 import { Markdown } from "./outputs.js";
 import { FormView, type SurfaceChat } from "./surface-form.js";
 import { cn, Dialog, Tabs as Segments } from "./ui.js";
+
+/** A prop's value, numbers written as the person's language writes them. */
+const bound = (value: unknown, data: unknown, row?: unknown) => boundTo(value, data, row, lang);
 
 /**
  * A surface drawn with the runner's own components: the catalog in shared/surface.ts, nothing
@@ -45,6 +44,8 @@ interface Ctx {
   open: (view: string, row: unknown) => void;
   /** A chat's view: its Refs, its Form. */
   chat?: SurfaceChat;
+  /** A page's layout: draws one of its fields where a `Field` places it. */
+  field?: (name: string) => React.ReactNode;
 }
 
 // A yes/no without words of its own reads as yes or no, never as true or false.
@@ -1090,6 +1091,8 @@ function Node({ id, ctx, row }: { id: string; ctx: Ctx; row?: unknown }) {
       return <RefView c={c} ctx={ctx} row={row} />;
     case "Form":
       return <FormView c={c} byId={ctx.byId} data={ctx.data} chat={ctx.chat} />;
+    case "Field":
+      return <>{ctx.field?.(text((c as Record<string, unknown>).name))}</>;
   }
   return null;
 }
@@ -1101,6 +1104,7 @@ export function SurfaceView({
   initial,
   onState,
   chat,
+  field,
 }: {
   surface: Surface;
   assetUrl: (id: string) => string;
@@ -1111,6 +1115,8 @@ export function SurfaceView({
   initial?: SurfaceState;
   /** Keeps what the person did; without it, it lasts as long as the page. */
   onState?: (next: SurfaceState) => void;
+  /** A page's layout: draws one of its fields where a `Field` places it. */
+  field?: (name: string) => React.ReactNode;
 }) {
   const [state, setState] = useState<SurfaceState>(initial ?? {});
   const [sheet, setSheet] = useState<{ view: string; row: unknown } | null>(null);
@@ -1127,6 +1133,7 @@ export function SurfaceView({
     },
     open: (view, row) => setSheet({ view, row }),
     chat,
+    field,
   };
   return (
     <>

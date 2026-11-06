@@ -1333,6 +1333,98 @@
                   },
                   "cta": {
                     "type": "string"
+                  },
+                  "components": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,40}$"
+                        },
+                        "component": {
+                          "type": "string",
+                          "enum": [
+                            "Column",
+                            "Text",
+                            "List",
+                            "Row",
+                            "DetailGrid",
+                            "Badge",
+                            "Grid",
+                            "Metric",
+                            "Table",
+                            "Image",
+                            "BarChart",
+                            "LineChart",
+                            "DonutChart",
+                            "Actions",
+                            "Button",
+                            "Tabs",
+                            "Card",
+                            "Fold",
+                            "Group",
+                            "Chips",
+                            "Checklist",
+                            "Steps",
+                            "Link",
+                            "Callout",
+                            "Markdown",
+                            "Sources",
+                            "File",
+                            "Video",
+                            "Audio",
+                            "Gallery",
+                            "Ref",
+                            "Form",
+                            "Field"
+                          ]
+                        },
+                        "children": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "path": {
+                                  "type": "string"
+                                },
+                                "componentId": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "path",
+                                "componentId"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "component"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  },
+                  "data": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    }
                   }
                 },
                 "required": [
