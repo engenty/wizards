@@ -153,8 +153,8 @@ export interface BrokerCallInput<T = unknown> {
  * its mails and posts; `day_limit` – the wizard's guests have sent today's; `calls_per_run` – the
  * run has made the calls the connection takes from one run; `calls_per_day` – the connection has
  * taken today's calls; `run_ended` – the call's run was stopped, is done or failed (over.ts);
- * `paused` – an admin paused the connection; `may_have_happened` – the action was interrupted before,
- * and no person allowed it again.
+ * `paused` – an admin paused the connection; `may_have_happened` – the action was interrupted
+ * before, and no person allowed it again.
  */
 export type Refusal = BrokerRefusal;
 
@@ -167,8 +167,8 @@ export interface Decision {
   /**
    * Which rule decided, as the log and „Was darf …?“ name it: `grant`, `audience`, `actions`,
    * `ai_step_writes`, `rules.<kind>` (a connection of the space), `destructive`, `policy.<action>`
-   * (a wizard's connection), `read`, `own_job`, `autonomous_mode`, `paused`. A run that is over is logged as
-   * `run.<status>` (over.ts), before any decision here; a call past a connection's limit as
+   * (a wizard's connection), `read`, `own_job`, `autonomous_mode`, `paused`. A run that is over is
+   * logged as `run.<status>` (over.ts), before any decision here; a call past a connection's limit as
    * `limits.run` or `limits.day`, after it. The log also has `once` (broker/effect.ts).
    */
   rule: string;
@@ -752,7 +752,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     if (effectId) {
       await effectDone(effectId, result);
     }
-    // A line that took its place stays only if it is closed; a pull that found nothing else says nothing.
+    // A line that took its place is always closed; else a pull that found nothing says nothing.
     if (open || !call.quietWhen?.(result)) {
       await end("ok", sizeOf(result), { firstUse });
     }
@@ -780,7 +780,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
  * a connection of the space says; a wizard's own connection names its connector only once its
  * account is read, so an action of unknown kind counts as a write there.
  */
-function kindBefore(call: BrokerCallInput<unknown>): ActionKind {
+function kindBefore<T>(call: BrokerCallInput<T>): ActionKind {
   if (call.action.kind) {
     return call.action.kind;
   }

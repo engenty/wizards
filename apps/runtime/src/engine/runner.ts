@@ -2617,8 +2617,8 @@ export async function goBack(runId: string, by?: Actor) {
   if (!previous) {
     throw new RunConflict({ code: "noStepBefore" });
   }
-  // A decision that failed belongs to the step left behind, and so do a visit that stopped and its
-  // tries.
+  // A decision that failed belongs to the step left behind, and so do a visit that stopped, its
+  // tries and its turn.
   delete state.deciding;
   delete state.visiting;
   delete state.retries;
@@ -2646,8 +2646,8 @@ export async function retry(runId: string) {
   if (refused) {
     throw new RunConflict(refused);
   }
-  // A person's "try again" gets every try anew, and a turn that failed has dropped its snapshot:
-  // the step starts over with a new one.
+  // A person's "try again" gets every try anew. A turn that failed has dropped its snapshot: the
+  // step starts over with a new one.
   const state = structuredClone(run.state);
   delete state.retries;
   delete state.pause;

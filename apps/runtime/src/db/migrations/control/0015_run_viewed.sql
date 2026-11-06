@@ -1,1 +1,0 @@
-ALTER TABLE `run_index` ADD `viewed_at` integer;

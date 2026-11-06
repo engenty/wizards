@@ -24,7 +24,7 @@ async function setAsk(
     .set({ ask, answer: null, updatedAt: new Date() })
     .where(where);
   if (notice) {
-    await db.batch([...noticeWrites(notice, where), write]);
+    await db.batch([...noticeWrites(notice, where), write] as never);
   } else {
     await write;
   }

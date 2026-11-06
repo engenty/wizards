@@ -128,8 +128,6 @@ export interface RunState {
    * restart keeps the number, a real re-entry gets a new one (broker/effect.ts).
    */
   visits?: Record<string, number>;
-  /** The durable agent step at work (engine/durable-turn.ts); gone when the step has finished. */
-  turn?: RunTurn;
   /** The step whose visit is open; finishing it, or going back, closes it. */
   visiting?: string;
   /** The step that keeps failing, how often it was given another try, and since when. */
@@ -143,6 +141,8 @@ export interface RunState {
    * since they did it themselves. A step that worked in between is news to them again.
    */
   lastBy?: { userId?: string | null; visitorId?: string | null; next: string | null };
+  /** The durable agent step at work (engine/durable-turn.ts); gone when the step has finished. */
+  turn?: RunTurn;
 }
 
 /**
@@ -349,7 +349,6 @@ const NOTES_EN = {
   runWaitsAnswerUntil: "waits for an answer, until {until} at the latest",
   answerTooLate: "The time to answer ran out, and the wizard has gone on.",
   reminderSent: "Sent a reminder.",
-  notAnApproval: "This review has nothing to decline.",
   waitsOff: "This wizard has a wait step, and those aren’t turned on here yet.",
   waitDateUnreadable: "“{date}” isn’t a date this step can wait for.",
   runStarted: "Run started",
@@ -859,7 +858,6 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   runWaitsAnswerUntil: "wartet auf eine Antwort, höchstens bis {until}",
   answerTooLate: "Die Zeit für eine Antwort ist abgelaufen, und der Wizard ist weitergegangen.",
   reminderSent: "Erinnerung gesendet.",
-  notAnApproval: "Bei dieser Prüfung gibt es nichts abzulehnen.",
   waitsOff: "Dieser Wizard hat einen Warten-Schritt, und die sind hier noch nicht eingeschaltet.",
   waitDateUnreadable: "„{date}“ ist kein Datum, auf das dieser Schritt warten kann.",
   runStarted: "Lauf gestartet",
