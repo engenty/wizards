@@ -1,9 +1,12 @@
 # Plan: fast creation and pages without waiting
 
-Status: plan, nothing built. From the review of ChatGPT's Intelligent UI on 2026-10-29, checked
-against `feat/work-mode` (v0.13.0, Work mode, spaces, model tiers) on 2026-10-30. Part 4, the
-order and the fit with durable runs corrected on 2026-11-06, against `main` and the local branch
-`claude/durable-runs-combined` (6bac6ed0), by reading the code. Nothing is measured yet.
+Status: Part 1 is built on `claude/durable-runs-combined` (`a719337c` to `fe9b26d3`, on GitHub, no
+PR) and is not on `main`. Parts 2 to 5 are a plan. From the review of ChatGPT's Intelligent UI on
+2026-10-29, checked against `feat/work-mode` (v0.13.0, Work mode, spaces, model tiers) on
+2026-10-30. Part 4, the order and the fit with durable runs corrected on 2026-11-06, against `main`
+and that branch at 6bac6ed0, by reading the code. Part 1 brought in line with what was built the
+same day, against `fe9b26d3`. Page to page is measured once, on a laptop (Order, step 1). An
+architect turn is not measured yet.
 
 Scope: a new wizard shows its first page about two seconds after the wish, and a run moves from
 page to page without waiting on the server. The definition stays JSON and stays at version 2:
@@ -83,8 +86,35 @@ model.
 
 ## Part 1 — the format
 
-All changes are in `packages/shared/src/definition.ts`, `packages/shared/src/surface.ts`, a new
-`packages/shared/src/calc.ts` and `packages/shared/src/run.ts`.
+Built on 2026-11-06 on `claude/durable-runs-combined`, ahead of the order below, because Matthias
+asked for it there. The sections below say what was built. The files are in "Changes by file".
+
+| Part | Commits |
+|---|---|
+| 1a fields | `a719337c`, `bfb305fd` (the round buttons of `look: "list"`) |
+| 1b sections | `497c64bd` |
+| 1c `calc` | `145a5399` |
+| 1d page components, with `Field` on a page | `f7f13ab6`, `fe9b26d3` (a page that reads a stored list needs one) |
+| 1e `Choice`, `Toggle`, `Slider` | `b51fc215` |
+
+Tested, as the session that built it reported; not run again for this note:
+
+- Runtime suite at `fe9b26d3`, switches on: 1831 pass, 2 fail (`knowledge`, `plugin-hooks`, which
+  also fail on clean `main`). Switches off at `bfb305fd`: 1830 pass, the same 2 fail.
+- Web at `bfb305fd`: 43 pass, 1 skipped.
+- In the browser, on a test wizard in the studio's preview: the section bar, unit, list, stepper,
+  slider, live `calc` on a page, `Choice` and `detail` in a view. A `Choice` survives opening the
+  run fresh.
+- Not tried in a browser: phone width, a translated run, page `data` reading a real AI step, a run
+  with `calc` on a branch (unit tests only).
+
+Not built:
+
+- Text written into a page's `components` is not translated. Surface steps have the same gap today.
+- Only the run page draws `components`. Chat, calls and AI clients ask the fields in order.
+- The studio has no controls for `look`, `section`, `components` or view inputs. They go through
+  the chat or JSON.
+- The mobile app's copies of the definition were not looked at.
 
 ### 1a. Fields: numbers with a range, and how a field looks
 
@@ -129,6 +159,15 @@ Validator, new issues:
 - `min` greater than `max`; `increment` larger than `max - min`.
 - `min` / `max` on an image or file field that are not whole numbers from 1 to 30 (moved from
   the schema).
+- `unit` or `increment` on a field that is not a number.
+
+The server refuses a number outside `min` and `max` (`engine/input.ts`, with the new texts
+`numberAtLeast` and `numberAtMost`). It does not check `increment`, which only sets how the field
+moves (see Open questions).
+
+A slider with no answer and no `default` shows "–" and holds nothing, so what is drawn is never an
+answer nobody gave. The looks are in a new `packages/runner/src/field-looks.tsx`. `unit` is
+translated, cut to its 16 characters so a long word does not cost the wizard its translation.
 
 ### 1b. Sections: a progress bar that stays put
 
@@ -152,6 +191,9 @@ A wizard without sections shows progress as today (`view.progress` in
 `packages/runner/src/RunnerView.tsx`). Validator: a section name that comes back after another
 one ("A", "B", "A") is an issue, since the bar could not show it in order.
 
+The server sends the bar as `view.progress.sections`: `{ names, current }`, with `current` -1 before
+the first. `section` is translated, cut to its 24 characters.
+
 ### 1c. Calculated values: `calc`
 
 A new file `packages/shared/src/calc.ts`, read by the runner, the runtime and the validator:
@@ -160,10 +202,16 @@ A new file `packages/shared/src/calc.ts`, read by the runner, the runtime and th
 /** A value worked out from what the place knows: `demo / budget`, `servings * 100`. */
 export const calcSchema = z.object({ calc: z.string().min(1).max(200) });
 
+export type CalcScope = (name: string) => unknown;
+
 export function parseCalc(source: string): CalcNode | { error: string };
 export function evalCalc(node: CalcNode, scope: CalcScope): unknown; // undefined when it can't
 export function calcNames(node: CalcNode): string[]; // for the validator
+export function calcScope(...records: unknown[]): CalcScope; // the first record that has the name
 ```
+
+A scope is a function, not a `{ data, row }`. `calcScope(row, data)` reads the row first, then the
+data, own properties only.
 
 The language, and nothing more:
 
@@ -174,24 +222,28 @@ The language, and nothing more:
 | Operators | `+ - * / %`, `== != < <= > >=`, `and or not`, `( )` |
 | Functions | `round(x, digits)`, `min(…)`, `max(…)`, `sum(list, column)`, `count(list)`, `if(test, a, b)` |
 
-No assignment, no other calls, no property access but dotted names. A value that cannot be
-worked out (an empty answer, a division by zero) is empty and draws as "–". The validator checks
-that every name exists at that place, as it checks condition fields today.
+No assignment, no other calls, no property access but dotted names. `+` adds numbers and does not
+join text; `format` does that. A value that cannot be worked out (an empty answer, a division by
+zero) is empty and draws as "–". The validator checks that every name exists at that place, as it
+checks condition fields today.
 
 **Where `calc` goes.** Next to `{ path }` as a component prop, with the same `map` and `format`,
-and a new `as` for numbers in the wizard's locale (`localeOf`):
+and a new `as` for numbers in the viewer's language, so a translated run writes numbers its way:
 
 ```diff
  // packages/shared/src/surface.ts
  const isPath = (v: unknown): v is { path: string } => …
 +const isCalc = (v: unknown): v is { calc: string } => …
 
- export function bound(value: unknown, data: unknown, row?: unknown): unknown {
--  if (!isPath(value)) {
+-export function bound(value: unknown, data: unknown, row?: unknown): unknown {
++export function bound(value: unknown, data: unknown, row?: unknown, locale?: string): unknown {
 +  if (isCalc(value)) {
-+    return worded(evalCalc(parsedCalc(value.calc), { data, row }), value);
++    const node = parsedCalc(value.calc);
++    const raw = "error" in node ? undefined : evalCalc(node, calcScope(row, data));
++    // What cannot be worked out is empty, and says so.
++    return raw === undefined ? "–" : worded(raw, value, { row, locale });
 +  }
-+  if (!isPath(value)) {
+   if (!isPath(value)) {
      return value;
    }
 ```
@@ -200,12 +252,14 @@ and a new `as` for numbers in the wizard's locale (`localeOf`):
 -/** A value turned into words as its path says: looked up in `map`, set into `format`. */
 -export function worded(raw: unknown, spec: { map?: unknown; format?: unknown }): unknown {
 +/**
-+ * A value turned into words as its path or calc says: written as `as` says ("number" with
-+ * the locale's separators, "percent"), looked up in `map`, set into `format`.
++ * A value turned into words as its path or calc says: written as `as` says ("number" with the
++ * locale's separators, "percent"), looked up in `map`, set into `format`, whose `{}` is the value
++ * and `{column}` a column of the row it is drawn in.
 + */
 +export function worded(
 +  raw: unknown,
 +  spec: { as?: unknown; map?: unknown; format?: unknown },
++  at: { row?: unknown; locale?: string } = {},
 +): unknown {
 ```
 
@@ -223,8 +277,13 @@ And as a third form of `when`, for what conditions cannot say:
 ```
 
 `whenHolds` and `followRules` evaluate it the same way in the browser and on the server. The
-studio's condition editor shows a `calc` test as its text. Anything conditions can say stays a
-condition (the text form compiles to conditions where it can, Part 2).
+studio's condition editor shows a `calc` test as editable text, and the flow diagram shows its text.
+Anything conditions can say stays a condition (the text form compiles to conditions where it can,
+Part 2).
+
+`conditionsOf` returns nothing for a `calc`. `whenCalc` gives its text and `whenNames` the names a
+`when` reads, in either form. `engine/requirements.ts` treats a `calc` branch as one that could go
+either way, like `ask`. `fit.ts` treats it as unknown until its names are known.
 
 ### 1d. Page layout: `components` on a page
 
@@ -248,7 +307,9 @@ condition (the text form compiles to conditions where it can, Part 2).
  });
 ```
 
-`data` reads what a surface step's `data` reads; the key names are the same.
+`data` reads what a surface step's `data` reads; the key names are the same. The server fills it for
+the current page and sends it as `RunView.pageData`. A page whose `data` reads a stored list needs
+that list where it runs (`fit.ts`).
 
 Validator, with `components`:
 - every field of the page is placed by exactly one `Field`, and a `Field` names a field of this
@@ -256,6 +317,12 @@ Validator, with `components`:
 - a field's `when`, `ask` and `group` still decide whether it shows; its `Field` then draws
   nothing;
 - the usual surface checks (a `root`, children that exist, required props).
+
+Validator, on `data`: `data` on a page without `components`, and a key of `data` that is also a
+field of the page, since they would read the same name.
+
+`Field` on a page and the change to `CHAT_ONLY` (1e) came with this part, which cannot work without
+them.
 
 ### 1e. One catalog: input components in it
 
@@ -300,7 +367,7 @@ kind, label, `look` and checks come from the field. Views get three inputs that 
 | `Field` | `name` (a field id of the page) | pages; in a chat's view as today, with `kind` and `label` inside a `Form` |
 | `Choice` | `state`, `options` (values, or `{ label, value }`), `default?`, `look?: "list"` | a wizard's views: surface steps, `output.surface`, reviews, the result |
 | `Toggle` | `state`, `label`, `default?` | a wizard's views |
-| `Slider` | `state`, `min`, `max`, `increment?`, `unit?`, `default?` | a wizard's views |
+| `Slider` | `state`, `min`, `max`, `increment?`, `unit?`, `label?`, `default?` | a wizard's views |
 
 `state` names a value of the view: `calc` and paths read it by that name, like a data key.
 
@@ -309,7 +376,10 @@ Validator:
   view and a page there is no `Field`.
 - `Choice`, `Toggle`, `Slider` never on pages and never in a chat's view. A page's inputs are
   fields: they are answers and are kept as `values`. A view's inputs are view state.
-- a `state` name is unique in its view and is not also a data key.
+- a `state` name is letters, digits and `_`, is unique in its view and is not also a data key or
+  the id of a `Checklist`, whose ticks are kept in the same place.
+- `Field`, `Choice`, `Toggle` and `Slider` do not stand in a repeat: each has one value.
+- `Choice` has `options` as values or `{ label, value }`, and `look` is `"list"`.
 
 View state is kept where checklist ticks are kept today. The endpoint
 `PUT /api/runs/:id/views/:stepId` (`apps/runtime/src/routes/runs.ts`) already stores it; only
@@ -599,12 +669,17 @@ MCP included, and it needs no state in the browser.
 /** A step a run reaches with no runner: a page or review nothing has to decide or fill first. */
 function needsNoRunner(
   step: Step | undefined,
-  run: { startedBy: StartedBy | null; state: RunState },
+  startedBy: StartedBy | null,
+  state: RunState,
 ): boolean;
 ```
 
 It lives in `engine/runner.ts`, beside `isPersonStep`, and reads the step's keys only: with
 `durableRuns` off those steps take the slow path too, which costs nothing.
+
+`state` is the state after `advance`, never `run.state`. For an `ask` rule `advance` sets
+`state.deciding` and returns the answered step as the cursor. `run.state` is from before that, so a
+decided branch would look like a plain page, and the run would wait on the page just answered.
 
 The slow path stays for:
 
@@ -663,9 +738,10 @@ A page goes into `ahead` when all of this holds:
 
 - `needsNoRunner` holds;
 - it needs nothing only the server has: no `pageNeeds`, `optionsFrom`, `cards` or `prefill`, no
-  choice in `closed`, and no `connection`, `list` or `slot` field;
+  `data` (`RunView.pageData` is for the current page only), no choice in `closed`, and no
+  `connection`, `list` or `slot` field;
 - the rules leading to it and the `when` of its fields read this run's answers only: no `ask`, no
-  `max`, nothing from `steps.` or `lists.`.
+  `max`, nothing from `steps.` or `lists.`, a `calc` included (`whenNames`).
 
 Reviews and the result never go into it: they show outputs, and a result never shows on answers
 the server has not confirmed.
@@ -805,7 +881,7 @@ Where the durable work stood on 2026-11-06:
 |---|---|---|
 | 0, 1 | runner line, `wait` steps and the minute clock | on `main` (#495, #496) |
 | 3 | outside actions run once | open (#498), and on the combined branch |
-| 2, 4 to 11 | timeline, durable agent steps, signals, a mailbox that wakes a run, starts, `timeout` and `remind`, telling people, `who` and `approve`, retries and `onFail` | on the local branch `claude/durable-runs-combined`, not merged with `main` and not pushed |
+| 2, 4 to 11 | timeline, durable agent steps, signals, a mailbox that wakes a run, starts, `timeout` and `remind`, telling people, `who` and `approve`, retries and `onFail` | on `claude/durable-runs-combined`, pushed with Part 1 of this plan at `fe9b26d3`; no PR, not merged with `main` |
 | 12 | docs, and the PR that flips `durableRuns` | docs on the branch, the flip waits |
 
 Nothing more of it goes to `main` until Matthias lifts that hold (`durable-agents.md`, on the
@@ -820,14 +896,9 @@ Where the two plans meet:
 | Human in the loop | Pages and views a person fills in a session | Asking someone later, reminders, hand-overs |
 | What the model does at run time | Selects, never writes (`dynamic-flow.md`) | Decided there |
 
-This plan leaves the durable and waiting design to that plan. It asks two things of it:
-
-- A run that waits long keeps `unsent` answers and view state on the server, so a page opened days
-  later looks as it was left. `unsent` counts as a change for a waiting run's retention.
-- `durable-agents.md`'s "With fast-creation", on the branch, lists a `wait`, `who` other than
-  `person` and `timeout`. It should add `remind`: a reminder is written as the run reaches the page,
-  so the browser cannot go there alone. It should also point to Part 4 for the shortcut in
-  `answerGoesOn`, and for `run.unsent`.
+This plan leaves the durable and waiting design to that plan. It asks one thing of it: a run that
+waits long keeps `unsent` answers and view state on the server, so a page opened days later looks as
+it was left. `unsent` counts as a change for a waiting run's retention.
 
 ## Order
 
@@ -836,34 +907,65 @@ Creation first: it is the largest gap, and the durable work barely touches it. W
 `engine/runner.ts`. Steps 1, 2 and 4 wait for nothing. Step 3 needs the combined branch only for
 the starts tools, and can come first with those added afterwards.
 
+Step 6 was built first, out of this order, so what is next is steps 1 to 3. Part 1 makes pages
+richer and does not make creating a wizard faster; that is steps 2 and 3.
+
 The first pass stays behind a switch `fastCreate` (registered in
 `packages/shared/src/feature-flags.ts`, set in `.features`) until it is done.
 
 1. **Measure.** Log per architect turn: time to the first token, reasoning, each tool round,
    fix rounds, total; on the cloud and on a computer with each AI client. Log page to page as well.
-   Seen in `debug_logs`. This sets the baseline for the targets.
+   Seen in `debug_logs`. This sets the baseline for the targets. Not built. One run with logging
+   that was not kept, on a laptop, from an answer to the next `waiting_input` on plain pages: 3 to
+   9 ms with the runner in the same process (20 answers); a median of 873 ms and at most 1947 ms with
+   studio and runner as separate processes (30 answers, seen by a polling client). No architect
+   turn was measured.
 2. **The text form.** Part 2, on today's format: parse, print, the round trip over
-   `examples/wizards`. Keys are generic, so later additions need no new parser. Until 1c and 1d an
-   expression a condition cannot say is an issue, and Markdown in a page is not offered.
+   `examples/wizards`. Keys are generic, so later additions need no new parser. Until Part 1 is on
+   `main` an expression a condition cannot say is an issue, and Markdown in a page is not offered.
 3. **The fast first pass.** Part 3, behind `fastCreate`. It touches the same `agents/architect.ts`
    as durable runs' PR 7 (starts tools), so whichever lands second merges with the other. It writes
-   plain pages until step 6, so this step brings the speed and not yet the richer pages.
+   plain pages until Part 1 is on `main`, so this step brings the speed and not yet the richer pages.
 4. **Copy for ChatGPT.** Part 5; needs only step 2.
 5. **The shortcut on the server.** Part 4, after the combined branch is on `main`, since it sits in
    that branch's `answerGoesOn`. It is small, and every client gets it.
-6. **The format.** 1a, 1b, 1c: looks, sections, `calc`. Then 1d and 1e: page components, `Choice`,
-   `Toggle`, `Slider`, view state.
+6. **The format.** Built, on the combined branch (Part 1). How it reaches `main` is Matthias's call:
+   with that branch when the hold lifts, or moved over on its own, which nobody has tried. Its
+   commits are split by section, but they sit on the durable work and change `engine/runner.ts`.
 7. **The next page in the browser.** Part 4: first `run.unsent` and saving what is typed, which is
    worth having alone, then `rev`, `ahead`, `nextInBrowser`. Needs step 5.
 
 ## Changes by file
 
+Built, for Part 1, on the combined branch:
+
 | File | Change |
 |---|---|
-| `packages/shared/src/definition.ts` | field `min`/`max` widened, `increment`, `unit`, `look`; `section` on steps; `components` and `data` on pages; `whenSchema` with `calc`; `nextInBrowser`; validator issues |
-| `packages/shared/src/calc.ts` | new: the expression language, parser, evaluator, names |
+| `packages/shared/src/definition.ts` | field `min`/`max` widened, `increment`, `unit`, `look`; `section` on steps; `components` and `data` on pages; `whenSchema` with `calc`, `whenCalc`, `whenNames`; validator issues |
+| `packages/shared/src/calc.ts` | new: the expression language, parser, evaluator, names, `calcScope` |
 | `packages/shared/src/surface.ts` | `Field` on pages (`name` only), `CHAT_ONLY` without it; `Choice`, `Toggle`, `Slider`; `calc` and `as` in `bound` and `worded`; validator by place |
-| `packages/shared/src/run.ts` | `RunView.rev`, `unsent`, `ahead`; `RunState.pagesSent`; comment on `StepOutput.view` |
+| `packages/shared/src/run.ts` | `RunView.pageData`, `progress.sections`; comment on `StepOutput.view` |
+| `packages/shared/src/runner-texts.ts` | `numberAtLeast`, `numberAtMost` |
+| `packages/shared/src/fit.ts` | a `calc` branch; a page's `data` reading a stored list |
+| `packages/shared/src/translation.ts` | `section` and `unit` |
+| `packages/shared/src/marketplace-entry.ts` | a `calc` condition in the entry's text |
+| `apps/runtime/src/engine/input.ts` | a number outside `min` and `max` is refused |
+| `apps/runtime/src/engine/requirements.ts` | a `calc` branch could go either way |
+| `apps/runtime/src/engine/runner.ts` | the view: `progress.sections`, `pageData` |
+| `packages/runner/src/fields.tsx`, new `packages/runner/src/field-looks.tsx` | slider, stepper, list looks |
+| `packages/runner/src/RunnerView.tsx` | sections in the progress bar; page components |
+| `packages/runner/src/surface.tsx` | `Field`, `Choice`, `Toggle`, `Slider`; `calc` props; view state saved |
+| `apps/web/src/studio/editor/Inspector.tsx`, `FlowDiagram.tsx` | a `calc` test as text |
+| `apps/runtime/src/prompts/authoring.md` | `look`, `section`, `calc`, page components, view inputs |
+| `apps/docs/public/schema/v2/wizard.json`, `wizard-package.json` | regenerated |
+| `docs/content/dev/wizard-format` | the format additions |
+
+Still to do:
+
+| File | Change |
+|---|---|
+| `packages/shared/src/definition.ts` | `nextInBrowser` |
+| `packages/shared/src/run.ts` | `RunView.rev`, `unsent`, `ahead`; `RunState.pagesSent` |
 | `apps/runtime/src/db/schema.ts`, a tenant migration | `run.unsent` |
 | `apps/runtime/src/services/runs.ts` | the view: `rev`; `unsent` and `ahead` for who may answer |
 | `packages/shared/src/feature-flags.ts` | `fastCreate` |
@@ -871,18 +973,14 @@ The first pass stays behind a switch `fastCreate` (registered in
 | `apps/runtime/src/engine/runner.ts` | `needsNoRunner`; `answerGoesOn`: the shortcut; `submitPage` and `reviewStep`: `kick` only when the run went on; `submitPage`: sequence numbers, clears `unsent[stepId]` |
 | `packages/shared/src/wizard-text.ts` | new: `parseWizardText`, `printWizardText` |
 | `packages/shared/src/catalog-prompt.ts` | new: tag signatures from the schemas |
-| `packages/runner/src/fields.tsx` | slider, stepper, list looks |
-| `packages/runner/src/RunnerView.tsx` | sections in the progress bar; page components; advance in the browser; saves what is typed |
+| `packages/runner/src/RunnerView.tsx` | advance in the browser; saves what is typed |
 | `apps/web/src/runner/useRun.ts` | pages in flight, one at a time; drops a view older than the last confirmed `rev` |
-| `packages/runner/src/surface.tsx` | `Field`, `Choice`, `Toggle`, `Slider`; `calc` props; view state saved |
 | `apps/runtime/src/services/architect.ts` | the fast first pass before the architect; deterministic fixes |
 | `apps/runtime/src/agents/architect.ts` | timing log; background turn after the first pass |
 | `apps/runtime/src/agents/subscription.ts` | the AI client's CLI kept open from the wish box's focus |
 | `apps/web/src/studio/editor/ShareDialog.tsx` | "Copy for ChatGPT" |
 | `apps/runtime/src/cli/main.ts` | new command `export --chatgpt` |
-| `apps/runtime/src/prompts/authoring.md` | `look`, `section`, `calc`, page components, view inputs |
-| `apps/docs/public/schema/v2/wizard.json` | regenerated |
-| `docs/content/dev` | the format additions and the text form |
+| `docs/content/dev` | the text form |
 
 ## Open questions
 
@@ -894,9 +992,7 @@ The first pass stays behind a switch `fastCreate` (registered in
   multiselect) only when a wizard needs them.
 - The functions of `calc`: enough for budgets, portions and totals? `items` fields already sum
   their rows; `sum` must give the same number.
-- View inputs: `Choice`, `Toggle` and `Slider`, or a chat view's `Field` without a `Form`
-  and with a `state`? One input component for both would be fewer names; it mixes answers and
-  view state in one component.
+- Should the server check `increment` as well as `min` and `max`? Today only the runner uses it.
 - Does a Work chat's `show_view` get the text form and `calc` too? Same catalog, same speed
   problem; not part of this plan.
 - Server-resolved images, like ChatGPT's `AsyncImage query`: an `Image` with a `query` that the
