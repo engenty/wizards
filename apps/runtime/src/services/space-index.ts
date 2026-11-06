@@ -28,6 +28,7 @@ import {
 } from "../broker/rwx.js";
 import { db, schema, withTenant } from "../db/client.js";
 import { createSearchChunks } from "../engenty/search-index/chunks.js";
+import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
 import { getBlob, putBlob } from "../files/blobs.js";
 import { jpegOf, MAX_PAGE_PICTURES, pdfPages } from "../files/pictures.js";
@@ -87,13 +88,21 @@ const VECTOR_MS = 15_000;
 
 const vectorBytes = (v: readonly number[]) => Buffer.from(new Float32Array(v).buffer);
 
-async function embed(texts: string[]): Promise<{ vectors: number[][]; model: string } | null> {
+async function embed(
+  texts: string[],
+  maxRetries?: number,
+): Promise<{ vectors: number[][]; model: string } | null> {
   const resolved = await embeddingModel();
   if (!resolved || !texts.length) {
     return null;
   }
   await searchesFirst();
-  const result = await embedMany({ model: resolved.model, values: texts, maxParallelCalls: 4 });
+  const result = await embedMany({
+    model: resolved.model,
+    values: texts,
+    maxParallelCalls: 4,
+    maxRetries,
+  });
   return { vectors: result.embeddings.map((e) => Array.from(e)), model: resolved.ref };
 }
 
@@ -614,10 +623,28 @@ export async function flushIndex() {
 // make and embed, and the index of a page someone types in must not wait for it. A text's comes
 // with its unit, unless the model failed, none was set up then, or another one is now: on a
 // Manage-App's runtime the binding changes without a word to the runtime. Tenant after tenant,
-// units without a vector of the embedding model at hand.
+// units without a vector of the embedding model at hand. Only one process of a runtime does the
+// texts: two would embed, and book, every batch twice.
 
 const vectorsWaiting = new Set<string>();
 let vectorsRunning: Promise<void> | null = null;
+
+/** After a round the model failed in: twice as long each time, up to the longest. */
+const VECTORS_PAUSE_MS = 20 * 60_000;
+const VECTORS_PAUSE_LONGEST_MS = 2 * 60 * 60_000;
+let vectorsFailedRounds = 0;
+let vectorsPausedUntil = 0;
+
+/** No tenant's round until later: they all share the model, and a failing call holds it busy. */
+function pauseVectors(what: string, err: unknown) {
+  const pause = Math.min(VECTORS_PAUSE_MS * 2 ** vectorsFailedRounds, VECTORS_PAUSE_LONGEST_MS);
+  vectorsFailedRounds++;
+  vectorsPausedUntil = Date.now() + pause;
+  console.error(
+    `[space-index] embedding ${what} failed, again in ${pause / 60_000} min:`,
+    (err as Error).message,
+  );
+}
 
 /** Gives the units of the tenant at hand the vectors they lack, soon. */
 export function queueVectors() {
@@ -641,9 +668,27 @@ export function queueVectors() {
 
 /** Texts sent at once: a search's question waits behind them in a busy Ollama. */
 const TEXT_BATCH = 32;
+/**
+ * And their characters: 32 long units are about 60,000 tokens, while the gateway's Ollama on four
+ * cores makes some 400 a second and gives a call up after 120 s.
+ */
+const TEXT_BATCH_CHARS = 16_000;
+
+/** As many of `units` as go in one call: one at least, however long. */
+function textBatch<T extends { text: string }>(units: T[]) {
+  let chars = 0;
+  const batch = units.filter((u) => {
+    chars += u.text.length;
+    return chars <= TEXT_BATCH_CHARS;
+  });
+  return batch.length ? batch : units.slice(0, 1);
+}
 
 /** The vectors of the text units that lack one of the model at hand. */
 async function embedTexts() {
+  if (!env.serves.vectors || Date.now() < vectorsPausedUntil) {
+    return;
+  }
   const resolved = await embeddingModel().catch(() => null);
   if (!resolved) {
     return;
@@ -651,10 +696,11 @@ async function embedTexts() {
   // Past a batch that failed: the next round tries it again.
   let after = 0;
   let inRow = 0;
+  let failure: unknown = null;
   const started = Date.now();
   let done = 0;
   for (;;) {
-    const todo = await db
+    const units = await db
       .select({ id: schema.spaceChunk.id, text: schema.spaceChunk.text })
       .from(schema.spaceChunk)
       .where(
@@ -666,12 +712,17 @@ async function embedTexts() {
       )
       .orderBy(asc(schema.spaceChunk.id))
       .limit(TEXT_BATCH);
-    if (!todo.length) {
+    if (!units.length) {
       break;
     }
+    const todo = textBatch(units);
     after = todo[todo.length - 1].id;
     try {
-      const embedded = await embed(todo.map((u) => u.text));
+      // No retries: a call that timed out still holds the model, and the next round comes anyway.
+      const embedded = await embed(
+        todo.map((u) => u.text),
+        0,
+      );
       if (!embedded) {
         break;
       }
@@ -685,12 +736,18 @@ async function embedTexts() {
       done += todo.length;
       inRow = 0;
     } catch (err) {
-      // The model is not there or not working: the next round tries again.
+      // The model is not there or not working: a later round tries again.
+      failure = err;
       if (++inRow >= 3) {
-        console.error("[space-index] embedding texts failed", (err as Error).message);
         break;
       }
     }
+  }
+  if (failure) {
+    pauseVectors("texts", failure);
+  } else if (done) {
+    vectorsFailedRounds = 0;
+    vectorsPausedUntil = 0;
   }
   if (done) {
     console.log(
@@ -711,6 +768,9 @@ async function picturesOf(hash: string | null, pdf: boolean): Promise<Map<number
 }
 
 async function embedPictures() {
+  if (Date.now() < vectorsPausedUntil) {
+    return;
+  }
   const resolved = await embeddingModel().catch(() => null);
   const embedImage = resolved?.embedImage;
   if (!(resolved && embedImage)) {
@@ -771,6 +831,7 @@ async function embedPictures() {
       failed.add(fileId);
       // The model is not there or not working: the next start, or the next picture, tries again.
       if (++inRow >= 3) {
+        pauseVectors("pictures", err);
         break;
       }
     }

@@ -36,7 +36,13 @@ beforeAll(async () => {
 describe("RUNTIME_ROLE=studio", () => {
   it("serves the studio's half and what both halves need", async () => {
     // Outside clients too, until the cloud routes them to an api process.
-    expect(env.serves).toEqual({ studio: true, doors: false, runner: false, api: true });
+    expect(env.serves).toEqual({
+      studio: true,
+      doors: false,
+      runner: false,
+      api: true,
+      vectors: true,
+    });
     expect((await get("/api/health")).status).toBe(200);
     expect((await get("/api/config")).status).toBe(200);
     // The studio's own routes answer (unauthorized, not unknown).

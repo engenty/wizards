@@ -348,7 +348,7 @@ jobs:
     needs: [package, installer, installer-windows, templates, runner, agent-plugins]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 70
     permissions:
       contents: write
     steps:
@@ -399,7 +399,7 @@ jobs:
           q="release=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           # served <name> <tarball file name>
           served() {
-            for i in $(seq 1 60); do
+            for i in $(seq 1 120); do
               latest="$(curl -fsS "https://registry.npmjs.org/$1/latest?$q-$1-$i" | jq -r .version || true)"
               tarball="$(curl -s -o /dev/null -w '%{http_code}' \
                 "https://registry.npmjs.org/$1/-/$2?$q-$1-$i" || true)"
@@ -410,7 +410,7 @@ jobs:
               echo "waiting for $1: latest is ${latest:-?}, the tarball answers $tarball"
               sleep 10
             done
-            echo "::error::npm doesn't serve $1@$version as latest after 10 minutes"
+            echo "::error::npm doesn't serve $1@$version as latest after 20 minutes"
             return 1
           }
           # publish <name> <file>: a version npm has already is left as it is, so a re-run after
