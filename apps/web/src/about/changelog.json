@@ -1,7 +1,76 @@
 [
   {
+    "version": "v0.17.1",
+    "timestamp": 1793946899,
+    "commits": [
+      {
+        "id": "3fb562a",
+        "message": "one process embeds the index's texts, in calls the model can finish, and waits after a failure (#523)",
+        "group": "Fixed",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "35e8c7d",
+        "message": "a plugin for Claude Code or Cursor becomes a connector with its skills (#521)",
+        "group": "Added",
+        "scope": "capabilities",
+        "breaking": false
+      },
+      {
+        "id": "96f1d31",
+        "message": "Rechte, one page for who may read, change and run what (#520)",
+        "group": "Added",
+        "scope": "capabilities",
+        "breaking": false
+      },
+      {
+        "id": "4cdb782",
+        "message": "add an MCP server or an OpenAPI description by its address (#519)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "00f77a0",
+        "message": "a stopped run calls nothing more, and admins pause a connection (#518)",
+        "group": "Added",
+        "scope": "broker",
+        "breaking": false
+      },
+      {
+        "id": "36f84b9",
+        "message": "a search counts only what its caller may read, initials skip brackets, tests leave the machine's Ollama alone (#517)",
+        "group": "Fixed",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "444fefb",
+        "message": "RWX rules one at a time, refused where nothing asks them, and „Was darf …?“ for content (#516)",
+        "group": "Added",
+        "scope": "broker",
+        "breaking": false
+      },
+      {
+        "id": "8715208",
+        "message": "the runtime takes an MCP server or an OpenAPI description by its address (#515)",
+        "group": "Added",
+        "scope": "connectors",
+        "breaking": false
+      },
+      {
+        "id": "c56d888",
+        "message": "the studio hears what clients did from another process (#514)",
+        "group": "Fixed",
+        "scope": "mcp",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.17.0",
-    "timestamp": 1793920329,
+    "timestamp": 1793920585,
     "commits": [
       {
         "id": "25c81f7",
