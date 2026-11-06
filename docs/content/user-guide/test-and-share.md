@@ -62,7 +62,7 @@ The ⋯ menu on a card and in the editor has “Duplicate”, “Export as a wiz
 | 3 · QR code | One of the links as a QR code to download or print |
 | 4 · Website | The code for a website (see below) |
 | 5 · Copy link | The link people open. It opens the first way that is on, and the wizard offers the other on its first page |
-| 6 · Settings (the gear) | “Limit per day” (50 runs unless you change it, with what that costs at most), “Offer a translation” (a machine translation per language, which you can edit), and “Create a new link”: the old link and its QR code stop working, in the cloud too |
+| 6 · Settings (the gear) | “Limit per day” (50 runs unless you change it, with what that costs at most; below it, how many emails and messages guests’ runs send per day, 50 unless you change it and 0 for none), “Offer a translation” (a machine translation per language, which you can edit), and “Create a new link”: the old link and its QR code stop working, in the cloud too |
 
 The picture is from a computer without an account: the box at the top offers “Sign in” and
 “Create account”, and “Access” says “Only on this computer” (see

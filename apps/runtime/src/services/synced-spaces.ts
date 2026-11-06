@@ -83,6 +83,8 @@ export const syncWizardSchema = z.object({
     .default([]),
   shareEnabled: z.boolean().default(true),
   dailyRunLimit: z.number().int().min(1).max(10_000).optional(),
+  /** The mails and posts its guests' runs send per day; left out by an install from before it sent one. */
+  dailyMailLimit: z.number().int().min(0).max(10_000).optional(),
   /** The install's themes the wizard names; the cloud keeps them as the install has them. */
   themes: z.array(themeSchema).max(MAX_WIZARD_THEMES).default([]),
 });
@@ -92,6 +94,7 @@ export const syncSettingsSchema = z.object({
   shareEnabled: z.boolean().optional(),
   translate: z.boolean().optional(),
   dailyRunLimit: z.number().int().min(1).max(10_000).optional(),
+  dailyMailLimit: z.number().int().min(0).max(10_000).optional(),
 });
 
 export const checkSchema = z.object({
@@ -347,6 +350,7 @@ export async function syncWizard(
         draft,
         shareEnabled: input.shareEnabled,
         ...(input.dailyRunLimit ? { dailyRunLimit: input.dailyRunLimit } : {}),
+        ...(input.dailyMailLimit !== undefined ? { dailyMailLimit: input.dailyMailLimit } : {}),
       };
       if (!existing) {
         await requireWizardRoom(spaceId);

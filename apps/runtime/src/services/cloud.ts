@@ -347,6 +347,7 @@ export async function syncToCloud(userId: string, wizardId: string): Promise<Clo
         files,
         shareEnabled: w.shareEnabled,
         dailyRunLimit: w.dailyRunLimit,
+        dailyMailLimit: w.dailyMailLimit,
         themes: themesOf(version.definition.themes, (await ownedSpace(userId, w.spaceId)).themes),
       },
       120_000,
@@ -418,6 +419,7 @@ export async function pushSharing(userId: string, wizardId: string): Promise<voi
   await call("PATCH", `/spaces/${w.spaceId}/wizards/${w.id}`, {
     shareEnabled: w.shareEnabled,
     dailyRunLimit: w.dailyRunLimit,
+    dailyMailLimit: w.dailyMailLimit,
     translate: w.translate,
     ...(w.runners ? { runners: w.runners } : {}),
   }).catch((err) => console.error("[cloud] sharing not sent:", (err as Error).message));

@@ -70,7 +70,7 @@ Replace the whole draft: for a new wizard, a rewrite, or anything edit_wizard ca
 Publish the draft as a new version behind the share link. Refused while the draft has issues. Only when the person asked for it.
 
 <!-- section: tool.set_sharing -->
-Turn the share link on or off, or change how many runs it allows per day.
+Turn the share link on or off, or change how many runs it allows per day and how many emails and messages its guests' runs send per day (0: none).
 
 <!-- section: tool.start_test_run -->
 Run the draft once with your answers. Spends the person's credits (short copy + image about 15, research about 150, video about 250). Pages are filled from `answers`, reviews accepted when acceptReviews is true. Follow it with get_test_run. Shows the flow with the run on it.

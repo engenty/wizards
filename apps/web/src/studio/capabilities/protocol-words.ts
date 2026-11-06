@@ -28,6 +28,8 @@ export const REFUSAL_WORDS: Record<BrokerRefusal, Key> = {
   channel_not_fixed: "protocol.refused.channel_not_fixed",
   run_limit: "protocol.refused.run_limit",
   day_limit: "protocol.refused.day_limit",
+  calls_per_run: "protocol.refused.calls_per_run",
+  calls_per_day: "protocol.refused.calls_per_day",
   run_ended: "protocol.refused.run_ended",
   paused: "protocol.refused.paused",
 };
@@ -79,6 +81,7 @@ export const RULE_WORDS: Record<string, Key> = {
   guest_send: "protocol.rule.guest_send",
   run: "protocol.rule.run",
   paused: "protocol.rule.paused",
+  limits: "protocol.rule.limits",
 };
 
 /** Who a connection is for, after „nur für“. */
@@ -169,12 +172,18 @@ export function runUnderWay(status: string): boolean {
 
 export type Tone = "done" | "refused" | "held" | "failed";
 
-/** What came of a call: done, refused (and why), held for the admins, failed. */
+/**
+ * What came of a call: done, refused (and why), held for the admins, failed. A call that took its
+ * place under a connection's limit has no result until it ends: it is still running.
+ */
 export function outcomeOf(line: Pick<ProtocolLine, "outcome" | "result" | "rule">): {
   tone: Tone;
   text: string;
 } {
   const { outcome, result, rule } = line;
+  if (result === null && outcome !== "deny") {
+    return { tone: "held", text: t("protocol.outcome.running") };
+  }
   if (result === "ok") {
     return {
       tone: "done",
@@ -277,7 +286,8 @@ export function connectionWord(
 
 /**
  * The action by the connector's name for it; the broker's own actions in words. A changed rule
- * that paused or resumed a connection says so: its input is the one field `paused`.
+ * that paused or resumed a connection says so: its input is the one field `paused`. One that
+ * changed only the connection's limits says that: its input is the one field `limits`.
  */
 export function actionWord(
   line: Pick<ProtocolLine, "actionId" | "actionName"> & { input?: ProtocolLine["input"] },
@@ -290,6 +300,9 @@ export function actionWord(
             ? "protocol.action.paused"
             : "protocol.action.resumed",
         );
+      }
+      if (line.input?.fields && Object.keys(line.input.fields).join() === "limits") {
+        return t("protocol.action.limits");
       }
       return t("protocol.action.changeRules");
     case "http_request":

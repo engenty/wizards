@@ -448,6 +448,7 @@ export function registerTools(server: McpServer, who: Principal) {
         dirty: s.dirty,
         shareEnabled: s.shareEnabled,
         dailyRunLimit: s.dailyRunLimit,
+        dailyMailLimit: s.dailyMailLimit,
         shareUrl: s.shareUrl,
         studioUrl: s.studioUrl,
       };
@@ -577,20 +578,23 @@ export function registerTools(server: McpServer, who: Principal) {
         wizardId: z.string(),
         enabled: z.boolean().optional(),
         dailyRunLimit: z.number().int().min(1).max(10_000).optional(),
+        dailyMailLimit: z.number().int().min(0).max(10_000).optional(),
       }),
       destructive: true,
       openWorld: true,
       studio: true,
     },
-    async ({ wizardId, enabled, dailyRunLimit }) => {
+    async ({ wizardId, enabled, dailyRunLimit, dailyMailLimit }) => {
       const w = await updateWizardSettings(who.userId, wizardId, {
         shareEnabled: enabled,
         dailyRunLimit,
+        dailyMailLimit,
       });
       await pushSharing(who.userId, wizardId);
       return {
         shareEnabled: w.shareEnabled,
         dailyRunLimit: w.dailyRunLimit,
+        dailyMailLimit: w.dailyMailLimit,
         shareUrl: shareUrl(w.shareToken),
       };
     },

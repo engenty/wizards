@@ -1621,8 +1621,12 @@ export const studio = new Hono<Vars>()
     const body = z
       .object({ definition: z.unknown(), baseRevision: z.number().int().min(0) })
       .parse(await c.req.json());
-    const { revision, issues } = await writeDraft(c.get("user").id, c.req.param("id"), body);
-    return c.json({ ok: true, revision, issues });
+    const { revision, issues, warnings } = await writeDraft(
+      c.get("user").id,
+      c.req.param("id"),
+      body,
+    );
+    return c.json({ ok: true, revision, issues, warnings });
   })
   .patch("/wizards/:id", async (c) => {
     const patch = z
@@ -1640,6 +1644,7 @@ export const studio = new Hono<Vars>()
     if (
       patch.shareEnabled !== undefined ||
       patch.dailyRunLimit !== undefined ||
+      patch.dailyMailLimit !== undefined ||
       patch.runners !== undefined ||
       patch.translate !== undefined
     ) {

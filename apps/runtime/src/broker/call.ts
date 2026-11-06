@@ -15,12 +15,23 @@ import {
   type Account,
   keptSecret,
   markUsed,
-  pauseOf,
   spaceAccount,
+  stateOf,
   wizardAccount,
 } from "./account.js";
 import { type Grant, inGrant, runGrant } from "./grant.js";
-import { type LineContext, SIGN_IN_FAILED, summarizeInput, writeLog } from "./log.js";
+import {
+  CALLS_PER_DAY,
+  CALLS_PER_RUN,
+  closeLine,
+  type LineContext,
+  limitHeard,
+  type OpenLine,
+  SIGN_IN_FAILED,
+  summarizeInput,
+  takePlace,
+  writeLog,
+} from "./log.js";
 import { runOver } from "./over.js";
 import { channelOf, guestSendCheck, postsToChannel, recipientsOf } from "./send.js";
 
@@ -37,6 +48,10 @@ import { channelOf, guestSendCheck, postsToChannel, recipientsOf } from "./send.
  * Two things are asked before any of it, on every call (docs/plans/capabilities-next.md, 2a):
  * whether the call's run is over (`over.ts`: stopping a run is the revoke), and whether a
  * connection of the space pauses. Neither trusts what a step or a chat turn read when it started.
+ *
+ * A connection of the space may limit its calls per run and per day (2b), for every caller: a
+ * call that would run takes its place first by writing its line (`log.ts`, `takePlace`), and the
+ * one past a limit is refused. The limits are read with the pause, on every call.
  */
 
 /** Who calls: a guest at the wizard's link, a signed-in person, Goose for a person, a plugin's own job, a fixed step. */
@@ -116,8 +131,10 @@ export interface BrokerCallInput<T = unknown> {
  * the space, which only a fixed `call` step does (A4); `not_allowed_recipient` – a guest's send to
  * an address that is neither the run's own nor in the space's domains; `channel_not_fixed` – a
  * guest's post to a channel its published step does not fix; `run_limit` – a guest's run has sent
- * its mails and posts; `day_limit` – the wizard's guests have sent today's; `run_ended` – the
- * call's run was stopped, is done or failed (over.ts); `paused` – an admin paused the connection.
+ * its mails and posts; `day_limit` – the wizard's guests have sent today's; `calls_per_run` – the
+ * run has made the calls the connection takes from one run; `calls_per_day` – the connection has
+ * taken today's calls; `run_ended` – the call's run was stopped, is done or failed (over.ts);
+ * `paused` – an admin paused the connection.
  */
 export type Refusal = BrokerRefusal;
 
@@ -131,7 +148,8 @@ export interface Decision {
    * Which rule decided, as the log and „Was darf …?“ name it: `grant`, `audience`, `actions`,
    * `ai_step_writes`, `rules.<kind>` (a connection of the space), `destructive`, `policy.<action>`
    * (a wizard's connection), `read`, `own_job`, `paused`. A run that is over is logged as
-   * `run.<status>` (over.ts), before any decision here.
+   * `run.<status>` (over.ts), before any decision here; a call past a connection's limit as
+   * `limits.run` or `limits.day`, after it.
    */
   rule: string;
   reason: string;
@@ -405,8 +423,30 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
   const { who, where, ctx = {} } = call;
   let { connection } = call;
   const connectionId = connectionIdOf(connection);
-  // A connection of the space used for the first time is heard of (log.ts, `first_use`).
-  const firstUse = connection.kind === "space_connection" && !connection.row.lastUsedAt;
+  /** What every line of this call says, whatever came of it. */
+  const lineOf = (
+    kind: ActionKind,
+    outcome: Decision["outcome"],
+    rule: string | null,
+    reason: string,
+  ) => ({
+    at: new Date(started),
+    whoKind: who.kind,
+    whoId: who.id ?? null,
+    runId: where.runId ?? null,
+    stepId: where.stepId ?? null,
+    client: where.client ?? null,
+    chatId: where.chatId ?? null,
+    wizardId: where.wizardId ?? null,
+    spaceId: where.spaceId ?? null,
+    connectionId,
+    actionId: call.action.id,
+    kind,
+    inputSummary: summarizeInput(call.input),
+    outcome,
+    rule,
+    reason,
+  });
   const line = (
     kind: ActionKind,
     outcome: Decision["outcome"],
@@ -418,23 +458,8 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
   ) =>
     writeLog(
       {
-        at: new Date(started),
+        ...lineOf(kind, outcome, rule, reason),
         durationMs: Date.now() - started,
-        whoKind: who.kind,
-        whoId: who.id ?? null,
-        runId: where.runId ?? null,
-        stepId: where.stepId ?? null,
-        client: where.client ?? null,
-        chatId: where.chatId ?? null,
-        wizardId: where.wizardId ?? null,
-        spaceId: where.spaceId ?? null,
-        connectionId,
-        actionId: call.action.id,
-        kind,
-        inputSummary: summarizeInput(call.input),
-        outcome,
-        rule,
-        reason,
         result,
         resultSize: size,
       },
@@ -447,10 +472,10 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     await line(kindBefore(call), "deny", over.rule, over.reason, "run_ended");
     return { ok: false, refused: "run_ended", reason: over.reason };
   }
-  // A connection of the space: whether it pauses is read now, not taken from the row a step or a
-  // chat turn read when it started; one that was removed since is gone for them too.
+  // A connection of the space: whether it pauses, and its limits, are read now, not taken from the
+  // row a step or a chat turn read when it started; one that was removed since is gone for them too.
   if (connection.kind === "space_connection") {
-    const now = await pauseOf(connection.row.id);
+    const now = await stateOf(connection.row.id);
     if (!now) {
       const reason = "The connection was removed.";
       await line(kindBefore(call), "deny", null, reason, "not_connected");
@@ -463,6 +488,9 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       return { ok: false, refused: "paused", reason: paused.reason };
     }
   }
+
+  // A connection of the space used for the first time is heard of (log.ts, `first_use`).
+  const firstUse = connection.kind === "space_connection" && !connection.row.lastUsedAt;
 
   // The account says what kind the action is; its secret stays inside the broker. A sign-in
   // that ran out and cannot be renewed, or that the service refuses, is heard of.
@@ -577,11 +605,41 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     }
   }
 
+  // The call would run. Through a connection of the space with a limit it takes its place first:
+  // its line is written now, if the limits leave room, and its end is filled in after.
+  let open: OpenLine | null = null;
+  if (connection.kind === "space_connection") {
+    const { callsPerRun: perRun, callsPerDay: perDay } = connection.row;
+    if (perRun !== null || perDay !== null) {
+      const place = await takePlace(lineOf(kind, decision.outcome, rule, decision.reason), {
+        perRun,
+        perDay,
+      });
+      if ("full" in place) {
+        const refused = place.full === "run" ? CALLS_PER_RUN : CALLS_PER_DAY;
+        const reason =
+          place.full === "run"
+            ? `The connection takes ${perRun} calls from one run, and this run has made them.`
+            : `The connection takes ${perDay} calls a day, and today's are made.`;
+        await line(kind, "deny", `limits.${place.full}`, reason, refused, null, {
+          limitHeard: await limitHeard(connectionId, place.full, where.runId ?? null),
+        });
+        return { ok: false, refused, reason };
+      }
+      open = place;
+    }
+  }
+  /** The call's end: on the line that took its place, else as a line of its own. */
+  const end = (result: string, size: number | null = null, context: LineContext = {}) =>
+    open
+      ? closeLine(open, { durationMs: Date.now() - started, result, resultSize: size }, context)
+      : line(kind, decision.outcome, rule, decision.reason, result, size, context);
+
   try {
     const result = call.handler
       ? await call.handler(account)
       : ((await (found as ConnectorAction).handler(call.input ?? {}, account.ctx)) as T);
-    await line(kind, decision.outcome, rule, decision.reason, "ok", sizeOf(result), { firstUse });
+    await end("ok", sizeOf(result), { firstUse });
     if (connection.kind === "space_connection") {
       await markUsed(connection.row);
     }
@@ -593,7 +651,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       : err instanceof Error
         ? err.constructor.name || "Error"
         : "Error";
-    await line(kind, decision.outcome, rule, decision.reason, result);
+    await end(result);
     throw err;
   }
 }

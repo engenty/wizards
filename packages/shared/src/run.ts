@@ -338,6 +338,10 @@ const NOTES_EN = {
     "This step calls the connection “{id}”, which the wizard doesn’t have.",
   stepCallNotAllowed: "The change in {service} wasn’t allowed, so this step stopped.",
   stepCallRefused: "{service} didn’t run “{action}” for this step: {reason}",
+  stepCallsPerRun:
+    "{service} takes only so many calls from one run, and this run has made them, so this step stopped.",
+  stepCallsPerDay:
+    "{service} takes only so many calls a day, and today’s are made, so this step stopped. Try again tomorrow.",
   clientNotSignedIn: "{name} isn’t signed in on this computer. Sign in under Settings → Models.",
   clientNotInstalled:
     "{name} isn’t installed on this computer. Install it under Settings → Models.",
@@ -797,6 +801,10 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   stepCallNotAllowed:
     "Die Änderung in {service} wurde nicht erlaubt, darum hat dieser Schritt aufgehört.",
   stepCallRefused: "{service} hat „{action}“ für diesen Schritt nicht ausgeführt: {reason}",
+  stepCallsPerRun:
+    "{service} nimmt aus einem Lauf nur eine bestimmte Zahl von Aufrufen an, und dieser Lauf hat sie gemacht. Darum hat dieser Schritt aufgehört.",
+  stepCallsPerDay:
+    "{service} nimmt am Tag nur eine bestimmte Zahl von Aufrufen an, und die für heute sind gemacht. Darum hat dieser Schritt aufgehört. Versuch es morgen wieder.",
   clientNotSignedIn:
     "{name} ist auf diesem Computer nicht angemeldet. Melde dich unter Einstellungen → Modelle an.",
   clientNotInstalled:

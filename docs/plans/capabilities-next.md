@@ -1,7 +1,7 @@
 # Plan: Fähigkeiten, the next four pieces
 
 Status: planned on 2026-11-05, every decision taken the same day. Piece 1 (1a the runtime, 1b
-the studio and the docs), 2a and 3 are built (2026-11-06), the rest is not. Follows
+the studio and the docs), 2a, 2b and 3 are built (2026-11-06), the rest is not. Follows
 `docs/plans/capabilities.md` and `docs/plans/broker.md`, which are built. Page with the mockups:
 the artifact “Fähigkeiten Next Steps” (claude.ai/artifact/2WB6P59ZJgxPYi9rr2h53m). Checked
 against `main` at v0.16.2 plus #500–#509.
@@ -11,7 +11,7 @@ against `main` at v0.16.2 plus #500–#509.
 | | Piece | Today | What comes |
 |---|---|---|---|
 | 1 | A server by its address (built) | The runtime reads an address; no screen takes one, and an MCP server outside the registry fails at import | „Per Adresse“ in Connectors: check, correct, import |
-| 2 | Limits, stopping, pausing | Only a guest's mails are counted; a stopped run can still call; a connection can only be removed | Calls per run and day, a stop that holds, „Verbindung pausieren“ |
+| 2 | Limits, stopping, pausing (2a, 2b built) | Only a guest's mails are counted; a stopped run can still call; a connection can only be removed | Calls per run and day, a stop that holds, „Verbindung pausieren“ |
 | 3 | Rechte | Rules are written in four places and listed nowhere; some are stored and never asked | One page: who may what, the exceptions as sentences |
 | 4 | A Connector that brings skills | Nothing links a skill to a connection; nothing reads a plugin | A Claude Code or Cursor plugin becomes a Connector with its Skills |
 
@@ -19,7 +19,7 @@ Found while checking, and it matters now: „Mit Freigabe“ holds a call only i
 (`chat_approval`). In a wizard's run nothing waits: `needs_approval` goes back to the model, and a
 fixed step fails. New connections start with Ändern and Senden on „Mit Freigabe“, so a fixed step
 that sends through a space connection fails until an admin sets the rule to „Erlaubt“. Piece 2
-warns about it first (2b) and makes it wait later (2c).
+warns about it first (2b, built) and makes it wait later (2c).
 
 ## Decided on 2026-11-05
 
@@ -113,13 +113,38 @@ The design:
   asks it first, before `own_job`, and reads it on every call rather than from a step's row. The
   lists show „pausiert“, „Was darf …?“ names it, and the change is a critical line. What a paused
   connection refuses is no critical line.
-- **2b. Limits per connection.** Calls per run and per day, empty for none, counted with the log
-  line in one write. The refusals `run_limit` and `day_limit` and their critical kind exist. The
-  wizard's mails per day get their field in the share dialog beside the runs per day.
-- **2b. A warning.** The editor says where a fixed step will fail because its connection's rule is
-  „Mit Freigabe“.
+- **2b. Limits per connection.** Built. `calls_per_run` and `calls_per_day` on `space_connection`,
+  empty for none, for every caller, „Grenzen“ on the connection's page. A call that would run
+  takes its place by writing its line (`takePlace` in `broker/log.ts`: the count and the line are
+  one statement), and its end fills the line in. The limits are read with the pause, on every
+  call. The refusals are `calls_per_run` and `calls_per_day`, apart from a guest's `run_limit` and
+  `day_limit`, so the Audit, a model and a fixed step each have words that are true. A limit is a
+  critical line once per run or day, and a changed limit is one. The wizard's mails per day have
+  their field in the share dialog below the runs per day, and travel with the runs per day: MCP
+  `set_sharing`, the two-way sync and the copy in the cloud.
+- **2b. A warning.** Built. `stepWarnings` (`services/wizards.ts`) asks the broker's `decide` for
+  each fixed step on a space connection. The editor shows it on the step, in the step row and in
+  the publish dialog, with a way to the connection's page. It is no issue: the wizard saves and
+  publishes.
 - **2c. Waiting**, once `durableRuns` is on: the step sleeps, the admins decide in the bell or the
   Audit, the run goes on. Seven days, then refused.
+
+What 2b does not do:
+
+- Nothing waits: a call past a limit is refused, in a run as in a chat. No queue, no retry at
+  midnight.
+- A day is the UTC day, for every space. Limits per hour, per person or per action are not there.
+- The count is the log's lines. A call counts once it is let through, also where the service then
+  fails, and a call under way holds its place until its line is closed. A process that dies in a
+  call leaves that place taken for the day.
+- A wizard's own connection („Wer den Wizard nutzt“), a request to a host and the server's mail
+  have no limit of this kind.
+- A step's tools and a chat's still offer a connection whose limit is reached. The call is
+  refused with words for the model.
+- The warning covers fixed steps on „Mit Freigabe“ only. It says nothing of a rule on „Nie“, a
+  paused connection, an audience the run's holder is outside of, or a limit a wizard is sure to
+  reach. An MCP client reads no warnings (`get_wizard` returns issues only).
+- The fixed step still fails. 2c makes it wait.
 
 ## 3. Rechte
 

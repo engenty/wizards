@@ -1,6 +1,23 @@
 import { createHash } from "node:crypto";
-import type { CriticalKind } from "@engenty/wizards-shared/connectors";
-import { and, desc, eq, exists, gt, inArray, lt, not, or, type SQL, sql } from "drizzle-orm";
+import { BROKER_REFUSALS, type CriticalKind } from "@engenty/wizards-shared/connectors";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  exists,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  not,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
 
@@ -20,9 +37,10 @@ export type LoggedRow = typeof schema.brokerLog.$inferSelect;
  * `CRITICAL_KINDS` (shared/connectors): `refused_write` – a *Nie*, the grant or the AI-step rule
  * stopped a write, a delete or a send; `outside_audience` – a guest's run reached a connection
  * that is for the space's members or admins; `host_not_in_grant`; `limit_reached` – a guest's run
- * or a wizard's guests have sent their mails for the run or the day; `sign_in_failed` – a sign-in
- * ran out or the service refused it; `first_use` of a connection of the space; `rule_changed` –
- * RWX, a connection's rules or audience, or a connection paused or resumed.
+ * or a wizard's guests have sent their mails for the run or the day, or a connection of the space
+ * has taken its calls for a run or the day; `sign_in_failed` – a sign-in ran out or the service
+ * refused it; `first_use` of a connection of the space; `rule_changed` – RWX, a connection's
+ * rules, audience or limits, or a connection paused or resumed.
  */
 export { CRITICAL_KINDS, type CriticalKind } from "@engenty/wizards-shared/connectors";
 
@@ -35,7 +53,13 @@ export const SIGN_IN_FAILED = "sign_in_failed";
 export interface LineContext {
   /** A connection of the space used for the first time. */
   firstUse?: boolean;
+  /** A connection's limit refused a call before, in this run or today: the admins heard of it. */
+  limitHeard?: boolean;
 }
+
+/** The refusals of a connection's own limits (`takePlace`): its calls per run, its calls per day. */
+export const CALLS_PER_RUN = "calls_per_run";
+export const CALLS_PER_DAY = "calls_per_day";
 
 /**
  * Which critical kind a row is, if any: the one place that decides. Every refusal of a write, a
@@ -43,6 +67,8 @@ export interface LineContext {
  * audience. A connection's first use and a changed rule are critical though nothing was refused.
  * What a paused connection refuses is not: the admins paused it themselves and heard of that
  * (`rule_changed`), and the mail that tells them of critical lines may go through that connection.
+ * A connection's limit is heard of once per run or day, at the first call it refuses: the ones
+ * after are refused and logged, and that mail may be one of them.
  */
 export function criticalOf(
   row: Pick<LogRow, "whoKind" | "kind" | "outcome" | "result" | "connectionId" | "actionId"> & {
@@ -62,6 +88,9 @@ export function criticalOf(
     }
     if (row.result === "run_limit" || row.result === "day_limit") {
       return "limit_reached";
+    }
+    if (row.result === CALLS_PER_RUN || row.result === CALLS_PER_DAY) {
+      return context.limitHeard ? null : "limit_reached";
     }
     if (row.connectionId.startsWith("host:") && row.result === "not_in_grant") {
       return "host_not_in_grant";
@@ -110,6 +139,20 @@ export function onCritical(listener: Heard): () => void {
   return () => listeners.delete(listener);
 }
 
+/** A critical row is a line of the runtime's own log too, and goes to whoever listens. */
+function hear(row: LoggedRow): void {
+  console.warn(
+    `[broker] ${row.criticalKind}: ${row.whoKind}${row.whoId ? ` ${row.whoId}` : ""} → ${row.connectionId} ${row.actionId} (${row.kind}): ${row.outcome}, ${row.result ?? ""}${row.reason ? ` – ${row.reason}` : ""}`,
+  );
+  for (const listener of listeners) {
+    try {
+      listener(row);
+    } catch (err) {
+      console.error("[broker] a listener failed:", err);
+    }
+  }
+}
+
 /**
  * Writes one row, deciding whether it is critical; a log that cannot be written never stops the
  * call. A critical row is also a line of the runtime's own log, so the log ring and „wizards
@@ -128,18 +171,180 @@ export async function writeLog(
     return;
   }
   if (criticalKind) {
-    console.warn(
-      `[broker] ${criticalKind}: ${row.whoKind}${row.whoId ? ` ${row.whoId}` : ""} → ${row.connectionId} ${row.actionId} (${row.kind}): ${row.outcome}, ${row.result ?? ""}${row.reason ? ` – ${row.reason}` : ""}`,
-    );
-    const full = written as LoggedRow;
-    for (const listener of listeners) {
-      try {
-        listener(full);
-      } catch (err) {
-        console.error("[broker] a listener failed:", err);
-      }
-    }
+    hear(written as LoggedRow);
   }
+}
+
+// --- a connection's limits (docs/plans/capabilities-next.md, 2b) -----------------------------
+
+/** Today's first moment (UTC), as every per-day count sees it. */
+export function startOfToday(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/** A connection's limits as a call meets them; null: none. */
+export interface CallLimits {
+  perRun: number | null;
+  perDay: number | null;
+}
+
+/**
+ * The lines that count under a connection's limits: the calls the broker let through to the
+ * service, whatever came of them. One that failed counts, and one still under way (`result` is
+ * null). A refused call, one held for an approval and a changed rule count for nothing.
+ */
+function counted(): SQL {
+  const log = schema.brokerLog;
+  return and(
+    ne(log.outcome, "deny"),
+    ne(log.actionId, RULE_CHANGE_ACTION),
+    or(isNull(log.result), notInArray(log.result, [...BROKER_REFUSALS])),
+  ) as SQL;
+}
+
+const inRun = (connectionId: string, runId: string) =>
+  and(
+    eq(schema.brokerLog.connectionId, connectionId),
+    eq(schema.brokerLog.runId, runId),
+    counted(),
+  ) as SQL;
+const today = (connectionId: string) =>
+  and(
+    eq(schema.brokerLog.connectionId, connectionId),
+    gte(schema.brokerLog.at, startOfToday()),
+    counted(),
+  ) as SQL;
+
+/** The line of a call that took its place and is under way; `closeLine` writes its end. */
+export interface OpenLine {
+  id: string;
+  row: Omit<LogRow, "id" | "critical" | "criticalKind">;
+}
+
+/**
+ * Takes a call's place under its connection's limits by writing its line: the count and the line
+ * are one statement, so of two calls at once only one gets the last free place, in whichever
+ * process they run. A call with no run counts for the day only. Answers the open line, or which
+ * limit is reached; then nothing was written.
+ */
+export async function takePlace(
+  row: Omit<LogRow, "id" | "critical" | "criticalKind" | "result" | "resultSize" | "durationMs">,
+  limits: CallLimits,
+): Promise<OpenLine | { full: "run" | "day" }> {
+  const log = schema.brokerLog;
+  const places: SQL[] = [];
+  if (limits.perRun !== null && row.runId) {
+    places.push(
+      sql`(select count(*) from ${log} where ${inRun(row.connectionId, row.runId)}) < ${limits.perRun}`,
+    );
+  }
+  if (limits.perDay !== null) {
+    places.push(
+      sql`(select count(*) from ${log} where ${today(row.connectionId)}) < ${limits.perDay}`,
+    );
+  }
+  const id = nanoid(14);
+  // The columns as the table has them: a time is its milliseconds, a flag 0 or 1.
+  const values: [column: string, value: unknown][] = [
+    ["id", id],
+    ["at", row.at.getTime()],
+    ["duration_ms", 0],
+    ["who_kind", row.whoKind],
+    ["who_id", row.whoId ?? null],
+    ["run_id", row.runId ?? null],
+    ["step_id", row.stepId ?? null],
+    ["client", row.client ?? null],
+    ["chat_id", row.chatId ?? null],
+    ["wizard_id", row.wizardId ?? null],
+    ["space_id", row.spaceId ?? null],
+    ["connection_id", row.connectionId],
+    ["action_id", row.actionId],
+    ["kind", row.kind],
+    ["input_summary", row.inputSummary],
+    ["outcome", row.outcome],
+    ["rule", row.rule ?? null],
+    ["reason", row.reason ?? null],
+    ["critical", 0],
+  ];
+  const taken = await db.run(
+    sql`insert into broker_log (${sql.raw(values.map(([column]) => column).join(", "))}) select ${sql.join(
+      values.map(([, value]) => sql`${value}`),
+      sql`, `,
+    )} where ${and(...places) ?? sql`1`}`,
+  );
+  if (taken.rowsAffected > 0) {
+    return { id, row: { ...row, durationMs: 0 } };
+  }
+  // Which one: the run's where the run has made its calls, else the day's.
+  const full =
+    limits.perRun !== null &&
+    row.runId &&
+    (await db.$count(log, inRun(row.connectionId, row.runId))) >= limits.perRun
+      ? "run"
+      : "day";
+  return { full };
+}
+
+/**
+ * Writes the end of a call that took a place: what came of it, how long it took, how much came
+ * back, and whether the line is critical now (a connection's first use). A line whose end cannot
+ * be written keeps its place and never stops the call.
+ */
+export async function closeLine(
+  open: OpenLine,
+  end: { durationMs: number; result: string; resultSize?: number | null },
+  context: LineContext = {},
+): Promise<void> {
+  const row = { ...open.row, ...end, resultSize: end.resultSize ?? null };
+  const criticalKind = criticalOf(row, context);
+  try {
+    await db
+      .update(schema.brokerLog)
+      .set({
+        durationMs: row.durationMs,
+        result: row.result,
+        resultSize: row.resultSize,
+        critical: criticalKind !== null,
+        criticalKind,
+      })
+      .where(eq(schema.brokerLog.id, open.id));
+  } catch (err) {
+    console.error("[broker] the log could not be written:", err);
+    return;
+  }
+  if (criticalKind) {
+    hear({ ...row, id: open.id, critical: true, criticalKind } as LoggedRow);
+  }
+}
+
+/** Whether this connection's limit refused a call before, in this run or today: it was heard of then. */
+export async function limitHeard(
+  connectionId: string,
+  full: "run" | "day",
+  runId: string | null,
+): Promise<boolean> {
+  const log = schema.brokerLog;
+  const refused = and(eq(log.connectionId, connectionId), eq(log.critical, true));
+  const before =
+    full === "run" && runId
+      ? and(refused, eq(log.result, CALLS_PER_RUN), eq(log.runId, runId))
+      : and(refused, eq(log.result, CALLS_PER_DAY), gte(log.at, startOfToday()));
+  return (await db.$count(log, before)) > 0;
+}
+
+/** The calls each of these connections took today, as the limit per day counts them. */
+export async function callsToday(connectionIds: string[]): Promise<Map<string, number>> {
+  if (!connectionIds.length) {
+    return new Map();
+  }
+  const log = schema.brokerLog;
+  const rows = await db
+    .select({ id: log.connectionId, calls: count() })
+    .from(log)
+    .where(and(inArray(log.connectionId, connectionIds), gte(log.at, startOfToday()), counted()))
+    .groupBy(log.connectionId);
+  return new Map(rows.map((row) => [row.id, row.calls]));
 }
 
 /** A rule changed by an admin: RWX (`connectionId` "rwx") or a connection's rules or audience. */

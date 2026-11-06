@@ -149,6 +149,10 @@ function refusalNote(refused: Refusal, service: string): string {
       return prompt("tools", "note.connector_ai_step_writes", { service });
     case "paused":
       return prompt("tools", "note.connector_paused", { service });
+    case "calls_per_run":
+      return prompt("tools", "note.connector_calls_per_run", { service });
+    case "calls_per_day":
+      return prompt("tools", "note.connector_calls_per_day", { service });
     case "run_ended":
       return prompt("tools", "note.run_ended");
     default:
@@ -248,7 +252,11 @@ export async function callConnection(
     throw new StepError(
       out.refused === "declined" || out.refused === "nobody"
         ? note("stepCallNotAllowed", { service })
-        : note("stepCallRefused", { service, action: action.id, reason: out.reason }),
+        : out.refused === "calls_per_run"
+          ? note("stepCallsPerRun", { service })
+          : out.refused === "calls_per_day"
+            ? note("stepCallsPerDay", { service })
+            : note("stepCallRefused", { service, action: action.id, reason: out.reason }),
     );
   }
   return out.result;

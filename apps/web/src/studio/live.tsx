@@ -87,13 +87,16 @@ export function useLiveDraft(wizardId: string | undefined) {
       inflight.current = true;
       setSaving(true);
       try {
-        const res = await api.put<{ revision: number; issues: WizardDetail["issues"] }>(
-          `${path}/draft`,
-          { definition: local, baseRevision: current.revision },
-        );
+        const res = await api.put<{
+          revision: number;
+          issues: WizardDetail["issues"];
+          warnings: WizardDetail["warnings"];
+        }>(`${path}/draft`, { definition: local, baseRevision: current.revision });
         base.current = pending.current ? local : null;
         qc.setQueryData<WizardDetail>(key, (old) =>
-          old ? { ...old, revision: res.revision, issues: res.issues } : old,
+          old
+            ? { ...old, revision: res.revision, issues: res.issues, warnings: res.warnings }
+            : old,
         );
       } catch (err) {
         const readOnly = readOnlyError(err);

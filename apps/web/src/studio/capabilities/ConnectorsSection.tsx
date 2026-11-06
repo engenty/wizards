@@ -15,7 +15,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, CirclePause, Plus, UserRound } from "lucide-react";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
 import { type Key, lang, t } from "../../lib/i18n";
@@ -27,6 +27,7 @@ import { Connectors } from "../Connectors";
 import { SignInButtons, SignInPanel, useConnectedMessage, useSignIn } from "../connection-sign-in";
 import { useDetail, useSettingsMenu } from "../settings-menu";
 import { Section } from "../space/Section";
+import { limitText, readLimit, usedToday } from "./connection-words";
 
 /*
  * Fähigkeiten › Connectors (docs/plans/capabilities.md, "Connections"): the space's connections
@@ -42,6 +43,9 @@ import { Section } from "../space/Section";
  * An admin pauses a connection on its page (docs/plans/capabilities-next.md, 2a): nobody reaches
  * it while it pauses, and nothing is lost. The page says so on top with „Fortsetzen“, and the
  * lists show „pausiert“.
+ *
+ * „Grenzen“ on that page (2b): calls per run and calls per day, empty for none, the admins' to
+ * set. „Nutzung“ counts today's calls against the limit per day and leads to the audit.
  */
 
 const connectionsKey = (spaceId: string) => ["space-connections", spaceId] as const;
@@ -767,7 +771,12 @@ function ConnectionPage({
   const base = `/api/studio/connections/${encodeURIComponent(c.id)}`;
   const patch = useMutation({
     mutationFn: (
-      body: Partial<Pick<SpaceConnectionView, "name" | "audience" | "rules" | "signIn">>,
+      body: Partial<
+        Pick<
+          SpaceConnectionView,
+          "name" | "audience" | "rules" | "signIn" | "callsPerRun" | "callsPerDay"
+        >
+      >,
     ) => api.patch<SpaceConnectionView>(base, body),
     onSuccess: (view) => {
       qc.setQueryData<ConnectionsList>(key, (old) =>
@@ -1068,6 +1077,35 @@ function ConnectionPage({
             {writable ? t("connection.askHint") : t("connection.askHintMember")}
           </p>
         </div>
+
+        <div className="border-border-soft border-t" />
+
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h3 className="font-semibold text-[0.875rem]">{t("connection.limits")}</h3>
+            <span className="min-w-48 flex-1 text-[0.8125rem] text-ink-3">
+              {t("connection.limitsHint")}
+            </span>
+          </div>
+          <Row label={t("connection.limits.perRun")}>
+            <LimitField
+              label={t("connection.limits.perRun")}
+              hint={t("connection.limits.perRunHint")}
+              limit={c.callsPerRun}
+              writable={writable}
+              onSave={(callsPerRun) => patch.mutate({ callsPerRun })}
+            />
+          </Row>
+          <Row label={t("connection.limits.perDay")}>
+            <LimitField
+              label={t("connection.limits.perDay")}
+              hint={t("connection.limits.perDayHint")}
+              limit={c.callsPerDay}
+              writable={writable}
+              onSave={(callsPerDay) => patch.mutate({ callsPerDay })}
+            />
+          </Row>
+        </div>
         {patch.error ? (
           <p className="text-[0.8125rem] text-rose">{(patch.error as Error).message}</p>
         ) : null}
@@ -1075,7 +1113,18 @@ function ConnectionPage({
 
       <Card className="flex flex-col gap-1 p-3.5 sm:p-5">
         <Row label={t("connection.use")}>
-          <span className="text-[0.875rem]">{lastUse(c)}</span>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <span className="text-[0.875rem] tabular-nums">
+              {usedToday(c)}
+              <span className="text-ink-3"> · {lastUse(c)}</span>
+            </span>
+            <Link
+              to={`/capabilities/protocol?connection=${encodeURIComponent(c.id)}`}
+              className="inline-flex h-8 items-center rounded-full bg-paper-2 px-3 font-medium text-[0.8125rem] text-ink transition hover:bg-paper-3 coarse:h-11 coarse:px-4"
+            >
+              {t("connection.inAudit")}
+            </Link>
+          </div>
         </Row>
         {c.plugin ? (
           <Row label={t("connection.plugin")}>
@@ -1129,6 +1178,61 @@ function ConnectionPage({
           ) : null}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * One of a connection's limits: a whole number from 1, or empty for none. Saved when the field is
+ * left or Enter is pressed; a text that is no limit goes back to what is kept. A member reads it.
+ */
+function LimitField({
+  label,
+  hint,
+  limit,
+  writable,
+  onSave,
+}: {
+  label: string;
+  hint: string;
+  limit: number | null;
+  writable: boolean;
+  onSave: (limit: number | null) => void;
+}) {
+  const [text, setText] = useState(limitText(limit));
+  // The connection's own number after a save, or when another admin changed it.
+  useEffect(() => setText(limitText(limit)), [limit]);
+  const save = () => {
+    const next = readLimit(text);
+    if (next === undefined || next === limit) {
+      setText(limitText(limit));
+    } else {
+      onSave(next);
+    }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      {writable ? (
+        <Input
+          aria-label={label}
+          inputMode="numeric"
+          className="w-24 text-right tabular-nums"
+          value={text}
+          onChange={(e) => setText(e.target.value.replace(/\D/g, ""))}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              save();
+            }
+          }}
+        />
+      ) : (
+        <span className="text-[0.875rem] tabular-nums">
+          {limit === null ? t("connection.limits.none") : limit.toLocaleString(lang)}
+        </span>
+      )}
+      <span className="min-w-48 flex-1 text-[0.8125rem] text-ink-3">{hint}</span>
     </div>
   );
 }
