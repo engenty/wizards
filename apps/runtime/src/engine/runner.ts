@@ -26,6 +26,8 @@ import {
   type ReviewStep,
   RUN_DONE_SIGNAL,
   type Step,
+  sectionOf,
+  sectionsOf,
   signalMissing,
   textLang,
   type WaitStep,
@@ -2810,6 +2812,7 @@ export async function runView(
       ? await closedChoices(def, step, run.state.values)
       : {};
   const index = step ? def.steps.indexOf(step) : def.steps.length;
+  const sections = sectionsOf(def);
   const refs =
     step?.type === "review"
       ? step.show
@@ -2918,7 +2921,21 @@ export async function runView(
         .filter(([, o]) => o),
     ),
     shown,
-    progress: { done: run.status === "done" ? def.steps.length : index, total: def.steps.length },
+    progress: {
+      done: run.status === "done" ? def.steps.length : index,
+      total: def.steps.length,
+      ...(sections.length
+        ? {
+            sections: {
+              names: sections,
+              current:
+                run.status === "done"
+                  ? sections.length
+                  : sections.indexOf(sectionOf(def, run.cursor ?? "") ?? ""),
+            },
+          }
+        : {}),
+    },
     canBack: run.state.history.length > 0 && CAN_GO_BACK.has(run.status),
     error: run.error,
     // A step's own words as it starts ("working") are the wizard's: in its translation too.

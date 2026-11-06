@@ -139,6 +139,12 @@ Every step has an `id`, a `title`, an optional `description` and an optional `ne
 letters, digits and `_`, start with a letter and are unique in the wizard. The last step is
 always a `result` step.
 
+A step can also name its `section`, the part of the wizard it belongs to (“Budget”, at most 24
+characters). The progress bar then shows each section once, in the order of the steps, with the
+current one marked. A step without one belongs to the section before it. Steps on different branches
+can share a name, so the bar stays the same whichever way the run goes. The steps of a section
+stand together: “A”, “B”, “A” is an issue.
+
 | Type | What it does | Page |
 |---|---|---|
 | `page` | Asks the person, one to five fields | [Pages and fields](./pages-and-fields.md) |

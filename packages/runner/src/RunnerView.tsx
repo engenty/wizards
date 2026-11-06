@@ -68,6 +68,34 @@ export interface RunSource {
 type Run = RunSource;
 
 function Progress({ view }: { view: RunView }) {
+  const sections = view.progress.sections;
+  if (sections) {
+    return (
+      <ol className="flex w-full gap-1">
+        {sections.names.map((name, i) => {
+          const now = i === sections.current;
+          return (
+            <li key={name} className="min-w-0 flex-1" aria-current={now ? "step" : undefined}>
+              <div
+                className={cn(
+                  "h-[3px] w-full transition-colors duration-700",
+                  i <= sections.current ? "bg-ember" : "bg-paper-2",
+                )}
+              />
+              <div
+                className={cn(
+                  "truncate px-2 pt-1 text-center text-[0.75rem]",
+                  now ? "font-medium text-ink" : "text-ink-3",
+                )}
+              >
+                {name}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    );
+  }
   const pct = Math.round(
     (Math.min(view.progress.done, view.progress.total) / Math.max(1, view.progress.total)) * 100,
   );
