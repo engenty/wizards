@@ -691,6 +691,12 @@ const stepBase = {
   id,
   title: z.string().min(1),
   description: z.string().optional(),
+  /**
+   * The part of the wizard the step belongs to, as the progress bar names it ("Budget"). A step
+   * without one belongs to the part before it. Steps on different branches share a name, so the
+   * bar stays the same whichever way the run goes.
+   */
+  section: z.string().min(1).max(24).optional(),
   next: z.array(nextRuleSchema).optional(),
   /** Where the run goes when this step fails for good; without it the run fails. */
   onFail: z.string().optional(),
@@ -1468,6 +1474,43 @@ export function templateRefs(template: string): string[] {
  * Structural checks the schema cannot express: ids, references between steps,
  * templates naming things that exist by the time the step runs.
  */
+/** The parts of a wizard, once each and in the order of its steps; none without sections. */
+export function sectionsOf(def: Pick<WizardDefinition, "steps">): string[] {
+  return [...new Set(def.steps.flatMap((s) => (s.section ? [s.section] : [])))];
+}
+
+/** The part a step belongs to: its own, or the one before it. Null before the first. */
+export function sectionOf(def: Pick<WizardDefinition, "steps">, stepId: string): string | null {
+  let current: string | null = null;
+  for (const step of def.steps) {
+    current = step.section ?? current;
+    if (step.id === stepId) {
+      return current;
+    }
+  }
+  return null;
+}
+
+/** A name that comes back after another ("A", "B", "A"): the bar could not show it in order. */
+function sectionIssues(def: WizardDefinition): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const seen = new Set<string>();
+  let current: string | null = null;
+  for (const step of def.steps) {
+    if (step.section && step.section !== current) {
+      if (seen.has(step.section)) {
+        issues.push({
+          stepId: step.id,
+          message: `Section "${step.section}" comes back after another one; the steps of a section stand together.`,
+        });
+      }
+      seen.add(step.section);
+      current = step.section;
+    }
+  }
+  return issues;
+}
+
 /** What `min`, `max`, `increment`, `unit` and `look` allow on a field of its kind. */
 function fieldShapeIssues(field: Field): string[] {
   const issues: string[] = [];
@@ -1511,7 +1554,7 @@ function fieldShapeIssues(field: Field): string[] {
 }
 
 export function validateWizard(def: WizardDefinition, files?: string[]): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
+  const issues: ValidationIssue[] = sectionIssues(def);
   const stepIds = new Set<string>();
   const fieldIds = new Set<string>();
   const seenSteps = new Set<string>();

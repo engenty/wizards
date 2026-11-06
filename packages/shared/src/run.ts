@@ -1478,7 +1478,12 @@ export interface RunView {
   outputs: Record<string, StepOutput>;
   /** Steps whose outputs the current step shows, with their definitions. */
   shown: ShownStep[];
-  progress: { done: number; total: number };
+  progress: {
+    done: number;
+    total: number;
+    /** The wizard's parts, if it has any: the bar names them, `current` marked (-1: before the first). */
+    sections?: { names: string[]; current: number };
+  };
   canBack: boolean;
   error: string | null;
   events: RunEvent[];

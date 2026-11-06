@@ -1,5 +1,7 @@
 import {
   type PageStep,
+  sectionOf,
+  sectionsOf,
   validateWizard,
   type WizardDefinition,
   wizardSchema,
@@ -90,5 +92,39 @@ describe("1a: numbers with a range, and how a field looks", () => {
     expect(readPageInput(page, { f: 2 }).errors).toEqual([]);
     expect(readPageInput(page, { f: "8" }).values.f).toBe(8);
     expect(readPageInput(page, { f: "" }).errors).toEqual([]);
+  });
+});
+
+describe("1b: sections", () => {
+  const page = (id: string, section?: string) => ({
+    id,
+    type: "page",
+    title: id,
+    ...(section ? { section } : {}),
+    fields: [{ id: `f${id}`, label: "F", kind: "text" }],
+  });
+
+  it("each once, in the order of the steps; a step without one belongs to the part before it", () => {
+    const def = wizard([page("a"), page("b", "Eins"), page("c"), page("d", "Zwei"), end]);
+    expect(sectionsOf(def)).toEqual(["Eins", "Zwei"]);
+    expect(sectionOf(def, "a")).toBeNull();
+    expect(sectionOf(def, "c")).toBe("Eins");
+    expect(sectionOf(def, "done")).toBe("Zwei");
+    expect(said(def)).toEqual([]);
+  });
+
+  it("steps standing together may repeat the name", () => {
+    expect(said(wizard([page("a", "Eins"), page("b", "Eins"), end]))).toEqual([]);
+  });
+
+  it("a name that comes back after another is an issue", () => {
+    const def = wizard([page("a", "A"), page("b", "B"), page("c", "A"), end]);
+    expect(validateWizard(def)).toEqual([
+      expect.objectContaining({ stepId: "c", message: expect.stringContaining('"A" comes back') }),
+    ]);
+  });
+
+  it("a wizard without sections has none", () => {
+    expect(sectionsOf(wizard([page("a"), end]))).toEqual([]);
   });
 });

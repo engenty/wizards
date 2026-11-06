@@ -169,7 +169,10 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   "Young Serif"|"Caveat"|"Creepster"|"Nosifer" — shipped with the runner. Creepster and Nosifer are spooky display fonts:
 //   headings only, never text. "brand" takes the space's brand font.
 
-// Every step: { id (camelCase, unique), title, description?, next?: Branch[] }
+// Every step: { id (camelCase, unique), title, description?, section?, next?: Branch[] }
+//   section: the part of the wizard the step belongs to, at most 24 characters ("Budget"). The progress bar names each once, in the
+//   order of the steps, and stays the same on every branch. A step without one belongs to the part before it. For a wizard of 3 parts
+//   or more. The steps of a section stand together: "A", "B", "A" is an issue.
 // Branch = { when: Condition | Condition[], goto: stepId | "end", max? }
 //        | { ask: "a statement about the run", goto: stepId | "end", max? }
 //        | { goto: stepId | "end" }   // otherwise: where the run goes when no other branch holds (one per step)
