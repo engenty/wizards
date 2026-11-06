@@ -16,6 +16,7 @@ A wizard runs its steps from top to bottom. The last step is always the result.
 | Motion graphics | Makes an animated video as code, rendered to an MP4: an explainer, a product spot |
 | Review | Shows what earlier steps made. The person accepts it, edits it or asks for a new version |
 | Result | The last page: what the person can download or share |
+| Wait | Holds the run for a time, until a date or until something arrives. See [Runs that last days](./long-runs.md) |
 
 ## Pages
 

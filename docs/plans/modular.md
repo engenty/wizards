@@ -230,7 +230,7 @@ Where it differs from the plan:
 
 - `broker.md`, `capabilities.md`: the broker, RWX, grants, connections of the space (built; A8
   isolated instances open)
-- `durable-agents.md`: durable runs (nothing built)
+- `durable-agents.md`: durable runs (built on a branch behind `durableRuns`, parts on main)
 - `starts.md`: runs that start by themselves
 - `api-clients.md`: clients of the API (phase 1 built)
 - `runner-process.md`: the runner as its own process

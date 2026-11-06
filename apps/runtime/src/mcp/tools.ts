@@ -11,6 +11,7 @@ import { wizardOpSchema } from "../authoring/ops.js";
 import { importFromRegistry, listConnectors, searchRegistry } from "../connectors/external.js";
 import { guideSpaceConnections } from "../connectors/space-connections.js";
 import { RunConflict } from "../engine/runner.js";
+import { currentFeatures } from "../features.js";
 import { pluginToolsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
 import { publishAndSync, pushSharing } from "../services/cloud.js";
@@ -293,6 +294,7 @@ export function registerTools(server: McpServer, who: Principal) {
         await listConnectors(space.id),
         await pluginToolsOf(who.tenantId),
         await guideSpaceConnections(space.id),
+        (await currentFeatures()).durableRuns,
       );
     },
   );

@@ -21,6 +21,7 @@ new version.
 | `show` | The step ids whose results are shown, or `lists.<id>` for a stored list |
 | `edit` | The person may change text results directly |
 | `regenerate` | The person may ask for a new version, with a note |
+| `approve`, `who`, `timeout`, `remind` | Asks someone else, for a decision, by a deadline. See [Runs that last days](./runs-that-last.md#a-persons-step) |
 
 A shown list is edited in place. A list with `check` goes row by row on a split screen. See
 [Lists and connections](./lists-and-connections.md#lists).

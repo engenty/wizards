@@ -118,8 +118,18 @@ step again and follows branches.
 | Step | Runs on |
 |---|---|
 | `page`, `review`, `result` | The runner pages, with what the person entered |
+| `wait` | Nothing: a row until the clock or a signal wakes the run. See below |
 | `agent` | A Mastra agent with the step’s tools (`engine/steps.ts`, `tools/index.ts`): web search and fetch, the browser, the sandbox, HTTP, the space’s knowledge and data, connections, MCP, plugins’ tools |
 | `generate`, `widget`, `motion-graphics`, `surface` | The AI SDK’s media calls, the widget bundler and the renderers (`widgets/`, `motion-graphics/`, `render/`) |
+
+A run that waits is a row (behind the switch `durableRuns`, [Runs that last days](./wizard-format/runs-that-last.md)).
+It has no process, no timer and no slot. `waiting_input` waits for a person, `sleeping` for a time and
+`waiting_signal` for a signal. One statement a minute puts whatever came due in line by
+`run_index.wake_at`. A signal is written to `run_signal` first, then the rows in `run_wait` with its
+name and key are woken. Any runner then claims the run with a higher generation and goes on from
+`run.cursor`. A runner that lost its claim can’t write. An outside action writes `run_effect` before
+it acts, and a `durable` agent step keeps its conversation in Mastra’s `DurableAgent`
+(`engine/durable-turn.ts`).
 
 A step names a **model class** (`classifier`, `low`, `standard`, `high`, plus `image`, `video`,
 `audio`, `speech`), never a model. Which model serves a class is a setting outside the wizard

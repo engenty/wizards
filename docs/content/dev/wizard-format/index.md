@@ -38,6 +38,7 @@ so any tool may read, write and run wizards. [Licensing](../licensing.md) lists 
 | `lists` | Tables the wizard keeps between runs. See [Lists and connections](./lists-and-connections.md) |
 | `connections` | Accounts the person connects during a run. See [Lists and connections](./lists-and-connections.md) |
 | `themes` | The space’s themes the wizard offers, in order. See [Themes](./themes.md) |
+| `label` | What tells its runs apart. See [Runs that last days](./runs-that-last.md#a-runs-label) |
 | `steps` | What the run does, from top to bottom |
 
 ## JSON Schema

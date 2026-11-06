@@ -94,9 +94,12 @@ export function authoringGuide(
   connectors: GuideConnector[] = [],
   pluginTools: GuideTool[] = [],
   connections: GuideSpaceConnection[] = [],
+  /** The switch `durableRuns`: what it brings is in the guide only while a run can do it. */
+  durableOn = false,
 ): string {
   return prompt("authoring", "guide", {
     schema: prompt("authoring", "schema"),
+    durable: durableOn ? prompt("authoring", "durable") : "",
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),

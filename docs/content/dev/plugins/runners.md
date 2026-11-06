@@ -94,8 +94,10 @@ server.registerPublicRoute({
 | `runs.report(runId, { waitSeconds?, draft? })` | The run as it stands: `lang`, `waitingFor` (a page with the fields shown and what they know, a review, a question), outputs with signed links and a `picture` (a PNG of a document, a dashboard or a widget), cost, `browserUrl`. Waits up to 45 seconds while the run works. A door that asks a page one field at a time passes what it has as `draft`: a field’s `shown` then follows those answers, as the form on the screen does |
 | `runs.wizards(runner)` | The published wizards of the tenant that switched the runner on: what the door offers, with `token`, `title` and `lang` |
 | `runs.answerPage(runId, stepId, values)` | Fills the page the run waits for |
-| `runs.review(runId, stepId, action)` | Accepts a review, or asks for one of the shown steps again with a note |
+| `runs.review(runId, stepId, action)` | Accepts a review, or asks for one of the shown steps again with a note. A review with `approve` (`waitingFor.approve`) takes `{ type: "decline", note? }` too, and accepting approves |
 | `runs.answerAsk(runId, askId, "allow" \| "skip")` | Answers a running step’s question. A sign-in cannot be answered here: hand off |
+| `runs.answerQuestion(runId, answer)` | An AI step stopped to ask the person something (`waitingFor.question`): it goes on with their words |
+| `runs.message(runId, { text, delivery? })` | What the person wrote while the run stands at a wait. A wait for `message.received` takes it as its signal; otherwise the answer is `null` and it goes nowhere. A person’s step takes what they write through `answerPage`, never both |
 | `runs.control(runId, "back" \| "retry" \| "cancel")` | |
 | `runs.subscribe(runId, listener)` | Hears every change of the run: its events with their note in both languages, or a status change. Returns the function that stops it |
 | `runs.handoffUrl(runId)` | The run page with the run’s ticket: the link to send for what the door cannot do. The person who opens it and the door’s person are one to the wizard |
@@ -105,6 +107,21 @@ server.registerPublicRoute({
 A refused command throws an error with a `status` and a `code` (`not_found`, `invalid`,
 `refused`, `no_credits`); an `invalid` one also carries the fields that did not fit as
 `data.fields`. A route that lets it through answers that status with `{ error, code }`.
+
+### A run that waits for days
+
+With the switch `durableRuns` on, `waitingFor` can also say the run needs nothing from your person
+now ([Runs that last days](../wizard-format/runs-that-last.md)):
+
+| `waitingFor` | Means |
+|---|---|
+| `wait`, with `until`, `signal`, `pause` | A wait: for a time, for a signal, for a retry (`pause.kind: "retry"`), or for someone to top up or sign in (`"credits"`, `"sign_in"`). Tell the person once and stop polling. `subscribe` hears when it moves |
+| `answeredBy` | Someone else answers this step. The person gets no step, and the door’s answers are refused |
+| `until` on a page or review | It takes an answer until then, and after that the run goes on without one |
+
+A door speaks for the run’s visitor, so a `who: "team"` page is never its to answer. `runs.start`’s
+`answers` don’t fill a first page the team answers, and `handoffUrl` works only for a run with a
+visitor.
 
 ## What the person sees
 
