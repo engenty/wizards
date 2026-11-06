@@ -43,6 +43,8 @@ export interface ConnectorView {
    * and a new connection on it starts for the admins.
    */
   fromAddress: boolean;
+  /** It came with a plugin, together with skills (`bundles.ts`): the record and the plugin's name. */
+  bundle: { id: string; name: string } | null;
   actions: ConnectorActionView[];
   importedAt: string;
   refreshedAt: string | null;
@@ -332,6 +334,8 @@ export interface SpaceConnectionView {
   plugin: string | null;
   /** That plugin by name, as the runtime carries it; its id where it is not loaded. */
   pluginName?: string | null;
+  /** Its connector came with a plugin for Claude Code or Cursor: the record of what came together. */
+  bundleId: string | null;
   /** A `space` sign-in: the account as the provider names it; null until an admin signed in. */
   account: { label: string; signedInAt: string } | null;
   /** A `person` sign-in: the asking person's own; null until they signed in. */

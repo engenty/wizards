@@ -7,6 +7,7 @@ import {
   SKILL_LIMITS,
   SKILL_NAME,
   type SkillBlobFile,
+  type SkillBundle,
   type SkillDetail,
   type SkillFile,
   SkillMdError,
@@ -18,7 +19,7 @@ import {
   skillPathOk,
   skillTextPath,
 } from "@engenty/wizards-shared/skills";
-import { and, asc, count, eq, ne } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, ne } from "drizzle-orm";
 import { unzipSync, zipSync } from "fflate";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
@@ -38,6 +39,9 @@ import { ownedSpace } from "./spaces.js";
  * file (a font, a template, a schema) goes to the blob store, for scripts only. Scripts run only
  * where someone switched them on for the skill, in the sandbox of a step that has one
  * (tools/skills.ts). Everything here answers "not found" while the `skills` switch is off.
+ *
+ * A skill a plugin brought together with a connector (`bundles/`, source `plugin`) carries the
+ * id of what it came with. It is read only and goes with it: a copy is the space's own.
  */
 
 type SkillRow = typeof schema.spaceSkill.$inferSelect;
@@ -209,7 +213,61 @@ export async function checkAlways(
 
 // --- views ----------------------------------------------------------------------------------
 
-function summaryOf(row: SkillRow): SkillSummary {
+/**
+ * What the space's skills came with, by the record's id: the plugin's name and the connectors
+ * that came with it.
+ */
+export async function skillBundles(spaceId: string): Promise<Map<string, SkillBundle>> {
+  const bundles = await db
+    .select({ id: schema.spaceBundle.id, name: schema.spaceBundle.name })
+    .from(schema.spaceBundle)
+    .where(eq(schema.spaceBundle.spaceId, spaceId));
+  if (!bundles.length) {
+    return new Map();
+  }
+  const connectors = await db.query.spaceConnector.findMany({
+    where: and(
+      eq(schema.spaceConnector.spaceId, spaceId),
+      isNotNull(schema.spaceConnector.bundleId),
+    ),
+    orderBy: [asc(schema.spaceConnector.createdAt)],
+  });
+  return new Map(
+    bundles.map((b) => [
+      b.id,
+      {
+        id: b.id,
+        name: b.name,
+        connectors: connectors
+          .filter((c) => c.bundleId === b.id)
+          .map((c) => ({ id: c.id, name: c.record.name }))
+          .sort((x, y) => x.name.localeCompare(y.name)),
+      },
+    ]),
+  );
+}
+
+/**
+ * The connectors a skill came with, as a step names them: by name and by what their tools'
+ * names start with.
+ */
+export async function skillConnectors(
+  row: Pick<SkillRow, "spaceId" | "bundleId">,
+): Promise<{ name: string; toolPrefix: string }[]> {
+  if (!row.bundleId) {
+    return [];
+  }
+  const connectors = await db.query.spaceConnector.findMany({
+    where: and(
+      eq(schema.spaceConnector.spaceId, row.spaceId),
+      eq(schema.spaceConnector.bundleId, row.bundleId),
+    ),
+    orderBy: [asc(schema.spaceConnector.createdAt)],
+  });
+  return connectors.map((c) => ({ name: c.record.name, toolPrefix: c.record.tool_prefix }));
+}
+
+function summaryOf(row: SkillRow, bundles: Map<string, SkillBundle>): SkillSummary {
   return {
     id: row.id,
     name: row.name,
@@ -218,6 +276,7 @@ function summaryOf(row: SkillRow): SkillSummary {
     source: row.source,
     origin: row.origin,
     official: row.source === "skills.sh" && officialSkill(row.origin),
+    bundle: (row.bundleId ? bundles.get(row.bundleId) : null) ?? null,
     runScripts: row.runScripts,
     files: row.files.length + row.blobFiles.length,
     chars: row.body.length,
@@ -242,7 +301,11 @@ export async function listSkills(userId: string, spaceId: string): Promise<Skill
     where: eq(schema.spaceSkill.spaceId, space.id),
     orderBy: [asc(schema.spaceSkill.name)],
   });
-  return { skills: rows.map(summaryOf), readOnly: !(await spaceWritable(space)) };
+  const bundles = rows.some((r) => r.bundleId) ? await skillBundles(space.id) : new Map();
+  return {
+    skills: rows.map((r) => summaryOf(r, bundles)),
+    readOnly: !(await spaceWritable(space)),
+  };
 }
 
 export async function getSkill(userId: string, id: string): Promise<SkillDetail> {
@@ -250,7 +313,7 @@ export async function getSkill(userId: string, id: string): Promise<SkillDetail>
   const row = await skillRow(id);
   const space = await ownedSpace(userId, row.spaceId);
   return {
-    ...summaryOf(row),
+    ...summaryOf(row, row.bundleId ? await skillBundles(row.spaceId) : new Map()),
     spaceId: row.spaceId,
     body: row.body,
     meta: row.meta,
@@ -295,6 +358,8 @@ export async function insertSkill(
     origin?: string | null;
     originHash?: string | null;
     rename?: boolean;
+    /** What a plugin's skill came with (`bundles/`). */
+    bundleId?: string;
   },
 ): Promise<{ id: string; name: string }> {
   const checked = checkContent(content);
@@ -326,6 +391,7 @@ export async function insertSkill(
     source: options.source,
     origin: options.origin ?? null,
     originHash: options.originHash ?? null,
+    bundleId: options.bundleId ?? null,
   });
   return { id, name };
 }
@@ -367,7 +433,8 @@ export interface SkillPatch {
 
 /**
  * Changes a skill: when it counts and whether its scripts run, always; its content only when it
- * is the space's own, since one from skills.sh stays as it came (an update replaces it whole).
+ * is the space's own, since one from skills.sh or one a plugin brought stays as it came (an
+ * update replaces it whole).
  */
 export async function updateSkill(userId: string, id: string, patch: SkillPatch) {
   await requireSkills();
@@ -383,6 +450,9 @@ export async function updateSkill(userId: string, id: string, patch: SkillPatch)
   );
   if (touches && row.source === "skills.sh") {
     throw refuse("skillReadOnly");
+  }
+  if (touches && row.bundleId) {
+    throw refuse("skillOfBundleReadOnly");
   }
   const next = checkContent({
     name: content.name ?? row.name,
@@ -409,6 +479,10 @@ export async function deleteSkill(userId: string, id: string) {
   const row = await skillRow(id);
   await ownedSpace(userId, row.spaceId);
   await requireWritableSpace(row.spaceId);
+  // What a plugin brought goes with it, all at once (`bundles/`): until then it is switched off.
+  if (row.bundleId) {
+    throw refuse("skillOfBundleStays");
+  }
   await db.delete(schema.spaceSkill).where(eq(schema.spaceSkill.id, row.id));
 }
 

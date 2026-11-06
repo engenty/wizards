@@ -11,7 +11,7 @@ import {
   type SourcePreview,
 } from "@engenty/wizards-shared/connectors";
 import { note } from "@engenty/wizards-shared/run";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { logRuleChange } from "../broker/log.js";
 import { db, schema } from "../db/client.js";
@@ -54,6 +54,7 @@ import type {
   ImportedConnectorRecord,
   NormalizedAction,
   StoredAuthConfig,
+  StoredRequiredHeader,
 } from "../engenty/connections-external/types.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { encryptToken } from "../engenty/shims/connections-sdk.js";
@@ -83,19 +84,37 @@ process.env.CONNECTIONS_REDIRECT_URI ??=
 const where = (spaceId: string, id: string) =>
   and(eq(schema.spaceConnector.spaceId, spaceId), eq(schema.spaceConnector.id, id));
 
-async function load(spaceId: string, id: string): Promise<ImportedConnectorRecord | null> {
-  const row = await db.query.spaceConnector.findFirst({ where: where(spaceId, id) });
-  return row?.record ?? null;
+async function loadRow(spaceId: string, id: string) {
+  return (await db.query.spaceConnector.findFirst({ where: where(spaceId, id) })) ?? null;
 }
 
-async function save(spaceId: string, record: ImportedConnectorRecord) {
+async function load(spaceId: string, id: string): Promise<ImportedConnectorRecord | null> {
+  return (await loadRow(spaceId, id))?.record ?? null;
+}
+
+/** Keeps a record. `bundleId` is given once, when a plugin brings the connector (`bundles/`). */
+async function save(spaceId: string, record: ImportedConnectorRecord, bundleId?: string) {
   await db
     .insert(schema.spaceConnector)
-    .values({ spaceId, id: record.id, record })
+    .values({ spaceId, id: record.id, record, ...(bundleId ? { bundleId } : {}) })
     .onConflictDoUpdate({
       target: [schema.spaceConnector.spaceId, schema.spaceConnector.id],
       set: { record, updatedAt: new Date() },
     });
+}
+
+/** What a connector came with: the record of a plugin taken into the space, by its name. */
+type BundleRef = { id: string; name: string } | null;
+
+async function bundleRef(bundleId: string | null): Promise<BundleRef> {
+  if (!bundleId) {
+    return null;
+  }
+  const row = await db.query.spaceBundle.findFirst({
+    where: eq(schema.spaceBundle.id, bundleId),
+    columns: { id: true, name: true },
+  });
+  return row ?? null;
 }
 
 /** The properties a JSON schema of an object names. */
@@ -176,7 +195,7 @@ async function reachOf(
   };
 }
 
-function view(record: ImportedConnectorRecord): ConnectorView {
+function view(record: ImportedConnectorRecord, bundle: BundleRef = null): ConnectorView {
   const auth = record.auth_config;
   const needsOAuthClient =
     auth.kind === "oauth2" && !record.client_id_enc && !(auth.dcr && auth.registration_endpoint);
@@ -193,6 +212,7 @@ function view(record: ImportedConnectorRecord): ConnectorView {
     needsOAuthClient,
     toolsPending: record.source_kind === "mcp" && record.actions.length === 0,
     fromAddress: fromAddress(record),
+    bundle,
     actions: record.actions.map((a) => actionView(record, a)),
     importedAt: record.imported_at,
     refreshedAt: record.refreshed_at,
@@ -242,7 +262,7 @@ export const signInChoiceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("none") }),
 ]);
 
-const actionKindSchema = z.object({
+export const actionKindSchema = z.object({
   kind: z.enum(CONNECTION_ACTION_KINDS),
   recipientField: z.string().min(1).max(200).optional(),
 });
@@ -446,6 +466,14 @@ interface SourceInput {
   sourceKind: "openapi" | "mcp";
   sourceUrl: string;
   signIn?: SignInChoice;
+  /** Headers with a fixed value a plugin sets on every request to its server (`bundles/`). */
+  headers?: StoredRequiredHeader[];
+}
+
+/** What a plugin gives with a server it brings: the record it belongs to, and its fixed headers. */
+export interface FromBundle {
+  bundleId: string;
+  headers: StoredRequiredHeader[];
 }
 
 /**
@@ -494,7 +522,8 @@ async function prepare(input: SourceInput) {
   }
   const source = {
     fetchImpl,
-    requiredHeaders: !blockers.length && surface ? resolveRequiredHeaders(surface) : [],
+    requiredHeaders:
+      !blockers.length && surface ? resolveRequiredHeaders(surface) : (input.headers ?? []),
     sourceKind: input.sourceKind,
     sourceUrl: input.sourceUrl,
     specOverrides: surface?.spec_overrides ?? [],
@@ -592,7 +621,7 @@ export function namesFromHost(host: string): { id: string; toolPrefix: string } 
 }
 
 /** A suggested id and tool prefix no connector of the space has yet: `crm`, then `crm-2`. */
-async function freeNames(
+export async function freeNames(
   spaceId: string,
   suggested: { id: string; toolPrefix: string },
 ): Promise<{ id: string; toolPrefix: string }> {
@@ -721,6 +750,7 @@ async function builtinView(connector: ConnectorDefinition): Promise<ConnectorVie
     needsOAuthClient: false,
     toolsPending: false,
     fromAddress: false,
+    bundle: null,
     actions: connector.actions.map((a) => ({
       id: a.id,
       summary: a.summary.slice(0, 160),
@@ -737,9 +767,16 @@ export async function listConnectors(spaceId: string): Promise<ConnectorView[]> 
     where: eq(schema.spaceConnector.spaceId, spaceId),
     orderBy: [asc(schema.spaceConnector.createdAt)],
   });
+  const bundleIds = [...new Set(rows.flatMap((r) => (r.bundleId ? [r.bundleId] : [])))];
+  const bundles = bundleIds.length
+    ? await db
+        .select({ id: schema.spaceBundle.id, name: schema.spaceBundle.name })
+        .from(schema.spaceBundle)
+        .where(inArray(schema.spaceBundle.id, bundleIds))
+    : [];
   return [
     ...(await Promise.all(BUILTIN_CONNECTORS.map(builtinView))),
-    ...rows.map((r) => view(r.record)),
+    ...rows.map((r) => view(r.record, bundles.find((b) => b.id === r.bundleId) ?? null)),
   ];
 }
 
@@ -756,6 +793,8 @@ export async function resolveConnector(
   imported: boolean;
   /** Imported from a pasted address: a new connection on it starts for the admins. */
   fromAddress: boolean;
+  /** The record of the plugin that brought it, where one did: a connection on it carries it too. */
+  bundleId: string | null;
 } | null> {
   const builtin = builtinConnector(id);
   if (builtin) {
@@ -763,6 +802,7 @@ export async function resolveConnector(
       connector: builtin,
       imported: false,
       fromAddress: false,
+      bundleId: null,
       inputSchema: (actionId) => {
         const action = builtin.actions.find((a) => a.id === actionId);
         try {
@@ -779,6 +819,7 @@ export async function resolveConnector(
         connector: found.connector,
         imported: true,
         fromAddress: fromAddress(found.record),
+        bundleId: found.bundleId,
         inputSchema: (actionId) =>
           found.record.actions.find((a) => a.id === actionId)?.input_json_schema ?? {},
       }
@@ -789,6 +830,8 @@ export async function importConnector(
   userId: string,
   spaceId: string,
   input: ImportRequest,
+  /** A plugin brings it (`bundles/`): the record it belongs to, and the headers it sets. */
+  from?: FromBundle,
 ): Promise<{ connector: ConnectorView; warnings: string[] }> {
   await requireWritableSpace(spaceId);
   await requireAdmin();
@@ -801,9 +844,12 @@ export async function importConnector(
     throw new ServiceError("invalid", note("connectorAlreadyExistsSpace", { id }));
   }
   try {
-    const { discover, surface, prepared, pasted, described } = await prepare(input);
+    const { discover, surface, prepared, pasted, described } = await prepare({
+      ...input,
+      ...(from ? { headers: from.headers } : {}),
+    });
     const name = input.name ?? null;
-    const { record, warnings } = assembleRecord({
+    const { record: assembled, warnings } = assembleRecord({
       actionFilter: input.actions ?? null,
       actionKinds: input.actionKinds
         ? checkedKinds(
@@ -833,12 +879,15 @@ export async function importConnector(
       tenantId: spaceId,
       toolPrefix,
     });
+    // The registry's headers come with its surface; a plugin's own are kept the same way.
+    const record: ImportedConnectorRecord =
+      pasted && from?.headers.length ? { ...assembled, required_headers: from.headers } : assembled;
     const { skippedActions } = buildImportedConnector(record);
     if (skippedActions.length) {
       warnings.push(`${skippedActions.length} action(s) have an input the tools cannot express`);
     }
-    await save(spaceId, record);
-    return { connector: view(record), warnings };
+    await save(spaceId, record, from?.bundleId);
+    return { connector: view(record, await bundleRef(from?.bundleId ?? null)), warnings };
   } catch (err) {
     throw err instanceof ServiceError ? err : importFailure(err);
   }
@@ -936,7 +985,7 @@ export async function refreshConnector(
       spec_hash: prepared.spec_hash,
     };
     await save(spaceId, updated);
-    return view(updated);
+    return (await importedView(spaceId, id)) ?? view(updated);
   } catch (err) {
     throw err instanceof ServiceError ? err : importFailure(err);
   }
@@ -944,8 +993,8 @@ export async function refreshConnector(
 
 /** A connector the space imported, as the studio shows it; null where there is none. */
 export async function importedView(spaceId: string, id: string): Promise<ConnectorView | null> {
-  const record = await load(spaceId, id);
-  return record ? view(record) : null;
+  const row = await loadRow(spaceId, id);
+  return row ? view(row.record, await bundleRef(row.bundleId)) : null;
 }
 
 /**
@@ -1001,18 +1050,23 @@ export async function setActionKinds(
       });
     }
   }
-  return view(updated);
+  return (await importedView(spaceId, id)) ?? view(updated);
 }
 
 /** The connector as engenty's framework runs it: actions with handlers, auth with its flows. */
 export async function importedConnector(
   spaceId: string,
   id: string,
-): Promise<{ connector: ConnectorDefinition; record: ImportedConnectorRecord } | null> {
-  const record = await load(spaceId, id);
-  if (!record) {
+): Promise<{
+  connector: ConnectorDefinition;
+  record: ImportedConnectorRecord;
+  bundleId: string | null;
+} | null> {
+  const row = await loadRow(spaceId, id);
+  if (!row) {
     return null;
   }
+  const { record } = row;
   // The record is read at call time, so a client registered a moment ago is the one used.
   let current = record;
   const { connector } = buildImportedConnector(
@@ -1028,5 +1082,5 @@ export async function importedConnector(
     },
     { allowPrivate: reachesPrivate(fromAddress(record)) },
   );
-  return { connector, record };
+  return { connector, record, bundleId: row.bundleId };
 }
