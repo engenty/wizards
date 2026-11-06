@@ -30,6 +30,9 @@ let down = false;
 let calls = 0;
 /** The texts of each call. */
 let sent: string[][] = [];
+/** How long a call takes, and when each one came. */
+let answerMs = 0;
+let came: number[] = [];
 const realFetch = globalThis.fetch;
 
 async function units() {
@@ -67,6 +70,8 @@ beforeAll(async () => {
       return reply({ models: [{ name: "embeddinggemma-2:740m", capabilities: ["embedding"] }] });
     }
     calls++;
+    came.push(Date.now());
+    await new Promise((done) => setTimeout(done, answerMs));
     if (down) {
       return reply({ error: { message: "down" } }, 400);
     }
@@ -150,6 +155,20 @@ describe("vectors of the model at hand", () => {
     await flushIndex();
     expect(sent.map((texts) => texts.length)).toEqual([1, 1, 1, 1]);
     expect((await units()).every((r) => r.model === MODEL)).toBe(true);
+  });
+
+  it("leaves the model free between calls as long as a call took", async () => {
+    const { flushIndex, queueVectors } = await import("../src/services/space-index");
+    await addUnit("room-1", null, "d".repeat(3000));
+    await addUnit("room-2", null, "e".repeat(3000));
+    answerMs = 100;
+    came = [];
+    await local(() => queueVectors());
+    await flushIndex();
+    answerMs = 0;
+    expect(came).toHaveLength(2);
+    // The call, then a rest as long; a timer may come a little early.
+    expect(came[1] - came[0]).toBeGreaterThanOrEqual(190);
   });
 
   it("leaves the texts to one process: a runner serves the studio's routes too", async () => {

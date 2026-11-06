@@ -669,10 +669,20 @@ export function queueVectors() {
 /** Texts sent at once: a search's question waits behind them in a busy Ollama. */
 const TEXT_BATCH = 32;
 /**
- * And their characters: 32 long units are about 60,000 tokens, while the gateway's Ollama on four
- * cores makes some 400 a second and gives a call up after 120 s.
+ * And their characters. At 16,000 the gateway's Ollama on four cores took minutes over a call, and
+ * a search's question sent meanwhile took 45 s: it waits 15 s at most, then finds words only.
  */
-const TEXT_BATCH_CHARS = 16_000;
+const TEXT_BATCH_CHARS = 4000;
+
+/** Leaves the model free as long as `work` held it: the sweep takes half its time at most. */
+async function leavingRoom<T>(work: () => Promise<T>): Promise<T> {
+  const started = Date.now();
+  try {
+    return await work();
+  } finally {
+    await new Promise((rest) => setTimeout(rest, Date.now() - started));
+  }
+}
 
 /** As many of `units` as go in one call: one at least, however long. */
 function textBatch<T extends { text: string }>(units: T[]) {
@@ -719,9 +729,11 @@ async function embedTexts() {
     after = todo[todo.length - 1].id;
     try {
       // No retries: a call that timed out still holds the model, and the next round comes anyway.
-      const embedded = await embed(
-        todo.map((u) => u.text),
-        0,
+      const embedded = await leavingRoom(() =>
+        embed(
+          todo.map((u) => u.text),
+          0,
+        ),
       );
       if (!embedded) {
         break;
@@ -818,7 +830,7 @@ async function embedPictures() {
           continue;
         }
         await searchesFirst();
-        const vector = await embedImage(jpeg);
+        const vector = await leavingRoom(() => embedImage(jpeg));
         await db
           .update(schema.spaceChunk)
           .set({ embedding: vectorBytes(vector), model: resolved.ref })
