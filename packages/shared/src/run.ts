@@ -141,6 +141,11 @@ export interface RunState {
    * since they did it themselves. A step that worked in between is news to them again.
    */
   lastBy?: { userId?: string | null; visitorId?: string | null; next: string | null };
+  /**
+   * When the last answer came, and the step it led to, until the run waits again: the time from
+   * answer to page is logged by whichever process gets there, often not the one that took the answer.
+   */
+  answered?: { at: number; next: string | null };
   /** The durable agent step at work (engine/durable-turn.ts); gone when the step has finished. */
   turn?: RunTurn;
 }

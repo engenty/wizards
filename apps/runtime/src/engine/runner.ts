@@ -2150,8 +2150,20 @@ async function drive(runId: string, signal: AbortSignal) {
     if (step.type === "page" || step.type === "review") {
       // Reached right from someone's answer: they know, they did it. After a step that worked it
       // is news again.
-      const { lastBy } = run.state;
-      await waitForAnswer(run, step, {}, undefined, lastBy?.next === step.id ? lastBy : undefined);
+      const { lastBy, answered, ...rest } = run.state;
+      await waitForAnswer(
+        run,
+        step,
+        answered ? { state: { ...rest, ...(lastBy ? { lastBy } : {}) } } : {},
+        undefined,
+        lastBy?.next === step.id ? lastBy : undefined,
+      );
+      if (answered) {
+        // The two times can come from two machines: small numbers on the cloud's split roles are rough.
+        console.info(
+          `[timing] page run=${runId} ms=${Math.max(0, Date.now() - answered.at)} direct=${answered.next === step.id} role=${env.role} durable=${(await durableRunsOn()) ? "on" : "off"}`,
+        );
+      }
       // A step that ran is over and the next one is the person's: a phone in a pocket hears it.
       void pushRun(runId, "waiting");
       return;
@@ -2368,6 +2380,7 @@ export async function submitPage(
   input: Record<string, unknown>,
   by?: Actor,
 ) {
+  const at = Date.now();
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
   if (step?.type !== "page") {
@@ -2428,13 +2441,14 @@ export async function submitPage(
     }
   }
   // Later pages decide their fields again on what is answered now.
-  const at = run.definition.steps.indexOf(step);
-  for (const later of run.definition.steps.slice(at + 1)) {
+  const place = run.definition.steps.indexOf(step);
+  for (const later of run.definition.steps.slice(place + 1)) {
     delete state.pages?.[later.id];
   }
   handOnAnswer(step, state);
   state.history.push(stepId);
   const cursor = await advance(run, stepId, state);
+  state.answered = { at, next: cursor };
   await keepAnswerer(state, stepId, cursor, by);
   await answerGoesOn(run, step, state, cursor, { label: await labelOf(run.definition, state) }, by);
   await tellAnswered(run, stepId, by);
@@ -2538,6 +2552,7 @@ export type ReviewAction =
  * answers, as the door established it; none for what the engine does itself.
  */
 export async function reviewStep(runId: string, stepId: string, action: ReviewAction, by?: Actor) {
+  const at = Date.now();
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
   if (step?.type !== "review") {
@@ -2576,6 +2591,7 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
     );
     state.history.push(stepId);
     const cursor = await advance(run, stepId, state);
+    state.answered = { at, next: cursor };
     await keepAnswerer(state, stepId, cursor, by);
     await answerGoesOn(run, step, state, cursor, {}, by);
     if (step.approve && whoOf(step) === "team" && (await durableRunsOn())) {
@@ -2602,6 +2618,7 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
   } else {
     delete state.redo?.[action.target];
   }
+  state.answered = { at, next: action.target };
   await answerGoesOn(run, step, state, action.target);
   await emitEvent(runId, action.target, "info", "Wird neu erstellt …");
   kick(runId);

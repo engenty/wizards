@@ -34,6 +34,7 @@ import {
   type SubscriptionClient,
 } from "./chat-clients.js";
 import { thoughtLine } from "./thought.js";
+import type { TurnClock } from "./turn-clock.js";
 
 /**
  * The studio chat on the admin's own subscription: an installed client (Claude Code, Codex or
@@ -122,6 +123,8 @@ export interface SubscriptionTurn {
   extra?: boolean;
   /** The language the admin reads the lines about its work in. */
   lang?: Lang;
+  /** Where the turn's time goes, for the log. */
+  clock?: TurnClock;
 }
 
 /** The activity for one tool call, naming the file or service it is about when it says. */
@@ -188,6 +191,7 @@ export async function subscriptionTurn(
       (await chatModelId(input.client, input.extra === false ? "normal" : "extra")) ?? undefined,
     images,
   };
+  input.clock?.runsOn(call.model);
   const h = harness(input.client);
   // The client's own sign-in, as the person's terminal has it; no key of ours reaches it.
   const childEnv = h ? (await resolveEnv(h)).env : process.env;
@@ -217,10 +221,21 @@ export async function subscriptionTurn(
     for await (const line of createInterface({ input: child.stdout })) {
       for (const event of client.events(line)) {
         if (event.kind === "text") {
+          input.clock?.output();
           const text = reply ? `\n\n${event.text}` : event.text;
           reply += text;
           input.onText(text);
+        } else if (event.kind === "writing") {
+          input.clock?.output();
+        } else if (event.kind === "toolDone") {
+          input.clock?.toolDone(event.issues);
         } else if (event.kind === "tool") {
+          // A client that names the tool first is still writing its arguments.
+          if (event.started) {
+            input.clock?.toolCalled();
+          } else {
+            input.clock?.output();
+          }
           if (event.started && BUILDING.test(event.name)) {
             changed = true;
             input.onBuilding();
@@ -229,6 +244,11 @@ export async function subscriptionTurn(
         } else if (event.kind === "thinkingStart") {
           thinking = "";
         } else if (event.kind === "thinking") {
+          if (event.whole) {
+            input.clock?.reasoned();
+          } else {
+            input.clock?.reasoning();
+          }
           thinking += event.text;
           const next = thoughtLine(thinking);
           if (next && next !== thought) {
