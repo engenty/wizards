@@ -46,7 +46,7 @@ const KINDS: Record<string, Kind> = {
   },
   drop: {
     fill: FILL.amber,
-    body: "M60 16 Q90 34 90 66 Q90 96 60 98 Q30 96 30 66 Q30 34 60 16 Z",
+    body: "M46.9 25.9 Q60 13.3 73.1 25.9 Q90 42 90 66 Q90 96 60 98 Q30 96 30 66 Q30 42 46.9 25.9 Z",
     eye: { ex: 60, ey: 56, r: 8, ink: "oklch(30% 0.10 60)" },
     after: stroke("M49 75 C54 78 64 78.5 71 71.4", "oklch(30% 0.10 55)", 2.6, 1),
     shadow: { cy: 106, rx: 24 },

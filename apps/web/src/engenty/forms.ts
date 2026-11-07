@@ -114,8 +114,8 @@ export const ENGENTY_FORMS: Record<EngentyKind, EngentyForm> = {
   drop: {
     blobs: [
       { x: 60, y: 70, r: 30, rx: 1, ry: 0.95 },
-      { x: 60, y: 40, r: 20, rx: 0.85, ry: 1.15 },
-      { x: 60, y: 22, r: 9, rx: 0.7, ry: 1 },
+      { x: 60, y: 46, r: 24, rx: 0.92, ry: 1.1 },
+      { x: 60, y: 30, r: 14, rx: 1, ry: 1 },
     ],
     extras: [{ type: "smirk", x: 49, y: 75, len: 22, amp: 2, width: 2.6 }],
     falloff: 1.7,
