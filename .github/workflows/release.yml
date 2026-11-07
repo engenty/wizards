@@ -2,14 +2,18 @@ name: Release
 
 # A tag `v<version>` (the version of the root package.json) publishes what a local install is made
 # of on the GitHub release: the runtime, the npm package @engenty/wizards-runtime, as a tarball
-# (and the launcher `wizards` and the package `@engenty/wizards` beside it). The installer
+# (and the launcher `wizards`, the package `@engenty/wizards` and the MIT libraries
+# `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql` and
+# `@engenty/goose` beside it). The installer
 # (apps/web/public/install.sh) fetches the runtime from there. People install the studio as a Chrome app. The installer itself reaches
 # engenty.ai with the deploy the same tag starts (ci.yml).
 #
 # The packages also go to npm while the repository variable PUBLISH_NPM is `true` and the secret
-# NPM_TOKEN holds a token that may publish `wizards`, `@engenty/wizards-runtime` and
-# `@engenty/wizards` without a second factor: the runtime for the updates and the launcher, then
-# the launcher for `npx wizards`, then what code outside the repo imports (scripts/npm-package.mjs).
+# NPM_TOKEN holds a token that may publish `wizards`, `@engenty/wizards-runtime`,
+# `@engenty/wizards` and the MIT libraries `@engenty/decision-model`, `@engenty/search-index`,
+# `@engenty/search-libsql` and `@engenty/goose` without a second factor: the runtime for the
+# updates and the launcher, then the launcher for `npx wizards`, then what code outside the repo
+# imports (scripts/npm-package.mjs).
 # Run by hand (workflow_dispatch), it builds and tests everything and publishes nothing. On a pull
 # request that touches what a local install is made of it does the same, except that the Mac
 # helper, the package and the installers run only when what the installers test changes (the job
@@ -50,7 +54,7 @@ jobs:
   # only when one of these changed:
   #   install.sh, install.ps1    the installers themselves
   #   bin/**                     the launcher `npx wizards` and the command `wizards`, both packed
-  #   scripts/npm-package.mjs    how the three packages are staged and packed
+  #   scripts/npm-package.mjs    how the npm packages are staged and packed
   #   apps/runtime/package.json, packages/*/package.json, pnpm-lock.yaml, pnpm-workspace.yaml
   #                              the dependencies the runtime package lists and bundles; a version
   #                              bump of the root package.json (every release PR) is not one
@@ -383,7 +387,9 @@ jobs:
             artifacts/agent-plugins-openai.zip
 
       # The runtime first, the launcher once npm serves it: the launcher installs the runtime of
-      # its own version from npm. @engenty/wizards needs neither.
+      # its own version from npm. @engenty/wizards needs neither. The MIT libraries come last, all
+      # at the release's version; search-libsql names decision-model and search-index at it, so
+      # those two go first.
       #
       # npm takes a few minutes to serve a version it accepted. Each package counts once `latest`
       # names it and its tarball downloads, so a green release means `npx wizards` and the updates
@@ -428,3 +434,10 @@ jobs:
           served wizards "wizards-$version.tgz"
           publish @engenty/wizards "engenty-wizards-$version.tgz"
           served @engenty/wizards "wizards-$version.tgz"
+          libraries="decision-model search-index search-libsql goose"
+          for library in $libraries; do
+            publish "@engenty/$library" "engenty-$library-$version.tgz"
+          done
+          for library in $libraries; do
+            served "@engenty/$library" "$library-$version.tgz"
+          done

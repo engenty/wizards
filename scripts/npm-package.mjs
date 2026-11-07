@@ -1,4 +1,4 @@
-// Stages and packs the three npm packages of a release:
+// Stages and packs the npm packages of a release:
 //
 //   @engenty/wizards-runtime  the runtime (built server, built SPA, plugin template, the modules),
 //                             the `wizards` command and the workspace packages inside it: what the
@@ -9,6 +9,10 @@
 //                             installer and hands over to it (bin/wizards.mjs).
 //   @engenty/wizards          what code outside this repo imports: packages/wizards/dist as its
 //                             build leaves it (packages/wizards/scripts/build.mjs)
+//   @engenty/decision-model, @engenty/search-index, @engenty/search-libsql, @engenty/goose
+//                             the MIT libraries in packages/: each its dist/ as tsc leaves it
+//                             (tsconfig.build.json), its LICENSE and README, at the release's
+//                             version. search-libsql names the other two at that version.
 //
 //   node scripts/npm-package.mjs [--skip-build] [--version 1.2.3] [--apple <wizards-apple>]
 //
@@ -17,9 +21,10 @@
 // --apple       the `wizards-apple` helper built on a Mac (apps/runtime/scripts/build-apple.mjs),
 //               for a package made elsewhere; a Mac's own build ships as it is
 //
-// Out: dist/npm/runtime/, dist/npm/wizards/ and dist/npm/engenty-wizards/ (the staged folders),
-// dist/npm/engenty-wizards-runtime-<version>.tgz, dist/npm/wizards-<version>.tgz and
-// dist/npm/engenty-wizards-<version>.tgz.
+// Out: dist/npm/runtime/, dist/npm/wizards/, dist/npm/engenty-wizards/ and
+// dist/npm/engenty-<library>/ (the staged folders), dist/npm/engenty-wizards-runtime-<version>.tgz,
+// dist/npm/wizards-<version>.tgz, dist/npm/engenty-wizards-<version>.tgz and
+// dist/npm/engenty-<library>-<version>.tgz for each MIT library.
 // Publish the runtime first: the launcher installs the runtime of its own version from npm.
 //
 // The folder keeps the checkout's layout (apps/runtime/dist, apps/web/dist, plugin/), so the
@@ -44,6 +49,8 @@ const stage = join(outDir, "runtime");
 const launcherStage = join(outDir, "wizards");
 const libraryStage = join(outDir, "engenty-wizards");
 const RUNTIME = "@engenty/wizards-runtime";
+// The MIT libraries, by their folder in packages/; one that another needs comes first.
+const LIBRARIES = ["decision-model", "search-index", "search-libsql", "goose"];
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
@@ -68,6 +75,7 @@ const BUILT = [
   "apps/web/dist",
   "packages/shared/dist",
   "packages/wizards/dist",
+  ...LIBRARIES.map((dir) => `packages/${dir}/dist`),
 ];
 if (flag("skip-build")) {
   for (const dir of BUILT) {
@@ -294,10 +302,93 @@ writeFileSync(
   )}\n`,
 );
 
-// --- 6. pack ----------------------------------------------------------------------------
+// --- 6. the MIT libraries ---------------------------------------------------------------
+// Each its build's dist/, LICENSE and README, and a package.json for npm: the release's version,
+// `exports` without the condition that points at the sources, and the workspace libraries it
+// needs at the release's version too (they are published together). No scripts, no
+// devDependencies. Every path `exports` names must be in the folder: nothing outside it ships.
+const libraries = LIBRARIES.map((dir) => {
+  const from = join(root, "packages", dir);
+  const manifest = readJson(`packages/${dir}/package.json`);
+  if (manifest.license !== "MIT") {
+    throw new Error(`packages/${dir} is not MIT: it doesn't ship as a library.`);
+  }
+  const to = join(outDir, `engenty-${dir}`);
+  mkdirSync(to, { recursive: true });
+  cpSync(join(from, "dist"), join(to, "dist"), { recursive: true });
+  cpSync(join(from, "LICENSE"), join(to, "LICENSE"));
+  if (existsSync(join(from, "README.md"))) {
+    cpSync(join(from, "README.md"), join(to, "README.md"));
+  }
+  const exports = Object.fromEntries(
+    Object.entries(manifest.exports).map(([key, value]) => {
+      if (typeof value === "string") {
+        return [key, value];
+      }
+      const { "wizards-source": _source, ...published } = value;
+      return [key, published];
+    }),
+  );
+  const targets = [manifest.main, manifest.types, ...Object.values(exports).flatMap(Object.values)];
+  for (const target of targets.filter(Boolean)) {
+    if (!existsSync(join(to, target))) {
+      throw new Error(`${manifest.name}: ${target} is not in the package — build it first.`);
+    }
+  }
+  const subpaths = Object.entries(exports).filter(([key]) => key !== ".");
+  const dependencies = Object.fromEntries(
+    Object.entries(manifest.dependencies ?? {}).map(([name, range]) => {
+      if (!range.startsWith("workspace:")) {
+        return [name, range];
+      }
+      if (!LIBRARIES.some((dir) => readJson(`packages/${dir}/package.json`).name === name)) {
+        throw new Error(`${manifest.name} needs ${name}, which is not published with it.`);
+      }
+      return [name, version];
+    }),
+  );
+  writeFileSync(
+    join(to, "package.json"),
+    `${JSON.stringify(
+      {
+        name: manifest.name,
+        version,
+        description: manifest.description,
+        license: manifest.license,
+        repository: manifest.repository,
+        type: manifest.type,
+        main: manifest.main,
+        types: manifest.types,
+        exports,
+        ...(subpaths.length
+          ? {
+              typesVersions: {
+                "*": Object.fromEntries(
+                  subpaths.map(([key, value]) => [key.slice(2), [value.types]]),
+                ),
+              },
+            }
+          : {}),
+        files: manifest.files,
+        ...(Object.keys(dependencies).length ? { dependencies } : {}),
+        peerDependencies: manifest.peerDependencies,
+        peerDependenciesMeta: manifest.peerDependenciesMeta,
+        publishConfig: manifest.publishConfig,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  return { name: manifest.name, stage: to, tarball: join(outDir, `engenty-${dir}-${version}.tgz`) };
+});
+
+// --- 7. pack ----------------------------------------------------------------------------
 run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], stage);
 run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], launcherStage);
 run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], libraryStage);
+for (const { stage: dir } of libraries) {
+  run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], dir);
+}
 const tarball = join(outDir, `engenty-wizards-runtime-${version}.tgz`);
 const launcherTarball = join(outDir, `wizards-${version}.tgz`);
 const libraryTarball = join(outDir, `engenty-wizards-${version}.tgz`);
@@ -332,3 +423,10 @@ ${library.name} ${version}
   staged    ${libraryFiles.length} files, ${mb(sizeOf(libraryFiles))}  (${libraryStage})
   tarball   ${kb(statSync(libraryTarball).size)}  (${libraryTarball})
 `);
+for (const { name, stage: dir, tarball: file } of libraries) {
+  const staged = [...walk(dir)];
+  console.log(`${name} ${version} (MIT)
+  staged    ${staged.length} files, ${kb(sizeOf(staged))}  (${dir})
+  tarball   ${kb(statSync(file).size)}  (${file})
+`);
+}

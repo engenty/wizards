@@ -42,9 +42,10 @@ A pnpm workspace:
 | `apps/runtime/src/cli/` | the `wizards` command of a local install: start, guided setup, status, update |
 | `apps/web/public/install.sh` | the installer, served by every runtime at `/install.sh` |
 | `bin/` | the entry of the `wizards` command, and the launcher `npx wizards` runs |
-| `scripts/` | `npm-package.mjs` (the npm packages: the runtime and the launcher) |
+| `scripts/` | `npm-package.mjs` (the npm packages: the runtime, the launcher, `@engenty/wizards` and the MIT libraries) |
 | `packages/shared/` | types and schemas the server and the SPA both use |
 | `packages/wizards/` | `@engenty/wizards`, the one package code outside this repo imports: `/plugin` (a plugin’s server half), `/plugin/studio`, `/plugin/thread`, `/openui` (wizards in OpenUI chats), `/openui/server` |
+| `packages/decision-model/`, `search-index/`, `search-libsql/`, `goose/` | the MIT libraries of the engenty framework, each on npm under its own name (below) |
 | `modules/` | plugins that ship with the runtime |
 | `examples/plugins/` | example plugins; loaded with `PLUGINS_DIR=examples/plugins` |
 | `scripts/build-plugin.mjs` | builds a plugin's studio half |
@@ -60,10 +61,11 @@ A pnpm workspace:
 | `wizards` | The launcher people run with `npx wizards`: it installs the runtime and hands over. Built by `scripts/npm-package.mjs` |
 | `@engenty/wizards-runtime` | The runtime the installer and the updates install: `apps/runtime`, built by `scripts/npm-package.mjs` beside the launcher |
 | `@engenty/wizards` | What code outside this repo imports, one subpath per use: `/plugin`, `/openui`. Inside the repo the runtime and the studio import it by the same name |
+| `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/goose` | The MIT libraries in `packages/`, published with each release at its version by `scripts/npm-package.mjs`. Their runtime dependencies stay MIT or as permissive (`pnpm mit-deps:check`) |
 | `@engenty/wizards-*` | The workspace’s other parts, named after the product, never published: `wizards-studio` (`apps/web`), `wizards-docs`, `wizards-shared`, `wizards-runner`, and the examples `wizards-example-run-log` and `wizards-example-openui-chat`. The folders keep their names |
 
 A new thing for outside code goes into `packages/wizards/` as a subpath, not into a package of
-its own. `@engenty/wizards` is not on npm yet: it stays `private` until it is published.
+its own; the MIT libraries are the exception, since they are MIT, not FSL-1.1-MIT. `@engenty/wizards` is not on npm yet: it stays `private` until it is published.
 
 `.env.local` and the data folder (`data/`) stay in the repo root; `pnpm dev` and `pnpm start`
 run from there.
