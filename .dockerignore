@@ -13,3 +13,10 @@ apps/docs
 apps/portal
 apps/runtime/test
 examples
+# The MIT libraries go to npm on their own (scripts/npm-package.mjs). The runtime doesn't use them
+# yet, and its image installs only the manifests apps/runtime/Dockerfile copies: `pnpm build`
+# would find them without their dependencies.
+packages/decision-model
+packages/search-index
+packages/search-libsql
+packages/goose

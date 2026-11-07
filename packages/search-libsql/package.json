@@ -1,0 +1,64 @@
+{
+  "name": "@engenty/search-libsql",
+  "version": "0.1.0",
+  "description": "A search index on libSQL: full text (FTS5) and vectors, fused by rank, ranked by a decision model; images and PDF pages as pictures.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/engenty/wizards.git",
+    "directory": "packages/search-libsql"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "wizards-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@engenty/decision-model": "workspace:*",
+    "@engenty/search-index": "workspace:*"
+  },
+  "peerDependencies": {
+    "@libsql/client": ">=0.15.0",
+    "@napi-rs/canvas": "^0.1.80 || ^1.0.0",
+    "mammoth": "^1.12.0",
+    "pdf-parse": "^2.4.5"
+  },
+  "peerDependenciesMeta": {
+    "@napi-rs/canvas": {
+      "optional": true
+    },
+    "mammoth": {
+      "optional": true
+    },
+    "pdf-parse": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@libsql/client": "^0.18.0",
+    "@napi-rs/canvas": "0.1.80",
+    "@types/node": "^26.6.4",
+    "mammoth": "^1.12.3",
+    "pdf-parse": "^2.4.5",
+    "typescript": "~7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

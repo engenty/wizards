@@ -101,6 +101,12 @@ jobs:
         if: matrix.check == 'typecheck'
         run: pnpm copy:check --strict
 
+      # The MIT packages (packages/runner, decision-model, search-index, search-libsql, goose)
+      # depend only on MIT or permissive packages: scripts/mit-deps-check.mjs.
+      - name: MIT dependencies
+        if: matrix.check == 'typecheck'
+        run: pnpm mit-deps:check
+
       # The docs site is type-checked in its own check, where its packages are installed.
       - name: Typecheck
         if: matrix.check == 'typecheck'

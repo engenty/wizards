@@ -1,0 +1,44 @@
+{
+  "name": "@engenty/search-index",
+  "version": "0.1.0",
+  "description": "Search contracts for engenty: index providers, embedders (Ollama, OpenAI-style, Gemini), chunks and scoring.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/engenty/wizards.git",
+    "directory": "packages/search-index"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "wizards-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./embedders": {
+      "wizards-source": "./src/embedders/index.ts",
+      "types": "./dist/embedders/index.d.ts",
+      "default": "./dist/embedders/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "~7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

@@ -4,8 +4,8 @@ description: How we handle sharing the source and enable your usage.
 version: 0.11.2
 ---
 
-The wizard format and the runner are under the MIT licence. Anyone may read, write and run
-wizards in their own tools, open or closed. The studio, the runtime and the rest of the code are
+The wizard format, the runner and four libraries are under the MIT licence. Anyone may read,
+write and run wizards in their own tools, open or closed. The studio, the runtime and the rest of the code are
 source available under FSL-1.1-MIT.
 
 ## MIT
@@ -17,6 +17,7 @@ Use it, change it and share it in any app, open or closed. Keep the licence text
 | The wizard format | sixteen files in `packages/shared/src` | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT)) |
 | The runner | `@engenty/wizards-runner` in `packages/runner` | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/packages/runner/LICENSE)) |
 | The plugin for the AI apps | `plugin/`, without the engenty figures in it | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/plugin/LICENSE)) |
+| The libraries | `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql` and `@engenty/goose` in `packages/` | MIT (the `LICENSE` in each folder) |
 
 ### The wizard format
 
@@ -38,6 +39,19 @@ without the rest of engenty wizards.
 `@engenty/wizards-runner` draws a wizard’s run: its pages, fields, reviews and results. It is
 MIT, the format files it bundles included. Your own app can draw runs with it
 ([Your own UI](./integration/own-ui.md)).
+
+### The libraries
+
+Four libraries go to npm with each release, at its version:
+
+- `@engenty/decision-model`: one request to a decision model, by whichever way is set up (the
+  Vercel AI Gateway, TypeSafe’s API or Ollama)
+- `@engenty/search-index`: what every search index meets, chunks, scoring and embedders
+- `@engenty/search-libsql`: a search index on libSQL, full text and vectors
+- `@engenty/goose`: Goose, the copilot: a chat with tools and adapters for the Anthropic and
+  OpenAI SDKs and the Vercel AI SDK
+
+They depend only on each other and on packages under MIT or a licence as permissive.
 
 ## FSL-1.1-MIT
 
