@@ -320,6 +320,9 @@ export function NewWizardPage() {
           <h1 className="mt-1 font-display font-semibold text-[1.5rem] leading-tight tracking-tight md:mt-2 md:text-[2.375rem]">
             {t("new.title")}
           </h1>
+          <p className="mt-2 max-w-lg text-[0.9375rem] text-ink-3 leading-relaxed">
+            {t("new.lead")}
+          </p>
           {/* With Work on, where the Studio stands: here is set up what others use. */}
           {workMode ? (
             <p className="mt-2 max-w-lg text-[0.9375rem] text-ink-3 leading-relaxed">
