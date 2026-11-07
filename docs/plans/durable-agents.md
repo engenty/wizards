@@ -3,7 +3,7 @@
 Status: built, behind the switch `durableRuns` (off by default), except PR 0, which needs no switch.
 Rewritten on 2026-11-06 to what was built. PRs 0 and 1 are on main. PR 3 is open as
 [#498](https://github.com/engenty/wizards/pull/498). PRs 2 to 11 stand together on the local branch
-`claude/durable-runs-combined`, not merged with main and not pushed. Nothing more goes to main until
+`claude/durable-runs-combined`, pushed and rebased on main, not merged with it. Nothing more goes to main until
 Matthias lifts that hold. Starts have their own plan (`starts.md`, behind `startTriggers`). "Before the switch
 flips" below holds what is left.
 
