@@ -7,7 +7,8 @@ on the same branch. Nothing of it is on `main` but this text (Order). From the r
 2026-10-30. Part 4, the order and the fit with durable runs corrected on 2026-11-06, against `main`
 and that branch at 6bac6ed0, by reading the code. Part 1 brought in line with what was built the
 same day, against `fe9b26d3`. Step 1 is built on that branch and was measured on 2026-11-07 on a
-laptop (Order, step 1). The cloud is not measured yet.
+laptop (Order, step 1). The cloud is not measured yet. Step 2, the text form, is built there the
+same day, and Part 2 is brought in line with it.
 
 Scope: a new wizard shows its first page about two seconds after the wish, and a run moves from
 page to page without waiting on the server. The definition stays JSON and stays at version 2:
@@ -541,25 +542,42 @@ while half-written. The text form takes that, without the JavaScript.
 ### The rules
 
 1. **A tag is an object, its attributes are its keys.** Attribute names are the JSON keys of
-   Part 1, nothing else. A string in quotes, everything else in `{ }` as JSON.
+   Part 1, nothing else. A string in quotes, everything else in `{ }` as JSON. The parser fills
+   in what the schema fills in (`version` 2, an agent's `output`, a widget's `data` and the
+   like) and a Result's `deliverables: []`; the printer leaves them out.
 2. **Children are the object's list.** Steps in the wizard, fields and components in a page,
-   rules in a step.
+   rules in a step. With components on a page, the order of `fields` follows the `<Field>` tags.
 3. **Text inside a tag is its text.** In `<Agent>` the instructions, in `<Result>` the message,
-   in `<Page>` Markdown that becomes `Text` components (the page then gets `components`).
-4. **`{ … }` that is not JSON is an expression.** `when={type == "Shop"}` compiles to a
-   condition when one can say it, else to `{ "calc": … }`. A prop `value={demo / budget}`
-   compiles to `{ "calc": "demo / budget" }`, a bare name `{budget}` to `{ "path": "/budget" }`.
+   in `<Page>` Markdown that becomes `Text` components (the page then gets `components`). Such
+   text holds no `<` before a letter or `/`, and its ends are trimmed; a text that needs either
+   is printed as an attribute (`instructions="…"`). `<Wizard>` takes no text: `intro` is an
+   attribute.
+4. **`{ … }` that is not JSON is an expression.** In `when`, `==`, `!=`, `>` and `<` joined
+   with `and` compile to conditions; `>=`, `<=`, `or`, `not` and arithmetic compile to
+   `{ "calc": … }`. `in`, `notEmpty`, `empty` and `contains` have no expression and are written
+   as JSON (`when={{"field": "x", "op": "notEmpty"}}`). In a component's prop, a plain name
+   `{budget}` compiles to `{ "path": "/budget" }` and anything else, a dotted name too, to
+   `{ "calc": … }`; a calc with `as` or `format` is written as JSON. In a step's or field's
+   attributes only `when` takes an expression; any other is dropped, with a cut.
 5. **Ids come from the model.** Steps and fields carry an `id`, as in JSON. Component ids are
    made by the compiler (`c1`, `c2` …) and stay the same for the same position while it streams.
 6. **No `{#if}` blocks.** A field's `when` is an attribute, as it is a key in JSON: one way.
+7. **Component tags only in `<Page>`, as one tree.** A surface step's `components` and
+   `candidates` and an agent's `output.surface` are JSON attributes. So are a page's components
+   that are not one tree under a plain root `Column`: repeat templates, `Tabs` that name their
+   children, a root with props, a `Field` component with an id of its own. They print as
+   `components={[…]}` beside the `<Field>` tags.
+8. **A tag name may mean two things, by where it stands.** `Text`, `List`, `Table` and `Choice`
+   are components in a page and output kinds inside `<Output>`. Other output kinds are written
+   `<YesNo>`, `<Score>` and so on. `Group` is a component; a page's `groups` stay JSON.
 
 | Text form | Definition |
 |---|---|
 | `<Wizard title="…" lang="de">` | the definition's top-level keys |
 | `<Page id="budget" section="Budget" title="…">` | `{ "type": "page", … }` |
 | `<Field id="budget" kind="number" min={2000} … />` | an entry of `fields`, and a `Field` component where the page has components |
-| Markdown inside `<Page>` | `Text` components (`##` → `variant: "h3"`) |
-| `<Metric label="…" value={demo / budget} as="percent" />` | a component with a `calc` prop |
+| Markdown inside `<Page>` | `Text` components: `#` and `##` → `variant: "h3"`, `###` and more → `"h4"`, a paragraph without a variant |
+| `<Metric label="…" value={demo / budget} />` | a component with a `calc` prop |
 | `<Next when={type == "Shop"} goto="shop" />`, `<Next ask="…" goto="…" />`, `<Next goto="end" />` | entries of `next` |
 | `<Agent id="concept" model="standard">instructions</Agent>` | `{ "type": "agent", "instructions": … }` |
 | `<Output format="json"><Text id="summary" /></Output>` | `output.fields` |
@@ -584,33 +602,49 @@ has none.
   <Field id="pages" kind="number" label="Wie viele Seiten?" when={type == "Website"} />
 </Page>
 <Page id="budget" section="Budget" title="Wie hoch ist dein Budget?" data={{"demo": "steps.estimate.total"}}>
-  <Field id="budget" kind="number" unit="€" required min={2000} max={30000} increment={500} default={17000} look="slider" />
-  <Metric label="Davon für die Demo" value={demo / budget} as="percent" />
+  <Field id="budget" kind="number" label="Budget" unit="€" required min={2000} max={30000} increment={500} default={17000} look="slider" />
+  <Metric label="Davon für die Demo" value={{"calc": "demo / budget", "as": "percent"}}
+    caption={if(demo <= budget, "im Budgetrahmen", "über dem Budget")} />
   <Field id="name" kind="text" label="Projektname (optional)" placeholder="Mein neues Projekt" />
 </Page>
-<Agent id="concept" section="Ergebnis" title="Projektkonzept" model="standard">
-Erstelle ein Projektkonzept für {{type}} mit einem Budget von {{budget}} Euro …
+<Agent id="concept" section="Ergebnis" title="Projektkonzept">
+Erstelle ein Projektkonzept für {{type}} …
 </Agent>
 <Result id="done" title="Dein Konzept" />
 </Wizard>
 ```
 
-About 1,200 characters. The same definition is about 1,600 as compact JSON and 2,900 as the
-indented JSON the examples store. Length is the smaller gain. The larger one is what the model
-no longer has to keep straight: no component ids, no child lists, no `{ "path" }` objects, and a
-page that can be drawn as soon as its tag closes.
+This parses to 1g with its diff, except the component ids: `c1`, `c2`, `c3` here, `b`, `fit`,
+`n` there (rule 5). 1g itself, with its own ids, prints its components as `components={…}`
+(rule 7).
+
+Length is the smaller gain. Over the 17 wizards in `examples/wizards`, the text form is 4 to 8 %
+shorter than compact JSON, because they are mostly prompt text, and 21 to 44 % shorter than the
+indented JSON they are stored as. A page with components gains more. The larger gain is what
+the model no longer has to keep straight: no component ids, no child lists, no `{ "path" }`
+objects, and a page that can be drawn as soon as its tag closes.
 
 ### Streaming
 
-`parseWizardText(text, { partial: true })` in a new `packages/shared/src/wizard-text.ts` works
-like ChatGPT's compiler: it parses everything written so far, cuts at the last complete tag,
-closes open elements that already have content and drops the rest. It returns the definition
-so far and the cuts it made. Run on every chunk (a definition is small; a full parse takes
-well under a millisecond), it gives a step as soon as its closing tag arrives.
+`parseWizardText(text, { partial: true })` in `packages/shared/src/wizard-text.ts` works like
+ChatGPT's compiler: it parses everything written so far, cuts at the last complete tag, closes
+open elements that already have content and drops the rest. It returns `{ definition, cuts }`;
+a cut is `{ at, what, step? }`, and the definition is not checked against the schema. Run on
+every chunk, it gives a step as soon as its closing tag arrives, and that step does not change
+after. An open step that already has content shows before its closing tag; its cut names the
+step, so the first pass can keep only the closed ones. Markdown loses each line's indentation,
+and a heading still being typed is a paragraph first, then the heading, with the same id.
 
 `printWizardText(def)` writes a definition back as text, so a model reads an existing wizard in
-the same form it writes. Every wizard in `examples/wizards` must print and parse back to the
-same definition: that round trip is the test.
+the same form it writes. It checks each step by parsing it back; a step whose readable form does
+not give the same JSON is printed with plain attributes. Every wizard in `examples/wizards` must
+print and parse back to the same definition: that round trip is the test.
+
+Built as step 2 (`dddb88b0`). All 17 examples round-trip with no cuts and none needs the plain
+fallback; so do 1g with its own ids and a definition with durable runs' keys, a `calc` `when`,
+Markdown and output fields. No prefix of an example throws. On the largest example (7,255
+characters as text) a parse takes 0.04 ms and a print 0.12 ms, on a laptop. Nothing calls the
+text form yet.
 
 ## Part 3 — the fast first pass
 
@@ -950,6 +984,7 @@ The first pass stays behind a switch `fastCreate` (registered in
    studio and runner being separate processes, not from the runner.
 2. **The text form.** Part 2, with Part 1's format: parse, print, the round trip over
    `examples/wizards`. `calc`, page `components` and Markdown in a page are there from the start.
+   Built on the branch (`dddb88b0`); Part 2 says what it does and what it measured.
 3. **The fast first pass.** Part 3, behind `fastCreate`, with the richer pages and the starts tools
    (`list_starts`, `set_starts`) that are already on the branch.
 4. **Copy for ChatGPT.** Part 5; needs only step 2.
@@ -972,7 +1007,7 @@ off until they are flipped.
 
 ## Changes by file
 
-Built, for Part 1, on the combined branch:
+Built on the combined branch, for Part 1 and the text form:
 
 | File | Change |
 |---|---|
@@ -994,6 +1029,7 @@ Built, for Part 1, on the combined branch:
 | `apps/runtime/src/prompts/authoring.md` | `look`, `section`, `calc`, page components, view inputs |
 | `apps/docs/public/schema/v2/wizard.json`, `wizard-package.json` | regenerated |
 | `docs/content/dev/wizard-format` | the format additions |
+| `packages/shared/src/wizard-text.ts` | new: `parseWizardText` (with `partial`), `printWizardText` |
 
 Still to do:
 
@@ -1006,7 +1042,6 @@ Still to do:
 | `packages/shared/src/feature-flags.ts` | `fastCreate` |
 | `apps/runtime/src/routes/runs.ts` | `PUT /:id/pages/:stepId/unsent`; sequence numbers and `rev` on `POST /:id/pages/:stepId` |
 | `apps/runtime/src/engine/runner.ts` | `needsNoRunner`; `answerGoesOn`: the shortcut; `submitPage` and `reviewStep`: `kick` only when the run went on; `submitPage`: sequence numbers, clears `unsent[stepId]` |
-| `packages/shared/src/wizard-text.ts` | new: `parseWizardText`, `printWizardText` |
 | `packages/shared/src/catalog-prompt.ts` | new: tag signatures from the schemas |
 | `packages/runner/src/RunnerView.tsx` | advance in the browser; saves what is typed |
 | `apps/web/src/runner/useRun.ts` | pages in flight, one at a time; drops a view older than the last confirmed `rev` |
@@ -1025,6 +1060,9 @@ Still to do:
   the first pass there need the credits or an API key? Step 1 measured each CLI started per
   turn: the first output came after 1.1 to 2.4 s with Claude Code and 4.1 to 13.9 s with Codex.
   A CLI kept open is not measured.
+- Should the text form get expressions for `in`, `notEmpty`, `empty`, `contains`, and a short
+  way to give a calc its `as`? Today those are written as JSON (Part 2, rule 4), which a model
+  may get wrong more often.
 - The look names: `slider`, `stepper`, `list`. Any more (stars for a score, chips for
   multiselect) only when a wizard needs them.
 - The functions of `calc`: enough for budgets, portions and totals? `items` fields already sum
