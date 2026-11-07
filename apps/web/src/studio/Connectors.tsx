@@ -485,11 +485,13 @@ export function Connectors({
               <ChevronDown className="-rotate-90 size-4 text-ink-4" />
             </button>
           ))}
-          {open.isPending ? <Spinner className="mx-auto mt-2 size-4 text-ink-4" /> : null}
-          {open.error ? (
-            <p className="text-[0.8125rem] text-rose">{(open.error as Error).message}</p>
-          ) : null}
         </div>
+      ) : null}
+      {from === "registry" && !service && open.isPending ? (
+        <Spinner className="mx-auto mt-3 size-4 text-ink-4" />
+      ) : null}
+      {from === "registry" && !service && open.error ? (
+        <p className="mt-3 text-[0.8125rem] text-rose">{(open.error as Error).message}</p>
       ) : null}
       {from === "registry" && service ? (
         <div className="mt-4 flex flex-col gap-2">

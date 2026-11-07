@@ -22,7 +22,7 @@ import { useFeature } from "../../lib/features";
 import { type Key, lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { initialsOf, useCurrentSpace, useIsAdmin, useMe } from "../../lib/session";
-import { Button, Card, Chip, cn, Empty, Input, Label, Select, Tabs } from "../../ui";
+import { Button, Card, Chip, cn, Dialog, Empty, Input, Label, Select, Tabs } from "../../ui";
 import { scrollRoot } from "../AppFrame";
 import { Connectors } from "../Connectors";
 import { SignInButtons, SignInPanel, useConnectedMessage, useSignIn } from "../connection-sign-in";
@@ -34,10 +34,11 @@ import { limitText, readLimit, usedToday } from "./connection-words";
 /*
  * Fähigkeiten › Connectors (docs/plans/capabilities.md, "Connections"): the space's connections
  * under „Im Space“, the built-in connectors as names, and the imported ones with the registry
- * search below. A connection opens with `?show=<id>`; `?setup=<connector id or domain>` opens the
- * setup with that connector chosen, `?address=<a repository on GitHub>` reads that address under
- * „Per Adresse“. Admins set up and change; a member reads the connections open to them and
- * signs in where each person does.
+ * search below. A connection opens with `?show=<id>`; `?setup=` opens the setup in a dialog,
+ * `?setup=<connector id>` with that connector chosen. `?setup=<domain>` of a service still to
+ * import opens its card in the search, with no dialog in front of it. `?address=<a repository on
+ * GitHub>` reads that address under „Per Adresse“. Admins set up and change; a member reads the
+ * connections open to them and signs in where each person does.
  *
  * A connection whose connector came with a plugin for Claude Code or Cursor (`bundleId`,
  * docs/plans/capabilities-next.md, piece 4) says so on its page, lists the Skills that came
@@ -288,12 +289,8 @@ export function ConnectorsSection() {
     narrow
       ? setParams({ show: id })
       : setParams(id === "all" ? {} : { show: id }, { replace: true });
-  const startSetup = (connectorId: string) => {
+  const startSetup = (connectorId: string) =>
     setParams({ setup: connectorId }, { replace: !narrow });
-    if (!narrow) {
-      scrollRoot().scrollTo({ top: 0, behavior: "smooth" });
-    }
-  };
 
   return (
     <>
@@ -320,7 +317,8 @@ export function ConnectorsSection() {
               address={address}
               onOpen={pick}
               onSetUp={startSetup}
-              onSetUpDone={() => setParams({}, { replace: true })}
+              // On a phone the page under the dialog stays, not the menu.
+              onSetUpDone={() => setParams(narrow ? { show: "page" } : {}, { replace: true })}
             />
           )}
         </div>
@@ -359,6 +357,10 @@ function Overview({
   const more = useRef<HTMLDivElement>(null);
   const resolved = setup && connectors.length ? resolveSetup(setup, connectors) : null;
   const domain = resolved && "domain" in resolved ? resolved.domain : null;
+  // What `?setup=` names is known once the connectors are here: until then it may be a service,
+  // whose card must not end up behind a form.
+  const setupOpen =
+    writable && setup !== null && !domain && (setup === "" || connectors.length > 0);
   // A service still to import, or an address to read: the part below opens it.
   useEffect(() => {
     if (domain || address) {
@@ -373,23 +375,13 @@ function Overview({
         hint={t("capabilities.connectors.hint")}
         plain
         action={
-          writable && setup === null ? (
+          writable ? (
             <Button size="sm" onClick={() => onSetUp("")}>
               <Plus className="size-4" /> {t("capabilities.connectors.add")}
             </Button>
           ) : null
         }
       >
-        {writable && setup !== null ? (
-          <SetupCard
-            key={resolved && "connectorId" in resolved ? resolved.connectorId : "new"}
-            spaceId={spaceId}
-            connectors={connectors}
-            initial={resolved && "connectorId" in resolved ? resolved.connectorId : ""}
-            onCancel={onSetUpDone}
-            onDone={onOpen}
-          />
-        ) : null}
         <h3 className="px-1 pt-2 font-display font-semibold text-base">
           {t("capabilities.inSpace")}
         </h3>
@@ -466,6 +458,26 @@ function Overview({
           />
         </Section>
       </div>
+
+      <Dialog
+        open={setupOpen}
+        // Closing it by going back has already left `?setup=`: only the person's own close clears it.
+        onClose={() => {
+          if (setupOpen) {
+            onSetUpDone();
+          }
+        }}
+        title={t("capabilities.connectors.add")}
+      >
+        <SetupForm
+          key={resolved && "connectorId" in resolved ? resolved.connectorId : "new"}
+          spaceId={spaceId}
+          connectors={connectors}
+          initial={resolved && "connectorId" in resolved ? resolved.connectorId : ""}
+          onCancel={onSetUpDone}
+          onDone={onOpen}
+        />
+      </Dialog>
     </>
   );
 }
@@ -628,7 +640,7 @@ export function GuestsNote({
 }
 
 /** Setting up a connection: the connector, its name, how it signs in and who may use it. */
-function SetupCard({
+function SetupForm({
   spaceId,
   connectors,
   initial,
@@ -690,76 +702,73 @@ function SetupCard({
     }
   };
   return (
-    <Card className="p-3.5 sm:p-5">
-      <form onSubmit={submit} className="flex flex-col gap-5">
-        <div>
-          <h3 className="font-display font-semibold text-base">
-            {t("capabilities.connectors.add")}
-          </h3>
-          <p className="mt-1 text-[0.8125rem] text-ink-3">{t("connection.setupHint")}</p>
-        </div>
-        <div>
-          <Label>{t("connection.connector")}</Label>
-          <Select
-            value={connectorId}
-            onChange={choose}
-            placeholder={t("connection.connectorPick")}
-            options={offered.map((c) => ({ value: c.id, label: c.name }))}
-          />
-        </div>
-        <div>
-          <Label hint={t("connection.nameHint")}>{t("connection.name")}</Label>
-          <Input
-            value={name}
-            maxLength={CONNECTION_LIMITS.name}
-            placeholder={t("connection.namePlaceholder")}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label hint={t(SIGN_IN_HINT[signIn])}>{t("connection.signIn")}</Label>
-          <Tabs
-            label={t("connection.signIn")}
-            value={signIn}
-            onChange={setSignIn}
-            options={CONNECTION_SIGN_INS.map((id) => ({
-              id,
-              label: t(SIGN_IN_LABEL[id]),
-              disabled: id === "person" && !person.allowed,
-            }))}
-          />
-          <p className="mt-2 text-[0.75rem] text-ink-3">
-            {person.why ?? t("connection.signInLater")}
-          </p>
-        </div>
-        <div>
-          <Label hint={t(AUDIENCE_HINT[audience])}>{t("connection.audience")}</Label>
-          <Tabs
-            label={t("connection.audience")}
-            value={audience}
-            onChange={(next) => {
-              setAudience(next);
-              setAudienceSet(true);
-            }}
-            options={CONNECTION_AUDIENCES.map((id) => ({ id, label: t(AUDIENCE_LABEL[id]) }))}
-          />
-          {connector?.fromAddress ? (
-            <p className="mt-2 text-[0.75rem] text-ink-3">{t("connectors.address.adminsFirst")}</p>
-          ) : null}
-        </div>
-        {create.error ? (
-          <p className="text-[0.8125rem] text-rose">{(create.error as Error).message}</p>
-        ) : null}
-        <div className="flex gap-2">
-          <Button type="submit" busy={create.isPending} disabled={!connectorId}>
-            {t("capabilities.connectors.setUp")}
-          </Button>
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            {t("orgSettings.cancel")}
-          </Button>
-        </div>
-      </form>
-    </Card>
+    <form onSubmit={submit} className="flex flex-col gap-5">
+      <p className="-mt-3 text-[0.8125rem] text-ink-3">{t("connection.setupHint")}</p>
+      <div>
+        <Label>{t("connection.connector")}</Label>
+        <Select
+          value={connectorId}
+          onChange={choose}
+          placeholder={t("connection.connectorPick")}
+          options={offered.map((c) => ({ value: c.id, label: c.name }))}
+        />
+      </div>
+      <div>
+        <Label hint={t("connection.nameHint")}>{t("connection.name")}</Label>
+        <Input
+          value={name}
+          maxLength={CONNECTION_LIMITS.name}
+          placeholder={t("connection.namePlaceholder")}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </div>
+      <div>
+        <Label hint={t(SIGN_IN_HINT[signIn])}>{t("connection.signIn")}</Label>
+        <Tabs
+          label={t("connection.signIn")}
+          value={signIn}
+          onChange={setSignIn}
+          options={CONNECTION_SIGN_INS.map((id) => ({
+            id,
+            label: t(SIGN_IN_LABEL[id]),
+            disabled: id === "person" && !person.allowed,
+          }))}
+        />
+        <p className="mt-2 text-[0.75rem] text-ink-3">
+          {person.why ?? t("connection.signInLater")}
+        </p>
+      </div>
+      <div>
+        <Label hint={t(AUDIENCE_HINT[audience])}>{t("connection.audience")}</Label>
+        <Tabs
+          label={t("connection.audience")}
+          value={audience}
+          onChange={(next) => {
+            setAudience(next);
+            setAudienceSet(true);
+          }}
+          options={CONNECTION_AUDIENCES.map((id) => ({ id, label: t(AUDIENCE_LABEL[id]) }))}
+        />
+        {/* Its line stays for every connector: picking one by address doesn't make the dialog grow. */}
+        <p
+          aria-hidden={!connector?.fromAddress}
+          className={cn("mt-2 text-[0.75rem] text-ink-3", !connector?.fromAddress && "invisible")}
+        >
+          {t("connectors.address.adminsFirst")}
+        </p>
+      </div>
+      {create.error ? (
+        <p className="text-[0.8125rem] text-rose">{(create.error as Error).message}</p>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          {t("orgSettings.cancel")}
+        </Button>
+        <Button type="submit" busy={create.isPending} disabled={!connectorId}>
+          {t("capabilities.connectors.setUp")}
+        </Button>
+      </div>
+    </form>
   );
 }
 
