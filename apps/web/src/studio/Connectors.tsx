@@ -327,6 +327,7 @@ export function Connectors({
   embedded,
   onSetUp,
   domain,
+  onDomainOpened,
   address,
 }: {
   spaceId: string;
@@ -337,6 +338,8 @@ export function Connectors({
   onSetUp?: (connectorId: string) => void;
   /** A service of the registry to open at once (`?setup=<domain>`). */
   domain?: string | null;
+  /** The registry has answered for `domain`: its card, or its error, is shown. */
+  onDomainOpened?: (domain: string) => void;
   /** An address to read at once under „Per Adresse“ (`?address=`): a plugin's repository. */
   address?: string | null;
 }) {
@@ -370,6 +373,11 @@ export function Connectors({
     mutationFn: (domain: string) =>
       api.get<RegistryService>(`/api/studio/connectors/registry/${encodeURIComponent(domain)}`),
     onSuccess: setService,
+    onSettled: (_service, _error, opened) => {
+      if (opened === domain) {
+        onDomainOpened?.(opened);
+      }
+    },
   });
   const openService = open.mutate;
   useEffect(() => {

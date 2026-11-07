@@ -361,12 +361,15 @@ function Overview({
   // whose card must not end up behind a form.
   const setupOpen =
     writable && setup !== null && !domain && (setup === "" || connectors.length > 0);
-  // A service still to import, or an address to read: the part below opens it.
+  /** The service the registry has answered for, with its card or an error. */
+  const [opened, setOpened] = useState<string | null>(null);
+  // A service still to import, or an address to read: the part below opens it. It scrolls there
+  // once the connections above are in place and, for a service, the registry has answered.
   useEffect(() => {
-    if (domain || address) {
+    if (!loading && ((domain && opened === domain) || address)) {
       more.current?.scrollIntoView({ block: "start", behavior: "smooth" });
     }
-  }, [domain, address]);
+  }, [domain, address, loading, opened]);
   const builtin = unusedBuiltins(connectors, connections, unsetConnectors);
   return (
     <>
@@ -454,6 +457,7 @@ function Overview({
             embedded
             onSetUp={writable ? onSetUp : undefined}
             domain={domain}
+            onDomainOpened={setOpened}
             address={address}
           />
         </Section>
