@@ -6,8 +6,8 @@ on the same branch. Nothing of it is on `main` but this text (Order). From the r
 2026-10-29, checked against `feat/work-mode` (v0.13.0, Work mode, spaces, model tiers) on
 2026-10-30. Part 4, the order and the fit with durable runs corrected on 2026-11-06, against `main`
 and that branch at 6bac6ed0, by reading the code. Part 1 brought in line with what was built the
-same day, against `fe9b26d3`. Page to page is measured once, on a laptop (Order, step 1). An
-architect turn is not measured yet.
+same day, against `fe9b26d3`. Step 1 is built on that branch and was measured on 2026-11-07 on a
+laptop (Order, step 1). The cloud is not measured yet.
 
 Scope: a new wizard shows its first page about two seconds after the wish, and a run moves from
 page to page without waiting on the server. The definition stays JSON and stays at version 2:
@@ -913,13 +913,41 @@ and 3, and creation comes first because it is the largest gap.
 The first pass stays behind a switch `fastCreate` (registered in
 `packages/shared/src/feature-flags.ts`, set in `.features`) until it is done.
 
-1. **Measure.** Log per architect turn: time to the first token, reasoning, each tool round,
-   fix rounds, total; on the cloud and on a computer with each AI client. Log page to page as well.
-   Seen in `debug_logs`. This sets the baseline for the targets. Not built. One run with logging
-   that was not kept, on a laptop, from an answer to the next `waiting_input` on plain pages: 3 to
-   9 ms with the runner in the same process (20 answers); a median of 873 ms and at most 1947 ms with
-   studio and runner as separate processes (30 answers, seen by a polling client). No architect
-   turn was measured.
+1. **Measure.** Built on the branch (`9f5c1860`, `5ba2a22d`): a `[timing] architect` line per
+   architect turn (time to the first output, reasoning, rounds, fix rounds, time in tools, total)
+   and a `[timing] page` line from an answer to the next page, both in `debug_logs`. On the cloud,
+   `debug_logs` also asks the runners, which print the page lines. This is the baseline for the
+   targets of Part 3. Measured on 2026-11-07 on a laptop, local runtime:
+
+   | How it thinks | Runs | Create | Edit |
+   |---|---|---|---|
+   | Claude Code (opus, extra effort) | 3 | 65 to 77 s; first output after 1.1 to 2.4 s; 11 to 13 rounds, 5 or 6 of them fix rounds | 42 to 53 s; 5 to 9 rounds |
+   | Codex (gpt-6-astra) | 3 | 47 to 59 s; first finished item after 4.1 to 9.5 s; 4 rounds, no fix rounds | 18 to 37 s; 2 or 3 rounds |
+   | Anthropic key, in the process (the cloud's code) | 1 | 22 s; first output after 4.5 s; 1 round | 22 s; 1 round |
+   | Gateway (`moonshotai/kimi-k3`) | 1 | 24 s; first output after 3.6 s | 103 s, not explained |
+
+   Not measured: Cursor (not signed in on that computer), an OpenAI key (refused), and the cloud,
+   which needs a deploy. Codex reports no reasoning, and its first output is the first finished
+   item, not a token. One Claude Code creation reported no change although the wizard went from
+   2 to 5 steps; not fixed yet.
+
+   Page to page, plain pages, 30 answers each, from the answer arriving to the runner reaching the
+   next page:
+
+   | Studio and runner | `durableRuns` | Median | At most |
+   |---|---|---|---|
+   | One process | on | 6.5 ms | 32 ms |
+   | One process | off | 8 ms | 89 ms |
+   | Separate processes | on | 871 ms | 1979 ms |
+   | Separate processes | off | 1249 ms | 1973 ms |
+
+   This agrees with an earlier run whose logging was not kept: 3 to 9 ms in one process, a median
+   of 873 ms and at most 1947 ms in separate processes.
+
+   What it shows: with an API key a creation takes about 22 s, the twenty seconds of "Why".
+   Through an AI client it takes 47 to 77 s, and the difference goes with the rounds: Claude Code
+   writes and fixes 11 to 13 times where the key writes once. Between pages, the wait comes from
+   studio and runner being separate processes, not from the runner.
 2. **The text form.** Part 2, with Part 1's format: parse, print, the round trip over
    `examples/wizards`. `calc`, page `components` and Markdown in a page are there from the start.
 3. **The fast first pass.** Part 3, behind `fastCreate`, with the richer pages and the starts tools
@@ -983,7 +1011,7 @@ Still to do:
 | `packages/runner/src/RunnerView.tsx` | advance in the browser; saves what is typed |
 | `apps/web/src/runner/useRun.ts` | pages in flight, one at a time; drops a view older than the last confirmed `rev` |
 | `apps/runtime/src/services/architect.ts` | the fast first pass before the architect; deterministic fixes |
-| `apps/runtime/src/agents/architect.ts` | timing log; background turn after the first pass |
+| `apps/runtime/src/agents/architect.ts` | background turn after the first pass |
 | `apps/runtime/src/agents/subscription.ts` | the AI client's CLI kept open from the wish box's focus |
 | `apps/web/src/studio/editor/ShareDialog.tsx` | "Copy for ChatGPT" |
 | `apps/runtime/src/cli/main.ts` | new command `export --chatgpt` |
@@ -994,7 +1022,9 @@ Still to do:
 - Does the architect also write the text form for edits, or keep `edit_wizard` on JSON?
   Printing makes both possible; one form for both is simpler for the model.
 - Can a CLI kept open reach two seconds on a computer with Claude Code, Codex or Cursor, or does
-  the first pass there need the credits or an API key? Step 1 answers it.
+  the first pass there need the credits or an API key? Step 1 measured each CLI started per
+  turn: the first output came after 1.1 to 2.4 s with Claude Code and 4.1 to 13.9 s with Codex.
+  A CLI kept open is not measured.
 - The look names: `slider`, `stepper`, `list`. Any more (stars for a score, chips for
   multiselect) only when a wizard needs them.
 - The functions of `calc`: enough for budgets, portions and totals? `items` fields already sum
