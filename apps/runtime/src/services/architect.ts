@@ -2,6 +2,7 @@ import type { Lang } from "@engenty/wizards-shared/definition";
 import { eq } from "drizzle-orm";
 import { type ChatImage, runArchitect } from "../agents/architect.js";
 import { chatTurnWay, subscriptionTurn } from "../agents/subscription.js";
+import { TurnClock } from "../agents/turn-clock.js";
 import { listConnectors } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { managed } from "../manage.js";
@@ -58,9 +59,13 @@ export async function architectTurn(
   const space = await ownedSpace(userId, w.spaceId);
   const images = await attachedImages(userId, w.id, message);
   const userMessageId = await addMessage(w.id, { role: "user", content: message });
+  const clock = new TurnClock();
+  const told = { way: "none", changed: false, stepsAfter: w.draft.steps.length };
+  let outcome: "ok" | "failed" = "failed";
   try {
     // A runtime that runs alone can answer the chat on the admin's own subscription or key.
     const engine = await chatTurnWay(managed);
+    told.way = engine;
     const result =
       engine === "claude" || engine === "codex" || engine === "cursor"
         ? {
@@ -76,6 +81,7 @@ export async function architectTurn(
               images,
               extra,
               lang,
+              clock,
             })),
             unfinished: false,
           }
@@ -94,12 +100,17 @@ export async function architectTurn(
             onBuilding: io.onBuilding,
             images,
             lang,
+            clock,
           });
+    clock.modelDone();
+    told.changed = result.changed;
     const reply = result.unfinished
       ? `${result.reply ? `${result.reply}\n\n` : ""}${serverText(lang, "notFinished")}`
       : result.reply || serverText(lang, result.changed ? "done" : "notUnderstood");
     await addMessage(w.id, { role: "assistant", content: reply, changed: result.changed });
     const after = await ownedWizard(userId, wizardId);
+    told.stepsAfter = after.draft.steps.length;
+    outcome = "ok";
     return {
       reply,
       changed: result.changed,
@@ -112,5 +123,16 @@ export async function architectTurn(
     // An unanswered turn would repeat in the next turn's history.
     await db.delete(schema.wizardMessage).where(eq(schema.wizardMessage.id, userMessageId));
     throw err;
+  } finally {
+    console.info(
+      clock.line({
+        way: told.way,
+        wizardId: w.id,
+        outcome: io.signal.aborted ? "stopped" : outcome,
+        changed: told.changed,
+        stepsBefore: w.draft.steps.length,
+        stepsAfter: told.stepsAfter,
+      }),
+    );
   }
 }

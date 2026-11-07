@@ -45,6 +45,7 @@ import { assertPublicUrl, safeFetch } from "../tools/net-guard.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
 import { runScript } from "../widgets/script.js";
 import { thoughtLine } from "./thought.js";
+import type { TurnClock } from "./turn-clock.js";
 
 export interface ArchitectInput {
   /** What answers: the text classes, a provider's key or the credits (a subscription runs on its own). */
@@ -60,6 +61,8 @@ export interface ArchitectInput {
   onText?: (delta: string) => void;
   /** The language the admin reads the lines about its work in. */
   lang?: Lang;
+  /** Where the turn's time goes, for the log. */
+  clock?: TurnClock;
   /** A short line about what the architect is doing right now ("Loading lake shapes …"). */
   onActivity?: (label: string) => void;
   /** The latest line of its reasoning, for the line under the activity. */
@@ -437,6 +440,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
   // Building a wizard is the hardest job here: widgets are code, so the editor chat starts on
   // extra effort.
   const resolved = await chatModel(input.way, input.extra === false ? "standard" : "high");
+  input.clock?.runsOn(resolved.ref);
   const { startTriggers: startsOn, durableRuns: durableOn } = await currentFeatures();
   const tools = buildTools(
     input,
@@ -512,6 +516,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
     if (chunk.type === "reasoning-start") {
       reasoning = "";
     } else if (chunk.type === "reasoning-delta") {
+      input.clock?.reasoning();
       reasoning += payload.text ?? "";
       const line = thoughtLine(reasoning);
       if (line && line !== thought) {
@@ -519,10 +524,12 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
         input.onThought?.(line);
       }
     } else if (chunk.type === "text-delta") {
+      input.clock?.output();
       const text: string = payload.text ?? payload.delta ?? "";
       reply += text;
       input.onText?.(text);
     } else if (chunk.type === "tool-call-input-streaming-start") {
+      input.clock?.output();
       streaming.set(payload.toolCallId, { tool: payload.toolName, args: "", named: false });
       const label = activity(payload.toolName, {}, input.lang);
       if (label) {
@@ -541,7 +548,11 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
           }
         }
       }
+    } else if (chunk.type === "tool-result" || chunk.type === "tool-error") {
+      const issues = payload.result?.issues;
+      input.clock?.toolDone(Array.isArray(issues) ? issues.length : undefined);
     } else if (chunk.type === "tool-call") {
+      input.clock?.toolCalled();
       const label = activity(
         payload.toolName,
         (payload.args ?? payload.input ?? {}) as never,

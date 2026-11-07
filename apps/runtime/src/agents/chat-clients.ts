@@ -34,8 +34,13 @@ export interface ChatCall {
 export type ChatEvent =
   | { kind: "text"; text: string }
   | { kind: "tool"; name: string; args: Record<string, unknown>; started: boolean }
+  /** A tool has answered; `issues` is how many it found in the draft, if it spoke of them. */
+  | { kind: "toolDone"; issues?: number }
+  /** The model is writing text this client hands over whole later on: for the turn's clock. */
+  | { kind: "writing" }
   | { kind: "thinkingStart" }
-  | { kind: "thinking"; text: string }
+  /** `whole`: the client gives its reasoning once that is done, not as it streams. */
+  | { kind: "thinking"; text: string; whole?: boolean }
   | { kind: "session"; id: string }
   | { kind: "failure"; detail: string }
   /** The client's own summary of the answer, used where no text came before it. */
@@ -65,6 +70,15 @@ function parse(line: string): any {
 
 const record = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+
+/** How many issues a tool's answer names; nothing where the answer does not speak of them. */
+function issuesIn(text: unknown): number | undefined {
+  if (typeof text !== "string" || !text.includes('"issues"')) {
+    return undefined;
+  }
+  const issues = parse(text)?.issues;
+  return Array.isArray(issues) ? issues.length : undefined;
+}
 
 const claude: ChatClient = {
   id: "claude",
@@ -128,7 +142,22 @@ const claude: ChatClient = {
       if (e.type === "content_block_delta" && e.delta?.type === "thinking_delta") {
         return [{ kind: "thinking", text: e.delta.thinking ?? "" }];
       }
+      if (e.type === "content_block_delta" && e.delta?.type === "text_delta") {
+        return [{ kind: "writing" }];
+      }
       return [];
+    }
+    if (event.type === "user") {
+      const out: ChatEvent[] = [];
+      for (const block of event.message?.content ?? []) {
+        if (block.type === "tool_result") {
+          const text = Array.isArray(block.content)
+            ? block.content.find((c: { type?: string }) => c.type === "text")?.text
+            : block.content;
+          out.push({ kind: "toolDone", issues: issuesIn(text) });
+        }
+      }
+      return out;
     }
     if (event.type === "assistant") {
       const out: ChatEvent[] = [];
@@ -242,12 +271,19 @@ const codex: ChatClient = {
         },
       ];
     }
+    if (item.type === "mcp_tool_call" && event.type === "item.completed") {
+      const text = (item.result?.content ?? []).find((c: { type?: string }) => c.type === "text");
+      return [{ kind: "toolDone", issues: issuesIn(text?.text) }];
+    }
     if (event.type === "item.completed" && item.type === "agent_message" && item.text?.trim()) {
       // A message can end in a line break; the turn puts one blank line between messages.
       return [{ kind: "text", text: String(item.text).trim() }];
     }
     if (event.type === "item.completed" && item.type === "reasoning" && item.text) {
-      return [{ kind: "thinkingStart" }, { kind: "thinking", text: String(item.text) }];
+      return [
+        { kind: "thinkingStart" },
+        { kind: "thinking", text: String(item.text), whole: true },
+      ];
     }
     if (event.type === "turn.failed") {
       const error = event.error;
@@ -307,6 +343,14 @@ const cursor: ChatClient = {
           args: record(mcp.args),
           started: true,
         });
+      }
+    } else if (event.type === "tool_call" && event.subtype === "completed") {
+      const call = record(record(event.tool_call).mcpToolCall);
+      const mcp = record(call.args);
+      if (mcp.toolName || mcp.name) {
+        const content = record(record(call.result).success).content;
+        const first = Array.isArray(content) ? record(content[0]) : {};
+        out.push({ kind: "toolDone", issues: issuesIn(record(first.text).text ?? first.text) });
       }
     } else if (event.type === "thinking" && event.subtype === "delta") {
       out.push({ kind: "thinking", text: String(event.text ?? "") });
