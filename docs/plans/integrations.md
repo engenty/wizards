@@ -6,8 +6,9 @@ built the import side.
 
 ## In short
 
-Finding a service is solved. Signing in to it is not: most OAuth services need a client someone
-registered at the vendor, and today that someone is the person connecting.
+Finding a service is solved, and a server that registers its own client connects in one click.
+Every other OAuth service needs a client someone registered at the vendor, and today that someone
+is the person connecting.
 
 | | Step | Where | Who |
 |---|---|---|---|
@@ -26,6 +27,9 @@ registered at the vendor, and today that someone is the person connecting.
   from a hit or from „Per Adresse“ (`ConnectorByAddress.tsx`). A plugin brings its Skills along.
 - **Signing in.** `importer/map-auth.ts` maps a source to `none`, an authorization-code OAuth app
   (self-registering, or a client of your own), or one key in a header or query parameter.
+- **Asking the server.** Where the registry gives an MCP server no OAuth facts, the import reads the
+  server's own documents (`probeOAuth`). A registration endpoint there means no client is needed.
+  Notion's MCP server goes this way: the preview says `needsOAuthClient: false` (2026-11-07).
 - **Built-in Connectors.** Google, Microsoft, Slack and GitHub use OAuth and read
   `<VENDOR>_OAUTH_CLIENT_ID`/`_SECRET` (`connectors/builtin.ts`). Google and Microsoft fall back to
   `<VENDOR>_CLIENT_ID`. HubSpot, S3 and SMTP take a key.
@@ -83,6 +87,10 @@ preview reads now, or a cheaper form of them from the registry's `surface` call.
 
 The labels are drafts. They follow `docs/copy-style.md` when they are built.
 
+The source's row needs the same fix. It shows „Eigener OAuth-Client“ as a button beside
+„Importieren“ on every source (`Connectors.tsx:284`), also on Notion's MCP server, which needs none.
+It reads as a requirement. The button moves behind the case that needs a client.
+
 ## 5. engenty.ai in the registry
 
 integrations.sh reads `/.well-known/integrations.json` (v3), `/.well-known/mcp/server-card.json`
@@ -98,6 +106,11 @@ In Manage, `manage-app.ts` hands `/.well-known/*` to `auth.handler`, so these ro
 3. **Who pays the vendor's terms?** A client held by engenty puts engenty's name on the consent page
    and makes engenty responsible for the vendor's terms. Matthias decides per vendor.
 4. **HubSpot** takes a key today. OAuth needs one more app. Recommendation: leave it for now.
+5. **Client ID Metadata Documents.** A server can accept a client that names itself by a public URL,
+   with nothing to register (`client_id_metadata_document_supported`). The runtime doesn't read that
+   field, so a server offering only this shows as needing a client of your own. Notion offers both,
+   so it connects today. Recommendation: build it once a server offers only this. Your computer has
+   no public URL, so engenty.ai would host the document.
 
 ## Not in this plan
 
@@ -105,3 +118,13 @@ In Manage, `manage-app.ts` hands `/.well-known/*` to `auth.handler`, so these ro
   which the model tiers' sub-processor lists and the broker's log don't cover.
 - **A registry of our own.** integrations.sh stays the source, and the env var stays the way out.
 - **2c** („Mit Freigabe“ waits in a run). It belongs to `capabilities-next.md` and the durable branch.
+
+## Seen on the way
+
+- „Einrichten“ on a hit in Entdecken opens the page on an empty „Verbindung hinzufügen“ form. The
+  service's card sits below it, out of view. The form opens whenever `?setup=` is set
+  (`ConnectorsSection.tsx:383`), also when `resolveSetup` finds a service to import, not a Connector.
+- A service's credentials show as plain text with their markdown (`##`, `**`), and its summary with
+  its backticks (`Connectors.tsx`). Both come from the registry, in the provider's language.
+- A source without a description says „paste a spec URL on the Manual URL tab“, in English
+  (`registry-client.ts:327`). The studio calls that tab „Per Adresse“.
