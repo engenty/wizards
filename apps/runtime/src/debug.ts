@@ -9,7 +9,7 @@ import { managed } from "./manage.js";
 import { modelSettings } from "./models.js";
 import { loadedPlugins } from "./plugins/registry.js";
 import { sandboxEngine } from "./sandbox/index.js";
-import { runIndexOf, tenantOfRun } from "./tenants/control.js";
+import { otherRunners, runIndexOf, tenantOfRun } from "./tenants/control.js";
 import { LOCAL_TENANT } from "./tenants/tenant.js";
 
 /**
@@ -72,6 +72,49 @@ export function logs(query: TailQuery): LogsAnswer {
   return {
     sources: [{ from: own, ok: true }],
     lines: tail(query).map((line) => ({ ...line, from: own })),
+  };
+}
+
+/**
+ * This process's lines and those of the runners that report, by time: a run's lines are printed where
+ * it runs, which on the cloud is not the process the Manage-App asks. `search` is the query as it
+ * came; a line's id counts per process, so `since` holds for each process on its own.
+ */
+export async function allLogs(
+  query: TailQuery,
+  search: string,
+  authorization: string,
+): Promise<LogsAnswer> {
+  const own = logs(query);
+  const runners = await otherRunners().catch((err) => {
+    console.warn("[debug] the runners:", (err as Error).message);
+    return [];
+  });
+  const asked = await Promise.all(
+    runners.map(async (runner): Promise<LogsAnswer> => {
+      try {
+        const res = await fetch(
+          `${runner.url}/api/internal/debug/logs${search ? `${search}&` : "?"}own=1`,
+          { headers: { authorization }, signal: AbortSignal.timeout(5000) },
+        );
+        if (!res.ok) {
+          throw new Error(`status ${res.status}`);
+        }
+        return (await res.json()) as LogsAnswer;
+      } catch (err) {
+        return {
+          sources: [{ from: runner.id, ok: false, error: (err as Error).message }],
+          lines: [],
+        };
+      }
+    }),
+  );
+  const limit = Math.min(Math.max(1, query.limit ?? 200), 2000);
+  return {
+    sources: [...own.sources, ...asked.flatMap((a) => a.sources)],
+    lines: [...own.lines, ...asked.flatMap((a) => a.lines)]
+      .sort((a, b) => a.at - b.at)
+      .slice(-limit),
   };
 }
 

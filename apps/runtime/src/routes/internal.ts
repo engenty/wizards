@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Hono } from "hono";
 import { z } from "zod";
 import { closeTenantDb, tenantDb } from "../db/client.js";
-import { logs, runDetail, status, tenantModels } from "../debug.js";
+import { allLogs, logs, runDetail, status, tenantModels } from "../debug.js";
 import { env } from "../env.js";
 import { declaredFeatures } from "../features.js";
 import { removeTenantObjects } from "../files/objects.js";
@@ -40,7 +40,14 @@ export const internalRoutes = new Hono()
   // --- a look from afar (docs/plans/remote-debug.md): read-only, never a key -------------
   .get("/debug/status", async (c) => c.json(await status()))
   .get("/debug/health", async (c) => c.json(await health()))
-  .get("/debug/logs", (c) => c.json(logs(tailQuery((key) => c.req.query(key)))))
+  .get("/debug/logs", async (c) => {
+    const query = tailQuery((key) => c.req.query(key));
+    return c.json(
+      c.req.query("own")
+        ? logs(query)
+        : await allLogs(query, new URL(c.req.url).search, c.req.header("authorization") ?? ""),
+    );
+  })
   .get("/debug/runs/:id", async (c) => {
     const found = await runDetail(c.req.param("id"));
     return found ? c.json(found) : c.json({ error: "not found" }, 404);

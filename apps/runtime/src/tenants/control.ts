@@ -282,6 +282,15 @@ export async function registerRunner() {
     .where(lt(control.runner.seen, new Date(now.getTime() - 86_400_000)));
 }
 
+/** The other runners that report now and named an address: the web asks them for their lines. */
+export async function otherRunners(): Promise<{ id: string; url: string }[]> {
+  const rows = await controlDb
+    .select({ id: control.runner.id, url: control.runner.url })
+    .from(control.runner)
+    .where(gte(control.runner.seen, new Date(Date.now() - RUNNER_STALE_MS)));
+  return rows.flatMap((r) => (r.url && r.id !== env.runner.id ? [{ id: r.id, url: r.url }] : []));
+}
+
 /** This runner finished a look at the line. */
 export async function markLine() {
   await controlDb
