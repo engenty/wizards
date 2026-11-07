@@ -308,6 +308,14 @@ by pulling them (`compose.cloud.yaml`). A push to `main` without a tag deploys n
 a tag again, run the workflow by hand on that tag. To go back to an older release: set
 `IMAGE_TAG=v<version>` on the Coolify resource and redeploy; remove it to follow `latest` again.
 
+To test a branch or a pull request on a server before it merges, `.github/workflows/test-images.yml`
+builds its images under `test-<commit>` and the local install's package as an artifact of the run.
+It moves nothing: no `latest`, no deploy branch.
+
+```bash
+gh workflow run test-images.yml -f ref=<branch, refs/pull/<n>/head or commit>
+```
+
 The documentation at `engenty.ai/docs` deploys the same way from the branch `deploy/docs`
 (Coolify resource `docs`): its image (`ghcr.io/engenty/engenty-wizards-docs`, built from
 `apps/docs/Dockerfile`) is built beside the runtime's, and the server builds

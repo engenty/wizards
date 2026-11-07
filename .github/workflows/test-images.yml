@@ -1,0 +1,105 @@
+name: Test images
+
+# The images of any branch, pull request or commit, for testing it on a server before it merges:
+# what ci.yml builds for a release, under the tag `test-<commit>`, and the local install's package
+# as an artifact of this run. Nothing runs these by itself: no `latest`, no deploy branch moves.
+#   gh workflow run test-images.yml -f ref=<branch, refs/pull/<n>/head or commit>
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, refs/pull/<n>/head or commit
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.which.outputs.sha }}
+      tag: ${{ steps.which.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - id: which
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "tag=test-${sha::12}" >> "$GITHUB_OUTPUT"
+          echo "Images: \`test-${sha::12}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  images:
+    needs: commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: runtime
+            file: apps/runtime/Dockerfile
+          - image: browser
+            file: deploy/Dockerfile.browser
+          - image: portal
+            file: apps/portal/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.commit.outputs.sha }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The release's layers are read and never written: a test build leaves a release's cache as
+      # it was.
+      - uses: docker/build-push-action@v7
+        timeout-minutes: 25
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: true
+          tags: ghcr.io/engenty/engenty-wizards-${{ matrix.image }}:${{ needs.commit.outputs.tag }}
+          cache-from: |
+            type=registry,ref=ghcr.io/engenty/engenty-wizards-${{ matrix.image }}:buildcache
+            type=registry,ref=ghcr.io/engenty/engenty-wizards-${{ matrix.image }}:buildcache-test
+          cache-to: type=registry,ref=ghcr.io/engenty/engenty-wizards-${{ matrix.image }}:buildcache-test,mode=max
+
+  # What a local install runs, for testing a client of this commit against a server:
+  #   ENGENTY_WIZARDS_PACKAGE=<the .tgz> install.sh
+  package:
+    needs: commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.commit.outputs.sha }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Pack
+        env:
+          TAG: ${{ needs.commit.outputs.tag }}
+        run: node scripts/npm-package.mjs --version "$(node -p "require('./package.json').version")-$TAG"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wizards-runtime-${{ needs.commit.outputs.tag }}
+          path: dist/npm/engenty-wizards-runtime-*.tgz
+          if-no-files-found: error
+          retention-days: 14
