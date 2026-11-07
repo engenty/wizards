@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 const dir = mkdtempSync(join(tmpdir(), "wizards-debug-"));
 process.env.DATA_DIR = dir;
@@ -87,6 +87,44 @@ describe("a page reports an error", () => {
 });
 
 describe("a look from afar", () => {
+  it("merges the lines of the runners that report, and names one that does not answer", async () => {
+    const { allLogs } = await import("../src/debug");
+    const { controlDb, control } = await import("../src/db/client");
+    const now = new Date();
+    await controlDb.insert(control.runner).values([
+      { id: "r-up", url: "http://r-up:8891", seen: now },
+      { id: "r-down", url: "http://r-down:8891", seen: now },
+      { id: "r-silent", url: "http://r-silent:8891", seen: new Date(now.getTime() - 3_600_000) },
+      { id: "r-no-address", url: null, seen: now },
+    ]);
+    const asked: { url: string; auth: string | null }[] = [];
+    const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      asked.push({ url: String(url), auth: new Headers(init?.headers).get("authorization") });
+      if (String(url).includes("r-down")) {
+        throw new Error("refused");
+      }
+      return Response.json({
+        sources: [{ from: "r-up", ok: true }],
+        lines: [{ id: 1, at: 5, level: "info", text: "[timing] page", from: "r-up" }],
+      });
+    });
+    try {
+      console.info("[timing] here");
+      const answer = await allLogs({ q: "[timing]" }, "?q=%5Btiming%5D", "Bearer k");
+      expect(asked).toEqual([
+        { url: "http://r-up:8891/api/internal/debug/logs?q=%5Btiming%5D&own=1", auth: "Bearer k" },
+        { url: "http://r-down:8891/api/internal/debug/logs?q=%5Btiming%5D&own=1", auth: "Bearer k" },
+      ]);
+      expect(answer.sources).toContainEqual({ from: "r-up", ok: true });
+      expect(answer.sources).toContainEqual({ from: "r-down", ok: false, error: "refused" });
+      // By time: the runner's older line comes first.
+      expect(answer.lines[0]).toMatchObject({ from: "r-up", text: "[timing] page" });
+      expect(answer.lines.at(-1)?.text).toBe("[timing] here");
+    } finally {
+      fetched.mockRestore();
+    }
+  });
+
   it("is not for the Manage-App on a runtime that runs alone", async () => {
     expect((await get("/api/internal/debug/status")).status).toBe(401);
     expect((await get("/api/internal/debug/logs")).status).toBe(401);
