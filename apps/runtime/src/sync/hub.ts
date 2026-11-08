@@ -16,7 +16,7 @@ import { managed, tenantInfo } from "../manage.js";
 import { currentRole, isAdminRole, MEMBERS_EDIT_ONLY, mayBuild } from "../services/access.js";
 import { ServiceError } from "../services/errors.js";
 import { studioSpaces } from "../services/members-studio.js";
-import { spaceLimit } from "../services/spaces.js";
+import { placeArrivingSpace, spaceLimit } from "../services/spaces.js";
 import { publishWizard, rotateShareLink, shareUrl } from "../services/wizards.js";
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -188,7 +188,11 @@ const refused = (x: PushItem, reason: string, message: string): PushResult => ({
  * not changed after the one the install changed (`base`); else the answer is the cloud's
  * version, to merge with. What is taken is written in one transaction, and gets its number.
  */
-export async function pushChanges(spaceId: string, input: PushInput): Promise<PushAnswer> {
+export async function pushChanges(
+  spaceId: string,
+  input: PushInput,
+  userId?: string,
+): Promise<PushAnswer> {
   requireSchema(input.schema);
   if (!(await mayBuild())) {
     throw new ServiceError("read_only", note("wizardsRunOncePublished"), { reason: "read_only" });
@@ -271,6 +275,10 @@ export async function pushChanges(spaceId: string, input: PushInput): Promise<Pu
     taking.push({ x, apply: { kind: x.kind, item: x.item, spaceId, record: x.record } });
   }
   const taken = await applyEach(taking.map((t) => t.apply));
+  // A space a computer brings in finds its place (docs/plans/org-spaces.md).
+  if (!space && makesSpace && userId && !taken.has(seqKey("space", spaceId))) {
+    await placeArrivingSpace(spaceId, userId);
+  }
   const after = await lastSeqs(taking.map((t) => t.x));
   for (const { x } of taking) {
     const failed = taken.get(seqKey(x.kind, x.item));

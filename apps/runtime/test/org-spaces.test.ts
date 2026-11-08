@@ -13,7 +13,7 @@ process.env.LOCAL_ACCESS_KEY = "test-key";
 process.env.PLUGINS_WATCH = "0";
 process.env.PLUGIN_JOBS = "0";
 process.env.FEATURES = "orgSpaces=on,clientSpaces=on";
-process.env.LIMIT_SPACES = "5";
+process.env.LIMIT_SPACES = "8";
 
 let db: typeof import("../src/db/client");
 let spaces: typeof import("../src/services/spaces");
@@ -119,8 +119,31 @@ describe("the organization's spaces", () => {
     ).rejects.toThrow();
   });
 
+  it("puts a computer's space under a root that holds something", async () => {
+    await local(() =>
+      db.db.insert(db.schema.space).values({ id: "laptop1", tenantId: "local", name: "Mein Computer", brand: {} }),
+    );
+    await local(() => spaces.placeArrivingSpace("laptop1", "local"));
+    const root = await local(() => spaces.rootSpace());
+    const row = await local(() => db.db.query.space.findFirst({ where: (sp, { eq }) => eq(sp.id, "laptop1") }));
+    expect(row).toMatchObject({ parentId: root?.id, kind: "space" });
+  });
+
+  it("makes a computer's space the root of an organization alone, in place of an empty one", async () => {
+    await db.openTenantDb("solo");
+    const solo = <T>(fn: () => T | Promise<T>) => db.withTenant("solo", fn);
+    const [empty] = await solo(() => spaces.listSpaces("solo"));
+    await solo(() =>
+      db.db.insert(db.schema.space).values({ id: "laptop2", tenantId: "solo", name: "Mein Computer", brand: {} }),
+    );
+    await solo(() => spaces.placeArrivingSpace("laptop2", "solo"));
+    expect((await solo(() => spaces.rootSpace()))?.id).toBe("laptop2");
+    const gone = await solo(() => db.db.query.space.findFirst({ where: (sp, { eq }) => eq(sp.id, empty.id) }));
+    expect(gone).toBeUndefined();
+  });
+
   it("does not count Mein Space against the number of spaces", async () => {
     const before = (await local(() => spaces.listSpaces("local"))).filter((s) => !s.personal);
-    expect(before.length).toBe(5);
+    expect(before.length).toBe(6);
   });
 });

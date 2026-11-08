@@ -428,6 +428,76 @@ export async function personalSpace(userId: string, root: SpaceRow): Promise<Spa
   return made;
 }
 
+/** Whether a space holds nothing yet: no wizard, no page, no chat. */
+async function emptySpace(spaceId: string): Promise<boolean> {
+  const [wizard, page, chat] = await Promise.all([
+    db.query.wizard.findFirst({ columns: { id: true }, where: eq(schema.wizard.spaceId, spaceId) }),
+    db.query.spacePage.findFirst({
+      columns: { id: true },
+      where: eq(schema.spacePage.spaceId, spaceId),
+    }),
+    db.query.chat.findFirst({ columns: { id: true }, where: eq(schema.chat.spaceId, spaceId) }),
+  ]);
+  return !(wizard || page || chat);
+}
+
+/**
+ * Where a space a computer brings into the cloud goes (docs/plans/org-spaces.md): the computer's
+ * space is the person's own. In an organization where people get Mein Space it becomes theirs
+ * (or a space under the root, where they have one already). Alone (Free, one person) it is the
+ * organization's root itself: an empty root the studio made when it was first opened gives way
+ * to it.
+ */
+export async function placeArrivingSpace(spaceId: string, userId: string): Promise<void> {
+  if (!(await orgSpacesOn())) {
+    return;
+  }
+  const root = await rootSpace();
+  if (!root || root.id === spaceId) {
+    return;
+  }
+  if (await personalSpacesOn()) {
+    const [mine] = await db
+      .select({ id: schema.space.id })
+      .from(schema.spaceMember)
+      .innerJoin(schema.space, eq(schema.space.id, schema.spaceMember.spaceId))
+      .where(
+        and(
+          eq(schema.spaceMember.userId, userId),
+          eq(schema.space.tenantId, currentTenant()),
+          eq(schema.space.kind, "personal"),
+        ),
+      )
+      .limit(1);
+    await db
+      .update(schema.space)
+      .set({ parentId: root.id, ...(mine ? {} : { kind: "personal" as const }) })
+      .where(eq(schema.space.id, spaceId));
+    if (!mine) {
+      await db.insert(schema.spaceMember).values({
+        id: nanoid(12),
+        tenantId: currentTenant(),
+        spaceId,
+        userId,
+        role: "member",
+        addedBy: userId,
+      });
+    }
+    return;
+  }
+  if (await emptySpace(root.id)) {
+    // The computer's space takes the root's place; what sat under the empty root moves under it.
+    await db
+      .update(schema.space)
+      .set({ parentId: spaceId })
+      .where(and(eq(schema.space.parentId, root.id), ne(schema.space.id, spaceId)));
+    await db.update(schema.space).set({ parentId: null }).where(eq(schema.space.id, spaceId));
+    await removeSpace(root.id);
+    return;
+  }
+  await db.update(schema.space).set({ parentId: root.id }).where(eq(schema.space.id, spaceId));
+}
+
 /** Whether the space is someone else's Mein Space: nobody else reaches it, admins neither. */
 async function othersPersonal(userId: string, p: SpaceRow): Promise<boolean> {
   return p.kind === "personal" && !(await inSpace(userId, p.id));
