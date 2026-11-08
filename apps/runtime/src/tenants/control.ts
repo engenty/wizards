@@ -343,6 +343,14 @@ export async function forgetTenantRows(id: string) {
   await controlDb.delete(control.link).where(eq(control.link.tenantId, id));
   await controlDb.delete(control.runIndex).where(eq(control.runIndex.tenantId, id));
   await controlDb.delete(control.session).where(eq(control.session.tenantId, id));
+  await controlDb.delete(control.pluginJob).where(eq(control.pluginJob.tenantId, id));
+  await controlDb.delete(control.pluginAddress).where(eq(control.pluginAddress.tenantId, id));
+  await controlDb.delete(control.pluginClaim).where(eq(control.pluginClaim.tenantId, id));
+  // Settings that name the tenant as one part of their key (`organization:context:<tenant>`,
+  // `profile:<tenant>:<user>` …).
+  await controlDb
+    .delete(control.setting)
+    .where(sql`instr(':' || ${control.setting.key} || ':', ${`:${id}:`}) > 0`);
   await controlDb.delete(control.tenant).where(eq(control.tenant.id, id));
   for (const [runId, tenantId] of runTenants) {
     if (tenantId === id) {

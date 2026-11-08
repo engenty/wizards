@@ -1687,6 +1687,16 @@ export const personSeen = sqliteTable("person_seen", {
   bellSeenAt: integer("bell_seen_at", { mode: "timestamp_ms" }),
 });
 
+/**
+ * The organization's own settings: `models` (what each class runs on, its own keys sealed) and
+ * each person's place for the assistant (`assistant-layout:<user>`, `assistant-layouts:<user>`,
+ * `assistant-width:<user>`).
+ */
+export const setting = sqliteTable("setting", {
+  key: text("key").primaryKey(),
+  value: text("value", { mode: "json" }).$type<unknown>().notNull(),
+});
+
 // --- The two-way sync -----------------------------------------------------------
 // A space that syncs with the organization in the cloud (docs/plans/tenant-sync.md). Triggers
 // on the synced tables note every write in `sync_change` (see the migration); the cloud numbers

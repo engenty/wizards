@@ -301,7 +301,7 @@ import {
   writableWizard,
   writeDraft,
 } from "../services/wizards.js";
-import { deleteSetting, readSetting, writeSetting } from "../settings.js";
+import { deleteTenantSetting, readSetting, writeSetting, writeTenantSetting } from "../settings.js";
 import { sharePreview, spaceShareTargets } from "../sharing/index.js";
 import {
   keepCloudForAll,
@@ -769,17 +769,17 @@ export const studio = new Hono<Vars>()
       .refine((b) => b.layout !== undefined || b.width !== undefined)
       .parse(await c.req.json());
     if (body.layout && body.area) {
-      await writeSetting(`assistant-layouts:${user.tenantId}:${user.id}`, {
+      await writeTenantSetting(user.tenantId, `assistant-layouts:${user.id}`, {
         ...(await assistantLayouts(user)),
         [body.area]: body.layout,
       });
     } else if (body.layout) {
-      await writeSetting(`assistant-layout:${user.tenantId}:${user.id}`, body.layout);
+      await writeTenantSetting(user.tenantId, `assistant-layout:${user.id}`, body.layout);
     }
     if (body.width === null) {
-      await deleteSetting(`assistant-width:${user.tenantId}:${user.id}`);
+      await deleteTenantSetting(user.tenantId, `assistant-width:${user.id}`);
     } else if (body.width !== undefined) {
-      await writeSetting(`assistant-width:${user.tenantId}:${user.id}`, body.width);
+      await writeTenantSetting(user.tenantId, `assistant-width:${user.id}`, body.width);
     }
     return c.json({
       layout: await assistantLayout(user),

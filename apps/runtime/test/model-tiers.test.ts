@@ -218,3 +218,44 @@ describe("the studio's models endpoint", () => {
     expect(b.tier).toBeNull();
   });
 });
+
+describe("an organization's own settings", () => {
+  it("live in its tenant database, sealed, and none in the control database", async () => {
+    const { control, controlDb, tenantDb, schema } = await import("../src/db/client");
+    const own = { keys: { openai: "sk-test-own-key-5678" }, bindings: { high: "openai:gpt-own" } };
+    await withTenant("tenant-g", () => models.saveModels(own));
+    const stored = await (await tenantDb("tenant-g")).select().from(schema.setting);
+    expect(stored.map((row) => row.key)).toEqual(["models"]);
+    expect(JSON.stringify(stored[0].value)).not.toContain("sk-test-own-key-5678");
+    const keys = (await controlDb.select().from(control.setting)).map((row) => row.key);
+    expect(keys.filter((key) => key.includes("tenant-g"))).toEqual([]);
+    // Read afresh from the tenant database.
+    models.forgetTenantModels("tenant-g");
+    expect(await withTenant("tenant-g", () => models.storedKey("openai"))).toBe(
+      "sk-test-own-key-5678",
+    );
+    const settings = await withTenant("tenant-g", () => models.modelSettings());
+    expect(settings.bindings.high).toBe("openai:gpt-own");
+  });
+
+  it("move out of the control database when the tenant's database opens", async () => {
+    const { control, controlDb, tenantDb, schema } = await import("../src/db/client");
+    const { writeSetting } = await import("../src/settings");
+    await writeSetting("models:tenant-h", { bindings: { high: "credits:standard" }, keys: null });
+    await writeSetting("assistant-layout:tenant-h:user-1", "sidebar");
+    await writeSetting("assistant-layouts:tenant-h:user-1", { space: "small" });
+    await writeSetting("assistant-width:tenant-h:user-1", 480);
+    await writeSetting("assistant-width:tenant-hx:user-1", 500);
+    const rows = await (await tenantDb("tenant-h")).select().from(schema.setting);
+    expect(Object.fromEntries(rows.map((row) => [row.key, row.value]))).toEqual({
+      models: { bindings: { high: "credits:standard" }, keys: null },
+      "assistant-layout:user-1": "sidebar",
+      "assistant-layouts:user-1": { space: "small" },
+      "assistant-width:user-1": 480,
+    });
+    const keys = (await controlDb.select().from(control.setting)).map((row) => row.key);
+    expect(keys.filter((key) => key.includes("tenant-h"))).toEqual([
+      "assistant-width:tenant-hx:user-1",
+    ]);
+  });
+});
