@@ -1571,8 +1571,6 @@ const de: Record<Key, Line> = {
   "new.title": "Was soll dein Wizard können?",
   "new.lead":
     "Ein Wizard ist ein KI-Workflow, den du einmal vorbereitest. Er führt dein Team oder Kunden Schritt für Schritt durch eine Aufgabe bis zum fertigen Ergebnis.",
-  "new.studioHint":
-    "Du bist im Studio. Hier richtest du ein, was andere verwenden: dein Team in Work oder Kund:innen auf deiner Seite (coming soon).",
   "new.placeholder":
     "z. B. Kund:innen geben ihr Produkt und ihre Zielgruppe ein, der Wizard recherchiert die Konkurrenz und erstellt daraus ein Positionierungs-Briefing als PDF.",
   "new.build": "Wizard bauen",
@@ -6371,8 +6369,6 @@ const en = {
   "new.title": "What should your wizard do?",
   "new.lead":
     "A wizard is a reusable AI workflow you prepare once. It guides your team or customers step by step through their task to a finished result.",
-  "new.studioHint":
-    "You’re in the Studio. Here you set up what others use: your team in Work, or your customers on your page (coming soon).",
   "new.placeholder":
     "e.g. Customers enter their product and audience, the wizard researches competitors and writes a positioning briefing as a PDF.",
   "new.build": "Build wizard",
