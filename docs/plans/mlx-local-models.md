@@ -129,6 +129,8 @@ few thousand passages in under a minute.
 
 ## PR steps
 
+Step 1 is replaced by `docs/plans/audio-and-video.md` (2026-11-08); pictures landed in #425 and #428.
+
 1. **`feat(runtime): images and sound in the Knowledge index`** (behind `mediaSearch`). Our own
    `/api/embed` call beside `embedMany` for media (the AI SDK takes text only), only on the
    `local` way: an image asset or a PDF page as a base64 JPEG (about 277 tokens), a sound window
