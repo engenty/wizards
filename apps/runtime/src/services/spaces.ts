@@ -35,7 +35,7 @@ import { z } from "zod";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
-import { managed, tenantInfo } from "../manage.js";
+import { managed, tenantInfo, tenantMembers } from "../manage.js";
 import { spaceChanged } from "../plugins/events.js";
 import { cloudSpaceLimit, twoWayActive } from "../sync/state.js";
 import { putLink } from "../tenants/control.js";
@@ -371,17 +371,37 @@ async function underRoot(root: SpaceRow): Promise<void> {
     );
 }
 
+/** How many people an organization has, kept a minute: the Manage-App is asked at most that often. */
+const peopleCount = new Map<string, { n: number; at: number }>();
+
 /**
- * Whether people of this organization each get a Mein Space: where the plan has room for more
- * than one person. Alone (Free, a local install) the root is the one space.
+ * Whether people of this organization each get a Mein Space (docs/plans/org-spaces.md): from its
+ * second person on, member or invited (clients do not count). Alone (Free, one person, a local
+ * install) the root is the one space. Once someone has a Mein Space, everyone gets one.
  */
 async function personalSpacesOn(): Promise<boolean> {
   if (!managed) {
     return false;
   }
-  const info = await tenantInfo(currentTenant()).catch(() => null);
-  const members = info?.limits.members;
-  return members === null || (typeof members === "number" && members > 1);
+  const any = await db.query.space.findFirst({
+    columns: { id: true },
+    where: and(eq(schema.space.tenantId, currentTenant()), eq(schema.space.kind, "personal")),
+  });
+  if (any) {
+    return true;
+  }
+  const tenant = currentTenant();
+  const kept = peopleCount.get(tenant);
+  let n = kept && Date.now() - kept.at < 60_000 ? kept.n : -1;
+  if (n < 0) {
+    const people = await tenantMembers(tenant).catch(() => null);
+    n = people
+      ? people.members.filter((m) => m.role !== "client").length +
+        people.invitations.filter((i) => i.role !== "client").length
+      : 0;
+    peopleCount.set(tenant, { n, at: Date.now() });
+  }
+  return n > 1;
 }
 
 /** The person's Mein Space, made on first ask: a space under the root with them as its one member. */
