@@ -321,6 +321,9 @@ const NOTES_EN = {
     "{name} lists its actions only to a signed-in account. Set up a connection and sign in, then reload.",
   connectorNoRecipientField: "The action “{id}” has no field “{field}”.",
   connectorKeyRefused: "{host} didn’t accept the key. Check the header and the key.",
+  connectorRegistryUnknown:
+    "integrations.sh doesn’t list {domain}. Check the address, or add the service under “By address”.",
+  connectorRegistryNoAnswer: "integrations.sh didn’t answer. Try again in a moment.",
   fieldMissing: "“{label}” is missing.",
   mailServerNotExist:
     "The mail server{host} doesn’t exist. Enter the IMAP server. For Gmail and Google Workspace, it’s imap.gmail.com.",
@@ -783,6 +786,10 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "{name} nennt seine Aktionen nur einem angemeldeten Konto. Richte eine Verbindung ein und melde dich an, dann lade neu.",
   connectorNoRecipientField: "Die Aktion „{id}“ hat kein Feld „{field}“.",
   connectorKeyRefused: "{host} hat den Key nicht angenommen. Prüf den Header und den Key.",
+  connectorRegistryUnknown:
+    "integrations.sh führt {domain} nicht. Prüf die Adresse oder füg den Dienst unter „Per Adresse“ hinzu.",
+  connectorRegistryNoAnswer:
+    "integrations.sh hat nicht geantwortet. Versuch es gleich noch einmal.",
   fieldMissing: "„{label}“ fehlt.",
   mailServerNotExist:
     "Den Mail-Server{host} gibt es nicht. Trag den IMAP-Server ein, bei Gmail und Google Workspace imap.gmail.com.",

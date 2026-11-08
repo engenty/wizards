@@ -19,7 +19,10 @@ import {
   buildImportedConnector,
   mcpHeaders,
 } from "../engenty/connections-external/build-connector.js";
-import { ImportValidationError } from "../engenty/connections-external/errors.js";
+import {
+  ImportValidationError,
+  RegistryRequestError,
+} from "../engenty/connections-external/errors.js";
 import {
   assembleRecord,
   connectorIdFromSlug,
@@ -309,6 +312,12 @@ export async function searchRegistry(query: string): Promise<RegistryHit[]> {
 
 export async function registryService(domain: string): Promise<RegistryService> {
   const { parsed } = await registryDiscover(domain).catch((err) => {
+    if (err instanceof RegistryRequestError && err.status === 404) {
+      throw new ServiceError("not_found", note("connectorRegistryUnknown", { domain }));
+    }
+    if (err instanceof RegistryRequestError || (err as Error)?.name === "TimeoutError") {
+      throw new ServiceError("refused", note("connectorRegistryNoAnswer"));
+    }
     throw importFailure(err);
   });
   return {

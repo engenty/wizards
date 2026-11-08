@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RegistryRequestError } from "./errors.js";
 import { createGuardedFetch } from "./net/guarded-fetch.js";
 import type { ExternalSourceKind, McpTransport } from "./types.js";
 
@@ -405,7 +406,7 @@ async function fetchJson(
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
-    throw new Error(`registry request failed (${response.status}): ${url}`);
+    throw new RegistryRequestError(response.status, url);
   }
   return await response.json();
 }
