@@ -52,6 +52,8 @@ export interface SidebarChat extends ChatItem {
 export interface Section {
   id: string;
   name: string;
+  /** With `orgSpaces` a section is a folder: what every chat in it should know. */
+  infos?: string;
 }
 
 /** One part of a message, as the AI SDK's `UIMessage` holds it. */
@@ -429,8 +431,8 @@ export const useCreateSection = () =>
   );
 
 export const useRenameSection = () =>
-  useChange(({ id, name }: { id: string; name: string }) =>
-    api.patch(`${BASE}/sections/${id}`, { name }),
+  useChange(({ id, name, infos }: { id: string; name?: string; infos?: string }) =>
+    api.patch(`${BASE}/sections/${id}`, { name, infos }),
   );
 
 export const useMoveSection = () =>

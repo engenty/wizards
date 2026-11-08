@@ -7,7 +7,9 @@ import {
   CornerDownLeft,
   Eye,
   EyeOff,
+  Folder,
   FolderInput,
+  FolderOpen,
   Home,
   Link2,
   ListFilter,
@@ -212,7 +214,7 @@ export function ChatSidebar() {
         ))}
         {addingSection ? (
           <NameField
-            placeholder={t("work.sectionName")}
+            placeholder={t(orgSpaces ? "work.folderName" : "work.sectionName")}
             onDone={async (name) => {
               setAddingSection(false);
               if (name && space) {
@@ -248,11 +250,11 @@ export function ChatSidebar() {
                   </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Hint label={t("work.newSection")}>
+              <Hint label={t(orgSpaces ? "work.newFolder" : "work.newSection")}>
                 <button
                   type="button"
                   className={ICON_BUTTON}
-                  aria-label={t("work.newSection")}
+                  aria-label={t(orgSpaces ? "work.newFolder" : "work.newSection")}
                   onClick={() => setAddingSection(true)}
                 >
                   <Plus className="size-3.5" />
@@ -368,6 +370,9 @@ function SectionGroup({
   children: ReactNode;
 }) {
   const drop = useDrop(section.id);
+  // With `orgSpaces` a section is a folder (docs/plans/org-spaces.md): it opens as a page.
+  const folders = useFeature("orgSpaces");
+  const navigate = useNavigate();
   const [renaming, setRenaming] = useState(false);
   const rename = useRenameSection();
   const move = useMoveSection();
@@ -385,7 +390,7 @@ function SectionGroup({
         {renaming ? (
           <NameField
             initial={section.name}
-            placeholder={t("work.sectionName")}
+            placeholder={t(folders ? "work.folderName" : "work.sectionName")}
             onDone={async (name) => {
               setRenaming(false);
               if (name && name !== section.name) {
@@ -400,6 +405,7 @@ function SectionGroup({
             aria-expanded={!folded}
             className="flex min-w-0 flex-1 items-center gap-1 px-1 text-left font-medium text-[0.8125rem] text-ink-3"
           >
+            {folders ? <Folder className="size-3.5 shrink-0" /> : null}
             <span className="truncate">{section.name}</span>
             <ChevronDown
               className={cn("size-3.5 shrink-0 transition-transform", folded && "-rotate-90")}
@@ -413,6 +419,12 @@ function SectionGroup({
               <MoreHorizontal className="size-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
+              {folders ? (
+                <DropdownMenuItem onClick={() => navigate(`/work/f/${section.id}`)}>
+                  <FolderOpen />
+                  {t("work.openFolder")}
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem onClick={() => setRenaming(true)}>
                 <Pencil />
                 {t("work.rename")}

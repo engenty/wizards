@@ -10,6 +10,7 @@ import { TopBar, useCrumbs } from "../AppFrame";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatView } from "./ChatView";
 import { type CriticalItem, useBellOpened, useWaiting } from "./chats";
+import { FolderPage } from "./FolderPage";
 import { runFacts, runLink, WorkHome } from "./WorkHome";
 
 /**
@@ -64,9 +65,9 @@ export function InMode({ mode, children }: { mode: Mode; children: ReactNode }) 
 
 /** `/work/:place?`: Chats without a place, else one of the others. */
 export function WorkPage() {
-  const { place, chatId } = useParams();
+  const { place, chatId, folderId } = useParams();
   const wip = useFeature("workWip");
-  if (chatId) {
+  if (chatId || folderId) {
     return <ChatsPage />;
   }
   // The places past the chats come with `workWip`; without it their addresses lead to the chats.
@@ -108,7 +109,7 @@ function useSidebarOpen(): [boolean, () => void] {
  * and the open chat or Work's start. The page fills the frame, so it draws the bar itself.
  */
 function ChatsPage() {
-  const { chatId } = useParams();
+  const { chatId, folderId } = useParams();
   const me = useMe().data;
   const [sidebar, toggleSidebar] = useSidebarOpen();
   return (
@@ -116,7 +117,7 @@ function ChatsPage() {
       {me ? <TopBar me={me} sidebar={{ open: sidebar, onToggle: toggleSidebar }} /> : null}
       <div className="flex min-h-0 flex-1">
         {sidebar ? <ChatSidebar /> : null}
-        {chatId ? <ChatView id={chatId} /> : <WorkHome />}
+        {chatId ? <ChatView id={chatId} /> : folderId ? <FolderPage id={folderId} /> : <WorkHome />}
       </div>
     </div>
   );

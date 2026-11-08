@@ -77,6 +77,24 @@ describe("work chats", () => {
     expect(side.chats.map((c: any) => c.id)).toEqual([chat.id]);
   });
 
+  it("keeps a folder's Infos and gives them to the AI of each chat in it", async () => {
+    const folder = await json(send("POST", "/sections", { spaceId, name: "Betriebsprüfung" }));
+    await json(send("PATCH", `/sections/${folder.id}`, { infos: "Prüferin Mag. Leitner. Immer mit Belegnummer." }));
+    const side = await json(send("GET", `/chats?space=${spaceId}`));
+    expect(side.sections.find((s: any) => s.id === folder.id)).toMatchObject({
+      name: "Betriebsprüfung",
+      infos: "Prüferin Mag. Leitner. Immer mit Belegnummer.",
+    });
+    const chat = await json(send("POST", "/chats", { spaceId, sectionId: folder.id }));
+    const loose = await json(send("POST", "/chats", { spaceId }));
+    const { folderInfosOf } = await import("../src/services/work-folders");
+    const { withTenant } = await import("../src/db/client");
+    await withTenant("local", async () => {
+      expect(await folderInfosOf(chat.id)).toMatchObject({ name: "Betriebsprüfung" });
+      expect(await folderInfosOf(loose.id)).toBeNull();
+    });
+  });
+
   it("puts a sub-thread in its parent's space and section, and deletes both with their messages", async () => {
     const section = await json(send("POST", "/sections", { spaceId, name: "Steuer" }));
     const parent = await json(send("POST", "/chats", { spaceId, sectionId: section.id }));

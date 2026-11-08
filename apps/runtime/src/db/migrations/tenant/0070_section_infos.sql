@@ -1,0 +1,1 @@
+ALTER TABLE `chat_section` ADD `infos` text DEFAULT '' NOT NULL;

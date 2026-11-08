@@ -209,7 +209,7 @@ export async function sidebar(user: SessionUser, spaceId: string, query?: string
   });
   const stateOf = new Map(states.map((st) => [st.chatId, st]));
   return {
-    sections: sections.map((sec) => ({ id: sec.id, name: sec.name })),
+    sections: sections.map((sec) => ({ id: sec.id, name: sec.name, infos: sec.infos })),
     chats: chats.map((c): SidebarChat => {
       const st = stateOf.get(c.id);
       const hasMessage = c.lastAuthorId !== null;
@@ -1165,13 +1165,20 @@ async function ownSection(user: SessionUser, id: string) {
   return found;
 }
 
-export async function renameSection(user: SessionUser, id: string, name: string) {
+export async function renameSection(
+  user: SessionUser,
+  id: string,
+  patch: { name?: string; infos?: string },
+) {
   const section = await ownSection(user, id);
+  const name = patch.name?.trim() || section.name;
+  // A folder's Infos (docs/plans/org-spaces.md): what every chat in it should know.
+  const infos = patch.infos ?? section.infos;
   await db
     .update(schema.chatSection)
-    .set({ name: name.trim() })
+    .set({ name, infos })
     .where(eq(schema.chatSection.id, section.id));
-  return { id, name: name.trim() };
+  return { id, name, infos };
 }
 
 /** Moves a section one place up or down among its space's sections. */

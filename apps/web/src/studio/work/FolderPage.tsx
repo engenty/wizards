@@ -1,0 +1,133 @@
+import { FolderOpen, MessageSquare, Pencil } from "lucide-react";
+import { type FormEvent, useEffect, useState } from "react";
+import { useNavigate } from "react-router";
+import { t } from "../../lib/i18n";
+import { useCurrentSpace } from "../../lib/session";
+import { Button, cn } from "../../ui";
+import { useCrumbs } from "../AppFrame";
+import { useCreateChat, useRenameSection, useSidebar } from "./chats";
+
+/**
+ * A folder of Work, opened like a project (docs/plans/org-spaces.md): start a chat in it, its
+ * chats, and beside them its Infos, what every chat in it should know. The AI of each chat in the
+ * folder reads them first.
+ */
+export function FolderPage({ id }: { id: string }) {
+  const { space } = useCurrentSpace();
+  const { data } = useSidebar(space?.id, "");
+  const folder = data?.sections.find((s) => s.id === id);
+  const chats = (data?.chats ?? []).filter((c) => c.sectionId === id && !c.archived && !c.parentId);
+  const createChat = useCreateChat();
+  const rename = useRenameSection();
+  const navigate = useNavigate();
+  const [editing, setEditing] = useState(false);
+  const [infos, setInfos] = useState("");
+  useEffect(() => {
+    setInfos(folder?.infos ?? "");
+  }, [folder?.infos]);
+  useCrumbs(folder ? [{ label: folder.name }] : []);
+  if (!folder) {
+    return <div className="flex-1" />;
+  }
+  const start = async (e: FormEvent) => {
+    e.preventDefault();
+    const chat = await createChat.mutateAsync({
+      spaceId: space?.id,
+      sectionId: id,
+      parentId: null,
+    });
+    navigate(`/work/c/${chat.id}`);
+  };
+  const save = async () => {
+    setEditing(false);
+    if (infos !== (folder.infos ?? "")) {
+      await rename.mutateAsync({ id, infos });
+    }
+  };
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto grid w-full max-w-5xl gap-8 px-6 py-8 md:grid-cols-[minmax(0,1fr)_16rem]">
+        <div className="grid min-w-0 content-start gap-5">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-xl bg-card text-ink-2 ring-1 ring-border-soft">
+              <FolderOpen className="size-5" />
+            </span>
+            <h1 className="min-w-0 truncate font-display font-semibold text-[1.375rem] text-ink">
+              {folder.name}
+            </h1>
+          </div>
+          <form onSubmit={start}>
+            <Button type="submit" busy={createChat.isPending}>
+              {t("work.newChatIn", { name: folder.name })}
+            </Button>
+          </form>
+          <ul className="grid">
+            {chats.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/work/c/${c.id}`)}
+                  className="flex w-full items-center gap-3 border-border-soft border-b px-1 py-2.5 text-left transition hover:bg-ink/5"
+                >
+                  <MessageSquare className="size-4 shrink-0 text-ink-3" />
+                  <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <span className="truncate text-[0.875rem] text-ink">
+                      {c.title || t("work.untitled")}
+                    </span>
+                    {c.last ? (
+                      <span className="truncate text-[0.75rem] text-ink-3">
+                        {c.last.author}: {c.last.text}
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              </li>
+            ))}
+            {chats.length ? null : (
+              <li className="px-1 py-2.5 text-[0.875rem] text-ink-3">{t("work.folderEmpty")}</li>
+            )}
+          </ul>
+        </div>
+        <aside className="grid content-start gap-2.5">
+          <section className="grid gap-1.5 rounded-xl bg-card p-3 ring-1 ring-border-soft">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-[0.8125rem] text-ink">{t("work.folderInfos")}</h2>
+              {editing ? null : (
+                <button
+                  type="button"
+                  aria-label={t("work.folderInfosEdit")}
+                  onClick={() => setEditing(true)}
+                  className="grid size-6 place-items-center rounded-md text-ink-3 hover:bg-ink/10 hover:text-ink"
+                >
+                  <Pencil className="size-3.5" />
+                </button>
+              )}
+            </div>
+            {editing ? (
+              <textarea
+                // biome-ignore lint/a11y/noAutofocus: opened on purpose to write
+                autoFocus
+                value={infos}
+                rows={6}
+                maxLength={20_000}
+                aria-label={t("work.folderInfos")}
+                onChange={(e) => setInfos(e.target.value)}
+                onBlur={save}
+                className="w-full resize-y rounded-lg bg-background p-2 text-[0.8125rem] text-ink outline-none ring-1 ring-border focus:ring-ember/60"
+              />
+            ) : (
+              <p
+                className={cn(
+                  "whitespace-pre-wrap text-[0.8125rem]",
+                  folder.infos ? "text-ink-2" : "text-ink-4",
+                )}
+              >
+                {folder.infos || t("work.folderInfosEmpty")}
+              </p>
+            )}
+          </section>
+        </aside>
+      </div>
+    </div>
+  );
+}

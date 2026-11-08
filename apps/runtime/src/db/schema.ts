@@ -1463,6 +1463,11 @@ export const chatSection = sqliteTable(
       .references(() => space.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     position: integer("position").notNull().default(0),
+    /**
+     * With `orgSpaces` a section is a folder (Ordner, docs/plans/org-spaces.md): what every chat
+     * in it should know, read by the AI before the space's Wissen.
+     */
+    infos: text("infos").notNull().default(""),
     createdBy: text("created_by").notNull(),
     createdAt: createdAt(),
   },
