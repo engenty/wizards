@@ -79,7 +79,7 @@ import { ModelUnavailableError, saidOf } from "./model-errors.js";
 import { seal, unseal } from "./secrets/crypto.js";
 import { vaultDelete, vaultGet, vaultSet } from "./secrets/vault.js";
 import { chatModelId } from "./services/chat-models.js";
-import { readSetting, writeSetting } from "./settings.js";
+import { readSetting, readTenantSetting, writeSetting, writeTenantSetting } from "./settings.js";
 import { currentTenant, currentTenantOrNull } from "./tenants/tenant.js";
 import { serverText } from "./texts.js";
 
@@ -273,11 +273,15 @@ interface StoredTenantModels {
 }
 
 const tenantConfigs = new Map<string, ModelConfig>();
-const tenantSetting = (tenant: string) => `models:${tenant}`;
 
 /** An organization thinks on its credits unless it brought a key: `own`, with the credits behind it. */
 function organizationSettings(bindings: Partial<Record<ModelClass, string>>): LocalModelSettings {
   return { source: "own", bindings, creditFallback: true };
+}
+
+/** Forgets what this process read of a tenant's model settings (the tenant was deleted). */
+export function forgetTenantModels(tenant: string) {
+  tenantConfigs.delete(tenant);
 }
 
 async function tenantConfig(tenant: string): Promise<ModelConfig> {
@@ -285,7 +289,7 @@ async function tenantConfig(tenant: string): Promise<ModelConfig> {
   if (hit) {
     return hit;
   }
-  const stored = await readSetting<StoredTenantModels>(tenantSetting(tenant));
+  const stored = await readTenantSetting<StoredTenantModels>(tenant, "models");
   const value: ModelConfig = {
     settings: organizationSettings(stored?.bindings ?? {}),
     keys: (stored?.keys ? unseal<ModelConfig["keys"]>(stored.keys) : null) ?? {},
@@ -399,7 +403,7 @@ async function saveTenantModels(tenant: string, input: ModelSettingsInput) {
       delete keys[name as LocalKey];
     }
   }
-  await writeSetting(tenantSetting(tenant), {
+  await writeTenantSetting(tenant, "models", {
     bindings: mergeBindings(current.settings.bindings, input.bindings),
     keys: Object.keys(keys).length ? seal(keys) : null,
   } satisfies StoredTenantModels);

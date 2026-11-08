@@ -11,6 +11,7 @@ import { removeTenantObjects } from "../files/objects.js";
 import { health } from "../health.js";
 import { tailQuery } from "../log.js";
 import { forgetTenant, managed } from "../manage.js";
+import { forgetTenantModels } from "../models.js";
 import { loadedPlugins } from "../plugins/registry.js";
 import { forgetTenantRows, setTenantStatus } from "../tenants/control.js";
 
@@ -73,6 +74,7 @@ export const internalRoutes = new Hono()
     forgetTenant(id);
     if (action === "delete") {
       closeTenantDb(id);
+      forgetTenantModels(id);
       await removeTenantObjects(id);
       await forgetTenantRows(id);
       for (const suffix of ["", "-wal", "-shm"]) {

@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Client, createClient } from "@libsql/client";
-import { eq } from "drizzle-orm";
+import { eq, inArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { env } from "../env.js";
@@ -169,6 +169,40 @@ async function forgetRenumbered(client: Client) {
   }
 }
 
+/**
+ * A tenant's model settings (`models:<tenant>`) and each person's place for the assistant
+ * (`assistant-layout:<tenant>:<user>` …) move from the control database into the tenant's own
+ * `setting` table, without the tenant's id in the key: once, when the tenant's database opens.
+ */
+async function moveTenantSettings(id: string, tdb: Db) {
+  const prefixes = ["assistant-layout", "assistant-layouts", "assistant-width"].map(
+    (name) => `${name}:${id}:`,
+  );
+  const key = control.setting.key;
+  const rows = await controlDb
+    .select()
+    .from(control.setting)
+    .where(
+      or(
+        eq(key, `models:${id}`),
+        ...prefixes.map((p) => sql`substr(${key}, 1, ${p.length}) = ${p}`),
+      ),
+    );
+  if (!rows.length) {
+    return;
+  }
+  for (const row of rows) {
+    const own = row.key === `models:${id}` ? "models" : row.key.replace(`:${id}:`, ":");
+    await tdb.insert(schema.setting).values({ key: own, value: row.value }).onConflictDoNothing();
+  }
+  await controlDb.delete(control.setting).where(
+    inArray(
+      key,
+      rows.map((row) => row.key),
+    ),
+  );
+}
+
 async function openTenantNow(id: string): Promise<Db> {
   let row = await controlDb.query.tenant.findFirst({ where: eq(control.tenant.id, id) });
   if (!row) {
@@ -186,6 +220,7 @@ async function openTenantNow(id: string): Promise<Db> {
       await forgetRenumbered(client);
       await migrate(db, { migrationsFolder: migrationsFolder("tenant") });
     });
+    await moveTenantSettings(id, db);
   } catch (err) {
     // The next use opens it afresh (tenantDb forgets the failed attempt).
     clients.delete(id);

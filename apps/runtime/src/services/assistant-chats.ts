@@ -12,7 +12,7 @@ import { db, schema } from "../db/client.js";
 import type { AssistantCardRecord, AssistantToolCallRecord } from "../db/schema.js";
 import { textModel } from "../models.js";
 import { prompt } from "../prompts.js";
-import { readSetting } from "../settings.js";
+import { readTenantSetting } from "../settings.js";
 import { ServiceError } from "./errors.js";
 import { trigramQuery } from "./space-index.js";
 
@@ -380,7 +380,7 @@ export async function searchChats(user: SessionUser, query: string, limit = 8) {
 
 /** Where the person keeps the assistant: at the bottom (the default), in a sidebar, or small. */
 export async function assistantLayout(user: SessionUser): Promise<AssistantLayout> {
-  const stored = await readSetting<string>(`assistant-layout:${user.tenantId}:${user.id}`);
+  const stored = await readTenantSetting<string>(user.tenantId, `assistant-layout:${user.id}`);
   return (ASSISTANT_LAYOUTS as readonly string[]).includes(stored ?? "")
     ? (stored as AssistantLayout)
     : "bottom";
@@ -393,8 +393,9 @@ export async function assistantLayout(user: SessionUser): Promise<AssistantLayou
 export async function assistantLayouts(
   user: SessionUser,
 ): Promise<Record<string, AssistantLayout>> {
-  const stored = await readSetting<Record<string, string>>(
-    `assistant-layouts:${user.tenantId}:${user.id}`,
+  const stored = await readTenantSetting<Record<string, string>>(
+    user.tenantId,
+    `assistant-layouts:${user.id}`,
   );
   return Object.fromEntries(
     Object.entries(stored ?? {}).filter(([, layout]) =>
@@ -405,7 +406,7 @@ export async function assistantLayouts(
 
 /** The sidebar's width the person set with its handle; null: the default. */
 export async function assistantWidth(user: SessionUser): Promise<number | null> {
-  const stored = await readSetting<number>(`assistant-width:${user.tenantId}:${user.id}`);
+  const stored = await readTenantSetting<number>(user.tenantId, `assistant-width:${user.id}`);
   return typeof stored === "number" &&
     stored >= ASSISTANT_WIDTH.min &&
     stored <= ASSISTANT_WIDTH.max

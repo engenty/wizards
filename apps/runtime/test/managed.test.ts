@@ -1096,7 +1096,45 @@ describe("a runtime of a Manage-App", () => {
     expect((await get("/api/studio/me", a)).status).toBe(403);
     expect((await tell("tenant-a", "resume")).status).toBe(200);
     expect((await get("/api/studio/me", a)).status).toBe(200);
+    // What the control database holds of tenant A beside its links, runs and sessions.
+    const { control, controlDb } = await import("../src/db/client");
+    const { writeSetting } = await import("../src/settings");
+    await writeSetting("organization:context:tenant-a", { words: "" });
+    await writeSetting("profile:tenant-a:user-a", { name: "A" });
+    await writeSetting("profile:tenant-ab:user-a", { name: "AB" });
+    await controlDb
+      .insert(control.pluginClaim)
+      .values({ plugin: "p", key: "k-a", tenantId: "tenant-a" });
+    await controlDb
+      .insert(control.pluginAddress)
+      .values({ ref: "ref-a", plugin: "p", tenantId: "tenant-a" });
+    await controlDb
+      .insert(control.pluginJob)
+      .values({ tenantId: "tenant-a", plugin: "p", name: "j", lastRunAt: new Date() });
     expect((await tell("tenant-a", "delete")).status).toBe(200);
+    const left: unknown[] = [];
+    for (const table of [
+      control.link,
+      control.runIndex,
+      control.session,
+      control.pluginClaim,
+      control.pluginAddress,
+      control.pluginJob,
+    ]) {
+      left.push(
+        ...(await controlDb.select().from(table)).filter((row) => row.tenantId === "tenant-a"),
+      );
+    }
+    left.push(
+      ...(await controlDb.select().from(control.tenant)).filter((row) => row.id === "tenant-a"),
+      ...(await controlDb.select().from(control.setting)).filter((row) =>
+        `:${row.key}:`.includes(":tenant-a:"),
+      ),
+    );
+    expect(left).toEqual([]);
+    expect(await (await import("../src/settings")).readSetting("profile:tenant-ab:user-a")).toEqual({
+      name: "AB",
+    });
     const spaces = (await (await get("/api/studio/spaces", a)).json()) as { wizardCount: number }[];
     expect(spaces[0].wizardCount).toBe(0);
   });
