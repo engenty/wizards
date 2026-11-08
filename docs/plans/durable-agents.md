@@ -37,7 +37,9 @@ What already carries the weight:
   each step. A run whose runner dies goes back in line after 30 s and goes on from its cursor.
 - **The line in the control database.** `run_index` holds `active`, `owner`, `seen`. `wakeRun`,
   `claimRun`, `restRun` move a run in and out of it; every runner polls it every 2 s
-  (`runner-process.md`). A run that waits is not in the line and holds no slot.
+  (`runner-process.md`). A run that waits is not in the line and holds no slot. On the combined
+  branch a process without a runner also tells a runner directly to take a run it hands on
+  (`POST /api/peer/runs/:id/take`, `fast-creation.md` Part 4); the 2 s look stays as the fallback.
 - **Questions in the row.** `run.ask` and `run.answer` carry a question across processes.
 - **The gate on the tool** (`work-chats.md`, PR #273). A tool with `risk: outside` stores its
   call in `chat_approval`. The asker or an admin approves, the stored call runs once, the result
