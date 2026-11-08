@@ -122,6 +122,7 @@ import { generateImageMedia, generateSpeechMedia, generateVideoMedia } from "../
 import { transcribeAudio } from "../media/transcribe.js";
 import { errorText, saidOf } from "../model-errors.js";
 import {
+  asGatewayBindings,
   blockedBinding,
   CHAT_WAYS,
   checkKey,
@@ -135,6 +136,7 @@ import {
   localModelSettings,
   ModelUnavailableError,
   modelSettings,
+  ownKeysThroughGateway,
   saveLocalModels,
   saveModels,
   setUpKey,
@@ -332,6 +334,7 @@ import { serverText } from "../texts.js";
 import { applyUpdate, updateStatus } from "../update.js";
 import { spaceFileResponse } from "./delivery.js";
 import { notFoundAnswer, requestLang, say } from "./lang.js";
+import { addKey, changeKey, checkKeyOf, listKeys, removeKey, setFallback } from "./own-keys.js";
 import { mayChangeRuntime } from "./runtime-settings.js";
 
 type Vars = { Variables: { user: SessionUser } };
@@ -2110,6 +2113,15 @@ export const studio = new Hono<Vars>()
       );
     }
     const input = modelsInput.parse(await c.req.json());
+    // Through the gateway the keys are accounts at the Manage-App, and a binding names what the
+    // gateway serves: a provider's model becomes the catalog's (models.ts, `gatewayRef`).
+    if (managed && (await ownKeysThroughGateway())) {
+      if (Object.values(input.keys ?? {}).some((key) => key?.trim())) {
+        return c.json({ error: say(c, "ownKeysOnTheirPage"), code: "own_keys_gateway" }, 400);
+      }
+      input.keys = undefined;
+      input.bindings = input.bindings ? await asGatewayBindings(input.bindings) : undefined;
+    }
     // In the cloud nothing runs on a machine's client or local model.
     if (
       managed &&
@@ -2300,8 +2312,18 @@ export const studio = new Hono<Vars>()
     await startLocalOllama();
     return c.json(await localModels());
   })
+  // The organization's own accounts at the providers, kept by the Manage-App (`ownKeysGateway`).
+  .get("/models/keys", listKeys)
+  .post("/models/keys", addKey)
+  .patch("/models/keys", setFallback)
+  .patch("/models/keys/:id", changeKey)
+  .delete("/models/keys/:id", removeKey)
   // Whether a provider takes a key — the one typed, or the one stored. Nothing is generated.
+  // With `ownKeysGateway` the Manage-App checks one of the organization's accounts again.
   .post("/models/keys/:provider/check", async (c) => {
+    if (managed && (await ownKeysThroughGateway())) {
+      return checkKeyOf(c, c.req.param("provider"));
+    }
     const provider = z.enum(LOCAL_KEYS).parse(c.req.param("provider"));
     const { key } = z
       .object({ key: z.string().max(400).optional() })

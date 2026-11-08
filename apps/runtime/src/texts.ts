@@ -135,6 +135,9 @@ const EN = {
   "need.context": "a long enough context",
   notAvailableCloud: "This isn’t available in the cloud.",
   noApiKeySet: "No API key is set.",
+  ownKeysUnavailable: "Your organization’s API keys can’t be reached right now. Try again later.",
+  ownKeysOnTheirPage:
+    "Add API keys under Models › API keys. They no longer go into these settings.",
   onlyOrganizationAdminsTest: "Only organization admins can test its models.",
   notFound: "This doesn’t exist or was deleted.",
   // The pages of the one-time link and of the sign-in that a browser shows on its own.
@@ -420,6 +423,10 @@ const DE: Partial<Record<ServerKey, Line>> = {
   "need.context": "genug Kontext",
   notAvailableCloud: "Das gibt es nicht in der Cloud.",
   noApiKeySet: "Kein API-Key hinterlegt.",
+  ownKeysUnavailable:
+    "Die API-Keys deiner Organisation sind gerade nicht erreichbar. Versuch es später noch einmal.",
+  ownKeysOnTheirPage:
+    "API-Keys fügst du unter Modelle › API-Keys hinzu. In diese Einstellungen kommen sie nicht mehr.",
   onlyOrganizationAdminsTest: "Nur Admins der Organisation testen ihre Modelle.",
   notFound: "Das gibt es nicht oder nicht mehr.",
   localLinkUsed:

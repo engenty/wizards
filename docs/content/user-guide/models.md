@@ -1,7 +1,7 @@
 ---
 title: Models and account
 description: What runs the AI in your wizards – an AI client on your computer, your own API keys, a local model or credits.
-version: 0.12.2
+version: 0.18.0
 ---
 
 Settings → Models decides what runs the AI in your wizards. On your computer you set it up
@@ -92,18 +92,34 @@ need nothing. Without ffmpeg, the page “Voice notes” says so.
 ## Keys
 
 engenty wizards checks a key with its provider before it stores it. On your computer, keys stay
-in the Keychain on a Mac and in an encrypted file in the data folder elsewhere. On engenty.ai
-they are kept encrypted for the organization. They are never in the database, and nobody sees them again.
+in the Keychain on a Mac and in an encrypted file in the data folder elsewhere. They are never in
+the database, and nobody sees them again.
 
 “API keys” under “Access” lists each key there is, masked to its prefix and last four characters (`sk-…a1b2`), with
 where it comes from: kept in the studio, or an environment variable on this computer. The other
 providers are under “More providers”. A provider’s page holds its key, what it is used for, and
 which of its models run on credits without your own API key. What runs on a key costs no credits.
 
-On engenty.ai, own API keys need a plan that has them: from Pro. The tier doesn’t forbid them.
-The admins choose whether the organization uses them, and then the provider handles the data
-under your contract with it, not under the tier’s promises. Without own keys, runs use the
-organization’s credits.
+### API keys on engenty.ai
+
+On engenty.ai a key is your organization’s account at a provider: AWS Bedrock, Microsoft Azure,
+Mistral, Anthropic, OpenAI, Google or another provider with an OpenAI-compatible address. Every
+call still goes through engenty. When the model your organization’s choice picks for a job is one
+the account serves, the call runs on the account and the provider bills you. Everything else runs
+on credits. The tier, masking and the admins’ choice of models apply either way.
+
+“Your own API keys” lists the accounts with how each stands: *ready*, *key refused* or *not in
+use* (no model of the account fits the tier or the admins’ choice). Owners and admins add a key
+with “Add key”: they choose the provider, fill in its fields and “Check and save”. The provider
+checks the key first. The dialog then says which jobs now run on the account. An account’s page
+shows what ran on it this month, “Replace key” and “Remove”. Members see the list.
+
+When a provider refuses the key or a call, “Credits step in” lets the call run on credits
+instead, so nothing stops. Without it the call fails with the provider’s words. The overview names
+the account a job runs on.
+
+The tier doesn’t forbid own keys. The admins choose whether the organization uses them, and then
+the provider handles the data under your contract with it, not under the tier’s promises.
 
 Vercel refuses many models for an AI Gateway key on its free tier. The Models page and the check
 before a run say so, with a link to top up at Vercel.

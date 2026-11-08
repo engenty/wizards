@@ -173,12 +173,17 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
   });
-  const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+  const data = (await res.json().catch(() => ({}))) as {
+    error?: string | { type?: string; message?: string };
+    code?: string;
+  };
   if (!res.ok) {
+    // Most routes say `{ error, code }`; the upstream routes say `{ error: { type, message } }`.
+    const error = typeof data.error === "object" && data.error ? data.error : null;
     throw new ManageError(
       res.status,
-      data.code ?? "error",
-      data.error ?? `Manage-App ${res.status}`,
+      data.code ?? error?.type ?? "error",
+      (error ? error.message : (data.error as string | undefined)) ?? `Manage-App ${res.status}`,
     );
   }
   return data as T;
@@ -228,6 +233,11 @@ export interface TenantInfo {
    */
   tier?: ModelTier;
   modelPolicy?: ModelPolicy;
+  /**
+   * The ways of sharing out models the plan offers (`["A"]`, `["A", "B", "C"]`), a team's own
+   * setting applied. Left out by an older Manage-App: way A only.
+   */
+  modelControl?: string[];
 }
 
 export interface TenantMembers {
@@ -354,6 +364,62 @@ export const deleteTenantKey = (tenantId: string, actorId: string, id: string) =
   call<{ ok: true }>("DELETE", `${tenantPath(tenantId)}/keys/${encodeURIComponent(id)}`, {
     actorId,
   });
+
+/**
+ * An organization's own account at a provider, kept at the Manage-App behind `ownKeysGateway`
+ * (docs/manage-contract.md, "Own accounts"). The key never comes back, only its last four.
+ */
+export interface UpstreamAccount {
+  id: string;
+  source: string;
+  label: string;
+  /** One word for the list: "Frankfurt", "EU", "USA". */
+  place: string;
+  keyHint: string;
+  /** `resting`: no model of it passes the tier, or the admins' policy leaves own keys out. */
+  status: "ready" | "refused" | "resting";
+  /** The provider's own words when it refused the key. */
+  error: string | null;
+  checkedAt: string;
+  models: number;
+  passing: number;
+  /** The classes that run on this account now: `{ class: "standard", model: "Claude Sonnet 5.5" }`. */
+  uses: { class: string; model: string }[];
+  month: { calls: number; usd: number };
+}
+
+export interface Upstreams {
+  /** The credits take over a call the provider refuses ("Guthaben springt ein"). */
+  fallback: boolean;
+  accounts: UpstreamAccount[];
+}
+
+/** What an account is added or changed with; `key` is checked with the provider first. */
+export interface UpstreamInput {
+  source?: string;
+  label?: string;
+  key?: string;
+  settings?: Record<string, unknown>;
+}
+
+const upstreamsPath = (tenantId: string, id?: string) =>
+  `${tenantPath(tenantId)}/upstreams${id ? `/${encodeURIComponent(id)}` : ""}`;
+
+export const tenantUpstreams = (tenantId: string) =>
+  call<Upstreams>("GET", upstreamsPath(tenantId));
+/** A refused key answers 422 `key_refused` with the provider's words; a plan without own keys 403 `plan`. */
+export const addUpstream = (
+  tenantId: string,
+  input: UpstreamInput & { source: string; label: string; key: string },
+) => call<UpstreamAccount>("POST", upstreamsPath(tenantId), input);
+export const changeUpstream = (tenantId: string, id: string, input: UpstreamInput) =>
+  call<UpstreamAccount>("PATCH", upstreamsPath(tenantId, id), input);
+export const checkUpstream = (tenantId: string, id: string) =>
+  call<UpstreamAccount>("POST", `${upstreamsPath(tenantId, id)}/check`);
+export const removeUpstream = (tenantId: string, id: string) =>
+  call<unknown>("DELETE", upstreamsPath(tenantId, id));
+export const setUpstreamFallback = (tenantId: string, fallback: boolean) =>
+  call<{ fallback: boolean }>("PATCH", upstreamsPath(tenantId), { fallback });
 
 /** What the billing pages show (the Manage-App's billing view), read for the person who asks. */
 export const tenantBilling = (tenantId: string, actorId: string) =>

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { ManageError, managed, release, reserve, runUsage, tenantInfo } from "../manage.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { ownAccountReady } from "../upstreams.js";
 
 /**
  * Credits live in the Manage-App: its gateway books every model call. The runtime only asks
@@ -20,8 +21,14 @@ export async function canSpend(): Promise<boolean> {
     return true;
   }
   try {
-    const t = await tenantInfo(currentTenant());
-    return t.status === "active" && t.balanceCredits >= 1;
+    const tenant = currentTenant();
+    const t = await tenantInfo(tenant);
+    if (t.status !== "active") {
+      return false;
+    }
+    // An organization with an own account ready runs on it without credits; a call that needs
+    // credits still gets its 402 from the gateway (ownKeysGateway).
+    return t.balanceCredits >= 1 || (await ownAccountReady(tenant));
   } catch (err) {
     console.error("[credits]", err);
     return false;
