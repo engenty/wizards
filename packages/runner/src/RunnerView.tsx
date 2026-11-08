@@ -51,6 +51,11 @@ export interface RunSource {
   error: string | null;
   busy: boolean;
   fieldErrors: Record<string, string>;
+  /**
+   * Pages shown ahead of the server and not confirmed yet: for a while ("slow"), or the server out
+   * of reach ("offline"). Null or left out: all is saved.
+   */
+  saving?: "slow" | "offline" | null;
   submitPage(stepId: string, values: Record<string, unknown>): Promise<boolean>;
   accept(
     stepId: string,
@@ -340,6 +345,18 @@ function PageForm({ view, run, step }: { view: RunView; run: Run; step: PageStep
         <div className="flex flex-col gap-7">{shown.map(fieldInput)}</div>
       )}
       <AnswerBy view={view} />
+      {run.saving ? (
+        <p
+          role="status"
+          className={cn(
+            "mt-6 flex items-center gap-2 text-[0.8125rem]",
+            run.saving === "offline" ? "text-rose" : "text-ink-3",
+          )}
+        >
+          {run.saving === "slow" ? <Spinner className="size-3.5" /> : null}
+          {t(run.saving === "slow" ? "run.saving" : "run.notSaved")}
+        </p>
+      ) : null}
       <Footer view={view} run={run} sticky>
         <Button type="submit" size="lg" busy={run.busy} disabled={pending.size > 0}>
           {step.cta || t("run.next")} <ArrowRight className="size-4" />

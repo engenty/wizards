@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import {
+  type AheadPage,
   type CardOption,
   type EngentyCostume,
   type Format,
@@ -136,6 +137,12 @@ export interface RunState {
   pause?: RunPause;
   /** Who answered each page or review of someone in the organization, by step. */
   answeredBy?: Record<string, { userId: string; name: string }>;
+  /**
+   * The last page a runner sent with a number (`POST …/pages/:stepId` with `seq`), and the tab that
+   * sent it: a retry of a number the run already has, from that tab, is answered as done. Another
+   * tab's answer to the same page is not a retry, and is refused as before.
+   */
+  pagesSent?: { n: number; step: string; tab?: string };
   /**
    * Who gave the last answer, and the step it led to: a wait reached right there tells them nothing,
    * since they did it themselves. A step that worked in between is news to them again.
@@ -1467,6 +1474,15 @@ export interface RunView {
    * it: another tab or device starts the page from it.
    */
   unsent?: Record<string, unknown>;
+  /** Goes up with every write of the run's state and status: tells a late view from a new one. */
+  rev: number;
+  /**
+   * The plain pages the run can reach from here with no server, the current one included, each
+   * with where it goes and the progress bar on it (`nextInBrowser`). For a viewer who may answer.
+   */
+  ahead?: Record<string, AheadPage & { progress: RunView["progress"] }>;
+  /** The number of the last page sent with one (`RunState.pagesSent`): the next is one more. */
+  pagesSent?: number;
   /** What fields of the current page start with, from earlier steps (`prefill`). */
   prefill: Record<string, unknown>;
   /** What the current page's `components` read besides its answers (`data`). */

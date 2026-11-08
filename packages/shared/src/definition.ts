@@ -2458,6 +2458,39 @@ export function otherwiseOf(
   return { cursor: def.steps[index + 1]?.id ?? null, rule: null };
 }
 
+/** Where a plain page goes, as the browser may work it out: `when` rules in order, then otherwise. */
+export interface AheadRule {
+  when?: When;
+  goto: string;
+}
+
+/**
+ * A page the browser may show with no server (`RunView.ahead`): the page, and where it goes. `next`
+ * is null where the server decides that (an `ask`, a loop, a name the browser has no value for).
+ */
+export interface AheadPage {
+  step: PageStep;
+  next: AheadRule[] | null;
+}
+
+/**
+ * The page after `stepId`, when `ahead` says which: the first rule that holds, as `followRules`
+ * takes it. Null when the server must decide, or when the rule leads anywhere but a page of `ahead`
+ * (the end, a step that works, a review, the result).
+ */
+export function nextInBrowser(
+  ahead: Record<string, AheadPage>,
+  stepId: string,
+  values: Record<string, unknown>,
+): string | null {
+  const rules = ahead[stepId]?.next;
+  if (!rules) {
+    return null;
+  }
+  const rule = rules.find((r) => r.when === undefined || whenHolds(r.when, values));
+  return rule && rule.goto !== stepId && ahead[rule.goto] ? rule.goto : null;
+}
+
 /** The step after `step` by its `when` rules alone. `null` = the end. */
 export function nextStepId(
   def: WizardDefinition,

@@ -984,12 +984,28 @@ export const runRoutes = new Hono()
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
-    const { values } = z
-      .object({ values: z.record(z.string(), z.unknown()) })
+    const { values, seq, tab } = z
+      .object({
+        values: z.record(z.string(), z.unknown()),
+        /** The page's number from a runner that sends one page at a time (`RunState.pagesSent`). */
+        seq: z.number().int().min(1).optional(),
+        /** The tab that sent it: a retry is the same tab's. */
+        tab: z.string().max(40).optional(),
+      })
       .parse(await c.req.json());
     try {
-      await submitPage(run.id, c.req.param("stepId"), values, await actorOf(c, run));
-      return c.json({ ok: true });
+      const already = await submitPage(
+        run.id,
+        c.req.param("stepId"),
+        values,
+        await actorOf(c, run),
+        seq === undefined ? undefined : { seq, tab },
+      );
+      // The run's `rev` now: a view older than this is late, and the runner drops it.
+      const rev =
+        (await db.query.run.findFirst({ where: eq(schema.run.id, run.id), columns: { rev: true } }))
+          ?.rev ?? run.rev;
+      return c.json({ ok: true, rev, ...(already ? { already: true } : {}) });
     } catch (err) {
       return commandError(c, err);
     }

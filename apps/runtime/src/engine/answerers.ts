@@ -175,8 +175,10 @@ export async function viewFor(view: RunView, run: RunRow, caller: Caller): Promi
     canBack: view.canBack && mayGoBackFrom(run, caller, team),
     ask: may ? view.ask : null,
     talk: may && view.talk,
-    // What was typed is for whoever may answer it.
+    // What was typed, and what the browser may do alone, is for whoever may answer.
     unsent: may ? view.unsent : undefined,
+    ahead: may ? view.ahead : undefined,
+    pagesSent: may ? view.pagesSent : undefined,
   };
   if (!guest) {
     return narrowed;

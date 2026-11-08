@@ -6,6 +6,9 @@ import {
   marginOf,
 } from "@engenty/wizards-shared/decision";
 import {
+  type AheadPage,
+  type AheadRule,
+  allFields,
   branchValues,
   type CardOption,
   cardsFromData,
@@ -34,6 +37,7 @@ import {
   type WizardDefinition,
   waitDurationMs,
   whenHolds,
+  whenNames,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
 import type {
@@ -1579,6 +1583,87 @@ function needsNoRunner(
   );
 }
 
+/** How many pages `ahead` holds at most. */
+const AHEAD_MAX = 20;
+
+/**
+ * The plain pages a run can reach from the page it waits on, with no server: the current page and
+ * every page its rules lead to that the shortcut covers (`needsNoRunner`) and that needs nothing
+ * only the server has. A page's `next` is null where the server decides: an `ask`, a `max`, a rule
+ * back (its loops are counted), a name the browser has no value for. In the definition `def` it
+ * is shown in (a translation's words).
+ */
+async function aheadOf(
+  run: RunRow,
+  def: WizardDefinition,
+  from: PageStep,
+): Promise<Record<string, AheadPage & { progress: RunView["progress"] }>> {
+  const answers = new Set(allFields(def).map((f) => f.id));
+  const readsAnswers = (when: Parameters<typeof whenNames>[0]) =>
+    whenNames(when).every((name) => answers.has(name));
+  const sections = sectionsOf(def);
+  const progressOf = (step: PageStep): RunView["progress"] => ({
+    done: def.steps.indexOf(step),
+    total: def.steps.length,
+    ...(sections.length
+      ? { sections: { names: sections, current: sections.indexOf(sectionOf(def, step.id) ?? "") } }
+      : {}),
+  });
+  const rulesOf = (step: PageStep): AheadRule[] | null => {
+    const at = def.steps.indexOf(step);
+    const rules = step.next ?? [];
+    const out: AheadRule[] = [];
+    for (const rule of rules) {
+      const to =
+        rule.goto === "end" ? def.steps.length : def.steps.findIndex((s) => s.id === rule.goto);
+      if (rule.ask !== undefined || rule.max !== undefined || (to >= 0 && to <= at)) {
+        return null;
+      }
+      if (rule.when !== undefined) {
+        if (!readsAnswers(rule.when)) {
+          return null;
+        }
+        out.push({ when: rule.when, goto: rule.goto });
+      }
+    }
+    const otherwise = rules.find((r) => r.when === undefined && r.ask === undefined);
+    out.push({ goto: otherwise?.goto ?? def.steps[at + 1]?.id ?? "end" });
+    return out;
+  };
+  const plain = async (step: Step | undefined): Promise<boolean> =>
+    step?.type === "page" &&
+    needsNoRunner(step, run.startedBy, run.state) &&
+    !step.data &&
+    step.fields.every(
+      (f) =>
+        !f.optionsFrom &&
+        !f.cards &&
+        !f.prefill &&
+        f.kind !== "connection" &&
+        f.kind !== "list" &&
+        f.kind !== "slot" &&
+        (f.when === undefined || readsAnswers(f.when)),
+    ) &&
+    Object.keys(await closedChoices(def, step, run.state.values)).length === 0;
+  const out: Record<string, AheadPage & { progress: RunView["progress"] }> = {};
+  const queue: PageStep[] = [from];
+  while (queue.length && Object.keys(out).length < AHEAD_MAX) {
+    const step = queue.shift() as PageStep;
+    if (out[step.id]) {
+      continue;
+    }
+    const next = rulesOf(step);
+    out[step.id] = { step, next, progress: progressOf(step) };
+    for (const rule of next ?? []) {
+      const target = stepOf(def, rule.goto);
+      if (target?.type === "page" && !out[target.id] && (await plain(target))) {
+        queue.push(target);
+      }
+    }
+  }
+  return out;
+}
+
 /** Whether the step may wait for long: it gives its hold back, and holds again as it goes on. */
 async function waitsLong(step: PageStep | ReviewStep): Promise<boolean> {
   return Boolean(step.timeout || step.remind) && (await durableRunsOn());
@@ -2449,14 +2534,26 @@ export async function keepUnsent(run: RunRow, stepId: string, values: Record<str
     .where(eq(schema.run.id, run.id));
 }
 
-/** `by`: who answers, as the door established it; none for what the engine does itself. */
+/**
+ * `by`: who answers, as the door established it; none for what the engine does itself. `seq`: the
+ * page's number from a runner that sends one page at a time, and its tab; a retry of a number the
+ * run already has from that tab is done, and says so (true), before anything is checked against
+ * where the run stands.
+ */
 export async function submitPage(
   runId: string,
   stepId: string,
   input: Record<string, unknown>,
   by?: Actor,
-) {
+  sent?: { seq: number; tab?: string },
+): Promise<boolean> {
   const at = Date.now();
+  if (sent) {
+    const last = (await loadRun(runId))?.state.pagesSent;
+    if (last && last.tab === sent.tab && sent.seq <= last.n) {
+      return true;
+    }
+  }
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
   if (step?.type !== "page") {
@@ -2523,6 +2620,9 @@ export async function submitPage(
   }
   handOnAnswer(step, state);
   state.history.push(stepId);
+  if (sent) {
+    state.pagesSent = { n: sent.seq, step: stepId, ...(sent.tab ? { tab: sent.tab } : {}) };
+  }
   const cursor = await advance(run, stepId, state);
   state.answered = { at, next: cursor };
   await keepAnswerer(state, stepId, cursor, by);
@@ -2539,6 +2639,7 @@ export async function submitPage(
   if (goesOn) {
     kick(runId);
   }
+  return false;
 }
 
 /** The person answers what a durable step asked: its turn goes on with that, on any runner. */
@@ -3030,7 +3131,15 @@ export async function runView(
     step,
     answered: run.state.history.map((id) => stepOf(def, id)).filter((s): s is Step => Boolean(s)),
     values: run.state.values,
-    // What was typed and not sent; `viewFor` keeps it from a viewer who may not answer.
+    rev: run.rev,
+    // What the browser may do alone, and what was typed and not sent: `viewFor` keeps both from a
+    // viewer who may not answer.
+    ...(run.status === "waiting_input" && step?.type === "page" && !run.startedBy
+      ? {
+          ahead: await aheadOf(run, def, step),
+          pagesSent: run.state.pagesSent?.n ?? 0,
+        }
+      : {}),
     ...(run.status === "waiting_input" && step?.type === "page" && run.unsent?.[step.id]
       ? { unsent: run.unsent[step.id] }
       : {}),
