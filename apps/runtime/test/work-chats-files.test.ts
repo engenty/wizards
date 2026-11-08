@@ -146,6 +146,19 @@ describe("files in a chat", () => {
     expect(JSON.stringify(read.messages[0])).not.toContain(PIXEL.toString("base64"));
   });
 
+  it("lists the files of a folder's chats as the folder's Dateien", async () => {
+    const folder = await json(send("POST", "/sections", { spaceId, name: "Gruber 2025" }));
+    const id = (await json(send("POST", "/chats", { spaceId, sectionId: folder.id }))).id as string;
+    const file = await json(upload(id, "belege.png", "image/png", PIXEL));
+    script.push(say("Gesehen."));
+    await (await send("POST", `/chats/${id}/messages`, { text: "Belege", files: [file.id], ask: true })).text();
+    const contents = await json(send("GET", `/sections/${folder.id}/contents`));
+    expect(contents.files).toEqual([
+      expect.objectContaining({ id: file.id, name: "belege.png", mime: "image/png" }),
+    ]);
+    expect(contents.results).toEqual([]);
+  });
+
   it("names a file the model doesn't read, and a message of files alone names the chat", async () => {
     const id = await newChat();
     const file = await json(upload(id, "notiz.txt", "text/plain", "Lieferung am Montag."));

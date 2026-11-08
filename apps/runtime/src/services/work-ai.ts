@@ -30,6 +30,7 @@ import { ClientSteps } from "./client-steps.js";
 import { activeSkills } from "./skills.js";
 import { holdCall } from "./work-approvals.js";
 import { workConnectionTools } from "./work-connections.js";
+import { folderInfosOf } from "./work-folders.js";
 import { chatSandbox } from "./work-sandbox.js";
 
 /**
@@ -392,10 +393,30 @@ export async function workTurn(
   const block = skills
     ? skillsBlock(skills, { tools: true, sandbox: sandboxCapabilities() !== null })
     : "";
+  // The chat's folder, where it has Infos (docs/plans/org-spaces.md): read before the space's.
+  const folder = !client && turn.chatId ? await folderInfosOf(turn.chatId) : null;
+  const folderBlock = folder
+    ? [
+        `This chat is in the folder "${folder.name}".`,
+        folder.infos.trim()
+          ? `What every chat in it should know:\n<folder-infos>\n${folder.infos}\n</folder-infos>`
+          : "",
+        folder.drive
+          ? `The folder's files are in the space's files under ${folder.drive}: look there first.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "";
   return {
     resolved,
     tools,
-    instructions: instructionsFor(turn.space.name, block, "space_search" in tools, client),
+    instructions: [
+      instructionsFor(turn.space.name, block, "space_search" in tools, client),
+      folderBlock,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
   };
 }
 

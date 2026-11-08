@@ -256,6 +256,16 @@ export function StudioApp() {
             }
           />
           <Route
+            path="/work/f/:folderId"
+            element={
+              <Studio full>
+                <InMode mode="work">
+                  <WorkPage />
+                </InMode>
+              </Studio>
+            }
+          />
+          <Route
             path="/work/r/:runId"
             element={
               <Studio full>

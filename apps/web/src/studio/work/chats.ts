@@ -52,6 +52,10 @@ export interface SidebarChat extends ChatItem {
 export interface Section {
   id: string;
   name: string;
+  /** With `orgSpaces` a section is a folder: what every chat in it should know. */
+  infos?: string;
+  /** The space's mounted folder or drive linked to the folder. */
+  mountId?: string | null;
 }
 
 /** One part of a message, as the AI SDK's `UIMessage` holds it. */
@@ -429,9 +433,31 @@ export const useCreateSection = () =>
   );
 
 export const useRenameSection = () =>
-  useChange(({ id, name }: { id: string; name: string }) =>
-    api.patch(`${BASE}/sections/${id}`, { name }),
+  useChange(
+    ({
+      id,
+      name,
+      infos,
+      mountId,
+    }: {
+      id: string;
+      name?: string;
+      infos?: string;
+      mountId?: string | null;
+    }) => api.patch(`${BASE}/sections/${id}`, { name, infos, mountId }),
   );
+
+/** What a folder holds besides its chats: the files of its chats and the results of its runs. */
+export function useFolderContents(id: string) {
+  return useQuery({
+    queryKey: [...SIDEBAR, "folder", id],
+    queryFn: () =>
+      api.get<{
+        files: { id: string; name: string; mime: string; url: string }[];
+        results: { runId: string; wizardId: string; title: string; doneAt: string }[];
+      }>(`${BASE}/sections/${id}/contents`),
+  });
+}
 
 export const useMoveSection = () =>
   useChange(({ id, direction }: { id: string; direction: "up" | "down" }) =>

@@ -543,7 +543,10 @@ export async function startRun(
   userId: string,
   wizardId: string,
   answers: Record<string, unknown> = {},
-  { clientSpaceId = null }: { clientSpaceId?: string | null } = {},
+  {
+    clientSpaceId = null,
+    chatId = null,
+  }: { clientSpaceId?: string | null; chatId?: string | null } = {},
 ) {
   const w = await ownedWizard(userId, wizardId);
   if (w.publishedVersion === null) {
@@ -572,6 +575,7 @@ export async function startRun(
     mode: "live",
     userId,
     clientSpaceId,
+    chatId,
   }).catch((err) => {
     if (err instanceof ModelUnavailableError) {
       throw new ServiceError("refused", saidOf(err));
@@ -752,6 +756,7 @@ export async function draftStepView(
     ask: null,
     answer: null,
     clientSpaceId: null,
+    chatId: null,
     clientSharedAt: null,
     shareToken: null,
   };

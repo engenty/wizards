@@ -33,7 +33,7 @@ import {
   testRunReport,
 } from "../services/runs.js";
 import { sendSignalForWizard } from "../services/signals.js";
-import { defaultSpace, listSpaces, ownedSpace } from "../services/spaces.js";
+import { defaultSpace, listSpaces, ownedSpace, spaceIs } from "../services/spaces.js";
 import { listStarts, setStarts, withStartIds } from "../services/starts.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import {
@@ -420,6 +420,7 @@ export function registerTools(server: McpServer, who: Principal) {
       (await listSpaces(who.userId)).map((p) => ({
         id: p.id,
         name: p.name,
+        is: spaceIs(p),
         from: spaceFrom(p),
         wizardCount: p.wizardCount,
       })),

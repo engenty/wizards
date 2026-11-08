@@ -589,6 +589,24 @@ export async function seedRwx(spaceId: string): Promise<void> {
     .onConflictDoNothing();
 }
 
+/**
+ * Opens a space to its Kund:innen as a client space is (docs/plans/org-spaces.md): with
+ * `orgSpaces` any space may be shared with clients; the first one shared writes these rules.
+ */
+export async function seedClientRules(spaceId: string): Promise<void> {
+  const seeded: RwxRuleInput[] = [];
+  for (const kind of ENFORCED) {
+    const client = CLIENT_SEED[kind];
+    if (client) {
+      seeded.push(rule("role", "client", kind, client));
+    }
+  }
+  await db
+    .insert(schema.rwxRule)
+    .values(seeded.map((r) => row(spaceId, r, "seed")))
+    .onConflictDoNothing();
+}
+
 type Flags = Pick<RwxRuleInput, "r" | "w" | "x">;
 
 /**

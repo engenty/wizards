@@ -35,7 +35,7 @@ import { z } from "zod";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
-import { managed, tenantInfo } from "../manage.js";
+import { managed, tenantInfo, tenantMembers } from "../manage.js";
 import { spaceChanged } from "../plugins/events.js";
 import { cloudSpaceLimit, twoWayActive } from "../sync/state.js";
 import { putLink } from "../tenants/control.js";
@@ -264,7 +264,8 @@ export async function ownedSpace(userId: string, spaceId: string): Promise<Space
   }
   // A client of the organization reaches only the client spaces they are in
   // (docs/plans/client-spaces.md); every other space is not there for them.
-  if (currentRole() === "client" && !(p.kind === "client" && (await inSpace(userId, p.id)))) {
+  // With `orgSpaces` any space may have clients: being in it decides (docs/plans/org-spaces.md).
+  if (currentRole() === "client" && !(await inSpace(userId, p.id))) {
     throw notFound();
   }
   // Someone else's Mein Space is not there for anyone, admins included.
@@ -370,17 +371,37 @@ async function underRoot(root: SpaceRow): Promise<void> {
     );
 }
 
+/** How many people an organization has, kept a minute: the Manage-App is asked at most that often. */
+const peopleCount = new Map<string, { n: number; at: number }>();
+
 /**
- * Whether people of this organization each get a Mein Space: where the plan has room for more
- * than one person. Alone (Free, a local install) the root is the one space.
+ * Whether people of this organization each get a Mein Space (docs/plans/org-spaces.md): from its
+ * second person on, member or invited (clients do not count). Alone (Free, one person, a local
+ * install) the root is the one space. Once someone has a Mein Space, everyone gets one.
  */
 async function personalSpacesOn(): Promise<boolean> {
   if (!managed) {
     return false;
   }
-  const info = await tenantInfo(currentTenant()).catch(() => null);
-  const members = info?.limits.members;
-  return members === null || (typeof members === "number" && members > 1);
+  const any = await db.query.space.findFirst({
+    columns: { id: true },
+    where: and(eq(schema.space.tenantId, currentTenant()), eq(schema.space.kind, "personal")),
+  });
+  if (any) {
+    return true;
+  }
+  const tenant = currentTenant();
+  const kept = peopleCount.get(tenant);
+  let n = kept && Date.now() - kept.at < 60_000 ? kept.n : -1;
+  if (n < 0) {
+    const people = await tenantMembers(tenant).catch(() => null);
+    n = people
+      ? people.members.filter((m) => m.role !== "client").length +
+        people.invitations.filter((i) => i.role !== "client").length
+      : 0;
+    peopleCount.set(tenant, { n, at: Date.now() });
+  }
+  return n > 1;
 }
 
 /** The person's Mein Space, made on first ask: a space under the root with them as its one member. */
@@ -425,6 +446,94 @@ export async function personalSpace(userId: string, root: SpaceRow): Promise<Spa
     throw notFound();
   }
   return made;
+}
+
+/**
+ * What a listed space is, for an outside client (docs/plans/org-spaces.md): the organization's
+ * own space, the person's Mein Space, a space shared with Kund:innen, or a space.
+ */
+export function spaceIs(p: {
+  kind: string;
+  root?: boolean;
+  clients?: number;
+}): "organization" | "personal" | "client" | "space" {
+  if (p.root) {
+    return "organization";
+  }
+  if (p.kind === "personal") {
+    return "personal";
+  }
+  return p.kind === "client" || (p.clients ?? 0) > 0 ? "client" : "space";
+}
+
+/** Whether a space holds nothing yet: no wizard, no page, no chat. */
+async function emptySpace(spaceId: string): Promise<boolean> {
+  const [wizard, page, chat] = await Promise.all([
+    db.query.wizard.findFirst({ columns: { id: true }, where: eq(schema.wizard.spaceId, spaceId) }),
+    db.query.spacePage.findFirst({
+      columns: { id: true },
+      where: eq(schema.spacePage.spaceId, spaceId),
+    }),
+    db.query.chat.findFirst({ columns: { id: true }, where: eq(schema.chat.spaceId, spaceId) }),
+  ]);
+  return !(wizard || page || chat);
+}
+
+/**
+ * Where a space a computer brings into the cloud goes (docs/plans/org-spaces.md): the computer's
+ * space is the person's own. In an organization where people get Mein Space it becomes theirs
+ * (or a space under the root, where they have one already). Alone (Free, one person) it is the
+ * organization's root itself: an empty root the studio made when it was first opened gives way
+ * to it.
+ */
+export async function placeArrivingSpace(spaceId: string, userId: string): Promise<void> {
+  if (!(await orgSpacesOn())) {
+    return;
+  }
+  const root = await rootSpace();
+  if (!root || root.id === spaceId) {
+    return;
+  }
+  if (await personalSpacesOn()) {
+    const [mine] = await db
+      .select({ id: schema.space.id })
+      .from(schema.spaceMember)
+      .innerJoin(schema.space, eq(schema.space.id, schema.spaceMember.spaceId))
+      .where(
+        and(
+          eq(schema.spaceMember.userId, userId),
+          eq(schema.space.tenantId, currentTenant()),
+          eq(schema.space.kind, "personal"),
+        ),
+      )
+      .limit(1);
+    await db
+      .update(schema.space)
+      .set({ parentId: root.id, ...(mine ? {} : { kind: "personal" as const }) })
+      .where(eq(schema.space.id, spaceId));
+    if (!mine) {
+      await db.insert(schema.spaceMember).values({
+        id: nanoid(12),
+        tenantId: currentTenant(),
+        spaceId,
+        userId,
+        role: "member",
+        addedBy: userId,
+      });
+    }
+    return;
+  }
+  if (await emptySpace(root.id)) {
+    // The computer's space takes the root's place; what sat under the empty root moves under it.
+    await db
+      .update(schema.space)
+      .set({ parentId: spaceId })
+      .where(and(eq(schema.space.parentId, root.id), ne(schema.space.id, spaceId)));
+    await db.update(schema.space).set({ parentId: null }).where(eq(schema.space.id, spaceId));
+    await removeSpace(root.id);
+    return;
+  }
+  await db.update(schema.space).set({ parentId: root.id }).where(eq(schema.space.id, spaceId));
 }
 
 /** Whether the space is someone else's Mein Space: nobody else reaches it, admins neither. */
@@ -527,8 +636,8 @@ async function clientSpacesOf(userId: string) {
     .where(
       and(
         eq(schema.spaceMember.userId, userId),
+        eq(schema.spaceMember.role, "client"),
         eq(schema.space.tenantId, currentTenant()),
-        eq(schema.space.kind, "client"),
       ),
     );
   return rows.map((r) => ({ ...r.space, wizardCount: 0 }));

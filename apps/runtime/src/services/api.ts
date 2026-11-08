@@ -24,7 +24,7 @@ import { knowledgeCounts } from "./knowledge.js";
 import { closedToMe, requireStudio } from "./members-studio.js";
 import { runReport } from "./runs.js";
 import { shareUrlFor } from "./shares.js";
-import { listSpaces, ownedSpace } from "./spaces.js";
+import { listSpaces, ownedSpace, spaceIs } from "./spaces.js";
 import { shareUrl, studioUrl } from "./wizards.js";
 
 /*
@@ -42,6 +42,8 @@ export async function apiSpaces(userId: string) {
       id: p.id,
       name: p.name,
       title: p.brand.name ?? "",
+      /** `organization`, `personal`, `client` or `space` (docs/plans/org-spaces.md). */
+      is: spaceIs(p),
       wizards: p.wizardCount,
       writable: await spaceWritable(p),
     })),

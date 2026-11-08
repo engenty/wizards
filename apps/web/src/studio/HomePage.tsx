@@ -42,6 +42,7 @@ import { useLiveFlash } from "./live/index";
 import { presenceColor, presenceLine } from "./live/PresenceStack";
 import { usePresentItems } from "./live/presence";
 import { MarketplaceHits } from "./Marketplace";
+import { spaceLabel } from "./SpacePath";
 import { WizardMenu } from "./WizardMenu";
 import { ownLink, sharedLink, WhereChip, whereItRuns } from "./where";
 
@@ -536,7 +537,7 @@ export function HomePage() {
           <WizardSearch value={query} onChange={setQuery} />
         ) : (
           <h1 className="font-display font-semibold text-[1.75rem] tracking-tight">
-            {t("home.title", { space: space?.name ?? "" })}
+            {t("home.title", { space: space && me ? spaceLabel(me, space) : (space?.name ?? "") })}
           </h1>
         )}
         {canCreate ? (

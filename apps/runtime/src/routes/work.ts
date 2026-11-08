@@ -19,6 +19,7 @@ import {
   decideApproval,
   deleteChat,
   deleteSection,
+  folderContents,
   followTurn,
   moveSection,
   readChat,
@@ -227,9 +228,18 @@ export const workRoutes = new Hono<Vars>()
     return c.json(await createSection(c.get("user"), body.spaceId, body.name));
   })
   .patch("/sections/:id", async (c) => {
-    const body = z.object({ name }).parse(await c.req.json());
-    return c.json(await renameSection(c.get("user"), c.req.param("id"), body.name));
+    const body = z
+      .object({
+        name: name.optional(),
+        infos: z.string().max(20_000).optional(),
+        mountId: z.string().max(40).nullable().optional(),
+      })
+      .parse(await c.req.json());
+    return c.json(await renameSection(c.get("user"), c.req.param("id"), body));
   })
+  .get("/sections/:id/contents", async (c) =>
+    c.json(await folderContents(c.get("user"), c.req.param("id"))),
+  )
   .post("/sections/:id/move", async (c) => {
     const { direction } = z.object({ direction: z.enum(["up", "down"]) }).parse(await c.req.json());
     await moveSection(c.get("user"), c.req.param("id"), direction);

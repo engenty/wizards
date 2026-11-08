@@ -209,7 +209,12 @@ export async function sidebar(user: SessionUser, spaceId: string, query?: string
   });
   const stateOf = new Map(states.map((st) => [st.chatId, st]));
   return {
-    sections: sections.map((sec) => ({ id: sec.id, name: sec.name })),
+    sections: sections.map((sec) => ({
+      id: sec.id,
+      name: sec.name,
+      infos: sec.infos,
+      mountId: sec.mountId,
+    })),
     chats: chats.map((c): SidebarChat => {
       const st = stateOf.get(c.id);
       const hasMessage = c.lastAuthorId !== null;
@@ -1165,13 +1170,96 @@ async function ownSection(user: SessionUser, id: string) {
   return found;
 }
 
-export async function renameSection(user: SessionUser, id: string, name: string) {
+export async function renameSection(
+  user: SessionUser,
+  id: string,
+  patch: { name?: string; infos?: string; mountId?: string | null },
+) {
   const section = await ownSection(user, id);
+  // A drive linked to the folder is one of its space's mounts (Dateien).
+  if (patch.mountId) {
+    const mount = await db.query.spaceMount.findFirst({
+      columns: { id: true },
+      where: and(
+        eq(schema.spaceMount.id, patch.mountId),
+        eq(schema.spaceMount.spaceId, section.spaceId),
+      ),
+    });
+    if (!mount) {
+      throw new ServiceError("not_found", "mount not found");
+    }
+  }
+  const mountId = patch.mountId === undefined ? section.mountId : patch.mountId;
+  const name = patch.name?.trim() || section.name;
+  // A folder's Infos (docs/plans/org-spaces.md): what every chat in it should know.
+  const infos = patch.infos ?? section.infos;
   await db
     .update(schema.chatSection)
-    .set({ name: name.trim() })
+    .set({ name, infos, mountId })
     .where(eq(schema.chatSection.id, section.id));
-  return { id, name: name.trim() };
+  return { id, name, infos, mountId };
+}
+
+/**
+ * What a folder holds besides its chats (docs/plans/org-spaces.md): the files added to its chats
+ * (Dateien) and the results of the runs started in them (Ergebnisse), newest first.
+ */
+export async function folderContents(user: SessionUser, id: string) {
+  const section = await ownSection(user, id);
+  const chats = await db.query.chat.findMany({
+    columns: { id: true, spaceId: true },
+    where: and(eq(schema.chat.sectionId, section.id), visible(user)),
+  });
+  const { memory } = await workMastra();
+  const files = new Map<string, ChatFile>();
+  for (const c of chats) {
+    const { messages } = await memory.recall({
+      threadId: c.id,
+      resourceId: c.spaceId,
+      perPage: false,
+    });
+    for (const m of [...(messages as unknown as StoredMessage[])].reverse()) {
+      for (const f of m.content.metadata?.signal?.metadata?.files ?? []) {
+        files.set(f.id, f);
+      }
+    }
+  }
+  const runs = chats.length
+    ? await db
+        .select({
+          id: schema.run.id,
+          wizardId: schema.run.wizardId,
+          title: schema.wizard.title,
+          doneAt: schema.run.updatedAt,
+        })
+        .from(schema.run)
+        .innerJoin(schema.wizard, eq(schema.wizard.id, schema.run.wizardId))
+        .where(
+          and(
+            inArray(
+              schema.run.chatId,
+              chats.map((c) => c.id),
+            ),
+            eq(schema.run.status, "done"),
+          ),
+        )
+        .orderBy(desc(schema.run.updatedAt))
+        .limit(50)
+    : [];
+  return {
+    files: [...files.values()].map((f) => ({
+      id: f.id,
+      name: f.name,
+      mime: f.mime,
+      url: `/api/studio/spaces/${section.spaceId}/files/${f.id}/content`,
+    })),
+    results: runs.map((r) => ({
+      runId: r.id,
+      wizardId: r.wizardId,
+      title: r.title,
+      doneAt: r.doneAt.toISOString(),
+    })),
+  };
 }
 
 /** Moves a section one place up or down among its space's sections. */

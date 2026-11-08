@@ -613,7 +613,7 @@ export const apiRoutes = new Hono()
       // The feed numbers this push writes: the live call does not send them back to this install.
       const push = notePush(who.tenantId, c.req.header("x-wizards-install"), await newestSeq());
       try {
-        return c.json(await pushChanges(c.req.param("spaceId"), body));
+        return c.json(await pushChanges(c.req.param("spaceId"), body, who.userId));
       } finally {
         push.done(await newestSeq());
       }

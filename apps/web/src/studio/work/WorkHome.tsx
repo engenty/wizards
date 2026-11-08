@@ -9,6 +9,7 @@ import { Composer, type ComposerHandle } from "../../ui/composer";
 import { useCrumbs } from "../AppFrame";
 import { useAssistantPage } from "../assistant/page";
 import { openExternal } from "../LocalRuntime";
+import { spaceLabel } from "../SpacePath";
 import {
   type Approval,
   type SidebarChat,
@@ -40,7 +41,7 @@ export function WorkHome() {
   useAssistantPage({ ownInput: true });
   const { space } = useCurrentSpace();
   const me = useMe().data;
-  const spaceName = space?.name ?? "";
+  const spaceName = space && me ? spaceLabel(me, space) : (space?.name ?? "");
   const chats = (useSidebar(space?.id, "").data?.chats ?? []).filter((c) => !c.archived);
   const waiting = useWaiting().data;
   const approvals = waiting?.approvals ?? [];

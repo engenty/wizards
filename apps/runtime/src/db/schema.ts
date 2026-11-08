@@ -419,6 +419,11 @@ export const run = sqliteTable(
       onDelete: "cascade",
     }),
     /**
+     * The Work chat the run was started from; its folder lists the run's result as one of its
+     * Ergebnisse (docs/plans/org-spaces.md). Null outside a chat.
+     */
+    chatId: text("chat_id"),
+    /**
      * When the firm shared the run with the client space's clients, on purpose; null: it stays
      * the firm's. A client's own runs need none.
      */
@@ -1463,6 +1468,15 @@ export const chatSection = sqliteTable(
       .references(() => space.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     position: integer("position").notNull().default(0),
+    /**
+     * With `orgSpaces` a section is a folder (Ordner, docs/plans/org-spaces.md): what every chat
+     * in it should know, read by the AI before the space's Wissen.
+     */
+    infos: text("infos").notNull().default(""),
+    /** A folder linked to a mounted folder or drive of its space (Dateien): its files are the folder's. */
+    mountId: text("mount_id").references((): AnySQLiteColumn => spaceMount.id, {
+      onDelete: "set null",
+    }),
     createdBy: text("created_by").notNull(),
     createdAt: createdAt(),
   },

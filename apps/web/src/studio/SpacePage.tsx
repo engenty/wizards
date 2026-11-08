@@ -26,6 +26,7 @@ import { PluginFrame, SpacePartFrame, useStudioPlugins } from "../plugins/host";
 import { cn, Empty } from "../ui";
 import { scrollRoot, useCrumbs } from "./AppFrame";
 import { useAssistantPage } from "./assistant/page";
+import { spaceLabel } from "./SpacePath";
 import {
   BackRow,
   LevelHead,
@@ -273,7 +274,11 @@ export function SpacePage({ place }: { place?: "skills" }) {
     () => ({ slot, narrow, setDetail, filter: menuFilter }),
     [slot, narrow, menuFilter],
   );
-  const title = space ? space.brand.name?.trim() || space.name : t("nav.space");
+  const me = useMe().data;
+  // The organization's own space is shown under the organization's name (docs/plans/org-spaces.md).
+  const title = space
+    ? space.brand.name?.trim() || (me ? spaceLabel(me, space) : space.name)
+    : t("nav.space");
 
   // Typography waits behind its switch.
   const off = useFeature("typography") ? [] : ["typography"];
