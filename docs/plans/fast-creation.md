@@ -1,7 +1,7 @@
 # Plan: fast creation and pages without waiting
 
-Status: part of the durable work. Part 1 is built on `claude/durable-runs-combined` (`a719337c` to
-`fe9b26d3`, the ids from before its rebase on `main`; no PR), and so are Parts 2 and 3 (below).
+Status: part of the durable work, on `main` since 2026-11-08 with it (from `claude/durable-runs-combined`).
+Parts 1 to 3 are built (below).
 Of Part 4, the shortcut on the server is built there (step 5); the next page in the browser is
 being built. Part 5 needs nothing new: chat apps get the
 wizard through MCP Apps, and no prompt for ChatGPT is built (2026-11-08). Nothing of it is on
@@ -1009,12 +1009,11 @@ Where the durable work stood on 2026-11-06:
 | PRs | What | State |
 |---|---|---|
 | 0, 1 | runner line, `wait` steps and the minute clock | on `main` (#495, #496) |
-| 3 | outside actions run once | open (#498), and on the combined branch |
-| 2, 4 to 11 | timeline, durable agent steps, signals, a mailbox that wakes a run, starts, `timeout` and `remind`, telling people, `who` and `approve`, retries and `onFail` | on `claude/durable-runs-combined`, pushed with Part 1 of this plan at `fe9b26d3`; no PR, not merged with `main` |
+| 3 | outside actions run once | on `main` with them; #498 closed |
+| 2, 4 to 11 | timeline, durable agent steps, signals, a mailbox that wakes a run, starts, `timeout` and `remind`, telling people, `who` and `approve`, retries and `onFail` | on `main` since 2026-11-08, merged together from `claude/durable-runs-combined` |
 | 12 | docs, and the PR that flips `durableRuns` | docs on the branch, the flip waits |
 
-Nothing more of it goes to `main` until Matthias lifts that hold (`durable-agents.md`, on the
-branch). This plan is built on the same branch and comes under the same hold.
+Matthias lifted the hold on 2026-11-08; this plan went to `main` with the rest.
 
 Where the two plans meet:
 
@@ -1031,10 +1030,9 @@ it was left. `unsent` counts as a change for a waiting run's retention.
 
 ## Order
 
-This plan is part of the durable work (Matthias, 2026-11-06). All of it is built and tested on
-`claude/durable-runs-combined`, which is kept rebased on `main`. Nothing of it goes to `main` until
-Matthias decides, after step 7: there is no PR for that branch until then, and no step below lands
-on its own. So nothing here waits for `main`. The steps follow what each needs.
+This plan is part of the durable work (Matthias, 2026-11-06). It was built and tested on
+`claude/durable-runs-combined` and went to `main` with it after step 7 (2026-11-08). The steps
+follow what each needs.
 
 Part 1 is built. It makes pages richer and does not make creating a wizard faster; that is steps 2
 and 3, and creation comes first because it is the largest gap.

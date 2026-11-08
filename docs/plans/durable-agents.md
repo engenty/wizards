@@ -1,11 +1,11 @@
 # Plan: wizards as durable runs with a person in the loop
 
 Status: built, behind the switch `durableRuns` (off by default), except PR 0, which needs no switch.
-Rewritten on 2026-11-06 to what was built. PRs 0 and 1 are on main. PR 3 is open as
-[#498](https://github.com/engenty/wizards/pull/498). PRs 2 to 11 stand together on the local branch
-`claude/durable-runs-combined`, pushed and rebased on main, not merged with it. Nothing more goes to main until
-Matthias lifts that hold. Starts have their own plan (`starts.md`, behind `startTriggers`). "Before the switch
-flips" below holds what is left.
+Rewritten on 2026-11-06 to what was built. PRs 0 and 1 are on main. PRs 2 to 11 went to main together on
+2026-11-08 from `claude/durable-runs-combined`, PR 3 with them ([#498](https://github.com/engenty/wizards/pull/498)
+closed), after Manage's `feat/run-mail`
+([engenty-wizards-manage#191](https://github.com/engenty/engenty-wizards-manage/pull/191)). Starts have their own
+plan (`starts.md`, behind `startTriggers`). "Before the switch flips" below holds what is left.
 
 Scope: a run that lasts hours or days. It follows its steps, branches and waits, survives restarts of
 every process, and stops for a person where it needs one, then goes on.
@@ -255,17 +255,17 @@ typed.
 |---|---|---|
 | 0 | Runner line: parallel takes, wakes that stay, fenced writes | merged, [#495](https://github.com/engenty/wizards/pull/495) |
 | 1 | Wait steps and the clock | merged, [#496](https://github.com/engenty/wizards/pull/496) |
-| 2 | Timeline, "Continue now", "Stop", label | combined |
-| 3 | Outside actions once | open, [#498](https://github.com/engenty/wizards/pull/498), combined |
-| 4 | Durable agent steps | combined |
-| 5 | Signals | combined |
-| 6 | A mailbox wakes a run | combined |
-| 7 | Starts | combined |
-| 8 | Timeouts and reminders | combined |
-| 9 | Telling people, with Manage's `feat/run-mail` | combined |
-| 10 | Who may answer, runs in Needs you | combined |
-| 11 | Retries, `onFail` | combined |
-| 12 | Docs, and the PR that flips the switch | docs combined, flip waits |
+| 2 | Timeline, "Continue now", "Stop", label | merged together |
+| 3 | Outside actions once | merged together, [#498](https://github.com/engenty/wizards/pull/498) closed |
+| 4 | Durable agent steps | merged together |
+| 5 | Signals | merged together |
+| 6 | A mailbox wakes a run | merged together |
+| 7 | Starts | merged together |
+| 8 | Timeouts and reminders | merged together |
+| 9 | Telling people, with Manage's `feat/run-mail` | merged together |
+| 10 | Who may answer, runs in Needs you | merged together |
+| 11 | Retries, `onFail` | merged together |
+| 12 | Docs, and the PR that flips the switch | docs merged, the flip waits |
 
 ## Decisions
 
@@ -321,13 +321,16 @@ Must happen:
   new event types.
 - `RUNNER_MAX_RUNS=4` on the cloud. A release with it runs a week without new errors, which also gives real step
   lengths for the deadline.
-- Merge with main, regenerate the migrations in one line, then Manage's `feat/run-mail` first.
 - The `engenty/` copies PR 3 edits reach upstream, or `sync-engenty.mjs` overwrites them.
 - A visitor who opens a mail's link on another device can't withdraw. Decide whether that stays.
 
-Not tested together: real models on the combined branch, PR 9's Manage part, a real mail, push, a real mailbox with
-real OAuth and a real `Authentication-Results`, a real Manage-App role, the cloud's split roles, a 2-day wait across
-a deploy on staging, Docker sandbox after a recovery, a signed call from a real service, a real channel plugin.
+Tested on the test environment `durable-runs-dsjk5` (2026-11-08, `pnpm testenv` of engenty-dev, no provider key):
+the cloud's split roles (studio, doors and runner as three processes), PR 9's Manage part with the mail in Mailpit,
+a team step, a wait, and a 25-minute wait across a deploy in place of the 2-day one: the run kept its wait and its wake time in the new containers.
+
+Not tested together: real models on the cloud, a real mail, push, a real mailbox with real OAuth and a real
+`Authentication-Results`, a real Manage-App role, Docker sandbox after a recovery, a signed call from a real
+service, a real channel plugin.
 
 Known and left: HMAC has no timestamp, so a signed call without a delivery key can be replayed. If a process crashes
 between writing `run.done` and waking, a waiter with no timeout stays asleep. A hung step holds its slot until its
