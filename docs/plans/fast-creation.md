@@ -800,44 +800,68 @@ definition must not reach a public link, because it holds the AI steps' instruct
 server sends what the browser may do alone:
 
 ```diff
+ // packages/shared/src/definition.ts
++export interface AheadRule { when?: When; goto: string }
++/** A page the browser may show with no server, and where it goes. */
++export interface AheadPage { step: PageStep; next: AheadRule[] | null }
+
+ // packages/shared/src/run.ts
  export interface RunView {
    …
-+  /** Goes up with every write to the run: tells a late event from a new one. */
-+  rev: number;
-+  /** What was typed on this page and not sent yet (`run.unsent`), for who may answer it. */
++  /** What was typed on the current page and not sent yet (`run.unsent`), for who may answer it. */
 +  unsent?: Record<string, unknown>;
-+  /** The plain pages the run can reach from here without the server, by step id. */
-+  ahead?: Record<string, { step: PageStep; next: { when?: When; goto: string }[] }>;
++  /** Goes up with every write of the run's state and status: tells a late view from a new one. */
++  rev: number;
++  /** The plain pages the run can reach from here with no server, the current one included. */
++  ahead?: Record<string, AheadPage & { progress: RunView["progress"] }>;
++  /** The number of the last page sent with one (`RunState.pagesSent`): the next is one more. */
++  pagesSent?: number;
  }
 ```
 
-`next` is written out, "otherwise" and the next step in the list included. The server writes the
-pages as it writes the current one, in the viewer's language. `unsent` and `ahead` go only to a
-viewer who may answer: on the combined branch, where `RunView.answeredBy` is null.
+`next` is written out: the `when` rules in order, then "otherwise", explicit or the next step in
+the list, or the end. It is null where the server decides where the page goes: an `ask`, a `max`,
+or any rule back to an earlier step, because `followRules` counts every loop and the browser has
+no counts. Such a page can still be shown ahead; only the page after it waits for the server.
+
+Each entry carries its `progress`, because only the server knows a page's place and section. The
+current page is in `ahead` too, since `nextInBrowser` needs its `next`. `aheadOf` in
+`engine/runner.ts` walks from the current page, breadth first, at most 20 pages, in the translated
+definition, so the pages come in the viewer's language. `ahead`, `unsent` and `pagesSent` go only
+to a viewer who may answer: on the combined branch, where `RunView.answeredBy` is null. `ahead` and
+`pagesSent` are set only while the run waits on a page and was not begun by a start.
 
 A page goes into `ahead` when all of this holds:
 
 - `needsNoRunner` holds;
-- it needs nothing only the server has: no `pageNeeds`, `optionsFrom`, `cards` or `prefill`, no
-  `data` (`RunView.pageData` is for the current page only), no choice in `closed`, and no
-  `connection`, `list` or `slot` field;
-- the rules leading to it and the `when` of its fields read this run's answers only: no `ask`, no
-  `max`, nothing from `steps.` or `lists.`, a `calc` included (`whenNames`).
+- it needs nothing only the server has: no `optionsFrom`, `cards` or `prefill`, no `data`
+  (`RunView.pageData` is for the current page only), no choice in `closed`, and no `connection`,
+  `list` or `slot` field;
+- the `when` of its fields reads only names that are field ids of the wizard, whose values the
+  browser has. Nothing from `steps.` or `lists.`, and no other name.
 
-Reviews and the result never go into it: they show outputs, and a result never shows on answers
-the server has not confirmed.
+Upload fields may go into it: an upload does not depend on the run's current page. Reviews and the
+result never go into it: they show outputs, and a result never shows on answers the server has not
+confirmed.
 
 ```ts
 /** The next page, when `ahead` says which; null when the server must decide. */
 export function nextInBrowser(
-  ahead: NonNullable<RunView["ahead"]>,
+  ahead: Record<string, AheadPage>,
   stepId: string,
   values: Record<string, unknown>,
 ): string | null;
 ```
 
-The runner calls it when a page is answered. With a step id it shows that page at once and sends
-the answers in the background. With null, the runner waits as today.
+It takes the first rule that holds, as `followRules` does, and answers null when that rule leads
+anywhere but a page of `ahead`: the end, a step that works, a review, the result. The runner calls
+it when a page is answered. With a step id it shows that page at once and sends the answers in the
+background. With null, the runner waits for the server as before. A page shown ahead cannot go
+back, and has no outputs, lists or `ask`.
+
+The browser picks the next page from all of the page's values, the server from the fields that
+were shown. Where a hidden field's value would change the way, the two can differ; then the
+server's page wins when the next answer is refused. No test covers that case yet.
 
 ### Saving
 
@@ -875,23 +899,32 @@ How the runner keeps the promise:
 
 - **In order, once.** The runner sends one page at a time and waits for the answer before the
   next. `requireWaiting` refuses a page while the run is `running`, so this works only with the
-  shortcut, and `ahead` holds only pages the shortcut covers. Each page carries a sequence number,
-  kept as `RunState.pagesSent`. A retry of a number the run already has answers as done. That check
-  comes before `requireWaiting`, which would answer `pageOutdated`, or on the combined branch
-  `answeredAlready`. Once the run has gone on to the team's step, `accessibleRun` refuses the retry
-  first (`notYourStep`): the answer is already in, and the runner loads the run again.
+  shortcut, and `ahead` holds only pages the shortcut covers. Each page carries a sequence number
+  (`seq`) and the id of the tab that sent it (`tab`), kept as `RunState.pagesSent: { n, step, tab }`.
+  A retry from the same tab of a number the run already has answers `{ ok, rev, already: true }`,
+  with no write. Without the tab, two tabs or devices answering the same page would send the same
+  number, and the second would be dropped as a retry instead of refused. That check comes before
+  `requireWaiting`, which would answer `pageOutdated`, or on the combined branch `answeredAlready`.
+  Once the run has gone on to the team's step, `accessibleRun` refuses the retry first
+  (`notYourStep`): the answer is already in, and the runner loads the run again. An answer without
+  a number, as the chat runner's model gives with `answer_page`, goes where the run stands, as
+  before.
 - **Not lost when the tab closes.** On `pagehide` the runner sends what is still open with
-  `fetch(…, { keepalive: true })`. At most the last moment of typing can be lost.
+  `fetch(…, { keepalive: true })` (`api.keep`). At most the last moment of typing can be lost.
 - **Shown, not claimed.** The next page shows before the server confirms. When it has not
-  confirmed after two seconds, the runner says "Saving …"; when it cannot reach the server, it
-  says the answers are not saved yet and keeps trying. It never shows a result or starts an AI
-  step on answers the server has not confirmed.
+  confirmed after two seconds, the runner says "Saving…" / „Wird gespeichert …“. When the server
+  cannot be reached (no answer, 502, 503, 504), it says the answers are not saved yet and tries
+  again, waiting longer each time, up to 10 s. It never shows a result or starts an AI step on
+  answers the server has not confirmed.
 - **A late event does not pull the person back.** `useRun` replaces the whole view on every event.
   While pages are in flight it keeps them apart from what arrives. A confirmed page answers with
-  its `rev`, and a view older than that is dropped.
+  its `rev` (`{ ok, rev }`), and a view older than that is dropped. Once every page is in, the
+  server's view shows.
 - **The server's state wins.** When the server refuses a page (an answer it finds invalid, a run
   that moved on in another tab or device, someone who answered first, a deadline that passed), the
-  runner loads the run again and shows the server's page. What was typed stays in `unsent`.
+  runner puts that page's values into `unsent`, loads the run again and shows the server's page
+  with its field errors. The pages after the refused one go too. What was typed stays in `unsent`,
+  also for a page that was already sent.
 - **View state waits its turn.** `writeRunState` also needs an unchanged `rev`, so a view's save can
   make a review's answer fail, and the other way round. The runner sends what is open first, and
   tries again on 409 once the run waits.
@@ -903,6 +936,23 @@ How the runner keeps the promise:
 
 Test for this part: answer two pages, close the tab while typing on the third, open the run on
 a phone. The phone shows the third page with what was typed.
+
+Built as step 6, in two commits: `b0d0f879` saves what is typed, `db62e6e7` shows the next page in
+the browser. With these details:
+
+- `run.unsent` comes with tenant migration `0068_run_unsent`. `keepUnsent` in `engine/runner.ts`
+  writes a page's entry in place with `json_set`, so two pages saved at once both stay. `PUT
+  …/unsent` takes pages of the definition only, and at most 64 KB.
+- `answerGoesOn` clears the page's entry in the update it already makes. A page refused for
+  credits clears it in its own write.
+- `RunView.unsent` is the current page's entry, while the run waits for input.
+- The runner (`useKeepTyping` in `RunnerView.tsx`) saves nothing once the page is sent, nothing the
+  person did not change, and nothing in a standalone page (WordPress). A page starts from `unsent`
+  first.
+- The test was done with a second session of the same member from `curl`, as another device: it
+  got the third page with both texts. The browser pane fires no `pagehide` when it closes a tab, so
+  the last moment before a close was not checked there. A note typed just before leaving by
+  navigation was kept.
 
 ## Part 5 — wizards in chat apps: MCP Apps only
 
@@ -1043,7 +1093,24 @@ The first pass stays behind a switch `fastCreate` (registered in
    All 120 answers after it went the shortcut's way (`runner=no`). With separate processes, as on
    the cloud, the wait between plain pages goes from 0.7 to 1.3 s to about 15 ms.
 6. **The next page in the browser.** Part 4: first `run.unsent` and saving what is typed, which is
-   worth having alone, then `rev`, `ahead`, `nextInBrowser`. Needs step 5.
+   worth having alone, then `rev`, `ahead`, `nextInBrowser`. Built on the branch (`b0d0f879`,
+   `db62e6e7`); Part 4 says how. Measured on 2026-11-08 on a laptop, from the click to the next
+   page's heading in the browser, 30 answers per set, with two wizards of 11 pages: one plain, one
+   with `remind` on every page, which takes the slow path:
+
+   | Web and runner | Pages | Median | At most |
+   |---|---|---|---|
+   | One process | plain, shown ahead | 7 ms | 14 ms |
+   | One process | the server's | 141 ms | 180 ms |
+   | Separate processes | plain, shown ahead | 4 ms | 7 ms |
+   | Separate processes | the server's | 1125 ms | 2970 ms |
+
+   A plain page now shows in 4 to 7 ms, the answer reaching the server after it. Pages that need
+   the server still wait for a runner: with separate processes about 1.1 s, at most 3 s. A refused
+   answer (50 in a field of 1 to 10) brought the first page back after 24 ms with "Höchstens 10" and
+   both typed values. With the server out of reach for 6 s, the next page showed with the note that
+   the answers are not saved yet, and the server had the answer once it was back. The chat runner
+   went the same way. All tests pass with `durableRuns` and `fastCreate` on and off.
 7. **Test it all together.** Durable runs and this plan, on the one branch:
    - what `durable-agents.md` lists as not tested together: real models, Manage's part of telling
      people, a real mail, push, a real mailbox, the cloud's split roles, a 2-day wait across a deploy
@@ -1059,7 +1126,7 @@ off until they are flipped.
 
 ## Changes by file
 
-Built on the combined branch, for Part 1, the text form, the first pass and the shortcut:
+Built on the combined branch, for Part 1, the text form, the first pass, the shortcut and the next page in the browser:
 
 | File | Change |
 |---|---|
@@ -1092,19 +1159,19 @@ Built on the combined branch, for Part 1, the text form, the first pass and the 
 | `apps/runtime/src/texts.ts`, `apps/web/src/lib/i18n.ts` | the first pass's status lines, "Being prepared…" |
 | `apps/web/src/studio/editor/ChatPanel.tsx`, `FlowDiagram.tsx` | the `preparing` event; steps marked while the architect works |
 | `apps/runtime/src/engine/runner.ts` | `needsNoRunner`; `answerGoesOn`: the shortcut, `pushRun`, the timing line; `submitPage` and `reviewStep`: `kick` only when the run went on |
+| `packages/shared/src/definition.ts` | `AheadRule`, `AheadPage`, `nextInBrowser` |
+| `packages/shared/src/run.ts` | `RunView.rev`, `unsent`, `ahead`, `pagesSent`; `RunState.pagesSent` |
+| `packages/shared/src/runner-texts.ts` | `run.saving`, `run.notSaved` |
+| `apps/runtime/src/db/schema.ts`, tenant migration `0068_run_unsent` | `run.unsent` |
+| `apps/runtime/src/engine/runner.ts` | `keepUnsent`, `aheadOf`; the view: `rev`, `unsent`, `ahead`, `pagesSent`; `submitPage`: sequence numbers, clears `unsent[stepId]` |
+| `apps/runtime/src/routes/runs.ts` | `PUT /:id/pages/:stepId/unsent`; `seq`, `tab` and `rev` on `POST /:id/pages/:stepId` |
+| `packages/runner/src/RunnerView.tsx`, `api.ts` | saves what is typed (`useKeepTyping`, `api.keep`); the saving notes |
+| `apps/web/src/runner/useRun.ts` | pages in flight, one at a time; the page ahead; drops a view older than the last confirmed `rev`; retries; a refused page |
 
 Still to do:
 
 | File | Change |
 |---|---|
-| `packages/shared/src/definition.ts` | `nextInBrowser` |
-| `packages/shared/src/run.ts` | `RunView.rev`, `unsent`, `ahead`; `RunState.pagesSent` |
-| `apps/runtime/src/db/schema.ts`, a tenant migration | `run.unsent` |
-| `apps/runtime/src/services/runs.ts` | the view: `rev`; `unsent` and `ahead` for who may answer |
-| `apps/runtime/src/routes/runs.ts` | `PUT /:id/pages/:stepId/unsent`; sequence numbers and `rev` on `POST /:id/pages/:stepId` |
-| `apps/runtime/src/engine/runner.ts` | `submitPage`: sequence numbers, clears `unsent[stepId]` |
-| `packages/runner/src/RunnerView.tsx` | advance in the browser; saves what is typed |
-| `apps/web/src/runner/useRun.ts` | pages in flight, one at a time; drops a view older than the last confirmed `rev` |
 | `docs/content/dev` | the text form |
 
 ## Open questions
