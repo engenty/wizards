@@ -109,7 +109,7 @@ describe("from an answer to the next page", () => {
     await vi.waitFor(() => expect(lines(id, spy)).toHaveLength(1));
     const [first] = lines(id, spy);
     expect(first).toMatch(
-      new RegExp(`^\\[timing\\] page run=${id} ms=\\d+ direct=true role=runner durable=(on|off)$`),
+      new RegExp(`^\\[timing\\] page run=${id} ms=\\d+ direct=true role=runner durable=(on|off) runner=(yes|no)$`),
     );
     expect((await row(id))?.state.answered).toBeUndefined();
 

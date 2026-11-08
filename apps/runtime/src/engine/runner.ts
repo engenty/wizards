@@ -1555,6 +1555,30 @@ async function wakeFromWait(run: RunRow): Promise<boolean> {
 const isPersonStep = (step: Step | undefined): step is PageStep | ReviewStep =>
   step?.type === "page" || step?.type === "review";
 
+/**
+ * A step a run reaches with no runner: a page or review nothing has to decide or fill first. The
+ * step's keys only, so with `durableRuns` off it says the same. `state` is the state after
+ * `advance`: an `ask` rule set `deciding` there and left the cursor on the answered step.
+ */
+function needsNoRunner(
+  step: Step | undefined,
+  startedBy: StartedBy | null,
+  state: RunState,
+): step is PageStep | ReviewStep {
+  return (
+    isPersonStep(step) &&
+    // A start's run is filled by `passStep`, with nobody there.
+    !startedBy &&
+    !state.deciding &&
+    // A deadline's `wait` would land in the timeline before the answered step's `step_done`.
+    !step.timeout &&
+    !step.remind &&
+    // Whoever answered is not the one asked next.
+    whoOf(step) === "person" &&
+    !(step.type === "page" && step.fields.some(isDecidedField))
+  );
+}
+
 /** Whether the step may wait for long: it gives its hold back, and holds again as it goes on. */
 async function waitsLong(step: PageStep | ReviewStep): Promise<boolean> {
   return Boolean(step.timeout || step.remind) && (await durableRunsOn());
@@ -1624,7 +1648,8 @@ function handOnAnswer(
  * A person's answer takes the run on, if the deadline has not. A step that gave its hold back holds
  * again first. Refused: the answer stays and the run waits for credits, as on a wake. The control
  * copy of the deadline stays too: the extra wake finds the run moved on, and clearing it here could
- * wipe the next wait's.
+ * wipe the next wait's. A next step that needs no runner is reached here, in the same update
+ * (docs/plans/fast-creation.md, Part 4). True: the run is `running` and a runner has work.
  */
 async function answerGoesOn(
   run: RunRow,
@@ -1633,7 +1658,7 @@ async function answerGoesOn(
   cursor: string | null,
   patch: Partial<typeof schema.run.$inferInsert> = {},
   by?: Actor,
-) {
+): Promise<boolean> {
   const next = stepOf(run.definition, cursor);
   let refused: RunNote | null = null;
   if (next && next.type !== "result" && (await waitsLong(step))) {
@@ -1648,14 +1673,34 @@ async function answerGoesOn(
       await waitForPerson({ ...run, cursor }, cursor ?? step.id, { kind: "credits" }, state, {
         rev: run.rev,
       });
-    } else {
-      await updateRun(
-        run.id,
-        { ...patch, state, cursor, status: "running", wakeAt: null, error: null },
-        run,
+      return false;
+    }
+    if (needsNoRunner(next, run.startedBy, state)) {
+      // As `drive()` reaches a page, with the answer's time logged; `by` is not told of it.
+      const { answered, ...rest } = state;
+      await waitForAnswer(
+        { ...run, cursor },
+        next,
+        { ...patch, state: rest, cursor, error: null },
+        { rev: run.rev },
         by,
       );
+      if (answered) {
+        console.info(
+          `[timing] page run=${run.id} ms=${Math.max(0, Date.now() - answered.at)} direct=true role=${env.role} durable=${(await durableRunsOn()) ? "on" : "off"} runner=no`,
+        );
+      }
+      // As from `drive()`: without durable runs a phone hears it (with them, the notices do).
+      void pushRun(run.id, "waiting");
+      return false;
     }
+    await updateRun(
+      run.id,
+      { ...patch, state, cursor, status: "running", wakeAt: null, error: null },
+      run,
+      by,
+    );
+    return true;
   } catch (err) {
     // Lost to the deadline: say that, not that the wizard is busy.
     if (err instanceof RunConflict) {
@@ -2161,7 +2206,7 @@ async function drive(runId: string, signal: AbortSignal) {
       if (answered) {
         // The two times can come from two machines: small numbers on the cloud's split roles are rough.
         console.info(
-          `[timing] page run=${runId} ms=${Math.max(0, Date.now() - answered.at)} direct=${answered.next === step.id} role=${env.role} durable=${(await durableRunsOn()) ? "on" : "off"}`,
+          `[timing] page run=${runId} ms=${Math.max(0, Date.now() - answered.at)} direct=${answered.next === step.id} role=${env.role} durable=${(await durableRunsOn()) ? "on" : "off"} runner=yes`,
         );
       }
       // A step that ran is over and the next one is the person's: a phone in a pocket hears it.
@@ -2450,9 +2495,18 @@ export async function submitPage(
   const cursor = await advance(run, stepId, state);
   state.answered = { at, next: cursor };
   await keepAnswerer(state, stepId, cursor, by);
-  await answerGoesOn(run, step, state, cursor, { label: await labelOf(run.definition, state) }, by);
+  const goesOn = await answerGoesOn(
+    run,
+    step,
+    state,
+    cursor,
+    { label: await labelOf(run.definition, state) },
+    by,
+  );
   await tellAnswered(run, stepId, by);
-  kick(runId);
+  if (goesOn) {
+    kick(runId);
+  }
 }
 
 /** The person answers what a durable step asked: its turn goes on with that, on any runner. */
@@ -2593,7 +2647,7 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
     const cursor = await advance(run, stepId, state);
     state.answered = { at, next: cursor };
     await keepAnswerer(state, stepId, cursor, by);
-    await answerGoesOn(run, step, state, cursor, {}, by);
+    const goesOn = await answerGoesOn(run, step, state, cursor, {}, by);
     if (step.approve && whoOf(step) === "team" && (await durableRunsOn())) {
       await decidedHeld(run, { stepId, title: step.title }, approved, by?.userId ?? null).catch(
         (err) => console.error(`[approvals] run ${runId}:`, err),
@@ -2605,7 +2659,9 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
       by,
       step.approve ? (approved ? "stepApprovedBy" : "stepDeclinedBy") : "stepAnsweredBy",
     );
-    kick(runId);
+    if (goesOn) {
+      kick(runId);
+    }
     return;
   }
   if (!step.show.includes(action.target)) {
@@ -2619,9 +2675,11 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
     delete state.redo?.[action.target];
   }
   state.answered = { at, next: action.target };
-  await answerGoesOn(run, step, state, action.target);
+  const goesOn = await answerGoesOn(run, step, state, action.target);
   await emitEvent(runId, action.target, "info", "Wird neu erstellt …");
-  kick(runId);
+  if (goesOn) {
+    kick(runId);
+  }
 }
 
 export async function goBack(runId: string, by?: Actor) {
