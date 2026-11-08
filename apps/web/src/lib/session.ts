@@ -364,6 +364,10 @@ export interface Space {
   personal: boolean;
   /** How many Kund:innen are in the space. */
   clients: number;
+  /** Who of the organization sees the space: everyone, or only its members. */
+  access: "all" | "members";
+  /** Brand and Info: the organization's (kept in step) or the space's own. */
+  brandFrom: "own" | "root";
 }
 
 export function useSpaces(enabled = true) {

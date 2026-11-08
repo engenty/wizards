@@ -33,3 +33,23 @@ export async function readsOf(spaceId: string): Promise<SpaceReads | null> {
   }
   return null;
 }
+
+/**
+ * The space whose brand files (logos, patterns, brand assets) a space shows: the root's where the
+ * space takes the organization's brand and Info (`brandFrom: "root"`), else its own.
+ */
+export async function brandSpaceId(spaceId: string): Promise<string> {
+  const space = await db.query.space.findFirst({
+    columns: { brandFrom: true, parentId: true, kind: true },
+    where: eq(schema.space.id, spaceId),
+  });
+  if (
+    space?.brandFrom === "root" &&
+    space.parentId &&
+    space.kind !== "client" &&
+    (await currentFeatures()).orgSpaces === true
+  ) {
+    return space.parentId;
+  }
+  return spaceId;
+}

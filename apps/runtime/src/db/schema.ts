@@ -151,6 +151,14 @@ export const space = sqliteTable(
      * its admins (services/members-studio.ts). One rule for all members; admins set it.
      */
     membersStudio: integer("members_studio", { mode: "boolean" }).notNull().default(false),
+    /** Who of the organization sees the space: everyone, or only its members (docs/plans/org-spaces.md). */
+    access: text("access", { enum: ["all", "members"] })
+      .notNull()
+      .default("all"),
+    /** Whether brand and Info are the organization's, kept in step with the root, or the space's own. */
+    brandFrom: text("brand_from", { enum: ["own", "root"] })
+      .notNull()
+      .default("own"),
     /**
      * `local`: the space of a local install, synced here when that install publishes. It keeps
      * the ids it has there and is changed only by the next sync. Null: made on this runtime.

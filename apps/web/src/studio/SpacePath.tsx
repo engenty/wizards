@@ -20,7 +20,8 @@ const SHOWN = 7;
 /** A space's name as people read it: the root under the organization's, Mein Space as theirs. */
 export function spaceLabel(me: Me, space: Space): string {
   if (space.root) {
-    return me.tenant.name || space.name;
+    // On a computer alone the one space is the computer's own.
+    return me.mode === "managed" ? me.tenant.name || space.name : t("nav.localSpace");
   }
   if (space.personal) {
     return t("nav.mySpace");
@@ -45,11 +46,7 @@ function Face({ me, space }: { me: Me; space: Space }) {
     );
   }
   return (
-    <SpaceFace
-      space={space}
-      name={space.root ? me.tenant.name || undefined : undefined}
-      size="xs"
-    />
+    <SpaceFace space={space} name={space.root ? spaceLabel(me, space) : undefined} size="xs" />
   );
 }
 
@@ -87,7 +84,8 @@ export function SpacePath({ me }: { me: Me }) {
   }
   const name = spaceLabel(me, space);
   const limit = me.limits.spaces;
-  const full = limit !== null && spaces.filter((s) => !s.personal).length >= limit;
+  // Mein Space and spaces with Kund:innen do not count against the plan's number.
+  const full = limit !== null && spaces.filter((s) => !s.personal && !s.clients).length >= limit;
   // Alone, there is nothing to switch to: the name stands without a menu.
   const alone = spaces.length <= 1 && !(mayCreate && !full);
   const root = spaces.find((s) => s.root);

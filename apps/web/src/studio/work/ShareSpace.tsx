@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserRound, Users } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { type Me, type Space, useMe } from "../../lib/session";
-import { Button, Dialog, Input } from "../../ui";
+import { Button, cn, Dialog, Input, Switch } from "../../ui";
 import { spaceLabel } from "../SpacePath";
 
 /*
@@ -56,7 +56,9 @@ export function SpaceFoot({ space }: { space: Space }) {
             ? t("nav.spaceMine")
             : space.clients
               ? t("nav.spaceClients", { n: space.clients })
-              : t("share.everyone")}
+              : space.access === "members"
+                ? t("share.whoMembers")
+                : t("share.everyone")}
         </span>
       </span>
       {share ? (
@@ -69,6 +71,69 @@ export function SpaceFoot({ space }: { space: Space }) {
       ) : null}
     </div>
   );
+}
+
+/**
+ * Who of the organization sees a space: everyone, or only the people chosen. Asked in „Neuer
+ * Space“ and changed in Teilen (docs/plans/org-spaces.md).
+ */
+export function WhoSees({
+  value,
+  organization,
+  onChange,
+  disabled,
+  here = false,
+}: {
+  value: "all" | "members";
+  organization: string;
+  onChange: (value: "all" | "members") => void;
+  disabled?: boolean;
+  /** In Teilen itself, where the people are chosen below. */
+  here?: boolean;
+}) {
+  const name = useId();
+  return (
+    <fieldset className="grid gap-2">
+      <legend className="mb-2 font-medium text-[0.875rem] text-ink">{t("share.who")}</legend>
+      {(["all", "members"] as const).map((v) => (
+        <label
+          key={v}
+          className={cn(
+            "flex cursor-pointer items-start gap-2.5 rounded-lg p-2.5 ring-1 transition",
+            value === v ? "bg-background ring-ember/50" : "ring-border-soft hover:bg-ink/5",
+          )}
+        >
+          <input
+            type="radio"
+            name={name}
+            checked={value === v}
+            disabled={disabled}
+            onChange={() => onChange(v)}
+            className="mt-0.5 accent-ember"
+          />
+          <span className="flex min-w-0 flex-col gap-0.5 leading-tight">
+            <span className="text-[0.875rem] text-ink">
+              {v === "all" ? t("share.whoAll", { organization }) : t("share.whoMembers")}
+            </span>
+            <span className="text-[0.75rem] text-ink-3">
+              {v === "all"
+                ? t("share.whoAllHint")
+                : here
+                  ? t("share.whoMembersHere")
+                  : t("share.whoMembersHint")}
+            </span>
+          </span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+interface Person {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
 }
 
 /** Who is in the space, and an invitation for a Kund:in. */
@@ -86,11 +151,36 @@ function ShareSpaceDialog({
   const clientsOn = useFeature("clientSpaces");
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
+  const organization = me.tenant.name || t("nav.space");
   const members = useQuery({
     queryKey: ["space-members", space.id],
     queryFn: () => api.get<{ members: Member[] }>(`/api/studio/spaces/${space.id}/members`),
-    enabled: open && clientsOn,
+    enabled: open,
   });
+  const chosen = space.access === "members";
+  const people = useQuery({
+    queryKey: ["organization", me.tenant.id],
+    queryFn: () => api.get<{ members: Person[] }>("/api/studio/organization"),
+    enabled: open && chosen,
+  });
+  const access = useMutation({
+    mutationFn: (value: "all" | "members") =>
+      api.patch(`/api/studio/spaces/${space.id}`, { access: value }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
+      await qc.invalidateQueries({ queryKey: ["space-members", space.id] });
+    },
+  });
+  const person = useMutation({
+    mutationFn: ({ userId, inside }: { userId: string; inside: boolean }) =>
+      inside
+        ? api.put(`/api/studio/spaces/${space.id}/members/${userId}`, { role: "member" })
+        : api.del(`/api/studio/spaces/${space.id}/members/${userId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["space-members", space.id] }),
+  });
+  const inside = new Set(
+    (members.data?.members ?? []).filter((m) => m.role === "member").map((m) => m.userId),
+  );
   const invite = useMutation({
     mutationFn: (address: string) =>
       api.post(`/api/studio/spaces/${space.id}/invite`, { email: address, lang }),
@@ -110,8 +200,43 @@ function ShareSpaceDialog({
   return (
     <Dialog open={open} onClose={onClose} title={t("share.dialogTitle", { name: space.name })}>
       <p className="-mt-2 text-[0.875rem] text-ink-2">
-        {t("share.membersSee", { organization: me.tenant.name || t("nav.space") })}
+        {chosen ? t("share.membersOnlySee") : t("share.membersSee", { organization })}
       </p>
+      <div className="mt-4">
+        <WhoSees
+          value={space.access}
+          organization={organization}
+          disabled={access.isPending}
+          here
+          onChange={(value) => access.mutate(value)}
+        />
+      </div>
+      {chosen ? (
+        <div className="mt-4">
+          <div className="mb-1.5 font-medium text-[0.875rem] text-ink">{t("share.people")}</div>
+          <ul className="flex max-h-56 flex-col overflow-y-auto">
+            {(people.data?.members ?? [])
+              .filter((p) => p.role !== "client")
+              .map((p) => (
+                <li
+                  key={p.userId}
+                  className="flex items-center gap-2.5 border-border-soft border-b py-2 text-[0.875rem] last:border-b-0"
+                >
+                  <span className="min-w-0 flex-1 truncate">{p.name || p.email}</span>
+                  {p.userId === me.user.id ? (
+                    <span className="text-[0.75rem] text-ink-4">{t("share.you")}</span>
+                  ) : null}
+                  <Switch
+                    checked={inside.has(p.userId)}
+                    disabled={p.userId === me.user.id || person.isPending}
+                    label={p.name || p.email}
+                    onChange={(on) => person.mutate({ userId: p.userId, inside: on })}
+                  />
+                </li>
+              ))}
+          </ul>
+        </div>
+      ) : null}
       {clientsOn ? (
         <>
           <form onSubmit={submit} className="mt-4 flex gap-2">

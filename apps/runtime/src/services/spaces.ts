@@ -218,6 +218,10 @@ export const spacePatchSchema = z.object({
   notify: z.object({ bell: z.boolean(), mail: z.enum(NOTIFY_MAIL) }).optional(),
   /** „Mitglieder dürfen ins Studio“ (services/members-studio.ts). Admins only, as every change here. */
   membersStudio: z.boolean().optional(),
+  /** Who of the organization sees the space (docs/plans/org-spaces.md). */
+  access: z.enum(["all", "members"]).optional(),
+  /** Brand and Info: the organization's, kept in step, or the space's own. */
+  brandFrom: z.enum(["own", "root"]).optional(),
 });
 
 /**
@@ -268,11 +272,60 @@ export async function ownedSpace(userId: string, spaceId: string): Promise<Space
   if (currentRole() === "client" && !(await inSpace(userId, p.id))) {
     throw notFound();
   }
-  // Someone else's Mein Space is not there for anyone, admins included.
-  if (await othersPersonal(userId, p)) {
+  // Someone else's Mein Space is not there for anyone, admins included; nor is a space shared
+  // with its members only for anyone outside them.
+  if ((await othersPersonal(userId, p)) || (await hiddenFrom(userId, p))) {
     throw notFound();
   }
   return p;
+}
+
+/** Whether the space is shared with its members only and the person is not one of them. */
+async function hiddenFrom(userId: string, p: SpaceRow): Promise<boolean> {
+  return p.kind === "space" && p.access === "members" && !(await inSpace(userId, p.id));
+}
+
+/** The spaces with Kund:innen in them: they do not count against the plan's number. */
+async function spacesWithClients(): Promise<Set<string>> {
+  const rows = await db
+    .selectDistinct({ spaceId: schema.spaceMember.spaceId })
+    .from(schema.spaceMember)
+    .where(
+      and(eq(schema.spaceMember.tenantId, currentTenant()), eq(schema.spaceMember.role, "client")),
+    );
+  return new Set(rows.map((r) => r.spaceId));
+}
+
+/** The organization's brand, Info and themes, as a space that takes them keeps them. */
+function brandOf(root: SpaceRow) {
+  return { brand: root.brand, facts: root.facts, themes: root.themes };
+}
+
+/** After the root's brand, Info or themes changed: the spaces that take them get them again. */
+export async function passBrandDown(rootId: string): Promise<void> {
+  const root = await db.query.space.findFirst({ where: eq(schema.space.id, rootId) });
+  if (!root || root.parentId || !(await orgSpacesOn())) {
+    return;
+  }
+  const taking = await db.query.space.findMany({
+    columns: { id: true },
+    where: and(eq(schema.space.parentId, root.id), eq(schema.space.brandFrom, "root")),
+  });
+  if (!taking.length) {
+    return;
+  }
+  await db
+    .update(schema.space)
+    .set({ ...brandOf(root), updatedAt: new Date() })
+    .where(
+      inArray(
+        schema.space.id,
+        taking.map((x) => x.id),
+      ),
+    );
+  for (const x of taking) {
+    spaceChanged("space.updated", x.id);
+  }
 }
 
 /** Whether the person is a member of the space, as a client or as the firm's (`space_member`). */
@@ -427,7 +480,8 @@ export async function personalSpace(userId: string, root: SpaceRow): Promise<Spa
       id,
       tenantId: currentTenant(),
       name: "Mein Space",
-      brand: {},
+      ...brandOf(root),
+      brandFrom: "root",
       kind: "personal",
       parentId: root.id,
     });
@@ -553,15 +607,32 @@ async function listOrgSpaces(userId: string, build: boolean) {
   }
   const personal = root && (await personalSpacesOn()) ? await personalSpace(userId, root) : null;
   const limit = await spaceLimit();
-  const shared = await db.query.space.findMany({
+  const all = await db.query.space.findMany({
     where: and(
       build ? eq(schema.space.tenantId, currentTenant()) : synced(),
       eq(schema.space.kind, "space"),
       ...(root ? [ne(schema.space.id, root.id)] : []),
     ),
     orderBy: [schema.space.createdAt],
-    ...(Number.isFinite(limit) ? { limit: Math.max(0, limit - (root ? 1 : 0)) } : {}),
   });
+  // The oldest up to the plan's number, the root among them; spaces with Kund:innen do not count.
+  const withClients = await spacesWithClients();
+  let room = Number.isFinite(limit) ? Math.max(0, limit - (root ? 1 : 0)) : all.length;
+  const counted = all.filter((p) => withClients.has(p.id) || room-- > 0);
+  const theirs = new Set(
+    (
+      await db
+        .select({ spaceId: schema.spaceMember.spaceId })
+        .from(schema.spaceMember)
+        .where(
+          and(
+            eq(schema.spaceMember.tenantId, currentTenant()),
+            eq(schema.spaceMember.userId, userId),
+          ),
+        )
+    ).map((r) => r.spaceId),
+  );
+  const shared = counted.filter((p) => p.access !== "members" || theirs.has(p.id));
   const spaces = [...(root ? [root] : []), ...(personal ? [personal] : []), ...shared];
   const [wizards, clients] = await Promise.all([
     db
@@ -643,14 +714,21 @@ async function clientSpacesOf(userId: string) {
   return rows.map((r) => ({ ...r.space, wizardCount: 0 }));
 }
 
-export async function createSpace(_userId: string, name: string): Promise<{ id: string }> {
+export async function createSpace(
+  userId: string,
+  name: string,
+  access: "all" | "members" = "all",
+): Promise<{ id: string }> {
   await requireBuild();
   await requireAdmin();
-  // Client spaces do not count as spaces of the plan.
-  const [{ n }] = await db
-    .select({ n: count() })
-    .from(schema.space)
-    .where(and(eq(schema.space.tenantId, currentTenant()), eq(schema.space.kind, "space")));
+  // Client spaces, Mein Space and spaces with Kund:innen do not count as spaces of the plan.
+  const withClients = await spacesWithClients();
+  const n = (
+    await db.query.space.findMany({
+      columns: { id: true },
+      where: and(eq(schema.space.tenantId, currentTenant()), eq(schema.space.kind, "space")),
+    })
+  ).filter((p) => !withClients.has(p.id)).length;
   const limit = await spaceLimit();
   if (n >= limit) {
     throw new ServiceError(
@@ -660,10 +738,28 @@ export async function createSpace(_userId: string, name: string): Promise<{ id: 
   }
   const id = nanoid(12);
   // With `orgSpaces` a new space sits under the organization's own and reads it.
+  // It starts with the organization's brand and Info, and shared with whom the dialog said.
   const root = (await orgSpacesOn()) ? await rootSpace() : undefined;
-  await db
-    .insert(schema.space)
-    .values({ id, tenantId: currentTenant(), name, brand: {}, parentId: root?.id ?? null });
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.space).values({
+      id,
+      tenantId: currentTenant(),
+      name,
+      ...(root ? { ...brandOf(root), brandFrom: "root" as const } : { brand: {} }),
+      parentId: root?.id ?? null,
+      access: root ? access : "all",
+    });
+    if (root && access === "members") {
+      await tx.insert(schema.spaceMember).values({
+        id: nanoid(12),
+        tenantId: currentTenant(),
+        spaceId: id,
+        userId,
+        role: "member",
+        addedBy: userId,
+      });
+    }
+  });
   spaceChanged("space.created", id);
   return { id };
 }
@@ -683,9 +779,37 @@ export async function updateSpace(
     await linkFontFiles(p.id, patch.brand.fonts);
   }
   const page = patch.page ? await checkedPage(p, patch.page) : undefined;
+  // Who sees it and whose brand it shows are a space's under the root, never the root's own.
+  const under = Boolean(p.parentId) && p.kind !== "client" && (await orgSpacesOn());
+  if ((patch.access || patch.brandFrom) && !under) {
+    throw new ServiceError("invalid", note("spaceChoiceNotHere"));
+  }
+  if (patch.access && p.kind === "personal") {
+    throw new ServiceError("invalid", note("spaceChoiceNotHere"));
+  }
+  const root = patch.brandFrom === "root" ? await rootSpace() : undefined;
+  // Brand or Info changed by hand: from then on they are the space's own.
+  const brandFrom =
+    patch.brandFrom ?? (p.brandFrom === "root" && (patch.brand || patch.facts) ? "own" : undefined);
+  if (patch.access === "members") {
+    await db
+      .insert(schema.spaceMember)
+      .values({
+        id: nanoid(12),
+        tenantId: currentTenant(),
+        spaceId: p.id,
+        userId,
+        role: "member",
+        addedBy: userId,
+      })
+      .onConflictDoNothing();
+  }
   await db
     .update(schema.space)
     .set({
+      ...(patch.access ? { access: patch.access } : {}),
+      ...(brandFrom ? { brandFrom } : {}),
+      ...(root ? brandOf(root) : {}),
       ...(patch.name ? { name: patch.name } : {}),
       ...(patch.brand ? { brand: brandAfter(p.brand, patch.brand) } : {}),
       ...(patch.facts ? { facts: patch.facts } : {}),
@@ -697,8 +821,11 @@ export async function updateSpace(
     })
     .where(eq(schema.space.id, p.id));
   spaceChanged("space.updated", p.id);
+  if (!p.parentId && (patch.brand || patch.facts)) {
+    await passBrandDown(p.id);
+  }
   // The page itself, and what it is drawn from: the brand, the facts as the imprint.
-  if (page || patch.brand || patch.facts) {
+  if (page || patch.brand || patch.facts || root) {
     pushPages();
   }
 }

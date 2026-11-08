@@ -24,6 +24,18 @@ export async function requireClientSpaces(): Promise<void> {
   }
 }
 
+/**
+ * Who is in a space is kept where there are client spaces, and with `orgSpaces`, where a space
+ * may be shared with its members only (docs/plans/org-spaces.md). Kund:innen need client spaces.
+ */
+async function requireSpaceMembers(role?: "member" | "client"): Promise<void> {
+  const features = await currentFeatures();
+  if (features.clientSpaces === true || (role !== "client" && features.orgSpaces === true)) {
+    return;
+  }
+  throw notFound();
+}
+
 /** A space of the firm that may hold client spaces: not a client space itself. */
 async function firmSpace(userId: string, spaceId: string) {
   const space = await ownedSpace(userId, spaceId);
@@ -173,7 +185,7 @@ export async function deleteClientSpace(userId: string, spaceId: string): Promis
 
 /** Who is in a client space: the client's people and the firm's assigned members. */
 export async function listSpaceMembers(userId: string, spaceId: string) {
-  await requireClientSpaces();
+  await requireSpaceMembers();
   const space = await clientSpace(userId, spaceId);
   const rows = await db.query.spaceMember.findMany({
     where: eq(schema.spaceMember.spaceId, space.id),
@@ -193,7 +205,7 @@ export async function addSpaceMember(
   spaceId: string,
   member: { userId: string; role: "member" | "client" },
 ): Promise<void> {
-  await requireClientSpaces();
+  await requireSpaceMembers(member.role);
   await requireAdmin();
   const space = await clientSpace(userId, spaceId);
   await db
@@ -221,7 +233,7 @@ export async function removeSpaceMember(
   spaceId: string,
   memberId: string,
 ): Promise<void> {
-  await requireClientSpaces();
+  await requireSpaceMembers();
   await requireAdmin();
   const space = await clientSpace(userId, spaceId);
   await db
