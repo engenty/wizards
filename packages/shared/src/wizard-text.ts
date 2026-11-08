@@ -28,8 +28,10 @@ import { SURFACE_COMPONENTS } from "./surface.js";
 export interface TextCut {
   at: number;
   what: string;
-  /** The step it concerns, when it concerns one. */
+  /** The step it concerns, when it concerns one; "" for a step without an id. */
   step?: string;
+  /** An element the text left open, closed at its end: with `step`, a step still being written. */
+  open?: true;
 }
 
 export interface ParsedWizardText {
@@ -38,7 +40,7 @@ export interface ParsedWizardText {
   cuts: TextCut[];
 }
 
-const STEP_TAGS: Record<string, string> = {
+export const STEP_TAGS: Record<string, string> = {
   page: "Page",
   agent: "Agent",
   generate: "Generate",
@@ -54,7 +56,7 @@ const TAG_STEPS: Record<string, string> = Object.fromEntries(
 );
 
 /** The key a step's text goes to. */
-const STEP_TEXT: Record<string, string> = {
+export const STEP_TEXT: Record<string, string> = {
   agent: "instructions",
   result: "message",
   generate: "prompt",
@@ -62,7 +64,7 @@ const STEP_TEXT: Record<string, string> = {
 };
 
 /** The output field kinds, by the tag inside `<Output>`. */
-const OUTPUT_TAGS: Record<string, string> = {
+export const OUTPUT_TAGS: Record<string, string> = {
   Text: "text",
   Number: "number",
   List: "list",
@@ -311,13 +313,22 @@ function readTags(src: string, partial: boolean, cuts: TextCut[]): Node[] {
     const elem = stack[k];
     const parent = stack[k - 1];
     // A step still open says which, so a caller keeps only the steps whose tag closed.
-    const id = TAG_STEPS[elem.tag] ? elem.attrs.find((a) => a.name === "id") : undefined;
-    const step = id?.kind === "string" ? decodeString(id.text) : undefined;
+    const id = elem.attrs.find((a) => a.name === "id");
+    const step = !TAG_STEPS[elem.tag]
+      ? undefined
+      : id?.kind === "string"
+        ? decodeString(id.text)
+        : "";
     if (partial && k > 1 && !hasContent(elem)) {
       parent.children.splice(parent.children.indexOf(elem), 1);
       cuts.push({ at: elem.at, what: `<${elem.tag}> has nothing in it yet; left out.`, step });
     } else {
-      cuts.push({ at: elem.at, what: `<${elem.tag}> was not closed; closed at the end.`, step });
+      cuts.push({
+        at: elem.at,
+        what: `<${elem.tag}> was not closed; closed at the end.`,
+        step,
+        open: true,
+      });
     }
   }
   return top.children;

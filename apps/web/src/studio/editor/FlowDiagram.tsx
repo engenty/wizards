@@ -77,6 +77,8 @@ type StepData = {
   live?: StepLive | null;
   /** A result's share targets. */
   share?: NodeShare;
+  /** The architect still works on it, after the first draft: the person can go through the rest. */
+  preparing?: boolean;
 };
 
 /** A test run's step in effect: what it does, since when it runs, or why it stopped. */
@@ -108,7 +110,8 @@ type StartData = {
 };
 
 function StepNode({ data }: NodeProps<Node<StepData>>) {
-  const { step, selected, issue, active, pulse, cost, passed, onAddAfter, live, share } = data;
+  const { step, selected, issue, active, pulse, cost, passed, onAddAfter, live, share, preparing } =
+    data;
   const Icon = stepIcon(step);
   return (
     <div
@@ -180,6 +183,11 @@ function StepNode({ data }: NodeProps<Node<StepData>>) {
             {live.text}
           </span>
           {live.since !== null && !live.failed ? <Elapsed since={live.since} /> : null}
+        </div>
+      ) : preparing ? (
+        <div className="flex items-center gap-1.5 text-[0.75rem] text-ink-3">
+          <Spinner className="size-3 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{t("editor.preparing")}</span>
         </div>
       ) : (
         <div className="truncate text-[0.75rem] text-ink-3">{stepSummary(step) || " "}</div>
@@ -435,6 +443,7 @@ function layout(
   live?: StepLive | null,
   starts = 0,
   share?: (step: ResultStep) => NodeShare,
+  preparing: ReadonlySet<string> = new Set(),
 ) {
   const heightOf = (s: Step) => (s.type === "result" && share ? RESULT_H : NODE_H);
   const g = new dagre.graphlib.Graph();
@@ -578,6 +587,7 @@ function layout(
           onAddAfter: onInsert && s.type !== "result" ? () => onInsert(index + 1) : undefined,
           live: live?.step === s.id ? live : null,
           share: s.type === "result" && share ? share(s) : undefined,
+          preparing: preparing.has(s.id),
         },
         draggable: false,
       } satisfies Node<StepData>;
@@ -664,6 +674,8 @@ interface CanvasProps {
   starts?: number;
   /** Where a result is sent or published, for its node. */
   share?: (step: ResultStep) => NodeShare;
+  /** Steps the architect still works on after the first draft. */
+  preparing?: ReadonlySet<string>;
 }
 
 function Inner({
@@ -684,6 +696,7 @@ function Inner({
   live = null,
   starts = 0,
   share,
+  preparing = NONE,
 }: CanvasProps) {
   const { nodes, edges } = useMemo(
     () =>
@@ -701,6 +714,7 @@ function Inner({
         live,
         starts,
         share,
+        preparing,
       ),
     [
       starts,
@@ -716,6 +730,7 @@ function Inner({
       onInsert,
       live,
       share,
+      preparing,
     ],
   );
   const rf = useReactFlow();

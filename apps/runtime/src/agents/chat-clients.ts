@@ -26,6 +26,8 @@ export interface ChatCall {
   model?: string;
   /** Claude: the MCP config file. */
   mcpConfigFile?: string;
+  /** No tools at all, not even this server's: a call that only writes text (the first draft). */
+  bare?: boolean;
   /** The pictures pasted with the message: base64 for Claude, files for Codex. */
   images: { mime: string; base64: string; file: string }[];
 }
@@ -36,8 +38,11 @@ export type ChatEvent =
   | { kind: "tool"; name: string; args: Record<string, unknown>; started: boolean }
   /** A tool has answered; `issues` is how many it found in the draft, if it spoke of them. */
   | { kind: "toolDone"; issues?: number }
-  /** The model is writing text this client hands over whole later on: for the turn's clock. */
-  | { kind: "writing" }
+  /**
+   * The model is writing text this client hands over whole later on: for the turn's clock, and
+   * the piece itself where the client streams it.
+   */
+  | { kind: "writing"; text?: string }
   | { kind: "thinkingStart" }
   /** `whole`: the client gives its reasoning once that is done, not as it streams. */
   | { kind: "thinking"; text: string; whole?: boolean }
@@ -98,10 +103,9 @@ const claude: ChatClient = {
     "--tools",
     "",
     "--strict-mcp-config",
-    "--mcp-config",
-    call.mcpConfigFile ?? "",
-    "--allowedTools",
-    "mcp__wizards",
+    ...(call.bare
+      ? []
+      : ["--mcp-config", call.mcpConfigFile ?? "", "--allowedTools", "mcp__wizards"]),
     "--disable-slash-commands",
     "--setting-sources",
     "",
@@ -143,7 +147,7 @@ const claude: ChatClient = {
         return [{ kind: "thinking", text: e.delta.thinking ?? "" }];
       }
       if (e.type === "content_block_delta" && e.delta?.type === "text_delta") {
-        return [{ kind: "writing" }];
+        return [{ kind: "writing", text: String(e.delta.text ?? "") }];
       }
       return [];
     }
@@ -232,18 +236,22 @@ const codex: ChatClient = {
       // A JSON string is a TOML basic string: the instructions travel as one config value.
       "-c",
       `developer_instructions=${JSON.stringify(call.system)}`,
-      "-c",
-      `mcp_servers.wizards.url=${JSON.stringify(call.mcpUrl)}`,
-      // The key comes from the environment, not the command line, where any process could read it.
-      "-c",
-      `mcp_servers.wizards.bearer_token_env_var="${CODEX_KEY_VAR}"`,
-      "-c",
-      "mcp_servers.wizards.startup_timeout_sec=30",
-      "-c",
-      "mcp_servers.wizards.tool_timeout_sec=600",
-      // The tools are this server's own: they run without the client asking anyone.
-      "-c",
-      'mcp_servers.wizards.default_tools_approval_mode="approve"',
+      ...(call.bare
+        ? []
+        : [
+            "-c",
+            `mcp_servers.wizards.url=${JSON.stringify(call.mcpUrl)}`,
+            // The key comes from the environment, not the command line, where any process could read it.
+            "-c",
+            `mcp_servers.wizards.bearer_token_env_var="${CODEX_KEY_VAR}"`,
+            "-c",
+            "mcp_servers.wizards.startup_timeout_sec=30",
+            "-c",
+            "mcp_servers.wizards.tool_timeout_sec=600",
+            // The tools are this server's own: they run without the client asking anyone.
+            "-c",
+            'mcp_servers.wizards.default_tools_approval_mode="approve"',
+          ]),
     ];
     // `-i` takes several files, so the pictures come last, after the prompt ("-" = stdin).
     const images = call.images.flatMap((i) => ["-i", i.file]);
@@ -313,7 +321,7 @@ const cursor: ChatClient = {
     "stream-json",
     "--workspace",
     call.dir,
-    "--approve-mcps",
+    ...(call.bare ? [] : ["--approve-mcps"]),
     ...(call.model && call.model !== "auto" ? ["--model", call.model] : []),
     ...(call.session ? ["--resume", call.session] : []),
   ],

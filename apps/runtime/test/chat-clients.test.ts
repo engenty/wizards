@@ -46,7 +46,7 @@ describe("Claude Code in the studio chat", () => {
           event: { type: "content_block_delta", delta: { type: "text_delta", text: "Hi" } },
         }),
       ),
-    ).toEqual([{ kind: "writing" }]);
+    ).toEqual([{ kind: "writing", text: "Hi" }]);
   });
 
   it("gets no tools of its own and only our MCP server", () => {

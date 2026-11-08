@@ -108,7 +108,7 @@ export const FORM_FIELD_KINDS = [
 export type FormFieldKind = (typeof FORM_FIELD_KINDS)[number];
 
 /** The props each component needs. */
-const REQUIRED: Partial<Record<SurfaceComponentName, string[]>> = {
+export const SURFACE_REQUIRED: Partial<Record<SurfaceComponentName, string[]>> = {
   Text: ["text"],
   Row: ["title"],
   DetailGrid: ["rows"],
@@ -504,7 +504,7 @@ export function validateSurface(
   const keys = dataKeys ? new Set([...dataKeys, ...states]) : null;
   for (const c of components) {
     issues.push(...componentCalcIssues(c, repeated.has(c.id) ? null : keys));
-    for (const prop of REQUIRED[c.component] ?? []) {
+    for (const prop of SURFACE_REQUIRED[c.component] ?? []) {
       if ((c as Record<string, unknown>)[prop] === undefined) {
         issues.push({ message: `${c.component} "${c.id}" needs "${prop}".` });
       }

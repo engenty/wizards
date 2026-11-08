@@ -152,7 +152,7 @@ import {
   requireWritable,
   spaceWritable,
 } from "../services/access.js";
-import { architectTurn } from "../services/architect.js";
+import { architectTurn, fastCreateFor, fastCreateTurn } from "../services/architect.js";
 import {
   addMessage,
   assistantLayout,
@@ -1896,13 +1896,18 @@ export const studio = new Hono<Vars>()
     if (!(await canSpend())) {
       throw new ServiceError("no_credits", note("creditsUsedUp"));
     }
+    // A new wizard's first message gets the fast first pass while the switch fastCreate is on.
+    const turn = (await fastCreateFor(user.id, wizardId)) ? fastCreateTurn : architectTurn;
     return streamSSE(c, async (stream) => {
       const abort = new AbortController();
       stream.onAbort(() => abort.abort());
       try {
         const result = await asAssistantIn(wizardId, user, () =>
-          architectTurn(user.id, wizardId, message, requestLang(c), extra, {
+          turn(user.id, wizardId, message, requestLang(c), extra, {
             signal: abort.signal,
+            onPreparing: (stepIds) => {
+              void stream.writeSSE({ event: "preparing", data: JSON.stringify(stepIds) });
+            },
             onText: (delta) => {
               void stream.writeSSE({ event: "text", data: JSON.stringify(delta) });
             },

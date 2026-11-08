@@ -209,6 +209,12 @@ export const FEATURES = {
     label: "Starts by itself",
     hint: "A wizard that runs on a schedule: the share dialog's section, the clock, the bell (docs/plans/starts.md).",
   },
+  fastCreate: {
+    kind: "release",
+    default: false,
+    label: "Fast first draft",
+    hint: "A new wizard's first pages within seconds: one quick model call writes the text form, each page is saved as it arrives, and the architect finishes the rest while the person looks (docs/plans/fast-creation.md, Part 3).",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

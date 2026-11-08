@@ -855,6 +855,7 @@ function Editor() {
           }}
           adding={adding}
           onInsert={w.readOnly || adding ? undefined : openInsert}
+          preparing={chat.preparing}
         />
       )}
     </div>

@@ -1784,6 +1784,7 @@ const de: Record<Key, Line> = {
   "editor.micDenied":
     "Das Mikrofon ist für diese Seite nicht freigegeben. Erlaube es in den Website-Einstellungen deines Browsers.",
   "editor.building": "Baut den Ablauf …",
+  "editor.preparing": "Wird vorbereitet …",
   "editor.files": "Dateien",
   "files.explain":
     "Diese Dateien nutzt dein Wizard bei jedem Lauf, etwa Widget-Code, Bibliotheken oder Preislisten. Der Assistent legt sie im Chat an. Du kannst auch eigene hochladen.",
@@ -6578,6 +6579,7 @@ const en = {
   "editor.micDenied":
     "The microphone isn’t allowed for this page. Allow it in your browser’s site settings.",
   "editor.building": "Building the flow…",
+  "editor.preparing": "Being prepared…",
   "editor.files": "Files",
   "files.explain":
     "Your wizard uses these files on every run, like widget code, libraries or price lists. The assistant creates them in the chat, or you can upload your own.",
