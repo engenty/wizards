@@ -68,6 +68,14 @@ import { HarnessPanel } from "./Harness";
 import { LocalModels, useLocalModels } from "./LocalModels";
 import { openExternal } from "./LocalRuntime";
 import {
+  AccountPanel,
+  type Accounts,
+  AccountsPanel,
+  accountsSummary,
+  accountUse,
+  useAccounts,
+} from "./ModelsAccounts";
+import {
   AccessList,
   type AccessRow,
   type Helper,
@@ -236,6 +244,8 @@ interface Place {
   canEdit: boolean;
   /** Own API keys are a feature of the organization's plan; alone they always are. */
   ownKeys: boolean;
+  /** The cloud with `ownKeysGateway`: the own keys are the organization's accounts at the Manage-App. */
+  accounts: boolean;
 }
 
 type View = "auto" | "local" | "linked" | "cloud";
@@ -270,6 +280,7 @@ function placeOf(me: Me, view: View): Place {
     harnesses: cloud ? [] : me.harnesses,
     canEdit: !cloud || me.tenant.role !== "member",
     ownKeys: !cloud || featureOn(me.features, "ownKeys"),
+    accounts: cloud && featureOn(me.features, "ownKeysGateway"),
   };
 }
 
@@ -1073,19 +1084,21 @@ function CapabilityPanel({
                 ))}
               </OptionGroup>
             ) : null}
-            <OptionGroup label={t("models.optKey")}>
-              {providers.map((p) => (
-                <Option
-                  key={p.id}
-                  title={p.name}
-                  note={state.keys[p.id] ? t("models.noteKey") : t("models.noteNoKey")}
-                  noteTone={state.keys[p.id] ? "done" : undefined}
-                  selected={chosen?.kind === "key" && chosen.provider === p.id}
-                  disabled={!place.canEdit}
-                  onPick={() => pick({ kind: "key", provider: p.id })}
-                />
-              ))}
-            </OptionGroup>
+            {place.accounts ? null : (
+              <OptionGroup label={t("models.optKey")}>
+                {providers.map((p) => (
+                  <Option
+                    key={p.id}
+                    title={p.name}
+                    note={state.keys[p.id] ? t("models.noteKey") : t("models.noteNoKey")}
+                    noteTone={state.keys[p.id] ? "done" : undefined}
+                    selected={chosen?.kind === "key" && chosen.provider === p.id}
+                    disabled={!place.canEdit}
+                    onPick={() => pick({ kind: "key", provider: p.id })}
+                  />
+                ))}
+              </OptionGroup>
+            )}
             <OptionGroup
               label={
                 isText(cap) && !place.cloud ? t("models.optOther") : t("models.optCreditsGroup")
@@ -2322,7 +2335,8 @@ type Target =
   | { type: "choice" }
   | { type: "apps" }
   | { type: "provider"; id: ProviderId }
-  | { type: "client"; id: HarnessId };
+  | { type: "client"; id: HarnessId }
+  | { type: "account"; id: string };
 
 const PAGES = [
   "chat",
@@ -2343,6 +2357,10 @@ function targetOf(show: string | null): Target {
   }
   if ((PAGES as readonly string[]).includes(show)) {
     return { type: show as (typeof PAGES)[number] };
+  }
+  // One of the organization's accounts (`ownKeysGateway`).
+  if (show.startsWith("key:")) {
+    return { type: "account", id: show.slice(4) };
   }
   // Decisions and the knowledge search are part of Text & reasoning; Ollama of Local models.
   if (show === "decision" || show === "search") {
@@ -2365,9 +2383,11 @@ function targetOf(show: string | null): Target {
 const showOf = (target: Target): string | null =>
   target.type === "overview"
     ? null
-    : target.type === "cap" || target.type === "provider" || target.type === "client"
-      ? target.id
-      : target.type;
+    : target.type === "account"
+      ? `key:${target.id}`
+      : target.type === "cap" || target.type === "provider" || target.type === "client"
+        ? target.id
+        : target.type;
 
 /** The jobs of the menu and the overview: images and video are one, voice and voice notes too. */
 type Job = "text" | "media" | "voice";
@@ -2411,8 +2431,14 @@ function Preview({ view, onView }: { view: View; onView: (v: View) => void }) {
 }
 
 /** What the page shows, for the trail in the top bar. */
-function targetLabel(target: Target, me: Me | null | undefined): string {
+function targetLabel(
+  target: Target,
+  me: Me | null | undefined,
+  accounts: Accounts | null | undefined,
+): string {
   switch (target.type) {
+    case "account":
+      return accounts?.accounts.find((a) => a.id === target.id)?.label ?? t("overview.menu.keys");
     case "overview":
       return t("overview.nav");
     case "chat":
@@ -2510,6 +2536,8 @@ interface Situation {
   admin: boolean;
   /** Ollama on this computer; null in the cloud. */
   ollama: { running: boolean; models: string[] } | null;
+  /** The organization's accounts at the providers (`ownKeysGateway`); null without. */
+  accounts: Accounts | null;
   open: (target: Target) => void;
   savePolicy: (policy: ModelPolicy) => void;
 }
@@ -2545,12 +2573,15 @@ function jobRow(job: Job, s: Situation): OverviewJob {
     return { ...base, state: "miss", where: null, access: "", model: "" };
   }
   const way = state.ways[classes[0]];
+  const onAccount = accountUse(s.accounts, classes[0]);
   return {
     ...base,
     state: "ok",
     where: whereOf(way.kind, place),
-    access: way.kind === "credits" ? t("overview.credits") : wayText(way, place).text,
-    model: modelText(way, tier?.classes[classes[0]]),
+    access:
+      onAccount?.access ??
+      (way.kind === "credits" ? t("overview.credits") : wayText(way, place).text),
+    model: onAccount?.model ?? modelText(way, tier?.classes[classes[0]]),
   };
 }
 
@@ -2572,11 +2603,13 @@ function chatRow(s: Situation): OverviewJob {
         ? text.where
         : whereOf(HARNESS_IDS.includes(engine) ? "pc" : "cloud", place),
     access:
-      place.cloud || engine === "account"
-        ? t("overview.credits")
-        : engine === "models"
-          ? text.access
-          : chatWayName(engine, me, place),
+      engine === "models" && s.accounts
+        ? text.access
+        : place.cloud || engine === "account"
+          ? t("overview.credits")
+          : engine === "models"
+            ? text.access
+            : chatWayName(engine, me, place),
     model:
       engine === "models"
         ? text.model
@@ -2685,6 +2718,16 @@ function accessRows(s: Situation, save: ReturnType<typeof useSave>): AccessRow[]
         status: t("overview.fromPro"),
         muted: true,
       });
+    } else if (place.accounts && s.accounts) {
+      const summary = accountsSummary(s.accounts);
+      rows.push({
+        kind: "row",
+        id: "keys",
+        name: t("policy.ownKeys"),
+        desc: summary.desc,
+        status: summary.status,
+        onOpen: () => open({ type: "keys" }),
+      });
     }
     if (!tier) {
       return rows;
@@ -2705,7 +2748,7 @@ function accessRows(s: Situation, save: ReturnType<typeof useSave>): AccessRow[]
     const strict = isStrict(tier);
     const savePolicy = (patch: Partial<ModelPolicy>) => s.savePolicy({ ...policy, ...patch });
     rows.push(
-      ...(place.ownKeys
+      ...(place.ownKeys && !place.accounts
         ? [
             {
               kind: "row" as const,
@@ -3109,7 +3152,9 @@ export function Models() {
   const tiers = useFeature("modelTiers");
   const tier = tiers ? (models.data?.tier ?? null) : null;
   const policy = models.data?.modelPolicy ?? DEFAULT_POLICY;
-  useDetail(show || !narrow ? targetLabel(target, me.data) : null);
+  const throughGateway = useFeature("ownKeysGateway") && me.data?.mode === "managed";
+  const accounts = useAccounts(throughGateway);
+  useDetail(show || !narrow ? targetLabel(target, me.data, accounts.data) : null);
   if (!me.data || !models.data) {
     return models.isError ? (
       <p className="text-[0.875rem] text-rose">{(models.error as Error).message}</p>
@@ -3124,7 +3169,7 @@ export function Models() {
   const page = (x: Target) =>
     x.type === "cap"
       ? jobOf(x.id)
-      : x.type === "provider"
+      : x.type === "provider" || x.type === "account"
         ? "keys"
         : x.type === "client"
           ? "subs"
@@ -3143,6 +3188,7 @@ export function Models() {
           running: Boolean(local.data?.ollama.version),
           models: local.data?.installed.map((m) => m.name.replace(/:latest$/, "")) ?? [],
         },
+    accounts: place.accounts ? (accounts.data ?? null) : null,
     open,
     savePolicy: (next) => savePolicy.mutate(next),
   };
@@ -3156,6 +3202,7 @@ export function Models() {
     text ? <span className="text-[0.75rem] text-ink-3 tabular-nums">{text}</span> : null;
   const onOff = (on: boolean) => t(on ? "overview.on" : "overview.off");
   const keyed = PROVIDERS.filter((p) => state.keys[p.id]).length;
+  const refusedAccounts = s.accounts?.accounts.filter((a) => a.status === "refused").length ?? 0;
   const signedIn = place.harnesses.filter((h) => h.version !== null && h.auth !== "none").length;
   const localCount =
     (s.ollama?.running ? s.ollama.models.length : 0) + (state.apple?.available ? 1 : 0);
@@ -3230,12 +3277,16 @@ export function Models() {
           <MenuRow
             icon={KeyRound}
             label={t("overview.menu.keys")}
+            tone={refusedAccounts ? "miss" : undefined}
+            toneLabel={refusedAccounts ? t("keys.state.refused") : undefined}
             badge={hint(
               !place.ownKeys
                 ? t("overview.fromPro")
                 : s.admin && !policy.ownKeys
                   ? onOff(false)
-                  : String(keyed),
+                  : s.accounts
+                    ? String(s.accounts.accounts.length)
+                    : String(keyed),
             )}
             selected={isOpen({ type: "keys" })}
             onPick={() => open({ type: "keys" })}
@@ -3284,7 +3335,7 @@ export function Models() {
         ) : null}
         <Preview view={view} onView={setView} />
       </SubMenu>
-      {place.canEdit ? null : (
+      {place.canEdit || (place.accounts && page(target) === "keys") ? null : (
         <p className="mb-4 rounded-lg bg-paper-2 px-3 py-2 text-[0.8125rem] text-ink-2">
           {t("models.readOnly")}
         </p>
@@ -3345,6 +3396,30 @@ export function Models() {
             </>
           ) : null}
         </div>
+      ) : place.accounts && (target.type === "keys" || target.type === "provider") ? (
+        <AccountsPanel
+          organization={me.data.tenant.name ?? t("policy.yourOrganization")}
+          canEdit={place.canEdit}
+          tier={tier}
+          onOpen={(id) => open({ type: "account", id })}
+          policy={
+            s.admin && tier ? (
+              <PolicySwitchCard
+                tier={tier}
+                policy={policy}
+                field="ownKeys"
+                canEdit={place.canEdit}
+              />
+            ) : null
+          }
+        />
+      ) : target.type === "account" && place.accounts ? (
+        <AccountPanel
+          key={target.id}
+          id={target.id}
+          canEdit={place.canEdit}
+          onGone={() => open({ type: "keys" })}
+        />
       ) : target.type === "keys" ? (
         <KeysPanel s={s} />
       ) : target.type === "subs" ? (
