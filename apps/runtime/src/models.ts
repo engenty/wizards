@@ -576,20 +576,15 @@ async function gatewayIds(): Promise<Set<string>> {
 }
 
 /**
- * Whether the organization chooses models itself: its admins' way B or C. Way A leaves it to
- * engenty, and it is all a plan like Free offers. Without a policy (`modelTiers` off) the
- * Manage-App doesn't say which ways the plan offers: Free offers none but A, the others choice.
+ * Whether the organization may choose models itself: its plan offers way B or C
+ * (`modelControl`). Way A leaves the models to engenty. An older Manage-App that names no ways,
+ * and one out of reach, count as way A only.
  */
 async function choosesModels(): Promise<boolean> {
   const tenant = managed ? currentTenantOrNull() : null;
   const info = tenant ? await tenantInfo(tenant).catch(() => null) : null;
-  if (!info) {
-    return false;
-  }
-  if (feature("modelTiers", info.features) && info.modelPolicy) {
-    return info.modelPolicy.way !== "A";
-  }
-  return info.plan?.id !== "free";
+  const ways = info?.modelControl ?? ["A"];
+  return ways.includes("B") || ways.includes("C");
 }
 
 /** What was logged of bindings the gateway has nothing for: each once per process. */

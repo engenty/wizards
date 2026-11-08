@@ -155,6 +155,14 @@ const server: Server = createServer(async (req, res) => {
       limits: { concurrentRuns: 2 },
       db: null,
       features: { ownKeys: true, ownKeysGateway: tenant !== "tenant-o" },
+      // The ways the plan offers: Free way A only; tenant B choice by defaults; tenant "old" is
+      // answered by a Manage-App from before the field.
+      ...(tenant === "tenant-old"
+        ? {}
+        : {
+            modelControl:
+              tenant === "tenant-free" ? ["A"] : tenant === "tenant-b" ? ["A", "B"] : ["A", "B", "C"],
+          }),
     });
   }
   if (url.pathname === "/v1/models") {
@@ -347,6 +355,18 @@ describe("an organization whose plan doesn't let it choose models", () => {
       models.asGatewayBindings({ high: "anthropic:claude-sonnet-5-5", image: "fal:fal-ai/flux/schnell" }),
     );
     expect(saved).toEqual({ high: "", image: "credits:fal:fal-ai/flux/schnell" });
+  });
+
+  it("counts as way A only where the Manage-App names no ways, and translates where B is offered", async () => {
+    const bindings = { high: "openai:gpt-5.5", image: "fal:fal-ai/flux/schnell" };
+    expect(await withTenant("tenant-old", () => models.asGatewayBindings(bindings))).toEqual({
+      high: "",
+      image: "credits:fal:fal-ai/flux/schnell",
+    });
+    expect(await withTenant("tenant-b", () => models.asGatewayBindings(bindings))).toEqual({
+      high: "credits:openai/gpt-5.5",
+      image: "credits:fal:fal-ai/flux/schnell",
+    });
   });
 });
 

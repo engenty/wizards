@@ -233,6 +233,11 @@ export interface TenantInfo {
    */
   tier?: ModelTier;
   modelPolicy?: ModelPolicy;
+  /**
+   * The ways of sharing out models the plan offers (`["A"]`, `["A", "B", "C"]`), a team's own
+   * setting applied. Left out by an older Manage-App: way A only.
+   */
+  modelControl?: string[];
 }
 
 export interface TenantMembers {
