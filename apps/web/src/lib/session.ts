@@ -355,6 +355,15 @@ export interface Space {
   studio: boolean;
   /** How the admins hear of the broker's critical lines: Work's bell, the hourly mail. */
   notify: SpaceNotify;
+  /** `space`, `client` or `personal` (Mein Space); the space it sits under, if any. */
+  kind: "space" | "client" | "personal";
+  parentId: string | null;
+  /** With `orgSpaces` (docs/plans/org-spaces.md): the organization's own space, the root. */
+  root: boolean;
+  /** Mein Space: the person's own. */
+  personal: boolean;
+  /** How many Kund:innen are in the space. */
+  clients: number;
 }
 
 export function useSpaces(enabled = true) {

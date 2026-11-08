@@ -24,6 +24,7 @@ import {
   Settings,
   Sun,
   Toolbox,
+  WandSparkles,
 } from "lucide-react";
 import {
   lazy,
@@ -415,6 +416,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
   const plugins = useStudioPlugins();
   const skillsOn = useFeature("skills");
   const capabilitiesOn = useFeature("capabilities");
+  const orgSpaces = useFeature("orgSpaces");
   const { position } = useAppBar();
   const horizontal = isHorizontal(position);
   const hint = useBarHint(!labels, position);
@@ -503,9 +505,13 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
       {/* Beside the page, the engenty's row is as tall as the page's top bar, so the two sit on
           one line. */}
       <EngentyMenu me={me} position={position} horizontal={horizontal} labels={labels} />
-      <div className={horizontal ? "ml-1" : "mt-1"}>
-        <SpaceTile me={me} labels={labels} />
-      </div>
+      {/* With `orgSpaces` the space is the path's first step at the top: no tile here
+          (docs/plans/org-spaces.md). */}
+      {orgSpaces ? null : (
+        <div className={horizontal ? "ml-1" : "mt-1"}>
+          <SpaceTile me={me} labels={labels} />
+        </div>
+      )}
       {/* The mode, always in sight: under the space, near the engenty that wears it. */}
       <ModeSwitch
         me={me}
@@ -518,17 +524,22 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
         <div className="min-h-0 min-w-0 flex-1" />
       ) : (
         <>
+          {/* The space's wizards: with `orgSpaces` named as such, "Wizards". */}
           <Link
             to="/"
-            aria-label={t("nav.home")}
+            aria-label={t(orgSpaces ? "nav.wizards" : "nav.home")}
             aria-current={place === "home" || place === "new" ? "page" : undefined}
             className={cn(
               glyph(place === "home" || place === "new", labels),
               horizontal ? "ml-1.5" : "mt-2",
             )}
           >
-            <Home className="size-5 shrink-0" />
-            {labels ? <Label>{t("nav.home")}</Label> : null}
+            {orgSpaces ? (
+              <WandSparkles className="size-5 shrink-0" />
+            ) : (
+              <Home className="size-5 shrink-0" />
+            )}
+            {labels ? <Label>{t(orgSpaces ? "nav.wizards" : "nav.home")}</Label> : null}
           </Link>
           {/* The space's sources: Info, Brand, Knowledge and Data. */}
           <Link

@@ -173,6 +173,12 @@ export const FEATURES = {
     label: "Client spaces",
     hint: "A space's clients, each in a client space under it: their own data, results and chats, the firm's setup read from the space (docs/plans/client-spaces.md).",
   },
+  orgSpaces: {
+    kind: "release",
+    default: false,
+    label: "Organization, spaces and folders",
+    hint: "The organization's own space as the root, Mein Space per person, every other space under the root; the path bar with the space menu instead of the space tile; Ordner in Work (docs/plans/org-spaces.md).",
+  },
   knowledgeTree: {
     kind: "release",
     default: false,

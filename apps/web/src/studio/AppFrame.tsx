@@ -71,6 +71,7 @@ import {
   switchable,
   useManageOrganization,
 } from "./Organizations";
+import { SidebarToggle, SpacePath } from "./SpacePath";
 import { KnowledgePalette } from "./space/KnowledgePalette";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
@@ -910,15 +911,29 @@ export function UserMenu({
  * stands in its app bar along the bottom, and where the person has more than one mode, their
  * switch stands up here.
  */
-export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
+export function TopBar({
+  me,
+  sidebar,
+  children,
+}: {
+  me: Me;
+  /** A page with a sidebar (Work): its switch at the start of the path. */
+  sidebar?: { open: boolean; onToggle: () => void };
+  children?: ReactNode;
+}) {
   const startsOn = useFeature("startTriggers");
   const durableOn = useFeature("durableRuns");
+  // The path's first step is the space and its menu (docs/plans/org-spaces.md).
+  const orgSpaces = useFeature("orgSpaces");
   const { phone } = useAppBar();
   // The person's Konto is theirs in every organization: no space, no organization's credits.
   const personal = useLocation().pathname.startsWith("/account");
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 px-3 coarse:h-14 sm:gap-3 sm:px-4 md:px-5">
-      {personal ? null : <SpaceName me={me} />}
+      {orgSpaces && sidebar && !personal ? (
+        <SidebarToggle open={sidebar.open} onToggle={sidebar.onToggle} />
+      ) : null}
+      {personal ? null : orgSpaces ? <SpacePath me={me} /> : <SpaceName me={me} />}
       <div className="flex min-w-0 flex-1 items-center">
         <Trail alone={personal} />
         {children}
