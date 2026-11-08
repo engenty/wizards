@@ -21,14 +21,17 @@ import {
   WandSparkles,
 } from "lucide-react";
 import {
+  createContext,
   Fragment,
   type ReactNode,
   type RefObject,
+  useContext,
   useEffect,
   useRef,
   useState,
   useSyncExternalStore,
 } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router";
 import { ImpersonationBanner } from "../impersonation";
 import { api } from "../lib/api";
@@ -911,6 +914,13 @@ export function UserMenu({
  * stands in its app bar along the bottom, and where the person has more than one mode, their
  * switch stands up here.
  */
+/**
+ * Where the top bar stands on the frame's ground above the page, with `orgSpaces` on a wide
+ * screen (docs/plans/org-spaces.md): the path across the top, the page a card below it. Null:
+ * the bar stays the page's first row.
+ */
+const BarSlot = createContext<HTMLElement | null>(null);
+
 export function TopBar({
   me,
   sidebar,
@@ -928,8 +938,14 @@ export function TopBar({
   const { phone } = useAppBar();
   // The person's Konto is theirs in every organization: no space, no organization's credits.
   const personal = useLocation().pathname.startsWith("/account");
-  return (
-    <header className="flex h-12 shrink-0 items-center gap-2 px-3 coarse:h-14 sm:gap-3 sm:px-4 md:px-5">
+  const slot = useContext(BarSlot);
+  const bar = (
+    <header
+      className={cn(
+        "flex h-12 shrink-0 items-center gap-2 coarse:h-14 sm:gap-3",
+        slot ? "pr-1 pl-0.5" : "px-3 sm:px-4 md:px-5",
+      )}
+    >
       {orgSpaces && sidebar && !personal ? (
         <SidebarToggle open={sidebar.open} onToggle={sidebar.onToggle} />
       ) : null}
@@ -947,6 +963,7 @@ export function TopBar({
       {phone ? <UserMenu me={me} /> : null}
     </header>
   );
+  return slot ? createPortal(bar, slot) : bar;
 }
 
 /** The studio's scroll container below the top bar; a page that watches the scroll asks for it. */
@@ -962,6 +979,14 @@ const INSET: Record<AppBarPosition, string> = {
   right: "md:py-2 md:pl-2",
   top: "md:px-2 md:pb-2",
   bottom: "md:px-2 md:pt-2",
+};
+
+/** The top bar on the ground: in line with the page's card below it. */
+const BAR_INSET: Record<AppBarPosition, string> = {
+  left: "pt-2 pr-2",
+  right: "pt-2 pl-2",
+  top: "px-2",
+  bottom: "px-2 pt-2",
 };
 
 const DIRECTION: Record<AppBarPosition, string> = {
@@ -1000,6 +1025,9 @@ export function AppFrame({
   const labels = useAppBarLabels(Boolean(full) || assistantBeside);
   // What changed elsewhere shows here without a reload (docs/plans/live-changes.md).
   useLiveFeed(me.tenant.id);
+  // With `orgSpaces` the top bar stands on the ground above the page; a phone keeps it inside.
+  const onGround = useFeature("orgSpaces") && !phone;
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   return (
     <div className={cn("flex h-dvh overflow-hidden bg-sidebar", DIRECTION[position])}>
       {phone ? (
@@ -1009,60 +1037,71 @@ export function AppFrame({
       ) : (
         <AppRail me={me} labels={labels.shown} room={labels.room} />
       )}
-      {/* The page's card, and beside it Goose's sidebar as a pane of its own. */}
-      <div className={cn("flex min-h-0 min-w-0 flex-1 md:gap-2", INSET[position])}>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
-          {me.impersonation ? (
-            <ImpersonationBanner
-              name={me.user.name || me.user.email}
-              until={me.impersonation.until}
-            />
-          ) : null}
-          <UpdateBanner />
-          <ConfirmHost />
-          <InstallBanner me={me} />
-          <CloudSyncBar me={me} />
-          {full ? (
-            <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-              {children}
-            </main>
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <TopBar me={me} />
-              <div ref={column} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-                {/* `relative`: what a page places out of flow without a positioned parent (a
+      <BarSlot.Provider value={onGround ? slot : null}>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {onGround ? <div ref={setSlot} className={cn("shrink-0", BAR_INSET[position])} /> : null}
+          {/* The page's card, and beside it Goose's sidebar as a pane of its own. */}
+          <div
+            className={cn(
+              "flex min-h-0 min-w-0 flex-1 md:gap-2",
+              INSET[position],
+              onGround && "md:pt-0",
+            )}
+          >
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
+              {me.impersonation ? (
+                <ImpersonationBanner
+                  name={me.user.name || me.user.email}
+                  until={me.impersonation.until}
+                />
+              ) : null}
+              <UpdateBanner />
+              <ConfirmHost />
+              <InstallBanner me={me} />
+              <CloudSyncBar me={me} />
+              {full ? (
+                <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+                  {children}
+                </main>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <TopBar me={me} />
+                  <div ref={column} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+                    {/* `relative`: what a page places out of flow without a positioned parent (a
                     hidden file field) stays in the page's own scroll, not in a frame around it,
                     which a jump to a section would scroll as well. The page runs to the frame's
                     edge and scrolls under the assistant's docked card; it keeps that card's
                     height (`--assistant-dock`) free below its last section, or the phone's bar,
                     whichever is higher. */}
-                <main
-                  id={SCROLL_ROOT_ID}
-                  className="relative min-h-0 flex-1 overflow-y-auto"
-                  style={{ paddingBottom: `max(var(--assistant-dock, 0px), ${clear})` }}
-                >
-                  <div
-                    className={cn(
-                      "mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6",
-                      wide ? "max-w-[88rem]" : "max-w-5xl",
+                    <main
+                      id={SCROLL_ROOT_ID}
+                      className="relative min-h-0 flex-1 overflow-y-auto"
+                      style={{ paddingBottom: `max(var(--assistant-dock, 0px), ${clear})` }}
+                    >
+                      <div
+                        className={cn(
+                          "mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6",
+                          wide ? "max-w-[88rem]" : "max-w-5xl",
+                        )}
+                      >
+                        {children}
+                      </div>
+                    </main>
+                    {goose && (
+                      <>
+                        <AssistantDock column={column} />
+                        <HighlightLayer />
+                      </>
                     )}
-                  >
-                    {children}
+                    <KnowledgePalette />
                   </div>
-                </main>
-                {goose && (
-                  <>
-                    <AssistantDock column={column} />
-                    <HighlightLayer />
-                  </>
-                )}
-                <KnowledgePalette />
-              </div>
+                </div>
+              )}
             </div>
-          )}
+            {goose && !full ? <AssistantSidebar /> : null}
+          </div>
         </div>
-        {goose && !full ? <AssistantSidebar /> : null}
-      </div>
+      </BarSlot.Provider>
     </div>
   );
 }

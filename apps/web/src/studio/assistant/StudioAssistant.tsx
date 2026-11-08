@@ -1643,9 +1643,11 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
     }
   }, [slot, introAt]);
   const away = useSlotAway(introAt, slotHeight);
-  // The introduction in view, or a page with its own input: folded Goose keeps out of the way.
-  // One place to ask on a screen; Goose comes back once it works or is opened.
-  const quiet = (Boolean(introAt) && !away) || (ownInput && !busy && !open && !sidebar);
+  // The introduction in view, or a page with its own input: Goose's card keeps out of the way.
+  // One place to ask on a screen; Goose comes back once it works or is opened. On a page with its
+  // own input (Work) folded Goose still stands in the top bar, so it can be opened there.
+  const introInView = Boolean(introAt) && !away;
+  const quiet = introInView || (ownInput && !busy && !open && !sidebar);
   // Folded, Goose stands in the top bar: the page keeps no room for it at its bottom.
   const folded = small && !open;
   const reserve = !(quiet || sidebar || folded);
@@ -1863,7 +1865,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   );
   // Goose at the right end of the top bar, the chat folded into it.
   const pill =
-    folded && !quiet && hintSlot
+    folded && !introInView && hintSlot
       ? createPortal(
           <FoldedGoose
             state={state}

@@ -1,12 +1,14 @@
 import { FileQuestion, ShieldAlert, ShieldQuestion } from "lucide-react";
-import { type ReactNode, type SVGProps, useEffect, useState } from "react";
+import { type ReactNode, type SVGProps, useEffect, useRef, useState } from "react";
 import { Navigate, NavLink, useParams } from "react-router";
 import { useFeature } from "../../lib/features";
 import { type Key, lang, t } from "../../lib/i18n";
 import { MODE_HOME, type Mode, useMode } from "../../lib/mode";
 import { useMe } from "../../lib/session";
 import { RunnerBody } from "../../runner/RunnerView";
+import { cn } from "../../ui";
 import { TopBar, useCrumbs } from "../AppFrame";
+import { AssistantDock } from "../assistant/StudioAssistant";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatView } from "./ChatView";
 import { type CriticalItem, useBellOpened, useWaiting } from "./chats";
@@ -112,12 +114,33 @@ function ChatsPage() {
   const { chatId, folderId } = useParams();
   const me = useMe().data;
   const [sidebar, toggleSidebar] = useSidebarOpen();
+  // Goose: folded in the top bar, opened at the bottom of the chat's column.
+  const goose = useFeature("goose");
+  const column = useRef<HTMLDivElement>(null);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {me ? <TopBar me={me} sidebar={{ open: sidebar, onToggle: toggleSidebar }} /> : null}
       <div className="flex min-h-0 flex-1">
-        {sidebar ? <ChatSidebar /> : null}
-        {chatId ? <ChatView id={chatId} /> : folderId ? <FolderPage id={folderId} /> : <WorkHome />}
+        {/* The sidebar slides in and out; closed, it stays mounted but out of reach. */}
+        <div
+          inert={!sidebar}
+          className={cn(
+            "flex shrink-0 overflow-hidden transition-[width] duration-200 ease-out motion-reduce:transition-none",
+            sidebar ? "w-72" : "w-0",
+          )}
+        >
+          <ChatSidebar />
+        </div>
+        <div ref={column} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          {chatId ? (
+            <ChatView id={chatId} />
+          ) : folderId ? (
+            <FolderPage id={folderId} />
+          ) : (
+            <WorkHome />
+          )}
+          {goose ? <AssistantDock column={column} /> : null}
+        </div>
       </div>
     </div>
   );

@@ -1375,6 +1375,10 @@ const de: Record<Key, Line> = {
   "home.spaceName": "Name des Space",
   "home.spaceLimit": { one: "Höchstens {n} Space", other: "Höchstens {n} Spaces" },
   "organization.title": "Organisation",
+  "organization.statusCloud": "Cloud",
+  "organization.statusConnected": "Verbunden",
+  "organization.statusLocal": "Lokal, nicht verbunden",
+  "organization.thisComputer": "Dieser Computer",
   "organization.hint":
     "Wer in der Organisation ist und auf welchem Paket sie läuft. Einladen und verwalten kannst du im Konto.",
   "organization.name": "Name",
@@ -6233,6 +6237,10 @@ const en = {
   "home.spaceName": "Space name",
   "home.spaceLimit": { one: "At most {n} space", other: "At most {n} spaces" },
   "organization.title": "Organization",
+  "organization.statusCloud": "Cloud",
+  "organization.statusConnected": "Connected",
+  "organization.statusLocal": "Local, not connected",
+  "organization.thisComputer": "This computer",
   "organization.hint":
     "Who’s in the organization and which plan it’s on. You invite and manage members in the account.",
   "organization.name": "Name",

@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Laptop } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { APP_VERSION } from "../about/AboutLinks";
@@ -46,9 +46,14 @@ export function EngentyMenu({
   const [open, setOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
   const [flyout, setFlyout] = useState(false);
-  // The cloud studio's organization; a local install names none here (it has one, no switch).
+  // The cloud studio's organization; on a computer the one it is connected to, if any.
   const organization = me.mode === "managed" ? currentOrganization(me) : null;
   const canSwitch = switchable(me);
+  const linked = me.mode === "local" && me.account?.signedIn ? me.account : null;
+  // Connected, it switches where the connection is kept (Einstellungen › Konto).
+  const linkedOthers = linked
+    ? linked.organizations.filter((o) => o.id !== linked.organizationId).length
+    : 0;
   const manage = useManageOrganization(me);
   const installPrompt = useInstallPrompt();
   const ref = useRef<HTMLDivElement>(null);
@@ -164,8 +169,8 @@ export function EngentyMenu({
                   </span>
                   <span className="truncate text-[0.75rem] text-ink-4">
                     {organization.plan
-                      ? `${t("organization.title")} · ${organization.plan.name}`
-                      : t("organization.title")}
+                      ? `${t("organization.statusCloud")} · ${organization.plan.name}`
+                      : t("organization.statusCloud")}
                   </span>
                 </span>
                 {canSwitch ? <ChevronRight className="size-4 shrink-0 text-ink-4" /> : null}
@@ -184,6 +189,51 @@ export function EngentyMenu({
                   <OrganizationList me={me} onDone={() => setOpen(false)} />
                 </div>
               ) : null}
+              {rule}
+            </>
+          ) : me.mode === "local" ? (
+            <>
+              {/* A computer: the organization it is connected to, or that it runs alone. The
+                  connection and the switch to another organization are kept in Konto. */}
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-3 rounded-lg px-2.5 py-1.5 text-left transition hover:bg-accent"
+                onClick={() => go("/settings/account")}
+              >
+                {linked ? (
+                  <OrganizationFace
+                    org={{
+                      id: linked.organizationId,
+                      name: linked.organization ?? linked.name,
+                      slug: null,
+                      role: "member",
+                      personal: false,
+                      plan: linked.plan,
+                    }}
+                    size="xs"
+                  />
+                ) : (
+                  <span className="grid size-6 shrink-0 place-items-center rounded-md bg-paper-3 text-ink-2 ring-1 ring-border">
+                    <Laptop className="size-3.5" />
+                  </span>
+                )}
+                <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <span className="truncate font-medium text-[0.875rem] text-ink">
+                    {linked ? (linked.organization ?? linked.name) : t("organization.thisComputer")}
+                  </span>
+                  <span
+                    className={cn("truncate text-[0.75rem]", linked ? "text-moss" : "text-ink-4")}
+                  >
+                    {linked
+                      ? linked.plan
+                        ? `${t("organization.statusConnected")} · ${linked.plan.name}`
+                        : t("organization.statusConnected")
+                      : t("organization.statusLocal")}
+                  </span>
+                </span>
+                {linkedOthers ? <ChevronRight className="size-4 shrink-0 text-ink-4" /> : null}
+              </button>
               {rule}
             </>
           ) : null}
