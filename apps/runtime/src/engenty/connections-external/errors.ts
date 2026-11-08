@@ -9,3 +9,14 @@ export class ImportValidationError extends Error {
     this.name = "ImportValidationError";
   }
 }
+
+/** The registry answered a request with an error status: 404 when it doesn't list the domain. */
+export class RegistryRequestError extends Error {
+  constructor(
+    readonly status: number,
+    url: string,
+  ) {
+    super(`registry request failed (${status}): ${url}`);
+    this.name = "RegistryRequestError";
+  }
+}
