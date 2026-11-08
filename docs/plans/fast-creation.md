@@ -762,9 +762,10 @@ The slow path stays for:
 On the combined branch the shortcut sits in `answerGoesOn`, which `submitPage` and `reviewStep`
 both call, in place of the write of `running`:
 
-- **Credits first.** A step with `timeout` or `remind` gave its hold back, and `holdAgain` runs
-  before the write. Refused, the run waits for credits as it does now, so the shortcut sits behind
-  that check.
+- **Credits later.** A step with `timeout` or `remind` gave its hold back. Step 5 held again in
+  `answerGoesOn`, before the write; since `641b0aec` the answer only sets `RunState.holdLater`,
+  and `drive()` holds right before the next step that costs. Refused, the run waits for credits
+  there. No step that costs runs without a hold, and the pages in between wait for nothing.
 - **Through `waitForAnswer`,** the call `drive()` uses, with `{ rev }` and `by`. `updateRun` writes
   the notices with the status, and `by` keeps a person from being told of the page they just
   reached themselves. Nothing has to be added for notices.
@@ -954,6 +955,24 @@ the browser. With these details:
   the last moment before a close was not checked there. A note typed just before leaving by
   navigation was kept.
 
+### After that: pages the server works out
+
+Pages that are not shown ahead still waited for a runner: with web and runner apart, a median of
+1.1 s, at most 3 s. Three commits after step 6 bring that to about 54 ms:
+
+- **The runner is told at once** (`4e675150`). `kick` in a process without a runner also calls a
+  runner that reports (`otherRunners`): `POST /api/peer/runs/:id/take` (`routes/peer.ts`), with a
+  ticket signed by the processes' shared secret (`peerTicket` in `secrets/signing.ts`), good for
+  60 s, one run and one tenant. The runner takes the run at once (`takeNow`). The line and the
+  runner's look every 2 s stay as the fallback. `watchRun` looks every 100 ms for 15 s after the
+  run changed, else every second as before. The runner does not call the web back, since web
+  processes register no address; that would save about 50 ms and is not built.
+- **No credit hold at the answer** (`641b0aec`): "Credits later" above. `reserveForRun` takes the
+  amount as a number or a function, so the estimate is worked out only where a hold is made, with
+  the Manage-App.
+- **The stream's first view at once** (`2a2838b6`). `/api/runs/:id/stream` waited 120 ms before
+  every view. It sends the first at once, then at most one per 40 ms (`VIEW_GAP_MS`).
+
 ## Part 5 — wizards in chat apps: MCP Apps only
 
 A wizard reaches ChatGPT, Claude and the other AI apps through our MCP server, and the app
@@ -1111,6 +1130,18 @@ The first pass stays behind a switch `fastCreate` (registered in
    both typed values. With the server out of reach for 6 s, the next page showed with the note that
    the answers are not saved yet, and the server had the answer once it was back. The chat runner
    went the same way. All tests pass with `durableRuns` and `fastCreate` on and off.
+
+   After it, the hand-off to a runner (Part 4, "After that"), measured the same way on the wizard
+   with `remind`, web and runner apart, at a load of 3 to 5:
+
+   | State | Median | At most |
+   |---|---|---|
+   | After step 6 | 1125 ms | 2970 ms |
+   | The runner told at once (`4e675150`) | about 140 ms | 205 ms |
+   | No credit hold at the answer (`641b0aec`), no change on a computer | about 135 ms | 174 ms |
+   | The stream's first view at once (`2a2838b6`) | about 54 ms | 62 ms |
+
+   The runner's own line shows it reaching the next page 8 to 19 ms after the answer.
 7. **Test it all together.** Durable runs and this plan, on the one branch:
    - what `durable-agents.md` lists as not tested together: real models, Manage's part of telling
      people, a real mail, push, a real mailbox, the cloud's split roles, a 2-day wait across a deploy
@@ -1167,6 +1198,11 @@ Built on the combined branch, for Part 1, the text form, the first pass, the sho
 | `apps/runtime/src/routes/runs.ts` | `PUT /:id/pages/:stepId/unsent`; `seq`, `tab` and `rev` on `POST /:id/pages/:stepId` |
 | `packages/runner/src/RunnerView.tsx`, `api.ts` | saves what is typed (`useKeepTyping`, `api.keep`); the saving notes |
 | `apps/web/src/runner/useRun.ts` | pages in flight, one at a time; the page ahead; drops a view older than the last confirmed `rev`; retries; a refused page |
+| new `apps/runtime/src/routes/peer.ts`, `secrets/signing.ts` | `POST /api/peer/runs/:id/take`; `peerTicket`, `peerTicketValid` |
+| `apps/runtime/src/engine/runner.ts` | `kick` calls a runner that reports; `takeNow`; `RunState.holdLater`, the hold before the next step that costs |
+| `apps/runtime/src/engine/events.ts` | `watchRun` every 100 ms for 15 s after a change |
+| `apps/runtime/src/credits/credits.ts` | `reserveForRun` with the amount as a function |
+| `apps/runtime/src/routes/runs.ts` | the stream's first view at once, then one per 40 ms |
 
 Still to do:
 
