@@ -107,6 +107,7 @@ const RULES = {
     [
       "generisches Maskulinum: neutral umformulieren oder Doppelpunkt (Kund:innen)",
       /\b(Besucher|Kunden?|Bewerber|Nutzer|Teilnehmer|Mitarbeiter|Endnutzer|Anwender|Händler|Interessent|Patient|Empfänger|Absender|Leser|Betreiber|Inhaber|Kollege|Handwerker|Antragsteller|Käufer|Verkäufer|Lieferant|Mieter|Vermieter|Eigentümer|Auftraggeber|Wettbewerber)(?!:in)(n|en|s)?\b/,
+      ["new.lead"],
     ],
     ["Glossar: Projekt → Space", /\bProjekt/],
     ["Glossar: schreibgeschützt / synchronisiert", /schreibgeschützt|synchronisiert/i],
