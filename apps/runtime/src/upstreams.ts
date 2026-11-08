@@ -202,6 +202,15 @@ export function forgetUpstreams(tenant: string) {
   accounts.delete(tenant);
 }
 
+/** Whether the tenant's calls go through the gateway and one of its own accounts is ready. */
+export async function ownAccountReady(tenant: string): Promise<boolean> {
+  if (!(await gatewayOnly(tenant))) {
+    return false;
+  }
+  const { accounts } = await upstreamsOf(tenant).catch(() => ({ accounts: [] }));
+  return accounts.some((a) => a.status === "ready");
+}
+
 /**
  * Whether the tenant had an account ready when the runtime last looked. A provider's "account is
  * empty" through the gateway is then the organization's own account, which its admins can top up.

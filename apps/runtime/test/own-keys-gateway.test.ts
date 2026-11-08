@@ -149,11 +149,12 @@ const server: Server = createServer(async (req, res) => {
       id: tenant,
       name: tenant,
       status: "active",
-      balanceCredits: 100,
+      // Tenants Z and Y have the switch on and no credits; Z has an account ready, Y none.
+      balanceCredits: tenant === "tenant-z" || tenant === "tenant-y" ? 0 : 100,
       plan: { id: "pro", name: "Pro" },
       limits: { concurrentRuns: 2 },
       db: null,
-      features: { ownKeys: true, ownKeysGateway: tenant === "tenant-g" },
+      features: { ownKeys: true, ownKeysGateway: tenant !== "tenant-o" },
     });
   }
   if (url.pathname === "/v1/models") {
@@ -281,6 +282,8 @@ describe("an organization with ownKeysGateway on", () => {
     expect(view.ownKeysGateway).toBe(true);
     expect(view.ownKeysUnused).toBe(false);
     expect(view.keys.openai).toBe(false);
+    // A class bound to a language model the gateway serves can start a run.
+    expect(await withTenant("tenant-g", () => models.classProblem("high"))).toBeNull();
   });
 
   it("doesn't add an account twice when a move was cut short", async () => {
@@ -472,5 +475,29 @@ describe("the studio's API keys in the cloud", () => {
     const saved = await call("PUT", "/models", owner, { bindings: { high: "openai:gpt-5.5" } });
     expect(saved.status).toBe(200);
     expect(((await saved.json()) as any).bindings.high).toBe("credits:openai/gpt-5.5");
+  });
+});
+
+describe("an organization with ownKeysGateway on and no credits", () => {
+  it("may start what runs on its own account ready, and nothing without one", async () => {
+    const { canSpend } = await import("../src/credits/credits");
+    accounts["tenant-z"] = [
+      {
+        id: "up-z",
+        source: "compat",
+        label: "Ours",
+        place: "EU",
+        keyHint: "1234",
+        status: "ready",
+        error: null,
+        checkedAt: "2026-11-08T10:00:00.000Z",
+        models: 1,
+        passing: 1,
+        uses: [{ class: "standard", model: "GPT 5.4 Nano" }],
+        month: { calls: 0, usd: 0 },
+      },
+    ];
+    expect(await withTenant("tenant-z", () => canSpend())).toBe(true);
+    expect(await withTenant("tenant-y", () => canSpend())).toBe(false);
   });
 });

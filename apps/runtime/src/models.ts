@@ -1897,9 +1897,13 @@ export async function classProblem(cls: ModelClass): Promise<Said | null> {
       const catalog = await classCatalog();
       const named = creditsModelOf((await config()).settings.bindings[cls]);
       if (named) {
-        return catalog?.models && !catalog.models.some((m) => m.id === named)
-          ? note("modelNotAvailableAccount")
-          : null;
+        // The gateway lists the media models a caller may name; through it with own keys a class
+        // may also name a language model it serves (`gatewayBindings`).
+        const offered =
+          !catalog?.models ||
+          catalog.models.some((m) => m.id === named) ||
+          ((await ownKeysThroughGateway()) && (await gatewayIds()).has(named));
+        return offered ? null : note("modelNotAvailableAccount");
       }
       return catalog?.classes && !catalog.classes[cls] ? note("accountNoModelSet") : null;
     }
