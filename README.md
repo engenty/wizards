@@ -42,8 +42,9 @@ waiting for developers. Host it in the cloud or inside your own walls, with any 
 ## Open format
 
 A wizard is one JSON document. Anyone may read, write and run wizards in their own tools. The
-wizard format and the runner that shows a wizard to people are under the MIT licence. The studio,
-the runtime and the rest are source available under FSL-1.1-MIT. Each release of them becomes
+wizard format and the runner that shows a wizard to people are under the MIT licence, and so are
+four libraries in `packages/`: the decision model, the search index, search on libSQL and Goose,
+the copilot. The studio, the runtime and the rest are source available under FSL-1.1-MIT. Each release of them becomes
 MIT two years after it is published. [License](#license) says which file is under which.
 
 ## How it looks
@@ -227,12 +228,13 @@ and is a site of its own: `pnpm dev:docs`.
 
 ## License
 
-The wizard format and the runner are MIT. The rest of the code is FSL-1.1-MIT.
+The wizard format, the runner and four libraries are MIT. The rest of the code is FSL-1.1-MIT.
 
 | What | Licence |
 |---|---|
 | The wizard format: the sixteen files of `packages/shared` that define a wizard, read it and pack it as a `.wizard` file | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](packages/shared/LICENSE-MIT)) |
 | The runner, `packages/runner` | MIT ([LICENSE](packages/runner/LICENSE)) |
+| The libraries `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql` and `@engenty/goose` on npm, in `packages/decision-model`, `packages/search-index`, `packages/search-libsql` and `packages/goose` | MIT (the `LICENSE` in each folder) |
 | The plugin for the AI apps, `plugin/`, without the engenty figures in it | MIT ([LICENSE](plugin/LICENSE)) |
 | Everything else: the studio, the runtime, the `wizards` command, `@engenty/wizards` on npm | FSL-1.1-MIT ([LICENSE](LICENSE)) |
 | The engenty figures as artwork | CC BY 4.0 ([LICENSE-FIGURES](LICENSE-FIGURES)) |
