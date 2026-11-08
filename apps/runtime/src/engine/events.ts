@@ -75,6 +75,13 @@ export function subscribe(runId: string, listener: (signal: RunSignal) => void):
 
 /** How often a watcher looks at the row for what another process changed. */
 const WATCH_POLL_MS = 1000;
+/**
+ * While the run changed a moment ago, more often: an answer just handed it to a runner (another
+ * process), whose next write the person is waiting for.
+ */
+const WATCH_HOT_MS = 100;
+/** How long after a change the watcher keeps looking often. */
+const WATCH_HOT_FOR_MS = 15_000;
 
 /**
  * Tells of every change on a run: at once when this process made it, within a second when the
@@ -85,7 +92,13 @@ const WATCH_POLL_MS = 1000;
 export function watchRun(runId: string, listener: (signal: RunSignal) => void): () => void {
   /** The newest event the listener has had; null until the first look. */
   let told: number | null = null;
+  // When the row last changed, as the last look saw it or this process did it: a run at work is
+  // looked at often.
+  let changedAt = 0;
+  let lookedAt = 0;
   const unsubscribe = subscribe(runId, (signal) => {
+    // This process changed the run (an answer that handed it to a runner): look often from now.
+    changedAt = Date.now();
     if (signal.event) {
       if (told !== null && signal.event.id <= told) {
         return;
@@ -97,9 +110,12 @@ export function watchRun(runId: string, listener: (signal: RunSignal) => void): 
   let last: string | null = null;
   let busy = false;
   const look = async () => {
-    if (busy) {
+    const now = Date.now();
+    const hot = now - changedAt < WATCH_HOT_FOR_MS;
+    if (busy || now - lookedAt < (hot ? WATCH_HOT_MS : WATCH_POLL_MS) - 20) {
       return;
     }
+    lookedAt = now;
     busy = true;
     try {
       const [row] = await db
@@ -126,6 +142,7 @@ export function watchRun(runId: string, listener: (signal: RunSignal) => void): 
           }
         }
       }
+      changedAt = Math.max(changedAt, row?.updatedAt.getTime() ?? 0);
       const mark = row ? `${row.updatedAt.getTime()}:${row.call ?? 0}` : null;
       if (last !== null && mark !== last) {
         listener({ runId, event: null });
@@ -137,7 +154,7 @@ export function watchRun(runId: string, listener: (signal: RunSignal) => void): 
       busy = false;
     }
   };
-  const timer = setInterval(() => void look(), WATCH_POLL_MS);
+  const timer = setInterval(() => void look(), WATCH_HOT_MS);
   timer.unref();
   void look();
   return () => {

@@ -39,6 +39,7 @@ import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
 import { liveRoutes } from "./routes/live.js";
 import { marketplaceGuest, marketplaceStudio } from "./routes/marketplace.js";
 import { organizationRoutes } from "./routes/organization.js";
+import { peerRoutes } from "./routes/peer.js";
 import { personRoutes } from "./routes/person.js";
 import { publicPluginRoutes } from "./routes/plugin-public.js";
 import { pluginRoutes } from "./routes/plugins.js";
@@ -396,6 +397,7 @@ if (serves.studio) {
   app.route("/api/local/debug", localDebugRoutes);
 }
 app.route("/api/internal", internalRoutes);
+app.route("/api/peer", peerRoutes);
 if (serves.doors) {
   app.use("/api/public/*", answers);
   app.use("/api/shares/*", answers);

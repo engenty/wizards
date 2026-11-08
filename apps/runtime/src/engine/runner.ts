@@ -104,6 +104,7 @@ import {
   guestChecksOn,
   guestRun,
 } from "../safety.js";
+import { peerTicket } from "../secrets/signing.js";
 import { nameOf } from "../services/access.js";
 import { reportRun } from "../services/manage-reports.js";
 import { switchedOffRunners } from "../services/runners.js";
@@ -119,6 +120,7 @@ import {
   heartbeatRuns,
   indexRun,
   markLine,
+  otherRunners,
   restRun,
   setWake,
   waitingRuns,
@@ -758,12 +760,43 @@ async function grantConnectors(
 export function kick(runId: string) {
   const tenant = currentTenant();
   void wakeRun(runId)
-    .then(() => {
-      if (env.serves.runner) {
-        return take(runId, tenant);
-      }
-    })
+    .then(() => (env.serves.runner ? take(runId, tenant) : nudgeRunner(runId, tenant)))
     .catch((err) => console.error(`[run ${runId}]`, err));
+}
+
+/**
+ * A process without a runner tells one at once, so the run does not wait for a runner's next look
+ * at the line (`POLL_MS`). A runner that cannot take it, or does not answer, changes nothing: the
+ * line still has the run, and the next look takes it.
+ */
+async function nudgeRunner(runId: string, tenant: string) {
+  const runners = await otherRunners();
+  const runner = runners[Math.floor(Math.random() * runners.length)];
+  if (!runner) {
+    return;
+  }
+  try {
+    await fetch(`${runner.url}/api/peer/runs/${encodeURIComponent(runId)}/take`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${peerTicket(runId, tenant)}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ tenant }),
+      signal: AbortSignal.timeout(2000),
+    });
+  } catch {
+    // The line has the run: the runner's next look takes it.
+  }
+}
+
+/** Another process of this runtime asks this runner to take a run now (routes/peer.ts). */
+export function takeNow(runId: string, tenant: string) {
+  if (!env.serves.runner) {
+    return false;
+  }
+  void take(runId, tenant).catch((err) => console.error(`[run ${runId}]`, err));
+  return true;
 }
 
 /** The claim in the control database, and on the run's own row, where this process's writes need it. */

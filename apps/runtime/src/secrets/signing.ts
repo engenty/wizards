@@ -42,6 +42,27 @@ export function verifySignedUrl(href: string): boolean {
 }
 
 /**
+ * One of this runtime's processes asks a runner to take a run now (`kick` in a process without a
+ * runner). Good for a minute; the processes share `authSecret`, nobody else has it.
+ */
+export function peerTicket(runId: string, tenant: string): string {
+  const exp = String(Math.floor(Date.now() / 1000) + 60);
+  return `${exp}.${sign(`take:${tenant}:${runId}|${exp}`)}`;
+}
+
+export function peerTicketValid(
+  runId: string,
+  tenant: string,
+  ticket: string | undefined,
+): boolean {
+  const [exp, sig] = (ticket ?? "").split(".");
+  if (!exp || !sig || Number(exp) * 1000 < Date.now()) {
+    return false;
+  }
+  return sameSignature(`take:${tenant}:${runId}|${exp}`, sig);
+}
+
+/**
  * A ticket to one run's routes without a session: the widget an AI app shows runs on the host's
  * origin and reaches the run with it. Sent as `?rt=`, since an EventSource sends no headers.
  */
