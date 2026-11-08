@@ -3,6 +3,7 @@ import "../no-webstorage.js";
 import "./install-env.js";
 import { accountCommand } from "./account.js";
 import { apps, connectCommand } from "./connect.js";
+import { findExternal, runExternal } from "./external.js";
 import { featuresCommand } from "./features.js";
 import { command, layout, packageVersion, readInstallNote } from "./home.js";
 import { startedIn } from "./install-env.js";
@@ -17,6 +18,35 @@ import { autostart, restart, status, stop } from "./status.js";
 import { cmd, cyan, tilde } from "./ui.js";
 import { autoUpdateCommand, update } from "./update.js";
 import { validateCommand } from "./validate.js";
+
+/** What `wizards <name>` does itself; any other name may be a file in the commands folder (external.ts). */
+const COMMANDS = [
+  "help",
+  "version",
+  "start",
+  "setup",
+  "studio",
+  "open",
+  "status",
+  "doctor",
+  "logs",
+  "report",
+  "stop",
+  "restart",
+  "update",
+  "autostart",
+  "autoupdate",
+  "account",
+  "sandbox",
+  "connect",
+  "disconnect",
+  "mcp",
+  "features",
+  "move-files",
+  "move-folder-sources",
+  "validate",
+  "uninstall",
+];
 
 /** One line of the help: the name padded, then coloured, so the columns stay straight. */
 const line = (name: string, what: string) => `  ${cyan(name.padEnd(command().length + 12))}${what}`;
@@ -164,6 +194,13 @@ function parse(argv: string[]): Args | string {
 }
 
 async function main(argv: string[]): Promise<number> {
+  // A command another tool put in the commands folder gets every argument as typed.
+  if (argv[0] && !argv[0].startsWith("-") && !COMMANDS.includes(argv[0])) {
+    const file = findExternal(layout(), argv[0]);
+    if (file) {
+      return runExternal(layout(), file, argv.slice(1));
+    }
+  }
   const args = parse(argv);
   if (typeof args === "string") {
     console.error(`${args} ${SEE_HELP}`);

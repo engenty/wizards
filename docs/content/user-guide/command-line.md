@@ -1,7 +1,7 @@
 ---
 title: Command line
 description: The wizards command – start, setup, status, update – and the settings file on your computer.
-version: 0.9.3
+version: 0.18.0
 ---
 
 ## Commands
@@ -31,6 +31,7 @@ version: 0.9.3
 | `wizards move-files` | Once, after the update to 0.16: moves the files of your spaces (logos, assets, documents) to where they are kept now, by their content, so the same file is stored once. Until then they don’t open. Running it again moves only what is left |
 | `wizards move-folder-sources` | Once, with Dateien and the new Wissen switched on: each folder the Sources plugin read into Wissen becomes a mounted folder in Dateien, and Wissen takes it from there. What you changed by hand stays yours. Running it again converts only what is left |
 | `wizards validate <path …>` | Checks wizards without the studio: `.wizard` files, unpacked wizard files, or a wizard’s JSON. `--json` prints the problems as JSON |
+| `wizards <name>` | Runs the file `<name>` from `~/.engenty/wizards/commands`, if it is executable, and passes every argument on. Other tools put commands there. Not on Windows |
 
 | Option | What it does |
 |---|---|
@@ -54,6 +55,7 @@ running, `wizards start` opens the running one instead of starting a second.
 | `~/.engenty/wizards/data` | Your wizards, results and files. See [Your data](./data.md) |
 | `~/.engenty/wizards/.env` | The settings file |
 | `~/.engenty/wizards/plugins` | [Plugins](./plugins.md) on this computer |
+| `~/.engenty/wizards/commands` | Commands other tools added: `wizards <name>` runs the file `<name>` |
 | `~/.engenty/wizards/logs` | Logs: `install.log`, `update.log`, `runtime.log` when it runs in the background, `autostart.log` when a Mac starts it at login |
 | `~/.engenty/wizards/engines` | The sandbox, once `wizards sandbox add` put it there: one folder per engine |
 | `~/.engenty/wizards/tools`, `runtime` | Its own Node.js, and engenty wizards itself |
