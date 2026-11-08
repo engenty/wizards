@@ -208,7 +208,7 @@ export function WorkHome() {
 
 const lastAt = (c: SidebarChat) => c.last?.at ?? c.updatedAt;
 
-function greeting(name: string) {
+export function greeting(name: string) {
   const hour = new Date().getHours();
   const key = hour < 11 ? "work.home.morning" : hour < 18 ? "work.home.day" : "work.home.evening";
   return t(key, { name });
@@ -303,7 +303,7 @@ export function runFacts(run: WaitingRun) {
 }
 
 /** A run that waits for the person: answered in Work, an approval right here. */
-function RunCard({ run }: { run: WaitingRun }) {
+export function RunCard({ run }: { run: WaitingRun }) {
   const decide = useDecideRun(run);
   const navigate = useNavigate();
   const Icon = run.kind === "approve" ? ShieldQuestion : FileQuestion;

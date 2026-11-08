@@ -304,6 +304,7 @@ function BarMenu({
  * Fähigkeiten, which holds them), its results.
  */
 function usePlace():
+  | "start"
   | "home"
   | "new"
   | "space"
@@ -313,10 +314,15 @@ function usePlace():
   | "settings"
   | null {
   const { pathname } = useLocation();
+  // With `orgSpaces` the studio opens on Home; its wizards are a place of their own.
+  const orgSpaces = useFeature("orgSpaces");
   if (pathname === "/new") {
     return "new";
   }
-  if (pathname === "/" || pathname.startsWith("/edit/")) {
+  if (orgSpaces && pathname === "/") {
+    return "start";
+  }
+  if (pathname === "/" || pathname === "/wizards" || pathname.startsWith("/edit/")) {
     return "home";
   }
   if (pathname === "/skills") {
@@ -524,9 +530,21 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
         <div className="min-h-0 min-w-0 flex-1" />
       ) : (
         <>
-          {/* The space's wizards: with `orgSpaces` named as such, "Wizards". */}
+          {/* With `orgSpaces` the studio's Home first: first steps, then what waits and runs. */}
+          {orgSpaces ? (
+            <Link
+              to="/"
+              aria-label={t("start.title")}
+              aria-current={place === "start" ? "page" : undefined}
+              className={cn(glyph(place === "start", labels), horizontal ? "ml-1.5" : "mt-2")}
+            >
+              <Home className="size-5 shrink-0" />
+              {labels ? <Label>{t("start.title")}</Label> : null}
+            </Link>
+          ) : null}
+          {/* The space's wizards: with `orgSpaces` named as such, "Wizards", at their own place. */}
           <Link
-            to="/"
+            to={orgSpaces ? "/wizards" : "/"}
             aria-label={t(orgSpaces ? "nav.wizards" : "nav.home")}
             aria-current={place === "home" || place === "new" ? "page" : undefined}
             className={cn(
@@ -739,7 +757,7 @@ export function PhoneBar({ me }: { me: Me }) {
   const lit = (key: string) => (open ? false : place === key);
   const capsule = open
     ? 2
-    : place === "home" || place === "new"
+    : place === "start" || place === "home" || place === "new"
       ? 0
       : place === "space"
         ? 1
@@ -769,9 +787,9 @@ export function PhoneBar({ me }: { me: Me }) {
         <Link
           to="/"
           aria-label={t("nav.home")}
-          aria-current={place === "home" ? "page" : undefined}
+          aria-current={place === "home" || place === "start" ? "page" : undefined}
           onClick={() => setOpen(false)}
-          className={tab(lit("home"))}
+          className={tab(lit("home") || lit("start"))}
         >
           <Home className="size-[1.375rem]" />
         </Link>
