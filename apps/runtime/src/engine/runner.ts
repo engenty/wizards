@@ -1673,6 +1673,10 @@ async function answerGoesOn(
       await waitForPerson({ ...run, cursor }, cursor ?? step.id, { kind: "credits" }, state, {
         rev: run.rev,
       });
+      // The answer is in the run either way: what was typed for it goes.
+      if (patch.unsent !== undefined) {
+        await db.update(schema.run).set({ unsent: patch.unsent }).where(eq(schema.run.id, run.id));
+      }
       return false;
     }
     if (needsNoRunner(next, run.startedBy, state)) {
@@ -2418,6 +2422,33 @@ async function requireWaiting(runId: string, stepId: string) {
   return run;
 }
 
+/** The run's typed answers without this page's, as a patch; nothing when it has none. */
+function unsentWithout(run: RunRow, stepId: string): { unsent?: RunRow["unsent"] } {
+  if (!run.unsent?.[stepId]) {
+    return {};
+  }
+  const { [stepId]: _, ...rest } = run.unsent;
+  return { unsent: Object.keys(rest).length ? rest : null };
+}
+
+/**
+ * What is typed on a page and not sent yet, kept apart from the run's state: neither `state` nor
+ * `rev` changes, so typing never makes an answer or a drive fail, in any status. No step reads it.
+ * One page's entry is written in place, so two pages saving at once keep both.
+ */
+export async function keepUnsent(run: RunRow, stepId: string, values: Record<string, unknown>) {
+  const step = stepOf(run.definition, stepId);
+  if (step?.type !== "page") {
+    throw new RunConflict("Not a page");
+  }
+  await db
+    .update(schema.run)
+    .set({
+      unsent: sql`json_set(coalesce(${schema.run.unsent}, '{}'), ${`$.${stepId}`}, json(${JSON.stringify(values)}))`,
+    })
+    .where(eq(schema.run.id, run.id));
+}
+
 /** `by`: who answers, as the door established it; none for what the engine does itself. */
 export async function submitPage(
   runId: string,
@@ -2500,7 +2531,8 @@ export async function submitPage(
     step,
     state,
     cursor,
-    { label: await labelOf(run.definition, state) },
+    // What was typed on the page is in the answer now: its entry goes in the same update.
+    { label: await labelOf(run.definition, state), ...unsentWithout(run, stepId) },
     by,
   );
   await tellAnswered(run, stepId, by);
@@ -2998,6 +3030,10 @@ export async function runView(
     step,
     answered: run.state.history.map((id) => stepOf(def, id)).filter((s): s is Step => Boolean(s)),
     values: run.state.values,
+    // What was typed and not sent; `viewFor` keeps it from a viewer who may not answer.
+    ...(run.status === "waiting_input" && step?.type === "page" && run.unsent?.[step.id]
+      ? { unsent: run.unsent[step.id] }
+      : {}),
     prefill: step?.type === "page" ? prefillOf(step, run, closed) : {},
     ...(step?.type === "page" && step.data
       ? { pageData: await pageDataOf(step.data, run, def, brand.name, hide) }

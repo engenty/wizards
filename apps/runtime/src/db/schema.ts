@@ -376,6 +376,11 @@ export const run = sqliteTable(
     wakeAt: integer("wake_at", { mode: "timestamp_ms" }),
     cursor: text("cursor"),
     state: text("state", { mode: "json" }).$type<RunState>().notNull(),
+    /**
+     * Answers typed on a page and not sent yet, by page. No part of `state`, and no `rev`: typing
+     * never makes an answer or a drive fail, and no step reads it (docs/plans/fast-creation.md).
+     */
+    unsent: text("unsent", { mode: "json" }).$type<Record<string, Record<string, unknown>>>(),
     /** The claim of the runner driving the run (`run_index.generation`), only ever upward. */
     claim: integer("claim").notNull().default(0),
     /** Counts the writes of `state` and `status`: a person's write needs the number it read. */

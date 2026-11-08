@@ -1462,6 +1462,11 @@ export interface RunView {
   /** Pages and reviews answered before it, oldest first: what a chat shows above the current step. */
   answered: Step[];
   values: Record<string, unknown>;
+  /**
+   * What was typed on the current page and not sent yet (`run.unsent`), for a viewer who may answer
+   * it: another tab or device starts the page from it.
+   */
+  unsent?: Record<string, unknown>;
   /** What fields of the current page start with, from earlier steps (`prefill`). */
   prefill: Record<string, unknown>;
   /** What the current page's `components` read besides its answers (`data`). */

@@ -711,6 +711,7 @@ export async function draftStepView(
     ...(latest ?? {
       id: `draft-${w.id}`,
       wizardId: w.id,
+      unsent: null,
       tenantId: w.tenantId,
       files: [],
       grant: null,

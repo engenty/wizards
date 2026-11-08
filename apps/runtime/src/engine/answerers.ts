@@ -175,6 +175,8 @@ export async function viewFor(view: RunView, run: RunRow, caller: Caller): Promi
     canBack: view.canBack && mayGoBackFrom(run, caller, team),
     ask: may ? view.ask : null,
     talk: may && view.talk,
+    // What was typed is for whoever may answer it.
+    unsent: may ? view.unsent : undefined,
   };
   if (!guest) {
     return narrowed;

@@ -250,6 +250,7 @@ const call = (
 const DOORS: [string, string, string, unknown][] = [
   ["a page", "POST", "/pages/form", { values: {} }],
   ["a page of the team", "POST", "/pages/team", { values: { intern: "x" } }],
+  ["what is typed on a page", "PUT", "/pages/team/unsent", { values: { intern: "x" } }],
   ["a review", "POST", "/reviews/check", { type: "accept" }],
   ["back", "POST", "/back", {}],
   ["retry", "POST", "/retry", {}],

@@ -31,7 +31,7 @@ import {
   useNotifyState,
   useWakeLock,
 } from "./device";
-import { api, runBase, runnerEnv, withBase } from "./env.js";
+import { api, runBase, runnerEnv, standalone, withBase } from "./env.js";
 import { FieldInput, type Values } from "./fields";
 import { eventText, noteLine, runnerLangCode, setChoiceLabels, t } from "./i18n.js";
 import { DownloadButtons, OutputView } from "./outputs";
@@ -141,8 +141,11 @@ function StepHeading({
 
 export function initialValues(step: PageStep, view: RunView): Values {
   const out: Values = {};
+  // What was typed here and not sent (another tab, another device, before a reload) comes first.
+  const typed = view.step?.id === step.id ? (view.unsent ?? {}) : {};
   for (const f of step.fields) {
     out[f.id] =
+      typed[f.id] ??
       view.values[f.id] ??
       view.prefill?.[f.id] ??
       f.default ??
@@ -160,9 +163,67 @@ function typedInputs(form: HTMLElement): HTMLElement[] {
   ).filter((el) => !el.closest("dialog") && el.offsetParent !== null);
 }
 
+/** After the last change, how long typing rests before it is saved. */
+const KEEP_TYPING_MS = 800;
+
+/**
+ * Keeps what is typed on a page with the run (`run.unsent`): 800 ms after the last change, when
+ * the tab is hidden, and as it closes (`keepalive`). Nothing once the page is sent, and nothing
+ * the person did not change. A host that runs wizards on its own keeps nothing.
+ */
+function useKeepTyping(runId: string, stepId: string, values: Values, sent: { current: boolean }) {
+  const latest = useRef(values);
+  const open = useRef(false);
+  const first = useRef(true);
+  latest.current = values;
+  const save = useRef((_closing: boolean) => {});
+  save.current = (closing: boolean) => {
+    if (!open.current || sent.current || standalone()) {
+      return;
+    }
+    open.current = false;
+    const path = `${runBase(runId)}/pages/${stepId}/unsent`;
+    if (closing) {
+      api.keep(path, { values: latest.current });
+    } else {
+      api.put(path, { values: latest.current }).catch(() => {
+        // Tried again with the next change, or as the tab is hidden.
+        open.current = true;
+      });
+    }
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: every change of the values counts.
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    open.current = true;
+    const timer = setTimeout(() => save.current(false), KEEP_TYPING_MS);
+    return () => clearTimeout(timer);
+  }, [values]);
+  useEffect(() => {
+    const hidden = () => {
+      if (document.visibilityState === "hidden") {
+        save.current(true);
+      }
+    };
+    const leave = () => save.current(true);
+    document.addEventListener("visibilitychange", hidden);
+    window.addEventListener("pagehide", leave);
+    return () => {
+      document.removeEventListener("visibilitychange", hidden);
+      window.removeEventListener("pagehide", leave);
+    };
+  }, []);
+}
+
 function PageForm({ view, run, step }: { view: RunView; run: Run; step: PageStep }) {
   // Keyed by the page at the call site, so a page (or a page revisited) starts from the run's values.
   const [values, setValues] = useState<Values>(() => initialValues(step, view));
+  // Once the page is on its way, its typed answers are in it: nothing more is kept apart.
+  const sent = useRef(false);
+  useKeepTyping(view.id, step.id, values, sent);
   // Fields still uploading or recording; going on now would leave their answer behind.
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const form = useRef<HTMLFormElement>(null);
@@ -177,7 +238,15 @@ function PageForm({ view, run, step }: { view: RunView; run: Run; step: PageStep
     [step.fields, view.options, view.decidedFields],
   );
   const shown = shownFields(fields, view.known ?? {}, values);
-  const submit = () => void run.submitPage(step.id, values);
+  const submit = () => {
+    sent.current = true;
+    void run.submitPage(step.id, values).then((ok) => {
+      // Refused: the person stays on the page, and what they type is kept again.
+      if (!ok) {
+        sent.current = false;
+      }
+    });
+  };
   const fieldInput = (f: (typeof shown)[number]) => (
     <FieldInput
       key={f.id}

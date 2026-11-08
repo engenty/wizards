@@ -80,6 +80,7 @@ import {
   editOutput,
   GuestBudgetError,
   goBack,
+  keepUnsent,
   NoCreditsError,
   RunConflict,
   RunInputError,
@@ -240,6 +241,8 @@ function visitorId(c: Context, create: boolean, embedded = false): string | null
  */
 /** A view's kept state stays small: ticks and choices, not data. */
 const MAX_VIEW_STATE = 32_000;
+/** What a page's typed answers may take, as JSON. */
+const MAX_UNSENT = 64_000;
 
 /**
  * The run, if the caller may do what the request does. Reading takes opening the run. Anything else
@@ -986,6 +989,26 @@ export const runRoutes = new Hono()
       .parse(await c.req.json());
     try {
       await submitPage(run.id, c.req.param("stepId"), values, await actorOf(c, run));
+      return c.json({ ok: true });
+    } catch (err) {
+      return commandError(c, err);
+    }
+  })
+  // What is typed on a page and not sent yet: kept apart from the run's state, in any status, so a
+  // reload, another tab or another device starts the page from it. The same check as an answer.
+  .put("/:id/pages/:stepId/unsent", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
+    if (!run) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const { values } = z
+      .object({ values: z.record(z.string(), z.unknown()) })
+      .parse(await c.req.json());
+    if (JSON.stringify(values).length > MAX_UNSENT) {
+      return c.json({ error: "too large" }, 413);
+    }
+    try {
+      await keepUnsent(run, c.req.param("stepId"), values);
       return c.json({ ok: true });
     } catch (err) {
       return commandError(c, err);

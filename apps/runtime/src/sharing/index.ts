@@ -271,6 +271,7 @@ function standIn(wizard: WizardRow, userId: string): RunRow {
   return {
     id: `preview-${wizard.id}`,
     wizardId: wizard.id,
+    unsent: null,
     tenantId: wizard.tenantId,
     definition: wizard.draft,
     files: [],
