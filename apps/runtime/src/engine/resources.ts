@@ -1,11 +1,21 @@
+import { AsyncResource } from "node:async_hooks";
 import type { BrowserContext, CDPSession, Page } from "playwright-core";
-import { brokerSecret, reachesOutside, whoOf } from "../broker/index.js";
+import {
+  brokerHost,
+  brokerSecret,
+  reachesOutside,
+  runHosts,
+  whereOfRun,
+  whoOf,
+} from "../broker/index.js";
 import { webContext } from "../render/chromium.js";
 import { guestRun } from "../safety.js";
 import {
   guestSandboxEngine,
+  PACKAGE_REGISTRIES,
   type Sandbox,
   type SandboxCapabilities,
+  type SandboxEgress,
   type SandboxEngine,
   sandboxEngine,
 } from "../sandbox/index.js";
@@ -52,6 +62,8 @@ export class RunResources {
   private sandbox: Sandbox | null = null;
   /** The engine this run's sandbox is made on; null until bound, or when the run has none. */
   private engine: SandboxEngine | null = null;
+  /** How the run's sandbox reaches outside: through the broker, as the run. */
+  private egress: SandboxEgress | null = null;
   private scope: StoreScope | null = null;
   /** Bound for a share job: the one caller of a run that is done (broker/over.ts). */
   private share = false;
@@ -68,15 +80,46 @@ export class RunResources {
   constructor(readonly runId: string) {}
 
   /** Whose store kept sign-ins are read from and written to, and whose run this is. */
-  bind(scope: StoreScope, run: { mode: string; userId: string | null }, share = false) {
+  bind(
+    scope: StoreScope,
+    run: { mode: string; userId: string | null },
+    share = false,
+    spaceId = "",
+  ) {
     this.scope = scope;
     this.share = share;
     this.engine = runSandboxEngine(run);
+    const who = whoOf(scope.holder);
+    const where = whereOfRun(
+      { id: this.runId, wizardId: scope.wizardId, mode: run.mode },
+      scope.holder,
+      spaceId,
+    );
+    // Bound to this context: the sandbox asks later, from its own connections, in this tenant.
+    const open = AsyncResource.bind(<T>(host: string, connect: () => Promise<T>) =>
+      brokerHost({
+        who,
+        where,
+        url: new URL(`https://${host.includes(":") ? `[${host}]` : host}/`),
+        method: "CONNECT",
+        handler: connect,
+        alwaysAllowed: PACKAGE_REGISTRIES,
+      }).then((out) => (out.ok ? out.result : null)),
+    );
+    this.egress = { hosts: AsyncResource.bind(() => runHosts(where)), open };
   }
 
   /** What this run's sandbox runs, or null when the run has none (a guest's, or `SANDBOX=off`). */
   sandboxCapabilities(): SandboxCapabilities | null {
     return this.engine?.capabilities() ?? null;
+  }
+
+  /** The same, with what the run's sandbox reaches, as its tool describes it. */
+  async runSandboxCapabilities(): Promise<SandboxCapabilities | null> {
+    if (!(this.engine && this.egress)) {
+      return this.sandboxCapabilities();
+    }
+    return this.engine.capabilities(await this.egress.hosts());
   }
 
   async browserContext(): Promise<BrowserContext> {
@@ -239,7 +282,7 @@ export class RunResources {
     if (!this.engine) {
       throw new Error("This run has no sandbox.");
     }
-    this.sandbox ??= this.engine.create(this.runId);
+    this.sandbox ??= this.engine.create(this.runId, this.egress ?? undefined);
     return this.sandbox;
   }
 

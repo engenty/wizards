@@ -23,6 +23,34 @@ export interface SandboxCapabilities {
   workdir: string;
 }
 
+/** Where npm and Python packages come from: every sandbox of a run reaches them. */
+export const PACKAGE_REGISTRIES: readonly string[] = [
+  "registry.npmjs.org",
+  "pypi.org",
+  "files.pythonhosted.org",
+];
+
+/** What a run's sandbox may reach besides the registries (broker/host.ts, `runHosts`). */
+export interface RunHosts {
+  hosts: readonly string[];
+  /** A member's run while the `broker` switch is off. */
+  everyPublicHost: boolean;
+}
+
+/**
+ * A run's way out, decided by the broker: an engine that takes a list (agentOS) asks `hosts`
+ * once when the machine starts, one that sends every connection through the runtime (Docker)
+ * asks `open` for each. A Work chat's sandbox has none and keeps the server's rule.
+ */
+export interface SandboxEgress {
+  hosts(): Promise<RunHosts>;
+  /**
+   * Opens a connection to `host` with `connect` when the broker allows it, and logs it. Null
+   * when it is refused: the host is not the run's, or the run is over.
+   */
+  open<T>(host: string, connect: () => Promise<T>): Promise<T | null>;
+}
+
 /**
  * A way to run sandboxes: Docker, agentOS, a hosted one. The engines are listed in index.ts;
  * one whose code is not part of engenty wizards installs it with `wizards sandbox add <name>`
@@ -36,8 +64,9 @@ export interface SandboxEngine {
    * installed. Without `SANDBOX` the first engine that is ready runs the sandboxes.
    */
   ready(): boolean;
-  capabilities(): SandboxCapabilities;
-  create(runId: string): Sandbox;
+  /** With a run's hosts: what that run's sandbox reaches; without: the server's rule. */
+  capabilities(run?: RunHosts): SandboxCapabilities;
+  create(runId: string, egress?: SandboxEgress): Sandbox;
 }
 
 /** The private machine of one run: made on the first tool call, destroyed when the run stops. */

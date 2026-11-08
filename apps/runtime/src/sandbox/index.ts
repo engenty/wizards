@@ -4,12 +4,15 @@ import { agentOsEngine } from "./agentos.js";
 import { DOCKER_CAPABILITIES, dockerEngine } from "./docker.js";
 import type { Sandbox, SandboxCapabilities, SandboxEngine } from "./types.js";
 
-export type {
-  ExecOptions,
-  ExecResult,
-  Sandbox,
-  SandboxCapabilities,
-  SandboxEngine,
+export {
+  type ExecOptions,
+  type ExecResult,
+  PACKAGE_REGISTRIES,
+  type RunHosts,
+  type Sandbox,
+  type SandboxCapabilities,
+  type SandboxEgress,
+  type SandboxEngine,
 } from "./types.js";
 
 /**

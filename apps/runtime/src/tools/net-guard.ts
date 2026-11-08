@@ -1,6 +1,6 @@
 import type { LookupAddress, LookupOptions } from "node:dns";
 import { lookup } from "node:dns/promises";
-import { BlockList, isIP } from "node:net";
+import { BlockList, connect, isIP, type Socket } from "node:net";
 import { Agent, fetch as pinnedFetch } from "undici";
 import { prompt } from "../prompts.js";
 
@@ -112,6 +112,22 @@ async function publicAddresses(host: string): Promise<LookupAddress[]> {
     throw new Error(prompt("tools", "note.net_private"));
   }
   return addresses;
+}
+
+/**
+ * A TCP connection to a host on the public internet: the name is resolved and checked, and the
+ * socket gets exactly the address that passed, as `pinned` below does for fetch.
+ */
+export async function connectPublic(host: string, port: number): Promise<Socket> {
+  const [address] = await publicAddresses(host.replace(/^\[|\]$/g, ""));
+  return new Promise((resolve, reject) => {
+    const socket = connect({ host: address.address, port });
+    socket.once("connect", () => {
+      socket.off("error", reject);
+      resolve(socket);
+    });
+    socket.once("error", reject);
+  });
 }
 
 /** Agents may reach the public internet, never this server's own network. */

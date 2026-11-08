@@ -225,7 +225,7 @@ export async function buildStepTools(
     Object.assign(tools, storeTools(ctx, uploads, files));
   }
   // The run's sandbox: a guest's run has none unless SANDBOX_GUESTS says so (engine/resources.ts).
-  const sandbox = allowed.has("sandbox") ? ctx.resources.sandboxCapabilities() : null;
+  const sandbox = allowed.has("sandbox") ? await ctx.resources.runSandboxCapabilities() : null;
   // The space's Knowledge and skills, from the tool catalogue (elements/), for the run's holder.
   Object.assign(
     tools,
