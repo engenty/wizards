@@ -22,6 +22,14 @@ const EditorPage = lazy(() =>
   import("./studio/EditorPage").then((m) => ({ default: m.EditorPage })),
 );
 const HomePage = lazy(() => import("./studio/HomePage").then((m) => ({ default: m.HomePage })));
+const StudioHome = lazy(() =>
+  import("./studio/StudioHome").then((m) => ({ default: m.StudioHome })),
+);
+
+/** The studio's start: Home with `orgSpaces` (docs/plans/org-spaces.md), else the wizards. */
+function Start() {
+  return useFeature("orgSpaces") ? <StudioHome /> : <HomePage />;
+}
 const OnboardingPage = lazy(() =>
   import("./studio/OnboardingPage").then((m) => ({ default: m.OnboardingPage })),
 );
@@ -179,6 +187,16 @@ export function StudioApp() {
         <Routes>
           <Route
             path="/"
+            element={
+              <Studio>
+                <InMode mode="studio">
+                  <Start />
+                </InMode>
+              </Studio>
+            }
+          />
+          <Route
+            path="/wizards"
             element={
               <Studio>
                 <InMode mode="studio">
