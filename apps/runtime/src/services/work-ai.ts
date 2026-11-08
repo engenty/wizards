@@ -396,7 +396,17 @@ export async function workTurn(
   // The chat's folder, where it has Infos (docs/plans/org-spaces.md): read before the space's.
   const folder = !client && turn.chatId ? await folderInfosOf(turn.chatId) : null;
   const folderBlock = folder
-    ? `This chat is in the folder "${folder.name}". What every chat in it should know:\n<folder-infos>\n${folder.infos}\n</folder-infos>`
+    ? [
+        `This chat is in the folder "${folder.name}".`,
+        folder.infos.trim()
+          ? `What every chat in it should know:\n<folder-infos>\n${folder.infos}\n</folder-infos>`
+          : "",
+        folder.drive
+          ? `The folder's files are in the space's files under ${folder.drive}: look there first.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
     : "";
   return {
     resolved,

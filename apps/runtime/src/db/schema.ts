@@ -1473,6 +1473,10 @@ export const chatSection = sqliteTable(
      * in it should know, read by the AI before the space's Wissen.
      */
     infos: text("infos").notNull().default(""),
+    /** A folder linked to a mounted folder or drive of its space (Dateien): its files are the folder's. */
+    mountId: text("mount_id").references((): AnySQLiteColumn => spaceMount.id, {
+      onDelete: "set null",
+    }),
     createdBy: text("created_by").notNull(),
     createdAt: createdAt(),
   },

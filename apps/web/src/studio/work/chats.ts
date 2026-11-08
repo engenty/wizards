@@ -54,6 +54,8 @@ export interface Section {
   name: string;
   /** With `orgSpaces` a section is a folder: what every chat in it should know. */
   infos?: string;
+  /** The space's mounted folder or drive linked to the folder. */
+  mountId?: string | null;
 }
 
 /** One part of a message, as the AI SDK's `UIMessage` holds it. */
@@ -431,8 +433,18 @@ export const useCreateSection = () =>
   );
 
 export const useRenameSection = () =>
-  useChange(({ id, name, infos }: { id: string; name?: string; infos?: string }) =>
-    api.patch(`${BASE}/sections/${id}`, { name, infos }),
+  useChange(
+    ({
+      id,
+      name,
+      infos,
+      mountId,
+    }: {
+      id: string;
+      name?: string;
+      infos?: string;
+      mountId?: string | null;
+    }) => api.patch(`${BASE}/sections/${id}`, { name, infos, mountId }),
   );
 
 /** What a folder holds besides its chats: the files of its chats and the results of its runs. */

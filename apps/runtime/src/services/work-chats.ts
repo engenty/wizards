@@ -209,7 +209,12 @@ export async function sidebar(user: SessionUser, spaceId: string, query?: string
   });
   const stateOf = new Map(states.map((st) => [st.chatId, st]));
   return {
-    sections: sections.map((sec) => ({ id: sec.id, name: sec.name, infos: sec.infos })),
+    sections: sections.map((sec) => ({
+      id: sec.id,
+      name: sec.name,
+      infos: sec.infos,
+      mountId: sec.mountId,
+    })),
     chats: chats.map((c): SidebarChat => {
       const st = stateOf.get(c.id);
       const hasMessage = c.lastAuthorId !== null;
@@ -1168,17 +1173,31 @@ async function ownSection(user: SessionUser, id: string) {
 export async function renameSection(
   user: SessionUser,
   id: string,
-  patch: { name?: string; infos?: string },
+  patch: { name?: string; infos?: string; mountId?: string | null },
 ) {
   const section = await ownSection(user, id);
+  // A drive linked to the folder is one of its space's mounts (Dateien).
+  if (patch.mountId) {
+    const mount = await db.query.spaceMount.findFirst({
+      columns: { id: true },
+      where: and(
+        eq(schema.spaceMount.id, patch.mountId),
+        eq(schema.spaceMount.spaceId, section.spaceId),
+      ),
+    });
+    if (!mount) {
+      throw new ServiceError("not_found", "mount not found");
+    }
+  }
+  const mountId = patch.mountId === undefined ? section.mountId : patch.mountId;
   const name = patch.name?.trim() || section.name;
   // A folder's Infos (docs/plans/org-spaces.md): what every chat in it should know.
   const infos = patch.infos ?? section.infos;
   await db
     .update(schema.chatSection)
-    .set({ name, infos })
+    .set({ name, infos, mountId })
     .where(eq(schema.chatSection.id, section.id));
-  return { id, name, infos };
+  return { id, name, infos, mountId };
 }
 
 /**

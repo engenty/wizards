@@ -1,0 +1,1 @@
+ALTER TABLE `chat_section` ADD `mount_id` text REFERENCES space_mount(id) ON DELETE set null;

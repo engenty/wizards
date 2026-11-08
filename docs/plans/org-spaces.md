@@ -1,6 +1,6 @@
 # Plan: organization, spaces and folders
 
-Status: decided on 2026-11-08, built behind `orgSpaces` (off by default): steps 1–5 below. Not built yet: a folder's linked drive (mounts are a local install's, behind `dateien`). The mockups: the
+Status: decided on 2026-11-08, built behind `orgSpaces` (off by default): steps 1–5 below. The mockups: the
 artifact "Organization, Spaces and Folders" (claude.ai/artifact/8eL7YzxQJPcQAeP5SgZNeS).
 
 As in Google Drive: Mein Space is yours, spaces are shared, folders sort what is inside. The
@@ -44,6 +44,6 @@ only the space you are in.
 2. **Frame** (studio, built: `studio/SpacePath.tsx`): the path bar with the space menu; the space tile and the organization menu
    go; "Wizards" in the app bar.
 3. **Teilen** (built: `services/client-spaces.ts`, `studio/work/ShareSpace.tsx`): the share dialog with Mitglied and Kund:in for any space.
-4. **Ordner** (built: Infos the AI reads; Dateien from its chats; Ergebnisse of the runs started in them, `run.chatId`; the folder page, `studio/work/FolderPage.tsx`):
+4. **Ordner** (built: Infos the AI reads; Dateien from its chats and a linked mount, `chat_section.mountId`, behind `dateien`; Ergebnisse of the runs started in them, `run.chatId`; the folder page, `studio/work/FolderPage.tsx`):
    sections become folders with Infos, Dateien, Ergebnisse and a linked drive; the folder page.
 5. **Your computer** (built: `placeArrivingSpace` in `services/spaces.ts`): the sync rule above.

@@ -229,7 +229,11 @@ export const workRoutes = new Hono<Vars>()
   })
   .patch("/sections/:id", async (c) => {
     const body = z
-      .object({ name: name.optional(), infos: z.string().max(20_000).optional() })
+      .object({
+        name: name.optional(),
+        infos: z.string().max(20_000).optional(),
+        mountId: z.string().max(40).nullable().optional(),
+      })
       .parse(await c.req.json());
     return c.json(await renameSection(c.get("user"), c.req.param("id"), body));
   })
