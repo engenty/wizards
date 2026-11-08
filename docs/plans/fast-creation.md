@@ -1,8 +1,10 @@
 # Plan: fast creation and pages without waiting
 
 Status: part of the durable work. Part 1 is built on `claude/durable-runs-combined` (`a719337c` to
-`fe9b26d3`, the ids from before its rebase on `main`; no PR). Parts 2 to 5 are a plan, to be built
-on the same branch. Nothing of it is on `main` but this text (Order). From the review of ChatGPT's Intelligent UI on
+`fe9b26d3`, the ids from before its rebase on `main`; no PR), and so are Parts 2 and 3 (below).
+Part 4 is a plan, to be built on the same branch. Part 5 needs nothing new: chat apps get the
+wizard through MCP Apps, and no prompt for ChatGPT is built (2026-11-08). Nothing of it is on
+`main` but this text (Order). From the review of ChatGPT's Intelligent UI on
 2026-10-29, checked against `feat/work-mode` (v0.13.0, Work mode, spaces, model tiers) on
 2026-10-30. Part 4, the order and the fit with durable runs corrected on 2026-11-06, against `main`
 and that branch at 6bac6ed0, by reading the code. Part 1 brought in line with what was built the
@@ -15,7 +17,7 @@ Scope: a new wizard shows its first page about two seconds after the wish, and a
 page to page without waiting on the server. The definition stays JSON and stays at version 2:
 every format change below is additive. Five parts: the format (Part 1), a text form the model
 writes (Part 2), a fast first pass that writes it (Part 3), state in the browser and on the
-server (Part 4), and an export for ChatGPT (Part 5).
+server (Part 4), and how a wizard reaches chat apps (Part 5).
 
 The server stays the record of every run. The browser may run ahead of it for a moment, and it
 always catches up.
@@ -885,45 +887,17 @@ How the runner keeps the promise:
 Test for this part: answer two pages, close the tab while typing on the third, open the run on
 a phone. The phone shows the third page with what was typed.
 
-## Part 5 — an export for ChatGPT
+## Part 5 — wizards in chat apps: MCP Apps only
 
-There are two ways for a wizard to reach ChatGPT.
+A wizard reaches ChatGPT, Claude and the other AI apps through our MCP server, and the app
+draws it directly where it can: the flow widget (`apps/runtime/src/mcp/flow-app.ts`) is an MCP
+App, with `openai/outputTemplate` for ChatGPT. The app shows the wizard and its run in the chat,
+through our runtime, with saving, AI steps, files and results. Where an app draws no MCP Apps,
+the run goes on as text through the same tools. This is built.
 
-**The full way, built:** the flow widget (`apps/runtime/src/mcp/flow-app.ts`) is an MCP App with
-`openai/outputTemplate`. ChatGPT shows a wizard and its run in the chat, through our runtime,
-with saving, AI steps, files and results.
-
-**The quick way, new: "Copy for ChatGPT".** DIL is not public: ChatGPT's model writes it and
-ChatGPT's server compiles it, so we cannot hand over a finished interface. We can hand over a
-prompt that makes ChatGPT draw the wizard itself. The text form of Part 2 is close to DIL by
-design, so this is the text form with a short instruction around it:
-
-```
-Build this as an interactive interface in this chat, one page at a time.
-Use the steps, fields, choices, conditions and calculations exactly as written.
-At the end, write the result as the last step describes, from the answers.
-
-<Wizard …>…</Wizard>
-
-Run it with saving, files and results: https://engenty.ai/w/<token>
-```
-
-| Carries over | Is lost |
-|---|---|
-| pages, fields, looks, sections, `when`, `calc` | saving and coming back later |
-| choices, decided branches (ChatGPT decides them itself) | files, connectors, lists, connections |
-| the last AI step, as the message built from the answers | review, regenerate, downloads, widgets |
-| | `wait`, events, starts: a preview has no clock |
-
-It costs nothing to run for us, it needs no ChatGPT app, and the link at the end leads to the
-full wizard. What ChatGPT draws is a preview, not a run: nothing of it is saved on our server,
-so it is never offered as the wizard itself. A `wait` or an event goes in as one sentence ("Here
-the wizard waits three days"), and the link leads to the real run. The same text works as a prompt
-in other chats that build interfaces.
-
-Where: the studio's share dialog (`apps/web/src/studio/editor/ShareDialog.tsx`, "Copy for
-ChatGPT") and a new CLI command `wizards export --chatgpt <wizard>`
-(`apps/runtime/src/cli/main.ts`). It needs only Part 2's printer.
+No prompt that makes a chat draw the wizard itself (Matthias, 2026-11-08). Such a copy would be
+a preview without saving, files or results, and it would be offered beside the real run. Every
+way into a chat app is the run itself, through the MCP server.
 
 ## How this fits the new direction
 
@@ -1035,7 +1009,8 @@ The first pass stays behind a switch `fastCreate` (registered in
    architect. Not measured: Cursor, an OpenAI key, the cloud. All tests pass with `fastCreate`
    and `durableRuns` on and off. "Wird vorbereitet …" was not seen in the browser, as no draft
    left an issue or had a widget.
-4. **Copy for ChatGPT.** Part 5; needs only step 2.
+4. **Dropped.** A prompt for ChatGPT is not built (Part 5). Chat apps get the wizard through
+   the MCP server and MCP Apps, which are built.
 5. **The shortcut on the server.** Part 4, in the branch's `answerGoesOn`. It is small, and every
    client gets it.
 6. **The next page in the browser.** Part 4: first `run.unsent` and saving what is typed, which is
@@ -1100,8 +1075,6 @@ Still to do:
 | `apps/runtime/src/engine/runner.ts` | `needsNoRunner`; `answerGoesOn`: the shortcut; `submitPage` and `reviewStep`: `kick` only when the run went on; `submitPage`: sequence numbers, clears `unsent[stepId]` |
 | `packages/runner/src/RunnerView.tsx` | advance in the browser; saves what is typed |
 | `apps/web/src/runner/useRun.ts` | pages in flight, one at a time; drops a view older than the last confirmed `rev` |
-| `apps/web/src/studio/editor/ShareDialog.tsx` | "Copy for ChatGPT" |
-| `apps/runtime/src/cli/main.ts` | new command `export --chatgpt` |
 | `docs/content/dev` | the text form |
 
 ## Open questions
