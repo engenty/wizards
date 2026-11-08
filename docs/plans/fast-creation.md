@@ -111,8 +111,15 @@ Tested, as the session that built it reported; not run again for this note:
 - In the browser, on a test wizard in the studio's preview: the section bar, unit, list, stepper,
   slider, live `calc` on a page, `Choice` and `detail` in a view. A `Choice` survives opening the
   run fresh.
-- Not tried in a browser: phone width, a translated run, page `data` reading a real AI step, a run
-  with `calc` on a branch (unit tests only).
+- Tried in step 7, on a test wizard with a real AI step on Claude Code: at phone width (375 px)
+  the section bar, the list's round buttons, the slider and the stepper draw with no overflow.
+  Page `data` read the AI step's estimate (2,000 € of 8,000 €, a Metric "25 % · im Rahmen"). A
+  `calc` branch on `steps.` took the right way, and `ahead` held only the page before it. A run
+  translated from English into German shows its fields, sections and choices in German; the
+  page's components stay English (below).
+- Two rules an author meets, which the validator states clearly: a page's components read only
+  that page's answers and its `data`, so an earlier answer needs a `data` key; a branch rule does
+  not read a page's `data`, so it names `steps.<id>.<key>` itself.
 
 Not built:
 
@@ -1151,6 +1158,43 @@ The first pass stays behind a switch `fastCreate` (registered in
    - the targets of Part 3, on the cloud and on a computer with each AI client, and the test at the
      end of Part 4's "Saving".
 
+   The local part is done (2026-11-08), on the branch at `2a2838b6`, in one process with
+   `durableRuns`, `startTriggers` and `fastCreate` on, at a load of 4 to 23. No code failed, so
+   there are no fix commits.
+
+   - Part 1's open cases: Part 1, "Tried in step 7".
+   - A durable AI step with the Anthropic key asked the person through `ask_person`. The server
+     was stopped once while the run waited for the answer and once during a 1-minute wait; both
+     times the run went on after the restart and ended done.
+   - On an install whose text classes run on an AI client (Claude Code here), a durable step runs
+     as a plain step: the log says `noDurable`, there is no `ask_person`, and the model guessed
+     the answer. That is the design, but nothing tells the author (Open questions).
+   - Part 3's targets, one creation per way, at a load of 12 to 23:
+
+     | How it thinks | First page | Last page | Issues left |
+     |---|---|---|---|
+     | Anthropic key (claude-sonnet-5-5) | 1.9 s | 7.4 s | 0 |
+     | Claude Code (sonnet) | 4.7 s | 9.1 s | 0 |
+     | Gateway (deepseek-v4.1-flash) | 5.0 s | 9.1 s | 1 |
+     | Codex (gpt-6.1-sol) | 20.7 s | 21.2 s | 0 |
+
+     As in step 3: the first page within two seconds only with the Anthropic key, and with the
+     gateway on a quiet machine. Cursor was not signed in.
+   - Part 4's test: two pages answered in the browser, typing on the third, then away by
+     navigation. Another session of the same member got the third page with both texts. A real
+     browser's tab close was not tried (Part 4, "Built as step 6").
+
+   Not tested on a computer, and why:
+
+   - staging and a 2-day wait across a deploy, a real Manage-App role, the cloud's own
+     containers with several web processes: they need a deploy, which waits for Matthias;
+   - a real mail and Manage's part of telling people: the Manage-App sends them;
+   - push: `POST /v1/push` in Manage is not built;
+   - a real mailbox, a signed call from a real service, a real channel plugin: they need outside
+     accounts; Outlook and IMAP are not built;
+   - the Docker sandbox after a recovery: Docker Desktop was not running;
+   - Cursor: not signed in.
+
 Then Matthias decides whether the branch goes to `main`. A merge is not a release. Part 1 has no
 switch, so it goes live with the first release after that merge; `durableRuns` and `fastCreate` stay
 off until they are flipped.
@@ -1211,6 +1255,14 @@ Still to do:
 | `docs/content/dev` | the text form |
 
 ## Open questions
+
+- A durable step on an install whose text classes run on an AI client runs as a plain step,
+  without `ask_person`, and nothing says so while the wizard is written. Should the studio, which
+  knows the install's models, warn there, or the authoring guide say it?
+- The `noDurable` line at the start of such a step ("This step starts over after an interruption
+  …") reads as if something had been interrupted. Its wording needs a look.
+- Text in a page's components (a heading, a Metric's label, a caption from `calc`) stays in the
+  original language in a translated run (Part 1, "Not built"). Step 7 saw it on a real run.
 
 - Does the architect also write the text form for edits, or keep `edit_wizard` on JSON?
   Printing makes both possible; one form for both is simpler for the model.
