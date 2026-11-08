@@ -27,6 +27,7 @@ client portal. One app, one look, one address.
 | Own domains | Later. `<team>.wizards.page` now; the host lookup and the routes leave room for a team's own domain |
 | Who a visitor is | The broker's `guest`: what a guest may read follows „Wer sieht“ (Wissen folders and Dateien with Gäste on), what they may start follows the wizards listed |
 | Who pays | The firm's credits, as for a client (`client-portal.md`, "Who pays") |
+| How many runs a visitor starts (2026-11-08) | Counted per organization: how many runs one visitor may start in an hour on its wizards is the owner's setting, by default today's number. Today one number holds for the whole runtime (`LIMIT_VISITOR_RUNS_PER_HOUR`, 6) and counts a visitor's runs across every organization (`visitorOverLimit` in `tenants/control.ts`). Not built |
 
 ## What a visitor may do
 
