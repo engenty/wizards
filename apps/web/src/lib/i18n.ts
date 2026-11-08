@@ -1041,6 +1041,14 @@ const de: Record<Key, Line> = {
   "nav.space": "Space",
   "nav.switchSpace": "Space wechseln",
   "nav.addSpace": "Space hinzufügen",
+  "share.title": "Teilen",
+  "share.dialogTitle": "„{name}“ teilen",
+  "share.everyone": "alle Mitglieder",
+  "share.membersSee":
+    "Alle Mitglieder von {organization} sehen diesen Space. Kund:innen lädst du hier ein: Sie melden sich auf der Seite deiner Organisation an und sehen nur diesen Space.",
+  "share.inviteClient": "Kund:in einladen",
+  "share.clientsSee":
+    "Kund:innen sehen ihre Chats, was sie hochladen und die Ergebnisse, die ihr mit ihnen teilt.",
   "nav.mySpace": "Mein Space",
   "nav.spaceAll": "alle",
   "nav.spaceMine": "nur du",
@@ -5859,6 +5867,14 @@ const en = {
   "nav.space": "Space",
   "nav.switchSpace": "Switch space",
   "nav.addSpace": "Add space",
+  "share.title": "Share",
+  "share.dialogTitle": "Share “{name}”",
+  "share.everyone": "all members",
+  "share.membersSee":
+    "Every member of {organization} sees this space. Invite clients here: they sign in on your page and see only this space.",
+  "share.inviteClient": "Invite client",
+  "share.clientsSee":
+    "Clients see their chats, what they upload and the results you share with them.",
   "nav.mySpace": "My space",
   "nav.spaceAll": "everyone",
   "nav.spaceMine": "only you",

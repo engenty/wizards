@@ -1,7 +1,7 @@
 import { note } from "@engenty/wizards-shared/run";
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { openToClients } from "../broker/rwx.js";
+import { openToClients, seedClientRules } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { currentFeatures } from "../features.js";
 import { inviteMember, managed } from "../manage.js";
@@ -33,13 +33,29 @@ async function firmSpace(userId: string, spaceId: string) {
   return space;
 }
 
-/** A client space, as the firm reaches it. */
+/**
+ * A space the firm shares with people: a client space, and with `orgSpaces` any space under the
+ * organization's root (docs/plans/org-spaces.md) — not the root, not someone's Mein Space.
+ */
 async function clientSpace(userId: string, spaceId: string) {
   const space = await ownedSpace(userId, spaceId);
-  if (space.kind !== "client" || currentRole() === "client") {
+  if (currentRole() === "client") {
     throw notFound();
   }
-  return space;
+  if (space.kind === "client") {
+    return space;
+  }
+  if (space.kind === "space" && space.parentId && (await currentFeatures()).orgSpaces === true) {
+    return space;
+  }
+  throw notFound();
+}
+
+/** A space that is not a client space gets the clients' rules with its first client. */
+async function openToItsClients(space: { id: string; kind: string }) {
+  if (space.kind !== "client") {
+    await seedClientRules(space.id);
+  }
 }
 
 /** The client spaces of a space, with how many people are in each, newest first. */
@@ -194,6 +210,9 @@ export async function addSpaceMember(
       target: [schema.spaceMember.spaceId, schema.spaceMember.userId],
       set: { role: member.role },
     });
+  if (member.role === "client") {
+    await openToItsClients(space);
+  }
 }
 
 /** Takes a person out of a client space. */
@@ -244,6 +263,7 @@ export async function inviteClient(
     role: "client",
     addedBy: userId,
   });
+  await openToItsClients(space);
 }
 
 /**

@@ -264,7 +264,8 @@ export async function ownedSpace(userId: string, spaceId: string): Promise<Space
   }
   // A client of the organization reaches only the client spaces they are in
   // (docs/plans/client-spaces.md); every other space is not there for them.
-  if (currentRole() === "client" && !(p.kind === "client" && (await inSpace(userId, p.id)))) {
+  // With `orgSpaces` any space may have clients: being in it decides (docs/plans/org-spaces.md).
+  if (currentRole() === "client" && !(await inSpace(userId, p.id))) {
     throw notFound();
   }
   // Someone else's Mein Space is not there for anyone, admins included.
@@ -527,8 +528,8 @@ async function clientSpacesOf(userId: string) {
     .where(
       and(
         eq(schema.spaceMember.userId, userId),
+        eq(schema.spaceMember.role, "client"),
         eq(schema.space.tenantId, currentTenant()),
-        eq(schema.space.kind, "client"),
       ),
     );
   return rows.map((r) => ({ ...r.space, wizardCount: 0 }));

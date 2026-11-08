@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
 import { useCurrentSpace } from "../../lib/session";
 import { askConfirm, cn } from "../../ui";
@@ -73,6 +74,7 @@ import {
   useSidebar,
   useUpdateChat,
 } from "./chats";
+import { SpaceFoot } from "./ShareSpace";
 
 /**
  * Chats' sidebar in Work: Work's start page on top, a new chat, the search, the pinned chats, the sections and the chats in
@@ -113,6 +115,7 @@ export function ChatSidebar() {
   const [showArchived, setShowArchived] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const { space } = useCurrentSpace();
+  const orgSpaces = useFeature("orgSpaces");
   const { data } = useSidebar(space?.id, query);
   const [foldedSections, toggleSection] = useFolded("wizards.work.folded-sections");
   const [foldedThreads, toggleThreads] = useFolded("wizards.work.folded-threads");
@@ -270,6 +273,8 @@ export function ChatSidebar() {
         {showArchived && archived.length ? (
           <Group title={t("work.archived")}>{archived.map(row)}</Group>
         ) : null}
+        {/* The space, who is in it, and its share button (docs/plans/org-spaces.md). */}
+        {orgSpaces && space ? <SpaceFoot space={space} /> : null}
       </aside>
     </TooltipProvider>
   );

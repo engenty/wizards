@@ -57,7 +57,6 @@ const asClient = (who: { id: string }) =>
   and(
     eq(schema.spaceMember.userId, who.id),
     eq(schema.spaceMember.role, "client"),
-    eq(schema.space.kind, "client"),
     eq(schema.space.tenantId, currentTenant()),
   );
 
@@ -141,7 +140,9 @@ export async function clientMe(who: ClientWho) {
 export async function clientSpaces(who: ClientWho) {
   await requirePortal(who);
   await claimClientInvites(who.id, who.email);
-  const spaces = (await listSpaces(who.id)).filter((s) => s.kind === "client" && s.parentId);
+  // A client space, or with `orgSpaces` any space under the root shared with them: both have a
+  // parent whose brand the portal wears.
+  const spaces = (await listSpaces(who.id)).filter((s) => s.parentId);
   const parents = spaces.length
     ? await db.query.space.findMany({
         columns: { id: true, name: true },

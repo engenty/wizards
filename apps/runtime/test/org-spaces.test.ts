@@ -12,7 +12,7 @@ process.env.APP_URL = "http://localhost:5181";
 process.env.LOCAL_ACCESS_KEY = "test-key";
 process.env.PLUGINS_WATCH = "0";
 process.env.PLUGIN_JOBS = "0";
-process.env.FEATURES = "orgSpaces=on";
+process.env.FEATURES = "orgSpaces=on,clientSpaces=on";
 process.env.LIMIT_SPACES = "5";
 
 let db: typeof import("../src/db/client");
@@ -94,8 +94,33 @@ describe("the organization's spaces", () => {
     });
   });
 
+  it("shares a space under the root with a Kund:in, who then reaches it and nothing else", async () => {
+    const { id: shared } = await local(() => spaces.createSpace("local", "Wagner GmbH"));
+    const clients = await import("../src/services/client-spaces");
+    await local(() => clients.addSpaceMember("local", shared, { userId: "wagner", role: "client" }));
+    const rwx = await import("../src/broker/rwx");
+    const { asRole } = await import("../src/services/access");
+    await local(async () => {
+      expect(
+        (await rwx.decide(shared, [{ kind: "role", id: "client" }], { kind: "page", id: "p" }, "w")).ok,
+      ).toBe(true);
+      await asRole("client", async () => {
+        expect((await spaces.listSpaces("wagner")).map((s) => s.id)).toEqual([shared]);
+        const root = await spaces.rootSpace();
+        await expect(spaces.ownedSpace("wagner", root?.id ?? "")).rejects.toThrow();
+      });
+    });
+    const listed = await local(() => spaces.listSpaces("local"));
+    expect(listed.find((s) => s.id === shared)).toMatchObject({ clients: 1 });
+    // The root and Mein Space are not shared this way.
+    const root = await local(() => spaces.rootSpace());
+    await expect(
+      local(() => clients.addSpaceMember("local", root?.id ?? "", { userId: "wagner", role: "client" })),
+    ).rejects.toThrow();
+  });
+
   it("does not count Mein Space against the number of spaces", async () => {
     const before = (await local(() => spaces.listSpaces("local"))).filter((s) => !s.personal);
-    expect(before.length).toBe(4);
+    expect(before.length).toBe(5);
   });
 });
