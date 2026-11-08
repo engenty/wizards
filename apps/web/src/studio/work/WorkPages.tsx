@@ -1,5 +1,5 @@
 import { FileQuestion, ShieldAlert, ShieldQuestion } from "lucide-react";
-import { type ReactNode, type SVGProps, useEffect } from "react";
+import { type ReactNode, type SVGProps, useEffect, useState } from "react";
 import { Navigate, NavLink, useParams } from "react-router";
 import { useFeature } from "../../lib/features";
 import { type Key, lang, t } from "../../lib/i18n";
@@ -80,6 +80,29 @@ export function WorkPage() {
   return known ? <EmptyPlace place={known.place as keyof typeof EMPTY} /> : <ChatsPage />;
 }
 
+const SIDEBAR_KEY = "wizards.work.sidebar";
+
+/** Whether Work's sidebar is open; the path's switch opens and closes it, kept per browser. */
+function useSidebarOpen(): [boolean, () => void] {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_KEY) !== "closed";
+    } catch {
+      return true;
+    }
+  });
+  const toggle = () =>
+    setOpen((was) => {
+      try {
+        localStorage.setItem(SIDEBAR_KEY, was ? "closed" : "open");
+      } catch {
+        // open again on the next page then
+      }
+      return !was;
+    });
+  return [open, toggle];
+}
+
 /**
  * Chats: the studio's top bar (organization, space, where the page stands), then the sidebar
  * and the open chat or Work's start. The page fills the frame, so it draws the bar itself.
@@ -87,11 +110,12 @@ export function WorkPage() {
 function ChatsPage() {
   const { chatId } = useParams();
   const me = useMe().data;
+  const [sidebar, toggleSidebar] = useSidebarOpen();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {me ? <TopBar me={me} /> : null}
+      {me ? <TopBar me={me} sidebar={{ open: sidebar, onToggle: toggleSidebar }} /> : null}
       <div className="flex min-h-0 flex-1">
-        <ChatSidebar />
+        {sidebar ? <ChatSidebar /> : null}
         {chatId ? <ChatView id={chatId} /> : <WorkHome />}
       </div>
     </div>

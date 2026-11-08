@@ -15,6 +15,7 @@ import {
   resolvePath,
 } from "../services/knowledge.js";
 import { documentText, hasIndexEntries, searchKnowledge } from "../services/space-index.js";
+import { readsOf } from "../services/space-parent.js";
 import { attempt, clip } from "../tools/shared.js";
 import type { ElementCaller } from "./caller.js";
 import { elementCall } from "./gate.js";
@@ -38,18 +39,21 @@ export { pageReadInput } from "./specs.js";
  */
 async function readsFrom(spaceId: string): Promise<{ id: string; name: string; own: boolean }[]> {
   const space = await db.query.space.findFirst({
-    columns: { id: true, name: true, kind: true, parentId: true },
+    columns: { id: true, name: true },
     where: eq(schema.space.id, spaceId),
   });
-  if (!(space?.kind === "client" && space.parentId)) {
+  // With `orgSpaces` a space under the organization's root reads the root too
+  // (docs/plans/org-spaces.md).
+  const reads = await readsOf(spaceId);
+  if (!reads) {
     return [{ id: spaceId, name: space?.name ?? "", own: true }];
   }
   const parent = await db.query.space.findFirst({
     columns: { id: true, name: true },
-    where: eq(schema.space.id, space.parentId),
+    where: eq(schema.space.id, reads.parentId),
   });
   return [
-    { id: spaceId, name: space.name, own: true },
+    { id: spaceId, name: space?.name ?? "", own: true },
     ...(parent ? [{ id: parent.id, name: parent.name, own: false }] : []),
   ];
 }

@@ -49,6 +49,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { roleOf } from "./access.js";
 import { brandView } from "./brand.js";
 import { notFound, ServiceError } from "./errors.js";
+import { readsOf } from "./space-parent.js";
 import { storedTranslation } from "./translations.js";
 import { ownedWizard, requireClean, shareUrl, studioUrl } from "./wizards.js";
 
@@ -865,17 +866,28 @@ export interface ResultsFilter {
  */
 export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
   // A client space shows the runs started in it, of its parent's wizards; a space only its own
-  // (docs/plans/client-portal.md).
-  const space = await db.query.space.findFirst({
-    columns: { kind: true, parentId: true },
-    where: eq(schema.space.id, spaceId),
-  });
-  const client = space?.kind === "client" && space.parentId ? spaceId : null;
-  const wizardSpace = client && space?.parentId ? space.parentId : spaceId;
-  const inSpace = client ? eq(schema.run.clientSpaceId, client) : isNull(schema.run.clientSpaceId);
+  // (docs/plans/client-portal.md). With `orgSpaces` a space under the root shows its own wizards'
+  // runs and the runs of the root's wizards started in it (docs/plans/org-spaces.md).
+  const reads = await readsOf(spaceId);
+  const client = reads?.as === "client" ? spaceId : null;
+  const wizardSpaces =
+    reads?.as === "client"
+      ? [reads.parentId]
+      : reads?.as === "root"
+        ? [spaceId, reads.parentId]
+        : [spaceId];
+  const inSpace = client
+    ? eq(schema.run.clientSpaceId, client)
+    : reads?.as === "root"
+      ? or(
+          and(eq(schema.wizard.spaceId, spaceId), isNull(schema.run.clientSpaceId)),
+          and(eq(schema.wizard.spaceId, reads.parentId), eq(schema.run.clientSpaceId, spaceId)),
+        )
+      : isNull(schema.run.clientSpaceId);
   const wizards = await db
     .select({
       id: schema.wizard.id,
+      spaceId: schema.wizard.spaceId,
       title: schema.wizard.title,
       results: count(schema.run.id),
       lastAt: max(schema.run.updatedAt),
@@ -885,7 +897,12 @@ export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
       schema.run,
       and(eq(schema.run.wizardId, schema.wizard.id), eq(schema.run.status, "done"), inSpace),
     )
-    .where(and(eq(schema.wizard.spaceId, wizardSpace), eq(schema.wizard.tenantId, currentTenant())))
+    .where(
+      and(
+        inArray(schema.wizard.spaceId, wizardSpaces),
+        eq(schema.wizard.tenantId, currentTenant()),
+      ),
+    )
     .groupBy(schema.wizard.id)
     // Wizards without a result last: SQLite sorts null below every time.
     .orderBy(desc(max(schema.run.updatedAt)), desc(schema.wizard.updatedAt));
@@ -895,6 +912,21 @@ export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
     ? new Set(wizards.filter((w) => w.title.toLowerCase().includes(q as string)).map((w) => w.id))
     : null;
   const ids = wizards.map((w) => w.id).filter((id) => !filter.wizardId || id === filter.wizardId);
+  // The runs of this space, by the wizards listed: the root's only those started here.
+  const fromRoot = new Set(wizards.filter((w) => w.spaceId !== spaceId).map((w) => w.id));
+  const runsHere =
+    reads?.as === "root"
+      ? or(
+          and(
+            inArray(schema.run.wizardId, ids.filter((id) => !fromRoot.has(id)).concat("")),
+            isNull(schema.run.clientSpaceId),
+          ),
+          and(
+            inArray(schema.run.wizardId, [...fromRoot].concat("")),
+            eq(schema.run.clientSpaceId, spaceId),
+          ),
+        )
+      : inSpace;
   const rows = ids.length
     ? await db
         .select({
@@ -911,7 +943,7 @@ export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
           and(
             inArray(schema.run.wizardId, ids),
             eq(schema.run.status, "done"),
-            inSpace,
+            runsHere,
             filter.mode ? eq(schema.run.mode, filter.mode) : undefined,
             filter.days
               ? gte(schema.run.updatedAt, new Date(Date.now() - filter.days * 86_400_000))

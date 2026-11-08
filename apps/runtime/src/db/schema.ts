@@ -160,8 +160,10 @@ export const space = sqliteTable(
     /**
      * `client`: a client space under `parentId` (docs/plans/client-spaces.md): one client's data,
      * results and chats, reading the parent's setup. `space`: a space of the organization.
+     * `personal`: one person's own space, Mein Space (docs/plans/org-spaces.md): its one member
+     * is that person, nobody else sees it.
      */
-    kind: text("kind", { enum: ["space", "client"] })
+    kind: text("kind", { enum: ["space", "client", "personal"] })
       .notNull()
       .default("space"),
     /** The space a client space belongs to; null for a space. Two levels, never more. */

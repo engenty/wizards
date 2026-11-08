@@ -55,6 +55,15 @@ export async function spacesView(r: Reader) {
       studio: await studioOpen(p),
       /** How the admins hear of the broker's critical lines: Work's bell, the hourly mail. */
       notify: p.notify,
+      /** `space`, `client` or `personal` (Mein Space); the space it sits under, if any. */
+      kind: p.kind,
+      parentId: p.parentId,
+      /** With `orgSpaces` (docs/plans/org-spaces.md): the organization's own space. */
+      root: "root" in p ? p.root : false,
+      /** Mein Space: the person's own. */
+      personal: p.kind === "personal",
+      /** How many Kund:innen are in the space. */
+      clients: "clients" in p ? p.clients : 0,
     })),
   );
 }

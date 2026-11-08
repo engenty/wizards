@@ -29,11 +29,12 @@ import {
   type TextStyle,
   type VoiceBlock,
 } from "@engenty/wizards-shared/spaces";
-import { and, count, eq, isNull, ne } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
+import { currentFeatures } from "../features.js";
 import { managed, tenantInfo } from "../manage.js";
 import { spaceChanged } from "../plugins/events.js";
 import { cloudSpaceLimit, twoWayActive } from "../sync/state.js";
@@ -266,6 +267,10 @@ export async function ownedSpace(userId: string, spaceId: string): Promise<Space
   if (currentRole() === "client" && !(p.kind === "client" && (await inSpace(userId, p.id)))) {
     throw notFound();
   }
+  // Someone else's Mein Space is not there for anyone, admins included.
+  if (await othersPersonal(userId, p)) {
+    throw notFound();
+  }
   return p;
 }
 
@@ -331,6 +336,150 @@ export async function defaultSpace(userId: string): Promise<SpaceRow> {
   return p;
 }
 
+/** Whether the organization, spaces and folders are on (docs/plans/org-spaces.md). */
+export async function orgSpacesOn(): Promise<boolean> {
+  return (await currentFeatures()).orgSpaces === true;
+}
+
+/**
+ * The organization's own space, the root (docs/plans/org-spaces.md): the oldest space made here
+ * with no parent. It holds what everyone uses; every other space sits under it.
+ */
+export async function rootSpace(): Promise<SpaceRow | undefined> {
+  return db.query.space.findFirst({
+    where: and(madeHere(), isNull(schema.space.parentId), eq(schema.space.kind, "space")),
+    orderBy: [schema.space.createdAt],
+  });
+}
+
+/**
+ * Puts the spaces that stand beside the root under it, once: a space made before the switch,
+ * or before the root was the root. Client spaces keep their parent.
+ */
+async function underRoot(root: SpaceRow): Promise<void> {
+  await db
+    .update(schema.space)
+    .set({ parentId: root.id, updatedAt: new Date() })
+    .where(
+      and(
+        madeHere(),
+        isNull(schema.space.parentId),
+        ne(schema.space.id, root.id),
+        inArray(schema.space.kind, ["space", "personal"]),
+      ),
+    );
+}
+
+/**
+ * Whether people of this organization each get a Mein Space: where the plan has room for more
+ * than one person. Alone (Free, a local install) the root is the one space.
+ */
+async function personalSpacesOn(): Promise<boolean> {
+  if (!managed) {
+    return false;
+  }
+  const info = await tenantInfo(currentTenant()).catch(() => null);
+  const members = info?.limits.members;
+  return members === null || (typeof members === "number" && members > 1);
+}
+
+/** The person's Mein Space, made on first ask: a space under the root with them as its one member. */
+export async function personalSpace(userId: string, root: SpaceRow): Promise<SpaceRow> {
+  const [found] = await db
+    .select({ space: schema.space })
+    .from(schema.spaceMember)
+    .innerJoin(schema.space, eq(schema.space.id, schema.spaceMember.spaceId))
+    .where(
+      and(
+        eq(schema.spaceMember.userId, userId),
+        eq(schema.space.tenantId, currentTenant()),
+        eq(schema.space.kind, "personal"),
+      ),
+    )
+    .limit(1);
+  if (found) {
+    return found.space;
+  }
+  const id = nanoid(12);
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.space).values({
+      id,
+      tenantId: currentTenant(),
+      name: "Mein Space",
+      brand: {},
+      kind: "personal",
+      parentId: root.id,
+    });
+    await tx.insert(schema.spaceMember).values({
+      id: nanoid(12),
+      tenantId: currentTenant(),
+      spaceId: id,
+      userId,
+      role: "member",
+      addedBy: userId,
+    });
+  });
+  spaceChanged("space.created", id);
+  const made = await db.query.space.findFirst({ where: eq(schema.space.id, id) });
+  if (!made) {
+    throw notFound();
+  }
+  return made;
+}
+
+/** Whether the space is someone else's Mein Space: nobody else reaches it, admins neither. */
+async function othersPersonal(userId: string, p: SpaceRow): Promise<boolean> {
+  return p.kind === "personal" && !(await inSpace(userId, p.id));
+}
+
+/**
+ * The spaces as the studio shows them with `orgSpaces` on: the root first, then the person's
+ * Mein Space, then the spaces under the root, oldest first, up to the plan's number. Each says
+ * whether it is the root or the person's own and how many Kund:innen are in it.
+ */
+async function listOrgSpaces(userId: string, build: boolean) {
+  const root = build ? await rootSpace() : undefined;
+  if (root) {
+    await underRoot(root);
+  }
+  const personal = root && (await personalSpacesOn()) ? await personalSpace(userId, root) : null;
+  const limit = await spaceLimit();
+  const shared = await db.query.space.findMany({
+    where: and(
+      build ? eq(schema.space.tenantId, currentTenant()) : synced(),
+      eq(schema.space.kind, "space"),
+      ...(root ? [ne(schema.space.id, root.id)] : []),
+    ),
+    orderBy: [schema.space.createdAt],
+    ...(Number.isFinite(limit) ? { limit: Math.max(0, limit - (root ? 1 : 0)) } : {}),
+  });
+  const spaces = [...(root ? [root] : []), ...(personal ? [personal] : []), ...shared];
+  const [wizards, clients] = await Promise.all([
+    db
+      .select({ spaceId: schema.wizard.spaceId, n: count() })
+      .from(schema.wizard)
+      .where(eq(schema.wizard.tenantId, currentTenant()))
+      .groupBy(schema.wizard.spaceId),
+    db
+      .select({ spaceId: schema.spaceMember.spaceId, n: count() })
+      .from(schema.spaceMember)
+      .where(
+        and(
+          eq(schema.spaceMember.tenantId, currentTenant()),
+          eq(schema.spaceMember.role, "client"),
+        ),
+      )
+      .groupBy(schema.spaceMember.spaceId),
+  ]);
+  return spaces.map((p) => ({
+    ...p,
+    wizardCount: wizards.find((x) => x.spaceId === p.id)?.n ?? 0,
+    root: p.id === root?.id,
+    personal: p.kind === "personal",
+    clients: clients.find((x) => x.spaceId === p.id)?.n ?? 0,
+  }));
+}
+
 /**
  * The spaces the studio shows. A tenant that builds here: its own and the synced ones, up to
  * its number. One that does not: only what its local install synced — possibly nothing yet.
@@ -343,6 +492,9 @@ export async function listSpaces(userId: string, lang?: Lang) {
   const build = await mayBuild();
   if (build) {
     await ensureSpace(lang);
+  }
+  if (await orgSpacesOn()) {
+    return listOrgSpaces(userId, build);
   }
   // The oldest come first: with a limit of one, that is the space everything lands in. Client
   // spaces stay out: they are a part of their space, never a space of the menu.
@@ -398,7 +550,11 @@ export async function createSpace(_userId: string, name: string): Promise<{ id: 
     );
   }
   const id = nanoid(12);
-  await db.insert(schema.space).values({ id, tenantId: currentTenant(), name, brand: {} });
+  // With `orgSpaces` a new space sits under the organization's own and reads it.
+  const root = (await orgSpacesOn()) ? await rootSpace() : undefined;
+  await db
+    .insert(schema.space)
+    .values({ id, tenantId: currentTenant(), name, brand: {}, parentId: root?.id ?? null });
   spaceChanged("space.created", id);
   return { id };
 }
@@ -696,8 +852,17 @@ export function spaceProfile(p: SpaceRow): SpaceProfile {
 }
 
 export async function deleteSpace(userId: string, spaceId: string) {
-  await requireWritable(await ownedSpace(userId, spaceId));
+  const space = await ownedSpace(userId, spaceId);
+  await requireWritable(space);
   await requireAdmin();
+  // The organization's own space and a person's Mein Space stay as long as the organization
+  // and the person do (docs/plans/org-spaces.md).
+  if (
+    space.kind === "personal" ||
+    ((await orgSpacesOn()) && space.id === (await rootSpace())?.id)
+  ) {
+    throw new ServiceError("refused", note("notDeleteLastSpace"));
+  }
   const all = await db.query.space.findMany({
     where: and(madeHere(), eq(schema.space.kind, "space")),
   });
