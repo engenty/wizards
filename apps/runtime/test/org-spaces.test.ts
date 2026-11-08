@@ -142,6 +142,14 @@ describe("the organization's spaces", () => {
     expect(gone).toBeUndefined();
   });
 
+  it("tells an outside client what each space is", async () => {
+    const listed = await local(() => spaces.listSpaces("local"));
+    expect(spaces.spaceIs(listed[0])).toBe("organization");
+    expect(spaces.spaceIs({ kind: "personal" })).toBe("personal");
+    expect(spaces.spaceIs({ kind: "space", clients: 2 })).toBe("client");
+    expect(spaces.spaceIs({ kind: "space" })).toBe("space");
+  });
+
   it("does not count Mein Space against the number of spaces", async () => {
     const before = (await local(() => spaces.listSpaces("local"))).filter((s) => !s.personal);
     expect(before.length).toBe(6);

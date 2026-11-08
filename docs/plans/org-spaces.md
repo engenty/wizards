@@ -1,6 +1,6 @@
 # Plan: organization, spaces and folders
 
-Status: decided on 2026-11-08, built behind `orgSpaces` (off by default): steps 1–5 below. Not built yet: a folder's linked drive (mounts are a local install's, behind `dateien`); the root and Mein Space named as such in the MCP's and the public API's space lists. The mockups: the
+Status: decided on 2026-11-08, built behind `orgSpaces` (off by default): steps 1–5 below. Not built yet: a folder's linked drive (mounts are a local install's, behind `dateien`). The mockups: the
 artifact "Organization, Spaces and Folders" (claude.ai/artifact/8eL7YzxQJPcQAeP5SgZNeS).
 
 As in Google Drive: Mein Space is yours, spaces are shared, folders sort what is inside. The

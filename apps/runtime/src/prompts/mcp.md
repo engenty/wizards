@@ -44,7 +44,7 @@ Ready-made wizards to start from: first those the space's plugins bring (marked 
 A starter's complete wizard JSON — the best example to copy from.
 
 <!-- section: tool.list_spaces -->
-The person's spaces. Each holds wizards, a brand and MCP servers. Name a space by its name; where two share one, add where it comes from (`from`). Ids are for the tools: never show them to the person.
+The person's spaces. Each holds wizards, a brand and MCP servers. Name a space by its name; where two share one, add where it comes from (`from`). `is` says what a space is: `organization` is the organization's own space, which everyone in it shares; `personal` is the person's own; `client` is shared with clients; `space` is any other. Ids are for the tools: never show them to the person.
 
 <!-- section: tool.list_wizards -->
 The person's wizards, newest first, each with its space's name and where that space comes from. Ids are for the tools: never show them to the person.

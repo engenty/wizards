@@ -3,7 +3,7 @@ import { z } from "zod";
 import { callOutside, RUN_COMMAND } from "../elements/outside.js";
 import { ELEMENT_SPECS, ELEMENT_TOOL_NAMES } from "../elements/specs.js";
 import { prompt } from "../prompts.js";
-import { listSpaces } from "../services/spaces.js";
+import { listSpaces, spaceIs } from "../services/spaces.js";
 import type { Principal } from "./auth.js";
 
 /**
@@ -108,7 +108,11 @@ export function registerElementTools(server: McpServer, who: Principal) {
           {
             type: "text",
             text: JSON.stringify(
-              (await listSpaces(who.userId)).map((p) => ({ id: p.id, name: p.name })),
+              (await listSpaces(who.userId)).map((p) => ({
+                id: p.id,
+                name: p.name,
+                is: spaceIs(p),
+              })),
             ),
           },
         ],

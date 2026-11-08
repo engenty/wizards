@@ -428,6 +428,24 @@ export async function personalSpace(userId: string, root: SpaceRow): Promise<Spa
   return made;
 }
 
+/**
+ * What a listed space is, for an outside client (docs/plans/org-spaces.md): the organization's
+ * own space, the person's Mein Space, a space shared with Kund:innen, or a space.
+ */
+export function spaceIs(p: {
+  kind: string;
+  root?: boolean;
+  clients?: number;
+}): "organization" | "personal" | "client" | "space" {
+  if (p.root) {
+    return "organization";
+  }
+  if (p.kind === "personal") {
+    return "personal";
+  }
+  return p.kind === "client" || (p.clients ?? 0) > 0 ? "client" : "space";
+}
+
 /** Whether a space holds nothing yet: no wizard, no page, no chat. */
 async function emptySpace(spaceId: string): Promise<boolean> {
   const [wizard, page, chat] = await Promise.all([
