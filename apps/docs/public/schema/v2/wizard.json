@@ -51,6 +51,10 @@
     "intro": {
       "type": "string"
     },
+    "label": {
+      "type": "string",
+      "maxLength": 200
+    },
     "lang": {
       "type": "string",
       "pattern": "^[a-z]{2}$"
@@ -584,6 +588,11 @@
               "description": {
                 "type": "string"
               },
+              "section": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
+              },
               "next": {
                 "type": "array",
                 "items": {
@@ -684,6 +693,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -706,9 +729,28 @@
                   "additionalProperties": false
                 }
               },
+              "onFail": {
+                "type": "string"
+              },
+              "timeout": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{0,3}(m|h|d)$"
+              },
+              "remind": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{0,3}(m|h|d)$"
+              },
               "type": {
                 "type": "string",
                 "const": "page"
+              },
+              "who": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "owner",
+                  "team"
+                ]
               },
               "fields": {
                 "minItems": 1,
@@ -827,18 +869,33 @@
                     "currency": {
                       "type": "string"
                     },
+                    "notify": {
+                      "type": "boolean"
+                    },
                     "multiple": {
                       "type": "boolean"
                     },
                     "min": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 30
+                      "type": "number"
                     },
                     "max": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 30
+                      "type": "number"
+                    },
+                    "increment": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "unit": {
+                      "type": "string",
+                      "maxLength": 16
+                    },
+                    "look": {
+                      "type": "string",
+                      "enum": [
+                        "slider",
+                        "stepper",
+                        "list"
+                      ]
                     },
                     "camera": {
                       "type": "boolean"
@@ -956,6 +1013,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -1033,6 +1104,101 @@
               },
               "cta": {
                 "type": "string"
+              },
+              "components": {
+                "minItems": 1,
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,40}$"
+                    },
+                    "component": {
+                      "type": "string",
+                      "enum": [
+                        "Column",
+                        "Text",
+                        "List",
+                        "Row",
+                        "DetailGrid",
+                        "Badge",
+                        "Grid",
+                        "Metric",
+                        "Table",
+                        "Image",
+                        "BarChart",
+                        "LineChart",
+                        "DonutChart",
+                        "Actions",
+                        "Button",
+                        "Tabs",
+                        "Card",
+                        "Fold",
+                        "Group",
+                        "Chips",
+                        "Checklist",
+                        "Steps",
+                        "Link",
+                        "Callout",
+                        "Markdown",
+                        "Sources",
+                        "File",
+                        "Video",
+                        "Audio",
+                        "Gallery",
+                        "Ref",
+                        "Form",
+                        "Field",
+                        "Choice",
+                        "Toggle",
+                        "Slider"
+                      ]
+                    },
+                    "children": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "string"
+                            },
+                            "componentId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "path",
+                            "componentId"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "component"
+                  ],
+                  "additionalProperties": {}
+                }
+              },
+              "data": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             },
             "required": [
@@ -1056,6 +1222,11 @@
               },
               "description": {
                 "type": "string"
+              },
+              "section": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
               },
               "next": {
                 "type": "array",
@@ -1157,6 +1328,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -1178,6 +1363,9 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "onFail": {
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -2636,7 +2824,10 @@
                                 "Gallery",
                                 "Ref",
                                 "Form",
-                                "Field"
+                                "Field",
+                                "Choice",
+                                "Toggle",
+                                "Slider"
                               ]
                             },
                             "children": {
@@ -2711,6 +2902,9 @@
               "each": {
                 "type": "string"
               },
+              "durable": {
+                "type": "boolean"
+              },
               "working": {
                 "type": "string"
               }
@@ -2735,6 +2929,11 @@
               },
               "description": {
                 "type": "string"
+              },
+              "section": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
               },
               "next": {
                 "type": "array",
@@ -2836,6 +3035,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -2857,6 +3070,9 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "onFail": {
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -2977,6 +3193,11 @@
               "description": {
                 "type": "string"
               },
+              "section": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
+              },
               "next": {
                 "type": "array",
                 "items": {
@@ -3077,6 +3298,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -3098,6 +3333,9 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "onFail": {
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -3176,6 +3414,11 @@
               "description": {
                 "type": "string"
               },
+              "section": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
+              },
               "next": {
                 "type": "array",
                 "items": {
@@ -3276,6 +3519,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -3297,6 +3554,9 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "onFail": {
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -3348,7 +3608,10 @@
                         "Gallery",
                         "Ref",
                         "Form",
-                        "Field"
+                        "Field",
+                        "Choice",
+                        "Toggle",
+                        "Slider"
                       ]
                     },
                     "children": {
@@ -3445,7 +3708,10 @@
                               "Gallery",
                               "Ref",
                               "Form",
-                              "Field"
+                              "Field",
+                              "Choice",
+                              "Toggle",
+                              "Slider"
                             ]
                           },
                           "children": {
@@ -3557,6 +3823,11 @@
               "description": {
                 "type": "string"
               },
+              "section": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
+              },
               "next": {
                 "type": "array",
                 "items": {
@@ -3657,6 +3928,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -3678,6 +3963,9 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "onFail": {
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -3781,6 +4069,11 @@
               "description": {
                 "type": "string"
               },
+              "section": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
+              },
               "next": {
                 "type": "array",
                 "items": {
@@ -3881,6 +4174,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -3903,9 +4210,28 @@
                   "additionalProperties": false
                 }
               },
+              "onFail": {
+                "type": "string"
+              },
+              "timeout": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{0,3}(m|h|d)$"
+              },
+              "remind": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{0,3}(m|h|d)$"
+              },
               "type": {
                 "type": "string",
                 "const": "review"
+              },
+              "who": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "owner",
+                  "team"
+                ]
               },
               "show": {
                 "minItems": 1,
@@ -3918,6 +4244,9 @@
                 "type": "boolean"
               },
               "regenerate": {
+                "type": "boolean"
+              },
+              "approve": {
                 "type": "boolean"
               }
             },
@@ -3943,6 +4272,11 @@
               "description": {
                 "type": "string"
               },
+              "section": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
+              },
               "next": {
                 "type": "array",
                 "items": {
@@ -4043,6 +4377,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -4065,6 +4413,9 @@
                   "additionalProperties": false
                 }
               },
+              "onFail": {
+                "type": "string"
+              },
               "type": {
                 "type": "string",
                 "const": "wait"
@@ -4076,6 +4427,38 @@
               "until": {
                 "type": "string",
                 "minLength": 1
+              },
+              "signal": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80,
+                    "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"
+                  },
+                  "key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "timeout": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d{0,3}(m|h|d)$"
+                  },
+                  "fields": {
+                    "maxItems": 40,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-zA-Z_][a-zA-Z0-9_-]*$"
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "key"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -4099,6 +4482,11 @@
               "description": {
                 "type": "string"
               },
+              "section": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
+              },
               "next": {
                 "type": "array",
                 "items": {
@@ -4199,6 +4587,20 @@
                             ],
                             "additionalProperties": false
                           }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "calc": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "calc"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     },
@@ -4220,6 +4622,9 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "onFail": {
+                "type": "string"
               },
               "type": {
                 "type": "string",

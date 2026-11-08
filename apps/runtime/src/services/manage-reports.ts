@@ -127,12 +127,20 @@ export async function reportAllWizards(): Promise<void> {
 
 // --- runs ----------------------------------------------------------------------------------
 
-type RunStatus = "waiting_input" | "sleeping" | "running" | "done" | "failed" | "cancelled";
+type RunStatus =
+  | "waiting_input"
+  | "sleeping"
+  | "waiting_signal"
+  | "running"
+  | "done"
+  | "failed"
+  | "cancelled";
 
 const STATE: Record<RunStatus, string> = {
   waiting_input: "waiting",
   // Manage knows five states; asleep or with a person, the run waits.
   sleeping: "waiting",
+  waiting_signal: "waiting",
   running: "running",
   done: "finished",
   failed: "failed",

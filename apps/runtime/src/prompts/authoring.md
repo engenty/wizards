@@ -31,6 +31,7 @@ How good wizards look:
 - Facts from the web need an agent step with web_search + web_fetch BEFORE writing; documents then cite those notes.
 - Live data with a free public JSON API (weather and wind: api.open-meteo.com; sunrise/sunset is in it too) → an agent step with the http tool and model "low" that calls the API and returns json. Far cheaper and more exact than web research; use web research only when no API exists.
 - Writing into other systems (CRM, database, spreadsheet, website): an agent step with the matching connector, http, or browser tool, preceded by a review step. Such a step hands over an earlier step's output as a file by naming it "result:<stepId>.<format>" — to browser_upload, or as "file:result:<stepId>.<format>" where a connector action takes "*_base64".
+- A run can start again after an interruption, and what a step did with browser_*, run_command, a plugin tool, a GET through http_request or a connector called inside execute_typescript may then happen twice: keep such steps safe to repeat.
 - Sending the finished result on (mail it, file it in a cloud folder, post it on social media or a website, put it into an ads account): do not build a step for it. Put the targets into the result step's "share": the person sees the result first and sends it with one button. Build an agent step only when the wizard must write somewhere without being asked.
 ${sandbox}
 - Remembering between runs ("merke dir", "führe eine Liste"): declare a list and let an agent step save into it with list_write; a later run reads it as {{lists.id}} or list_read. Give it a key column so known rows are updated, not duplicated. Never make the person re-upload last time's result.
@@ -59,10 +60,12 @@ ${sandbox}
 <!-- Technical: engineering owns everything below. -->
 
 <!-- section: guide -->
-<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON. -->
+<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON; durable is the section below, or nothing. -->
 engenty wizards: a wizard is a page-by-page flow an end user walks through on a shared link. Pages ask questions; AI steps research, write, draw images, render video, build documents and dashboards, or write into other systems. You author the wizard as JSON; the person who asked you is the ADMIN, the people who later open the link are END USERS.
 
 ${schema}
+
+${durable}
 
 ${principles}
 
@@ -166,8 +169,11 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   "Young Serif"|"Caveat"|"Creepster"|"Nosifer" — shipped with the runner. Creepster and Nosifer are spooky display fonts:
 //   headings only, never text. "brand" takes the space's brand font.
 
-// Every step: { id (camelCase, unique), title, description?, next?: Branch[] }
-// Branch = { when: Condition | Condition[], goto: stepId | "end", max? }
+// Every step: { id (camelCase, unique), title, description?, section?, next?: Branch[] }
+//   section: the part of the wizard the step belongs to, at most 24 characters ("Budget"). The progress bar names each once, in the
+//   order of the steps, and stays the same on every branch. A step without one belongs to the part before it. For a wizard of 3 parts
+//   or more. The steps of a section stand together: "A", "B", "A" is an issue.
+// Branch = { when: Condition | Condition[] | { calc }, goto: stepId | "end", max? }
 //        | { ask: "a statement about the run", goto: stepId | "end", max? }
 //        | { goto: stepId | "end" }   // otherwise: where the run goes when no other branch holds (one per step)
 //   ask: a decision reads the person's answers and what the steps made so far and takes the branch when the
@@ -178,6 +184,7 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   the check passes": a decision step branches back to the writing step) — give it max (at most 10 without);
 //   the step that runs again sees what it made last time.
 // Condition = { field, op: "equals"|"notEquals"|"in"|"notEmpty"|"empty"|"gt"|"lt"|"contains", value? }
+// { calc: "budget > steps.estimate.total * 2" }: for a test conditions cannot write; names read as `field` does. The language is under the surface catalog. Anything a condition can say stays a condition.
 //   field is a page field id, an output field of this or an earlier agent step as "steps.<stepId>.<fieldId>",
 //   or how many rows a stored list has as "lists.<listId>.count"
 //   gt / lt compare numbers (value is a number); contains looks into a multiselect, a list output or a text;
@@ -186,7 +193,13 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   A step only some runs take sits right after the step that branches to it; that step's otherwise branch
 //   leads every other run past it, and the step itself goes on as the next in the list.
 
-type PageStep = { type: "page", fields: Field[] (1–5 per page), groups?: { id, instructions, optional? }[], cta?: string }
+type PageStep = { type: "page", fields: Field[] (1–5 per page), groups?: { id, instructions, optional? }[], cta?: string,
+  components?: SurfaceComponent[],   // how the page is laid out, for a page with a key figure or an explanation between its fields; from the surface catalog.
+                                     //   Each field of the page is placed by exactly one { id, component: "Field", name: fieldId }, which says nothing else: the field says how it asks.
+                                     //   A field whose when does not hold draws nothing. Paths and calc read the page's answers by field id, as the person types, and the keys of data.
+                                     //   Without components the fields stand one under the other, which is right for most pages.
+  data?: { key: ref }                // what the components read besides the answers: steps.id.key, lists.id, brand.name or today. A key is not also a field id.
+}
 // Decided fields: a field with ask: "statement" is shown when a decision finds the statement true of the run;
 //   fields with group: groupId are alternatives of which the decision shows one ("How should we reach the person?"),
 //   or none when the group is optional. Decided once as the run reaches the page. Such a page has up to 12 fields
@@ -200,8 +213,14 @@ type Field = {
   vat?: { rate?: number, field?: fieldId }                    // items only; VAT % fixed or read from a field
   currency?: "EUR"|...                                        // items only
   multiple?: boolean            // image / file: several files, in the order the person puts them (they can drag them)
-  min?: number, max?: number    // image / file with multiple: how many files at least / at most (up to 30). Set max wherever
-                                //   every file costs something later (a video clip per photo)
+  min?: number, max?: number    // image / file with multiple: how many files at least / at most (whole numbers, up to 30). Set max
+                                //   wherever every file costs something later (a video clip per photo).
+                                //   number: the lowest and highest value allowed
+  increment?: number            // number: the value moves in steps of this size (500: 2000, 2500, 3000)
+  unit?: string                 // number: the sign or word after the value ("€", "Personen", "m²"), at most 16 characters
+  look?: "slider"|"stepper"|"list" // how the field is drawn. number: "slider" (needs min and max; for a value within a range, like a
+                                //   budget) or "stepper" (minus and plus; for small counts). select: "list" (one row per choice, for
+                                //   choices that need a line of text). Without it the runner picks: short choices as buttons, long ones as a dropdown
   camera?: boolean              // file: also offer the camera, for papers the person has not scanned (image always offers it)
   video?: boolean               // file: the camera also records a short clip (up to 30 s); the clip is a file like any other
   listen?: boolean              // file: a recording (video/audio) is listened to before the next step: {{field.speech}} gives what is
@@ -211,7 +230,7 @@ type Field = {
   list?: listId                 // kind "list": the page shows that stored list for the person to check, correct and extend
   prefill?: "steps.<id>.<key>"  // what the field starts with, from an earlier step. An "items" field takes a table whose
                                 //   columns are exactly its column ids — the step proposes the positions, the person corrects them
-  when?: Condition | Condition[] // the field is shown only while this holds: it reads another field of the SAME page (decided as
+  when?: Condition | Condition[] | { calc } // the field is shown only while this holds: it reads another field of the SAME page (decided as
                                 //   the person types) or anything known before the page (an earlier answer, steps.<id>.<field>).
                                 //   A hidden field is not required and not kept; its {{template}} is empty.
   optionsFrom?: "steps.<id>.<key>" | "steps.<id>.<key>.<column>" | "lists.<id>.<column>"
@@ -225,6 +244,8 @@ type Field = {
 }
 // kinds: text textarea number select multiselect date email url toggle color image file items connection list
 //        location audio signature slot
+//   email:     with notify: true it is the visitor's own address: they get a mail with a link that opens the run when
+//              it waits for them or ends. Never set it on a field that asks for someone else's address.
 //   location:  where the person is — the phone's position on a tap (with its accuracy), or an address they type.
 //              {{field}} → "Herrengasse 16, 8010 Graz (47.07071, 15.43950, ±12 m)" · {{field.lat}} {{field.lng}}
 //              {{field.accuracy}} (metres) · {{field.label}} (the address line) · {{field.map}} (a map link).
@@ -428,6 +449,42 @@ Templates (in instructions/prompt): {{fieldId}} · {{steps.stepId}} (whole outpu
   · {{locationField}} {{locationField.lat|lng|accuracy|label|map}} · {{audioField}} (the transcript) · {{signatureField}} (asset://ID)
 A template may only use fields asked and steps run EARLIER.
 
+<!-- section: durable -->
+<!-- Only while the switch durableRuns is on: authoringGuide() and the architect's system prompt leave it out otherwise. -->
+Runs that last days. A run can wait for hours or days: nothing runs meanwhile, it spends no credits, and it survives restarts. A flow that spans days uses wait steps, never an agent step that loops and checks the time. Durations are written "90m", "6h", "2d"; keep every wait under 31 days.
+
+type WaitStep = { type: "wait", for?: Duration, until?: string, signal?: { name, key, timeout?: Duration, fields?: string[] } }
+// Exactly one of for, until, signal.
+// for: from the moment the run gets here. until: an ISO date or a template ("{{deadline}}"). A date gone by waits for nothing; text that is no date fails the run.
+// signal: something arrived from outside. Only a signal with this name and this key ends the wait; keys compare without case, and key is a template.
+//   A signal that came after the run began and before it got here counts too, for 30 days. One signal reaches every run that waits for it.
+//   timeout: give up after this long and go on. Without it the run waits until the signal comes or someone stops it, so give one unless the wait truly has no end.
+//   fields: what its data must hold. A signal without them ends nothing, and only these fields reach the run.
+// What it hands on, for next rules and {{templates}}: after for or until, steps.<id>.waited. After a signal, steps.<id>.came, steps.<id>.timedOut, steps.<id>.data.<field>.
+// Signal names you choose yourself look like "invoice.paid". Three names the runtime writes:
+//   "mail.received": a mail in a mailbox of the space. key: the sender's address, or "thread:{{steps.send.thread_id}}" for a reply to a mail an earlier step sent (give that step an output field with the thread id). data: from, name, subject, text, thread, message, at. Mail the mailbox sent itself, machine answers, and a sender who fails SPF or DMARC checks wake no wait on that sender.
+//   "message.received": what the person writes on a channel while the run waits. key: "person".
+//   "run.done": another run ended. key: that run's id.
+// Example: { "id": "reply", "type": "wait", "title": "Wait for the reply", "signal": { "name": "mail.received", "key": "thread:{{steps.send.thread_id}}", "timeout": "3d" },
+//            "next": [{ "when": { "field": "steps.reply.timedOut", "op": "equals", "value": true }, "goto": "remind" }] }
+
+On a page or a review:
+  who?: "person"|"owner"|"team"  // who answers. person (default): whoever does the run. owner: the run's owner. team: the people the admin names in the share dialog. The validator can't see them: a wizard with a team step can't be published until someone is named. On a test run the member who tests answers.
+  timeout?: Duration             // go on without an answer after this long: steps.<id>.timedOut is true, and a next rule on it decides. Without a rule the next step follows, and the page's fields stay empty. At most 31 days.
+  remind?: Duration              // remind whoever is asked after this long, once. Shorter than timeout. At most 31 days.
+On a review:
+  approve?: true                 // approve or decline instead of "Looks good": steps.<id>.approved, steps.<id>.note. It needs a next rule on steps.<id>.approved, or a decline would go on like an approval. A timeout hands on approved: false with timedOut: true. A start's passReviews never approves. Use it before anything that can't be taken back.
+On an agent step:
+  durable?: true                 // after a crash or a deploy the step goes on at the call it was at, and it gets the tool ask_person: it stops and asks with nothing running, for days if it must. It needs a model an API serves. Not with browser or sandbox, each or call. Use it for a long step that acts in other systems or may have to ask.
+On any step:
+  onFail?: stepId                // where the run goes when this step fails for good, at most three times; without it the run fails. Short trouble at a provider is tried again by itself after 1, 5 and 30 minutes, out of credits or an expired sign-in waits until someone acts, so onFail is for what is really over. A step that already acted outside is not tried again by itself.
+On the wizard:
+  label?: string                 // what tells its runs apart in the runs panel, a template of answers: "{{customer}} · {{offer}}".
+
+An automatic step has a time limit of 8 hours, 12 for motion graphics. What a step did through a connection or a request other than GET happens once, even after a crash: when it can't be known whether it happened, nothing is repeated and the step is told.
+
+Tell the admin what only they can do, in the share dialog: under "Events" they make the address another service sends to, or switch on a mailbox; under "Answered by" they name who answers team steps. To them, a signal is an "event".
+
 <!-- section: widgets -->
 Widgets — when to use: the result must look the same every run, animate, or be explored (a map with
 animated arrows, a timeline with a scrubber, a dashboard with filters, a configurator). Documents and
@@ -467,6 +524,8 @@ one-off pages stay "generate" steps. A widget is code in the wizard's WORKSPACE 
 <!-- section: surfaces -->
 <!-- The surface catalog: what a model needs to compose a view (also used by engine/steps.ts). -->
 A surface is a flat JSON array of components; the one with id "root" is drawn. Containers list their children by id.
+A prop may also be {"calc": "demo / budget", "as"?: "number"|"percent", "map"?, "format"?}: a calculation in a closed language, worked out in the browser. Values: numbers, "text", true, false. Names: a data key, a column of the entry inside a repeat. Operators: + - * / %, == != < <= > >=, and or not, ( ). Functions: round(x, digits), min(…), max(…), sum(list, column), count(list), if(test, a, b). Nothing else: no assignment, no other calls. What cannot be worked out (an empty answer, a division by zero) shows "–". `format` takes {} for the value and {column} for a column of the entry. `as` works on a path too.
+
 Components and props (a prop may be a literal or {"path": "/key/..."} into the data):
 - Column { children: [ids] } — vertical stack (use for root); Column and Grid may also repeat one component per entry: children {"path", "componentId"}
 - Text { text, variant?: "h3"|"h4"|"lead"|"body"|"muted" } — "lead": the one opening line in the wizard's voice
@@ -496,6 +555,8 @@ Components and props (a prop may be a literal or {"path": "/key/..."} into the d
 - File { file: an asset id or {"path": ...}, name, mime?, preview?: false } — a file with its name and Open; a PDF or picture shows itself unless preview is false
 - Video { src, poster? } / Audio { src, title? } — a clip or a recording, an asset id or {"path": ...}
 - Gallery { items: [asset ids] or {"path": ...}, srcKey?, captionKey? } — pictures side by side; srcKey / captionKey: the keys of entries that are objects
+- Choice { state, options: [values] or [{ label, value }], default?, look?: "list" } / Toggle { state, label, default? } / Slider { state, min, max, increment?, unit?, label?, default? } — only in a wizard's views (surface steps, output.surface): what the person sets there changes the view at once and is kept with the run, without a step of its own. Paths and calc read it by its state name, like a data key ("round(amount * servings / 2)"). A state name is unique in its view and is no data key. On a page, a field asks instead
+A Checklist may take detail: {"calc": "round(amount * servings / 2)", "format": "{} {unit}"} next to detailKey: worked out per entry, its names read the entry's columns.
 A path may put its value into words: {"path": "in_fridge", "map": {"true": "da", "false": "einkaufen"}}, {"path": "minutes", "format": "{} Min"}.
 Design it like an app, not a report: lead with a headline, the key figure or the chips; one Card per thing, never a Table of things; ordered work is Steps, things to get are a Checklist, sets are grouped by their key. A Table only for figures people compare across columns.
 Keep it small: what the person needs to see first, then the details. Never invent numbers: bind them by path.

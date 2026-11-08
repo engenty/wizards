@@ -162,12 +162,37 @@ function collectAttachments(
   }
 }
 
+/** A machine answered: out of office (RFC 3834 and its older spellings), or a bounce. */
+/**
+ * Gmail's own verdict on who sent a mail. Its `Authentication-Results` comes first; a sender can only
+ * add theirs below it, so the first is the only one read.
+ */
+function senderFailedChecks(headers: GmailPayload["headers"]): boolean {
+  return /\b(?:spf|dmarc)=fail\b/i.test(getHeader(headers, "Authentication-Results") ?? "");
+}
+
+function isAutoReply(headers: GmailPayload["headers"], from: string | null): boolean {
+  const said = (name: string) => getHeader(headers, name)?.trim().toLowerCase();
+  return (
+    said("Auto-Submitted")?.startsWith("auto-replied") === true ||
+    said("X-Autoreply") !== undefined ||
+    said("X-Autorespond") !== undefined ||
+    said("Precedence") === "auto_reply" ||
+    /^(mailer-daemon|postmaster)@/i.test(from ?? "")
+  );
+}
+
 function toInboundMessage(raw: GmailMessage): InboundMessage {
   const parsed = parseGmailMessage(raw);
   const attachments: InboundMessageAttachment[] = [];
   collectAttachments(raw.payload, attachments);
+  const labels = raw.labelIds ?? [];
   return {
     attachments,
+    auto_reply: isAutoReply(raw.payload?.headers, parsed.from_email),
+    sender_failed_checks: senderFailedChecks(raw.payload?.headers),
+    // A mail to oneself is both, and did arrive.
+    outgoing: labels.includes("SENT") && !labels.includes("INBOX"),
     body_html: extractBody(raw.payload, "text/html"),
     body_text: parsed.body_text,
     cc: parsed.cc,
@@ -181,8 +206,8 @@ function toInboundMessage(raw: GmailMessage): InboundMessage {
   };
 }
 
-/** Drafts and chats are never "inbound"; everything else flows through. */
-const EXCLUDED_LABELS = new Set(["CHAT", "DRAFT"]);
+/** Drafts, chats and what Gmail threw out are never "inbound"; everything else flows through. */
+const EXCLUDED_LABELS = new Set(["CHAT", "DRAFT", "SPAM", "TRASH"]);
 
 const DEFAULT_PULL_LIMIT = 50;
 const MAX_PULL_LIMIT = 100;
@@ -278,6 +303,7 @@ async function fetchInboundMessages(
   }
   return messages
     .filter((m): m is GmailMessage => m !== null)
+    .filter((m) => !(m.labelIds ?? []).some((l) => EXCLUDED_LABELS.has(l)))
     .map(toInboundMessage);
 }
 
@@ -765,6 +791,13 @@ export const gmailConnector: ConnectorDefinition = defineConnector({
   // Inbound message stream for module consumers (inbox, KB, …): incremental
   // via history.list (cursor = historyId), initial backfill via messages.list
   // over a date window. Never projected as an agent tool.
-  stream: { kind: "messages", pull: pullGmailStream },
+  stream: {
+    kind: "messages",
+    pull: pullGmailStream,
+    read: async (ctx, id) => {
+      const raw = await fetchMessageDetail(ctx, id);
+      return raw ? toInboundMessage(raw) : null;
+    },
+  },
   toolPrefix: "gmail",
 });

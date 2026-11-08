@@ -75,5 +75,11 @@
 # runs that wait for days: wait steps, the clock that wakes them, a deadline on automatic steps
 # durableRuns=on|off
 #
+# a wizard that runs on a schedule: the share dialog's section, the clock, the bell
+# startTriggers=on|off
+#
+# a new wizard's first draft in seconds, before the architect finishes it
+# fastCreate=on|off
+#
 # a plugin's switches carry its id; `wizards features` lists the ones installed here
 # contacts.leadScoring=on|off

@@ -16,9 +16,13 @@ import {
   isOtherwise,
   isRealLanguage,
   langName,
+  MAIL_SIGNAL,
+  MESSAGE_SIGNAL,
   type NextRule,
   outputKeys,
   type PageStep,
+  personStepRefs,
+  RUN_DONE_SIGNAL,
   type Step,
   stepShape,
   TOOL_IDS,
@@ -26,6 +30,8 @@ import {
   type VideoResolution,
   WIZARD_LANGS,
   type WizardDefinition,
+  waitOutputRefs,
+  whenCalc,
 } from "@engenty/wizards-shared/definition";
 import { readNumber } from "@engenty/wizards-shared/numbers";
 import type { BranchDecision, RunEstimate } from "@engenty/wizards-shared/run";
@@ -53,6 +59,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { withBase } from "@/lib/base";
 import { Mascot } from "../../brand";
+import { useFeature } from "../../lib/features";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { useStudioPlugins } from "../../plugins/host";
@@ -224,7 +231,21 @@ function ConditionEditor({
   label?: string;
   noneLabel?: string;
 }) {
+  const calc = whenCalc(when);
   const [first, ...rest] = conditionsOf(when);
+  if (calc !== null) {
+    // A test conditions cannot write: its text, which empties back to no condition.
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[0.8125rem] text-ink-2">{label}</span>
+        <Input
+          value={calc}
+          className="font-mono text-[0.8125rem]"
+          onChange={(e) => onChange(e.target.value ? { calc: e.target.value } : undefined)}
+        />
+      </div>
+    );
+  }
   const set = (c: Condition | null) =>
     onChange(c ? (rest.length ? [c, ...rest] : c) : rest.length ? rest : undefined);
   const needsValue = first && first.op !== "empty" && first.op !== "notEmpty";
@@ -865,6 +886,7 @@ function StepBody({
   const readOnly = useContext(ReadOnly);
   // Tools the runtime's plugins add, listed by their full id next to the built-in ones.
   const pluginTools = useStudioPlugins().plugins.flatMap((plugin) => plugin.tools);
+  const durableRuns = useFeature("durableRuns");
   const earlierProducers = def.steps
     .slice(0, index)
     .filter(
@@ -885,51 +907,58 @@ function StepBody({
       );
     case "page":
       return (
-        <Section title={t("inspector.questions")} loose>
-          <div className="flex flex-col gap-2">
-            {step.fields.map((f, i) => (
-              <FieldEditor
-                key={f.id}
-                def={def}
-                page={step}
-                field={f}
-                onChange={(nf) =>
-                  set({ ...step, fields: step.fields.map((x, j) => (j === i ? nf : x)) })
-                }
-                onRemove={() =>
-                  step.fields.length > 1 &&
-                  set({ ...step, fields: step.fields.filter((_, j) => j !== i) })
-                }
-                onMove={(dir) => {
-                  const j = i + dir;
-                  if (j < 0 || j >= step.fields.length) {
-                    return;
+        <>
+          <Section title={t("inspector.questions")} loose>
+            <div className="flex flex-col gap-2">
+              {step.fields.map((f, i) => (
+                <FieldEditor
+                  key={f.id}
+                  def={def}
+                  page={step}
+                  field={f}
+                  onChange={(nf) =>
+                    set({ ...step, fields: step.fields.map((x, j) => (j === i ? nf : x)) })
                   }
-                  const fields = [...step.fields];
-                  [fields[i], fields[j]] = [fields[j], fields[i]];
-                  set({ ...step, fields });
-                }}
-              />
-            ))}
-          </div>
-          {readOnly ? null : (
-            <button
-              type="button"
-              onClick={() =>
-                set({
-                  ...step,
-                  fields: [
-                    ...step.fields,
-                    { id: uniqueId(def, "question"), label: t("step.new.question"), kind: "text" },
-                  ],
-                })
-              }
-              className="inline-flex h-9 items-center gap-1.5 self-start rounded-full px-3 text-[0.8125rem] text-ink-2 hover:bg-accent"
-            >
-              <Plus className="size-4" /> {t("inspector.addQuestion")}
-            </button>
-          )}
-        </Section>
+                  onRemove={() =>
+                    step.fields.length > 1 &&
+                    set({ ...step, fields: step.fields.filter((_, j) => j !== i) })
+                  }
+                  onMove={(dir) => {
+                    const j = i + dir;
+                    if (j < 0 || j >= step.fields.length) {
+                      return;
+                    }
+                    const fields = [...step.fields];
+                    [fields[i], fields[j]] = [fields[j], fields[i]];
+                    set({ ...step, fields });
+                  }}
+                />
+              ))}
+            </div>
+            {readOnly ? null : (
+              <button
+                type="button"
+                onClick={() =>
+                  set({
+                    ...step,
+                    fields: [
+                      ...step.fields,
+                      {
+                        id: uniqueId(def, "question"),
+                        label: t("step.new.question"),
+                        kind: "text",
+                      },
+                    ],
+                  })
+                }
+                className="inline-flex h-9 items-center gap-1.5 self-start rounded-full px-3 text-[0.8125rem] text-ink-2 hover:bg-accent"
+              >
+                <Plus className="size-4" /> {t("inspector.addQuestion")}
+              </button>
+            )}
+          </Section>
+          {durableRuns ? <AnswerSection step={step} set={set} /> : null}
+        </>
       );
     case "agent":
       if (isFixedStep(step)) {
@@ -1008,6 +1037,27 @@ function StepBody({
               value={step.working ?? ""}
               onChange={(e) => set({ ...step, working: e.target.value || undefined })}
             />
+            {durableRuns && !step.each && !step.call ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-[0.8125rem] text-ink-2">{t("inspector.durable")}</span>
+                  <p className="text-[0.75rem] text-ink-4">
+                    {step.tools.includes("browser") || step.tools.includes("sandbox")
+                      ? t("inspector.durableNot")
+                      : t("inspector.durableHint")}
+                  </p>
+                </div>
+                <Switch
+                  checked={Boolean(step.durable)}
+                  disabled={
+                    !step.durable &&
+                    (step.tools.includes("browser") || step.tools.includes("sandbox"))
+                  }
+                  label={t("inspector.durable")}
+                  onChange={(v) => set({ ...step, durable: v || undefined })}
+                />
+              </div>
+            ) : null}
           </Section>
         </>
       );
@@ -1100,25 +1150,28 @@ function StepBody({
       return <WaitBody step={step} set={set} />;
     case "review":
       return (
-        <Section title={t("inspector.whatShown")}>
-          <Segmented
-            multi
-            value={step.show}
-            options={earlierProducers.map((s) => s.id)}
-            onChange={(v: string[]) => v.length && set({ ...step, show: v })}
-          />
-          <div className="flex items-center justify-between">
-            <span className="text-[0.8125rem] text-ink-2">{t("inspector.editable")}</span>
-            <Switch checked={Boolean(step.edit)} onChange={(v) => set({ ...step, edit: v })} />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[0.8125rem] text-ink-2">{t("inspector.redo")}</span>
-            <Switch
-              checked={Boolean(step.regenerate)}
-              onChange={(v) => set({ ...step, regenerate: v })}
+        <>
+          <Section title={t("inspector.whatShown")}>
+            <Segmented
+              multi
+              value={step.show}
+              options={earlierProducers.map((s) => s.id)}
+              onChange={(v: string[]) => v.length && set({ ...step, show: v })}
             />
-          </div>
-        </Section>
+            <div className="flex items-center justify-between">
+              <span className="text-[0.8125rem] text-ink-2">{t("inspector.editable")}</span>
+              <Switch checked={Boolean(step.edit)} onChange={(v) => set({ ...step, edit: v })} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[0.8125rem] text-ink-2">{t("inspector.redo")}</span>
+              <Switch
+                checked={Boolean(step.regenerate)}
+                onChange={(v) => set({ ...step, regenerate: v })}
+              />
+            </div>
+          </Section>
+          {durableRuns ? <AnswerSection step={step} set={set} /> : null}
+        </>
       );
     case "result":
       return (
@@ -1219,6 +1272,7 @@ export function WizardSettings({
   spaceId: string;
   wizardId: string;
 }) {
+  const durableRuns = useFeature("durableRuns");
   return (
     <div>
       <Section>
@@ -1242,6 +1296,16 @@ export function WizardSettings({
             onChange={(e) => update({ ...def, intro: e.target.value || undefined })}
           />
         </div>
+        {durableRuns ? (
+          <div>
+            <Label hint={t("inspector.runLabelHint")}>{t("inspector.runLabel")}</Label>
+            <Input
+              value={def.label ?? ""}
+              placeholder={t("inspector.runLabelExample")}
+              onChange={(e) => update({ ...def, label: e.target.value || undefined })}
+            />
+          </div>
+        ) : null}
         <div>
           <Label hint={t("inspector.langHint")}>{t("inspector.lang")}</Label>
           <Select
@@ -1512,6 +1576,38 @@ export function StepNav({
   );
 }
 
+/** Who answers a page or a review. A role: the people are named in the share dialog. */
+function WhoSection({
+  step,
+  set,
+}: {
+  step: Extract<Step, { type: "page" | "review" }>;
+  set: (step: Step) => void;
+}) {
+  const durableRuns = useFeature("durableRuns");
+  if (!durableRuns) {
+    return null;
+  }
+  return (
+    <Section title={t("inspector.who")}>
+      <Select
+        value={step.who ?? "person"}
+        onChange={(v) =>
+          set({ ...step, who: v === "person" ? undefined : (v as "owner" | "team") })
+        }
+        options={[
+          { value: "person", label: t("inspector.who.person") },
+          { value: "owner", label: t("inspector.who.owner") },
+          { value: "team", label: t("inspector.who.team") },
+        ]}
+      />
+      {step.who === "team" ? (
+        <p className="text-[0.75rem] text-ink-3">{t("inspector.whoTeamHint")}</p>
+      ) : null}
+    </Section>
+  );
+}
+
 export function Inspector(props: InspectorProps) {
   const { def, selected, readOnly = false } = props;
   // A read-only wizard takes no change, whatever a control inside still sends.
@@ -1666,6 +1762,7 @@ function StepInspector({
         <StepCost estimate={estimate.data} stepId={step.id} />
       </Section>
       <StepBody def={def} step={step} set={set} files={files} wizardId={wizardId} />
+      {step.type === "page" || step.type === "review" ? <WhoSection step={step} set={set} /> : null}
       {step.type !== "result" ? (
         <NextSection
           def={def}
@@ -1756,7 +1853,7 @@ function branchSources(def: WizardDefinition, step: Step): string[] {
   const out: string[] = [];
   for (const s of def.steps.slice(0, index + 1)) {
     if (s.type === "page") {
-      out.push(...s.fields.map((f) => f.id));
+      out.push(...s.fields.map((f) => f.id), ...personStepRefs(s));
     } else if (s.type === "agent") {
       for (const key of outputKeys(s)) {
         out.push(`steps.${s.id}.${key}`);
@@ -1764,6 +1861,10 @@ function branchSources(def: WizardDefinition, step: Step): string[] {
           out.push(`steps.${s.id}.${key}.p`);
         }
       }
+    } else if (s.type === "wait") {
+      out.push(...waitOutputRefs(s));
+    } else if (s.type === "review") {
+      out.push(...personStepRefs(s));
     }
   }
   out.push(...(def.lists ?? []).map((l) => `lists.${l.id}.count`));
@@ -1877,6 +1978,87 @@ function localDateTime(iso: string | undefined): string {
 
 const WAIT_UNITS = ["m", "h", "d"] as const;
 
+/** A length of time, or none. */
+function DurationField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string | undefined;
+  onChange: (next: string | undefined) => void;
+}) {
+  const lasts = /^(\d+)([mhd])$/.exec(value ?? "");
+  const unit = lasts?.[2] ?? "";
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="flex gap-2">
+        {lasts ? (
+          <Input
+            type="number"
+            min={1}
+            className="w-24 shrink-0"
+            value={lasts[1]}
+            onChange={(e) => {
+              const n = Number.parseInt(e.target.value, 10);
+              if (n > 0) {
+                onChange(`${n}${unit}`);
+              }
+            }}
+          />
+        ) : null}
+        <Select
+          value={unit}
+          onChange={(v) => onChange(v ? `${lasts?.[1] ?? "1"}${v}` : undefined)}
+          options={[
+            { value: "", label: t("inspector.answerNever") },
+            { value: "m", label: t("inspector.waitMinutes") },
+            { value: "h", label: t("inspector.waitHours") },
+            { value: "d", label: t("inspector.waitDays") },
+          ]}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** How long a person's step waits, whom it reminds, and whether it asks for a decision. */
+function AnswerSection({
+  step,
+  set,
+}: {
+  step: Extract<Step, { type: "page" | "review" }>;
+  set: (next: Step) => void;
+}) {
+  return (
+    <Section title={t("inspector.answer")}>
+      <DurationField
+        label={t("inspector.answerTimeout")}
+        value={step.timeout}
+        onChange={(timeout) => set({ ...step, timeout })}
+      />
+      <DurationField
+        label={t("inspector.answerRemind")}
+        value={step.remind}
+        onChange={(remind) => set({ ...step, remind })}
+      />
+      {step.type === "review" ? (
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="text-[0.8125rem] text-ink-2">{t("inspector.approve")}</span>
+            <p className="text-[0.75rem] text-ink-4">{t("inspector.approveHint")}</p>
+          </div>
+          <Switch
+            checked={Boolean(step.approve)}
+            onChange={(approve) => set({ ...step, approve: approve || undefined })}
+          />
+        </div>
+      ) : null}
+    </Section>
+  );
+}
+
 /** What a run waits for: a time, or a date (one picked here, or a template with an answer). */
 function WaitBody({
   step,
@@ -1889,9 +2071,10 @@ function WaitBody({
   const amount = lasts?.[1] ?? "1";
   const unit = (lasts?.[2] ?? "d") as (typeof WAIT_UNITS)[number];
   const byDate = step.until !== undefined;
-  const { for: _for, until: _until, ...rest } = step;
+  const { for: _for, until: _until, signal, ...rest } = step;
   const lastsFor = (n: string, u: string) => set({ ...rest, for: `${n}${u}` });
   const untilDate = (until: string) => set({ ...rest, until });
+  const listens = (next: NonNullable<typeof signal>) => set({ ...rest, signal: next });
   const unitLabel = {
     m: "inspector.waitMinutes",
     h: "inspector.waitHours",
@@ -1900,14 +2083,25 @@ function WaitBody({
   return (
     <Section title={t("inspector.waitFor")}>
       <Select
-        value={byDate ? "until" : "for"}
-        onChange={(v) => (v === "until" ? untilDate(new Date().toISOString()) : lastsFor("1", "d"))}
+        value={signal ? "signal" : byDate ? "until" : "for"}
+        onChange={(v) => {
+          if (v === "signal") {
+            listens({ name: "event", key: "{{email}}", timeout: "3d" });
+          } else if (v === "until") {
+            untilDate(new Date().toISOString());
+          } else {
+            lastsFor("1", "d");
+          }
+        }}
         options={[
           { value: "for", label: t("inspector.waitTime") },
           { value: "until", label: t("inspector.waitDate") },
+          { value: "signal", label: t("inspector.waitSignal") },
         ]}
       />
-      {byDate ? (
+      {signal ? (
+        <SignalWait signal={signal} set={listens} />
+      ) : byDate ? (
         <>
           <Label>{t("inspector.waitUntil")}</Label>
           <Input
@@ -1952,6 +2146,141 @@ function WaitBody({
       )}
       <p className="text-[0.8125rem] text-ink-3">{t("inspector.waitFree")}</p>
     </Section>
+  );
+}
+
+/** A wait for an event: which one, from whom, for how long, and what it must hold. */
+function SignalWait({
+  signal,
+  set,
+}: {
+  signal: NonNullable<Extract<Step, { type: "wait" }>["signal"]>;
+  set: (next: typeof signal) => void;
+}) {
+  const source =
+    signal.name === MESSAGE_SIGNAL
+      ? "person"
+      : signal.name === RUN_DONE_SIGNAL
+        ? "run"
+        : signal.name === MAIL_SIGNAL
+          ? "mail"
+          : "service";
+  const lasts = /^(\d+)([mhd])$/.exec(signal.timeout ?? "");
+  const unit = (lasts?.[2] ?? "d") as (typeof WAIT_UNITS)[number];
+  const unitLabel = {
+    m: "inspector.waitMinutes",
+    h: "inspector.waitHours",
+    d: "inspector.waitDays",
+  } as const;
+  const { timeout: _timeout, fields: _fields, ...rest } = signal;
+  const withFields = signal.fields ? { fields: signal.fields } : {};
+  return (
+    <>
+      <Label>{t("inspector.waitWhich")}</Label>
+      <Select
+        value={source}
+        onChange={(v) => {
+          if (v === "person") {
+            set({ ...signal, name: MESSAGE_SIGNAL, key: "person" });
+          } else if (v === "run") {
+            set({ ...signal, name: RUN_DONE_SIGNAL, key: "{{run}}" });
+          } else if (v === "mail") {
+            set({ ...signal, name: MAIL_SIGNAL, key: "{{email}}" });
+          } else {
+            set({ ...signal, name: "event", key: "{{email}}" });
+          }
+        }}
+        options={[
+          { value: "service", label: t("inspector.waitFromService") },
+          { value: "mail", label: t("inspector.waitFromMail") },
+          { value: "person", label: t("inspector.waitFromPerson") },
+          { value: "run", label: t("inspector.waitFromRun") },
+        ]}
+      />
+      {source === "service" ? (
+        <>
+          <p className="text-[0.8125rem] text-ink-3">{t("inspector.waitWhichHint")}</p>
+          <Label>{t("inspector.waitName")}</Label>
+          <Input
+            placeholder={t("inspector.waitNameExample")}
+            value={signal.name}
+            onChange={(e) => {
+              const name = e.target.value.replace(/[^a-zA-Z0-9._-]/g, "");
+              if (/^[a-zA-Z0-9]/.test(name)) {
+                set({ ...signal, name });
+              }
+            }}
+          />
+        </>
+      ) : null}
+      {source === "person" ? null : (
+        <>
+          <Label>{t(source === "run" ? "inspector.waitRun" : "inspector.waitKey")}</Label>
+          <Input
+            value={signal.key}
+            onChange={(e) => e.target.value && set({ ...signal, key: e.target.value })}
+          />
+          <p className="text-[0.8125rem] text-ink-3">
+            {t(
+              source === "run"
+                ? "inspector.waitRunHint"
+                : source === "mail"
+                  ? "inspector.waitMailHint"
+                  : "inspector.waitKeyHint",
+            )}
+          </p>
+          {source === "mail" ? (
+            <p className="text-[0.8125rem] text-ink-3">{t("inspector.waitMailOn")}</p>
+          ) : null}
+        </>
+      )}
+      <Label>{t("inspector.waitDeadline")}</Label>
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          min={1}
+          max={9999}
+          className="w-24"
+          aria-label={t("inspector.waitDeadline")}
+          placeholder={t("inspector.waitNoDeadline")}
+          value={lasts?.[1] ?? ""}
+          onChange={(e) => {
+            const n = Math.trunc(Number(e.target.value));
+            set(
+              n >= 1 && n <= 9999
+                ? { ...rest, ...withFields, timeout: `${n}${unit}` }
+                : { ...rest, ...withFields },
+            );
+          }}
+        />
+        <Select
+          value={unit}
+          onChange={(u) =>
+            set({ ...rest, ...withFields, ...(lasts ? { timeout: `${lasts[1]}${u}` } : {}) })
+          }
+          options={WAIT_UNITS.map((u) => ({ value: u, label: t(unitLabel[u]) }))}
+        />
+      </div>
+      <p className="text-[0.8125rem] text-ink-3">{t("inspector.waitDeadlineHint")}</p>
+      {source === "service" ? (
+        <>
+          <Label>{t("inspector.waitFields")}</Label>
+          <Input
+            placeholder={t("inspector.waitFieldsExample")}
+            value={(signal.fields ?? []).join(", ")}
+            onChange={(e) => {
+              const fields = e.target.value
+                .split(",")
+                .map((f) => f.trim())
+                .filter(Boolean);
+              const { fields: _was, ...others } = signal;
+              set(fields.length ? { ...others, fields } : others);
+            }}
+          />
+          <p className="text-[0.8125rem] text-ink-3">{t("inspector.waitFieldsHint")}</p>
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -2205,6 +2534,7 @@ function NextSection({
                   {chip(Boolean(rule.ask))}
                   <span className="min-w-0 flex-1 truncate text-[0.8125rem] text-ink">
                     {rule.ask ??
+                      whenCalc(rule.when) ??
                       conditionsOf(rule.when)
                         .map(conditionText)
                         .join(` ${t("editor.branch.and")} `)}

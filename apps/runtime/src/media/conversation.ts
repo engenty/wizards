@@ -68,6 +68,16 @@ export const CONVERSATION_TOOLS = [
   },
   {
     type: "function",
+    name: "decline_review",
+    description: prompt("voice", "tool.decline_review"),
+    parameters: {
+      type: "object",
+      properties: { note: { type: "string", description: "Why, in the person's words." } },
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
     name: "regenerate",
     description: prompt("voice", "tool.regenerate"),
     parameters: {
@@ -88,6 +98,17 @@ export const CONVERSATION_TOOLS = [
       type: "object",
       properties: { allow: { type: "boolean" } },
       required: ["allow"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "answer_question",
+    description: prompt("voice", "tool.answer_question"),
+    parameters: {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
       additionalProperties: false,
     },
   },

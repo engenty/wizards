@@ -123,6 +123,8 @@ export function useArchitectChat(
   const [activity, setActivity] = useState<string | null>(null);
   const [thought, setThought] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  // After a first draft: the steps the architect still works on.
+  const [preparing, setPreparing] = useState<ReadonlySet<string>>(new Set());
   // Extra effort: the editor chat builds wizards and their widgets, which is code, so it starts on.
   const [extra, setExtra] = useState(true);
   const loadedFor = useRef<string | null>(null);
@@ -208,6 +210,8 @@ export function useArchitectChat(
             setThought(JSON.parse(data) as string);
           } else if (event === "building") {
             setPhase("building");
+          } else if (event === "preparing") {
+            setPreparing(new Set(JSON.parse(data) as string[]));
           } else if (event === "done") {
             answered = true;
             const done = JSON.parse(data) as {
@@ -241,6 +245,7 @@ export function useArchitectChat(
       setActivity(null);
       setThought(null);
       setStartedAt(null);
+      setPreparing(new Set());
       setMessages((m) =>
         m.filter((x) => !(x.id === pendingId && !x.content)).map((x) => ({ ...x, pending: false })),
       );
@@ -254,7 +259,19 @@ export function useArchitectChat(
   const fileUrl = (name: string) =>
     withBase(`/api/studio/wizards/${wizard?.id}/files/${encodeURIComponent(name)}`);
 
-  return { messages, phase, activity, thought, startedAt, error, send, fileUrl, extra, setExtra };
+  return {
+    messages,
+    phase,
+    activity,
+    thought,
+    startedAt,
+    error,
+    send,
+    fileUrl,
+    extra,
+    setExtra,
+    preparing,
+  };
 }
 
 /** What the panel shows and sends; the architect's chat and the space assistant both are one. */

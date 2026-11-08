@@ -42,6 +42,27 @@ export function verifySignedUrl(href: string): boolean {
 }
 
 /**
+ * One of this runtime's processes asks a runner to take a run now (`kick` in a process without a
+ * runner). Good for a minute; the processes share `authSecret`, nobody else has it.
+ */
+export function peerTicket(runId: string, tenant: string): string {
+  const exp = String(Math.floor(Date.now() / 1000) + 60);
+  return `${exp}.${sign(`take:${tenant}:${runId}|${exp}`)}`;
+}
+
+export function peerTicketValid(
+  runId: string,
+  tenant: string,
+  ticket: string | undefined,
+): boolean {
+  const [exp, sig] = (ticket ?? "").split(".");
+  if (!exp || !sig || Number(exp) * 1000 < Date.now()) {
+    return false;
+  }
+  return sameSignature(`take:${tenant}:${runId}|${exp}`, sig);
+}
+
+/**
  * A ticket to one run's routes without a session: the widget an AI app shows runs on the host's
  * origin and reaches the run with it. Sent as `?rt=`, since an EventSource sends no headers.
  */
@@ -74,4 +95,28 @@ export function runViewTicketValid(runId: string, ticket: string | undefined): b
     return false;
   }
   return sameSignature(`run-view:${runId}|${exp}`, sig);
+}
+
+/**
+ * The ticket in a visitor's mail while their run waits: it reads the run and answers it, and
+ * nothing else (`accessibleRun`'s `waiting`). It lasts as long as the wait can, so it opens less
+ * than `runTicket`. `until` comes from the run, so the same mail signs the same link again.
+ */
+export function runWaitTicket(runId: string, until: Date): string {
+  const exp = String(Math.floor(until.getTime() / 1000));
+  return `${exp}.${sign(`run-wait:${runId}|${exp}`)}`;
+}
+
+export function runWaitTicketValid(runId: string, ticket: string | undefined): boolean {
+  const [exp, sig] = (ticket ?? "").split(".");
+  if (!exp || !sig || Number(exp) * 1000 < Date.now()) {
+    return false;
+  }
+  return sameSignature(`run-wait:${runId}|${exp}`, sig);
+}
+
+/** `runViewTicket` for a mail about a run's end: it lasts as long as the run is kept. */
+export function runViewTicketUntil(runId: string, until: Date): string {
+  const exp = String(Math.floor(until.getTime() / 1000));
+  return `${exp}.${sign(`run-view:${runId}|${exp}`)}`;
 }

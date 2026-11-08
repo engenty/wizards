@@ -38,7 +38,7 @@ export const link = sqliteTable(
      * brand logo, `font` = a brand font's file, `code` = a wizard's ID to type in (its `ref` is
      * the wizard's share token).
      */
-    kind: text("kind", { enum: ["wizard", "result", "logo", "font", "code"] }).notNull(),
+    kind: text("kind", { enum: ["wizard", "result", "logo", "font", "code", "signal"] }).notNull(),
     ref: text("ref").notNull(),
     createdAt: createdAt(),
   },
@@ -77,6 +77,8 @@ export const runIndex = sqliteTable(
       platform: "ios" | "android";
       lang: Lang;
     }>(),
+    /** The run's own person last had its page in view (`POST /api/runs/:id/seen`). */
+    viewedAt: integer("viewed_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
   },
   (t) => [

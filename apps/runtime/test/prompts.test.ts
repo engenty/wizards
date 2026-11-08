@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { authoringGuide } from "../src/authoring/guide.js";
 import { type PromptFile, prompt, promptSections } from "../src/prompts.js";
 
 const SRC = join(import.meta.dirname, "../src");
@@ -62,6 +63,11 @@ describe("prompts", () => {
         expect(hit, `prompts/${file}.md#${name} is not used`).toBe(true);
       }
     }
+  });
+
+  it("the guide tells of waits only while a run can do them", () => {
+    expect(authoringGuide()).not.toContain("type WaitStep");
+    expect(authoringGuide([], [], [], true)).toContain("type WaitStep");
   });
 
   it("fills placeholders strictly", () => {

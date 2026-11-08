@@ -503,6 +503,8 @@ export const microsoftOutlookConnector: ConnectorDefinition = defineConnector({
               ...(input.location ? { location: { displayName: input.location } } : {}),
               start: { dateTime: input.start, timeZone: input.time_zone },
               subject: input.subject,
+              // Graph's own key against a create sent twice.
+              ...(ctx.idempotencyKey ? { transactionId: ctx.idempotencyKey } : {}),
             },
             method: "POST",
           }

@@ -1,77 +1,170 @@
-import { useQuery } from "@tanstack/react-query";
+import { describeStart, type StartedBy, type WizardStart } from "@engenty/wizards-shared/starts";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Clock, Link2, Table2, Wand2 } from "lucide-react";
+import { useDeferredValue, useState } from "react";
 import { api } from "../../lib/api";
-import { type Key, lang, t } from "../../lib/i18n";
-import { Chip, Empty } from "../../ui";
+import { useFeature } from "../../lib/features";
+import { lang, t } from "../../lib/i18n";
+import { Button, Chip, Empty, Input } from "../../ui";
+import { RunTimeline, STATUS } from "./RunTimeline";
 
 interface RunRow {
   id: string;
   mode: "test" | "live";
   status: string;
+  label: string | null;
   wakeAt: string | null;
+  /** A person has to act first when this is `credits` or `sign_in`. */
+  pause: "retry" | "credits" | "sign_in" | null;
   version: number | null;
   createdAt: string;
   credits: number;
   assets: number;
   stepTitle: string | null;
+  startedBy: StartedBy | null;
 }
 
-const STATUS: Record<string, Key> = {
-  waiting_input: "runs.status.waiting_input",
-  sleeping: "runs.status.sleeping",
-  running: "runs.status.running",
-  done: "runs.status.done",
-  failed: "runs.status.failed",
-  cancelled: "runs.status.cancelled",
-};
+const START_ICONS = { schedule: Clock, webhook: Link2, record: Table2, wizard: Wand2 };
 
 export function RunsPanel({
   wizardId,
+  starts,
   onOpen,
 }: {
   wizardId: string;
+  /** The wizard's starts, so a run says which one began it. */
+  starts: WizardStart[];
   onOpen: (runId: string) => void;
 }) {
+  // With runs that last for days a run opens on its timeline here; the timeline opens the run.
+  const timelines = useFeature("durableRuns");
+  const [shown, setShown] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
+  const q = useDeferredValue(filter.trim());
+  const qc = useQueryClient();
   const runs = useQuery({
-    queryKey: ["runs", wizardId],
-    queryFn: () => api.get<RunRow[]>(`/api/studio/wizards/${wizardId}/runs`),
+    queryKey: ["runs", wizardId, q],
+    queryFn: () =>
+      api.get<RunRow[]>(
+        `/api/studio/wizards/${wizardId}/runs${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+      ),
     refetchInterval: 10_000,
+    placeholderData: keepPreviousData,
   });
-  if (runs.data && !runs.data.length) {
+  const testSignal = useMutation({
+    mutationFn: (runId: string) =>
+      api.post(`/api/studio/wizards/${wizardId}/runs/${runId}/test-signal`),
+    // The answer comes before any step runs: asked again a moment later, the run has gone on.
+    onSettled: () => {
+      setTimeout(() => qc.invalidateQueries({ queryKey: ["runs", wizardId] }), 1500);
+    },
+  });
+  if (timelines && shown) {
+    return (
+      <RunTimeline
+        runId={shown}
+        wizardId={wizardId}
+        onBack={() => setShown(null)}
+        onOpen={onOpen}
+        onFilter={(label) => {
+          setFilter(label);
+          setShown(null);
+        }}
+      />
+    );
+  }
+  if (runs.data && !runs.data.length && !filter) {
     return <Empty>{t("editor.noRuns")}</Empty>;
   }
   const fmt = new Intl.DateTimeFormat(lang, { dateStyle: "short", timeStyle: "short" });
   return (
     <div className="flex flex-col p-2">
-      {runs.data?.map((r) => (
-        <button
-          key={r.id}
-          type="button"
-          onClick={() => onOpen(r.id)}
-          className="flex items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-accent"
-        >
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 text-[0.875rem]">
-              {fmt.format(new Date(r.createdAt))}
-              {r.mode === "test" ? (
-                <Chip>{t("run.testChip")}</Chip>
-              ) : (
-                <Chip tone="live">Live v{r.version}</Chip>
-              )}
-            </div>
-            <div className="truncate text-[0.75rem] text-ink-3">
-              {r.status === "sleeping" && r.wakeAt
-                ? t("runs.status.sleepingUntil", { time: fmt.format(new Date(r.wakeAt)) })
-                : STATUS[r.status]
-                  ? t(STATUS[r.status])
-                  : r.status}
-              {r.stepTitle && r.status !== "done" ? ` · ${r.stepTitle}` : ""}
-            </div>
+      {/* Only where there is something to tell apart. */}
+      {timelines && (filter || runs.data?.some((r) => r.label)) ? (
+        <div className="px-1 pb-2">
+          <Input
+            type="search"
+            aria-label={t("runs.filter")}
+            placeholder={t("runs.filterExample")}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
+      ) : null}
+      {filter && runs.data && !runs.data.length ? (
+        <p className="px-3 py-3 text-[0.8125rem] text-ink-3">{t("runs.noMatch")}</p>
+      ) : null}
+      {testSignal.error ? (
+        <p className="px-3 py-1 text-[0.8125rem] text-rose">
+          {(testSignal.error as Error).message}
+        </p>
+      ) : null}
+      {runs.data?.map((r) => {
+        const start = r.startedBy ? starts.find((s) => s.id === r.startedBy?.startId) : null;
+        const StartIcon = r.startedBy ? START_ICONS[r.startedBy.kind] : null;
+        return (
+          <div key={r.id} className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => (timelines ? setShown(r.id) : onOpen(r.id))}
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-accent"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-[0.875rem]">
+                  {fmt.format(new Date(r.createdAt))}
+                  {r.mode === "test" ? (
+                    <Chip>{t("run.testChip")}</Chip>
+                  ) : (
+                    <Chip tone="live">Live v{r.version}</Chip>
+                  )}
+                </div>
+                {timelines && r.label ? (
+                  <div className="truncate text-[0.8125rem] text-ink-2">{r.label}</div>
+                ) : null}
+                <div className="truncate text-[0.75rem] text-ink-3">
+                  {r.pause === "credits"
+                    ? t("runs.status.waitsCredits")
+                    : r.pause === "sign_in"
+                      ? t("runs.status.waitsSignIn")
+                      : r.status === "sleeping" && r.wakeAt
+                        ? t("runs.status.sleepingUntil", { time: fmt.format(new Date(r.wakeAt)) })
+                        : r.status === "waiting_signal" && r.wakeAt
+                          ? t("runs.status.waiting_signalUntil", {
+                              time: fmt.format(new Date(r.wakeAt)),
+                            })
+                          : STATUS[r.status]
+                            ? t(STATUS[r.status])
+                            : r.status}
+                  {r.stepTitle && r.status !== "done" ? ` · ${r.stepTitle}` : ""}
+                </div>
+                {r.startedBy ? (
+                  <div className="flex items-center gap-1 truncate text-[0.75rem] text-ink-3">
+                    {StartIcon ? <StartIcon className="size-3 shrink-0" /> : null}
+                    {t("runs.startedBy", {
+                      what: start
+                        ? describeStart(start, lang)
+                        : t(`starts.kind.${r.startedBy.kind}`),
+                    })}
+                  </div>
+                ) : null}
+              </div>
+              <span className="text-[0.75rem] text-ink-4 tabular-nums">
+                {t("nav.credits", { n: r.credits })}
+              </span>
+            </button>
+            {r.status === "waiting_signal" && r.mode === "test" ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                busy={testSignal.isPending && testSignal.variables === r.id}
+                onClick={() => testSignal.mutate(r.id)}
+              >
+                {t("runs.testSignal")}
+              </Button>
+            ) : null}
           </div>
-          <span className="text-[0.75rem] text-ink-4 tabular-nums">
-            {t("nav.credits", { n: r.credits })}
-          </span>
-        </button>
-      ))}
+        );
+      })}
     </div>
   );
 }

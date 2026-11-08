@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import { z } from "zod";
+import { calcNames, calcSchema, calcScope, calcTruthy, calcValue, parsedCalc } from "./calc.js";
 import { tableColumnsSchema } from "./engenty/data-tables/columns.js";
 import { readNumber } from "./numbers.js";
 import { type ObjectShape, outputShapeSchema, shapeOfFields } from "./shape.js";
@@ -524,7 +525,12 @@ export const conditionSchema = z.object({
 export type Condition = z.infer<typeof conditionSchema>;
 
 /** One condition, or several that must all hold. */
-export const whenSchema = z.union([conditionSchema, z.array(conditionSchema).min(1)]);
+export const whenSchema = z.union([
+  conditionSchema,
+  z.array(conditionSchema).min(1),
+  /** A test conditions cannot write: `budget > demo * 2`, `size == "Groß" or count(items) > 50`. */
+  calcSchema,
+]);
 export type When = z.infer<typeof whenSchema>;
 
 /** What a card of a choice shows: the columns of the table the choices come from. */
@@ -566,11 +572,30 @@ export const fieldSchema = z.object({
   /** VAT for `items`: a fixed rate in percent, or the id of a number/select field holding it. */
   vat: z.object({ rate: z.number().optional(), field: z.string().optional() }).optional(),
   currency: z.string().optional(),
+  /**
+   * email: a visitor's own address, for telling them the run waits for them or ended. The answer may
+   * be a customer's address and the mail carries a link that opens the run, so it has to be meant.
+   */
+  notify: z.boolean().optional(),
   /** image / file: several files; the value is then a list, in the order the person put them. */
   multiple: z.boolean().optional(),
-  /** image / file with `multiple`: how many files at least and at most (up to 30). */
-  min: z.number().int().min(1).max(MAX_FILES).optional(),
-  max: z.number().int().min(1).max(MAX_FILES).optional(),
+  /**
+   * image / file with `multiple`: how many files at least and at most (whole numbers, 1 to 30).
+   * number: the lowest and the highest value the person may give.
+   */
+  min: z.number().optional(),
+  max: z.number().optional(),
+  /** number: the value moves in steps of this size (500: 2000, 2500, 3000 …). */
+  increment: z.number().positive().optional(),
+  /** number: the sign or word after the value ("€", "Personen", "m²"). */
+  unit: z.string().max(16).optional(),
+  /**
+   * How the field is drawn, where its kind has more than one way; without it the runner picks as
+   * it always did. number: "slider" (needs min and max; the value stands large above it) or
+   * "stepper" (minus and plus). select: "list" (one row with a round button per choice, for
+   * choices that need a line of text).
+   */
+  look: z.enum(["slider", "stepper", "list"]).optional(),
   /** file: also offer the camera, for documents the person only has on paper. Images always offer it. */
   camera: z.boolean().optional(),
   /** file: the camera also records short video clips. */
@@ -651,11 +676,36 @@ export const nextRuleSchema = z
   });
 export type NextRule = z.infer<typeof nextRuleSchema>;
 
+/** "90m", "6h", "2d": how long a `wait` lasts. */
+export const waitDurationSchema = z
+  .string()
+  .regex(/^[1-9]\d{0,3}(m|h|d)$/, 'A duration like "90m", "6h" or "2d".');
+
+const WAIT_UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000 } as const;
+
+/**
+ * What a person's step (a page, a review) may add. Without them it waits for its answer as long as
+ * it takes. `timeout`: give up after this long, `steps.<id>.timedOut` is true and `next` decides.
+ * `remind`: remind whoever is asked after this long, once.
+ */
+const personStep = {
+  timeout: waitDurationSchema.optional(),
+  remind: waitDurationSchema.optional(),
+};
+
 const stepBase = {
   id,
   title: z.string().min(1),
   description: z.string().optional(),
+  /**
+   * The part of the wizard the step belongs to, as the progress bar names it ("Budget"). A step
+   * without one belongs to the part before it. Steps on different branches share a name, so the
+   * bar stays the same whichever way the run goes.
+   */
+  section: z.string().min(1).max(24).optional(),
   next: z.array(nextRuleSchema).optional(),
+  /** Where the run goes when this step fails for good; without it the run fails. */
+  onFail: z.string().optional(),
 };
 
 export const outputFieldSchema = z
@@ -679,13 +729,30 @@ export const outputFieldSchema = z
     path: ["options"],
   });
 
+/**
+ * Who answers a page or a review: the run's own person (the default), the run's owner, or the people
+ * the share dialog names (`wizard.answerers`). A role, never a person: people are the install's.
+ */
+export const whoSchema = z.enum(["person", "owner", "team"]);
+export type Who = z.infer<typeof whoSchema>;
+
 export const pageStepSchema = z.object({
   ...stepBase,
+  ...personStep,
   type: z.literal("page"),
+  who: whoSchema.optional(),
   fields: z.array(fieldSchema).min(1),
   /** Fields of which a decision shows one: see `group` on a field. */
   groups: z.array(fieldGroupSchema).max(6).optional(),
   cta: z.string().optional(),
+  /**
+   * How the page is laid out, from the surface catalog: its fields placed with `Field`, with text,
+   * figures, images and callouts between them. Without it the fields stand one under the other.
+   * Paths and calc read the page's answers by field id, as the person types, and the keys of `data`.
+   */
+  components: surfaceComponentsSchema.optional(),
+  /** What the components read besides the answers: key → steps.id.key, lists.id, brand.name or today. */
+  data: z.record(z.string(), z.string()).optional(),
 });
 
 /** A host name a step may list in `hosts`: labels of letters, digits and dashes, or `*.` before them. */
@@ -767,6 +834,12 @@ export const agentStepSchema = z.object({
    * The output is a table: the entry's columns and the step's output fields, one row per entry.
    */
   each: z.string().optional(),
+  /**
+   * The step keeps its conversation: after a crash or a deploy it goes on at the call it was at,
+   * and it can stop to ask a person with no process waiting. Needs a model an API serves; not with
+   * `browser` or `sandbox`, `each` or `call`.
+   */
+  durable: z.boolean().optional(),
   working: z.string().optional(),
 });
 
@@ -940,11 +1013,15 @@ export function assembleSurface(
 
 export const reviewStepSchema = z.object({
   ...stepBase,
+  ...personStep,
   type: z.literal("review"),
+  who: whoSchema.optional(),
   /** Step ids whose output is shown. */
   show: z.array(z.string()).min(1),
   edit: z.boolean().optional(),
   regenerate: z.boolean().optional(),
+  /** Approve or decline instead of "Looks good": `steps.<id>.approved`, `steps.<id>.note`. */
+  approve: z.boolean().optional(),
 });
 
 export const deliverableSchema = z.object({
@@ -976,33 +1053,117 @@ export const resultStepSchema = z.object({
   share: z.array(shareOptionSchema).max(12).optional(),
 });
 
-/** "90m", "6h", "2d": how long a `wait` lasts. */
-export const waitDurationSchema = z
-  .string()
-  .regex(/^[1-9]\d{0,3}(m|h|d)$/, 'A duration like "90m", "6h" or "2d".');
-
-const WAIT_UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000 } as const;
-
 /** What a duration lasts, in milliseconds. */
 export function waitDurationMs(duration: string): number {
   const unit = duration.slice(-1) as keyof typeof WAIT_UNIT_MS;
   return Number(duration.slice(0, -1)) * WAIT_UNIT_MS[unit];
 }
 
+/** What a signal is called: "invoice.paid", "lieferung-da". */
+export const signalNameSchema = z
+  .string()
+  .max(80)
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/, 'A signal\'s name, like "invoice.paid".');
+
+/** Names only the runtime writes: a run's end, a mailbox, a person on a channel. Nobody sends these. */
+const OWN_SIGNAL_PREFIXES = ["run.", "mail.", "message."];
+
+/** A name anyone with a way in may send. */
+export function signalNameOpen(name: string): boolean {
+  return !OWN_SIGNAL_PREFIXES.some((prefix) => name.startsWith(prefix));
+}
+
+/** A run's end, keyed by the run's id: another run can wait for it. */
+export const RUN_DONE_SIGNAL = "run.done";
+
 /**
- * A step that waits and needs no process meanwhile: for a time, or until a date. `until` is an
- * ISO date or a template such as "{{deadline}}"; a date gone by waits for nothing.
+ * What the person of a channel writes while the run waits. Only a wait for this name takes it: a
+ * chat message must not end a wait for a payment.
+ */
+export const MESSAGE_SIGNAL = "message.received";
+
+/**
+ * A mail in a mailbox of the space. One mail makes two of these: keyed by its sender, and by its
+ * thread (`thread:<id>`).
+ */
+export const MAIL_SIGNAL = "mail.received";
+
+/** What a mail's signal holds under `data`. */
+export const MAIL_FIELDS = ["from", "name", "subject", "text", "thread", "message", "at"] as const;
+
+/** The field names a signal's data missing from this list; empty when it fits. */
+export function signalMissing(
+  data: unknown,
+  fields: readonly string[] | null | undefined,
+): string[] {
+  const given = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  return (fields ?? []).filter((id) => given[id] === undefined || given[id] === null);
+}
+
+/**
+ * A step that waits and needs no process meanwhile: for a time, until a date, or for a signal.
+ * `until` is an ISO date or a template such as "{{deadline}}"; a date gone by waits for nothing.
+ * A signal is matched by its name and key; `timeout` gives up after a time. `fields`: what its
+ * data must hold; only these reach the run.
  */
 export const waitStepSchema = z.object({
   ...stepBase,
   type: z.literal("wait"),
   for: waitDurationSchema.optional(),
   until: z.string().min(1).optional(),
+  signal: z
+    .object({
+      name: signalNameSchema,
+      key: z.string().min(1).max(500),
+      timeout: waitDurationSchema.optional(),
+      fields: z
+        .array(z.string().regex(/^[a-zA-Z_][a-zA-Z0-9_-]*$/))
+        .max(40)
+        .optional(),
+    })
+    .optional(),
 });
 export type WaitStep = z.infer<typeof waitStepSchema>;
 
-/** What a finished wait hands on, as `steps.<wait>.<key>`. */
-export const WAIT_OUTPUT_KEYS: readonly string[] = ["waited"];
+/** Whether `steps.<wait>.<key>` (with `.<field>` below `data`) is something this wait hands on. */
+export function waitHandsOn(step: WaitStep, key: string, more: string[]): boolean {
+  if (!step.signal) {
+    return key === "waited" && more.length === 0;
+  }
+  if (key === "data") {
+    return more.length === 1 && (!step.signal.fields || step.signal.fields.includes(more[0]));
+  }
+  return (key === "came" || key === "timedOut") && more.length === 0;
+}
+
+/** Whether `steps.<page or review>.<key>` is something this person's step hands on. */
+export function personStepHandsOn(step: PageStep | ReviewStep, key: string): boolean {
+  if (key === "timedOut") {
+    return Boolean(step.timeout);
+  }
+  return step.type === "review" && Boolean(step.approve) && (key === "approved" || key === "note");
+}
+
+/** What a person's step hands on, as refs for the editor's lists. */
+export function personStepRefs(step: PageStep | ReviewStep): string[] {
+  return ["timedOut", "approved", "note"]
+    .filter((key) => personStepHandsOn(step, key))
+    .map((key) => `steps.${step.id}.${key}`);
+}
+
+/** What a wait hands on, as refs for the editor's lists. */
+export function waitOutputRefs(step: WaitStep): string[] {
+  if (!step.signal) {
+    return [`steps.${step.id}.waited`];
+  }
+  return [
+    `steps.${step.id}.came`,
+    `steps.${step.id}.timedOut`,
+    ...(step.signal.fields ?? (step.signal.name === MAIL_SIGNAL ? MAIL_FIELDS : [])).map(
+      (f) => `steps.${step.id}.data.${f}`,
+    ),
+  ];
+}
 
 export const stepSchema = z.discriminatedUnion("type", [
   pageStepSchema,
@@ -1163,6 +1324,11 @@ export const currentWizardSchema = z
     /** Shown on the first page above the first question. */
     intro: z.string().optional(),
     /**
+     * What tells this wizard's runs apart in the runs panel, a template of answers such as
+     * `{{kunde}} · {{angebot}}`. Filled and stored on the run as its answers arrive.
+     */
+    label: z.string().max(200).optional(),
+    /**
      * The language the wizard speaks to people: its texts, the runner's words, its numbers and
      * dates, by its two-letter code ("en", "de", "it"). Any language, not only those engenty's own
      * strings are written in; `validateWizard` checks it names a real one. Without one it is read
@@ -1267,9 +1433,49 @@ export function dataRef(raw: string): string {
     .replace(/\s*\}\}$/, "");
 }
 
+/** What a template may read beside the wizard's own steps and answers: the runner fills these. */
+const RUNNER_REFS = new Set(["brand", "facts", "today", "notes"]);
+
 export interface ValidationIssue {
   stepId?: string;
   message: string;
+}
+
+/** The longest a person's step waits or reminds. */
+const PERSON_WAIT_MAX_MS = 31 * 86_400_000;
+
+function personStepIssues(step: PageStep | ReviewStep): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  for (const [name, duration] of [
+    ["timeout", step.timeout],
+    ["remind", step.remind],
+  ] as const) {
+    if (duration && waitDurationMs(duration) > PERSON_WAIT_MAX_MS) {
+      issues.push({
+        stepId: step.id,
+        message: `"${name}" is at most 31 days; it says ${duration}.`,
+      });
+    }
+  }
+  if (step.timeout && step.remind && waitDurationMs(step.remind) >= waitDurationMs(step.timeout)) {
+    issues.push({
+      stepId: step.id,
+      message: `"remind" comes before "timeout": ${step.remind} is not shorter than ${step.timeout}.`,
+    });
+  }
+  // A decline with no way of its own would go on to the next step, as an approval does.
+  const approved = `steps.${step.id}.approved`;
+  if (
+    step.type === "review" &&
+    step.approve &&
+    !(step.next ?? []).some((rule) => whenNames(rule.when).includes(approved))
+  ) {
+    issues.push({
+      stepId: step.id,
+      message: `A review with "approve" needs a branch on ${approved}: a decline would go on like an approval.`,
+    });
+  }
+  return issues;
 }
 
 const TEMPLATE_RE = /\{\{\s*([^}]+?)\s*\}\}/g;
@@ -1282,8 +1488,87 @@ export function templateRefs(template: string): string[] {
  * Structural checks the schema cannot express: ids, references between steps,
  * templates naming things that exist by the time the step runs.
  */
-export function validateWizard(def: WizardDefinition, files?: string[]): ValidationIssue[] {
+/** The parts of a wizard, once each and in the order of its steps; none without sections. */
+export function sectionsOf(def: Pick<WizardDefinition, "steps">): string[] {
+  return [...new Set(def.steps.flatMap((s) => (s.section ? [s.section] : [])))];
+}
+
+/** The part a step belongs to: its own, or the one before it. Null before the first. */
+export function sectionOf(def: Pick<WizardDefinition, "steps">, stepId: string): string | null {
+  let current: string | null = null;
+  for (const step of def.steps) {
+    current = step.section ?? current;
+    if (step.id === stepId) {
+      return current;
+    }
+  }
+  return null;
+}
+
+/** A name that comes back after another ("A", "B", "A"): the bar could not show it in order. */
+function sectionIssues(def: WizardDefinition): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
+  const seen = new Set<string>();
+  let current: string | null = null;
+  for (const step of def.steps) {
+    if (step.section && step.section !== current) {
+      if (seen.has(step.section)) {
+        issues.push({
+          stepId: step.id,
+          message: `Section "${step.section}" comes back after another one; the steps of a section stand together.`,
+        });
+      }
+      seen.add(step.section);
+      current = step.section;
+    }
+  }
+  return issues;
+}
+
+/** What `min`, `max`, `increment`, `unit` and `look` allow on a field of its kind. */
+function fieldShapeIssues(field: Field): string[] {
+  const issues: string[] = [];
+  const say = (text: string) => issues.push(`Field "${field.id}": ${text}`);
+  const { min, max, increment, unit, look } = field;
+  const number = field.kind === "number";
+  const files = (field.kind === "image" || field.kind === "file") && Boolean(field.multiple);
+  if (min !== undefined || max !== undefined) {
+    if (!number && !files) {
+      say(
+        '"min" and "max" bound a number field or count the files of an image or file field with "multiple".',
+      );
+    } else if (files) {
+      for (const n of [min, max]) {
+        if (n !== undefined && (!Number.isInteger(n) || n < 1 || n > MAX_FILES)) {
+          say(`"min" and "max" count files: whole numbers from 1 to ${MAX_FILES}.`);
+          break;
+        }
+      }
+    }
+    if (min !== undefined && max !== undefined && min > max) {
+      say("min is larger than max.");
+    }
+  }
+  if ((increment !== undefined || unit !== undefined) && !number) {
+    say(`"increment" and "unit" belong to a number field; kind is "${field.kind}".`);
+  }
+  if (increment !== undefined && min !== undefined && max !== undefined && increment > max - min) {
+    say("increment is larger than the range from min to max.");
+  }
+  if (look === "slider" || look === "stepper") {
+    if (!number) {
+      say(`look "${look}" draws a number field; kind is "${field.kind}".`);
+    } else if (look === "slider" && (min === undefined || max === undefined)) {
+      say('look "slider" needs "min" and "max".');
+    }
+  } else if (look === "list" && field.kind !== "select") {
+    say(`look "list" draws a select field; kind is "${field.kind}".`);
+  }
+  return issues;
+}
+
+export function validateWizard(def: WizardDefinition, files?: string[]): ValidationIssue[] {
+  const issues: ValidationIssue[] = sectionIssues(def);
   const stepIds = new Set<string>();
   const fieldIds = new Set<string>();
   const seenSteps = new Set<string>();
@@ -1391,18 +1676,8 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
             message: `Field "${field.id}": ${notShown(field.list ?? "")}`,
           });
         }
-        if (field.min !== undefined || field.max !== undefined) {
-          if ((field.kind !== "image" && field.kind !== "file") || !field.multiple) {
-            issues.push({
-              stepId: step.id,
-              message: `Field "${field.id}": "min" and "max" count the files of an image or file field with "multiple".`,
-            });
-          } else if (field.min !== undefined && field.max !== undefined && field.min > field.max) {
-            issues.push({
-              stepId: step.id,
-              message: `Field "${field.id}": min is larger than max.`,
-            });
-          }
+        for (const message of fieldShapeIssues(field)) {
+          issues.push({ stepId: step.id, message });
         }
         if (field.scan && field.kind !== "text") {
           issues.push({
@@ -1476,9 +1751,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     if (head === "lists") {
       return key === "count" && more.length === 0 && listIds.has(from ?? "");
     }
-    // `steps.<step>.<field>.p`: how probable the decision's answer is.
-    const probability = more.length === 1 && more[0] === "p";
-    if (head !== "steps" || !key || (more.length > 0 && !probability)) {
+    if (head !== "steps" || !key) {
       return false;
     }
     if (!(seenSteps.has(from) || (self && from === step.id))) {
@@ -1486,7 +1759,19 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     }
     const source = def.steps.find((s) => s.id === from);
     if (source?.type === "wait") {
-      return !probability && WAIT_OUTPUT_KEYS.includes(key);
+      return waitHandsOn(source, key, more);
+    }
+    if (
+      (source?.type === "page" || source?.type === "review") &&
+      more.length === 0 &&
+      personStepHandsOn(source, key)
+    ) {
+      return true;
+    }
+    // `steps.<step>.<field>.p`: how probable the decision's answer is.
+    const probability = more.length === 1 && more[0] === "p";
+    if (more.length > 0 && !probability) {
+      return false;
     }
     return (
       source?.type === "agent" &&
@@ -1567,8 +1852,52 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
   };
 
   for (const step of def.steps) {
+    /** What a view's `data` reads: identifiers as keys, and things this wizard has. */
+    const checkDataRefs = (data: Record<string, string>, whose: string) => {
+      for (const [key, ref] of Object.entries(data)) {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+          issues.push({
+            stepId: step.id,
+            message: `${whose} data key "${key}" is not an identifier.`,
+          });
+        }
+        const list = listRef(dataRef(ref));
+        if (list) {
+          if (!listIds.has(list)) {
+            issues.push({
+              stepId: step.id,
+              message: `${whose} data reads an unknown list "${list}".`,
+            });
+          }
+        } else {
+          checkTemplate(step, `{{${dataRef(ref)}}}`);
+        }
+      }
+    };
     switch (step.type) {
       case "page": {
+        if (step.data && !step.components) {
+          issues.push({ stepId: step.id, message: 'A page reads "data" only with "components".' });
+        }
+        if (step.components) {
+          checkDataRefs(step.data ?? {}, "Page");
+          const fieldNames = step.fields.map((f) => f.id);
+          for (const key of Object.keys(step.data ?? {})) {
+            if (fieldNames.includes(key)) {
+              issues.push({
+                stepId: step.id,
+                message: `Page data key "${key}" is also a field of this page; they read the same name.`,
+              });
+            }
+          }
+          for (const issue of validateSurface(
+            step.components,
+            [...fieldNames, ...Object.keys(step.data ?? {})],
+            { page: fieldNames },
+          )) {
+            issues.push({ stepId: step.id, message: `Page: ${issue.message}` });
+          }
+        }
         const groups = new Set<string>();
         for (const g of step.groups ?? []) {
           if (groups.has(g.id)) {
@@ -1601,16 +1930,19 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
           }
         }
         for (const field of step.fields) {
-          for (const c of conditionsOf(field.when)) {
-            const own = step.fields.some((f) => f.id === c.field && f.id !== field.id);
-            if (!own && !knownBefore(step, c.field)) {
+          for (const name of whenNames(field.when)) {
+            const own = step.fields.some((f) => f.id === name && f.id !== field.id);
+            if (!own && !knownBefore(step, name)) {
               issues.push({
                 stepId: step.id,
-                message: `Field "${field.id}": "when" reads "${c.field}", which is neither on this page nor known before it.`,
+                message: `Field "${field.id}": "when" reads "${name}", which is neither on this page nor known before it.`,
               });
             }
+          }
+          for (const c of conditionsOf(field.when)) {
             issues.push(...conditionIssues(step.id, c));
           }
+          issues.push(...whenCalcIssues(step.id, field.when, `Field "${field.id}"`));
           if (field.optionsFrom) {
             const problem =
               field.kind !== "select" && field.kind !== "multiselect" && field.kind !== "slot"
@@ -1657,6 +1989,23 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
           }
         } else if (!step.instructions.trim()) {
           issues.push({ stepId: step.id, message: "An AI step needs instructions." });
+        }
+        if (step.durable) {
+          // What a turn had open is gone when it goes on: a browser's page, a sandbox's files.
+          for (const tool of ["browser", "sandbox"] as const) {
+            if (step.tools.includes(tool)) {
+              issues.push({
+                stepId: step.id,
+                message: `A durable step can't use "${tool}": what it has open is gone when the step goes on after an interruption.`,
+              });
+            }
+          }
+          if (step.each || step.call) {
+            issues.push({
+              stepId: step.id,
+              message: `"durable" does nothing on a step with "${step.each ? "each" : "call"}": it has no conversation to keep.`,
+            });
+          }
         }
         for (const c of step.connections ?? []) {
           if (!connectionIds.has(c)) {
@@ -1774,25 +2123,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         }
         break;
       case "surface": {
-        for (const [key, ref] of Object.entries(step.data)) {
-          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
-            issues.push({
-              stepId: step.id,
-              message: `Surface data key "${key}" is not an identifier.`,
-            });
-          }
-          const list = listRef(dataRef(ref));
-          if (list) {
-            if (!listIds.has(list)) {
-              issues.push({
-                stepId: step.id,
-                message: `Surface data reads an unknown list "${list}".`,
-              });
-            }
-          } else {
-            checkTemplate(step, `{{${dataRef(ref)}}}`);
-          }
-        }
+        checkDataRefs(step.data, "Surface");
         const groups = new Set((step.groups ?? []).map((g) => g.id));
         for (const c of step.candidates ?? []) {
           if (c.components[0]?.id !== c.id) {
@@ -1868,11 +2199,14 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         }
         break;
       case "wait":
-        if (Boolean(step.for) === Boolean(step.until)) {
+        if ([step.for, step.until, step.signal].filter(Boolean).length !== 1) {
           issues.push({
             stepId: step.id,
-            message: 'A wait has "for" or "until": one of them.',
+            message: 'A wait has "for", "until" or "signal": one of them.',
           });
+        }
+        if (step.signal) {
+          checkTemplate(step, step.signal.key);
         }
         if (step.until) {
           checkTemplate(step, step.until);
@@ -1935,20 +2269,44 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         message: 'A step has at most one "otherwise" branch (one without "when" and "ask").',
       });
     }
+    if (step.onFail !== undefined) {
+      if (step.onFail === step.id) {
+        issues.push({ stepId: step.id, message: "A step can't go to itself when it fails." });
+      } else if (!stepIds.has(step.onFail)) {
+        issues.push({ stepId: step.id, message: `onFail goes to unknown step "${step.onFail}".` });
+      }
+    }
+    if (step.type === "page" || step.type === "review") {
+      issues.push(...personStepIssues(step));
+    }
     for (const rule of step.next ?? []) {
       if (rule.goto !== "end" && !stepIds.has(rule.goto)) {
         issues.push({ stepId: step.id, message: `Branch goes to unknown step "${rule.goto}".` });
       }
       // A branch reads what the person answered (on any page), an output field of this or an
       // earlier agent step, or the row count of a stored list.
-      for (const c of conditionsOf(rule.when)) {
-        if (!fieldIds.has(c.field) && !knownBefore(step, c.field, true)) {
-          issues.push({ stepId: step.id, message: `Branch reads unknown field "${c.field}".` });
+      for (const name of whenNames(rule.when)) {
+        if (!fieldIds.has(name) && !knownBefore(step, name, true)) {
+          issues.push({ stepId: step.id, message: `Branch reads unknown field "${name}".` });
         }
+      }
+      for (const c of conditionsOf(rule.when)) {
         issues.push(...conditionIssues(step.id, c));
       }
+      issues.push(...whenCalcIssues(step.id, rule.when, "Branch"));
     }
     seenSteps.add(step.id);
+  }
+  // A run's label fills as the run goes on: it may read any step and any answer of the wizard.
+  for (const ref of templateRefs(def.label ?? "")) {
+    const [head, second] = ref.split(".");
+    if (
+      head === "steps"
+        ? !(second && seenSteps.has(second))
+        : !(seenFields.has(head) || RUNNER_REFS.has(head))
+    ) {
+      issues.push({ message: `The label reads "{{${ref}}}", which this wizard doesn't have.` });
+    }
   }
   return issues;
 }
@@ -2004,6 +2362,13 @@ export function branchValues(
     if (output.json && typeof output.json === "object" && !Array.isArray(output.json)) {
       for (const [key, value] of Object.entries(output.json)) {
         out[`steps.${stepId}.${key}`] = value;
+      }
+      // What a signal brought stays below `data`: its sender cannot set the step's own keys.
+      const data = (output.json as Record<string, unknown>).data;
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        for (const [key, value] of Object.entries(data)) {
+          out[`steps.${stepId}.data.${key}`] = value;
+        }
       }
     }
     for (const [key, p] of Object.entries(output.decided ?? {})) {
@@ -2093,6 +2458,39 @@ export function otherwiseOf(
   return { cursor: def.steps[index + 1]?.id ?? null, rule: null };
 }
 
+/** Where a plain page goes, as the browser may work it out: `when` rules in order, then otherwise. */
+export interface AheadRule {
+  when?: When;
+  goto: string;
+}
+
+/**
+ * A page the browser may show with no server (`RunView.ahead`): the page, and where it goes. `next`
+ * is null where the server decides that (an `ask`, a loop, a name the browser has no value for).
+ */
+export interface AheadPage {
+  step: PageStep;
+  next: AheadRule[] | null;
+}
+
+/**
+ * The page after `stepId`, when `ahead` says which: the first rule that holds, as `followRules`
+ * takes it. Null when the server must decide, or when the rule leads anywhere but a page of `ahead`
+ * (the end, a step that works, a review, the result).
+ */
+export function nextInBrowser(
+  ahead: Record<string, AheadPage>,
+  stepId: string,
+  values: Record<string, unknown>,
+): string | null {
+  const rules = ahead[stepId]?.next;
+  if (!rules) {
+    return null;
+  }
+  const rule = rules.find((r) => r.when === undefined || whenHolds(r.when, values));
+  return rule && rule.goto !== stepId && ahead[rule.goto] ? rule.goto : null;
+}
+
 /** The step after `step` by its `when` rules alone. `null` = the end. */
 export function nextStepId(
   def: WizardDefinition,
@@ -2113,7 +2511,38 @@ function isEmptyValue(v: unknown): boolean {
 
 /** The conditions of a rule or a field, as a list: one, several, or none. */
 export function conditionsOf(when: When | undefined): Condition[] {
-  return when === undefined ? [] : Array.isArray(when) ? when : [when];
+  if (when === undefined || whenCalc(when) !== null) {
+    return [];
+  }
+  return Array.isArray(when) ? when : [when as Condition];
+}
+
+/** The calculation a `when` tests, if it is one. */
+export function whenCalc(when: When | undefined): string | null {
+  return when && !Array.isArray(when) && "calc" in when ? when.calc : null;
+}
+
+/** What a `when` reads: the fields of its conditions, or the names of its calculation. */
+export function whenNames(when: When | undefined): string[] {
+  const calc = whenCalc(when);
+  if (calc === null) {
+    return conditionsOf(when).map((c) => c.field);
+  }
+  const node = parsedCalc(calc);
+  return "error" in node ? [] : calcNames(node);
+}
+
+/** What is wrong with the calculation a `when` tests. */
+function whenCalcIssues(
+  stepId: string,
+  when: When | undefined,
+  whose: string,
+): { stepId: string; message: string }[] {
+  const calc = whenCalc(when);
+  const node = calc === null ? null : parsedCalc(calc);
+  return node && "error" in node
+    ? [{ stepId, message: `${whose}: "when" cannot be worked out: ${node.error}` }]
+    : [];
 }
 
 export function conditionMatches(c: Condition, values: Record<string, unknown>): boolean {
@@ -2149,6 +2578,10 @@ export function conditionMatches(c: Condition, values: Record<string, unknown>):
 
 /** Whether every condition holds; no conditions hold trivially. */
 export function whenHolds(when: When | undefined, values: Record<string, unknown>): boolean {
+  const calc = whenCalc(when);
+  if (calc !== null) {
+    return calcTruthy(calcValue(calc, calcScope(values)));
+  }
   return conditionsOf(when).every((c) => conditionMatches(c, values));
 }
 
@@ -2191,11 +2624,7 @@ export function shownFields(
 /** The references the `when` of a page's fields read outside the page: what the page must know. */
 export function pageNeeds(fields: Field[]): string[] {
   const own = new Set(fields.map((f) => f.id));
-  return [
-    ...new Set(
-      fields.flatMap((f) => conditionsOf(f.when).map((c) => c.field)).filter((r) => !own.has(r)),
-    ),
-  ];
+  return [...new Set(fields.flatMap((f) => whenNames(f.when)).filter((r) => !own.has(r)))];
 }
 
 /** At most this many choices come from data. */

@@ -65,6 +65,6 @@ stay readable.
 - Live access to a local install (a tunnel it opens to the account): reports cover the need.
 - Logs on disk or shipped to a log service; the ring is per process and goes with a restart.
 - The studio showing its own install's log; the command line does.
-- Once the runner is its own process ([runner-process.md](runner-process.md)): the web asks every
-  runner that reported for its lines and merges them by time; `status` lists the runners; a run's
-  line names its owner and heartbeat.
+- Now the runner is its own process ([runner-process.md](runner-process.md)), the web asks every
+  runner that reports and named an address for its lines and merges them by time. Still not built:
+  `status` listing the runners, and a run's line naming its owner and heartbeat.

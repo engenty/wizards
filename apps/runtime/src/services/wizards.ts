@@ -21,7 +21,9 @@ import { listConnectors, resolveConnector } from "../connectors/external.js";
 import { listSpaceConnections } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
+import { answeringNarrowed, whoOf } from "../engine/answerers.js";
 import { env } from "../env.js";
+import { managed, tenantMembers } from "../manage.js";
 import { saidOf } from "../model-errors.js";
 import { pluginToolsOf } from "../plugins/registry.js";
 import { dropLinks, putLink } from "../tenants/control.js";
@@ -106,6 +108,8 @@ export function wizardSummary(w: WizardRow) {
     publishedVersion: w.publishedVersion,
     shareToken: w.shareToken,
     shareEnabled: w.shareEnabled,
+    /** Who answers its steps with `who: "team"`. */
+    answerers: w.answerers,
     dailyRunLimit: w.dailyRunLimit,
     /** How many emails guests' runs send per day, from any address. */
     dailyMailLimit: w.dailyMailLimit,
@@ -113,6 +117,8 @@ export function wizardSummary(w: WizardRow) {
     runners: w.runners,
     /** Its page offers it in the viewer's language, translated on request. */
     translate: w.translate,
+    /** What begins a run without a person. */
+    starts: w.starts,
     stepCount: w.draft.steps.length,
     updatedAt: w.updatedAt.toISOString(),
   };
@@ -619,6 +625,38 @@ export async function updateWizardSettings(
   return wizardSummary(await ownedWizard(userId, wizardId));
 }
 
+/**
+ * Who answers the wizard's team steps: for whoever edits it. Not a setting of its sharing, which is
+ * the admins' alone: a member with the Studio open to them can get a wizard ready to publish.
+ */
+export async function setAnswerers(
+  userId: string,
+  wizardId: string,
+  answerers: string[] | "admins",
+) {
+  const w = await writableWizard(userId, wizardId);
+  await checkAnswerers(answerers);
+  await db
+    .update(schema.wizard)
+    .set({ answerers, updatedAt: new Date() })
+    .where(eq(schema.wizard.id, w.id));
+  return wizardSummary(await ownedWizard(userId, wizardId));
+}
+
+/** Those named under "Answered by" are people of the organization, and no client of it. */
+async function checkAnswerers(answerers: string[] | "admins") {
+  if (answerers === "admins" || !managed) {
+    return;
+  }
+  const { members } = await tenantMembers(currentTenant());
+  const unknown = answerers.filter(
+    (id) => !members.some((m) => m.userId === id && m.role !== "client"),
+  );
+  if (unknown.length) {
+    throw new ServiceError("invalid", "Someone named here is not in this organization.");
+  }
+}
+
 export async function rotateShareLink(userId: string, wizardId: string) {
   const w = await writableWizard(userId, wizardId);
   const token = newShareToken();
@@ -704,6 +742,16 @@ export async function requireClean(w: WizardRow) {
 export async function publishWizard(userId: string, wizardId: string) {
   const w = await writableWizard(userId, wizardId);
   const { definition, files } = await requireClean(w);
+  // Runs already out still reach the admins if the list empties later (`teamToAsk`).
+  if (
+    managed &&
+    (await answeringNarrowed()) &&
+    Array.isArray(w.answerers) &&
+    !w.answerers.length &&
+    definition.steps.some((s) => whoOf(s) === "team")
+  ) {
+    throw new ServiceError("refused", note("teamNobodyNamed"));
+  }
   const version = (w.publishedVersion ?? 0) + 1;
   await db
     .insert(schema.wizardVersion)

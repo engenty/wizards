@@ -9,14 +9,25 @@ import {
   waitDurationMs,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import { note, type RunState, type RunView } from "@engenty/wizards-shared/run";
+import { note, type RunState, type RunTimeline, type RunView } from "@engenty/wizards-shared/run";
 import { and, count, desc, eq, gte, inArray, isNull, max, or, sql } from "drizzle-orm";
 import { canSpend, MICROS_PER_CREDIT } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
+import {
+  answerersOf,
+  answeringNarrowed,
+  type Caller,
+  doorCaller,
+  hiddenWhileAsked,
+  mayAct,
+  mayGoBackFrom,
+  whoOf,
+} from "../engine/answerers.js";
 import { answerAsk } from "../engine/asks.js";
 import { emitEvent, recentEvents, watchRun } from "../engine/events.js";
 import { fieldErrorsIn } from "../engine/input.js";
 import {
+  answerTurn,
   cancel,
   createRun,
   goBack,
@@ -30,10 +41,12 @@ import {
   runView,
   submitPage,
 } from "../engine/runner.js";
+import { managed } from "../manage.js";
 import { ModelUnavailableError, saidOf } from "../model-errors.js";
 import { prompt } from "../prompts.js";
 import { signedUrl } from "../secrets/signing.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { roleOf } from "./access.js";
 import { brandView } from "./brand.js";
 import { notFound, ServiceError } from "./errors.js";
 import { storedTranslation } from "./translations.js";
@@ -142,6 +155,20 @@ function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boo
  * from an MCP client (run_wizard). `test` narrows it to test runs; `live` takes every live run of
  * the tenant, what visitors started (the results `/api/v1/runs` lists with `runs:read`).
  */
+/** A person at an MCP or API door, as the role the Manage-App gives them. */
+async function callerOfUser(userId: string): Promise<Caller> {
+  return { userId, role: await roleOf(userId), local: !managed };
+}
+
+/** A run the caller may answer as it stands: `ownedRun` says they see it, this that it is theirs. */
+async function answerableRun(userId: string, runId: string): Promise<RunRow> {
+  const run = await ownedRun(userId, runId);
+  if (!(await mayAct(run, await callerOfUser(userId)))) {
+    throw new ServiceError("forbidden", { code: "notYourStep" });
+  }
+  return run;
+}
+
 async function ownedRun(userId: string, runId: string, only?: "test" | "live"): Promise<RunRow> {
   const run = await db.query.run.findFirst({
     where: and(
@@ -163,13 +190,25 @@ function moving(run: RunRow) {
   return run.status === "running" || (run.status === "waiting_input" && autopilots.has(run.id));
 }
 
-/** A run a plugin's door may drive: any run of the current tenant, by id. */
+/** A run a plugin's door may read: any run of the current tenant, by id. */
 export async function pluginRun(runId: string): Promise<RunRow> {
   const run = await db.query.run.findFirst({
     where: and(eq(schema.run.id, runId), eq(schema.run.tenantId, currentTenant())),
   });
   if (!run) {
     throw notFound();
+  }
+  return run;
+}
+
+/**
+ * A run a plugin's door may answer: the door speaks for the run's visitor (`plugins/runs.ts`), so
+ * it answers what asks them, and nothing asked of the organization.
+ */
+export async function pluginAnswerableRun(runId: string): Promise<RunRow> {
+  const run = await pluginRun(runId);
+  if (!(await mayAct(run, doorCaller(run)))) {
+    throw new ServiceError("forbidden", { code: "notYourStep" });
   }
   return run;
 }
@@ -265,18 +304,35 @@ async function browserUrl(run: RunRow): Promise<string | null> {
  * What a run waits for. `draft`: what a door that asks one field at a time has so far, so a
  * field's `shown` follows those answers as it follows the form on the screen.
  */
-async function waitingFor(run: RunRow, current: Step | null, draft?: Record<string, unknown>) {
+async function waitingFor(
+  run: RunRow,
+  current: Step | null,
+  draft?: Record<string, unknown>,
+  viewer?: Caller,
+) {
+  // What someone else is asked is theirs: the door hears that, and nothing of what it asks.
+  if (viewer && !(await mayAct(run, viewer))) {
+    return run.status === "waiting_input" && current
+      ? {
+          answeredBy: whoOf(current),
+          title: current.title,
+          hint: prompt("mcp", "hint.answered_by"),
+        }
+      : undefined;
+  }
   if (run.status === "running" && run.ask) {
     const ask = run.ask;
     return ask.kind === "confirm"
       ? {
           ask: ask.id,
           kind: ask.kind,
-          reason: ask.reason,
+          reason: ask.again
+            ? prompt("mcp", "reason.confirm_again", { service: ask.service })
+            : ask.reason,
           service: ask.service,
           action: ask.action.summary,
           input: clip(ask.input, 1500),
-          hint: prompt("mcp", "hint.confirm"),
+          hint: ask.again ? prompt("mcp", "hint.confirm_again") : prompt("mcp", "hint.confirm"),
         }
       : {
           ask: ask.id,
@@ -287,15 +343,41 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
         };
   }
   if (run.status === "sleeping" && current) {
+    const pause = run.state.pause;
+    // Waiting for a person has no time: the next look says nothing about when they act.
+    return {
+      wait: current.id,
+      title: current.title,
+      until: pause && pause.kind !== "retry" ? null : (run.wakeAt?.toISOString() ?? null),
+      ...(pause ? { pause } : {}),
+      hint:
+        pause?.kind === "retry"
+          ? prompt("mcp", "hint.pause_retry")
+          : pause?.kind === "credits"
+            ? prompt("mcp", "hint.pause_credits")
+            : pause?.kind === "sign_in"
+              ? prompt("mcp", "hint.pause_sign_in")
+              : prompt("mcp", "hint.sleeping"),
+    };
+  }
+  if (run.status === "waiting_signal" && current?.type === "wait") {
     return {
       wait: current.id,
       title: current.title,
       until: run.wakeAt?.toISOString() ?? null,
-      hint: prompt("mcp", "hint.sleeping"),
+      signal: current.signal?.name ?? null,
+      hint: prompt("mcp", "hint.waiting_signal"),
     };
   }
   if (run.status !== "waiting_input" || !current) {
     return undefined;
+  }
+  if (run.state.turn?.question && run.state.turn.stepId === current.id) {
+    return {
+      question: run.state.turn.question,
+      title: current.title,
+      hint: prompt("mcp", "hint.question"),
+    };
   }
   if (current.type === "page") {
     // What the page knows from before it, the choices its fields take from data, the fields a
@@ -314,6 +396,7 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
     return {
       page: current.id,
       title: current.title,
+      ...(run.wakeAt ? { until: run.wakeAt.toISOString() } : {}),
       /** What the fields' conditions read from before the page, by reference. */
       known: ctx.known,
       fields: fields.map((f) => ({
@@ -344,7 +427,9 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
       title: current.title,
       show: current.show,
       editable: Boolean(current.edit),
-      hint: prompt("mcp", "hint.review"),
+      ...(run.wakeAt ? { until: run.wakeAt.toISOString() } : {}),
+      ...(current.approve ? { approve: true } : {}),
+      hint: current.approve ? prompt("mcp", "hint.review_approve") : prompt("mcp", "hint.review"),
     };
   }
   return undefined;
@@ -357,16 +442,21 @@ export async function runReport(
   waitSeconds = 0,
   only?: "test" | "live",
 ) {
-  return runReportOf(await waitWhileMoving(userId, runId, waitSeconds, only));
+  return runReportOf(
+    await waitWhileMoving(userId, runId, waitSeconds, only),
+    undefined,
+    await callerOfUser(userId),
+  );
 }
 
 /** The report of a run as it stands; `draft` as for `waitingFor`. */
-export async function runReportOf(run: RunRow, draft?: Record<string, unknown>) {
+export async function runReportOf(run: RunRow, draft?: Record<string, unknown>, viewer?: Caller) {
   const current = run.definition.steps.find((s) => s.id === run.cursor) ?? null;
   const base = `/api/runs/${run.id}`;
+  const hidden = viewer ? await hiddenWhileAsked(run, viewer) : [];
   const outputs = run.definition.steps.flatMap((step) => {
     const output = run.state.outputs[step.id];
-    if (!output) {
+    if (!output || hidden.includes(step.id)) {
       return [];
     }
     // A document, a dashboard or a widget drawn as one picture: for a door that shows pictures
@@ -412,7 +502,7 @@ export async function runReportOf(run: RunRow, draft?: Record<string, unknown>) 
           (run.status === "done" && s.id === run.cursor),
       )
       .map((s) => s.id),
-    waitingFor: await waitingFor(run, current, draft),
+    waitingFor: await waitingFor(run, current, draft, viewer),
     error: run.error,
     credits: Math.ceil(run.costMicros / MICROS_PER_CREDIT),
     events: (await recentEvents(run.id, 0, 15)).map((e) => ({
@@ -494,12 +584,17 @@ export async function startRun(
   if (first?.type !== "page" || !Object.keys(answers).length) {
     return { runId, refused: null };
   }
+  // A first page someone else answers isn't filled by whoever starts the run.
+  const started = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+  if (started && !(await mayAct(started, await callerOfUser(userId)))) {
+    return { runId, refused: null };
+  }
   const values = Object.fromEntries(
     first.fields.filter((f) => f.id in answers).map((f) => [f.id, answers[f.id]]),
   );
   // The run is there either way; what did not fit is answered again with answer_page.
   try {
-    await submitPage(runId, first.id, values);
+    await submitPage(runId, first.id, values, { userId });
     return { runId, refused: null };
   } catch (err) {
     if (err instanceof RunInputError) {
@@ -515,8 +610,8 @@ export async function answerRunPage(
   stepId: string,
   values: Record<string, unknown>,
 ) {
-  await ownedRun(userId, runId);
-  await submitPage(runId, stepId, values).catch(refusedInput);
+  await answerableRun(userId, runId);
+  await submitPage(runId, stepId, values, { userId }).catch(refusedInput);
 }
 
 export async function reviewRun(
@@ -525,8 +620,8 @@ export async function reviewRun(
   stepId: string,
   action: ReviewAction,
 ) {
-  await ownedRun(userId, runId);
-  await reviewStep(runId, stepId, action).catch(refusedInput);
+  await answerableRun(userId, runId);
+  await reviewStep(runId, stepId, action, { userId }).catch(refusedInput);
 }
 
 export async function controlRun(
@@ -534,8 +629,15 @@ export async function controlRun(
   runId: string,
   action: "back" | "retry" | "cancel",
 ) {
-  await ownedRun(userId, runId);
-  const command = { back: goBack, retry, cancel }[action];
+  const run = await answerableRun(userId, runId);
+  if (
+    action === "back" &&
+    (await answeringNarrowed()) &&
+    !mayGoBackFrom(run, await callerOfUser(userId), await answerersOf(run))
+  ) {
+    throw new ServiceError("forbidden", { code: "notYourStep" });
+  }
+  const command = { back: (id: string) => goBack(id, { userId }), retry, cancel }[action];
   await command(runId).catch(refusedInput);
 }
 
@@ -546,10 +648,16 @@ export async function answerRunAsk(
   askId: string,
   answer: "allow" | "skip",
 ) {
-  await ownedRun(userId, runId);
+  await answerableRun(userId, runId);
   if (!(await answerAsk(runId, askId, answer === "allow" ? { type: "done" } : { type: "skip" }))) {
     throw new ServiceError("refused", { code: "askClosed" });
   }
+}
+
+/** Answers what a durable step asked: its turn goes on with that. */
+export async function answerRunQuestion(userId: string, runId: string, answer: string) {
+  await answerableRun(userId, runId);
+  await answerTurn(runId, answer).catch(refusedInput);
 }
 
 /**
@@ -593,7 +701,9 @@ export async function draftStepView(
       : step.type === "result"
         ? "done"
         : step.type === "wait"
-          ? "sleeping"
+          ? step.signal
+            ? "waiting_signal"
+            : "sleeping"
           : "running";
   const now = new Date();
   // That run lends its id too: the outputs' files are reached through it.
@@ -601,12 +711,15 @@ export async function draftStepView(
     ...(latest ?? {
       id: `draft-${w.id}`,
       wizardId: w.id,
+      unsent: null,
       tenantId: w.tenantId,
       files: [],
       grant: null,
       version: null,
       mode: "test" as const,
       runner: null,
+      startedBy: null,
+      occurrence: null,
       visitorId: null,
       userId,
       impersonatedBy: null,
@@ -622,9 +735,13 @@ export async function draftStepView(
       updatedAt: now,
     }),
     definition: def,
+    label: null,
+    driving: false,
     status,
     wakeAt:
-      step.type === "wait" && step.for ? new Date(now.getTime() + waitDurationMs(step.for)) : null,
+      step.type === "wait" && (step.for ?? step.signal?.timeout)
+        ? new Date(now.getTime() + waitDurationMs((step.for ?? step.signal?.timeout) as string))
+        : null,
     claim: 0,
     rev: 0,
     cursor: step.id,
@@ -642,10 +759,17 @@ export async function draftStepView(
   return { ...view, events: [] };
 }
 
-export async function listRuns(userId: string, wizardId: string) {
+/** A wizard's runs, newest first; with `q`, those whose label holds those words. */
+export async function listRuns(userId: string, wizardId: string, q?: string) {
   const w = await ownedWizard(userId, wizardId);
+  const words = q?.trim();
   const rows = await db.query.run.findMany({
-    where: eq(schema.run.wizardId, w.id),
+    where: and(
+      eq(schema.run.wizardId, w.id),
+      words
+        ? sql`${schema.run.label} LIKE ${`%${words.replace(/[\\%_]/g, (c) => `\\${c}`)}%`} ESCAPE '\\'`
+        : undefined,
+    ),
     orderBy: [desc(schema.run.createdAt)],
     limit: 100,
   });
@@ -665,7 +789,9 @@ export async function listRuns(userId: string, wizardId: string) {
     id: r.id,
     mode: r.mode,
     status: r.status,
+    label: r.label,
     wakeAt: r.wakeAt?.toISOString() ?? null,
+    pause: r.state.pause?.kind ?? null,
     version: r.version,
     createdAt: r.createdAt.toISOString(),
     credits: Math.ceil(r.costMicros / MICROS_PER_CREDIT),
@@ -673,7 +799,53 @@ export async function listRuns(userId: string, wizardId: string) {
     stepTitle: r.definition.steps.find((s) => s.id === r.cursor)?.title ?? null,
     /** The token of its shared result (`/s/<token>`); null while it is not shared. */
     shareToken: r.status === "done" ? r.shareToken : null,
+    /** The start that began it; null: a person did. */
+    startedBy: r.startedBy ?? null,
   }));
+}
+
+/** How many lines of a run's log its timeline shows; a run of weeks may have thousands. */
+const TIMELINE_LINES = 500;
+
+/** One run for its timeline in the runs panel. `canAct`: the person looking may push it on or stop it. */
+export async function runTimeline(run: RunRow, canAct: boolean): Promise<RunTimeline> {
+  const [lines] = await db
+    .select({ n: count() })
+    .from(schema.runEvent)
+    .where(eq(schema.runEvent.runId, run.id));
+  const [started] = await db
+    .select({ note: schema.runEvent.note })
+    .from(schema.runEvent)
+    .where(and(eq(schema.runEvent.runId, run.id), eq(schema.runEvent.type, "run_started")))
+    .limit(1);
+  const name = started?.note?.params?.name;
+  const wait =
+    run.status === "waiting_signal"
+      ? await db.query.runWait.findFirst({ where: eq(schema.runWait.runId, run.id) })
+      : null;
+  const step = run.definition.steps.find((s) => s.id === run.cursor);
+  return {
+    id: run.id,
+    mode: run.mode,
+    status: run.status,
+    label: run.label,
+    version: run.version,
+    createdAt: run.createdAt.toISOString(),
+    wakeAt:
+      run.status === "sleeping" || run.status === "waiting_signal" || run.status === "waiting_input"
+        ? (run.wakeAt?.toISOString() ?? null)
+        : null,
+    pause: run.status === "sleeping" ? (run.state.pause?.kind ?? null) : null,
+    credits: Math.ceil(run.costMicros / MICROS_PER_CREDIT),
+    stepTitle: step?.title ?? null,
+    startedBy: typeof name === "string" ? name : null,
+    signal: wait ? { name: wait.name, key: wait.key } : null,
+    teamStep: run.status === "waiting_input" && whoOf(step) === "team",
+    canAct,
+    steps: run.definition.steps.map((s) => ({ id: s.id, title: s.title })),
+    events: await recentEvents(run.id, 0, TIMELINE_LINES),
+    total: lines?.n ?? 0,
+  };
 }
 
 /** What the results of a space are narrowed to. */

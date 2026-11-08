@@ -24,6 +24,31 @@ const configs = (args: string[]) =>
 describe("Claude Code in the studio chat", () => {
   const claude = CHAT_CLIENTS.claude;
 
+  it("says when a tool answered and how many issues it names, for the turn's clock", () => {
+    const answer = (content: unknown) =>
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: [{ type: "tool_result", tool_use_id: "1", content }] },
+      });
+    expect(
+      claude.events(answer([{ type: "text", text: '{"revision":3,"issues":[{"path":"a"},{}]}' }])),
+    ).toEqual([{ kind: "toolDone", issues: 2 }]);
+    expect(claude.events(answer('{"revision":3,"issues":[]}'))).toEqual([
+      { kind: "toolDone", issues: 0 },
+    ]);
+    expect(claude.events(answer("the word issues, and no JSON"))).toEqual([
+      { kind: "toolDone", issues: undefined },
+    ]);
+    expect(
+      claude.events(
+        JSON.stringify({
+          type: "stream_event",
+          event: { type: "content_block_delta", delta: { type: "text_delta", text: "Hi" } },
+        }),
+      ),
+    ).toEqual([{ kind: "writing", text: "Hi" }]);
+  });
+
   it("gets no tools of its own and only our MCP server", () => {
     const args = claude.args(call());
     expect(args[args.indexOf("--tools") + 1]).toBe("");
@@ -107,6 +132,21 @@ describe("Codex in the studio chat", () => {
     expect(codex.stdin(call())).toBe("Bau etwas");
   });
 
+  it("says when a tool answered and how many issues it names", () => {
+    expect(
+      codex.events(
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            type: "mcp_tool_call",
+            tool: "edit_wizard",
+            result: { content: [{ type: "text", text: '{"issues":[{}]}' }] },
+          },
+        }),
+      ),
+    ).toEqual([{ kind: "toolDone", issues: 1 }]);
+  });
+
   it("reads its JSON lines", () => {
     const lines = [
       { type: "thread.started", thread_id: "t-1" },
@@ -131,7 +171,7 @@ describe("Codex in the studio chat", () => {
       { kind: "session", id: "t-1" },
       { kind: "tool", name: "edit_wizard", args: { path: "wizard.json" }, started: true },
       { kind: "thinkingStart" },
-      { kind: "thinking", text: "**Planning**" },
+      { kind: "thinking", text: "**Planning**", whole: true },
       { kind: "text", text: "Erledigt." },
       { kind: "failure", detail: "unexpected status 401 Unauthorized" },
     ]);
@@ -185,6 +225,20 @@ describe("Cursor Agent in the studio chat", () => {
       allow: ["Mcp(wizards:*)"],
       deny: ["Shell(*)", "Read(**)", "Write(**)", "Mcp(engenty-wizards:*)", "Mcp(github:*)"],
     });
+  });
+
+  it("says when a tool of ours answered and how many issues it names", () => {
+    const done = (tool_call: unknown) =>
+      cursor.events(JSON.stringify({ type: "tool_call", subtype: "completed", tool_call }));
+    expect(
+      done({
+        mcpToolCall: {
+          args: { toolName: "edit_wizard" },
+          result: { success: { content: [{ text: { text: '{"issues":[{}]}' } }] } },
+        },
+      }),
+    ).toEqual([{ kind: "toolDone", issues: 1 }]);
+    expect(done({ readToolCall: { args: {} } })).toEqual([]);
   });
 
   it("reads its stream", () => {

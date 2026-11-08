@@ -189,6 +189,7 @@ export const BROKER_REFUSALS = [
   "calls_per_day",
   "run_ended",
   "paused",
+  "may_have_happened",
 ] as const;
 export type BrokerRefusal = (typeof BROKER_REFUSALS)[number];
 
@@ -316,6 +317,24 @@ export const CONNECTION_LIMITS = {
 };
 
 /** A connection of a space as the studio lists it; never a secret. */
+/** Why a mailbox could not be read: `sign_in` it must sign in again, `rules` its rule forbids reading. */
+export const MAILBOX_ERRORS = ["sign_in", "rules", "read"] as const;
+export type MailboxError = (typeof MAILBOX_ERRORS)[number];
+
+/** A mailbox of the space whose mail can wake a run: „Aus einem Postfach“ in the share dialog. */
+export interface MailboxView {
+  /** The connection's id. */
+  id: string;
+  name: string;
+  /** The account as the provider names it. */
+  account: string;
+  /** An admin agreed that it is read while a run waits for mail. */
+  on: boolean;
+  /** When it was last read; null until then. */
+  readAt: string | null;
+  error: MailboxError | null;
+}
+
 export interface SpaceConnectionView {
   id: string;
   spaceId: string;

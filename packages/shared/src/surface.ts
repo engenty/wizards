@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import { z } from "zod";
+import { calcNames, calcScope, evalCalc, parsedCalc } from "./calc.js";
 import { type FieldShape, type ListShape, type ObjectShape, shapeAt } from "./shape.js";
 
 /**
@@ -14,10 +15,14 @@ import { type FieldShape, type ListShape, type ObjectShape, shapeAt } from "./sh
  * surface's data. A `List`, `Table` or `Group` repeats over an array: inside a repeated row, a
  * path without a leading slash reads the row ("name"), one with a slash the whole data. A path
  * may turn what it reads into words: `map` looks the value up (`{ "true": "im Kühlschrank" }`),
- * `format` sets it into a text ("{} Min").
+ * `format` sets it into a text ("{} Min"). Next to `path`, a prop may be `{ "calc": "demo / budget" }`,
+ * worked out from the data and the row (calc.ts); it takes the same `map` and `format`, and both
+ * take `as` ("number", "percent") to write a number in the wizard's locale.
  *
  * A chat's view (Work, `show_view`) may also ask: a `Form` of `Field`s, a `Ref` to a thing of the
  * space, a Button that asks the AI. A wizard asks on its pages, so its views take none of them.
+ * A wizard's views have `Choice`, `Toggle` and `Slider`: what the person sets there is view state,
+ * kept with the run under the `state` name, which paths and calc read like a data key.
  */
 
 export const SURFACE_COMPONENTS = [
@@ -54,6 +59,10 @@ export const SURFACE_COMPONENTS = [
   "Ref",
   "Form",
   "Field",
+  // Views of a wizard only: a choice the person makes in the view, kept with the run.
+  "Choice",
+  "Toggle",
+  "Slider",
 ] as const;
 export type SurfaceComponentName = (typeof SURFACE_COMPONENTS)[number];
 
@@ -69,8 +78,11 @@ const CONTAINERS: ReadonlySet<string> = new Set([
   "Form",
 ]);
 
-/** Only a chat's view has these: a wizard asks on its pages, and its run has no space to open. */
-const CHAT_ONLY: ReadonlySet<string> = new Set(["Form", "Field", "Ref"]);
+/**
+ * Only a chat's view has these: a wizard asks on its pages, and its run has no space to open. A
+ * page has `Field` too, as a place for one of its own fields (`name` only).
+ */
+const CHAT_ONLY: ReadonlySet<string> = new Set(["Form", "Ref"]);
 
 /**
  * The kinds of a Field, the runner's own field kinds (definition.ts FIELD_KINDS) that need
@@ -96,7 +108,7 @@ export const FORM_FIELD_KINDS = [
 export type FormFieldKind = (typeof FORM_FIELD_KINDS)[number];
 
 /** The props each component needs. */
-const REQUIRED: Partial<Record<SurfaceComponentName, string[]>> = {
+export const SURFACE_REQUIRED: Partial<Record<SurfaceComponentName, string[]>> = {
   Text: ["text"],
   Row: ["title"],
   DetailGrid: ["rows"],
@@ -125,7 +137,11 @@ const REQUIRED: Partial<Record<SurfaceComponentName, string[]>> = {
   Gallery: ["items"],
   Ref: ["title", "open"],
   Form: ["children", "submit"],
-  Field: ["name", "kind", "label"],
+  // A chat's view needs "kind" and "label" as well: askIssues checks by place.
+  Field: ["name"],
+  Choice: ["state", "options"],
+  Toggle: ["state", "label"],
+  Slider: ["state", "min", "max"],
 };
 
 /** `ask` (a chat's view only): the person asks the AI the button's `prompt`, or its label. */
@@ -157,6 +173,78 @@ export interface SurfaceIssue {
 
 const isPath = (v: unknown): v is { path: string } =>
   Boolean(v && typeof v === "object" && !Array.isArray(v) && typeof (v as any).path === "string");
+
+const isCalc = (v: unknown): v is { calc: string; as?: unknown } =>
+  Boolean(v && typeof v === "object" && !Array.isArray(v) && typeof (v as any).calc === "string");
+
+/** Every `{ calc }` in a prop's value. */
+function calcsIn(value: unknown): { calc: string; as?: unknown }[] {
+  if (isCalc(value)) {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap(calcsIn);
+  }
+  return value && typeof value === "object" ? Object.values(value).flatMap(calcsIn) : [];
+}
+
+/** What a calculation names at the top: `row.total` reads the key `row`. */
+const headOf = (name: string) => name.split(".")[0];
+
+/** The components drawn for each entry of a list: their calculations read that entry too. */
+function repeatedIds(components: SurfaceComponent[]): Set<string> {
+  const byId = new Map(components.map((c) => [c.id, c]));
+  const out = new Set<string>();
+  const mark = (cid: string) => {
+    if (!out.has(cid)) {
+      out.add(cid);
+      const c = byId.get(cid);
+      if (c) {
+        childIds(c).forEach(mark);
+      }
+    }
+  };
+  for (const c of components) {
+    if (c.children && !Array.isArray(c.children)) {
+      mark(c.children.componentId);
+    }
+    const view = (c as Record<string, unknown>).view;
+    if (c.component === "Link" && typeof view === "string") {
+      mark(view);
+    }
+  }
+  return out;
+}
+
+/** What can be wrong with the calculations of a component: their text, `as`, and given what the place holds, their names. */
+function componentCalcIssues(c: SurfaceComponent, given: Set<string> | null): SurfaceIssue[] {
+  const issues: SurfaceIssue[] = [];
+  for (const [key, value] of Object.entries(c)) {
+    if (key === "id" || key === "component" || key === "children") {
+      continue;
+    }
+    // A Checklist's `detail` is worked out per entry: it reads the entry's columns too.
+    const allowed = c.component === "Checklist" && key === "detail" ? null : given;
+    for (const spec of calcsIn(value)) {
+      const node = parsedCalc(spec.calc);
+      if ("error" in node) {
+        issues.push({ message: `"${c.id}": "${spec.calc}" cannot be worked out: ${node.error}` });
+        continue;
+      }
+      if (spec.as !== undefined && spec.as !== "number" && spec.as !== "percent") {
+        issues.push({ message: `"${c.id}": "as" is "number" or "percent".` });
+      }
+      if (allowed) {
+        for (const name of calcNames(node)) {
+          if (!allowed.has(headOf(name))) {
+            issues.push({ message: `"${c.id}" reads "${name}", which no data provides.` });
+          }
+        }
+      }
+    }
+  }
+  return issues;
+}
 
 /**
  * The ids a component draws: its children, the views of its tabs. A Link's view is drawn only
@@ -318,7 +406,8 @@ function shapeIssues(byId: Map<string, SurfaceComponent>, root: ObjectShape): Su
         continue;
       }
       const reads = c.component === "Link" && (k === "title" || k === "subtitle" || k === "meta");
-      const scope = reads ? opened : entry;
+      const perEntry = c.component === "Checklist" && k === "detail";
+      const scope = reads ? opened : perEntry ? items : entry;
       const paths: string[] = [];
       const walk = (v: unknown) => {
         if (isPath(v)) {
@@ -333,6 +422,15 @@ function shapeIssues(byId: Map<string, SurfaceComponent>, root: ObjectShape): Su
       for (const path of paths) {
         if (resolve(path, scope) === undefined) {
           say(c, path, scope);
+        }
+      }
+      for (const spec of calcsIn(value)) {
+        const node = parsedCalc(spec.calc);
+        for (const name of "error" in node ? [] : calcNames(node)) {
+          const head = headOf(name);
+          if (!(head in root.fields) && !(scope !== undefined && hasKey(scope, head))) {
+            issues.push({ message: `"${c.id}" reads "${name}", which no data provides.` });
+          }
         }
       }
     }
@@ -375,12 +473,12 @@ function shapeIssues(byId: Map<string, SurfaceComponent>, root: ObjectShape): Su
  * What can be wrong with a surface: an unknown or missing component, no root, a child that is
  * not there, an id twice, a loop, a prop missing, and — given the data keys a run will provide,
  * or the step's schema — a path into data nothing provides. `chat`: a chat's view, which may ask
- * (one Form, its Fields, Refs, `ask`).
+ * (one Form, its Fields, Refs, `ask`). `page`: a page's layout, with the ids of its fields.
  */
 export function validateSurface(
   raw: unknown,
   data?: string[] | ObjectShape,
-  options: { chat?: boolean } = {},
+  options: { chat?: boolean; page?: string[] } = {},
 ): SurfaceIssue[] {
   const dataKeys = Array.isArray(data) ? data : undefined;
   const parsed = surfaceComponentsSchema.safeParse(raw);
@@ -399,9 +497,14 @@ export function validateSurface(
   if (!byId.has("root")) {
     issues.push({ message: 'A surface has a component with id "root".' });
   }
-  issues.push(...askIssues(components, byId, Boolean(options.chat)));
+  issues.push(...askIssues(components, byId, options));
+  const repeated = repeatedIds(components);
+  const states = stateNames(components);
+  issues.push(...viewInputIssues(components, new Set(dataKeys ?? shapeKeys(data)), options));
+  const keys = dataKeys ? new Set([...dataKeys, ...states]) : null;
   for (const c of components) {
-    for (const prop of REQUIRED[c.component] ?? []) {
+    issues.push(...componentCalcIssues(c, repeated.has(c.id) ? null : keys));
+    for (const prop of SURFACE_REQUIRED[c.component] ?? []) {
       if ((c as Record<string, unknown>)[prop] === undefined) {
         issues.push({ message: `${c.component} "${c.id}" needs "${prop}".` });
       }
@@ -435,7 +538,7 @@ export function validateSurface(
     if (dataKeys) {
       for (const path of pathsOf(c)) {
         const key = path.startsWith("/") ? path.split("/")[1] : null;
-        if (key !== null && !dataKeys.includes(key)) {
+        if (key !== null && !dataKeys.includes(key) && !states.includes(key)) {
           issues.push({ message: `"${c.id}" reads "${path}", which no data provides.` });
         }
       }
@@ -460,19 +563,124 @@ export function validateSurface(
     issues.push({ message: "Components hold each other in a loop." });
     return issues;
   }
-  return data && !Array.isArray(data) ? [...issues, ...shapeIssues(byId, data)] : issues;
+  return data && !Array.isArray(data)
+    ? [
+        ...issues,
+        ...shapeIssues(byId, {
+          ...data,
+          fields: {
+            ...data.fields,
+            ...Object.fromEntries(states.map((s) => [s, { kind: "text" as const, label: s }])),
+          },
+        }),
+      ]
+    : issues;
+}
+
+const VIEW_INPUTS: ReadonlySet<string> = new Set(["Choice", "Toggle", "Slider"]);
+
+/** The names a view's inputs keep their values under. */
+function stateNames(components: SurfaceComponent[]): string[] {
+  return components.flatMap((c) => {
+    const state = (c as Record<string, unknown>).state;
+    return VIEW_INPUTS.has(c.component) && typeof state === "string" ? [state] : [];
+  });
+}
+
+const shapeKeys = (data: string[] | ObjectShape | undefined) =>
+  data && !Array.isArray(data) ? Object.keys(data.fields) : [];
+
+/**
+ * A view's inputs: never on a page, whose inputs are its fields and answers, nor in a chat's view.
+ * A `state` name is one of its own, and what each needs has the right form.
+ */
+function viewInputIssues(
+  components: SurfaceComponent[],
+  dataKeys: Set<string>,
+  { chat, page }: { chat?: boolean; page?: string[] },
+): SurfaceIssue[] {
+  const issues: SurfaceIssue[] = [];
+  const seen = new Set<string>();
+  const repeated = repeatedIds(components);
+  const checklists = new Set(
+    components.filter((c) => c.component === "Checklist").map((c) => c.id),
+  );
+  for (const c of components) {
+    if (!VIEW_INPUTS.has(c.component)) {
+      continue;
+    }
+    const props = c as Record<string, unknown>;
+    if (page) {
+      issues.push({
+        message: `${c.component} "${c.id}" is for a wizard's views; on a page, a field asks.`,
+      });
+    }
+    if (chat) {
+      issues.push({ message: `${c.component} "${c.id}" is for a wizard's views, not a chat's.` });
+    }
+    if (repeated.has(c.id)) {
+      issues.push({ message: `${c.component} "${c.id}" stands in a repeat; it has one value.` });
+    }
+    const state = props.state;
+    if (typeof state === "string") {
+      if (!/^[a-zA-Z][a-zA-Z0-9_]{0,40}$/.test(state)) {
+        issues.push({ message: `${c.component} "${c.id}": state is letters, digits and _.` });
+      }
+      if (seen.has(state)) {
+        issues.push({ message: `The state "${state}" is named twice in this view.` });
+      }
+      if (dataKeys.has(state)) {
+        issues.push({ message: `The state "${state}" is also a data key of this view.` });
+      }
+      // Ticks are kept under their component's id, next to the view's state.
+      if (checklists.has(state)) {
+        issues.push({ message: `The state "${state}" is also the id of a Checklist.` });
+      }
+      seen.add(state);
+    }
+    if (c.component === "Choice") {
+      const options = props.options;
+      const fits = (o: unknown) =>
+        typeof o === "string" ||
+        typeof o === "number" ||
+        (Boolean(o) &&
+          typeof o === "object" &&
+          "value" in (o as object) &&
+          "label" in (o as object));
+      if (!(Array.isArray(options) && options.length && options.every(fits))) {
+        issues.push({
+          message: `Choice "${c.id}" needs "options": values, or { label, value }.`,
+        });
+      }
+      if (props.look !== undefined && props.look !== "list") {
+        issues.push({ message: `Choice "${c.id}": look is "list".` });
+      }
+    }
+    if (c.component === "Slider") {
+      const { min, max, increment } = props;
+      if (typeof min !== "number" || typeof max !== "number" || min >= max) {
+        issues.push({ message: `Slider "${c.id}": min and max are numbers, min below max.` });
+      } else if (typeof increment === "number" && (increment <= 0 || increment > max - min)) {
+        issues.push({ message: `Slider "${c.id}": increment does not fit from min to max.` });
+      }
+    }
+  }
+  return issues;
 }
 
 /** What a view may ask, and how: a chat's only, one Form, its Fields in it and named once. */
 function askIssues(
   components: SurfaceComponent[],
   byId: Map<string, SurfaceComponent>,
-  chat: boolean,
+  { chat, page }: { chat?: boolean; page?: string[] },
 ): SurfaceIssue[] {
   const issues: SurfaceIssue[] = [];
   if (!chat) {
+    if (page) {
+      issues.push(...pageFieldIssues(components, page));
+    }
     for (const c of components) {
-      if (CHAT_ONLY.has(c.component)) {
+      if (CHAT_ONLY.has(c.component) || (c.component === "Field" && !page)) {
         issues.push({
           message: `${c.component} "${c.id}" is for a chat's view; a wizard asks on its pages.`,
         });
@@ -517,6 +725,11 @@ function askIssues(
     if (!inForm.has(c.id)) {
       issues.push({ message: `Field "${c.id}" sits in a Form.` });
     }
+    for (const prop of ["kind", "label"]) {
+      if (f[prop] === undefined) {
+        issues.push({ message: `Field "${c.id}" needs "${prop}".` });
+      }
+    }
     if (typeof f.kind === "string" && !(FORM_FIELD_KINDS as readonly string[]).includes(f.kind)) {
       issues.push({
         message: `Field "${c.id}": kind is one of ${FORM_FIELD_KINDS.join(", ")}.`,
@@ -531,6 +744,49 @@ function askIssues(
     }
     if (typeof f.name === "string" && !/^[a-zA-Z][a-zA-Z0-9_]{0,40}$/.test(f.name)) {
       issues.push({ message: `Field "${c.id}": name is letters, digits and _.` });
+    }
+  }
+  return issues;
+}
+
+/**
+ * A page's layout places its fields: each by exactly one `Field`, which names it and says nothing
+ * else, since the field itself says how it asks.
+ */
+function pageFieldIssues(components: SurfaceComponent[], fields: string[]): SurfaceIssue[] {
+  const issues: SurfaceIssue[] = [];
+  const placed = new Map<string, number>();
+  const repeated = repeatedIds(components);
+  for (const c of components) {
+    if (c.component !== "Field") {
+      continue;
+    }
+    const f = c as Record<string, unknown>;
+    const name = typeof f.name === "string" ? f.name : "";
+    if (f.kind !== undefined || f.label !== undefined) {
+      issues.push({
+        message: `Field "${c.id}" only places a field of this page: "name" and nothing else.`,
+      });
+    }
+    if (name && !fields.includes(name)) {
+      issues.push({ message: `Field "${c.id}" names "${name}", which this page does not have.` });
+    }
+    if (repeated.has(c.id)) {
+      issues.push({ message: `Field "${c.id}" stands in a repeat; a field is placed once.` });
+    }
+    if (name) {
+      placed.set(name, (placed.get(name) ?? 0) + 1);
+    }
+  }
+  for (const field of fields) {
+    const times = placed.get(field) ?? 0;
+    if (times !== 1) {
+      issues.push({
+        message:
+          times === 0
+            ? `The field "${field}" has no place: each field of the page is placed by one Field.`
+            : `The field "${field}" is placed ${times} times; each is placed once.`,
+      });
     }
   }
   return issues;
@@ -552,7 +808,13 @@ export function pointer(data: unknown, path: string): unknown {
  * A prop's value: a literal as it is, a path read from the data — or, without a leading slash,
  * from the row a List or Table repeats over.
  */
-export function bound(value: unknown, data: unknown, row?: unknown): unknown {
+export function bound(value: unknown, data: unknown, row?: unknown, locale?: string): unknown {
+  if (isCalc(value)) {
+    const node = parsedCalc(value.calc);
+    const raw = "error" in node ? undefined : evalCalc(node, calcScope(row, data));
+    // What cannot be worked out is empty, and says so.
+    return raw === undefined ? "–" : worded(raw, value, { row, locale });
+  }
   if (!isPath(value)) {
     return value;
   }
@@ -561,12 +823,25 @@ export function bound(value: unknown, data: unknown, row?: unknown): unknown {
     : row === undefined
       ? undefined
       : pointer(row, `/${value.path.replace(/\./g, "/")}`);
-  return worded(raw, value as { map?: unknown; format?: unknown });
+  return worded(raw, value as { as?: unknown; map?: unknown; format?: unknown }, { row, locale });
 }
 
-/** A value turned into words as its path says: looked up in `map`, set into `format`. */
-export function worded(raw: unknown, spec: { map?: unknown; format?: unknown }): unknown {
+/**
+ * A value turned into words as its path or calc says: written as `as` says ("number" with the
+ * locale's separators, "percent"), looked up in `map`, set into `format`, whose `{}` is the value
+ * and `{column}` a column of the row it is drawn in.
+ */
+export function worded(
+  raw: unknown,
+  spec: { as?: unknown; map?: unknown; format?: unknown },
+  at: { row?: unknown; locale?: string } = {},
+): unknown {
   let v = raw;
+  if (typeof v === "number" && (spec.as === "number" || spec.as === "percent")) {
+    v = new Intl.NumberFormat(at.locale, spec.as === "percent" ? { style: "percent" } : {}).format(
+      v,
+    );
+  }
   const map = spec.map;
   if (map && typeof map === "object" && !Array.isArray(map)) {
     const key = String(v);
@@ -575,7 +850,14 @@ export function worded(raw: unknown, spec: { map?: unknown; format?: unknown }):
     }
   }
   if (typeof spec.format === "string" && v !== undefined && v !== null && v !== "") {
-    v = spec.format.replace("{}", Array.isArray(v) ? v.join(", ") : String(v));
+    const row = at.row;
+    v = spec.format
+      .replace("{}", Array.isArray(v) ? v.join(", ") : String(v))
+      .replace(/\{(\w+)\}/g, (whole, column: string) =>
+        row && typeof row === "object" && Object.hasOwn(row, column)
+          ? String((row as Record<string, unknown>)[column] ?? "")
+          : whole,
+      );
   }
   return v;
 }

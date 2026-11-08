@@ -15,6 +15,8 @@ process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "wizards-broker-"));
 process.env.APP_URL = "http://localhost:5181";
 
 const calls: { action: string; input: unknown; token: string }[] = [];
+/** What the stubbed connector's next action throws. */
+const hubThrows: { next: Error | null } = { next: null };
 
 vi.mock("../src/engenty/connections-hubspot/connector", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../src/engenty/connections-hubspot/connector")>();
@@ -26,6 +28,11 @@ vi.mock("../src/engenty/connections-hubspot/connector", async (importOriginal) =
     description: summary,
     inputSchema: z.object({ email: z.string().optional(), id: z.string().optional() }),
     handler: async (input: unknown, ctx: { accessToken: string }) => {
+      if (hubThrows.next) {
+        const err = hubThrows.next;
+        hubThrows.next = null;
+        throw err;
+      }
       calls.push({ action: id, input, token: ctx.accessToken });
       return { done: id, contacts: [{ id: "7" }] };
     },
@@ -604,8 +611,10 @@ describe("the run's grant, fixed at start", () => {
     const events = await inTenant(() =>
       client.db.query.runEvent.findMany({ where: (t, { eq }) => eq(t.runId, runId) }),
     );
-    expect(events.map((e) => e.note?.code)).toEqual(["grant"]);
-    expect(events[0].message).toBe("This run may: write in HubSpot, search the web");
+    // With `durableRuns` the run's start has a line of its own.
+    const said = events.filter((e) => e.note?.code !== "runStarted");
+    expect(said.map((e) => e.note?.code)).toEqual(["grant"]);
+    expect(said[0].message).toBe("This run may: write in HubSpot, search the web");
     // The wizard is edited while the run is under way: the run keeps the grant it started with.
     const wider = withStep(["create_contact", "delete_contact"], ["web_search", "http"]);
     await inTenant(() =>
@@ -757,6 +766,51 @@ describe("fixed steps write, AI steps on space connections read", () => {
       critical: true,
       criticalKind: "first_use",
     });
+  });
+
+  it("says what a later try of the step may do: a change is not repeated, a read may be", async () => {
+    const steps = await import("../src/engine/steps");
+    const tryIt = async (action: string, ctxDef = withFixed(viaSpace(), fixed("crm", action))) => {
+      const ctx = contextOf(ctxDef, "run-f", { kind: "guest", id: "visitor-9" }, vi.fn());
+      await inTenant(() => steps.runAgentStep(ctxDef.steps[2] as never, ctx));
+      return ctx.resources.acted;
+    };
+    expect(await tryIt("list_contacts")).toBeFalsy();
+    expect(await tryIt("create_contact")).toBe(true);
+  });
+
+  it("a sign-in the service turns down is a SignInNeeded, other errors stay what they are", async () => {
+    const steps = await import("../src/engine/steps");
+    const { SignInNeeded } = await import("../src/engine/types");
+    const def = withFixed(viaSpace());
+    const run = () =>
+      inTenant(() =>
+        steps.runAgentStep(
+          def.steps[2] as never,
+          contextOf(def, "run-f", { kind: "guest", id: "visitor-9" }, vi.fn()),
+        ),
+      );
+    hubThrows.next = new Error("HubSpot answered 401 Unauthorized");
+    const refused = await run().catch((e) => e);
+    expect(refused).toBeInstanceOf(SignInNeeded);
+    expect(refused.service).toBe("CRM");
+    const other = new Error("HubSpot answered 500");
+    hubThrows.next = other;
+    expect(await run().catch((e) => e)).toBe(other);
+  });
+
+  it("a connection with nothing connected is a SignInNeeded", async () => {
+    const steps = await import("../src/engine/steps");
+    const { SignInNeeded } = await import("../src/engine/types");
+    const def = withFixed(hub());
+    await runRow("run-n", def, broker.grantOf(def as never));
+    const out = await inTenant(() =>
+      steps.runAgentStep(
+        def.steps[2] as never,
+        contextOf(def, "run-n", { kind: "guest", id: "visitor-none" }, vi.fn()),
+      ),
+    ).catch((e) => e);
+    expect(out).toBeInstanceOf(SignInNeeded);
   });
 
   it("refuses a write from an AI step on a connection that signs in as the space, whatever the wizard says, and logs it", async () => {

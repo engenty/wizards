@@ -229,6 +229,14 @@ export function resolveRef(ref: string, scope: TemplateScope): unknown {
   if (head === "today") {
     return new Date().toISOString().slice(0, 10);
   }
+  // What began a started run: "start.row.Firma", "start.body.invoice.number".
+  if (head === "start" && state.start) {
+    let cur: unknown = state.start;
+    for (const key of rest) {
+      cur = cur && typeof cur === "object" ? (cur as Record<string, unknown>)[key] : undefined;
+    }
+    return cur;
+  }
   if (head === "item" || head === "index" || head === "count") {
     const entry = scope.entry;
     if (!entry) {
@@ -336,6 +344,23 @@ export function renderTemplate(template: string, scope: TemplateScope): string {
   );
 }
 
+/**
+ * A run's label from what is answered so far: null before any gap has an answer. A gap still open
+ * leaves no separator behind.
+ */
+export function fillLabel(template: string, scope: TemplateScope): string | null {
+  const filled = renderTemplate(template, scope);
+  if (filled.replace(/\s/g, "") === template.replace(TEMPLATE_RE, "").replace(/\s/g, "")) {
+    return null;
+  }
+  return (
+    filled
+      .replace(/\s*([·,;|/–—-])(?:\s+\1)+\s*/g, " $1 ")
+      .replace(/^[\s·,;:|/–—-]+|[\s·,;:|/–—-]+$/g, "")
+      .slice(0, 200) || null
+  );
+}
+
 const REFERENCE_KINDS = new Set(["image", "file", "signature"]);
 
 /**
@@ -346,7 +371,14 @@ const REFERENCE_KINDS = new Set(["image", "file", "signature"]);
 export function renderTask(template: string, scope: TemplateScope): string {
   return template.replace(TEMPLATE_RE, (_m, ref: string) => {
     const value = stringify(resolveRef(ref.trim(), scope));
-    const head = ref.trim().split(".")[0];
+    const [head, from, part, name] = ref.trim().split(".");
+    // What a signal brought comes from outside, as a visitor's words do.
+    if (head === "steps" && (!part || part === "data") && value !== "") {
+      const source = scope.def.steps.find((s) => s.id === from);
+      if (source?.type === "wait") {
+        return `<data field="${name ?? part ?? from}">${value.replaceAll("</data>", "")}</data>`;
+      }
+    }
     const field = allFields(scope.def).find((f) => f.id === head);
     if (!field || REFERENCE_KINDS.has(field.kind) || value === "") {
       return value;
@@ -364,6 +396,14 @@ export function answersAsText(scope: TemplateScope): string {
       continue;
     }
     lines.push(`### ${field.label}\n${stringify(resolveRef(field.id, scope))}`);
+  }
+  // A started run: what started it, for the steps to read like an answer.
+  const start = scope.state.start;
+  if (start) {
+    const { kind, at, ...rest } = start;
+    lines.push(
+      `### Started by\n${kind} at ${at}${Object.keys(rest).length ? `\n${JSON.stringify(rest, null, 2).slice(0, 8000)}` : ""}`,
+    );
   }
   return lines.join("\n\n");
 }

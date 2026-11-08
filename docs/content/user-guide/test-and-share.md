@@ -71,6 +71,8 @@ at the top and leads to “Publish changes”.
 
 One visitor can start 6 runs an hour.
 
+With [runs that last days](./long-runs.md) the dialog also has “Events” and “Answered by”.
+
 ### Page by page or as a chat
 
 A wizard can run page by page or as a chat. A wizard you start on the “New wizard” page runs step by step unless you choose more under “How

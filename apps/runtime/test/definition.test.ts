@@ -49,6 +49,39 @@ describe("validator", () => {
   });
 });
 
+describe("onFail", () => {
+  const wizard = (onFail: string) => ({
+    version: 2,
+    title: "On fail",
+    description: "",
+    avatar: "round",
+    steps: [
+      { id: "work", type: "agent", title: "W", instructions: "x", tools: [], output: { format: "text" }, onFail },
+      { id: "done", type: "result", title: "Fertig", deliverables: [] },
+    ],
+  });
+
+  it("goes to a step of the wizard", () => {
+    expect(parseWizard(wizard("done")).issues).toEqual([]);
+  });
+
+  it("refuses a step that isn't there, and the step itself", () => {
+    expect(parseWizard(wizard("nowhere")).issues.map((i) => i.message)).toEqual([
+      'onFail goes to unknown step "nowhere".',
+    ]);
+    expect(parseWizard(wizard("work")).issues.map((i) => i.message)).toEqual([
+      "A step can't go to itself when it fails.",
+    ]);
+  });
+
+  it("a wizard without it stays as it was", () => {
+    const { onFail: _, ...plain } = wizard("done").steps[0];
+    const parsed = parseWizard({ ...wizard("done"), steps: [plain, wizard("done").steps[1]] });
+    expect(parsed.ok && parsed.wizard.steps[0]).not.toHaveProperty("onFail");
+    expect(parsed.issues).toEqual([]);
+  });
+});
+
 describe("a wait step", () => {
   const wizard = (wait: object, more: object[] = []) => ({
     version: 2,
@@ -72,8 +105,8 @@ describe("a wait step", () => {
   });
 
   it("has one of them", () => {
-    expect(messages(wizard({})).join()).toContain('"for" or "until"');
-    expect(messages(wizard({ for: "2d", until: "{{due}}" })).join()).toContain('"for" or "until"');
+    expect(messages(wizard({})).join()).toContain('"for", "until" or "signal"');
+    expect(messages(wizard({ for: "2d", until: "{{due}}" })).join()).toContain("one of them");
   });
 
   it("refuses what it cannot wait for", () => {
@@ -105,6 +138,65 @@ describe("a wait step", () => {
     expect(
       branchValues({}, { pause: { json: { waited: true } } })["steps.pause.waited"],
     ).toBe(true);
+  });
+
+  describe("for a signal", () => {
+    const signal = (more: object = {}) => ({ signal: { name: "paid", key: "{{due}}", ...more } });
+    const branch = (field: string) => ({
+      id: "after",
+      type: "agent",
+      title: "After",
+      instructions: "x",
+      tools: [],
+      output: { format: "text" },
+      next: [{ when: { field, op: "equals", value: true }, goto: "done" }],
+    });
+
+    it("takes a name, a key, a timeout and fields, and the version stays", () => {
+      expect(parseWizard(wizard(signal())).issues).toEqual([]);
+      expect(parseWizard(wizard(signal({ timeout: "3d", fields: ["amount"] }))).issues).toEqual([]);
+      expect(DEFINITION_VERSION).toBe(2);
+    });
+
+    it("is one of the three, with a known key and a readable timeout", () => {
+      expect(messages(wizard({ for: "1d", ...signal() })).join()).toContain("one of them");
+      expect(messages(wizard(signal({ key: "{{nope}}" }))).length).toBeGreaterThan(0);
+      expect(messages(wizard(signal({ timeout: "soon" }))).length).toBeGreaterThan(0);
+      expect(messages(wizard(signal({ name: "has space" }))).length).toBeGreaterThan(0);
+    });
+
+    it("hands on came, timedOut and its data, and a list decides which data", () => {
+      const reads = (field: string, more: object = {}) =>
+        parseWizard(wizard(signal(more), [branch(field)])).issues;
+      expect(reads("steps.pause.came")).toEqual([]);
+      expect(reads("steps.pause.timedOut")).toEqual([]);
+      expect(reads("steps.pause.data.subject")).toEqual([]);
+      expect(reads("steps.pause.data.amount", { fields: ["amount"] })).toEqual([]);
+      expect(reads("steps.pause.data.subject", { fields: ["amount"] }).length).toBeGreaterThan(0);
+      expect(reads("steps.pause.waited").length).toBeGreaterThan(0);
+      expect(reads("steps.pause.subject").length).toBeGreaterThan(0);
+      expect(reads("steps.pause.data").length).toBeGreaterThan(0);
+      expect(reads("steps.pause.came.p").length).toBeGreaterThan(0);
+    });
+
+    it("reads a sender's data only below `data`", () => {
+      const values = branchValues(
+        {},
+        {
+          pause: {
+            json: {
+              came: true,
+              timedOut: false,
+              data: { came: false, timedOut: true, subject: "Ja" },
+            },
+          },
+        },
+      );
+      expect(values["steps.pause.came"]).toBe(true);
+      expect(values["steps.pause.timedOut"]).toBe(false);
+      expect(values["steps.pause.data.came"]).toBe(false);
+      expect(values["steps.pause.data.subject"]).toBe("Ja");
+    });
   });
 
   it("has nothing to show or hand over", () => {
@@ -346,5 +438,51 @@ describe("a wizard's themes", () => {
 
   it("has no style any more", () => {
     expect(parseWizard({ title: "x", style: { accent: "#ff7a1a" }, steps } as never).issues).toEqual([]);
+  });
+});
+
+describe("a person's step: timeout, remind, approve", () => {
+  const page = (more: object) => ({
+    id: "ask",
+    type: "page",
+    title: "A",
+    fields: [{ id: "x", kind: "text", label: "X" }],
+    ...more,
+  });
+  const made = { id: "made", type: "agent", title: "M", instructions: "x", tools: [], output: { format: "text" } };
+  const end = { id: "done", type: "result", title: "E", deliverables: [] };
+  const issues = (...steps: object[]) =>
+    parseWizard({ version: 2, title: "T", description: "", avatar: "round", steps }).issues.map(
+      (i) => i.message,
+    );
+
+  it("takes 1 minute to 31 days", () => {
+    expect(issues(page({ timeout: "1m", }), end)).toEqual([]);
+    expect(issues(page({ timeout: "31d", remind: "30d" }), end)).toEqual([]);
+    expect(issues(page({ timeout: "32d" }), end).join()).toMatch(/"timeout" is at most 31 days/);
+    expect(issues(page({ remind: "745h" }), end).join()).toMatch(/"remind" is at most 31 days/);
+    expect(issues(page({ timeout: "0m" }), end).join()).toMatch(/A duration like/);
+    expect(issues(page({ timeout: "30s" }), end).join()).toMatch(/A duration like/);
+  });
+
+  it("reminds before the timeout", () => {
+    expect(issues(page({ timeout: "1d", remind: "1d" }), end).join()).toMatch(/not shorter/);
+    expect(issues(page({ timeout: "1h", remind: "2h" }), end).join()).toMatch(/not shorter/);
+    expect(issues(page({ remind: "2d" }), end)).toEqual([]);
+  });
+
+  it("a branch reads timedOut only of a step with a timeout", () => {
+    const next = [{ when: { field: "steps.ask.timedOut", op: "equals", value: true }, goto: "done" }];
+    expect(issues(page({ timeout: "1d", next }), end)).toEqual([]);
+    expect(issues(page({ next }), end).length).toBeGreaterThan(0);
+  });
+
+  it("approve needs a branch on the decision", () => {
+    const review = { id: "check", type: "review", title: "C", show: ["made"], approve: true };
+    expect(issues(made, review, end).join()).toMatch(/needs a branch on steps\.check\.approved/);
+    const next = [{ when: { field: "steps.check.approved", op: "equals", value: false }, goto: "done" }];
+    expect(issues(made, { ...review, next }, end)).toEqual([]);
+    const reads = [{ when: { field: "steps.check.note", op: "contains", value: "x" }, goto: "done" }];
+    expect(issues(made, { ...review, next: [...next, ...reads] }, end)).toEqual([]);
   });
 });

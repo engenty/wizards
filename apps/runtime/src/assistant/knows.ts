@@ -12,6 +12,7 @@ import { guideSpaceConnections } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
 import type { AssistantCardRecord } from "../db/schema.js";
 import { env } from "../env.js";
+import { currentFeatures } from "../features.js";
 import { detectHarnesses } from "../harness/index.js";
 import { type MonthlyUsage, managed, publicPlans, tenantInfo, tenantUsage } from "../manage.js";
 import { classWays, waysIn } from "../models.js";
@@ -100,6 +101,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
             ctx.space ? await listConnectors(ctx.space.id) : [],
             await pluginToolsOf(user.tenantId),
             ctx.space ? await guideSpaceConnections(ctx.space.id) : [],
+            (await currentFeatures()).durableRuns,
           );
           const start = Math.min(from ?? 0, guide.length);
           return {
@@ -320,7 +322,15 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       description: prompt("goose", "tool.runs"),
       inputSchema: z.object({
         status: z
-          .enum(["failed", "done", "running", "waiting_input", "sleeping", "cancelled"])
+          .enum([
+            "failed",
+            "done",
+            "running",
+            "waiting_input",
+            "sleeping",
+            "waiting_signal",
+            "cancelled",
+          ])
           .optional(),
         limit: z.number().int().min(1).max(40).optional(),
       }),

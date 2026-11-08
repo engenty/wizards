@@ -1,5 +1,6 @@
+import { calcTruthy } from "@engenty/wizards-shared/calc";
 import type { Surface, SurfaceComponent } from "@engenty/wizards-shared/surface";
-import { bound } from "@engenty/wizards-shared/surface";
+import { bound as boundTo } from "@engenty/wizards-shared/surface";
 import {
   Check,
   ChevronRight,
@@ -13,10 +14,14 @@ import {
   Wand2,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { ListChoice, NumberSlider } from "./field-looks.js";
 import { lang, t } from "./i18n.js";
 import { Markdown } from "./outputs.js";
 import { FormView, type SurfaceChat } from "./surface-form.js";
-import { cn, Dialog, Tabs as Segments } from "./ui.js";
+import { cn, Dialog, Segmented, Tabs as Segments, Switch } from "./ui.js";
+
+/** A prop's value, numbers written as the person's language writes them. */
+const bound = (value: unknown, data: unknown, row?: unknown) => boundTo(value, data, row, lang);
 
 /**
  * A surface drawn with the runner's own components: the catalog in shared/surface.ts, nothing
@@ -41,6 +46,8 @@ interface Ctx {
   open: (view: string, row: unknown) => void;
   /** A chat's view: its Refs, its Form. */
   chat?: SurfaceChat;
+  /** A page's layout: draws one of its fields where a `Field` places it. */
+  field?: (name: string) => React.ReactNode;
 }
 
 // A yes/no without words of its own reads as yes or no, never as true or false.
@@ -219,7 +226,10 @@ function ChecklistView({ c, ctx, row }: { c: SurfaceComponent; ctx: Ctx; row?: u
         indexed.filter(({ item }) => text(cell(item, groupKey)) === name),
       ])
     : [["", indexed]];
-  const detailOf = (item: unknown) => text(cell(item, detailKey));
+  // `detail` is worked out per entry; `detailKey` names a column of it.
+  const detail = (c as Record<string, unknown>).detail;
+  const detailOf = (item: unknown) =>
+    detail === undefined ? text(cell(item, detailKey)) : text(bound(detail, ctx.data, item));
   const noteMap = p("noteMap");
   const noteOf = (item: unknown) => {
     const v = noteKey ? cell(item, noteKey) : undefined;
@@ -596,6 +606,37 @@ function Titled({ title, children }: { title: string; children: ReactNode }) {
       {title ? <div className="mb-3 font-medium text-[0.875rem]">{title}</div> : null}
       {children}
     </div>
+  );
+}
+
+/** A choice the person makes in a view; a value may be a number, and stays one. */
+function ChoiceInput({ c, ctx }: { c: SurfaceComponent; ctx: Ctx }) {
+  const props = c as Record<string, unknown>;
+  const state = text(props.state);
+  const options = (Array.isArray(props.options) ? props.options : []).map((o) => {
+    const given = o as { label?: unknown; value?: unknown };
+    return o && typeof o === "object"
+      ? { label: text(given.label), value: given.value }
+      : { label: text(o), value: o };
+  });
+  const value = ctx.data[state];
+  const labels = new Map(options.map((o) => [String(o.value), o.label]));
+  const set = (picked: unknown) =>
+    ctx.setState(state, options.find((o) => String(o.value) === String(picked))?.value);
+  const label = (v: string) => labels.get(v) ?? v;
+  const values = options.map((o) => String(o.value));
+  const now = value === undefined || value === null ? "" : String(value);
+  return props.look === "list" ? (
+    <ListChoice
+      name={c.id}
+      value={now}
+      options={values}
+      disabled={new Set()}
+      label={label}
+      onChange={set}
+    />
+  ) : (
+    <Segmented value={now} options={values} label={label} onChange={set} />
   );
 }
 
@@ -1086,8 +1127,52 @@ function Node({ id, ctx, row }: { id: string; ctx: Ctx; row?: unknown }) {
       return <RefView c={c} ctx={ctx} row={row} />;
     case "Form":
       return <FormView c={c} byId={ctx.byId} data={ctx.data} chat={ctx.chat} />;
+    case "Field":
+      return <>{ctx.field?.(text((c as Record<string, unknown>).name))}</>;
+    case "Choice":
+      return <ChoiceInput c={c} ctx={ctx} />;
+    case "Toggle": {
+      const state = text((c as Record<string, unknown>).state);
+      const on = calcTruthy(ctx.data[state]);
+      return (
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[0.9375rem]">{text(p("label"))}</span>
+          <Switch checked={on} onChange={(next) => ctx.setState(state, next)} />
+        </div>
+      );
+    }
+    case "Slider": {
+      const props = c as Record<string, unknown>;
+      const state = text(props.state);
+      return (
+        <NumberSlider
+          label={text(p("label")) || state}
+          value={ctx.data[state]}
+          min={Number(props.min)}
+          max={Number(props.max)}
+          increment={typeof props.increment === "number" ? props.increment : undefined}
+          unit={typeof props.unit === "string" ? props.unit : undefined}
+          onChange={(v) => ctx.setState(state, v)}
+        />
+      );
+    }
   }
   return null;
+}
+
+/** The data a view reads: what the run gave it, and what its inputs hold, or start with. */
+function withViewState(surface: Surface, state: SurfaceState): Record<string, unknown> {
+  const inputs: Record<string, unknown> = {};
+  for (const c of surface.components) {
+    const { state: name, default: start } = c as { state?: unknown; default?: unknown };
+    if (
+      typeof name === "string" &&
+      (c.component === "Choice" || c.component === "Toggle" || c.component === "Slider")
+    ) {
+      inputs[name] = state[name] ?? start;
+    }
+  }
+  return { ...surface.data, ...inputs };
 }
 
 export function SurfaceView({
@@ -1097,6 +1182,7 @@ export function SurfaceView({
   initial,
   onState,
   chat,
+  field,
 }: {
   surface: Surface;
   assetUrl: (id: string) => string;
@@ -1107,12 +1193,14 @@ export function SurfaceView({
   initial?: SurfaceState;
   /** Keeps what the person did; without it, it lasts as long as the page. */
   onState?: (next: SurfaceState) => void;
+  /** A page's layout: draws one of its fields where a `Field` places it. */
+  field?: (name: string) => React.ReactNode;
 }) {
   const [state, setState] = useState<SurfaceState>(initial ?? {});
   const [sheet, setSheet] = useState<{ view: string; row: unknown } | null>(null);
   const ctx: Ctx = {
     byId: new Map(surface.components.map((c) => [c.id, c])),
-    data: surface.data,
+    data: withViewState(surface, state),
     assetUrl,
     onAction,
     state,
@@ -1123,6 +1211,7 @@ export function SurfaceView({
     },
     open: (view, row) => setSheet({ view, row }),
     chat,
+    field,
   };
   return (
     <>

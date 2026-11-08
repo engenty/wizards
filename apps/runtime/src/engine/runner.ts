@@ -6,6 +6,9 @@ import {
   marginOf,
 } from "@engenty/wizards-shared/decision";
 import {
+  type AheadPage,
+  type AheadRule,
+  allFields,
   branchValues,
   type CardOption,
   cardsFromData,
@@ -23,18 +26,32 @@ import {
   otherwiseOf,
   type PageStep,
   pageNeeds,
+  type ReviewStep,
+  RUN_DONE_SIGNAL,
   type Step,
+  sectionOf,
+  sectionsOf,
+  signalMissing,
   textLang,
   type WaitStep,
   type WizardDefinition,
   waitDurationMs,
   whenHolds,
+  whenNames,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import type { RunNote, RunStatus, Said, StepOutput } from "@engenty/wizards-shared/run";
+import type {
+  AskInput,
+  RunNote,
+  RunPause,
+  RunStatus,
+  Said,
+  StepOutput,
+} from "@engenty/wizards-shared/run";
 import {
   CAN_GO_BACK,
   type ClosedChoice,
+  isNoteTime,
   note,
   type RunState,
   type RunView,
@@ -43,12 +60,14 @@ import {
 } from "@engenty/wizards-shared/run";
 import { CONVERSATION_RUNNERS, DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
 import { fitData } from "@engenty/wizards-shared/shape";
+import type { StartEvent, StartedBy } from "@engenty/wizards-shared/starts";
 import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
 import { machineTranslated, translateDefinition } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, lt, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
+import { effectsOn, enterVisit } from "../broker/effect.js";
 import { grantNote, grantOf, type KnownConnector, kindOf } from "../broker/index.js";
 import { runHolder, subjectsOf } from "../broker/rwx.js";
 import { resolveConnector } from "../connectors/external.js";
@@ -85,11 +104,14 @@ import {
   guestChecksOn,
   guestRun,
 } from "../safety.js";
+import { peerTicket } from "../secrets/signing.js";
+import { nameOf } from "../services/access.js";
 import { reportRun } from "../services/manage-reports.js";
 import { switchedOffRunners } from "../services/runners.js";
 import { spaceFiles } from "../services/space-files.js";
 import { spaceProfile } from "../services/spaces.js";
 import { storedTranslation } from "../services/translations.js";
+import { decidedHeld, holdReview } from "../services/work-approvals.js";
 import { latestShareJob } from "../sharing/state.js";
 import { listRows, listSecrets, scopeOf } from "../store/index.js";
 import {
@@ -98,6 +120,7 @@ import {
   heartbeatRuns,
   indexRun,
   markLine,
+  otherRunners,
   restRun,
   setWake,
   waitingRuns,
@@ -105,11 +128,23 @@ import {
   wakeRun,
 } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { askPerson, clearStaleAsk } from "./asks.js";
+import { whoOf } from "./answerers.js";
+import { type AskResult, askPerson, clearStaleAsk } from "./asks.js";
 import { decide } from "./decide.js";
 import { clearDeviceCalls } from "./device.js";
-import { emitEvent, recentEvents, signalChanged } from "./events.js";
+import { newTurn, TurnAsks, turnOf } from "./durable-turn.js";
+import { emitEvent, recentEvents, saidInVisit, signalChanged, visitLeftOpen } from "./events.js";
+import { classifyFailure, type Failure } from "./failures.js";
 import { type InputError, type PageContext, readPageInput } from "./input.js";
+import { withMailText } from "./mail-watch.js";
+import {
+  type Actor,
+  type NoticeKind,
+  type NoticeValues,
+  noticeFor,
+  noticesFor,
+  noticeWrites,
+} from "./notices.js";
 import { pushRun } from "./push.js";
 import {
   blockingMessage,
@@ -120,11 +155,22 @@ import {
   stepsWithoutModel,
   tierRefusalSaid,
 } from "./requirements.js";
-import { releaseResources, resourcesFor } from "./resources.js";
+import { liveResources, releaseResources, resourcesFor } from "./resources.js";
+import {
+  dropWait,
+  findSignal,
+  registerWait,
+  runScope,
+  SPACE_SCOPE,
+  sendSignal,
+  signalData,
+} from "./signals.js";
+import { startedRunEnded, startOf } from "./starts.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
-import { answersAsText, renderTemplate, resolveRef } from "./template.js";
+import { surfaceData } from "./surface.js";
+import { answersAsText, fillLabel, renderTemplate, resolveRef } from "./template.js";
 import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
-import { StepError } from "./types.js";
+import { SignInNeeded, StepError } from "./types.js";
 
 /** A command the run cannot take in its current state; a note where the person may read it. */
 export class RunConflict extends NotedError {}
@@ -153,6 +199,9 @@ class StepDeadline extends NotedError {
     super(note("stepTookTooLong"));
   }
 }
+
+/** This time of a start began a run already: the database refused a second one. */
+export class OccurrenceTaken extends Error {}
 
 /** Another runner claimed the run while this one drove it: this drive ends, without a word on the run. */
 class LostClaim extends Error {}
@@ -228,6 +277,93 @@ async function dataSpaceOf(run: RunRow, space: SpaceRow): Promise<{ id: string; 
   return client;
 }
 
+/** The statuses that tell someone, and what the notice says. */
+const TOLD: Partial<Record<RunRow["status"], NoticeKind>> = {
+  waiting_input: "needs_you",
+  done: "done",
+  failed: "failed",
+};
+
+/**
+ * The reminder of a person's step, written with the wait and due at `remind`. It goes by the same
+ * key as the wait, so an answer or a timeout settles it, and it replaces the last wait's. It reaches
+ * whoever the step asks. Whoever opened the page themselves has left by then, if they are not
+ * looking: it has no `by`.
+ */
+async function remindersOf(
+  run: Parameters<typeof noticesFor>[0],
+  step: Step | undefined,
+): Promise<NoticeValues[]> {
+  if (!isPersonStep(step) || !step.remind || !(await durableRunsOn())) {
+    return [];
+  }
+  return noticesFor(run, "reminder", {
+    step,
+    waitKey: `step:${step.id}`,
+    detail: step.title,
+    dueAt: new Date(Date.now() + waitDurationMs(step.remind)),
+  });
+}
+
+/** The notices a status change writes, one per person told. A notice never breaks a run. */
+async function noticesOfStatus(
+  runId: string,
+  patch: Partial<typeof schema.run.$inferInsert>,
+  by?: Actor,
+): Promise<NoticeValues[]> {
+  const kind = patch.status && TOLD[patch.status];
+  if (!kind) {
+    return [];
+  }
+  try {
+    const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+    if (!run) {
+      return [];
+    }
+    const cursor = patch.cursor === undefined ? run.cursor : patch.cursor;
+    const step = stepOf(run.definition, cursor);
+    const told = await noticesFor(run, kind, {
+      by,
+      step: kind === "needs_you" ? step : null,
+      waitKey: kind === "needs_you" && cursor ? `step:${cursor}` : null,
+      detail:
+        kind === "needs_you" ? step?.title : kind === "failed" ? (patch.error ?? run.error) : null,
+    });
+    return kind === "needs_you" ? [...told, ...(await remindersOf(run, step))] : told;
+  } catch (err) {
+    console.error(`[notices] run ${runId}:`, err);
+    return [];
+  }
+}
+
+/**
+ * What a run's move does to a held approval: a review with `approve` for the team is held while the
+ * run waits on it. A held row never breaks a run.
+ */
+async function moveHeld(runId: string, patch: Partial<typeof schema.run.$inferInsert>) {
+  if (!((patch.status || patch.cursor !== undefined) && (await durableRunsOn()))) {
+    return;
+  }
+  try {
+    const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+    if (!run) {
+      return;
+    }
+    const step = stepOf(run.definition, run.cursor);
+    await holdReview(
+      run,
+      run.status === "waiting_input" &&
+        step?.type === "review" &&
+        step.approve &&
+        whoOf(step) === "team"
+        ? { stepId: step.id, title: step.title }
+        : null,
+    );
+  } catch (err) {
+    console.error(`[approvals] run ${runId}:`, err);
+  }
+}
+
 /**
  * Writes the run. Inside its drive the write needs the drive's claim; with `seen`, a person's write
  * needs the `rev` it read, and a wait's write the status it came from: a cancel wins over either. A
@@ -237,20 +373,35 @@ async function updateRun(
   runId: string,
   patch: Partial<typeof schema.run.$inferInsert>,
   seen?: { rev: number } | { status: RunStatus },
+  by?: Actor,
 ) {
   const holder = driving.getStore();
   const held = holder?.runId === runId ? holder : undefined;
-  const result = await db
+  const where = and(
+    eq(schema.run.id, runId),
+    held ? eq(schema.run.claim, held.generation) : undefined,
+    seen && ("rev" in seen ? eq(schema.run.rev, seen.rev) : eq(schema.run.status, seen.status)),
+  ) as SQL;
+  const write = db
     .update(schema.run)
-    .set({ ...patch, rev: sql`${schema.run.rev} + 1`, updatedAt: new Date() })
-    .where(
-      and(
-        eq(schema.run.id, runId),
-        held ? eq(schema.run.claim, held.generation) : undefined,
-        seen && ("rev" in seen ? eq(schema.run.rev, seen.rev) : eq(schema.run.status, seen.status)),
-      ),
-    );
-  if (result.rowsAffected === 0) {
+    .set({
+      ...patch,
+      // A run that rests has no drive to break off, whatever becomes of this process now.
+      ...(patch.status && patch.status !== "running" ? { driving: false } : {}),
+      rev: sql`${schema.run.rev} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(where);
+  // The notices go in with the status: all of it happens, or none.
+  const notices = await noticesOfStatus(runId, patch, by);
+  const result = notices.length
+    ? (
+        (await db.batch([...noticeWrites(notices, where), write] as never)) as {
+          rowsAffected: number;
+        }[]
+      ).at(-1)
+    : await write;
+  if (result?.rowsAffected === 0) {
     if (held) {
       throw new LostClaim();
     }
@@ -258,23 +409,58 @@ async function updateRun(
       throw new RunConflict({ code: "runBusy" });
     }
   }
-  // A run that sleeps holds no credits: it reserves again when it wakes.
-  if (patch.status === "sleeping") {
+  await moveHeld(runId, patch);
+  // A run that waits holds no credits: it reserves again when it wakes.
+  if (patch.status === "sleeping" || patch.status === "waiting_signal") {
     await releaseRun(runId);
   }
   // A run that ended needs no credits held for it any more.
   if (patch.status === "done" || patch.status === "failed" || patch.status === "cancelled") {
     await releaseRun(runId);
+    await dropWait(runId);
+    await tellRunEnded(runId, patch.status);
     // Plugins hear of it; the run does not wait for them.
     void runEnded(runId, patch.status);
     if (patch.status !== "cancelled") {
       void pushRun(runId, patch.status);
     }
+    // A start's run that ended: the start counts it, the owner hears of it.
+    void startedRunEnded(runId, patch.status);
   }
   if (patch.status) {
     reportRun(runId, patch.status);
   }
   signalChanged(runId);
+}
+
+/**
+ * A run's end, as a signal keyed by its id: another run can wait for it. `data.status` says how it
+ * ended; a failed run that is tried again and then finishes says so once more.
+ */
+async function tellRunEnded(runId: string, status: "done" | "failed" | "cancelled") {
+  if (!(await durableRunsOn())) {
+    return;
+  }
+  try {
+    const run = await db.query.run.findFirst({
+      where: eq(schema.run.id, runId),
+      columns: { wizardId: true },
+    });
+    if (run) {
+      await sendSignal({
+        spaceId: await spaceIdOf(run),
+        scope: SPACE_SCOPE,
+        name: RUN_DONE_SIGNAL,
+        key: runId,
+        data: { status, wizardId: run.wizardId },
+        source: "run",
+        delivery: status,
+      });
+    }
+  } catch (err) {
+    // The run has ended either way; whoever waits for it has its timeout.
+    console.warn(`[run ${runId}] telling of its end:`, (err as Error).message);
+  }
 }
 
 function stepOf(def: WizardDefinition, id: string | null): Step | undefined {
@@ -292,7 +478,10 @@ function friendly(err: unknown): Said {
   }
   const msg = (err as Error)?.message ?? String(err);
   // The model-gateway answers 402 once the tenant's credits are used up.
-  if (/insufficient_credits|\b402\b/i.test(msg)) {
+  if (
+    /insufficient_credits|\b402\b/i.test(msg) ||
+    classifyFailure(err, { managed }).why === "credits"
+  ) {
     return saidOf(new NoCreditsError());
   }
   // A runtime that runs alone pays its provider itself: its admin can top the account up.
@@ -304,6 +493,16 @@ function friendly(err: unknown): Said {
   }
   if (/timeout|timed out/i.test(msg)) {
     return note("stepTookTooLong");
+  }
+  const { why } = classifyFailure(err, { managed });
+  if (why === "rate_limit") {
+    return note("aiServiceBusyRight");
+  }
+  if (why === "timeout") {
+    return note("stepTookTooLong");
+  }
+  if (why === "server" || why === "network") {
+    return note("aiServiceNotReached");
   }
   // The platform's own provider account (budget, quota, key): nothing the person can fix.
   if (
@@ -343,6 +542,13 @@ async function failRun(run: RunRow, stepId: string, err: unknown) {
 
 // --- creating & driving ------------------------------------------------------
 
+/** The wizard's `label` from what the run knows so far; null without one. */
+async function labelOf(def: WizardDefinition, state: RunState): Promise<string | null> {
+  return def.label && (await durableRunsOn())
+    ? fillLabel(def.label, { def, state, brand: {} })
+    : null;
+}
+
 export async function createRun(input: {
   wizardId: string;
   definition: WizardDefinition;
@@ -364,10 +570,25 @@ export async function createRun(input: {
   client?: string | null;
   /** The client space it runs in, with its parent's wizard (docs/plans/client-portal.md). */
   clientSpaceId?: string | null;
+  /**
+   * A start began the run, nobody is there: `start` is what started it, `fill` the answers it
+   * brings. Pages are filled as the run reaches them; what is missing waits for the owner.
+   */
+  startedBy?: StartedBy | null;
+  start?: StartEvent;
+  fill?: Record<string, unknown>;
+  /** Which time of the start this is (`occurrenceKey`): a second run of it is refused. */
+  occurrence?: string;
 }): Promise<string> {
   const id = nanoid(18);
   const first = input.definition.steps[0];
+  // A started run fills its first page itself, in the drive loop.
+  const waits = first.type === "page" && !input.startedBy;
   const state: RunState = { values: {}, outputs: {}, history: [], notes: {} };
+  if (input.startedBy) {
+    state.start = input.start;
+    state.fill = input.fill ?? {};
+  }
   // Off, nothing starts that would need the clock; a run that already waits goes on.
   if (input.definition.steps.some((s) => s.type === "wait") && !(await durableRunsOn())) {
     throw new ModelUnavailableError(note("waitsOff"));
@@ -397,35 +618,87 @@ export async function createRun(input: {
   }
   // What the run may reach outside, from the definition it starts on: fixed here, never widened.
   const grant = grantOf(input.definition);
-  await db.insert(schema.run).values({
+  // Without an account nobody can come back for a result later: it is kept a week. A run of a
+  // client space is the client's, kept with it.
+  const expiresAt =
+    input.mode === "live" && !input.clientSpaceId
+      ? new Date(Date.now() + env.limits.resultTtlDays * 24 * 60 * 60 * 1000)
+      : null;
+  const deadline = waits ? await deadlineOf({ expiresAt }, first) : { wakeAt: null };
+  const insert = db
+    .insert(schema.run)
+    .values({
+      id,
+      wizardId: input.wizardId,
+      tenantId: currentTenant(),
+      definition: input.definition,
+      files: input.files,
+      grant,
+      version: input.version,
+      mode: input.mode,
+      runner: input.runner ?? null,
+      visitorId: input.visitorId ?? null,
+      userId: input.userId ?? null,
+      impersonatedBy: currentImpersonator()?.adminId ?? null,
+      ipHash: input.ipHash ?? null,
+      origin: input.origin ?? null,
+      lang: input.lang ?? null,
+      unattended: input.unattended ?? false,
+      client: input.client ?? null,
+      clientSpaceId: input.clientSpaceId ?? null,
+      startedBy: input.startedBy ?? null,
+      occurrence: input.occurrence ?? null,
+      status: waits ? "waiting_input" : "running",
+      cursor: first.id,
+      state,
+      label: await labelOf(input.definition, state),
+      expiresAt,
+      ...deadline,
+    })
+    .onConflictDoNothing({ target: [schema.run.wizardId, schema.run.occurrence] });
+  // Whoever starts a run stands on its first page: today that tells nobody, by `noticesFor`'s rule.
+  const facts = {
     id,
     wizardId: input.wizardId,
-    tenantId: currentTenant(),
-    definition: input.definition,
-    files: input.files,
-    grant,
-    version: input.version,
-    mode: input.mode,
-    runner: input.runner ?? null,
-    visitorId: input.visitorId ?? null,
     userId: input.userId ?? null,
-    impersonatedBy: currentImpersonator()?.adminId ?? null,
-    ipHash: input.ipHash ?? null,
-    origin: input.origin ?? null,
-    lang: input.lang ?? null,
+    visitorId: input.visitorId ?? null,
+    runner: input.runner ?? null,
     unattended: input.unattended ?? false,
-    client: input.client ?? null,
-    clientSpaceId: input.clientSpaceId ?? null,
-    status: first.type === "page" ? "waiting_input" : "running",
-    cursor: first.id,
-    state,
-    // Without an account nobody can come back for a result later: it is kept a week. A run of a
-    // client space is the client's, kept with it.
-    expiresAt:
-      input.mode === "live" && !input.clientSpaceId
-        ? new Date(Date.now() + env.limits.resultTtlDays * 24 * 60 * 60 * 1000)
-        : null,
-  });
+    impersonatedBy: currentImpersonator()?.adminId ?? null,
+    startedBy: input.startedBy ?? null,
+    mode: input.mode,
+  };
+  const notices = waits
+    ? [
+        ...(await noticesFor(facts, "needs_you", {
+          detail: first.title,
+          waitKey: `step:${first.id}`,
+          by: { userId: input.userId, visitorId: input.visitorId },
+          step: first,
+        })),
+        ...(await remindersOf(facts, first)),
+      ]
+    : [];
+  const inserted = notices.length
+    ? (
+        (await db.batch([insert, ...noticeWrites(notices, eq(schema.run.id, id))] as never)) as {
+          rowsAffected: number;
+        }[]
+      )[0]
+    : await insert;
+  if (inserted.rowsAffected === 0) {
+    await releaseRun(id);
+    throw new OccurrenceTaken();
+  }
+  if (await durableRunsOn()) {
+    const name = input.userId ? await nameOf(input.userId) : null;
+    await emitEvent(
+      id,
+      null,
+      "run_started",
+      name ? note("runStartedBy", { name }) : note("runStarted"),
+    );
+  }
   const may = grantNote(
     grant,
     input.definition,
@@ -434,9 +707,17 @@ export async function createRun(input: {
   if (may) {
     await emitEvent(id, first.id, "info", may);
   }
-  await indexRun({ runId: id, visitorId: input.visitorId, ipHash: input.ipHash });
-  reportRun(id, first.type === "page" ? "waiting_input" : "running");
-  if (first.type !== "page") {
+  await indexRun({
+    runId: id,
+    visitorId: input.visitorId,
+    ipHash: input.ipHash,
+    wakeAt: deadline.wakeAt,
+  });
+  if (waits) {
+    await waitsForAnswer(id, first, deadline.wakeAt);
+  }
+  reportRun(id, waits ? "waiting_input" : "running");
+  if (!waits) {
     kick(id);
   }
   return id;
@@ -479,12 +760,43 @@ async function grantConnectors(
 export function kick(runId: string) {
   const tenant = currentTenant();
   void wakeRun(runId)
-    .then(() => {
-      if (env.serves.runner) {
-        return take(runId, tenant);
-      }
-    })
+    .then(() => (env.serves.runner ? take(runId, tenant) : nudgeRunner(runId, tenant)))
     .catch((err) => console.error(`[run ${runId}]`, err));
+}
+
+/**
+ * A process without a runner tells one at once, so the run does not wait for a runner's next look
+ * at the line (`POLL_MS`). A runner that cannot take it, or does not answer, changes nothing: the
+ * line still has the run, and the next look takes it.
+ */
+async function nudgeRunner(runId: string, tenant: string) {
+  const runners = await otherRunners();
+  const runner = runners[Math.floor(Math.random() * runners.length)];
+  if (!runner) {
+    return;
+  }
+  try {
+    await fetch(`${runner.url}/api/peer/runs/${encodeURIComponent(runId)}/take`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${peerTicket(runId, tenant)}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ tenant }),
+      signal: AbortSignal.timeout(2000),
+    });
+  } catch {
+    // The line has the run: the runner's next look takes it.
+  }
+}
+
+/** Another process of this runtime asks this runner to take a run now (routes/peer.ts). */
+export function takeNow(runId: string, tenant: string) {
+  if (!env.serves.runner) {
+    return false;
+  }
+  void take(runId, tenant).catch((err) => console.error(`[run ${runId}]`, err));
+  return true;
 }
 
 /** The claim in the control database, and on the run's own row, where this process's writes need it. */
@@ -539,9 +851,16 @@ async function driveClaimed(
     void withTenant(tenant, () => reportRun(runId, "running")).catch(() => undefined);
     void withTenant(tenant, () => loadRun(runId))
       .then((run) => {
-        // A run woken from its wait is still `sleeping` for the moment its drive reserves credits.
-        const working = run?.status === "running" || run?.status === "sleeping";
-        if (run && (!working || run.claim !== generation)) {
+        // A run woken from its wait still says so for the moment its drive reserves credits.
+        const working =
+          run?.status === "running" ||
+          run?.status === "sleeping" ||
+          run?.status === "waiting_signal" ||
+          (run?.status === "waiting_input" && run.wakeAt !== null);
+        if (run && run.claim !== generation) {
+          // Not a cancel: the turn of a durable step belongs to the runner that has the run now.
+          abort.abort("stop");
+        } else if (run && !working) {
           abort.abort();
         }
         if (run && !longHoldReported && Date.now() - heldSince >= LONG_HOLD_MS) {
@@ -677,7 +996,8 @@ async function lookAtClock() {
 export async function stopRunner() {
   stopping = true;
   for (const abort of active.values()) {
-    abort.abort();
+    // A stop, not a cancel: a durable turn stays where it is for the next runner.
+    abort.abort("stop");
   }
   await disownRuns().catch(() => undefined);
 }
@@ -785,14 +1105,12 @@ export async function makeContext(
     spaceFiles: (await spaceFiles(space.id)).filter((f) => f.status === "ready"),
     signal,
     resources,
-    ask:
-      own.ask ??
-      ((ask) =>
-        run.unattended ? Promise.resolve(null) : askPerson(run.id, { ...ask, stepId }, signal)),
+    ask: own.ask ?? ((ask) => askOf(run, ask, stepId, signal)),
     emit:
       own.emit ?? ((type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset)),
     call: { runId: run.id, stepId },
     ...(own.share ? { share: true } : {}),
+    saveState: () => updateRun(run.id, { state }),
     chargeUsd: (usd) => addLocalCost(run.id, stepId, usd),
     saveAsset: (input) =>
       saveAsset({
@@ -801,6 +1119,27 @@ export async function makeContext(
         stepId: input.stepId ?? own.stepId ?? run.cursor,
       }),
   };
+}
+
+/**
+ * A step's question to the person. An autopilot's test run asks nobody. A started run answers a
+ * confirm itself when its start allows changes; otherwise nobody is there and the tool leaves
+ * the change open. A sign-in it puts to the owner, who is told.
+ */
+async function askOf(
+  run: RunRow,
+  ask: AskInput,
+  stepId: string,
+  signal: AbortSignal,
+): Promise<AskResult | null> {
+  if (run.unattended) {
+    return null;
+  }
+  if (run.startedBy && ask.kind === "confirm") {
+    const start = await startOf(run);
+    return start?.allowChanges ? { type: "done" } : null;
+  }
+  return askPerson(run.id, { ...ask, stepId }, signal);
 }
 
 /** A decided branch is taken only when its pick leads the runner-up by this much. */
@@ -972,7 +1311,7 @@ async function decidePageFields(
     .map((f) => f.id);
 }
 
-async function durableRunsOn() {
+export async function durableRunsOn() {
   return feature("durableRuns", await remoteFeatures().catch(() => null));
 }
 
@@ -1013,12 +1352,16 @@ async function withDeadline<T>(
   }
 }
 
+/** A wait for a signal with no deadline still ends some day: this long, and it is gone with the run. */
+const NO_DEADLINE_KEPT_MS = 365 * 86_400_000;
+
 /** A run that waits is kept past its start: its wait, and the same time to come back for it. */
-function keptUntil(run: RunRow, wakeAt: Date): Date | null {
+function keptUntil(run: Pick<RunRow, "expiresAt">, wakeAt: Date | null): Date | null {
   if (!run.expiresAt) {
     return null;
   }
-  const kept = wakeAt.getTime() + env.limits.resultTtlDays * 86_400_000;
+  const end = wakeAt ? wakeAt.getTime() : Date.now() + NO_DEADLINE_KEPT_MS;
+  const kept = end + env.limits.resultTtlDays * 86_400_000;
   return new Date(Math.max(run.expiresAt.getTime(), kept));
 }
 
@@ -1039,16 +1382,38 @@ function wakeTimeOf(run: RunRow, step: WaitStep): Date {
   return wakeAt;
 }
 
+/** The time a `wait` line of the log said. */
+function saidUntil(said: { note: RunNote | null } | null): Date | null {
+  const until = said?.note?.params?.until;
+  return isNoteTime(until) ? new Date(until.at) : null;
+}
+
 /**
  * A `wait` is reached: the run leaves every process and stays as a row. False: the time has gone
  * by already, and the run goes on at once.
  */
-async function enterWait(run: RunRow, step: WaitStep): Promise<boolean> {
-  const wakeAt = wakeTimeOf(run, step);
-  await emitEvent(run.id, step.id, "step_started", step.title);
+async function enterWait(run: RunRow, step: WaitStep, interrupted: boolean): Promise<boolean> {
+  // Back after a crash on the way in: the visit stays one, and the time it said stays too.
+  const open = interrupted && (await visitLeftOpen(run.id, step.id));
+  if (!open) {
+    await emitEvent(run.id, step.id, "step_started", step.title);
+  }
+  if (step.signal) {
+    return enterSignalWait(run, step, open);
+  }
+  const said = open ? await saidInVisit(run.id, step.id, "wait") : null;
+  const wakeAt = saidUntil(said) ?? wakeTimeOf(run, step);
   if (wakeAt.getTime() <= Date.now()) {
     await finishWait(run, step, await waitOver(run, step));
     return false;
+  }
+  if (!said) {
+    await emitEvent(
+      run.id,
+      step.id,
+      "wait",
+      note("runWaitsUntil", { until: { at: wakeAt.toISOString() } }),
+    );
   }
   await setWake(run.id, wakeAt);
   await updateRun(
@@ -1059,57 +1424,138 @@ async function enterWait(run: RunRow, step: WaitStep): Promise<boolean> {
   return true;
 }
 
+/** The key a wait for a signal listens on, from the run's answers; empty fails the run. */
+function waitKeyOf(run: RunRow, step: WaitStep): string {
+  const key = waitKeyText(run, step);
+  if (!key) {
+    throw new NotedError(note("signalKeyEmpty", { key: step.signal?.key ?? "" }));
+  }
+  return key;
+}
+
+function waitKeyText(run: RunRow, step: WaitStep): string {
+  const scope = { def: run.definition, state: run.state, brand: {} };
+  return renderTemplate(step.signal?.key ?? "", scope).trim();
+}
+
+/**
+ * The wait is written first, then the run looks: a signal that came before is found here, and one
+ * that comes after finds the wait and wakes the run. Its wake meanwhile keeps the run in line.
+ */
+async function enterSignalWait(run: RunRow, step: WaitStep, open: boolean): Promise<boolean> {
+  const key = waitKeyOf(run, step);
+  const spaceId = await spaceIdOf(run);
+  await registerWait(run, spaceId, step, key);
+  const signal = await findSignal(run, spaceId, step, key);
+  if (signal) {
+    await dropWait(run.id);
+    await finishWait(run, step, await waitOver(run, step, signal));
+    return false;
+  }
+  // Back after a crash on the way in: the time it said stays.
+  const said = open ? await saidInVisit(run.id, step.id, "wait") : null;
+  const timeout = step.signal?.timeout;
+  const wakeAt =
+    saidUntil(said) ?? (timeout ? new Date(Date.now() + waitDurationMs(timeout)) : null);
+  if (!said) {
+    await emitEvent(
+      run.id,
+      step.id,
+      "wait",
+      wakeAt
+        ? note("runWaitsSignalUntil", { until: { at: wakeAt.toISOString() } })
+        : note("runWaitsSignal"),
+    );
+  }
+  if (wakeAt) {
+    await setWake(run.id, wakeAt);
+  }
+  await updateRun(
+    run.id,
+    { status: "waiting_signal", wakeAt, expiresAt: keptUntil(run, wakeAt), error: null },
+    { status: "running" },
+  );
+  return true;
+}
+
 interface WaitOver {
   state: RunState;
   cursor: string | null;
+  said?: RunNote;
 }
 
-/** The wait is behind the run: its output, and the way on. */
-async function waitOver(run: RunRow, step: WaitStep): Promise<WaitOver> {
+/** The wait is behind the run: its output, and the way on. `signal`: what ended it, if anything. */
+async function waitOver(
+  run: RunRow,
+  step: WaitStep,
+  signal?: { id: string; data: Record<string, unknown> | null; source?: string } | null,
+): Promise<WaitOver> {
   const state = structuredClone(run.state);
-  state.outputs[step.id] = { json: { waited: true }, at: new Date().toISOString() };
-  return { state, cursor: await advance(run, step.id, state) };
+  let json: Record<string, unknown> = { waited: true };
+  if (signal) {
+    json = { came: true, timedOut: false, data: signalData(step, await withMailText(signal)) };
+    state.signals = [...(state.signals ?? []), signal.id];
+  } else if (step.signal) {
+    json = { came: false, timedOut: true };
+  }
+  state.outputs[step.id] = { json, at: new Date().toISOString() };
+  const said = step.signal ? note(signal ? "signalCame" : "signalTimedOut") : undefined;
+  return { state, cursor: await advance(run, step.id, state), said };
 }
 
-async function finishWait(run: RunRow, step: WaitStep, { state, cursor }: WaitOver) {
+async function finishWait(run: RunRow, step: WaitStep, { state, cursor, said }: WaitOver) {
   await updateRun(
     run.id,
     { state, cursor, status: cursor ? "running" : "done", wakeAt: null, error: null },
     { status: run.status },
   );
+  if (said) {
+    await emitEvent(run.id, step.id, "info", said);
+  }
   await emitEvent(run.id, step.id, "step_done", step.title);
 }
 
 /** Holds the credits a run needs to go on; what it says when they are refused, else null. */
 async function holdAgain(run: RunRow): Promise<RunNote | null> {
-  const estimate = await estimateRun(
-    run.wizardId,
-    run.version,
-    run.definition,
-    await stepsWithoutModel(run.definition),
+  // Without the Manage-App nothing is held: the estimate is worked out only where a hold is made.
+  const held = await reserveForRun(
+    run.id,
+    async () =>
+      (
+        await estimateRun(
+          run.wizardId,
+          run.version,
+          run.definition,
+          await stepsWithoutModel(run.definition),
+        )
+      ).reserve,
+    guestRun(run),
   );
-  const held = await reserveForRun(run.id, estimate.reserve, guestRun(run));
   return held === true
     ? null
     : note(held === "guest_budget" ? "guestBudget" : "wizardRunOutCredits");
 }
 
 /**
- * A run that sleeps is woken: true when it goes on, false when it does not. The row decides, not
- * the wake: one that comes early or twice puts the time back and changes nothing. What else may
- * end a wait slots in here.
+ * A run that waits is woken: true when it goes on, false when it does not. The row decides, not
+ * the wake: one that comes early or twice, with no signal for it, puts the time back and changes
+ * nothing.
  */
 async function wakeFromWait(run: RunRow): Promise<boolean> {
   const step = stepOf(run.definition, run.cursor);
   if (step?.type !== "wait") {
-    await updateRun(run.id, { status: "running", wakeAt: null }, { status: "sleeping" });
+    await updateRun(run.id, { status: "running", wakeAt: null }, { status: run.status });
     return true;
   }
-  if (run.wakeAt && run.wakeAt.getTime() > Date.now()) {
+  const signal = step.signal
+    ? await findSignal(run, await spaceIdOf(run), step, waitKeyOf(run, step))
+    : null;
+  const due = run.wakeAt ? run.wakeAt.getTime() <= Date.now() : !step.signal;
+  if (!(signal || due)) {
     await setWake(run.id, run.wakeAt);
     return false;
   }
-  const over = await waitOver(run, step);
+  const over = await waitOver(run, step, signal);
   const next = stepOf(run.definition, over.cursor);
   let refused: RunNote | null = null;
   // A sleeping run gave its hold back, and a hold lapses anyway: it holds again before it spends.
@@ -1123,23 +1569,616 @@ async function wakeFromWait(run: RunRow): Promise<boolean> {
       return false;
     }
   }
+  if (step.signal) {
+    // Which of them ended it, `finishWait` says.
+    await dropWait(run.id);
+    await setWake(run.id, null);
+    // A person's "Continue now" said so itself, and a wake that came back after a crash has said it.
+  } else if (!(await saidInVisit(run.id, step.id, "woken"))) {
+    await emitEvent(run.id, step.id, "woken", note("runWaitOver"));
+  }
   if (!refused) {
     await finishWait(run, step, over);
     return true;
   }
-  // The wait is over either way: "try again" goes on from the next step and does not wait again.
-  await emitEvent(run.id, step.id, "error", refused);
+  // The wait is over either way: the top-up goes on from the next step and does not wait again.
+  await waitForPerson(
+    { ...run, cursor: over.cursor },
+    over.cursor ?? step.id,
+    { kind: "credits" },
+    over.state,
+    run.status,
+  );
+  return false;
+}
+
+// --- a person's step with a deadline -------------------------------------------
+// It waits as a `wait` does: a row with `wake_at`, no process, no slot, no credits. An answer and the
+// deadline each write on the `rev` they read, so one wins and the other finds the run moved on.
+
+const isPersonStep = (step: Step | undefined): step is PageStep | ReviewStep =>
+  step?.type === "page" || step?.type === "review";
+
+/**
+ * A step a run reaches with no runner: a page or review nothing has to decide or fill first. The
+ * step's keys only, so with `durableRuns` off it says the same. `state` is the state after
+ * `advance`: an `ask` rule set `deciding` there and left the cursor on the answered step.
+ */
+function needsNoRunner(
+  step: Step | undefined,
+  startedBy: StartedBy | null,
+  state: RunState,
+): step is PageStep | ReviewStep {
+  return (
+    isPersonStep(step) &&
+    // A start's run is filled by `passStep`, with nobody there.
+    !startedBy &&
+    !state.deciding &&
+    // A deadline's `wait` would land in the timeline before the answered step's `step_done`.
+    !step.timeout &&
+    !step.remind &&
+    // Whoever answered is not the one asked next.
+    whoOf(step) === "person" &&
+    !(step.type === "page" && step.fields.some(isDecidedField))
+  );
+}
+
+/** How many pages `ahead` holds at most. */
+const AHEAD_MAX = 20;
+
+/**
+ * The plain pages a run can reach from the page it waits on, with no server: the current page and
+ * every page its rules lead to that the shortcut covers (`needsNoRunner`) and that needs nothing
+ * only the server has. A page's `next` is null where the server decides: an `ask`, a `max`, a rule
+ * back (its loops are counted), a name the browser has no value for. In the definition `def` it
+ * is shown in (a translation's words).
+ */
+async function aheadOf(
+  run: RunRow,
+  def: WizardDefinition,
+  from: PageStep,
+): Promise<Record<string, AheadPage & { progress: RunView["progress"] }>> {
+  const answers = new Set(allFields(def).map((f) => f.id));
+  const readsAnswers = (when: Parameters<typeof whenNames>[0]) =>
+    whenNames(when).every((name) => answers.has(name));
+  const sections = sectionsOf(def);
+  const progressOf = (step: PageStep): RunView["progress"] => ({
+    done: def.steps.indexOf(step),
+    total: def.steps.length,
+    ...(sections.length
+      ? { sections: { names: sections, current: sections.indexOf(sectionOf(def, step.id) ?? "") } }
+      : {}),
+  });
+  const rulesOf = (step: PageStep): AheadRule[] | null => {
+    const at = def.steps.indexOf(step);
+    const rules = step.next ?? [];
+    const out: AheadRule[] = [];
+    for (const rule of rules) {
+      const to =
+        rule.goto === "end" ? def.steps.length : def.steps.findIndex((s) => s.id === rule.goto);
+      if (rule.ask !== undefined || rule.max !== undefined || (to >= 0 && to <= at)) {
+        return null;
+      }
+      if (rule.when !== undefined) {
+        if (!readsAnswers(rule.when)) {
+          return null;
+        }
+        out.push({ when: rule.when, goto: rule.goto });
+      }
+    }
+    const otherwise = rules.find((r) => r.when === undefined && r.ask === undefined);
+    out.push({ goto: otherwise?.goto ?? def.steps[at + 1]?.id ?? "end" });
+    return out;
+  };
+  const plain = async (step: Step | undefined): Promise<boolean> =>
+    step?.type === "page" &&
+    needsNoRunner(step, run.startedBy, run.state) &&
+    !step.data &&
+    step.fields.every(
+      (f) =>
+        !f.optionsFrom &&
+        !f.cards &&
+        !f.prefill &&
+        f.kind !== "connection" &&
+        f.kind !== "list" &&
+        f.kind !== "slot" &&
+        (f.when === undefined || readsAnswers(f.when)),
+    ) &&
+    Object.keys(await closedChoices(def, step, run.state.values)).length === 0;
+  const out: Record<string, AheadPage & { progress: RunView["progress"] }> = {};
+  const queue: PageStep[] = [from];
+  while (queue.length && Object.keys(out).length < AHEAD_MAX) {
+    const step = queue.shift() as PageStep;
+    if (out[step.id]) {
+      continue;
+    }
+    const next = rulesOf(step);
+    out[step.id] = { step, next, progress: progressOf(step) };
+    for (const rule of next ?? []) {
+      const target = stepOf(def, rule.goto);
+      if (target?.type === "page" && !out[target.id] && (await plain(target))) {
+        queue.push(target);
+      }
+    }
+  }
+  return out;
+}
+
+/** Whether the step may wait for long: it gives its hold back, and holds again as it goes on. */
+async function waitsLong(step: PageStep | ReviewStep): Promise<boolean> {
+  return Boolean(step.timeout || step.remind) && (await durableRunsOn());
+}
+
+/** When a person's step gives up, and how long the run is kept for it. Written with the wait. */
+async function deadlineOf(
+  run: Pick<RunRow, "expiresAt">,
+  step: Step | undefined,
+): Promise<{ wakeAt: Date | null; expiresAt?: Date | null }> {
+  if (!isPersonStep(step) || !(await waitsLong(step))) {
+    return { wakeAt: null };
+  }
+  const now = Date.now();
+  const wakeAt = step.timeout ? new Date(now + waitDurationMs(step.timeout)) : null;
+  const last = wakeAt ?? new Date(now + waitDurationMs(step.remind as string));
+  return { wakeAt, expiresAt: keptUntil(run, last) };
+}
+
+/** The wait is on the row: its hold goes back, and the log says until when. */
+async function waitsForAnswer(runId: string, step: Step | undefined, wakeAt: Date | null) {
+  if (!isPersonStep(step) || !(await waitsLong(step))) {
+    return;
+  }
+  await releaseRun(runId);
+  if (wakeAt) {
+    await emitEvent(
+      runId,
+      step.id,
+      "wait",
+      note("runWaitsAnswerUntil", { until: { at: wakeAt.toISOString() } }),
+    );
+  }
+}
+
+/** The run stands at a person's step: control copy of the deadline first, as for a `wait`. */
+async function waitForAnswer(
+  run: RunRow,
+  step: Step | undefined,
+  patch: Partial<typeof schema.run.$inferInsert>,
+  seen?: { rev: number },
+  by?: Actor,
+) {
+  const deadline = await deadlineOf(run, step);
+  if (deadline.wakeAt) {
+    await setWake(run.id, deadline.wakeAt);
+  }
+  await updateRun(run.id, { ...patch, ...deadline, status: "waiting_input" }, seen, by);
+  await waitsForAnswer(run.id, step, deadline.wakeAt);
+}
+
+/** What a person's answer hands on, for `next` to read. */
+function handOnAnswer(
+  step: PageStep | ReviewStep,
+  state: RunState,
+  decision?: { approved: boolean; note?: string },
+) {
+  if (step.timeout || decision) {
+    state.outputs[step.id] = {
+      json: { ...(step.timeout ? { timedOut: false } : {}), ...decision },
+      at: new Date().toISOString(),
+    };
+  }
+}
+
+/**
+ * A person's answer takes the run on, if the deadline has not. A step that gave its hold back holds
+ * again before the run's next step that costs anything (`holdLater`, in `drive()`). The control
+ * copy of the deadline stays too: the extra wake finds the run moved on, and clearing it here could
+ * wipe the next wait's. A next step that needs no runner is reached here, in the same update
+ * (docs/plans/fast-creation.md, Part 4). True: the run is `running` and a runner has work.
+ */
+async function answerGoesOn(
+  run: RunRow,
+  step: PageStep | ReviewStep,
+  state: RunState,
+  cursor: string | null,
+  patch: Partial<typeof schema.run.$inferInsert> = {},
+  by?: Actor,
+): Promise<boolean> {
+  const next = stepOf(run.definition, cursor);
+  if (next && next.type !== "result" && (await waitsLong(step))) {
+    // The step gave its hold back while it waited. The run holds again right before its next step
+    // that costs anything (`drive()`), so the answer and the pages after it wait for no estimate
+    // and no call to the Manage-App, and no step that costs runs without a hold.
+    state.holdLater = true;
+  }
+  try {
+    if (needsNoRunner(next, run.startedBy, state)) {
+      // As `drive()` reaches a page, with the answer's time logged; `by` is not told of it.
+      const { answered, ...rest } = state;
+      await waitForAnswer(
+        { ...run, cursor },
+        next,
+        { ...patch, state: rest, cursor, error: null },
+        { rev: run.rev },
+        by,
+      );
+      if (answered) {
+        console.info(
+          `[timing] page run=${run.id} ms=${Math.max(0, Date.now() - answered.at)} direct=true role=${env.role} durable=${(await durableRunsOn()) ? "on" : "off"} runner=no`,
+        );
+      }
+      // As from `drive()`: without durable runs a phone hears it (with them, the notices do).
+      void pushRun(run.id, "waiting");
+      return false;
+    }
+    await updateRun(
+      run.id,
+      { ...patch, state, cursor, status: "running", wakeAt: null, error: null },
+      run,
+      by,
+    );
+    return true;
+  } catch (err) {
+    // Lost to the deadline: say that, not that the wizard is busy.
+    if (err instanceof RunConflict) {
+      await requireWaiting(run.id, step.id);
+    }
+    throw err;
+  }
+}
+
+/**
+ * The clock woke a run at a person's step. The row decides: a wake that comes early puts the time
+ * back and changes nothing, one that finds the time up moves the run past the step, as the author
+ * wrote. Nobody's answer is invented: its fields stay empty, and an approval is not given.
+ * True: look at the run again, it went on or moved. False: nothing for this drive to do.
+ */
+async function wakeFromPersonStep(run: RunRow): Promise<boolean> {
+  const step = stepOf(run.definition, run.cursor);
+  if (!isPersonStep(step) || !run.wakeAt) {
+    return false;
+  }
+  if (run.wakeAt.getTime() > Date.now()) {
+    await setWake(run.id, run.wakeAt);
+    return false;
+  }
+  const state = structuredClone(run.state);
+  if (step.type === "page") {
+    for (const field of step.fields) {
+      delete state.values[field.id];
+    }
+    const at = run.definition.steps.indexOf(step);
+    for (const later of run.definition.steps.slice(at + 1)) {
+      delete state.pages?.[later.id];
+    }
+  }
+  state.outputs[step.id] = {
+    json: {
+      timedOut: true,
+      ...(step.type === "review" && step.approve ? { approved: false } : {}),
+    },
+    at: new Date().toISOString(),
+  };
+  state.history.push(step.id);
+  const cursor = await advance(run, step.id, state);
+  const next = stepOf(run.definition, cursor);
+  let refused: RunNote | null = null;
+  if (next && next.type !== "result") {
+    try {
+      refused = await holdAgain(run);
+    } catch (err) {
+      // The Manage-App out of reach is no refusal: the time stays due, the clock tries again.
+      console.warn(`[run ${run.id}] holding credits on wake:`, (err as Error).message);
+      await setWake(run.id, run.wakeAt);
+      return false;
+    }
+  }
+  try {
+    if (refused) {
+      await waitForPerson({ ...run, cursor }, cursor ?? step.id, { kind: "credits" }, state, {
+        rev: run.rev,
+      });
+    } else {
+      await updateRun(
+        run.id,
+        {
+          state,
+          cursor,
+          status: cursor ? "running" : "done",
+          wakeAt: null,
+          error: null,
+          driving: true,
+          ...(run.definition.label ? { label: await labelOf(run.definition, state) } : {}),
+        },
+        { rev: run.rev },
+      );
+    }
+  } catch (err) {
+    // Not another runner: the run moved under this write. An answer, or a translation landing, in
+    // which case the time is still up. The next look decides, so no wake is lost.
+    if (!(err instanceof LostClaim)) {
+      throw err;
+    }
+    const holder = driving.getStore();
+    if ((await loadRun(run.id))?.claim !== holder?.generation) {
+      throw err;
+    }
+    await startDriving(run.id);
+    return true;
+  }
+  await emitEvent(run.id, step.id, "woken", note("stepTimedOut"));
+  await emitEvent(run.id, step.id, "step_done", step.title);
+  return !refused;
+}
+
+// --- when a step fails ---------------------------------------------------------
+// Nothing waits in memory: a retry and a wait for a person are one more reason to sleep, so they
+// hold no process, no slot and no credits, and they survive a restart.
+
+/** After how long a step tries again; its length is how many more tries it gets. */
+const RETRY_MINUTES = [1, 5, 30];
+/** A service may ask for a wait in `Retry-After`, up to this: a run may sleep, but not for a week. */
+const RETRY_AFTER_MAX_MS = 6 * 3600_000;
+/**
+ * How often a run that waits for a person looks whether they acted. A top-up on the Manage-App is
+ * seen by the reservation alone, so that look costs nothing. A runtime that runs alone has only
+ * the provider itself to ask, with a call of the step's, so it asks less often.
+ */
+const lookAgainMs = () => (managed ? 5 : 30) * 60_000;
+/** A person who hasn't acted after this long won't: the run fails, and "try again" stays. */
+const PERSON_WAIT_MAX_MS = 30 * 86_400_000;
+/** A step's `onFail` is taken at most this often, so two failing steps can't send a run round forever. */
+const ON_FAIL_MAX = 3;
+
+/** The step's count of tries; a new step starts over. */
+function retriesOf(state: RunState, stepId: string): NonNullable<RunState["retries"]> {
+  return state.retries?.step === stepId
+    ? state.retries
+    : { step: stepId, count: 0, since: new Date().toISOString() };
+}
+
+/** The run sleeps for `pause` until `wakeAt`. The control copy first, as for a `wait`. */
+async function sleepFor(
+  run: RunRow,
+  pause: RunPause,
+  wakeAt: Date,
+  state: RunState,
+  from: RunStatus | { rev: number },
+) {
+  await setWake(run.id, wakeAt);
   await updateRun(
     run.id,
     {
-      ...over,
-      status: "failed",
-      wakeAt: null,
-      error: saidText(refused, textLang(wizardLang(run.definition))),
+      state: { ...state, pause },
+      cursor: run.cursor,
+      status: "sleeping",
+      wakeAt,
+      expiresAt: keptUntil(run, wakeAt),
+      error: null,
     },
+    typeof from === "string" ? { status: from } : from,
+  );
+}
+
+/**
+ * Someone has to act before the run goes on, and this is the one place that tells them: the run's
+ * log, which the runner, the studio's panel and a channel's thread show, and a notice for whoever
+ * isn't looking. A crash before the run sleeps tells again, and that notice replaces this one.
+ */
+async function tellPerson(run: RunRow, stepId: string, pause: RunPause) {
+  const said =
+    pause.kind === "sign_in"
+      ? note("stepWaitsSignIn", { service: pause.service })
+      : note("stepWaitsCredits");
+  await emitEvent(run.id, stepId, "error", said);
+  try {
+    const notice = await noticeFor(run, "needs_you", {
+      waitKey: `pause:${pause.kind}`,
+      detail: saidText(said, textLang(wizardLang(run.definition))),
+    });
+    if (notice) {
+      await db.batch(noticeWrites(notice, eq(schema.run.id, run.id)) as never);
+    }
+  } catch (err) {
+    // A notice never breaks a run.
+    console.error(`[notices] run ${run.id}:`, err);
+  }
+}
+
+/** Out of credits or signed out: the run waits for a person, and fails only if nobody ever comes. */
+async function waitForPerson(
+  run: RunRow,
+  stepId: string,
+  pause: Exclude<RunPause, { kind: "retry" }>,
+  state: RunState,
+  from: RunStatus | { rev: number },
+) {
+  const retries = retriesOf(state, stepId);
+  if (Date.now() - Date.parse(retries.since) > PERSON_WAIT_MAX_MS) {
+    const { pause: _, retries: __, ...rest } = state;
+    await updateRun(
+      run.id,
+      { state: rest, wakeAt: null },
+      typeof from === "string" ? { status: from } : from,
+    );
+    await failRun(
+      run,
+      stepId,
+      pause.kind === "credits"
+        ? new NoCreditsError()
+        : new NotedError(note("stepWaitsSignIn", { service: pause.service })),
+    );
+    return;
+  }
+  // Said once: the run looks again every few minutes for as long as it waits.
+  if (retries.told !== pause.kind) {
+    await tellPerson(run, stepId, pause);
+  }
+  await sleepFor(
+    run,
+    pause,
+    new Date(Date.now() + lookAgainMs()),
+    { ...state, retries: { ...retries, told: pause.kind } },
+    from,
+  );
+}
+
+/** When the step tries again: what the service asked for within its cap, else the next of the list. */
+function retryDelayMs(failure: Failure, count: number): number {
+  return failure.retryAfterMs === null
+    ? RETRY_MINUTES[count] * 60_000
+    : Math.min(Math.max(failure.retryAfterMs, 60_000), RETRY_AFTER_MAX_MS);
+}
+
+/**
+ * A step failed; true when the run goes on elsewhere (`onFail`), false when this drive is over for
+ * now. A retry starts the step from the top, so one that may have done something out there
+ * (`RunResources.acted`) is not started again by itself, or the mail goes out twice: its failure
+ * is final, and a person can still choose "try again". A refused sign-in did nothing.
+ */
+async function stepFailed(run: RunRow, stepId: string, err: unknown, acted = false) {
+  if (!(await durableRunsOn())) {
+    await failRun(run, stepId, err);
+    return false;
+  }
+  const failure = classifyFailure(err, { managed });
+  // From the row, not from the step's copy: what the step did to its copy is not to stay, and what
+  // was written while it worked (run_effect's visit) is.
+  const latest = (await loadRun(run.id)) ?? run;
+  // A turn starts over after a failure: its calls get new ids, so `run_effect` can't match them. The
+  // row knows what an earlier process of this turn did.
+  if (!(acted || turnOf(latest.state, stepId)?.acted) || err instanceof SignInNeeded) {
+    if (failure.class === "credits") {
+      await waitForPerson(latest, stepId, { kind: "credits" }, latest.state, "running");
+      return false;
+    }
+    if (failure.class === "sign_in") {
+      const service = err instanceof SignInNeeded ? err.service : "";
+      await waitForPerson(latest, stepId, { kind: "sign_in", service }, latest.state, "running");
+      return false;
+    }
+    const retries = retriesOf(latest.state, stepId);
+    if (failure.class === "retry" && retries.count < RETRY_MINUTES.length) {
+      const delay = retryDelayMs(failure, retries.count);
+      console.warn(
+        `[run ${run.id} step ${stepId}] ${failure.why}, try ${retries.count + 1} in ${Math.round(delay / 60_000)} min:`,
+        (err as Error)?.message,
+      );
+      await emitEvent(
+        run.id,
+        stepId,
+        "info",
+        note("stepRetries", { minutes: Math.round(delay / 60_000) }),
+      );
+      await sleepFor(
+        latest,
+        { kind: "retry" },
+        new Date(Date.now() + delay),
+        { ...latest.state, retries: { ...retries, count: retries.count + 1 } },
+        "running",
+      );
+      return false;
+    }
+  }
+  return failedForGood(latest, stepId, err);
+}
+
+/** Past every try: the run goes where the step's `onFail` says, else it fails as it always did. */
+async function failedForGood(run: RunRow, stepId: string, err: unknown): Promise<boolean> {
+  const step = stepOf(run.definition, stepId);
+  const target = stepOf(run.definition, step?.onFail ?? null);
+  const key = target ? loopKey(stepId, target.id) : "";
+  if (!target || (run.state.loops?.[key] ?? 0) >= ON_FAIL_MAX) {
+    await failRun(run, stepId, err);
+    return false;
+  }
+  const said = noteOf(err) ?? (await tierRefusalSaid(err)) ?? friendly(err);
+  await emitEvent(run.id, stepId, "error", said);
+  await emitEvent(run.id, stepId, "info", note("stepFailedGoesOn", { step: target.title }));
+  const state = structuredClone(run.state);
+  state.loops = { ...state.loops, [key]: (state.loops?.[key] ?? 0) + 1 };
+  // What the content rules stopped stays known, on this way too.
+  if (err instanceof ContentBlockedError) {
+    state.blocked = err.kind;
+  }
+  // The step is behind the run: going back to it later is a new visit, with a new turn.
+  delete state.retries;
+  delete state.deciding;
+  delete state.visiting;
+  delete state.turn;
+  await updateRun(run.id, { state, cursor: target.id, status: "running", error: null });
+  return true;
+}
+
+/**
+ * A run that slept for a retry or for a person is woken. Like `wakeFromWait` the row decides, and
+ * the run holds credits again before it spends. Refused: it waits for them, whatever it slept for.
+ * A person who acted is noticed here; one who has not sends the step back to `stepFailed`.
+ */
+async function wakeFromPause(run: RunRow): Promise<boolean> {
+  if (run.wakeAt && run.wakeAt.getTime() > Date.now()) {
+    await setWake(run.id, run.wakeAt);
+    return false;
+  }
+  const stepId = run.cursor ?? "";
+  const state = structuredClone(run.state);
+  delete state.pause;
+  const step = stepOf(run.definition, run.cursor);
+  let refused = false;
+  if (step && step.type !== "result") {
+    try {
+      refused = (await holdAgain(run)) !== null;
+    } catch (err) {
+      // The Manage-App out of reach is no refusal: the time stays due, the clock tries again.
+      console.warn(`[run ${run.id}] holding credits on wake:`, (err as Error).message);
+      await setWake(run.id, run.wakeAt ?? new Date());
+      return false;
+    }
+  }
+  if (refused) {
+    await waitForPerson(run, stepId, { kind: "credits" }, state, "sleeping");
+    return false;
+  }
+  await updateRun(
+    run.id,
+    { state, status: "running", wakeAt: null, error: null },
     { status: "sleeping" },
   );
-  return false;
+  return true;
+}
+
+/**
+ * A drive begins. True when it goes on after an interruption: another drive had the run at work and
+ * never reached a rest, because of a crash or a deploy. The log says so, written before the mark, so
+ * a crash in between says it again for the second interruption it is.
+ */
+async function startDriving(runId: string): Promise<boolean> {
+  if (!(await durableRunsOn())) {
+    return false;
+  }
+  const run = await db.query.run.findFirst({
+    where: eq(schema.run.id, runId),
+    columns: { status: true, cursor: true, driving: true },
+  });
+  // A wake of a person's step may well change nothing: the run only works once its time is up.
+  if (run?.status === "waiting_input") {
+    return false;
+  }
+  const interrupted = run?.status === "running" && run.driving;
+  if (interrupted) {
+    await emitEvent(runId, run.cursor, "resumed", note("runResumed"));
+  }
+  const holder = driving.getStore();
+  await db
+    .update(schema.run)
+    .set({ driving: true })
+    .where(
+      and(
+        eq(schema.run.id, runId),
+        holder?.runId === runId ? eq(schema.run.claim, holder.generation) : undefined,
+      ),
+    );
+  return interrupted;
 }
 
 async function drive(runId: string, signal: AbortSignal) {
@@ -1147,10 +2186,17 @@ async function drive(runId: string, signal: AbortSignal) {
   // waiting.
   await clearStaleAsk(runId);
   await clearDeviceCalls(runId);
+  let interrupted = await startDriving(runId);
   while (!signal.aborted) {
     const run = await loadRun(runId);
-    if (run?.status === "sleeping") {
-      if (!(await wakeFromWait(run))) {
+    if (run?.status === "sleeping" || run?.status === "waiting_signal") {
+      if (!(await (run.state.pause ? wakeFromPause(run) : wakeFromWait(run)))) {
+        return;
+      }
+      continue;
+    }
+    if (run?.status === "waiting_input" && run.wakeAt) {
+      if (!(await wakeFromPersonStep(run))) {
         return;
       }
       continue;
@@ -1171,6 +2217,7 @@ async function drive(runId: string, signal: AbortSignal) {
           return;
         }
         await syncRunCost(runId);
+        delete state.retries;
         await updateRun(runId, { state, cursor, status: cursor ? "running" : "done", error: null });
       } catch (err) {
         if (signal.aborted) {
@@ -1180,8 +2227,9 @@ async function drive(runId: string, signal: AbortSignal) {
           throw err;
         }
         console.error(`[run ${runId} deciding ${deciding.id}]`, err);
-        await failRun(run, deciding.id, err);
-        return;
+        if (!(await stepFailed(run, deciding.id, err))) {
+          return;
+        }
       }
       continue;
     }
@@ -1202,6 +2250,7 @@ async function drive(runId: string, signal: AbortSignal) {
         }
         state.pages = { ...state.pages, [step.id]: { shown } };
         await syncRunCost(runId);
+        delete state.retries;
         await updateRun(runId, { state, error: null });
       } catch (err) {
         if (signal.aborted) {
@@ -1211,8 +2260,9 @@ async function drive(runId: string, signal: AbortSignal) {
           throw err;
         }
         console.error(`[run ${runId} fields of ${step.id}]`, err);
-        await failRun(run, step.id, err);
-        return;
+        if (!(await stepFailed(run, step.id, err))) {
+          return;
+        }
       }
       continue;
     }
@@ -1222,34 +2272,114 @@ async function drive(runId: string, signal: AbortSignal) {
     }
     if (step.type === "wait") {
       try {
-        if (await enterWait(run, step)) {
+        const back = interrupted;
+        interrupted = false;
+        if (await enterWait(run, step, back)) {
           return;
         }
       } catch (err) {
         if (err instanceof LostClaim) {
           throw err;
         }
-        await failRun(run, step.id, err);
-        return;
+        if (!(await stepFailed(run, step.id, err))) {
+          return;
+        }
       }
       continue;
     }
+    // What the team is asked waits for the team, also on a started run.
+    if (
+      (step.type === "page" || step.type === "review") &&
+      run.startedBy &&
+      !(whoOf(step) === "team" && (await durableRunsOn()))
+    ) {
+      // Nobody is there: the start's answers fill the page, its setting passes the review.
+      const state = structuredClone(run.state);
+      const cursor = await passStep(run, step, state);
+      if (cursor === undefined) {
+        await waitForAnswer(run, step, {});
+        return;
+      }
+      await updateRun(runId, {
+        state,
+        cursor,
+        status: cursor ? "running" : "done",
+        error: null,
+        ...(run.definition.label ? { label: await labelOf(run.definition, state) } : {}),
+      });
+      continue;
+    }
     if (step.type === "page" || step.type === "review") {
-      await updateRun(runId, { status: "waiting_input" });
+      // Reached right from someone's answer: they know, they did it. After a step that worked it
+      // is news again.
+      const { lastBy, answered, ...rest } = run.state;
+      await waitForAnswer(
+        run,
+        step,
+        answered ? { state: { ...rest, ...(lastBy ? { lastBy } : {}) } } : {},
+        undefined,
+        lastBy?.next === step.id ? lastBy : undefined,
+      );
+      if (answered) {
+        // The two times can come from two machines: small numbers on the cloud's split roles are rough.
+        console.info(
+          `[timing] page run=${runId} ms=${Math.max(0, Date.now() - answered.at)} direct=${answered.next === step.id} role=${env.role} durable=${(await durableRunsOn()) ? "on" : "off"} runner=yes`,
+        );
+      }
       // A step that ran is over and the next one is the person's: a phone in a pocket hears it.
       void pushRun(runId, "waiting");
       return;
     }
+    // An answer moved the run on without holding again (`answerGoesOn`): it holds before it spends.
+    if (run.state.holdLater) {
+      const refused = await holdAgain(run).catch((err) => {
+        // The Manage-App out of reach stops no run: `canSpend` still guards the step.
+        console.warn(`[run ${runId}] holding credits before ${step.id}:`, (err as Error).message);
+        return null;
+      });
+      const { holdLater: _, ...state } = run.state;
+      if (refused) {
+        await waitForPerson(run, step.id, { kind: "credits" }, state, "running");
+        return;
+      }
+      await updateRun(runId, { state });
+      continue;
+    }
     if (!(await canSpend())) {
+      if (await durableRunsOn()) {
+        await waitForPerson(run, step.id, { kind: "credits" }, run.state, "running");
+        return;
+      }
       const message = new NoCreditsError().message;
       await emitEvent(runId, step.id, "error", message);
       await updateRun(runId, { status: "failed", error: message });
       return;
     }
-    await emitEvent(runId, step.id, "step_started", step.working ?? step.title);
+    // Back in a step a crash broke off: it starts over, and stays one visit in the log.
+    if (!(interrupted && (await visitLeftOpen(runId, step.id)))) {
+      await emitEvent(runId, step.id, "step_started", step.working ?? step.title);
+    }
+    interrupted = false;
     const space = await loadSpace(run);
     const state = structuredClone(run.state);
+    resourcesFor(runId).acted = false;
     try {
+      let changed = await enterVisit(step, state);
+      // A durable turn's id is on the row before it starts, so whoever goes on finds it.
+      if (
+        step.type === "agent" &&
+        step.durable &&
+        !step.call &&
+        !step.each &&
+        state.turn?.stepId !== step.id &&
+        (await effectsOn())
+      ) {
+        state.turn = newTurn(runId, step.id);
+        changed = true;
+      }
+      if (changed) {
+        await updateRun(runId, { state });
+      }
       const output = await withDeadline(step.type, signal, async (limit) => {
         const ctx = await makeContext(run, space, state, limit);
         // A guest's answers are checked once before any model works on them, and what a step
@@ -1280,8 +2410,17 @@ async function drive(runId: string, signal: AbortSignal) {
       state.outputs[step.id] = output;
       delete state.notes[step.id];
       delete state.redo?.[step.id];
+      delete state.visiting;
+      delete state.retries;
+      delete state.turn;
       const cursor = await advance(run, step.id, state);
-      await updateRun(runId, { state, cursor, status: cursor ? "running" : "done", error: null });
+      await updateRun(runId, {
+        state,
+        cursor,
+        status: cursor ? "running" : "done",
+        error: null,
+        ...(run.definition.label ? { label: await labelOf(run.definition, state) } : {}),
+      });
       const masked = takeMasked(runId, step.id);
       if (masked) {
         await emitEvent(runId, step.id, "info", maskedNote(masked));
@@ -1294,22 +2433,115 @@ async function drive(runId: string, signal: AbortSignal) {
       if (err instanceof LostClaim) {
         throw err;
       }
+      if (err instanceof TurnAsks) {
+        // The turn stopped for a person: its conversation is stored and no runner holds anything.
+        await syncRunCost(runId);
+        await updateRun(runId, { state, status: "waiting_input" });
+        await emitEvent(runId, step.id, "info", {
+          code: "turnAsked",
+          params: { question: err.question.slice(0, 200) },
+        });
+        void pushRun(runId, "asks");
+        return;
+      }
       console.error(`[run ${runId} step ${step.id}]`, err);
       await noteFreeTierRefusal(err);
-      await failRun(run, step.id, err);
-      return;
+      if (!(await stepFailed(run, step.id, err, liveResources(runId)?.acted))) {
+        return;
+      }
     }
   }
 }
 
+/**
+ * A started run at a page or a review: the page is answered from the start's `fill` when every
+ * required field has a value, a review passes when the start says so. The cursor after the
+ * step, or undefined when the owner has to come.
+ */
+async function passStep(
+  run: RunRow,
+  step: PageStep | ReviewStep,
+  state: RunState,
+): Promise<string | null | undefined> {
+  if (step.type === "review") {
+    const start = await startOf(run);
+    // An approval is a person's: no setting gives it.
+    if (!start?.passReviews || step.approve) {
+      return undefined;
+    }
+  } else {
+    const shown = state.pages?.[step.id]?.shown;
+    const fields = step.fields.filter((f) => !shown || shown.includes(f.id));
+    const input = Object.fromEntries(
+      fields.filter((f) => f.id in (state.fill ?? {})).map((f) => [f.id, state.fill?.[f.id]]),
+    );
+    const { values, errors } = readPageInput(step, input, await pageContext(run, step));
+    if (errors.length) {
+      return undefined;
+    }
+    state.values = { ...state.values, ...values };
+  }
+  handOnAnswer(step, state);
+  state.history.push(step.id);
+  return advance(run, step.id, state);
+}
+
 // --- commands ----------------------------------------------------------------
+
+/**
+ * A person's step is behind the run: its timeline says so, as for a step that ran by itself, and
+ * says who, where someone in the organization answered it.
+ */
+async function tellAnswered(
+  run: RunRow,
+  stepId: string,
+  by?: Actor,
+  said: "stepAnsweredBy" | "stepApprovedBy" | "stepDeclinedBy" = "stepAnsweredBy",
+) {
+  if (!(await durableRunsOn())) {
+    return;
+  }
+  const title = stepOf(run.definition, stepId)?.title ?? stepId;
+  const name = by?.userId ? await nameOf(by.userId) : null;
+  if (name) {
+    await emitEvent(run.id, stepId, "info", note(said, { name, step: title }));
+  }
+  await emitEvent(run.id, stepId, "step_done", title);
+}
+
+/**
+ * Keeps who gave an answer with the run: the wait it leads to right there tells them nothing, and
+ * the next person who tries to answer the step hears who was first. Nothing without the switch.
+ */
+async function keepAnswerer(state: RunState, stepId: string, next: string | null, by?: Actor) {
+  if (!(by && (await durableRunsOn()))) {
+    return;
+  }
+  state.lastBy = { userId: by.userId ?? null, visitorId: by.visitorId ?? null, next };
+  const name = by.userId ? await nameOf(by.userId) : null;
+  if (by.userId && name) {
+    state.answeredBy = { ...state.answeredBy, [stepId]: { userId: by.userId, name } };
+  }
+}
 
 async function requireWaiting(runId: string, stepId: string) {
   const run = await loadRun(runId);
   if (!run) {
     throw new RunConflict("Run not found");
   }
-  if (run.status !== "waiting_input" && run.status !== "done") {
+  // The first answer counts: the next one hears whose it was.
+  const first = run.state.answeredBy?.[stepId];
+  if (first && (run.status !== "waiting_input" || run.cursor !== stepId)) {
+    throw new RunConflict(note("answeredAlready", { name: first.name }));
+  }
+  const open = run.status === "waiting_input" || run.status === "done";
+  if (!open || run.cursor !== stepId) {
+    const output = run.state.outputs[stepId]?.json as { timedOut?: boolean } | undefined;
+    if (output?.timedOut) {
+      throw new RunConflict({ code: "answerTooLate" });
+    }
+  }
+  if (!open) {
     throw new RunConflict({ code: "runBusy" });
   }
   if (run.cursor !== stepId) {
@@ -1318,7 +2550,53 @@ async function requireWaiting(runId: string, stepId: string) {
   return run;
 }
 
-export async function submitPage(runId: string, stepId: string, input: Record<string, unknown>) {
+/** The run's typed answers without this page's, as a patch; nothing when it has none. */
+function unsentWithout(run: RunRow, stepId: string): { unsent?: RunRow["unsent"] } {
+  if (!run.unsent?.[stepId]) {
+    return {};
+  }
+  const { [stepId]: _, ...rest } = run.unsent;
+  return { unsent: Object.keys(rest).length ? rest : null };
+}
+
+/**
+ * What is typed on a page and not sent yet, kept apart from the run's state: neither `state` nor
+ * `rev` changes, so typing never makes an answer or a drive fail, in any status. No step reads it.
+ * One page's entry is written in place, so two pages saving at once keep both.
+ */
+export async function keepUnsent(run: RunRow, stepId: string, values: Record<string, unknown>) {
+  const step = stepOf(run.definition, stepId);
+  if (step?.type !== "page") {
+    throw new RunConflict("Not a page");
+  }
+  await db
+    .update(schema.run)
+    .set({
+      unsent: sql`json_set(coalesce(${schema.run.unsent}, '{}'), ${`$.${stepId}`}, json(${JSON.stringify(values)}))`,
+    })
+    .where(eq(schema.run.id, run.id));
+}
+
+/**
+ * `by`: who answers, as the door established it; none for what the engine does itself. `seq`: the
+ * page's number from a runner that sends one page at a time, and its tab; a retry of a number the
+ * run already has from that tab is done, and says so (true), before anything is checked against
+ * where the run stands.
+ */
+export async function submitPage(
+  runId: string,
+  stepId: string,
+  input: Record<string, unknown>,
+  by?: Actor,
+  sent?: { seq: number; tab?: string },
+): Promise<boolean> {
+  const at = Date.now();
+  if (sent) {
+    const last = (await loadRun(runId))?.state.pagesSent;
+    if (last && last.tab === sent.tab && sent.seq <= last.n) {
+      return true;
+    }
+  }
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
   if (step?.type !== "page") {
@@ -1379,13 +2657,53 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
     }
   }
   // Later pages decide their fields again on what is answered now.
-  const at = run.definition.steps.indexOf(step);
-  for (const later of run.definition.steps.slice(at + 1)) {
+  const place = run.definition.steps.indexOf(step);
+  for (const later of run.definition.steps.slice(place + 1)) {
     delete state.pages?.[later.id];
   }
+  handOnAnswer(step, state);
   state.history.push(stepId);
+  if (sent) {
+    state.pagesSent = { n: sent.seq, step: stepId, ...(sent.tab ? { tab: sent.tab } : {}) };
+  }
   const cursor = await advance(run, stepId, state);
-  await updateRun(runId, { state, cursor, status: "running", error: null }, run);
+  state.answered = { at, next: cursor };
+  await keepAnswerer(state, stepId, cursor, by);
+  const goesOn = await answerGoesOn(
+    run,
+    step,
+    state,
+    cursor,
+    // What was typed on the page is in the answer now: its entry goes in the same update.
+    { label: await labelOf(run.definition, state), ...unsentWithout(run, stepId) },
+    by,
+  );
+  await tellAnswered(run, stepId, by);
+  if (goesOn) {
+    kick(runId);
+  }
+  return false;
+}
+
+/** The person answers what a durable step asked: its turn goes on with that, on any runner. */
+export async function answerTurn(runId: string, answer: string) {
+  const run = await loadRun(runId);
+  if (!run) {
+    throw new RunConflict("Run not found");
+  }
+  const turn = run.state.turn;
+  if (run.status !== "waiting_input" || !turn?.question || run.cursor !== turn.stepId) {
+    throw new RunConflict({ code: "askClosed" });
+  }
+  const words = answer.trim().slice(0, 10_000);
+  // A guest's words are held to the same rules as their answers on a page.
+  if (guestRun(run) && (await guestChecksOn())) {
+    await checkGuestText({ text: words });
+  }
+  const state = structuredClone(run.state);
+  state.turn = { ...turn, answer: words };
+  await updateRun(runId, { state, status: "running", error: null }, run);
+  await emitEvent(runId, turn.stepId, "info", { code: "turnAnswered" });
   kick(runId);
 }
 
@@ -1454,18 +2772,29 @@ export async function writeRunState(
 }
 
 export type ReviewAction =
-  | { type: "accept"; edits?: Record<string, string | Record<string, unknown>> }
+  | { type: "accept"; edits?: Record<string, string | Record<string, unknown>>; note?: string }
+  /** A review with `approve` is declined; `note` says why. */
+  | { type: "decline"; note?: string }
   | { type: "regenerate"; target: string; note: string; items?: number[] };
 
-export async function reviewStep(runId: string, stepId: string, action: ReviewAction) {
+/**
+ * `accept` on a review with `approve` approves it, so every door that accepts can approve. `by`: who
+ * answers, as the door established it; none for what the engine does itself.
+ */
+export async function reviewStep(runId: string, stepId: string, action: ReviewAction, by?: Actor) {
+  const at = Date.now();
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
   if (step?.type !== "review") {
     throw new RunConflict("Not a review");
   }
   const state = structuredClone(run.state);
-  if (action.type === "accept") {
-    for (const [target, edit] of Object.entries(action.edits ?? {})) {
+  if (action.type === "decline" && !step.approve) {
+    throw new RunConflict({ code: "notAnApproval" });
+  }
+  if (action.type === "accept" || action.type === "decline") {
+    const edits = action.type === "accept" ? action.edits : undefined;
+    for (const [target, edit] of Object.entries(edits ?? {})) {
       const output = state.outputs[target];
       if (!step.edit || !step.show.includes(target) || !output) {
         continue;
@@ -1480,10 +2809,35 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
         await checkGuestText({ text: typeof edit === "string" ? edit : JSON.stringify(edit) });
       }
     }
+    const words = action.note?.trim().slice(0, 2000) || undefined;
+    if (words && step.approve && guestRun(run) && (await guestChecksOn())) {
+      await checkGuestText({ text: words });
+    }
+    const approved = action.type === "accept";
+    handOnAnswer(
+      step,
+      state,
+      step.approve ? { approved, ...(words ? { note: words } : {}) } : undefined,
+    );
     state.history.push(stepId);
     const cursor = await advance(run, stepId, state);
-    await updateRun(runId, { state, cursor, status: "running", error: null }, run);
-    kick(runId);
+    state.answered = { at, next: cursor };
+    await keepAnswerer(state, stepId, cursor, by);
+    const goesOn = await answerGoesOn(run, step, state, cursor, {}, by);
+    if (step.approve && whoOf(step) === "team" && (await durableRunsOn())) {
+      await decidedHeld(run, { stepId, title: step.title }, approved, by?.userId ?? null).catch(
+        (err) => console.error(`[approvals] run ${runId}:`, err),
+      );
+    }
+    await tellAnswered(
+      run,
+      stepId,
+      by,
+      step.approve ? (approved ? "stepApprovedBy" : "stepDeclinedBy") : "stepAnsweredBy",
+    );
+    if (goesOn) {
+      kick(runId);
+    }
     return;
   }
   if (!step.show.includes(action.target)) {
@@ -1496,12 +2850,15 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
   } else {
     delete state.redo?.[action.target];
   }
-  await updateRun(runId, { state, cursor: action.target, status: "running", error: null }, run);
+  state.answered = { at, next: action.target };
+  const goesOn = await answerGoesOn(run, step, state, action.target);
   await emitEvent(runId, action.target, "info", "Wird neu erstellt …");
-  kick(runId);
+  if (goesOn) {
+    kick(runId);
+  }
 }
 
-export async function goBack(runId: string) {
+export async function goBack(runId: string, by?: Actor) {
   const run = await loadRun(runId);
   if (!run || !CAN_GO_BACK.has(run.status)) {
     throw new RunConflict({ code: "runBusy" });
@@ -1511,9 +2868,23 @@ export async function goBack(runId: string) {
   if (!previous) {
     throw new RunConflict({ code: "noStepBefore" });
   }
-  // A decision that failed belongs to the step left behind.
+  // A decision that failed belongs to the step left behind, and so do a visit that stopped, its
+  // tries and its turn.
   delete state.deciding;
-  await updateRun(runId, { state, cursor: previous, status: "waiting_input", error: null }, run);
+  delete state.visiting;
+  delete state.retries;
+  delete state.pause;
+  delete state.turn;
+  // Asked again: whoever answered it before no longer has.
+  delete state.answeredBy?.[previous];
+  delete state.lastBy;
+  await waitForAnswer(
+    run,
+    stepOf(run.definition, previous),
+    { state, cursor: previous, error: null },
+    run,
+    by,
+  );
 }
 
 export async function retry(runId: string) {
@@ -1526,7 +2897,13 @@ export async function retry(runId: string) {
   if (refused) {
     throw new RunConflict(refused);
   }
-  await updateRun(runId, { status: "running", error: null }, run);
+  // A person's "try again" gets every try anew. A turn that failed has dropped its snapshot: the
+  // step starts over with a new one.
+  const state = structuredClone(run.state);
+  delete state.retries;
+  delete state.pause;
+  delete state.turn;
+  await updateRun(runId, { state, status: "running", error: null }, run);
   kick(runId);
 }
 
@@ -1534,6 +2911,60 @@ export async function cancel(runId: string) {
   active.get(runId)?.abort();
   await updateRun(runId, { status: "cancelled", wakeAt: null });
   // After the row: a crash in between gives a wake that finds the run over, never a lost cancel.
+  await setWake(runId, null);
+}
+
+/** A write that only holds on the run as it was read; a run that moved on meanwhile refuses. */
+async function whileItWaits(run: RunRow, patch: Partial<typeof schema.run.$inferInsert>) {
+  try {
+    await updateRun(run.id, patch, { rev: run.rev });
+  } catch (err) {
+    throw err instanceof RunConflict ? new RunConflict({ code: "runMovedOn" }) : err;
+  }
+}
+
+/**
+ * "Continue now": a wait is over now, so nobody has to sit it out. The row first: a crash after it
+ * leaves the control copy on the old time, and the run goes on then. The clock's own statement puts
+ * it in line, which also clears the control copy.
+ */
+export async function wakeNow(runId: string, by: string) {
+  const run = await loadRun(runId);
+  const now = new Date();
+  // A time already gone by is the clock's: the run is about to go on, or going on.
+  // A wait for a signal or a person goes on as at its deadline; without one there is no time to
+  // bring forward.
+  if (
+    !(
+      run?.status === "sleeping" ||
+      run?.status === "waiting_signal" ||
+      run?.status === "waiting_input"
+    ) ||
+    !run.wakeAt ||
+    run.wakeAt <= now
+  ) {
+    throw new RunConflict({ code: "runMovedOn" });
+  }
+  await whileItWaits(run, { wakeAt: now });
+  await emitEvent(runId, run.cursor, "woken", note("runWokenBy", { name: by }));
+  await setWake(runId, now);
+  await wakeDue(now);
+  kick(runId);
+}
+
+/** What "Stop" may end: a run that waits, for a time or for a person. */
+const STOPPABLE = new Set<RunStatus>(["sleeping", "waiting_signal", "waiting_input"]);
+
+/** "Stop" on a run that waits. Unlike `cancel` it refuses a run that has moved on. */
+export async function stopRun(runId: string, by: string) {
+  const run = await loadRun(runId);
+  if (!(run && STOPPABLE.has(run.status))) {
+    throw new RunConflict({ code: "runMovedOn" });
+  }
+  await whileItWaits(run, { status: "cancelled", wakeAt: null });
+  active.get(runId)?.abort();
+  await emitEvent(runId, run.cursor, "stopped", note("runStoppedBy", { name: by }));
+  // After the row: a crash in between gives a wake that finds the run over, never a lost stop.
   await setWake(runId, null);
 }
 
@@ -1570,6 +3001,27 @@ export async function availableFormats(step: Step, run: RunRow, wanted?: Format[
  * What the page's fields start with: an earlier step's result where they name one, and for a
  * choice whose default leads to a step without a model here, the first value that does not.
  */
+/** What a page's `components` read besides its answers. A step that stays in the space stays there. */
+async function pageDataOf(
+  refs: Record<string, string>,
+  run: RunRow,
+  def: WizardDefinition,
+  name: string,
+  hide: ReadonlySet<string>,
+): Promise<Record<string, unknown>> {
+  const open = Object.entries(refs).filter(([, ref]) => {
+    const [head, id] = dataRef(ref).split(".");
+    return !(head === "steps" && hide.has(id));
+  });
+  const scope = {
+    def,
+    state: run.state,
+    brand: { name },
+    ...(open.some(([, ref]) => listRef(dataRef(ref))) ? { lists: await storedLists(run) } : {}),
+  };
+  return surfaceData(Object.fromEntries(open), { def, state: run.state, scope });
+}
+
 function prefillOf(
   step: PageStep,
   run: RunRow,
@@ -1633,6 +3085,7 @@ export async function runView(
       ? await closedChoices(def, step, run.state.values)
       : {};
   const index = step ? def.steps.indexOf(step) : def.steps.length;
+  const sections = sectionsOf(def);
   const refs =
     step?.type === "review"
       ? step.show
@@ -1687,7 +3140,17 @@ export async function runView(
   return {
     id: run.id,
     status: run.status,
-    wakeAt: run.status === "sleeping" ? (run.wakeAt?.toISOString() ?? null) : null,
+    wakeAt:
+      run.status === "sleeping" || run.status === "waiting_signal" || run.status === "waiting_input"
+        ? (run.wakeAt?.toISOString() ?? null)
+        : null,
+    pause: run.status === "sleeping" ? (run.state.pause ?? null) : null,
+    waitsFor:
+      run.status === "waiting_signal" && step?.type === "wait"
+        ? waitKeyText(run, step) || null
+        : null,
+    // Who the viewer is: the door says (`viewFor`, engine/answerers.ts).
+    answeredBy: null,
     mode: run.mode,
     wizard: {
       title: def.title,
@@ -1706,12 +3169,27 @@ export async function runView(
             results: run.state.translated?.[run.lang] ?? {},
           }
         : null,
-    // Nobody to talk to while it sleeps, and nothing to say.
-    talk: run.status !== "sleeping" && (await talkAllowed(run)),
+    // Nobody to talk to while it waits, and nothing to say.
+    talk: run.status !== "sleeping" && run.status !== "waiting_signal" && (await talkAllowed(run)),
     step,
     answered: run.state.history.map((id) => stepOf(def, id)).filter((s): s is Step => Boolean(s)),
     values: run.state.values,
+    rev: run.rev,
+    // What the browser may do alone, and what was typed and not sent: `viewFor` keeps both from a
+    // viewer who may not answer.
+    ...(run.status === "waiting_input" && step?.type === "page" && !run.startedBy
+      ? {
+          ahead: await aheadOf(run, def, step),
+          pagesSent: run.state.pagesSent?.n ?? 0,
+        }
+      : {}),
+    ...(run.status === "waiting_input" && step?.type === "page" && run.unsent?.[step.id]
+      ? { unsent: run.unsent[step.id] }
+      : {}),
     prefill: step?.type === "page" ? prefillOf(step, run, closed) : {},
+    ...(step?.type === "page" && step.data
+      ? { pageData: await pageDataOf(step.data, run, def, brand.name, hide) }
+      : {}),
     ...(step?.type === "page" ? viewContext(await pageContext(run, step)) : {}),
     ...(run.mode === "test" && run.state.decisions
       ? {
@@ -1731,7 +3209,21 @@ export async function runView(
         .filter(([, o]) => o),
     ),
     shown,
-    progress: { done: run.status === "done" ? def.steps.length : index, total: def.steps.length },
+    progress: {
+      done: run.status === "done" ? def.steps.length : index,
+      total: def.steps.length,
+      ...(sections.length
+        ? {
+            sections: {
+              names: sections,
+              current:
+                run.status === "done"
+                  ? sections.length
+                  : sections.indexOf(sectionOf(def, run.cursor ?? "") ?? ""),
+            },
+          }
+        : {}),
+    },
     canBack: run.state.history.length > 0 && CAN_GO_BACK.has(run.status),
     error: run.error,
     // A step's own words as it starts ("working") are the wizard's: in its translation too.
@@ -1740,6 +3232,7 @@ export async function runView(
     ),
     brand,
     ask: run.status === "running" ? run.ask : null,
+    question: run.status === "waiting_input" ? (run.state.turn?.question ?? null) : null,
     lists,
     connections:
       step?.type === "page" && step.fields.some((f) => f.kind === "connection")
@@ -1758,4 +3251,40 @@ export async function runView(
     expiresAt: run.expiresAt?.toISOString() ?? null,
     shareJob: run.status === "done" ? await latestShareJob(run.id) : null,
   };
+}
+
+/**
+ * A signal for this one run and the wait it stands at: "Testereignis senden", or what a person
+ * writes on a channel while the run waits. Null: the run does not wait for a signal now, or the
+ * data does not fit; then nothing is written, and what was said goes where the run stands.
+ */
+export async function signalRun(
+  runId: string,
+  input: {
+    data?: Record<string, unknown>;
+    source: string;
+    delivery?: string | null;
+    /** Only a wait for this name takes it; without, the wait the run stands at. */
+    only?: string;
+  },
+) {
+  const run = await loadRun(runId);
+  const step = run ? stepOf(run.definition, run.cursor) : undefined;
+  if (run?.status !== "waiting_signal" || step?.type !== "wait" || !step.signal) {
+    return null;
+  }
+  const { only, ...signal } = input;
+  if (only ? step.signal.name !== only : signalMissing(input.data, step.signal.fields).length) {
+    return null;
+  }
+  if (signalMissing(input.data, step.signal.fields).length) {
+    return null;
+  }
+  return sendSignal({
+    spaceId: await spaceIdOf(run),
+    scope: runScope(run.id),
+    name: step.signal.name,
+    key: waitKeyOf(run, step),
+    ...signal,
+  });
 }

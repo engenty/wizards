@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import {
+  type AheadPage,
   type CardOption,
   type EngentyCostume,
   type Format,
@@ -10,12 +11,20 @@ import {
   type WizardDefinition,
 } from "./definition.js";
 import type { ShareJobView } from "./sharing.js";
+import type { StartEvent } from "./starts.js";
 import type { ConnectionView, ListDef, ListRow } from "./store.js";
 import type { Surface } from "./surface.js";
 import { type Gap, type Line, lineText, type Texts, type TextTable, textOf } from "./texts.js";
 import type { ThemeColours, ThemeEffect, ThemeShape } from "./theme.js";
 
-export type RunStatus = "waiting_input" | "sleeping" | "running" | "done" | "failed" | "cancelled";
+export type RunStatus =
+  | "waiting_input"
+  | "sleeping"
+  | "waiting_signal"
+  | "running"
+  | "done"
+  | "failed"
+  | "cancelled";
 
 /** A person can step back from these; `RunView.canBack` and `goBack` read this one list. */
 export const CAN_GO_BACK: ReadonlySet<RunStatus> = new Set(["waiting_input", "done", "failed"]);
@@ -43,7 +52,8 @@ export interface StepOutput {
   assets?: AssetRef[];
   /**
    * What the person did in the step's view, kept with the run: a checklist's ticks by component
-   * id, a widget's own state (`wizard.save`).
+   * id, the value of each Choice, Toggle and Slider by its `state`, a widget's own state
+   * (`wizard.save`).
    */
   view?: Record<string, unknown>;
   /** Widgets: what loading it with this run's data showed. */
@@ -53,6 +63,23 @@ export interface StepOutput {
     errors: string[];
   };
   at: string;
+}
+
+/** A durable agent step's turn, on the row: whoever goes on with the run finds it here. */
+export interface RunTurn {
+  stepId: string;
+  /** The run of the turn in Mastra's store: `<run>.<random>`, so its snapshots go with the run. */
+  id: string;
+  /** What the turn last asked the person. */
+  question?: string;
+  /** Their answer to `question`, kept until the turn has gone on with it. */
+  answer?: string;
+  /** What the turn's tools made so far: a process that goes on no longer has them in memory. */
+  assets?: AssetRef[];
+  /** A tool of the turn may have done something: a failure then ends it, and no try repeats that. */
+  acted?: boolean;
+  /** How the turn ended: Mastra has dropped its snapshot by then, so a repeat would start it over. */
+  end?: { text: string; closing: string };
 }
 
 export interface RunState {
@@ -72,12 +99,21 @@ export interface RunState {
   deciding?: string;
   /** What decided `ask` branches answered, by step. */
   decisions?: Record<string, BranchDecision>;
+  /** The signals this run took, by id: each only once. */
+  signals?: string[];
   /** Pages whose fields a decision chose: the field ids kept, by page. */
   pages?: Record<string, { shown: string[] }>;
   /** How often each branch was taken, by "<step>→<goto>": loops stop at the rule's max. */
   loops?: Record<string, number>;
   /** File fields with `listen`: what is said in the recording, piece by piece with its times. */
   heard?: Record<string, { start: number; end: number; text: string }[]>;
+  /**
+   * A run a start began: what started it (`start`, read as `{{start.row.Firma}}` and by the AI
+   * steps) and the answers it brings for the pages (`fill`, by field id), given as the run
+   * reaches each page.
+   */
+  start?: StartEvent;
+  fill?: Record<string, unknown>;
   /**
    * A test run's own copy of the wizard's memory: the pages it wrote, by title. The wizard's
    * pages stay as they are; the copy goes with the run.
@@ -88,7 +124,52 @@ export interface RunState {
    * place of the step's own (`StepOutput.text`); the step's output stays as it was made.
    */
   translated?: Record<string, Record<string, string>>;
+  /**
+   * How often a fixed `call` step on a connection was entered, by step, written before it acts: a
+   * restart keeps the number, a real re-entry gets a new one (broker/effect.ts).
+   */
+  visits?: Record<string, number>;
+  /** The step whose visit is open; finishing it, or going back, closes it. */
+  visiting?: string;
+  /** The step that keeps failing, how often it was given another try, and since when. */
+  retries?: { step: string; count: number; since: string; told?: RunPause["kind"] };
+  /** Why a run that sleeps is not at a `wait` step; gone once it wakes. */
+  pause?: RunPause;
+  /** Who answered each page or review of someone in the organization, by step. */
+  answeredBy?: Record<string, { userId: string; name: string }>;
+  /**
+   * The last page a runner sent with a number (`POST …/pages/:stepId` with `seq`), and the tab that
+   * sent it: a retry of a number the run already has, from that tab, is answered as done. Another
+   * tab's answer to the same page is not a retry, and is refused as before.
+   */
+  pagesSent?: { n: number; step: string; tab?: string };
+  /**
+   * A person's step gave its credit hold back while it waited, and was answered: the run holds again
+   * right before its next step that costs anything, not while the person waits for the next page.
+   */
+  holdLater?: true;
+  /**
+   * Who gave the last answer, and the step it led to: a wait reached right there tells them nothing,
+   * since they did it themselves. A step that worked in between is news to them again.
+   */
+  lastBy?: { userId?: string | null; visitorId?: string | null; next: string | null };
+  /**
+   * When the last answer came, and the step it led to, until the run waits again: the time from
+   * answer to page is logged by whichever process gets there, often not the one that took the answer.
+   */
+  answered?: { at: number; next: string | null };
+  /** The durable agent step at work (engine/durable-turn.ts); gone when the step has finished. */
+  turn?: RunTurn;
 }
+
+/**
+ * A run that sleeps for something other than a `wait` step. `retry`: the step tries again at
+ * `wakeAt`. `credits`, `sign_in`: it waits for a person, and looks at `wakeAt` whether they acted.
+ */
+export type RunPause =
+  | { kind: "retry" }
+  | { kind: "credits" }
+  | { kind: "sign_in"; service: string };
 
 /** What a decision over a step's `ask` branches found. */
 export interface BranchDecision {
@@ -133,6 +214,8 @@ export interface ConfirmAsk extends AskBase {
   input: string;
   /** Asked for this one thing: there is nothing to allow for the rest of the run. */
   once?: boolean;
+  /** It was interrupted before and may have happened already: is it to happen again? */
+  again?: boolean;
 }
 
 /** What a running step asks the person; the step waits for the answer. */
@@ -216,6 +299,10 @@ const NOTES_EN = {
   attaches: "Attaching {name}",
   runs: "Running: {command}",
   noSandbox: "Working without the sandbox – this run can’t run code",
+  noDurable: "This step starts over after an interruption: its model can’t go on where it stopped",
+  turnWentOn: "Went on after an interruption",
+  turnAsked: "Asks you: {question}",
+  turnAnswered: "Goes on with your answer",
   // What the run may reach outside, from its grant (broker/grant.ts), as its log opens.
   grant: "This run may: {what}",
   grantReads: "read in {name}",
@@ -267,8 +354,43 @@ const NOTES_EN = {
   clientLimit: "This app has started a lot of runs just now. Try again later.",
   runOver: "The run is over.",
   runSleeps: "The run is waiting. It goes on by itself.",
+  stepRetries: "This step didn’t work this time. It tries again by itself in about {minutes} min.",
+  stepWaitsCredits:
+    "This wizard has run out of credits for now. It goes on by itself once there are credits again.",
+  stepWaitsSignIn: "{service} needs a new sign-in. This step goes on by itself after that.",
+  stepFailedGoesOn: "This step didn’t work, so the wizard goes on with “{step}”.",
+  signalKeyEmpty: "This step waits for a signal, but “{key}” came out empty.",
+  signalCame: "The event arrived.",
+  signalTimedOut: "The deadline passed.",
+  stepTimedOut: "The time to answer ran out, and the wizard went on.",
+  runWaitsAnswerUntil: "waits for an answer, until {until} at the latest",
+  answerTooLate: "The time to answer ran out, and the wizard has gone on.",
+  reminderSent: "Sent a reminder.",
   waitsOff: "This wizard has a wait step, and those aren’t turned on here yet.",
   waitDateUnreadable: "“{date}” isn’t a date this step can wait for.",
+  runStarted: "Run started",
+  runStartedBy: "Run started by {name}",
+  runWaitsUntil: "waits until {until}",
+  runWaitsSignal: "waits for an event",
+  runWaitsSignalUntil: "waits for an event, until {until} at the latest",
+  runWaitOver: "The wait is over",
+  runWokenBy: "{name} chose “Continue now”",
+  runStoppedBy: "{name} stopped the run",
+  stepAnsweredBy: "{name} answered “{step}”",
+  stepApprovedBy: "{name} approved “{step}”",
+  stepDeclinedBy: "{name} declined “{step}”",
+  answeredAlready: "{name} has answered this already.",
+  notAnApproval: "This review has nothing to decline.",
+  notYourStep: "Someone else answers this step.",
+  teamNobodyNamed:
+    "Name who answers this wizard’s team steps first, under “Answered by” in the share dialog.",
+  runWithdrawn: "Withdrawn by the person who started the run",
+  runResumed: "Picked up again after an interruption",
+  effectMailMayBeSent:
+    "The mail to {to} may have been sent already. The step won’t send it again. Check your outbox to see if it’s there.",
+  effectMayHaveHappened:
+    "“{what}” may have happened already. The step won’t do it again. Check the service to see if it arrived.",
+  runMovedOn: "The run has moved on and no longer waits. Look at where it stands now.",
   runBusy: "The wizard is working right now.",
   pageOutdated: "This page is out of date.",
   noStepBefore: "There is no step before this one.",
@@ -285,6 +407,8 @@ const NOTES_EN = {
   uploadNotItsType: "This file holds something other than its type says. Choose the file again.",
   uploadSvgNotUsable: "This SVG can’t be used. Save it again as a plain SVG, or choose a PNG.",
   askClosed: "This question is no longer open.",
+  toolCallIdRepeated:
+    "This model’s server repeats its tool call ids, so this step can’t keep track of what it did. Use another model for it, or switch off “Survives interruptions”.",
   noBrowser: "The wizard has no browser open right now.",
   notWaiting: "The wizard isn’t waiting for you right now.",
   pageActFailed: "That didn’t work on the page.",
@@ -345,6 +469,8 @@ const NOTES_EN = {
     "{service} takes only so many calls from one run, and this run has made them, so this step stopped.",
   stepCallsPerDay:
     "{service} takes only so many calls a day, and today’s are made, so this step stopped. Try again tomorrow.",
+  stepCallMayHaveHappened:
+    "“{action}” in {service} was interrupted and may have happened already. It wasn’t repeated, so this step stopped. Check in {service} whether it’s there.",
   clientNotSignedIn: "{name} isn’t signed in on this computer. Sign in under Settings → Models.",
   clientNotInstalled:
     "{name} isn’t installed on this computer. Install it under Settings → Models.",
@@ -379,6 +505,8 @@ const NOTES_EN = {
   chooseAtLeast: "Choose at least {min}",
   chooseAtMost: "At most {max} – remove some",
   enterNumber: "Enter a number",
+  numberAtLeast: "At least {min}",
+  numberAtMost: "At most {max}",
   invalidChoice: "Invalid choice",
   timeNotOffered: "This time isn’t offered",
   notValidEmailAddress: "Not a valid email address",
@@ -422,6 +550,7 @@ const NOTES_EN = {
   connectorNoAction: "{name} has no action “{id}”.",
   tooManyConnections: "This space has as many connections as it can hold.",
   connectionEachPersonSignsIn: "Each person signs in to this connection themselves.",
+  connectionNoMailbox: "This connection has no mailbox that a run can wait on.",
   connectionSignsInAsSpace: "This connection signs in as the space. Its admins sign it in.",
   connectionNotForYou: "This connection is not open to you.",
   personSignInNotInPlan:
@@ -678,6 +807,11 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   attaches: "Hängt {name} an",
   runs: "Führt aus: {command}",
   noSandbox: "Arbeitet ohne Sandbox – dieser Lauf kann keinen Code ausführen",
+  noDurable:
+    "Dieser Schritt beginnt nach einer Unterbrechung neu: sein Modell kann nicht dort weitermachen",
+  turnWentOn: "Nach einer Unterbrechung weitergemacht",
+  turnAsked: "Fragt dich: {question}",
+  turnAnswered: "Macht mit deiner Antwort weiter",
   grant: "Dieser Lauf darf: {what}",
   grantReads: "in {name} lesen",
   grantWrites: "in {name} schreiben",
@@ -729,8 +863,47 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   clientLimit: "Diese App hat gerade viele Läufe gestartet. Versuch es später wieder.",
   runOver: "Der Lauf ist beendet.",
   runSleeps: "Der Lauf wartet. Er geht von selbst weiter.",
+  stepRetries:
+    "Dieser Schritt hat gerade nicht geklappt. Er versucht es in etwa {minutes} Min. von selbst noch einmal.",
+  stepWaitsCredits:
+    "Das Guthaben dieses Wizards ist aufgebraucht. Er macht von selbst weiter, sobald wieder Guthaben da ist.",
+  stepWaitsSignIn:
+    "{service} braucht eine neue Anmeldung. Danach macht dieser Schritt von selbst weiter.",
+  stepFailedGoesOn:
+    "Dieser Schritt hat nicht geklappt, darum macht der Wizard mit „{step}“ weiter.",
+  signalKeyEmpty: "Dieser Schritt wartet auf ein Ereignis, aber „{key}“ ist leer.",
+  signalCame: "Ereignis angekommen.",
+  signalTimedOut: "Frist abgelaufen.",
+  stepTimedOut: "Die Zeit für eine Antwort ist abgelaufen, und der Wizard ging weiter.",
+  runWaitsAnswerUntil: "wartet auf eine Antwort, höchstens bis {until}",
+  answerTooLate: "Die Zeit für eine Antwort ist abgelaufen, und der Wizard ist weitergegangen.",
+  reminderSent: "Erinnerung gesendet.",
   waitsOff: "Dieser Wizard hat einen Warten-Schritt, und die sind hier noch nicht eingeschaltet.",
   waitDateUnreadable: "„{date}“ ist kein Datum, auf das dieser Schritt warten kann.",
+  runStarted: "Lauf gestartet",
+  runStartedBy: "Lauf gestartet von {name}",
+  runWaitsUntil: "wartet bis {until}",
+  runWaitsSignal: "wartet auf ein Ereignis",
+  runWaitsSignalUntil: "wartet auf ein Ereignis, höchstens bis {until}",
+  runWaitOver: "Die Wartezeit ist vorbei",
+  runWokenBy: "{name} hat „Jetzt weitermachen“ gewählt",
+  runStoppedBy: "{name} hat den Lauf gestoppt",
+  stepAnsweredBy: "{name} hat „{step}“ beantwortet",
+  stepApprovedBy: "{name} hat „{step}“ freigegeben",
+  stepDeclinedBy: "{name} hat „{step}“ abgelehnt",
+  answeredAlready: "{name} hat das schon beantwortet.",
+  notAnApproval: "Bei dieser Prüfung gibt es nichts abzulehnen.",
+  notYourStep: "Diesen Schritt beantwortet jemand anderes.",
+  teamNobodyNamed:
+    "Leg zuerst im Teilen-Dialog unter „Beantwortet von“ fest, wer die Team-Schritte beantwortet.",
+  runWithdrawn: "Von der Person zurückgezogen, die den Lauf gestartet hat",
+  runResumed: "Nach einer Unterbrechung weitergemacht",
+  effectMailMayBeSent:
+    "Mail an {to} wurde vielleicht schon gesendet. Der Schritt sendet sie nicht noch einmal. Schau im Postausgang nach, ob sie dort liegt.",
+  effectMayHaveHappened:
+    "„{what}“ ist vielleicht schon passiert. Der Schritt macht es nicht noch einmal. Schau im Dienst nach, ob es dort angekommen ist.",
+  runMovedOn:
+    "Der Lauf ist schon weitergegangen und wartet nicht mehr. Schau nach, wo er jetzt steht.",
   runBusy: "Der Wizard arbeitet gerade.",
   pageOutdated: "Diese Seite ist nicht mehr aktuell.",
   noStepBefore: "Kein vorheriger Schritt.",
@@ -748,6 +921,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "In dieser Datei steckt etwas anderes, als ihr Typ sagt. Wähl die Datei noch einmal.",
   uploadSvgNotUsable: "Dieses SVG geht nicht. Speicher es neu als einfaches SVG oder wähl ein PNG.",
   askClosed: "Diese Frage ist nicht mehr offen.",
+  toolCallIdRepeated:
+    "Der Server dieses Modells wiederholt seine Tool-Call-IDs, deshalb verliert dieser Schritt den Überblick über das, was er getan hat. Nimm ein anderes Modell oder schalte „Übersteht Unterbrechungen“ aus.",
   noBrowser: "Der Wizard hat gerade keinen Browser offen.",
   notWaiting: "Der Wizard wartet gerade nicht auf dich.",
   pageActFailed: "Das hat auf der Seite nicht geklappt.",
@@ -812,6 +987,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "{service} nimmt aus einem Lauf nur eine bestimmte Zahl von Aufrufen an, und dieser Lauf hat sie gemacht. Darum hat dieser Schritt aufgehört.",
   stepCallsPerDay:
     "{service} nimmt am Tag nur eine bestimmte Zahl von Aufrufen an, und die für heute sind gemacht. Darum hat dieser Schritt aufgehört. Versuch es morgen wieder.",
+  stepCallMayHaveHappened:
+    "„{action}“ in {service} wurde unterbrochen und ist vielleicht schon passiert. Es wurde nicht wiederholt, darum hat dieser Schritt aufgehört. Schau in {service} nach, ob es da ist.",
   clientNotSignedIn:
     "{name} ist auf diesem Computer nicht angemeldet. Melde dich unter Einstellungen → Modelle an.",
   clientNotInstalled:
@@ -849,6 +1026,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   chooseAtLeast: "Wähl mindestens {min} aus",
   chooseAtMost: "Höchstens {max} – entferne einige",
   enterNumber: "Gib eine Zahl ein",
+  numberAtLeast: "Mindestens {min}",
+  numberAtMost: "Höchstens {max}",
   invalidChoice: "Ungültige Auswahl",
   timeNotOffered: "Dieser Termin wird nicht angeboten",
   notValidEmailAddress: "Keine gültige E-Mail-Adresse",
@@ -893,6 +1072,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   connectorNoAction: "{name} hat keine Aktion „{id}“.",
   tooManyConnections: "Dieser Space hat so viele Verbindungen, wie er halten kann.",
   connectionEachPersonSignsIn: "Bei dieser Verbindung meldet sich jede Person selbst an.",
+  connectionNoMailbox: "Diese Verbindung hat kein Postfach, auf das ein Lauf warten kann.",
   connectionSignsInAsSpace: "Diese Verbindung meldet sich als Space an. Die Admins melden sie an.",
   connectionNotForYou: "Diese Verbindung steht dir nicht offen.",
   personSignInNotInPlan:
@@ -1107,7 +1287,16 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
 export const RUN_NOTES: Texts<RunNoteCode> = { en: NOTES_EN, de: NOTES_DE };
 
 /** What fills a note's gaps: words, numbers, other notes (said in the same language), lists. */
-export type NoteGap = Gap | RunNote | readonly NoteGap[];
+export type NoteGap = Gap | RunNote | NoteTime | readonly NoteGap[];
+
+/** A moment in a note: written out in the reader's language and time zone as it is read. */
+export interface NoteTime {
+  at: string;
+}
+
+export function isNoteTime(value: NoteGap | undefined): value is NoteTime {
+  return typeof value === "object" && typeof (value as NoteTime).at === "string";
+}
 
 /** A line of `RUN_NOTES` with what goes into its gaps. */
 export interface RunNote {
@@ -1128,12 +1317,28 @@ export function saidText(said: Said, lang: Lang): string {
   return typeof said === "string" ? said : noteText(said, lang);
 }
 
+function timeInNote(at: string, lang: string): string {
+  const time = new Date(at);
+  return Number.isNaN(time.getTime())
+    ? at
+    : new Intl.DateTimeFormat(lang, {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(time);
+}
+
 function gapIn(value: NoteGap, lang: string, table?: TextTable): Gap {
   if (Array.isArray(value)) {
     return value.map((item: NoteGap) => gapIn(item, lang, table));
   }
   if (typeof value === "object" && value !== null && "code" in value) {
     return noteText(value, lang, table);
+  }
+  if (isNoteTime(value)) {
+    return timeInNote(value.at, lang);
   }
   return value as Gap;
 }
@@ -1157,17 +1362,70 @@ export function noteText(note: RunNote, lang: string, table?: TextTable): string
   return textOf(RUN_NOTES, note.code, isLang(lang) ? lang : "en", params);
 }
 
+/**
+ * What a run's log holds. `step_started` to `error` from any run. The rest come with `durableRuns`:
+ * `run_started`; `wait`, a wait begun, with until when; `woken`, what ended it; `stopped`, by whom;
+ * `resumed`, another runner went on after an interruption; `effect_unsure`, an outside action that
+ * may have happened already (`run_effect` found `started`).
+ */
+export const RUN_EVENT_TYPES = [
+  "step_started",
+  "step_done",
+  "tool",
+  "info",
+  "error",
+  "run_started",
+  "wait",
+  "woken",
+  "stopped",
+  "resumed",
+  "effect_unsure",
+] as const;
+export type RunEventType = (typeof RUN_EVENT_TYPES)[number];
+
 export interface RunEvent {
   id: number;
   at: string;
   stepId: string | null;
-  type: "step_started" | "step_done" | "tool" | "info" | "error";
+  type: RunEventType;
   /** In German, as the run's log keeps it. */
   message: string;
   /** The same as a note a runner shows in the person's language; null for free text. */
   note?: RunNote | null;
   /** A picture of the run this is about (a photo being looked at, an image just made). */
   asset?: string | null;
+}
+
+/** One run as its timeline in the runs panel shows it, for a member of the organization. */
+export interface RunTimeline {
+  id: string;
+  mode: "test" | "live";
+  status: RunStatus;
+  /** The wizard's `label`, filled from the run's answers; null without one. */
+  label: string | null;
+  version: number | null;
+  createdAt: string;
+  /** When a run that sleeps goes on, or until when one waits for a signal; null otherwise. */
+  wakeAt: string | null;
+  /** Why it sleeps, where that is no `wait` step. */
+  pause: RunPause["kind"] | null;
+  credits: number;
+  /** The step the run stands on; null at its end. */
+  stepTitle: string | null;
+  /** Who started it, as its log says; null: a visitor, or the one person of this computer. */
+  startedBy: string | null;
+  /** What it waits for while it waits for a signal: the name, and the key as this run filled it. */
+  signal: { name: string; key: string } | null;
+  /** The step it stands on is answered by the team. */
+  teamStep: boolean;
+  /** Whether the person looking may use "Continue now" and "Stop": the owner and the admins, on a test run whoever started it. */
+  canAct: boolean;
+  /** The steps of the definition the run started on, for their titles. */
+  steps: { id: string; title: string }[];
+  /** The newest lines of its log, oldest first. */
+  events: RunEvent[];
+  /** How many lines the log has, `events` or more. */
+  total: number;
 }
 
 /** One step's output as the current step shows it. */
@@ -1186,8 +1444,19 @@ export interface ShownStep {
 export interface RunView {
   id: string;
   status: RunStatus;
-  /** When a run that sleeps goes on; null otherwise. */
+  /** When a run that sleeps goes on, or until when one waits for a signal; null otherwise. */
   wakeAt: string | null;
+  /** Why it sleeps, where that is no `wait` step. */
+  pause: RunPause | null;
+  /** Who a run that waits for a signal waits to hear from; null otherwise. */
+  waitsFor: string | null;
+  /**
+   * This step is someone else's to answer, and whose: the viewer reads along and has nothing to
+   * answer. Null where the viewer may answer, or nothing waits for an answer.
+   */
+  answeredBy: "person" | "owner" | "team" | null;
+  /** This viewer started the run and the team has it now: they may take it back. */
+  canWithdraw?: boolean;
   mode: "test" | "live";
   wizard: Pick<WizardDefinition, "title" | "description" | "avatar" | "costume" | "intro">;
   /** The language the wizard speaks, by its code: what is read aloud, and in which voice. */
@@ -1205,8 +1474,24 @@ export interface RunView {
   /** Pages and reviews answered before it, oldest first: what a chat shows above the current step. */
   answered: Step[];
   values: Record<string, unknown>;
+  /**
+   * What was typed on the current page and not sent yet (`run.unsent`), for a viewer who may answer
+   * it: another tab or device starts the page from it.
+   */
+  unsent?: Record<string, unknown>;
+  /** Goes up with every write of the run's state and status: tells a late view from a new one. */
+  rev: number;
+  /**
+   * The plain pages the run can reach from here with no server, the current one included, each
+   * with where it goes and the progress bar on it (`nextInBrowser`). For a viewer who may answer.
+   */
+  ahead?: Record<string, AheadPage & { progress: RunView["progress"] }>;
+  /** The number of the last page sent with one (`RunState.pagesSent`): the next is one more. */
+  pagesSent?: number;
   /** What fields of the current page start with, from earlier steps (`prefill`). */
   prefill: Record<string, unknown>;
+  /** What the current page's `components` read besides its answers (`data`). */
+  pageData?: Record<string, unknown>;
   /** What the `when` of the current page's fields read from before the page, by reference. */
   known?: Record<string, unknown>;
   /** Choices of the current page's fields that come from earlier data (`optionsFrom`). */
@@ -1225,13 +1510,20 @@ export interface RunView {
   outputs: Record<string, StepOutput>;
   /** Steps whose outputs the current step shows, with their definitions. */
   shown: ShownStep[];
-  progress: { done: number; total: number };
+  progress: {
+    done: number;
+    total: number;
+    /** The wizard's parts, if it has any: the bar names them, `current` marked (-1: before the first). */
+    sections?: { names: string[]; current: number };
+  };
   canBack: boolean;
   error: string | null;
   events: RunEvent[];
   brand: BrandView;
   /** What the running step asks the person right now. */
   ask: RunAsk | null;
+  /** What a durable step asks while the run waits for the person; apart from `ask`, which needs a step at work. */
+  question: string | null;
   /** Stored lists the current step shows (a page's list fields, a review, the result). */
   lists: ShownList[];
   /** The wizard's connections with what the person has connected. */

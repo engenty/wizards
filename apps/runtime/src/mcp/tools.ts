@@ -1,5 +1,10 @@
 import type { StepWarning } from "@engenty/wizards-shared/connectors";
-import { DEFINITION_VERSION, upgradeDefinition } from "@engenty/wizards-shared/definition";
+import {
+  DEFINITION_VERSION,
+  signalNameSchema,
+  upgradeDefinition,
+} from "@engenty/wizards-shared/definition";
+import { describeStart, startInputSchema } from "@engenty/wizards-shared/starts";
 import type { CallToolResult, McpServer, ToolCallback } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { authoringGuide } from "../authoring/guide.js";
@@ -7,6 +12,7 @@ import { wizardOpSchema } from "../authoring/ops.js";
 import { importFromRegistry, listConnectors, searchRegistry } from "../connectors/external.js";
 import { guideSpaceConnections } from "../connectors/space-connections.js";
 import { RunConflict } from "../engine/runner.js";
+import { currentFeatures } from "../features.js";
 import { pluginToolsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
 import { publishAndSync, pushSharing } from "../services/cloud.js";
@@ -18,6 +24,7 @@ import { markAgent, presentIn } from "../services/presence.js";
 import {
   answerRunAsk,
   answerRunPage,
+  answerRunQuestion,
   controlRun,
   reviewRun,
   runReport,
@@ -25,7 +32,9 @@ import {
   startTestRun,
   testRunReport,
 } from "../services/runs.js";
+import { sendSignalForWizard } from "../services/signals.js";
 import { defaultSpace, listSpaces, ownedSpace } from "../services/spaces.js";
+import { listStarts, setStarts, withStartIds } from "../services/starts.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import {
   checkDraft,
@@ -302,6 +311,7 @@ export function registerTools(server: McpServer, who: Principal) {
         await listConnectors(space.id),
         await pluginToolsOf(who.tenantId),
         await guideSpaceConnections(space.id),
+        (await currentFeatures()).durableRuns,
       );
     },
   );
@@ -618,6 +628,43 @@ export function registerTools(server: McpServer, who: Principal) {
     },
   );
 
+  // --- starts: what begins a run without a person ---------------------------------
+  tool(
+    "list_starts",
+    "wizards:read",
+    {
+      title: "List starts",
+      description: prompt("mcp", "tool.list_starts"),
+      input: z.object({ wizardId: z.string() }),
+      readOnly: true,
+    },
+    async ({ wizardId }) => ({
+      starts: (await listStarts(who.userId, wizardId)).map((s) => ({
+        ...s,
+        text: describeStart(s, "en"),
+      })),
+    }),
+  );
+
+  tool(
+    "set_starts",
+    "wizards:publish",
+    {
+      title: "Set starts",
+      description: prompt("mcp", "tool.set_starts"),
+      input: z.object({
+        wizardId: z.string(),
+        starts: z.array(startInputSchema).max(20),
+      }),
+    },
+    async ({ wizardId, starts }) => ({
+      starts: (await setStarts(who.userId, wizardId, withStartIds(starts))).map((s) => ({
+        ...s,
+        text: describeStart(s, "en"),
+      })),
+    }),
+  );
+
   // --- test runs ---------------------------------------------------------------
   appTool(
     "start_test_run",
@@ -785,6 +832,11 @@ export function registerTools(server: McpServer, who: Principal) {
           z.object({
             type: z.literal("accept"),
             edits: z.record(z.string(), z.string()).optional(),
+            note: z.string().max(2000).optional(),
+          }),
+          z.object({
+            type: z.literal("decline").describe("Only when waitingFor.approve is true."),
+            note: z.string().max(2000).optional(),
           }),
           z.object({
             type: z.literal("regenerate"),
@@ -824,6 +876,22 @@ export function registerTools(server: McpServer, who: Principal) {
   );
 
   tool(
+    "answer_question",
+    "runs:test",
+    {
+      title: "Answer a step's question",
+      description: prompt("mcp", "tool.answer_question"),
+      input: z.object({ runId: z.string(), answer: z.string().min(1), waitSeconds }),
+      destructive: false,
+      openWorld: true,
+    },
+    async ({ runId, answer, waitSeconds }) => {
+      await answerRunQuestion(who.userId, runId, answer);
+      return runReport(who.userId, runId, waitSeconds);
+    },
+  );
+
+  tool(
     "control_run",
     "runs:test",
     {
@@ -837,6 +905,24 @@ export function registerTools(server: McpServer, who: Principal) {
       await controlRun(who.userId, runId, action);
       return runReport(who.userId, runId);
     },
+  );
+
+  tool(
+    "send_signal",
+    "runs:test",
+    {
+      title: "Send signal",
+      description: prompt("mcp", "tool.send_signal"),
+      input: z.object({
+        wizardId: z.string(),
+        name: signalNameSchema,
+        key: z.string().min(1).max(500),
+        data: z.record(z.string(), z.unknown()).optional(),
+        delivery: z.string().min(1).max(200).optional(),
+      }),
+      openWorld: true,
+    },
+    async ({ wizardId, ...signal }) => sendSignalForWizard(who.userId, wizardId, signal),
   );
 
   // --- workspace (widget code, libraries, reference data) --------------------

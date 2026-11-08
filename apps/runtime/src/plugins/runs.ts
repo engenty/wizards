@@ -1,13 +1,27 @@
 import { createHash } from "node:crypto";
 import type { PluginRunReport, PluginRunSignal, PluginRuns } from "@engenty/wizards/plugin";
-import { LANGS, type Lang, textLang, wizardLang } from "@engenty/wizards-shared/definition";
-import { noteText, type RunNote } from "@engenty/wizards-shared/run";
+import {
+  LANGS,
+  type Lang,
+  MESSAGE_SIGNAL,
+  textLang,
+  wizardLang,
+} from "@engenty/wizards-shared/definition";
+import { note, noteText, type RunNote } from "@engenty/wizards-shared/run";
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, schema, withTenant } from "../db/client.js";
+import {
+  answeringNarrowed,
+  doorCaller,
+  mayAct,
+  mayGoBackFrom,
+  mayWithdraw,
+} from "../engine/answerers.js";
 import { answerAsk } from "../engine/asks.js";
-import { watchRun } from "../engine/events.js";
+import { emitEvent, watchRun } from "../engine/events.js";
 import { fieldErrorsIn } from "../engine/input.js";
 import {
+  answerTurn,
   cancel,
   createRun,
   GuestBudgetError,
@@ -16,6 +30,7 @@ import {
   RunInputError,
   retry,
   reviewStep,
+  signalRun,
   submitPage,
 } from "../engine/runner.js";
 import { saveAsset } from "../files/storage.js";
@@ -27,7 +42,13 @@ import { uploadMime } from "../routes/delivery.js";
 import { runTicket } from "../secrets/signing.js";
 import { notFound, ServiceError } from "../services/errors.js";
 import { runnerSettingsOf, runnersOf } from "../services/runners.js";
-import { pluginRun, refusedInput, runReportOf, waitRun } from "../services/runs.js";
+import {
+  pluginAnswerableRun,
+  pluginRun,
+  refusedInput,
+  runReportOf,
+  waitRun,
+} from "../services/runs.js";
 import { shareUrl } from "../services/wizards.js";
 import { visitorOverLimit } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -109,13 +130,20 @@ export function runsApiFor(pluginId: string): PluginRuns {
       });
       const first = version.definition.steps[0];
       let refused: { field: string; message: string }[] | null = null;
-      if (first?.type === "page" && input.answers && Object.keys(input.answers).length) {
+      // A first page the team answers isn't filled by whoever starts the run.
+      const started = await pluginRun(runId);
+      if (
+        first?.type === "page" &&
+        input.answers &&
+        Object.keys(input.answers).length &&
+        (await mayAct(started, doorCaller(started)))
+      ) {
         const answers = input.answers;
         const values = Object.fromEntries(
           first.fields.filter((f) => f.id in answers).map((f) => [f.id, answers[f.id]]),
         );
         try {
-          await submitPage(runId, first.id, values);
+          await submitPage(runId, first.id, values, { visitorId });
         } catch (err) {
           if (!(err instanceof RunInputError)) {
             throw err;
@@ -127,7 +155,17 @@ export function runsApiFor(pluginId: string): PluginRuns {
     },
     async report(runId, options) {
       const run = await waitRun(() => pluginRun(runId), options?.waitSeconds ?? 0);
-      return (await runReportOf(run, options?.draft)) as PluginRunReport;
+      return (await runReportOf(run, options?.draft, doorCaller(run))) as PluginRunReport;
+    },
+    async message(runId, input) {
+      const run = await pluginRun(runId);
+      const sent = await signalRun(run.id, {
+        data: { text: input.text },
+        source: `plugin:${pluginId}`,
+        delivery: input.delivery,
+        only: MESSAGE_SIGNAL,
+      });
+      return sent ? { runs: sent.runs } : null;
     },
     async wizards(runner) {
       const rows = await db.query.wizard.findMany({
@@ -164,15 +202,15 @@ export function runsApiFor(pluginId: string): PluginRuns {
       });
     },
     async answerPage(runId, stepId, values) {
-      await pluginRun(runId);
-      await submitPage(runId, stepId, values).catch(refusedInput);
+      const run = await pluginAnswerableRun(runId);
+      await submitPage(runId, stepId, values, doorCaller(run)).catch(refusedInput);
     },
     async review(runId, stepId, action) {
-      await pluginRun(runId);
-      await reviewStep(runId, stepId, action).catch(refusedInput);
+      const run = await pluginAnswerableRun(runId);
+      await reviewStep(runId, stepId, action, doorCaller(run)).catch(refusedInput);
     },
     async answerAsk(runId, askId, answer) {
-      const run = await pluginRun(runId);
+      const run = await pluginAnswerableRun(runId);
       if (
         !(await answerAsk(runId, askId, answer === "allow" ? { type: "done" } : { type: "skip" }))
       ) {
@@ -182,8 +220,25 @@ export function runsApiFor(pluginId: string): PluginRuns {
         );
       }
     },
+    async answerQuestion(runId, answer) {
+      await pluginAnswerableRun(runId);
+      await answerTurn(runId, answer).catch(refusedInput);
+    },
     async control(runId, action) {
-      await pluginRun(runId);
+      const opened = await pluginRun(runId);
+      if (action === "cancel" && (await mayWithdraw(opened, doorCaller(opened)))) {
+        await emitEvent(runId, opened.cursor, "stopped", note("runWithdrawn"));
+        await cancel(runId).catch(refusedInput);
+        return;
+      }
+      const run = await pluginAnswerableRun(runId);
+      if (
+        action === "back" &&
+        (await answeringNarrowed()) &&
+        !mayGoBackFrom(run, doorCaller(run), [])
+      ) {
+        throw new ServiceError("forbidden", { code: "notYourStep" });
+      }
       const command = { back: goBack, retry, cancel }[action];
       await command(runId).catch(refusedInput);
     },
@@ -218,6 +273,10 @@ export function runsApiFor(pluginId: string): PluginRuns {
     },
     async handoffUrl(runId) {
       const run = await pluginRun(runId);
+      // The link answers as the run's person: a door hands on its own visitor's runs, nobody else's.
+      if ((await answeringNarrowed()) && !run.visitorId) {
+        throw new ServiceError("forbidden", { code: "notYourStep" });
+      }
       const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
       if (!w) {
         throw notFound();
@@ -225,7 +284,7 @@ export function runsApiFor(pluginId: string): PluginRuns {
       return `${shareUrl(w.shareToken)}/${run.id}?rt=${encodeURIComponent(runTicket(run.id))}`;
     },
     async upload(runId, file) {
-      await pluginRun(runId);
+      await pluginAnswerableRun(runId);
       // The type comes from the channel's sender: kept only when it is one a wizard takes.
       const checked = await checkUpload({
         name: file.name,
@@ -240,14 +299,14 @@ export function runsApiFor(pluginId: string): PluginRuns {
       return { assetId: asset.id };
     },
     async transcribe(runId, file) {
-      const run = await pluginRun(runId);
+      const run = await pluginAnswerableRun(runId);
       if (run.status === "done" || run.status === "cancelled" || run.status === "failed") {
         throw new ServiceError(
           "refused",
           noteText({ code: "runOver" }, wizardLang(run.definition)),
         );
       }
-      if (run.status === "sleeping") {
+      if (run.status === "sleeping" || run.status === "waiting_signal") {
         throw new ServiceError(
           "refused",
           noteText({ code: "runSleeps" }, wizardLang(run.definition)),

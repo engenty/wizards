@@ -1,10 +1,10 @@
-import { goesOnText, Markdown } from "@engenty/wizards-runner";
+import { goesOnText, Markdown, waitsSignalText } from "@engenty/wizards-runner";
 import {
   type EngentyCostume,
   slotText,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
-import type { RunTheme, RunView } from "@engenty/wizards-shared/run";
+import type { RunPause, RunTheme, RunView } from "@engenty/wizards-shared/run";
 import {
   App,
   applyHostFonts,
@@ -87,15 +87,24 @@ interface RunReport {
   runId: string;
   wizardId: string;
   mode: "test" | "live";
-  status: "running" | "waiting_input" | "sleeping" | "done" | "failed" | "cancelled";
+  status:
+    | "running"
+    | "waiting_input"
+    | "sleeping"
+    | "waiting_signal"
+    | "done"
+    | "failed"
+    | "cancelled";
   step: { id: string; type: string; title: string } | null;
   passed: string[];
   waitingFor?:
-    | { wait: string; title: string; until: string | null }
+    | { answeredBy: "person" | "owner" | "team"; title: string }
+    | { wait: string; title: string; until: string | null; pause?: RunPause }
     | { page: string; title: string; fields: RunField[] }
-    | { review: string; title: string; show: string[]; editable: boolean }
+    | { review: string; title: string; show: string[]; editable: boolean; approve?: boolean }
     | { ask: string; kind: "confirm"; reason: string; service: string; action: string }
-    | { ask: string; kind: "login"; reason: string; site: string };
+    | { ask: string; kind: "login"; reason: string; site: string }
+    | { question: string; title: string };
   error: string | null;
   credits: number;
   events: { step: string | null; type: string; message: string }[];
@@ -539,6 +548,35 @@ export class Fallback extends Component<
   }
 }
 
+/** What a step asks in words: the answer goes back through `answer_question`. */
+function QuestionForm({
+  question,
+  busy,
+  onAnswer,
+}: {
+  question: string;
+  busy: boolean;
+  onAnswer: (answer: string) => void;
+}) {
+  const [answer, setAnswer] = useState("");
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="font-medium text-[0.8125rem]">{question}</div>
+      <Textarea minRows={2} value={answer} onChange={(e) => setAnswer(e.target.value)} />
+      <div>
+        <Button
+          size="sm"
+          busy={busy}
+          disabled={!answer.trim()}
+          onClick={() => onAnswer(answer.trim())}
+        >
+          {t("question.send")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** The wizard as it greets a person on its own page, its flow one click away. */
 function WizardIntro({ view, onStart }: { view: FlowView; onStart: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
@@ -648,10 +686,20 @@ function RunPanel({
         {(last && eventText(last)) || t("run.working")}
       </p>
     );
+  } else if (waiting && "answeredBy" in waiting) {
+    body = (
+      <p className="text-[0.8125rem] text-ink-2">
+        {t(waiting.answeredBy === "team" ? "run.answeredByTeam" : "run.answeredByOther")}
+      </p>
+    );
   } else if (waiting && "wait" in waiting) {
     body = (
       <div className="flex flex-col items-start gap-1">
-        <p className="text-[0.8125rem] text-ink-2">{goesOnText(waiting.until)}</p>
+        <p className="text-[0.8125rem] text-ink-2">
+          {report.status === "waiting_signal"
+            ? waitsSignalText(null, waiting.until)
+            : goesOnText(waiting.until, waiting.pause)}
+        </p>
         <p className="text-[0.8125rem] text-ink-3">{t("run.leavePage")}</p>
       </div>
     );
@@ -671,7 +719,11 @@ function RunPanel({
         outputs={report.outputs.filter((o) => waiting.show.includes(o.stepId))}
         targets={waiting.show}
         busy={busy}
+        approve={Boolean(waiting.approve)}
         onAccept={() => act("review_step", { stepId: waiting.review, action: { type: "accept" } })}
+        onDecline={() =>
+          act("review_step", { stepId: waiting.review, action: { type: "decline" } })
+        }
         onRegenerate={(target, note) =>
           act("review_step", {
             stepId: waiting.review,
@@ -679,6 +731,15 @@ function RunPanel({
           })
         }
         open={open}
+      />
+    );
+  } else if (waiting && "question" in waiting) {
+    body = (
+      <QuestionForm
+        key={waiting.question}
+        question={waiting.question}
+        busy={busy}
+        onAnswer={(answer) => act("answer_question", { answer, waitSeconds: 3 })}
       />
     );
   } else if (waiting && "ask" in waiting) {
@@ -950,14 +1011,18 @@ function Review({
   outputs,
   targets,
   busy,
+  approve,
   onAccept,
+  onDecline,
   onRegenerate,
   open,
 }: {
   outputs: RunOutput[];
   targets: string[];
   busy: boolean;
+  approve: boolean;
   onAccept: () => void;
+  onDecline: () => void;
   onRegenerate: (target: string, note: string) => void;
   open: (url: string) => void;
 }) {
@@ -982,8 +1047,13 @@ function Review({
         />
         <div className="flex gap-2">
           <Button busy={busy} onClick={onAccept}>
-            {t("run.accept")}
+            {t(approve ? "run.approve" : "run.accept")}
           </Button>
+          {approve ? (
+            <Button variant="secondary" busy={busy} onClick={onDecline}>
+              {t("run.decline")}
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             disabled={busy || !note.trim() || !target}

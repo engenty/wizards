@@ -1,7 +1,7 @@
 import { AsyncResource } from "node:async_hooks";
 import { EventEmitter } from "node:events";
-import { noteText, type RunEvent, type RunNote } from "@engenty/wizards-shared/run";
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { note as noted, noteText, type RunEvent, type RunNote } from "@engenty/wizards-shared/run";
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 
 const bus = new EventEmitter();
@@ -42,6 +42,26 @@ export async function emitEvent(
   bus.emit(runId, { runId, event } satisfies RunSignal);
 }
 
+/**
+ * What a run says when `run_effect` finds an outside action `started`: it may have happened, and
+ * nothing repeats it by itself. `to`: who a mail went to, when the action sends one. The check in
+ * `brokerCall` (broker/effect.ts) calls this.
+ */
+export async function effectUnsure(
+  runId: string,
+  stepId: string,
+  action: { tool: string; to?: string },
+): Promise<void> {
+  await emitEvent(
+    runId,
+    stepId,
+    "effect_unsure",
+    action.to
+      ? noted("effectMailMayBeSent", { to: action.to })
+      : noted("effectMayHaveHappened", { what: action.tool }),
+  );
+}
+
 export function signalChanged(runId: string) {
   bus.emit(runId, { runId, event: null } satisfies RunSignal);
 }
@@ -55,6 +75,13 @@ export function subscribe(runId: string, listener: (signal: RunSignal) => void):
 
 /** How often a watcher looks at the row for what another process changed. */
 const WATCH_POLL_MS = 1000;
+/**
+ * While the run changed a moment ago, more often: an answer just handed it to a runner (another
+ * process), whose next write the person is waiting for.
+ */
+const WATCH_HOT_MS = 100;
+/** How long after a change the watcher keeps looking often. */
+const WATCH_HOT_FOR_MS = 15_000;
 
 /**
  * Tells of every change on a run: at once when this process made it, within a second when the
@@ -65,7 +92,13 @@ const WATCH_POLL_MS = 1000;
 export function watchRun(runId: string, listener: (signal: RunSignal) => void): () => void {
   /** The newest event the listener has had; null until the first look. */
   let told: number | null = null;
+  // When the row last changed, as the last look saw it or this process did it: a run at work is
+  // looked at often.
+  let changedAt = 0;
+  let lookedAt = 0;
   const unsubscribe = subscribe(runId, (signal) => {
+    // This process changed the run (an answer that handed it to a runner): look often from now.
+    changedAt = Date.now();
     if (signal.event) {
       if (told !== null && signal.event.id <= told) {
         return;
@@ -77,9 +110,12 @@ export function watchRun(runId: string, listener: (signal: RunSignal) => void): 
   let last: string | null = null;
   let busy = false;
   const look = async () => {
-    if (busy) {
+    const now = Date.now();
+    const hot = now - changedAt < WATCH_HOT_FOR_MS;
+    if (busy || now - lookedAt < (hot ? WATCH_HOT_MS : WATCH_POLL_MS) - 20) {
       return;
     }
+    lookedAt = now;
     busy = true;
     try {
       const [row] = await db
@@ -106,6 +142,7 @@ export function watchRun(runId: string, listener: (signal: RunSignal) => void): 
           }
         }
       }
+      changedAt = Math.max(changedAt, row?.updatedAt.getTime() ?? 0);
       const mark = row ? `${row.updatedAt.getTime()}:${row.call ?? 0}` : null;
       if (last !== null && mark !== last) {
         listener({ runId, event: null });
@@ -117,13 +154,54 @@ export function watchRun(runId: string, listener: (signal: RunSignal) => void): 
       busy = false;
     }
   };
-  const timer = setInterval(() => void look(), WATCH_POLL_MS);
+  const timer = setInterval(() => void look(), WATCH_HOT_MS);
   timer.unref();
   void look();
   return () => {
     clearInterval(timer);
     unsubscribe();
   };
+}
+
+/**
+ * The newest line of this type since `stepId` last started, if the visit has one: what a step
+ * already said when a takeover or a second wake comes back to it.
+ */
+export async function saidInVisit(
+  runId: string,
+  stepId: string,
+  type: RunEvent["type"],
+): Promise<typeof schema.runEvent.$inferSelect | null> {
+  const [last] = await db
+    .select()
+    .from(schema.runEvent)
+    .where(
+      and(
+        eq(schema.runEvent.runId, runId),
+        eq(schema.runEvent.stepId, stepId),
+        inArray(schema.runEvent.type, [type, "step_started"]),
+      ),
+    )
+    .orderBy(desc(schema.runEvent.id))
+    .limit(1);
+  return last?.type === type ? last : null;
+}
+
+/** The step's last visit started and has not ended: nothing finished or failed since. */
+export async function visitLeftOpen(runId: string, stepId: string): Promise<boolean> {
+  const [last] = await db
+    .select({ type: schema.runEvent.type })
+    .from(schema.runEvent)
+    .where(
+      and(
+        eq(schema.runEvent.runId, runId),
+        eq(schema.runEvent.stepId, stepId),
+        inArray(schema.runEvent.type, ["step_started", "step_done", "error"]),
+      ),
+    )
+    .orderBy(desc(schema.runEvent.id))
+    .limit(1);
+  return last?.type === "step_started";
 }
 
 export async function recentEvents(runId: string, afterId = 0, limit = 40): Promise<RunEvent[]> {

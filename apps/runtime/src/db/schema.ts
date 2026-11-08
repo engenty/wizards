@@ -7,10 +7,17 @@ import {
   CONNECTION_AUDIENCES,
   CONNECTION_SIGN_INS,
   type ConnectionRules,
+  MAILBOX_ERRORS,
 } from "@engenty/wizards-shared/connectors";
 import { upgradeDefinition, type WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
-import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
+import {
+  type AskAnswer,
+  RUN_EVENT_TYPES,
+  type RunAsk,
+  type RunNote,
+  type RunState,
+} from "@engenty/wizards-shared/run";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import { RWX_FLAGS, RWX_RESOURCE_KINDS, RWX_SUBJECT_KINDS } from "@engenty/wizards-shared/rwx";
 import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty/wizards-shared/sharing";
@@ -36,6 +43,7 @@ import type {
   TextStyle,
   VoiceBlock,
 } from "@engenty/wizards-shared/spaces";
+import type { StartedBy, WizardStart } from "@engenty/wizards-shared/starts";
 import type { Theme } from "@engenty/wizards-shared/theme";
 import type { TranslationMemory } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
@@ -219,6 +227,20 @@ export const wizard = sqliteTable(
     runners: text("runners", { mode: "json" }).$type<RunnerSettings>(),
     /** The wizard's page offers it in the viewer's language, translated on request. */
     translate: integer("translate", { mode: "boolean" }).notNull().default(true),
+    /** The token of its address for signals from other services; null: it has none. */
+    signalToken: text("signal_token"),
+    /** With it, sealed: a call counts only when signed with this secret. */
+    signalSecret: text("signal_secret"),
+    /** What begins a run without a person: schedules, addresses, rows, other wizards. */
+    starts: text("starts", { mode: "json" }).$type<WizardStart[]>().notNull().default([]),
+    /**
+     * Who answers steps with `who: "team"`: people by id, or "admins". Empty: nobody is named, and
+     * the admins answer. This install's data: a `.wizard` file carries the role, never the people.
+     */
+    answerers: text("answerers", { mode: "json" })
+      .$type<string[] | "admins">()
+      .notNull()
+      .default([]),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -321,6 +343,10 @@ export const run = sqliteTable(
     mode: text("mode", { enum: ["test", "live"] }).notNull(),
     /** The door the run came through: steps, chat, or a plugin's runner. Null: the page. */
     runner: text("runner"),
+    /** What began the run without a person: one of the wizard's starts. Null: a person did. */
+    startedBy: text("started_by", { mode: "json" }).$type<StartedBy | null>(),
+    /** Which time of its start began the run: unique per wizard, so a time starts one run. */
+    occurrence: text("occurrence"),
     /** The language the viewer reads the wizard in, translated on request; null: its own. */
     lang: text("lang"),
     visitorId: text("visitor_id"),
@@ -336,16 +362,36 @@ export const run = sqliteTable(
     /** The client that started it over the public API (`x-wizards-client`): web, app, cli, or a registered id. */
     client: text("client"),
     status: text("status", {
-      enum: ["waiting_input", "sleeping", "running", "done", "failed", "cancelled"],
+      enum: [
+        "waiting_input",
+        "sleeping",
+        "waiting_signal",
+        "running",
+        "done",
+        "failed",
+        "cancelled",
+      ],
     }).notNull(),
     /** When a run that sleeps goes on; null: nothing due. The clock reads a copy (`run_index.wake_at`). */
     wakeAt: integer("wake_at", { mode: "timestamp_ms" }),
     cursor: text("cursor"),
     state: text("state", { mode: "json" }).$type<RunState>().notNull(),
+    /**
+     * Answers typed on a page and not sent yet, by page. No part of `state`, and no `rev`: typing
+     * never makes an answer or a drive fail, and no step reads it (docs/plans/fast-creation.md).
+     */
+    unsent: text("unsent", { mode: "json" }).$type<Record<string, Record<string, unknown>>>(),
     /** The claim of the runner driving the run (`run_index.generation`), only ever upward. */
     claim: integer("claim").notNull().default(0),
     /** Counts the writes of `state` and `status`: a person's write needs the number it read. */
     rev: integer("rev").notNull().default(0),
+    /**
+     * A drive works on the run and has not reached a rest. One that finds this set on a run at work
+     * goes on after an interruption, a crash or a deploy (`durableRuns`).
+     */
+    driving: integer("driving", { mode: "boolean" }).notNull().default(false),
+    /** The wizard's `label`, filled from the run's answers; null without one, or before any. */
+    label: text("label"),
     error: text("error"),
     /** What a running step is asking the person right now (a login, a code); null = nothing. */
     ask: text("ask", { mode: "json" }).$type<RunAsk | null>(),
@@ -385,11 +431,58 @@ export const run = sqliteTable(
   },
   (t) => [
     uniqueIndex("run_share_token").on(t.shareToken),
+    uniqueIndex("run_occurrence").on(t.wizardId, t.occurrence),
     index("run_expires").on(t.expiresAt),
     index("run_wizard").on(t.wizardId, t.createdAt),
     index("run_visitor").on(t.visitorId, t.createdAt),
     index("run_status").on(t.status),
     index("run_client_space").on(t.clientSpaceId, t.createdAt),
+  ],
+);
+
+/**
+ * A word to a person about a run: it waits for them, it is done, it failed, its start was paused.
+ * The row is written with the status change and is the outbox: a sender tick delivers it
+ * (engine/notices.ts). The studio's bell reads the rows that are `shown`.
+ */
+export const notice = sqliteTable(
+  "notice",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    kind: text("kind", { enum: ["needs_you", "reminder", "done", "failed", "paused"] }).notNull(),
+    wizardId: text("wizard_id")
+      .notNull()
+      .references(() => wizard.id, { onDelete: "cascade" }),
+    runId: text("run_id").references(() => run.id, { onDelete: "cascade" }),
+    startId: text("start_id"),
+    /** A line of detail in the wizard's language: the page that waits, the error. */
+    detail: text("detail"),
+    /** The member it is for; null: anyone in the studio (a paused start, a computer's one person). */
+    userId: text("user_id"),
+    /** For the run's visitor: no bell, only their mail and device. */
+    visitor: integer("visitor", { mode: "boolean" }).notNull().default(false),
+    /** What a `needs_you` or `reminder` waits on: `step:<id>` or `ask:<id>`. Once over, nobody is told. */
+    waitKey: text("wait_key"),
+    /** The bell shows it. False until the sender knows nobody is looking at the run. */
+    shown: integer("shown", { mode: "boolean" }).notNull().default(true),
+    /** When the sender looks at it next; null: nothing left to deliver. */
+    dueAt: integer("due_at", { mode: "timestamp_ms" }),
+    /** A sender holds it until then; one that died lets go by itself. */
+    claimUntil: integer("claim_until", { mode: "timestamp_ms" }),
+    /** Failed deliveries so far. */
+    attempts: integer("attempts").notNull().default(0),
+    /** Push is dealt with, sent or not needed. */
+    pushedAt: integer("pushed_at", { mode: "timestamp_ms" }),
+    /** Mail is dealt with, sent or not needed. */
+    mailedAt: integer("mailed_at", { mode: "timestamp_ms" }),
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("notice_tenant_at").on(t.tenantId, t.createdAt),
+    index("notice_due").on(t.dueAt),
+    index("notice_run").on(t.runId),
   ],
 );
 
@@ -401,7 +494,7 @@ export const runEvent = sqliteTable(
       .notNull()
       .references(() => run.id, { onDelete: "cascade" }),
     stepId: text("step_id"),
-    type: text("type", { enum: ["step_started", "step_done", "tool", "info", "error"] }).notNull(),
+    type: text("type", { enum: RUN_EVENT_TYPES }).notNull(),
     message: text("message").notNull(),
     /** The message as a note of `RUN_NOTES`, for a runner in another language. */
     note: text("note", { mode: "json" }).$type<RunNote>(),
@@ -1436,27 +1529,30 @@ export const chatState = sqliteTable(
 );
 
 /**
- * A call of a tool that reaches past the space, held for a person's approval (Work chats, step 3
- * piece 4). Approve runs the stored call once with the stored arguments; Deny doesn't. Either way
- * the AI hears of it in the chat and goes on.
+ * Something held for a person's decision. In a Work chat a call of a tool that reaches past the
+ * space (`chat_id`): approve runs the stored call once with the stored arguments, deny doesn't, and
+ * either way the AI hears of it. In a run a review with `approve` (`run_id`, `step_id`): the first
+ * decision counts, and `next` rules read it.
  */
-export const chatApproval = sqliteTable(
-  "chat_approval",
+export const approval = sqliteTable(
+  "approval",
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    chatId: text("chat_id")
-      .notNull()
-      .references(() => chat.id, { onDelete: "cascade" }),
+    chatId: text("chat_id").references(() => chat.id, { onDelete: "cascade" }),
+    runId: text("run_id").references(() => run.id, { onDelete: "cascade" }),
+    stepId: text("step_id"),
+    /** What is held: a tool's name, or the review's title. */
     toolName: text("tool_name").notNull(),
     input: text("input", { mode: "json" }).$type<unknown>(),
-    /** Who the turn was for: the call runs with their access, and they may decide. */
+    /** Who the turn was for: the call runs with their access, and they may decide. Empty in a run. */
     askedBy: text("asked_by").notNull(),
     /**
-     * Whose decision it waits for: the asker's (a confirmed action, a plugin's tool), or the
-     * space's admins' („Mit Freigabe“ on a connection that signs in as the space, A7).
+     * Whose decision it waits for: the asker's (a confirmed action, a plugin's tool), the space's
+     * admins' („Mit Freigabe“ on a connection that signs in as the space, A7), or those named under
+     * "Answered by" (a run's review).
      */
-    heldFor: text("held_for", { enum: ["asker", "admins"] })
+    heldFor: text("held_for", { enum: ["asker", "admins", "team"] })
       .notNull()
       .default("asker"),
     state: text("state", { enum: ["pending", "approved", "denied", "failed"] })
@@ -1468,8 +1564,9 @@ export const chatApproval = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [
-    index("chat_approval_chat").on(t.chatId, t.createdAt),
-    index("chat_approval_state").on(t.tenantId, t.state),
+    index("approval_chat").on(t.chatId, t.createdAt),
+    index("approval_state").on(t.tenantId, t.state),
+    index("approval_run").on(t.runId, t.stepId),
   ],
 );
 
@@ -1592,6 +1689,13 @@ export const spaceConnection = sqliteTable(
     actions: text("actions", { mode: "json" }).$type<string[]>().notNull().default([]),
     /** A `space` sign-in's tokens or keys, sealed; the broker alone unseals them. */
     secret: text("secret"),
+    /**
+     * How far the runtime may use the account for nobody in particular. `read_only`: an admin
+     * agreed that its mailbox is read while a run waits for mail. Off until then.
+     */
+    autonomousMode: text("autonomous_mode", { enum: ["off", "read_only", "full"] })
+      .notNull()
+      .default("off"),
     setUpBy: text("set_up_by"),
     setUpAt: integer("set_up_at", { mode: "timestamp_ms" }).notNull().default(now),
     updatedAt: updatedAt(),
@@ -1607,6 +1711,28 @@ export const spaceConnection = sqliteTable(
   },
   (t) => [index("space_connection_space").on(t.spaceId)],
 );
+
+/**
+ * How far a mailbox was read (`engine/mail-watch.ts`), one row per connection that an admin
+ * switched on. Goes when the switch goes off or another account signs in.
+ */
+export const mailCursor = sqliteTable("mail_cursor", {
+  connectionId: text("connection_id")
+    .primaryKey()
+    .references(() => spaceConnection.id, { onDelete: "cascade" }),
+  /** The provider's own place in the mailbox; null: from `since`. */
+  cursor: text("cursor"),
+  /** When it was switched on: mail from before that is not the runtime's to read. */
+  since: integer("since", { mode: "timestamp_ms" }).notNull(),
+  /** Not read again before this: another runner has it, or the last try failed. */
+  nextAt: integer("next_at", { mode: "timestamp_ms" }),
+  /** When it was last read. */
+  readAt: integer("read_at", { mode: "timestamp_ms" }),
+  /** Why the last try failed, one of `MAILBOX_ERRORS`. */
+  error: text("error", { enum: MAILBOX_ERRORS }),
+  /** Tries that failed in a row: each waits longer. */
+  failures: integer("failures").notNull().default(0),
+});
 
 /** A person's own sign-in to a connection in which each person signs in. `secret` is sealed. */
 export const spaceConnectionSignIn = sqliteTable(
@@ -1638,7 +1764,7 @@ export const brokerLog = sqliteTable(
     id: text("id").primaryKey(),
     at: integer("at", { mode: "timestamp_ms" }).notNull(),
     durationMs: integer("duration_ms").notNull(),
-    /** guest, person, admin, goose, plugin, step. */
+    /** guest, person, admin, goose, plugin, step, runtime. */
     whoKind: text("who_kind").notNull(),
     whoId: text("who_id"),
     runId: text("run_id"),
@@ -1828,4 +1954,71 @@ export const syncMerge = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index("sync_merge_item").on(t.kind, t.item, t.createdAt)],
+);
+
+/**
+ * What a run did outside, by the call that asked for it (broker/effect.ts): a call found `done`
+ * answers with its output and does not act again, one found `started` may have happened.
+ */
+export const runEffect = sqliteTable(
+  "run_effect",
+  {
+    /** `<turn>:<toolCallId>`, or `<run>:<step>:<visit>` where no tool call asks. */
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    stepId: text("step_id").notNull(),
+    /** What acted: `<connection>:<action>`, or `host:<name>`. */
+    tool: text("tool").notNull(),
+    state: text("state", { enum: ["started", "done", "failed"] }).notNull(),
+    output: text("output", { mode: "json" }).$type<unknown>(),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("run_effect_run").on(t.runId)],
+);
+
+/**
+ * Something that arrived for runs to wait for: written first, then matched, so one that comes
+ * before the wait is not lost and nothing depends on a process being up. Kept 30 days.
+ */
+export const runSignal = sqliteTable(
+  "run_signal",
+  {
+    id: text("id").primaryKey(),
+    spaceId: text("space_id").notNull(),
+    /** Who it may wake: `space` (sent from inside), `wizard:<id>` (its token), `run:<id>` (that run). */
+    scope: text("scope").notNull(),
+    name: text("name").notNull(),
+    key: text("key").notNull(),
+    /** One delivery, one signal: the same one sent again answers what it answered first. */
+    delivery: text("delivery").notNull(),
+    data: text("data", { mode: "json" }).$type<Record<string, unknown>>(),
+    source: text("source").notNull(),
+    /** How many runs it woke; null until that is done. */
+    runs: integer("runs"),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("run_signal_delivery").on(t.spaceId, t.scope, t.name, t.key, t.delivery),
+    index("run_signal_match").on(t.spaceId, t.name, t.key, t.at),
+    index("run_signal_at").on(t.at),
+  ],
+);
+
+/** A run that waits for a signal: written before the run looks for one, so neither misses the other. */
+export const runWait = sqliteTable(
+  "run_wait",
+  {
+    runId: text("run_id")
+      .primaryKey()
+      .references(() => run.id, { onDelete: "cascade" }),
+    wizardId: text("wizard_id").notNull(),
+    spaceId: text("space_id").notNull(),
+    name: text("name").notNull(),
+    key: text("key").notNull(),
+    fields: text("fields", { mode: "json" }).$type<string[]>(),
+    since: integer("since", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("run_wait_match").on(t.spaceId, t.name, t.key)],
 );

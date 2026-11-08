@@ -1,4 +1,4 @@
-import { goesOnText } from "@engenty/wizards-runner";
+import { goesOnText, waitsSignalText } from "@engenty/wizards-runner";
 import { type ModelClass, TEXT_CLASSES } from "@engenty/wizards-shared/definition";
 import type { MissingModel, RunView } from "@engenty/wizards-shared/run";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -323,6 +323,7 @@ export function EditorPage() {
 
 function Editor() {
   const account = useFeature("account");
+  const startsOn = useFeature("startTriggers");
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -414,6 +415,7 @@ function Editor() {
     const failed = runView.status === "failed";
     const waiting = runView.status === "waiting_input";
     const sleeping = runView.status === "sleeping";
+    const listening = runView.status === "waiting_signal";
     const mine = runView.events.filter((ev) => ev.stepId === step.id).reverse();
     const started = mine.find((ev) => ev.type === "step_started");
     const latest = mine.find((ev) => ev.type !== "step_done");
@@ -423,12 +425,14 @@ function Editor() {
       text: failed
         ? (runView.error ?? said)
         : sleeping
-          ? goesOnText(runView.wakeAt)
-          : waiting
-            ? t("editor.waitsForInput")
-            : said,
+          ? goesOnText(runView.wakeAt, runView.pause)
+          : listening
+            ? waitsSignalText(runView.waitsFor, runView.wakeAt)
+            : waiting
+              ? t("editor.waitsForInput")
+              : said,
       since:
-        failed || waiting || sleeping
+        failed || waiting || sleeping || listening
           ? null
           : started
             ? new Date(started.at).getTime()
@@ -843,6 +847,7 @@ function Editor() {
           fitKey={`${columnBeside}:${shownView}:${columnBeside ? columnPane.width : 0}`}
           pulse={remote?.steps}
           wizardId={w.id}
+          starts={startsOn ? w.starts.filter((x) => x.on).length : 0}
           decisions={shownDecisions}
           onBranch={(sid) => {
             select(sid);
@@ -850,6 +855,7 @@ function Editor() {
           }}
           adding={adding}
           onInsert={w.readOnly || adding ? undefined : openInsert}
+          preparing={chat.preparing}
         />
       )}
     </div>
@@ -1222,7 +1228,7 @@ function Editor() {
                     readOnly={w.readOnly}
                   />
                 ) : (
-                  <RunsPanel wizardId={w.id} onOpen={openRun} />
+                  <RunsPanel wizardId={w.id} starts={w.starts} onOpen={openRun} />
                 )}
               </div>
             </div>

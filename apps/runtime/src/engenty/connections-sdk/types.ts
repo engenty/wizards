@@ -58,6 +58,11 @@ export interface ConnectorActionContext {
   connection: ConnectionSummary;
   /** fetch bound to nothing — actions build their own provider requests. */
   fetchImpl: typeof fetch;
+  /**
+   * The same on every attempt at one action of a run (the broker's `run_effect` id). A service
+   * that takes a key of its own gets it, so a repeat it sees changes nothing.
+   */
+  idempotencyKey?: string;
   log: (msg: string, data?: Record<string, unknown>) => void;
 }
 
@@ -198,11 +203,17 @@ export interface InboundMessageAttachment {
  */
 export interface InboundMessage {
   attachments: InboundMessageAttachment[];
+  /** The provider checked the sender (SPF, DMARC) and it failed: `From` may be forged. */
+  sender_failed_checks?: boolean;
+  /** An out-of-office answer or a bounce: a machine answered, not the person. */
+  auto_reply?: boolean;
   body_html: string | null;
   body_text: string | null;
   cc: string[];
   from_email: string | null;
   from_name: string | null;
+  /** The mailbox's own: it sent this mail, nobody sent it to the mailbox. */
+  outgoing?: boolean;
   provider_message_id: string;
   provider_thread_id: string | null;
   received_at: string | null;
@@ -226,13 +237,15 @@ export interface StreamPullResult {
 
 /**
  * Connector-side stream capability: how to pull normalized inbound items.
- * Exposed ONLY through the module consumption API (`client.pullStream`) —
- * never as an agent tool; consent requires `autonomous_mode ≥ read_only`.
+ * Exposed ONLY through the broker (`brokerPullStream`) — never as an agent
+ * tool; consent requires `autonomous_mode ≥ read_only`.
  */
 export interface ConnectorStreamCapability {
   /** Envelope discriminator; more kinds later. */
   kind: "messages";
   pull(ctx: StreamPullCtx, cursor: string | null): Promise<StreamPullResult>;
+  /** One message by its provider id; null when it is gone. */
+  read?(ctx: StreamPullCtx, message: string): Promise<InboundMessage | null>;
 }
 
 /**

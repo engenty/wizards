@@ -11,7 +11,7 @@ export async function forgetWizardLinks(wizardId: string) {
     .from(schema.run)
     .where(eq(schema.run.wizardId, wizardId));
   await dropLinks([
-    ...(w ? [w.shareToken] : []),
+    ...(w ? [w.shareToken, ...(w.signalToken ? [w.signalToken] : [])] : []),
     ...runs.map((r) => r.shareToken).filter((t): t is string => Boolean(t)),
   ]);
   await dropRuns(runs.map((r) => r.id));

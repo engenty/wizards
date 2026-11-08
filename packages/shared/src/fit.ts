@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import {
   type AssetKind,
-  conditionsOf,
   dataRef,
   type FieldKind,
   type Format,
@@ -15,6 +14,7 @@ import {
   type ToolId,
   templateRefs,
   type WizardDefinition,
+  whenNames,
 } from "./definition.js";
 import type { ClosedChoice } from "./run.js";
 
@@ -103,6 +103,8 @@ function templatesOf(step: Step): string[] {
     case "widget":
     case "surface":
       return Object.values(step.data).map((ref) => `{{${dataRef(ref)}}}`);
+    case "page":
+      return Object.values(step.data ?? {}).map((ref) => `{{${dataRef(ref)}}}`);
     default:
       return [];
   }
@@ -140,6 +142,13 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
   }
   switch (step.type) {
     case "page":
+      // A deadline needs a server that stays.
+      if (step.timeout || step.remind) {
+        add("wait", true);
+      }
+      if (Object.values(step.data ?? {}).some((ref) => listRef(dataRef(ref)))) {
+        add("lists", true);
+      }
       for (const field of step.fields) {
         switch (field.kind) {
           case "audio":
@@ -229,6 +238,10 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
     case "review":
       if (step.show.some((ref) => listRef(ref))) {
         add("lists", true);
+      }
+      // A deadline needs a server that stays, and an approval a way past "Looks good".
+      if (step.timeout || step.remind || step.approve) {
+        add("wait", true);
       }
       break;
     case "result":
@@ -393,7 +406,7 @@ export function unavoidableFrom(
         continue;
       }
       const target = rule.goto === "end" ? def.steps.length : (index.get(rule.goto) ?? -1);
-      if (rule.ask || !conditionsOf(rule.when).every((c) => c.field in known)) {
+      if (rule.ask || !whenNames(rule.when).every((name) => name in known)) {
         if (target >= 0) {
           out.push(target);
         }

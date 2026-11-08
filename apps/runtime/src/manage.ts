@@ -781,6 +781,25 @@ export function pushToDevice(input: {
   return call<{ ok: boolean }>("POST", "/v1/push", input);
 }
 
+/** What a run mail says: that a run waits or ended, and the link. Never an answer or a result. */
+export interface RunMail {
+  kind: "waiting" | "done" | "failed";
+  wizard: string;
+  url: string;
+  lang: Lang;
+  /** The same key is one mail, also when a sender tries again. */
+  key: string;
+  /** A member asked to answer a run someone else started: the mail says so, not that they started it. */
+  asked?: boolean;
+}
+
+/** A mail about a run, in the account's look; the Manage-App keeps the limit and who unsubscribed. */
+export function runMail(
+  input: RunMail & { tenantId: string; to: { userId: string } | { email: string } },
+) {
+  return call<{ ok: boolean; sent: boolean }>("POST", "/v1/run-mail", input);
+}
+
 // --- token endpoint ----------------------------------------------------------
 
 export interface TokenSet {

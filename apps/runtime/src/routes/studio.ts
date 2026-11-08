@@ -68,6 +68,7 @@ import {
 import { reloadConnector } from "../connectors/reload.js";
 import { balanceCredits, canSpend } from "../credits/credits.js";
 import { estimateRun } from "../credits/estimate.js";
+import { listNotices, markNoticesRead } from "../engine/notices.js";
 import { missingModels, stepsWithoutModel } from "../engine/requirements.js";
 import { env } from "../env.js";
 import { feature, features, forgetAccountFeatures } from "../features.js";
@@ -151,7 +152,7 @@ import {
   requireWritable,
   spaceWritable,
 } from "../services/access.js";
-import { architectTurn } from "../services/architect.js";
+import { architectTurn, fastCreateFor, fastCreateTurn } from "../services/architect.js";
 import {
   addMessage,
   assistantLayout,
@@ -217,6 +218,13 @@ import {
 import { runnersOf, wizardRunners } from "../services/runners.js";
 import { draftStepView, listResults, listRuns, startTestRun } from "../services/runs.js";
 import {
+  dropSignalAddress,
+  makeSignalAddress,
+  sendTestSignal,
+  signalAddress,
+  wizardMailboxes,
+} from "../services/signals.js";
+import {
   addCategoryValue,
   categoryRow,
   categoryValue,
@@ -281,6 +289,7 @@ import {
   spacePatchSchema,
   updateSpace,
 } from "../services/spaces.js";
+import { listStarts, runStartNow, setStarts } from "../services/starts.js";
 import { deleteTheme, listThemes, saveTheme } from "../services/themes.js";
 import {
   deleteTranslation,
@@ -297,6 +306,7 @@ import {
   hasWizards,
   ownedWizard,
   rotateShareLink,
+  setAnswerers,
   updateWizardSettings,
   writableWizard,
   writeDraft,
@@ -1628,6 +1638,14 @@ export const studio = new Hono<Vars>()
     );
     return c.json({ ok: true, revision, issues, warnings });
   })
+  .put("/wizards/:id/answerers", async (c) => {
+    const { answerers } = z
+      .object({
+        answerers: z.union([z.literal("admins"), z.array(z.string().min(1).max(120)).max(100)]),
+      })
+      .parse(await c.req.json());
+    return c.json(await setAnswerers(c.get("user").id, c.req.param("id"), answerers));
+  })
   .patch("/wizards/:id", async (c) => {
     const patch = z
       .object({
@@ -1686,6 +1704,24 @@ export const studio = new Hono<Vars>()
     const cloud = managed ? null : await rotateInCloud(c.get("user").id, c.req.param("id"));
     return c.json({ ...rotated, cloud });
   })
+  // The wizard's address for signals from other services; its token and secret are said only here.
+  .get("/wizards/:id/signal-address", async (c) =>
+    c.json(await signalAddress(c.get("user").id, c.req.param("id"))),
+  )
+  .post("/wizards/:id/signal-address", async (c) => {
+    const { signed } = z.object({ signed: z.boolean() }).parse(await c.req.json());
+    return c.json(await makeSignalAddress(c.get("user").id, c.req.param("id"), { signed }));
+  })
+  .delete("/wizards/:id/signal-address", async (c) => {
+    await dropSignalAddress(c.get("user").id, c.req.param("id"));
+    return c.json({ ok: true });
+  })
+  .get("/wizards/:id/mailboxes", async (c) =>
+    c.json(await wizardMailboxes(c.get("user"), c.req.param("id"))),
+  )
+  .post("/wizards/:id/runs/:runId/test-signal", async (c) =>
+    c.json(await sendTestSignal(c.get("user").id, c.req.param("id"), c.req.param("runId"))),
+  )
   .post("/wizards/:id/duplicate", async (c) =>
     c.json(await duplicateWizard(c.get("user").id, c.req.param("id"))),
   )
@@ -1860,13 +1896,18 @@ export const studio = new Hono<Vars>()
     if (!(await canSpend())) {
       throw new ServiceError("no_credits", note("creditsUsedUp"));
     }
+    // A new wizard's first message gets the fast first pass while the switch fastCreate is on.
+    const turn = (await fastCreateFor(user.id, wizardId)) ? fastCreateTurn : architectTurn;
     return streamSSE(c, async (stream) => {
       const abort = new AbortController();
       stream.onAbort(() => abort.abort());
       try {
         const result = await asAssistantIn(wizardId, user, () =>
-          architectTurn(user.id, wizardId, message, requestLang(c), extra, {
+          turn(user.id, wizardId, message, requestLang(c), extra, {
             signal: abort.signal,
+            onPreparing: (stepIds) => {
+              void stream.writeSSE({ event: "preparing", data: JSON.stringify(stepIds) });
+            },
             onText: (delta) => {
               void stream.writeSSE({ event: "text", data: JSON.stringify(delta) });
             },
@@ -1922,7 +1963,7 @@ export const studio = new Hono<Vars>()
     c.json(await startTestRun(c.get("user").id, c.req.param("id"))),
   )
   .get("/wizards/:id/runs", async (c) =>
-    c.json(await listRuns(c.get("user").id, c.req.param("id"))),
+    c.json(await listRuns(c.get("user").id, c.req.param("id"), c.req.query("q"))),
   )
   // One step of the draft as a run shows it: the preview of the step chosen.
   .get("/wizards/:id/steps/:stepId/view", async (c) =>
@@ -1939,6 +1980,25 @@ export const studio = new Hono<Vars>()
   .get("/wizards/:id/looks", async (c) => {
     const w = await ownedWizard(c.get("user").id, c.req.param("id"));
     return c.json({ looks: await themeLooks(w.spaceId, w.draft.themes) });
+  })
+
+  // --- starts: what begins a run without a person ---------------------------------
+  .get("/wizards/:id/starts", async (c) =>
+    c.json(await listStarts(c.get("user").id, c.req.param("id"))),
+  )
+  .put("/wizards/:id/starts", async (c) =>
+    c.json(await setStarts(c.get("user").id, c.req.param("id"), await c.req.json())),
+  )
+  .post("/wizards/:id/starts/:startId/run", async (c) =>
+    c.json(await runStartNow(c.get("user").id, c.req.param("id"), c.req.param("startId"))),
+  )
+  .get("/notices", async (c) => c.json(await listNotices(c.get("user").id)))
+  .post("/notices/read", async (c) => {
+    const body = z
+      .object({ ids: z.union([z.array(z.string()).max(200), z.literal("all")]) })
+      .parse(await c.req.json());
+    await markNoticesRead(c.get("user").id, body.ids);
+    return c.json({ ok: true });
   })
 
   // --- workspace -------------------------------------------------------------

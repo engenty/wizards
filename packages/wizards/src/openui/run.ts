@@ -139,7 +139,8 @@ export function useWizardRun(
     busy,
     fieldErrors,
     submitPage: (stepId, values) => command(`pages/${stepId}`, { values }),
-    accept: (stepId, edits) => command(`reviews/${stepId}`, { type: "accept", edits }),
+    accept: (stepId, edits, note) => command(`reviews/${stepId}`, { type: "accept", edits, note }),
+    decline: (stepId, note) => command(`reviews/${stepId}`, { type: "decline", note }),
     regenerate: (stepId, target, note, items) =>
       command(`reviews/${stepId}`, {
         type: "regenerate",

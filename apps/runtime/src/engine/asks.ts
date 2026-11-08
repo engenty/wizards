@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
 import { signalChanged } from "./events.js";
+import { noticeFor, noticeWrites } from "./notices.js";
 import { pushRun } from "./push.js";
 
 /** How long a step waits for the person before it goes on without them. */
@@ -12,11 +13,21 @@ const ASK_POLL_MS = 1000;
 
 export type AskResult = AskAnswer | { type: "timeout" };
 
-async function setAsk(runId: string, ask: RunAsk | null) {
-  await db
+async function setAsk(
+  runId: string,
+  ask: RunAsk | null,
+  notice?: Awaited<ReturnType<typeof noticeFor>>,
+) {
+  const where = eq(schema.run.id, runId);
+  const write = db
     .update(schema.run)
     .set({ ask, answer: null, updatedAt: new Date() })
-    .where(eq(schema.run.id, runId));
+    .where(where);
+  if (notice) {
+    await db.batch([...noticeWrites(notice, where), write] as never);
+  } else {
+    await write;
+  }
   signalChanged(runId);
 }
 
@@ -31,15 +42,21 @@ export async function askPerson(
   ask: AskInput & { stepId: string },
   signal: AbortSignal,
 ): Promise<AskResult> {
-  const open = await db.query.run.findFirst({
-    where: eq(schema.run.id, runId),
-    columns: { ask: true },
-  });
+  const open = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
   if (open?.ask) {
     throw new Error("The wizard is already waiting for the person.");
   }
   const full = { ...ask, id: nanoid(10), at: new Date().toISOString() } as RunAsk;
-  await setAsk(runId, full);
+  const notice = open
+    ? await noticeFor(open, "needs_you", {
+        detail: ask.kind === "login" ? ask.site.host : null,
+        waitKey: `ask:${full.id}`,
+      }).catch((err) => {
+        console.error(`[notices] run ${runId}:`, err);
+        return null;
+      })
+    : null;
+  await setAsk(runId, full, notice);
   void pushRun(runId, "asks");
   const until = Date.now() + ASK_TIMEOUT_MS;
   try {

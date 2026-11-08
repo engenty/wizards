@@ -7,6 +7,7 @@ import {
   type ResultStep,
   type Step,
   type WizardDefinition,
+  whenCalc,
 } from "@engenty/wizards-shared/definition";
 import type { BranchDecision, RunEstimate, ShownDecision } from "@engenty/wizards-shared/run";
 import {
@@ -26,6 +27,7 @@ import {
 import {
   AlertCircle,
   Check,
+  Clock,
   Link2,
   type LucideIcon,
   Minus,
@@ -75,6 +77,8 @@ type StepData = {
   live?: StepLive | null;
   /** A result's share targets. */
   share?: NodeShare;
+  /** The architect still works on it, after the first draft: the person can go through the rest. */
+  preparing?: boolean;
 };
 
 /** A test run's step in effect: what it does, since when it runs, or why it stopped. */
@@ -102,10 +106,12 @@ type StartData = {
   avatar: string;
   costume?: EngentyCostume;
   selected: boolean;
+  starts: number;
 };
 
 function StepNode({ data }: NodeProps<Node<StepData>>) {
-  const { step, selected, issue, active, pulse, cost, passed, onAddAfter, live, share } = data;
+  const { step, selected, issue, active, pulse, cost, passed, onAddAfter, live, share, preparing } =
+    data;
   const Icon = stepIcon(step);
   return (
     <div
@@ -177,6 +183,11 @@ function StepNode({ data }: NodeProps<Node<StepData>>) {
             {live.text}
           </span>
           {live.since !== null && !live.failed ? <Elapsed since={live.since} /> : null}
+        </div>
+      ) : preparing ? (
+        <div className="flex items-center gap-1.5 text-[0.75rem] text-ink-3">
+          <Spinner className="size-3 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{t("editor.preparing")}</span>
         </div>
       ) : (
         <div className="truncate text-[0.75rem] text-ink-3">{stepSummary(step) || " "}</div>
@@ -278,7 +289,19 @@ function StartNode({ data }: NodeProps<Node<StartData>>) {
       )}
     >
       <Mascot kind={data.avatar} costume={data.costume} size={40} interactive={false} />
-      <span className="truncate font-display font-semibold text-[0.9375rem]">{data.title}</span>
+      <span className="min-w-0 flex-1 truncate font-display font-semibold text-[0.9375rem]">
+        {data.title}
+      </span>
+      {data.starts ? (
+        // The wizard runs by itself: a clock, as the share dialog's section shows it.
+        <span
+          title={t("starts.title")}
+          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-cobalt-tint text-cobalt"
+        >
+          <Clock className="size-3.5" aria-hidden="true" />
+          <span className="sr-only">{t("starts.title")}</span>
+        </span>
+      ) : null}
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
@@ -380,7 +403,7 @@ function conditionLabel(rule: NonNullable<Step["next"]>[number]): string {
     ? t("editor.whenAsk", { text: rule.ask })
     : isOtherwise(rule)
       ? t("editor.otherwise")
-      : conditionsOf(rule.when).map(conditionText).join(" · ");
+      : (whenCalc(rule.when) ?? conditionsOf(rule.when).map(conditionText).join(" · "));
   return rule.max ? `${label} (${t("editor.atMost", { count: rule.max })})` : label;
 }
 
@@ -418,7 +441,9 @@ function layout(
   adding: Adding | null,
   onInsert?: (at: number) => void,
   live?: StepLive | null,
+  starts = 0,
   share?: (step: ResultStep) => NodeShare,
+  preparing: ReadonlySet<string> = new Set(),
 ) {
   const heightOf = (s: Step) => (s.type === "result" && share ? RESULT_H : NODE_H);
   const g = new dagre.graphlib.Graph();
@@ -540,6 +565,7 @@ function layout(
         avatar: def.avatar,
         costume: def.costume,
         selected: selected === "__wizard",
+        starts,
       },
       draggable: false,
     },
@@ -561,6 +587,7 @@ function layout(
           onAddAfter: onInsert && s.type !== "result" ? () => onInsert(index + 1) : undefined,
           live: live?.step === s.id ? live : null,
           share: s.type === "result" && share ? share(s) : undefined,
+          preparing: preparing.has(s.id),
         },
         draggable: false,
       } satisfies Node<StepData>;
@@ -643,8 +670,12 @@ interface CanvasProps {
   onInsert?: (at: number) => void;
   /** What a test run does in its step in effect; the diagram keeps that step in view. */
   live?: StepLive | null;
+  /** How many starts are on: the start node wears a clock when any is. */
+  starts?: number;
   /** Where a result is sent or published, for its node. */
   share?: (step: ResultStep) => NodeShare;
+  /** Steps the architect still works on after the first draft. */
+  preparing?: ReadonlySet<string>;
 }
 
 function Inner({
@@ -663,7 +694,9 @@ function Inner({
   adding = null,
   onInsert,
   live = null,
+  starts = 0,
   share,
+  preparing = NONE,
 }: CanvasProps) {
   const { nodes, edges } = useMemo(
     () =>
@@ -679,9 +712,12 @@ function Inner({
         adding,
         onInsert,
         live,
+        starts,
         share,
+        preparing,
       ),
     [
+      starts,
       def,
       selected,
       issueSteps,
@@ -694,6 +730,7 @@ function Inner({
       onInsert,
       live,
       share,
+      preparing,
     ],
   );
   const rf = useReactFlow();

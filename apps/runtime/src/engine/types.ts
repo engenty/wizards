@@ -30,6 +30,8 @@ export interface StepContext {
   test: boolean;
   /** The current step's id. */
   stepId: string;
+  /** The durable turn this step runs in; none: its tool calls have no lasting id (broker/effect.ts). */
+  turn?: string;
   /** What the wizard keeps for the person running it. */
   store: StoreScope;
   def: WizardDefinition;
@@ -61,6 +63,8 @@ export interface StepContext {
   call: CallMeta;
   /** A share job's step: the run is done and the person sends its result on (broker/over.ts). */
   share?: boolean;
+  /** Writes `state` to the run's row, for what must outlive this process in the middle of a step. */
+  saveState(): Promise<void>;
   /** Adds provider cost to the run where the runtime resolves models itself; the gateway books the rest. */
   chargeUsd(usd: number): Promise<void>;
   saveAsset(input: Omit<SaveAssetInput, "runId">): Promise<AssetRef>;
@@ -68,3 +72,13 @@ export interface StepContext {
 
 /** A step failure the person can read. */
 export class StepError extends NotedError {}
+
+/** A fixed step's connection isn't signed in, or the service turned the sign-in down. */
+export class SignInNeeded extends StepError {
+  constructor(
+    readonly service: string,
+    said: RunNote,
+  ) {
+    super(said);
+  }
+}

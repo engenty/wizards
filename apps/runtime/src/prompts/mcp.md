@@ -11,7 +11,7 @@ descriptions stay in the code.
 
 <!-- section: instructions -->
 engenty wizards: page-by-page AI wizards — the person answers pages, AI steps write, research and make images or videos, the person reviews, the result is files.
-Use one: list_wizards, then run_wizard straight away — its widget shows the wizard itself (show_wizard only when the person wants to see a wizard before running it), then follow waitingFor (answer_page, review_step, answer_ask, get_run with waitSeconds). Runs spend credits.
+Use one: list_wizards, then run_wizard straight away — its widget shows the wizard itself (show_wizard only when the person wants to see a wizard before running it), then follow waitingFor (answer_page, review_step, answer_ask, answer_question, get_run with waitSeconds). Runs spend credits.
 Build one: get_authoring_guide (schema + design rules), a close starter with get_starter, create_wizard, edit_wizard until "issues" is empty, check with start_test_run + get_test_run. Publish only when the person asks.
 A result on a wizard may list "present": people and other agents in that wizard now. Nobody is locked out; when people are editing, tell your user before larger changes.
 When a run needs the browser, hand over its browserUrl, the wizard's own run page. The studioUrl is for building only: never send someone who uses a wizard to the studio.
@@ -24,6 +24,12 @@ Read this before writing a wizard: the JSON schema, field kinds, step types and 
 
 <!-- section: tool.find_connectors -->
 Search the integrations registry for a service that can be imported as a connector, from its OpenAPI spec or its MCP server. Returns domains with a short description.
+
+<!-- section: tool.list_starts -->
+The wizard's starts: what begins a run without a person opening the link (a schedule today). Each with the sentence the studio shows for it.
+
+<!-- section: tool.set_starts -->
+Replace the wizard's starts. A start of kind "schedule" names every: hour | day | week (with weekday 0–6, 0 = Sunday) | month (with day 1–28), time "HH:MM" and an IANA tz. "overlap" says what happens when a run of the start is still going at the next time: "skip" (default) leaves that time out, "allow" starts another run. "maxLateMinutes" (default 1440, a day) limits how late a missed time may still start; past it that time is skipped. After a gap only the latest missed time counts. "answers" fills the first page's fields by id with literal values; a required field without a value makes the run wait for the owner. "allowChanges" lets the run write into connected services without asking; "passReviews" (default true) accepts reviews. Leave "id" out for a new start; keep it to change one. An empty list removes them all. Only a published wizard runs.
 
 <!-- section: tool.list_connectors -->
 The connectors a space has imported, each with its actions.
@@ -54,7 +60,7 @@ Create a wizard from your JSON, or copy a starter. The draft may still have issu
 
 <!-- section: tool.edit_wizard -->
 Apply ops to the draft atomically, in order:
-- set_meta {title?, description?, avatar?, costume? (null takes it off), intro? (null removes), themes? (theme ids in order; null removes)}
+- set_meta {title?, description?, avatar?, costume? (null takes it off), intro? (null removes), themes? (theme ids in order; null removes), label? (what tells this wizard's runs apart, a template of answers; null removes)}
 - set_theme {theme}: a theme of the space (see "type Theme"), made or replaced, worn first by this wizard
 - set_lists {lists} / set_connections {connections}: replace the wizard's lists or connections as a whole
 - upsert_step {step (complete), before?|after?}: replaces the step with that id, else inserts it (default: before the final result step)
@@ -87,6 +93,7 @@ Start it right away — no show_wizard first: the widget shows the wizard's page
 - page: ask the person for the fields with inChat=true, in order, answer_page; fields with inChat=false (files, recordings, signatures) need the run page at browserUrl. A field with a when is asked only while its condition holds on the answers so far (shown says so for what is known now); fields the wizard decided against are not listed
 - review: show the outputs, then review_step
 - ask: answer_ask (allow/skip a change in a connected account) or the run page for a sign-in
+- question: a step asks the person something: answer_question with their words
 While status is running, get_run with waitSeconds. Hosts with MCP Apps also show the run as a widget the person can answer in.
 
 <!-- section: tool.get_run -->
@@ -98,11 +105,17 @@ Fill the page a run waits for: field id → value (items: an array of row object
 <!-- section: tool.review_step -->
 Answer the review a run waits for: accept (optionally with edited texts, step id → text, when the review is editable) or regenerate one step it shows, with a note what to change.
 
+<!-- section: tool.answer_question -->
+An AI step stopped to ask the person something (waitingFor.question). Ask them, then send their answer in their words: the step goes on with it. The run waits until then, for days if it has to.
+
 <!-- section: tool.answer_ask -->
 A running step asks before it changes something in a connected account (waitingFor.ask, kind confirm): allow it once, or skip it. Ask the person first.
 
 <!-- section: tool.control_run -->
 back: return to the previous page or review. retry: run the failed step again. cancel: stop the run.
+
+<!-- section: tool.send_signal -->
+Send a signal in the space of this wizard: every run of its wizards that waits for this name and key goes on. data ends up below `steps.<wait>.data`. delivery: your id for this event; the same delivery again wakes nothing and answers what it answered first. Answers the number of runs woken. A test run at its wait: this, with the key its report names.
 
 <!-- section: tool.list_files -->
 The files in the wizard's workspace (path, mime, size): widget HTML/JS/CSS, vendored libraries, reference data. Runs use a snapshot of it.
@@ -150,14 +163,41 @@ No times are free right now: tell the person.
 <!-- section: hint.confirm -->
 Ask the person, then answer_ask with allow or skip.
 
+<!-- section: reason.confirm_again -->
+This was interrupted and may have happened in ${service} already. Do it again?
+
+<!-- section: hint.confirm_again -->
+This was interrupted and may have happened already. Ask the person to check, then answer_ask: allow does it again, skip leaves it.
+
+<!-- section: hint.question -->
+Ask the person this question, then answer_question with their words.
+
 <!-- section: hint.sign_in -->
 A sign-in: the person types it on the run page (browserUrl).
 
+<!-- section: hint.answered_by -->
+Someone else answers this step (`answeredBy`): the owner of the run, or the people named in the share dialog. Nothing you can answer. The run goes on once they have.
+
 <!-- section: hint.sleeping -->
 The run waits until `until` and goes on by itself. Nothing is needed from the person meanwhile.
+
+<!-- section: hint.pause_retry -->
+The step failed for a moment and tries again by itself at `until`. Nothing is needed from the person meanwhile.
+
+<!-- section: hint.pause_credits -->
+The run is out of credits. It goes on by itself a few minutes after the account is topped up. Tell the person.
+
+<!-- section: hint.pause_sign_in -->
+A connection of this step needs a new sign-in. The run goes on by itself a few minutes after someone signs in. Tell the person.
+
+<!-- section: hint.waiting_signal -->
+The run waits for the signal `signal` and goes on by itself when it comes, or at `until` without it. Nothing is needed from the person meanwhile.
 
 <!-- section: hint.page -->
 Ask the fields in order; skip a field whose `when` does not hold on the answers so far (a hidden one is not required and not kept).
 
 <!-- section: hint.review -->
 Show the person the outputs, then review_step: accept, or regenerate one with a note.
+
+<!-- section: hint.review_approve -->
+Show the person the outputs and ask them to decide. Then review_step: accept to approve, decline to decline, each with an optional note. Never decide for them.

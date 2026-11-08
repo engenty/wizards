@@ -7,7 +7,7 @@ import {
   shownFields,
   stepShape,
 } from "@engenty/wizards-shared/definition";
-import { note, type RunView, type StepOutput } from "@engenty/wizards-shared/run";
+import { note, type RunPause, type RunView, type StepOutput } from "@engenty/wizards-shared/run";
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,7 +20,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AskPanel } from "./AskPanel.js";
+import { AskPanel, QuestionPanel } from "./AskPanel.js";
 import { DataEditor, editableData, StudioData } from "./data.js";
 import {
   disableNotify,
@@ -31,11 +31,12 @@ import {
   useNotifyState,
   useWakeLock,
 } from "./device";
-import { api, runBase, runnerEnv, withBase } from "./env.js";
+import { api, runBase, runnerEnv, standalone, withBase } from "./env.js";
 import { FieldInput, type Values } from "./fields";
 import { eventText, noteLine, runnerLangCode, setChoiceLabels, t } from "./i18n.js";
 import { DownloadButtons, OutputView } from "./outputs";
 import { ListCheck, ListDownloads, ListTable, StoreButton } from "./store";
+import { SurfaceView } from "./surface.js";
 import { Button, Card, cn, LinkedText, Spinner, Textarea } from "./ui.js";
 
 /**
@@ -44,15 +45,25 @@ import { Button, Card, cn, LinkedText, Spinner, Textarea } from "./ui.js";
  */
 export interface RunSource {
   view: RunView | null;
+  /** Takes a run back that the team has now; only where the viewer can (`view.canWithdraw`). */
+  withdraw?: () => Promise<unknown>;
   notFound: boolean;
   error: string | null;
   busy: boolean;
   fieldErrors: Record<string, string>;
+  /**
+   * Pages shown ahead of the server and not confirmed yet: for a while ("slow"), or the server out
+   * of reach ("offline"). Null or left out: all is saved.
+   */
+  saving?: "slow" | "offline" | null;
   submitPage(stepId: string, values: Record<string, unknown>): Promise<boolean>;
   accept(
     stepId: string,
     edits?: Record<string, string | Record<string, unknown>>,
+    note?: string,
   ): Promise<boolean>;
+  /** A review with `approve` is declined. */
+  decline(stepId: string, note?: string): Promise<boolean>;
   regenerate(stepId: string, target: string, note: string, items?: number[]): Promise<boolean>;
   back(): Promise<boolean>;
   retry(): Promise<boolean>;
@@ -63,6 +74,34 @@ export interface RunSource {
 type Run = RunSource;
 
 function Progress({ view }: { view: RunView }) {
+  const sections = view.progress.sections;
+  if (sections) {
+    return (
+      <ol className="flex w-full gap-1">
+        {sections.names.map((name, i) => {
+          const now = i === sections.current;
+          return (
+            <li key={name} className="min-w-0 flex-1" aria-current={now ? "step" : undefined}>
+              <div
+                className={cn(
+                  "h-[3px] w-full transition-colors duration-700",
+                  i <= sections.current ? "bg-ember" : "bg-paper-2",
+                )}
+              />
+              <div
+                className={cn(
+                  "truncate px-2 pt-1 text-center text-[0.75rem]",
+                  now ? "font-medium text-ink" : "text-ink-3",
+                )}
+              >
+                {name}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    );
+  }
   const pct = Math.round(
     (Math.min(view.progress.done, view.progress.total) / Math.max(1, view.progress.total)) * 100,
   );
@@ -107,8 +146,11 @@ function StepHeading({
 
 export function initialValues(step: PageStep, view: RunView): Values {
   const out: Values = {};
+  // What was typed here and not sent (another tab, another device, before a reload) comes first.
+  const typed = view.step?.id === step.id ? (view.unsent ?? {}) : {};
   for (const f of step.fields) {
     out[f.id] =
+      typed[f.id] ??
       view.values[f.id] ??
       view.prefill?.[f.id] ??
       f.default ??
@@ -126,9 +168,67 @@ function typedInputs(form: HTMLElement): HTMLElement[] {
   ).filter((el) => !el.closest("dialog") && el.offsetParent !== null);
 }
 
+/** After the last change, how long typing rests before it is saved. */
+const KEEP_TYPING_MS = 800;
+
+/**
+ * Keeps what is typed on a page with the run (`run.unsent`): 800 ms after the last change, when
+ * the tab is hidden, and as it closes (`keepalive`). Nothing once the page is sent, and nothing
+ * the person did not change. A host that runs wizards on its own keeps nothing.
+ */
+function useKeepTyping(runId: string, stepId: string, values: Values, sent: { current: boolean }) {
+  const latest = useRef(values);
+  const open = useRef(false);
+  const first = useRef(true);
+  latest.current = values;
+  const save = useRef((_closing: boolean) => {});
+  save.current = (closing: boolean) => {
+    if (!open.current || sent.current || standalone()) {
+      return;
+    }
+    open.current = false;
+    const path = `${runBase(runId)}/pages/${stepId}/unsent`;
+    if (closing) {
+      api.keep(path, { values: latest.current });
+    } else {
+      api.put(path, { values: latest.current }).catch(() => {
+        // Tried again with the next change, or as the tab is hidden.
+        open.current = true;
+      });
+    }
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: every change of the values counts.
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    open.current = true;
+    const timer = setTimeout(() => save.current(false), KEEP_TYPING_MS);
+    return () => clearTimeout(timer);
+  }, [values]);
+  useEffect(() => {
+    const hidden = () => {
+      if (document.visibilityState === "hidden") {
+        save.current(true);
+      }
+    };
+    const leave = () => save.current(true);
+    document.addEventListener("visibilitychange", hidden);
+    window.addEventListener("pagehide", leave);
+    return () => {
+      document.removeEventListener("visibilitychange", hidden);
+      window.removeEventListener("pagehide", leave);
+    };
+  }, []);
+}
+
 function PageForm({ view, run, step }: { view: RunView; run: Run; step: PageStep }) {
   // Keyed by the page at the call site, so a page (or a page revisited) starts from the run's values.
   const [values, setValues] = useState<Values>(() => initialValues(step, view));
+  // Once the page is on its way, its typed answers are in it: nothing more is kept apart.
+  const sent = useRef(false);
+  useKeepTyping(view.id, step.id, values, sent);
   // Fields still uploading or recording; going on now would leave their answer behind.
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const form = useRef<HTMLFormElement>(null);
@@ -143,7 +243,42 @@ function PageForm({ view, run, step }: { view: RunView; run: Run; step: PageStep
     [step.fields, view.options, view.decidedFields],
   );
   const shown = shownFields(fields, view.known ?? {}, values);
-  const submit = () => void run.submitPage(step.id, values);
+  const submit = () => {
+    sent.current = true;
+    void run.submitPage(step.id, values).then((ok) => {
+      // Refused: the person stays on the page, and what they type is kept again.
+      if (!ok) {
+        sent.current = false;
+      }
+    });
+  };
+  const fieldInput = (f: (typeof shown)[number]) => (
+    <FieldInput
+      key={f.id}
+      field={f}
+      value={values[f.id]}
+      values={values}
+      runId={view.id}
+      view={view}
+      error={run.fieldErrors[f.id]}
+      closed={view.closed?.[f.id]}
+      onChange={(v) => setValues((prev) => ({ ...prev, [f.id]: v }))}
+      onBusy={(busy) =>
+        setPending((prev) => {
+          if (prev.has(f.id) === busy) {
+            return prev;
+          }
+          const next = new Set(prev);
+          if (busy) {
+            next.add(f.id);
+          } else {
+            next.delete(f.id);
+          }
+          return next;
+        })
+      }
+    />
+  );
 
   // The keyboard's action key says what it does: "next" between fields, "go" on the last one.
   useEffect(() => {
@@ -194,35 +329,34 @@ function PageForm({ view, run, step }: { view: RunView; run: Run; step: PageStep
         description={step.description}
         kicker={first ? view.wizard.intro : null}
       />
-      <div className="flex flex-col gap-7">
-        {shown.map((f) => (
-          <FieldInput
-            key={f.id}
-            field={f}
-            value={values[f.id]}
-            values={values}
-            runId={view.id}
-            view={view}
-            error={run.fieldErrors[f.id]}
-            closed={view.closed?.[f.id]}
-            onChange={(v) => setValues((prev) => ({ ...prev, [f.id]: v }))}
-            onBusy={(busy) =>
-              setPending((prev) => {
-                if (prev.has(f.id) === busy) {
-                  return prev;
-                }
-                const next = new Set(prev);
-                if (busy) {
-                  next.add(f.id);
-                } else {
-                  next.delete(f.id);
-                }
-                return next;
-              })
-            }
-          />
-        ))}
-      </div>
+      {step.components ? (
+        <SurfaceView
+          surface={{
+            components: step.components,
+            data: { ...view.pageData, ...values },
+          }}
+          assetUrl={(id) => withBase(`${runBase(view.id)}/assets/${id}`)}
+          field={(name) => {
+            const f = shown.find((s) => s.id === name);
+            return f ? fieldInput(f) : null;
+          }}
+        />
+      ) : (
+        <div className="flex flex-col gap-7">{shown.map(fieldInput)}</div>
+      )}
+      <AnswerBy view={view} />
+      {run.saving ? (
+        <p
+          role="status"
+          className={cn(
+            "mt-6 flex items-center gap-2 text-[0.8125rem]",
+            run.saving === "offline" ? "text-rose" : "text-ink-3",
+          )}
+        >
+          {run.saving === "slow" ? <Spinner className="size-3.5" /> : null}
+          {t(run.saving === "slow" ? "run.saving" : "run.notSaved")}
+        </p>
+      ) : null}
       <Footer view={view} run={run} sticky>
         <Button type="submit" size="lg" busy={run.busy} disabled={pending.size > 0}>
           {step.cta || t("run.next")} <ArrowRight className="size-4" />
@@ -300,13 +434,19 @@ function NotifyToggle() {
 }
 
 /** The heading of a run that waits for a time: the day and the hour it goes on, as the person reads them. */
-export function goesOnText(wakeAt: string | null): string {
+export function goesOnText(wakeAt: string | null, pause?: RunPause | null): string {
+  if (pause?.kind === "credits") {
+    return t("run.waitsCredits");
+  }
+  if (pause?.kind === "sign_in") {
+    return t("run.waitsSignIn", { service: pause.service });
+  }
   if (!wakeAt) {
     return t("run.goesOnSoon");
   }
   const when = new Date(wakeAt);
   const code = runnerLangCode();
-  return t("run.goesOn", {
+  return t(pause?.kind === "retry" ? "run.retryAt" : "run.goesOn", {
     date: new Intl.DateTimeFormat(code, { weekday: "long", day: "numeric", month: "long" }).format(
       when,
     ),
@@ -314,16 +454,87 @@ export function goesOnText(wakeAt: string | null): string {
   });
 }
 
-/** The run waits for a time: nothing to do, and nobody has to stay. */
+/** Until when a person's step takes an answer, if it has a deadline. */
+function AnswerBy({ view }: { view: RunView }) {
+  if (view.status !== "waiting_input" || !view.wakeAt) {
+    return null;
+  }
+  const code = runnerLangCode();
+  const when = new Date(view.wakeAt);
+  return (
+    <p className="mt-4 text-[0.8125rem] text-ink-3">
+      {t("run.answerBy", {
+        date: new Intl.DateTimeFormat(code, {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        }).format(when),
+        time: new Intl.DateTimeFormat(code, { hour: "numeric", minute: "2-digit" }).format(when),
+      })}
+    </p>
+  );
+}
+
+/** Says what a run waiting for a signal waits for, and until when at most. */
+export function waitsSignalText(waitsFor: string | null, until: string | null): string {
+  const waits = waitsFor ? t("run.waitsSignalFrom", { who: waitsFor }) : t("run.waitsSignal");
+  if (!until) {
+    return waits;
+  }
+  const date = new Intl.DateTimeFormat(runnerLangCode(), {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date(until));
+  return t("run.waitsAtMost", { waits, date });
+}
+
+/** The run waits for a time or a signal: nothing to do, and nobody has to stay. */
 function Sleeping({ view, compact }: { view: RunView; compact?: boolean }) {
   const { Mascot } = runnerEnv();
   return (
     <div className="flex animate-rise flex-col items-center pt-6 text-center">
       <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={compact ? 130 : 170} />
       <h2 className="wizard-heading mt-4 font-display font-semibold text-[1.375rem] tracking-tight">
-        {goesOnText(view.wakeAt)}
+        {view.status === "waiting_signal"
+          ? waitsSignalText(view.waitsFor, view.wakeAt)
+          : goesOnText(view.wakeAt, view.pause)}
       </h2>
       <p className="mt-2 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
+    </div>
+  );
+}
+
+/** The step is someone else's: this viewer has nothing to answer. */
+function AnsweredElsewhere({ view, run, compact }: { view: RunView; run: Run; compact?: boolean }) {
+  const { Mascot } = runnerEnv();
+  const [asking, setAsking] = useState(false);
+  return (
+    <div className="flex animate-rise flex-col items-center pt-6 text-center">
+      <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={compact ? 130 : 170} />
+      <h2 className="wizard-heading mt-4 font-display font-semibold text-[1.375rem] tracking-tight">
+        {t(view.answeredBy === "team" ? "run.answeredByTeam" : "run.answeredByOther")}
+      </h2>
+      <p className="mt-2 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
+      {view.canWithdraw && run.withdraw ? (
+        asking ? (
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <p className="text-[0.875rem] text-ink-2">{t("run.withdrawAsk")}</p>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setAsking(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button variant="danger" disabled={run.busy} onClick={() => void run.withdraw?.()}>
+                {t("run.withdraw")}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="ghost" className="mt-4" onClick={() => setAsking(true)}>
+            {t("run.withdraw")}
+          </Button>
+        )
+      ) : null}
     </div>
   );
 }
@@ -415,6 +626,46 @@ function Working({
   );
 }
 
+/** Above a step's question: which step it is, and what it had done up to there. */
+function AskedAt({ view, compact }: { view: RunView; compact?: boolean }) {
+  const { Mascot } = runnerEnv();
+  const started = [...view.events]
+    .reverse()
+    .find((ev) => ev.type === "step_started" && ev.stepId === view.step?.id);
+  const since = started ? new Date(started.at).getTime() - 500 : 0;
+  const trail = view.events
+    .filter(
+      (ev) =>
+        (ev.type === "tool" || ev.type === "info") &&
+        ev.stepId === view.step?.id &&
+        new Date(ev.at).getTime() >= since &&
+        ev.note?.code !== "turnAsked",
+    )
+    .slice(-3);
+  return (
+    <div className="mb-8 flex animate-rise flex-col items-center text-center">
+      <Mascot
+        kind={view.wizard.avatar}
+        costume={view.wizard.costume}
+        size={compact ? 90 : 110}
+        fluffy
+      />
+      <h2 className="wizard-heading mt-2 font-display font-semibold text-[1.25rem] tracking-tight">
+        {view.step?.title}
+      </h2>
+      {trail.length ? (
+        <div className="mt-3 flex w-full max-w-sm flex-col gap-1">
+          {trail.map((ev) => (
+            <div key={ev.id} className="truncate text-[0.8125rem] text-ink-4">
+              {eventText(ev)}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * Tells the person when a step that took a while is done, or when it needs them (a sign-in, a
  * confirmation) — if they asked for it. A page in the background also marks its title.
@@ -440,6 +691,7 @@ export function useDoneSignal(view: RunView | null) {
       !running &&
       prev.running &&
       view.status !== "sleeping" &&
+      view.status !== "waiting_signal" &&
       Date.now() - prev.since > 8000
     ) {
       tell(
@@ -478,6 +730,8 @@ function Review({
   const [editing, setEditing] = useState<Record<string, boolean>>({});
   // What the person wants changed, and which of the shown results it is about.
   const [note, setNote] = useState("");
+  // What the person says with their decision, at a review that asks for one.
+  const [decision, setDecision] = useState("");
   const made = view.shown.filter((x) => x.output);
   const [target, setTarget] = useState<string | null>(made.length === 1 ? made[0].step.id : null);
   // Steps with several results: the ones picked to be made again.
@@ -674,13 +928,40 @@ function Review({
           </Card>
         ) : null}
       </div>
+      {step.approve ? (
+        <Textarea
+          minRows={2}
+          maxRows={6}
+          value={decision}
+          placeholder={t("run.decisionNote")}
+          onChange={(e) => setDecision(e.target.value)}
+          className="mt-4"
+        />
+      ) : null}
+      <AnswerBy view={view} />
       <Footer view={view} run={run} sticky>
+        {step.approve ? (
+          <Button
+            size="lg"
+            variant="secondary"
+            busy={run.busy}
+            onClick={() => void run.decline(step.id, decision.trim() || undefined)}
+          >
+            {t("run.decline")}
+          </Button>
+        ) : null}
         <Button
           size="lg"
           busy={run.busy}
-          onClick={() => void run.accept(step.id, Object.keys(drafts).length ? drafts : undefined)}
+          onClick={() =>
+            void run.accept(
+              step.id,
+              Object.keys(drafts).length ? drafts : undefined,
+              decision.trim() || undefined,
+            )
+          }
         >
-          {t("run.accept")} <ArrowRight className="size-4" />
+          {t(step.approve ? "run.approve" : "run.accept")} <ArrowRight className="size-4" />
         </Button>
       </Footer>
     </div>
@@ -921,11 +1202,20 @@ export function RunnerBody({
   }
   const step = view.step;
   let body: React.ReactNode = null;
-  if (view.status === "running" && view.ask) {
+  if (view.answeredBy) {
+    body = <AnsweredElsewhere view={view} run={run} compact={compact} />;
+  } else if (view.status === "running" && view.ask) {
     body = <AskPanel key={view.ask.id} runId={view.id} ask={view.ask} />;
+  } else if (view.status === "waiting_input" && view.question) {
+    body = (
+      <>
+        <AskedAt view={view} compact={compact} />
+        <QuestionPanel key={view.question} runId={view.id} question={view.question} />
+      </>
+    );
   } else if (view.status === "running") {
     body = <Working view={view} compact={compact} awake={awake} />;
-  } else if (view.status === "sleeping") {
+  } else if (view.status === "sleeping" || view.status === "waiting_signal") {
     body = <Sleeping view={view} compact={compact} />;
   } else if (view.status === "failed") {
     body = <Failed view={view} run={run} />;

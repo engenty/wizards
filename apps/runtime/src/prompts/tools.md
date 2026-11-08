@@ -8,6 +8,11 @@ returns and when to use it.
 
 <!-- Technical: engineering owns everything below. -->
 
+<!-- A durable step (engine/durable-turn.ts) -->
+
+<!-- section: tool.ask_person -->
+Ask the person running the wizard a question and go on with their answer. The step stops until they answer, which can take days, and costs nothing meanwhile. Ask only what you cannot find out or decide yourself. One clear question at a time, in the language of the wizard. Returns { answer }.
+
 <!-- Web: search, fetch, HTTP (tools/index.ts) -->
 
 <!-- section: tool.web_search -->
@@ -30,6 +35,9 @@ Private addresses are not reachable from a wizard.
 
 <!-- section: note.host_not_in_grant -->
 This run may not call ${host}: the wizard does not list it. Do not try another address; say in your result that the call was not made.
+
+<!-- section: note.host_may_have_happened -->
+This request to ${host} was interrupted before and may have arrived already. It was not repeated. Do not try it again; say in your result that it may have happened.
 
 <!-- section: note.net_scheme -->
 Only http and https URLs are allowed.
@@ -232,6 +240,9 @@ Nobody is there to allow this change, so it was not made. Report it as open in y
 
 <!-- section: note.connector_declined -->
 The person did not allow this change. Do not try it again; say in your result that it was not made.
+
+<!-- section: note.connector_may_have_happened -->
+This action was interrupted before and may have happened already in ${service}. It was not repeated. Do not try it again; say in your result that it may have happened and should be checked in ${service}.
 
 <!-- section: note.connector_refused -->
 The rules of ${service} do not allow this action here. Do not try it again or another way; say in your result that it was not done.

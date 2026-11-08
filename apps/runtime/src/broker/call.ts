@@ -6,8 +6,11 @@ import type {
   ConnectorAction,
   ConnectorActionGroup,
   ConnectorDefinition,
+  InboundMessage,
+  StreamPullResult,
 } from "../engenty/connections-sdk/types.js";
 import type { AskResult } from "../engine/asks.js";
+import { effectUnsure } from "../engine/events.js";
 import type { StepContext } from "../engine/types.js";
 import type { Role } from "../manage.js";
 import type { StoreScope } from "../store/index.js";
@@ -19,6 +22,15 @@ import {
   stateOf,
   wizardAccount,
 } from "./account.js";
+import {
+  askAgain,
+  type EffectCall,
+  effectDone,
+  effectIdOf,
+  effectThrew,
+  findEffect,
+  startEffect,
+} from "./effect.js";
 import { type Grant, inGrant, runGrant } from "./grant.js";
 import {
   CALLS_PER_DAY,
@@ -42,7 +54,7 @@ import { channelOf, guestSendCheck, postsToChannel, recipientsOf } from "./send.
  * docs/plans/capabilities.md) decides by its audience and rules; a wizard's own sign-in by the
  * rules the code had before. „Mit Freigabe“ on a connection that signs in as the space is an
  * `ask` of the space's admins: the broker answers `needs_approval` and the caller holds the call
- * (a Work chat: `chat_approval`, the bell); once an admin approved it, the same call runs with
+ * (a Work chat: `approval`, the bell); once an admin approved it, the same call runs with
  * `ctx.approved` (A7).
  *
  * Two things are asked before any of it, on every call (docs/plans/capabilities-next.md, 2a):
@@ -54,8 +66,11 @@ import { channelOf, guestSendCheck, postsToChannel, recipientsOf } from "./send.
  * one past a limit is refused. The limits are read with the pause, on every call.
  */
 
-/** Who calls: a guest at the wizard's link, a signed-in person, Goose for a person, a plugin's own job, a fixed step. */
-export type WhoKind = "guest" | "person" | "admin" | "goose" | "plugin" | "step";
+/**
+ * Who calls: a guest at the wizard's link, a signed-in person, Goose for a person, a plugin's own
+ * job, a fixed step, the runtime reading for nobody in particular (`brokerPullStream`).
+ */
+export type WhoKind = "guest" | "person" | "admin" | "goose" | "plugin" | "step" | "runtime";
 
 export interface Who {
   kind: WhoKind;
@@ -111,6 +126,8 @@ export interface BrokerContext {
   confirmed?: boolean;
   /** An admin of the space approved exactly this call (a held call, decided): „Mit Freigabe“ is met. */
   approved?: boolean;
+  /** Which call this is, so that an action that is no read happens once (broker/effect.ts). */
+  effect?: EffectCall;
 }
 
 export interface BrokerCallInput<T = unknown> {
@@ -120,6 +137,8 @@ export interface BrokerCallInput<T = unknown> {
   action: BrokerAction;
   input: unknown;
   ctx?: BrokerContext;
+  /** A call that went well and answered this leaves no line in the log. */
+  quietWhen?: (result: T) => boolean;
   /** What runs with the account; left out: the connector's action of that id, with `input`. */
   handler?: (account: Account) => Promise<T>;
 }
@@ -134,7 +153,8 @@ export interface BrokerCallInput<T = unknown> {
  * its mails and posts; `day_limit` – the wizard's guests have sent today's; `calls_per_run` – the
  * run has made the calls the connection takes from one run; `calls_per_day` – the connection has
  * taken today's calls; `run_ended` – the call's run was stopped, is done or failed (over.ts);
- * `paused` – an admin paused the connection.
+ * `paused` – an admin paused the connection; `may_have_happened` – the action was interrupted
+ * before, and no person allowed it again.
  */
 export type Refusal = BrokerRefusal;
 
@@ -147,9 +167,9 @@ export interface Decision {
   /**
    * Which rule decided, as the log and „Was darf …?“ name it: `grant`, `audience`, `actions`,
    * `ai_step_writes`, `rules.<kind>` (a connection of the space), `destructive`, `policy.<action>`
-   * (a wizard's connection), `read`, `own_job`, `paused`. A run that is over is logged as
-   * `run.<status>` (over.ts), before any decision here; a call past a connection's limit as
-   * `limits.run` or `limits.day`, after it.
+   * (a wizard's connection), `read`, `own_job`, `autonomous_mode`, `paused`. A run that is over is
+   * logged as `run.<status>` (over.ts), before any decision here; a call past a connection's limit as
+   * `limits.run` or `limits.day`, after it. The log also has `once` (broker/effect.ts).
    */
   rule: string;
   reason: string;
@@ -251,6 +271,9 @@ export function decide(call: {
   grant?: Grant | null;
 }): Decision {
   const { connection, kind, who } = call;
+  if (who.kind === "runtime") {
+    return decideRuntime(connection, kind);
+  }
   if (call.grant && connection.kind === "store_secret") {
     if (!inGrant(call.grant, connection.def.id, call.actionId, kind)) {
       return {
@@ -355,6 +378,29 @@ function pausedDecision(row: Pick<SpaceConnectionRow, "pausedAt">): Decision | n
 }
 
 /**
+ * The runtime reads for nobody in particular: only as the space, only what an admin agreed to on
+ * this connection, and only where its rule lets reading run without anyone asked.
+ */
+function decideRuntime(connection: BrokerConnection, kind: ActionKind): Decision {
+  const row = connection.kind === "space_connection" ? connection.row : null;
+  if (!row || row.signIn !== "space" || kind !== "read" || row.autonomousMode === "off") {
+    return {
+      outcome: "deny",
+      rule: "autonomous_mode",
+      reason: "No admin agreed that the runtime reads this on its own.",
+    };
+  }
+  if (row.rules.read !== "allow") {
+    return {
+      outcome: "deny",
+      rule: "rules.read",
+      reason: "The connection's rule: reading does not run on its own.",
+    };
+  }
+  return { outcome: "allow", rule: "autonomous_mode", reason: "An admin agreed to reading it." };
+}
+
+/**
  * Whether a call in a run comes from an AI step: a model's tool call, made as the person running
  * (a guest, a person, an admin), or a plugin tool it called. A fixed step calls as `step`; a
  * plugin's own job and a Work chat are no run.
@@ -412,6 +458,10 @@ export async function brokerConnected(
 
 /** The widest the person sees of an input they are asked about. */
 const ASK_INPUT = 4000;
+
+/** The rule that decides a call found in `run_effect`, as the log names it. */
+const ONCE = "once";
+const MAY_HAVE_HAPPENED = "It was interrupted before and may have happened already.";
 
 /**
  * One call through the broker: who, where, which connection and action, with what. Reads the
@@ -541,6 +591,17 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     await line(kind, "deny", rule, decision.reason, refused);
     return { ok: false, refused, reason: decision.reason };
   }
+  const effectId = kind === "read" ? null : await effectIdOf(where, ctx.effect);
+  const effect = effectId ? await findEffect(effectId) : null;
+  // It happened: its answer, and no guest's limit, question or second action.
+  if (effect?.state === "done") {
+    await line(kind, "allow", ONCE, "It happened before.", "already_done", sizeOf(effect.output));
+    return {
+      ok: true,
+      result: effect.output as T,
+      account: { connector: account.connector, label: account.label },
+    };
+  }
   // A guest's send goes only to the run's own address or the space's domains, a post only to the
   // channel its fixed step is fixed to, a few per run and day.
   if (kind === "send" && where.guest) {
@@ -562,6 +623,34 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       return { ok: false, refused: sent.refused, reason: sent.reason };
     }
   }
+  /** The run's log says it too: that is where a person reads what to check. */
+  const sayUnsure = async () => {
+    if (call.where.runId && call.where.stepId) {
+      const to = (call.input as { to?: unknown } | null)?.to;
+      await effectUnsure(call.where.runId, call.where.stepId, {
+        tool: found?.summary ?? call.action.id,
+        ...(kind === "send" && typeof to === "string" ? { to } : {}),
+      });
+    }
+  };
+  // It may have happened: never again without a person's yes, which answers the rule's ask as well.
+  const again =
+    effect?.state === "started"
+      ? await askAgain(ctx.ask, {
+          service: account.label,
+          actionId: call.action.id,
+          summary: found?.summary ?? call.action.id,
+          destructive: kind === "destructive",
+          input: JSON.stringify(call.input ?? {}, null, 2).slice(0, ASK_INPUT),
+        })
+      : null;
+  if (again === "nobody" || again === "not_again") {
+    await (again === "nobody"
+      ? line(kind, "deny", ONCE, MAY_HAVE_HAPPENED, "may_have_happened")
+      : line(kind, "ask", ONCE, MAY_HAVE_HAPPENED, "declined"));
+    await sayUnsure();
+    return { ok: false, refused: "may_have_happened", reason: MAY_HAVE_HAPPENED };
+  }
   if (decision.outcome === "ask" && decision.admins) {
     // „Mit Freigabe“ as the space: the person's own yes is not enough; an admin's is.
     if (ctx.approved) {
@@ -570,6 +659,8 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       await line(kind, "ask", rule, decision.reason, "needs_approval");
       return { ok: false, refused: "needs_approval", reason: decision.reason };
     }
+  } else if (again) {
+    decision.reason = "The person allowed it again.";
   } else if (decision.outcome === "ask") {
     const key = `${connectionId}:${call.action.id}`;
     if (ctx.allowed?.has(key)) {
@@ -635,16 +726,44 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       ? closeLine(open, { durationMs: Date.now() - started, result, resultSize: size }, context)
       : line(kind, decision.outcome, rule, decision.reason, result, size, context);
 
+  // The row comes before the action, so a crash in between finds that it may have happened.
+  if (effectId && !again) {
+    const taken = await startEffect({
+      id: effectId,
+      runId: where.runId as string,
+      stepId: where.stepId as string,
+      tool: `${connectionId}:${call.action.id}`,
+    });
+    if (!taken) {
+      await (open
+        ? end("may_have_happened")
+        : line(kind, "deny", ONCE, MAY_HAVE_HAPPENED, "may_have_happened"));
+      await sayUnsure();
+      return { ok: false, refused: "may_have_happened", reason: MAY_HAVE_HAPPENED };
+    }
+  }
+  const acting = effectId
+    ? { ...account, ctx: { ...account.ctx, idempotencyKey: effectId } }
+    : account;
   try {
     const result = call.handler
-      ? await call.handler(account)
-      : ((await (found as ConnectorAction).handler(call.input ?? {}, account.ctx)) as T);
-    await end("ok", sizeOf(result), { firstUse });
+      ? await call.handler(acting)
+      : ((await (found as ConnectorAction).handler(call.input ?? {}, acting.ctx)) as T);
+    if (effectId) {
+      await effectDone(effectId, result);
+    }
+    // A line that took its place is always closed; else a pull that found nothing says nothing.
+    if (open || !call.quietWhen?.(result)) {
+      await end("ok", sizeOf(result), { firstUse });
+    }
     if (connection.kind === "space_connection") {
       await markUsed(connection.row);
     }
     return { ok: true, result, account: { connector: account.connector, label: account.label } };
   } catch (err) {
+    if (effectId) {
+      await effectThrew(effectId, err);
+    }
     // The service turned the sign-in down: heard of, like a sign-in that ran out.
     const result = signInRefused(err)
       ? SIGN_IN_FAILED
@@ -661,7 +780,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
  * a connection of the space says; a wizard's own connection names its connector only once its
  * account is read, so an action of unknown kind counts as a write there.
  */
-function kindBefore(call: BrokerCallInput<unknown>): ActionKind {
+function kindBefore<T>(call: BrokerCallInput<T>): ActionKind {
   if (call.action.kind) {
     return call.action.kind;
   }
@@ -671,6 +790,56 @@ function kindBefore(call: BrokerCallInput<unknown>): ActionKind {
       ? connection.connector.actions.find((a) => a.id === call.action.id)
       : undefined;
   return found ? kindOf(found.group) : "write";
+}
+
+/**
+ * The next items of a connector's stream, from `cursor`: the one way to a mailbox's stream, logged
+ * like any call. `since` is where a pull without a cursor starts. An error the connector throws,
+ * like its expired cursor, is thrown on.
+ */
+export function brokerPullStream(input: {
+  connection: Extract<BrokerConnection, { kind: "space_connection" }>;
+  cursor: string | null;
+  since: Date;
+  limit: number;
+}): Promise<BrokerResult<StreamPullResult>> {
+  const { connection, cursor, since, limit } = input;
+  return brokerCall({
+    who: { kind: "runtime" },
+    where: { spaceId: connection.row.spaceId },
+    connection,
+    action: { id: "pull_stream", kind: "read" },
+    input: { since: since.toISOString(), limit },
+    // A read every minute that found nothing says nothing. What it found and what failed stay.
+    quietWhen: (result) => (result as StreamPullResult).items.length === 0,
+    handler: ({ connector, ctx }) => {
+      if (!connector.stream) {
+        throw new Error(`${connector.name} has no stream.`);
+      }
+      return connector.stream.pull({ ...ctx, since: since.toISOString(), limit }, cursor);
+    },
+  });
+}
+
+/** One mail of a connector's stream by its id, for a run that comes to it later. Logged like a pull. */
+export function brokerReadMessage(input: {
+  connection: Extract<BrokerConnection, { kind: "space_connection" }>;
+  message: string;
+}): Promise<BrokerResult<InboundMessage | null>> {
+  const { connection, message } = input;
+  return brokerCall({
+    who: { kind: "runtime" },
+    where: { spaceId: connection.row.spaceId },
+    connection,
+    action: { id: "read_message", kind: "read" },
+    input: { message },
+    handler: ({ connector, ctx }) => {
+      if (!connector.stream?.read) {
+        throw new Error(`${connector.name} can't read one message.`);
+      }
+      return connector.stream.read({ ...ctx, since: new Date(0).toISOString(), limit: 1 }, message);
+    },
+  });
 }
 
 /** Whether the service answered a call with "who are you?": its 401, or an OAuth grant gone. */

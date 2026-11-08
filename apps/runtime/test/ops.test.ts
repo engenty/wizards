@@ -67,6 +67,15 @@ describe("applyOps", () => {
     expect(plain.themes).toBeUndefined();
   });
 
+  it("sets a run's label and removes it with null", () => {
+    const named = applyOps(base, [
+      { op: "set_meta", label: "{{topic}}" },
+    ]) as WizardDefinition;
+    expect(named.label).toBe("{{topic}}");
+    const plain = applyOps(named, [{ op: "set_meta", label: null }]) as WizardDefinition;
+    expect(plain.label).toBeUndefined();
+  });
+
   it("puts a theme it sets first in the chain", () => {
     const themed = applyOps({ ...base, themes: ["brand", "winter"] }, [
       { op: "set_theme", theme: { id: "winter", name: "Winter" } },

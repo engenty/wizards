@@ -33,6 +33,7 @@ import {
   waitingApprovals,
 } from "../services/work-chats.js";
 import { FILES_PER_MESSAGE } from "../services/work-files.js";
+import { runsFor } from "../services/work-runs.js";
 import { spaceFileResponse } from "./delivery.js";
 import { say } from "./lang.js";
 import { assistantDevFor } from "./studio.js";
@@ -202,7 +203,7 @@ export const workRoutes = new Hono<Vars>()
   .get("/approvals", async (c) => {
     const user = c.get("user");
     const [approvals, criticals] = await Promise.all([waitingApprovals(user), criticalsFor(user)]);
-    return c.json({ approvals, ...criticals });
+    return c.json({ approvals, runs: await runsFor(user), ...criticals });
   })
   .post("/approvals/seen", async (c) => {
     await bellOpened(c.get("user"));

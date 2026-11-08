@@ -32,6 +32,11 @@ export interface Api {
   patch<T>(path: string, body?: unknown): Promise<T>;
   del<T>(path: string): Promise<T>;
   upload<T>(path: string, file: File): Promise<T>;
+  /**
+   * A PUT that outlives the page (`keepalive`): for what is still open when the tab closes. Nothing
+   * comes back, and a failure is silent.
+   */
+  keep(path: string, body: unknown): void;
 }
 
 /**
@@ -88,6 +93,15 @@ export function createApi(
       const form = new FormData();
       form.set("file", file);
       return request<T>("POST", path, form);
+    },
+    keep: (path: string, body: unknown) => {
+      void fetch(withBase(path), {
+        method: "PUT",
+        keepalive: true,
+        credentials: "include",
+        headers: { "accept-language": lang, ...headers, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }).catch(() => undefined);
     },
   };
 }

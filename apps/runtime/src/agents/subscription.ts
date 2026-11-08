@@ -34,6 +34,7 @@ import {
   type SubscriptionClient,
 } from "./chat-clients.js";
 import { thoughtLine } from "./thought.js";
+import type { TurnClock } from "./turn-clock.js";
 
 /**
  * The studio chat on the admin's own subscription: an installed client (Claude Code, Codex or
@@ -122,6 +123,8 @@ export interface SubscriptionTurn {
   extra?: boolean;
   /** The language the admin reads the lines about its work in. */
   lang?: Lang;
+  /** Where the turn's time goes, for the log. */
+  clock?: TurnClock;
 }
 
 /** The activity for one tool call, naming the file or service it is about when it says. */
@@ -188,6 +191,7 @@ export async function subscriptionTurn(
       (await chatModelId(input.client, input.extra === false ? "normal" : "extra")) ?? undefined,
     images,
   };
+  input.clock?.runsOn(call.model);
   const h = harness(input.client);
   // The client's own sign-in, as the person's terminal has it; no key of ours reaches it.
   const childEnv = h ? (await resolveEnv(h)).env : process.env;
@@ -217,10 +221,21 @@ export async function subscriptionTurn(
     for await (const line of createInterface({ input: child.stdout })) {
       for (const event of client.events(line)) {
         if (event.kind === "text") {
+          input.clock?.output();
           const text = reply ? `\n\n${event.text}` : event.text;
           reply += text;
           input.onText(text);
+        } else if (event.kind === "writing") {
+          input.clock?.output();
+        } else if (event.kind === "toolDone") {
+          input.clock?.toolDone(event.issues);
         } else if (event.kind === "tool") {
+          // A client that names the tool first is still writing its arguments.
+          if (event.started) {
+            input.clock?.toolCalled();
+          } else {
+            input.clock?.output();
+          }
           if (event.started && BUILDING.test(event.name)) {
             changed = true;
             input.onBuilding();
@@ -229,6 +244,11 @@ export async function subscriptionTurn(
         } else if (event.kind === "thinkingStart") {
           thinking = "";
         } else if (event.kind === "thinking") {
+          if (event.whole) {
+            input.clock?.reasoned();
+          } else {
+            input.clock?.reasoning();
+          }
           thinking += event.text;
           const next = thoughtLine(thinking);
           if (next && next !== thought) {
@@ -289,6 +309,104 @@ export async function chatEngine(): Promise<ChatWay | null> {
     return "claude";
   }
   return (await chatWays())[0] ?? null;
+}
+
+/**
+ * One call to an AI client that only writes text: no tools, not even this server's, no
+ * conversation kept. The client starts for this call. `onText` gets each piece as the client
+ * hands it over: Claude Code streams it, Codex and Cursor Agent give a message once it is done.
+ */
+export async function subscriptionText(input: {
+  client: SubscriptionClient;
+  system: string;
+  message: string;
+  signal: AbortSignal;
+  onText: (delta: string) => void;
+  /** The model the client runs, by its own name; undefined where the client picks. */
+  onModel?: (model: string | undefined) => void;
+  clock?: TurnClock;
+}): Promise<string> {
+  const client = CHAT_CLIENTS[input.client];
+  const dir = join(workDir, "bare", input.client);
+  mkdirSync(dir, { recursive: true });
+  if (input.client === "cursor") {
+    // Cursor Agent reads its instructions from the workspace; this one has no MCP server.
+    writeFileSync(join(dir, "AGENTS.md"), input.system, { mode: 0o600 });
+  }
+  const call: ChatCall = {
+    system: input.system,
+    message: input.message,
+    session: null,
+    mcpUrl: mcpUrl(),
+    dir,
+    model: (await chatModelId(input.client, "normal")) ?? undefined,
+    images: [],
+    bare: true,
+  };
+  input.clock?.runsOn(call.model);
+  input.onModel?.(call.model);
+  const h = harness(input.client);
+  const childEnv = h ? (await resolveEnv(h)).env : process.env;
+  const child = spawn(client.bin, client.args(call), {
+    cwd: dir,
+    stdio: ["pipe", "pipe", "pipe"],
+    signal: input.signal,
+    env: childEnv,
+  });
+  child.stdin.on("error", () => {
+    // A client that is gone already says so on stdout and in its exit code.
+  });
+  child.stdin.end(client.stdin(call));
+  let text = "";
+  let streamed = false;
+  let failure = "";
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr = (stderr + String(chunk)).slice(-2000);
+  });
+  for await (const line of createInterface({ input: child.stdout })) {
+    for (const event of client.events(line)) {
+      if (event.kind === "writing") {
+        input.clock?.output();
+        if (event.text) {
+          streamed = true;
+          text += event.text;
+          input.onText(event.text);
+        }
+      } else if (event.kind === "text" && !streamed) {
+        input.clock?.output();
+        const piece = text ? `\n\n${event.text}` : event.text;
+        text += piece;
+        input.onText(piece);
+      } else if (event.kind === "thinking") {
+        if (event.whole) {
+          input.clock?.reasoned();
+        } else {
+          input.clock?.reasoning();
+        }
+      } else if (event.kind === "failure") {
+        failure = event.detail;
+      } else if (event.kind === "result" && !text && event.text) {
+        text = event.text;
+        input.onText(text);
+      }
+    }
+  }
+  const code: number | null = await new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      resolve(child.exitCode);
+    } else {
+      child.once("close", resolve);
+    }
+  });
+  if (failure || (code !== 0 && !text)) {
+    const detail = failure || stderr.trim() || `exit ${code}`;
+    if (client.signedOut(detail)) {
+      throw new ServiceError("refused", signedOut({ id: client.id, name: client.name }));
+    }
+    throw new Error(`${client.name}: ${detail}`.slice(0, 500));
+  }
+  return text;
 }
 
 /** The way a turn runs on: a cloud runtime's own classes, else `chatEngine`, or a refusal naming what to set up. */

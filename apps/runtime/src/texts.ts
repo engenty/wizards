@@ -80,6 +80,12 @@ const EN = {
   doingFindService: "Looking for a service",
   doingWork: "Working",
   doingFlow: "Building the flow…",
+  firstPassWriting: "Writing the first pages…",
+  firstPassFinishing: "Finishing the draft…",
+  firstPassDone: {
+    one: "The first draft is there: one step. Go through it while I finish it.",
+    other: "The first draft is there: {count} steps. Go through them while I finish it.",
+  },
   doingWriteFile: "Writing {path}…",
   doingWriteAFile: "Writing a file…",
   doingDownload: "Downloading data…",
@@ -356,6 +362,13 @@ const DE: Partial<Record<ServerKey, Line>> = {
   doingFindService: "Sucht einen Dienst",
   doingWork: "Arbeitet",
   doingFlow: "Baut den Ablauf …",
+  firstPassWriting: "Schreibt die ersten Seiten …",
+  firstPassFinishing: "Macht den Entwurf fertig …",
+  firstPassDone: {
+    one: "Der erste Entwurf steht: ein Schritt. Geh ihn schon durch, während ich ihn fertig mache.",
+    other:
+      "Der erste Entwurf steht: {count} Schritte. Geh sie schon durch, während ich ihn fertig mache.",
+  },
   doingWriteFile: "Schreibt {path} …",
   doingWriteAFile: "Schreibt eine Datei …",
   doingDownload: "Lädt Daten herunter …",

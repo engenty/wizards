@@ -39,6 +39,7 @@ import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
 import { liveRoutes } from "./routes/live.js";
 import { marketplaceGuest, marketplaceStudio } from "./routes/marketplace.js";
 import { organizationRoutes } from "./routes/organization.js";
+import { peerRoutes } from "./routes/peer.js";
 import { personRoutes } from "./routes/person.js";
 import { publicPluginRoutes } from "./routes/plugin-public.js";
 import { pluginRoutes } from "./routes/plugins.js";
@@ -46,6 +47,7 @@ import { reportRoutes } from "./routes/reports.js";
 import { ruleRoutes } from "./routes/rules.js";
 import { clientIp, connectCallback, publicRoutes, runRoutes, shareRoutes } from "./routes/runs.js";
 import { runtimeSettingsRoutes } from "./routes/runtime-settings.js";
+import { signalRoutes } from "./routes/signals.js";
 import { skillRoutes } from "./routes/skills.js";
 import { studio } from "./routes/studio.js";
 import { wizardStream } from "./routes/wizard-stream.js";
@@ -395,6 +397,7 @@ if (serves.studio) {
   app.route("/api/local/debug", localDebugRoutes);
 }
 app.route("/api/internal", internalRoutes);
+app.route("/api/peer", peerRoutes);
 if (serves.doors) {
   app.use("/api/public/*", answers);
   app.use("/api/shares/*", answers);
@@ -404,6 +407,7 @@ if (serves.doors) {
     return c.json(publicHealth(h), httpStatus(h));
   });
   app.route("/api/public/plugins", publicPluginRoutes);
+  app.route("/api/public/signals", signalRoutes);
   app.route("/api/public", publicRoutes);
   app.route("/api/shares", shareRoutes);
 }

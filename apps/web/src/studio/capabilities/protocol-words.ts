@@ -32,6 +32,7 @@ export const REFUSAL_WORDS: Record<BrokerRefusal, Key> = {
   calls_per_day: "protocol.refused.calls_per_day",
   run_ended: "protocol.refused.run_ended",
   paused: "protocol.refused.paused",
+  may_have_happened: "protocol.refused.may_have_happened",
 };
 
 /** Why a run that is over took no more calls, by the rule the broker logs (`run.<status>`). */
@@ -78,6 +79,7 @@ export const RULE_WORDS: Record<string, Key> = {
   policy: "protocol.rule.policy",
   read: "protocol.rule.read",
   own_job: "protocol.rule.own_job",
+  autonomous_mode: "protocol.rule.autonomous_mode",
   guest_send: "protocol.rule.guest_send",
   run: "protocol.rule.run",
   paused: "protocol.rule.paused",
@@ -190,6 +192,9 @@ export function outcomeOf(line: Pick<ProtocolLine, "outcome" | "result" | "rule"
       text: t(outcome === "ask" ? "protocol.outcome.doneApproved" : "protocol.outcome.done"),
     };
   }
+  if (result === "already_done") {
+    return { tone: "done", text: t("protocol.outcome.alreadyDone") };
+  }
   if (result === "needs_approval") {
     return { tone: "held", text: t("protocol.outcome.held") };
   }
@@ -224,6 +229,8 @@ export function whoWord(who: ProtocolLine["who"]): string {
       return who.name ? t("protocol.who.gooseFor", { name: who.name }) : t("protocol.who.goose");
     case "plugin":
       return t("protocol.who.plugin", { name: who.id ?? "" });
+    case "runtime":
+      return t("protocol.who.runtime");
     case "step":
       if (!who.for) {
         return t("protocol.who.step");
@@ -309,6 +316,8 @@ export function actionWord(
       return t("protocol.action.request");
     case "read_secret":
       return t("protocol.action.readSecret");
+    case "pull_stream":
+      return t("protocol.action.pullStream");
     case "send_message":
       return line.actionName ?? t("protocol.action.sendMail");
     default:

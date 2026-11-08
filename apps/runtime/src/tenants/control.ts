@@ -5,7 +5,7 @@ import { currentTenant } from "./tenant.js";
 
 // What the runtime looks up before it knows the tenant: public tokens and run ids.
 
-type LinkKind = "wizard" | "result" | "logo" | "font" | "code";
+type LinkKind = "wizard" | "result" | "logo" | "font" | "code" | "signal";
 
 /** Remembers which tenant a public token belongs to. */
 export async function putLink(token: string, kind: LinkKind, ref: string) {
@@ -94,6 +94,8 @@ export async function indexRun(input: {
   runId: string;
   visitorId?: string | null;
   ipHash?: string | null;
+  /** A run that starts on a page with a deadline: when the clock wakes it. */
+  wakeAt?: Date | null;
 }) {
   const tenantId = currentTenant();
   runTenants.set(input.runId, tenantId);
@@ -102,6 +104,7 @@ export async function indexRun(input: {
     tenantId,
     visitorId: input.visitorId ?? null,
     ipHash: input.ipHash ?? null,
+    wakeAt: input.wakeAt ?? null,
   });
 }
 
@@ -277,6 +280,15 @@ export async function registerRunner() {
   await controlDb
     .delete(control.runner)
     .where(lt(control.runner.seen, new Date(now.getTime() - 86_400_000)));
+}
+
+/** The other runners that report now and named an address: the web asks them for their lines. */
+export async function otherRunners(): Promise<{ id: string; url: string }[]> {
+  const rows = await controlDb
+    .select({ id: control.runner.id, url: control.runner.url })
+    .from(control.runner)
+    .where(gte(control.runner.seen, new Date(Date.now() - RUNNER_STALE_MS)));
+  return rows.flatMap((r) => (r.url && r.id !== env.runner.id ? [{ id: r.id, url: r.url }] : []));
 }
 
 /** This runner finished a look at the line. */

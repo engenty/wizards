@@ -1,4 +1,6 @@
+import type { MailboxView } from "@engenty/wizards-shared/connectors";
 import type { RunnerFit, RunnerInfo, RunnerSettings } from "@engenty/wizards-shared/runners";
+import type { WizardStart } from "@engenty/wizards-shared/starts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -15,6 +17,8 @@ import {
   Laptop,
   Link2,
   Lock,
+  Mail,
+  Plus,
   Printer,
   Puzzle,
   QrCode,
@@ -62,6 +66,7 @@ import {
   Switch,
 } from "../../ui";
 import { LinkStatus, useAccountLink } from "../Account";
+import { ago } from "../capabilities/ConnectorsSection";
 import { openExternal } from "../LocalRuntime";
 import {
   CHANNEL_GROUPS,
@@ -76,6 +81,7 @@ import { FitChip, NeedList, useStandalone } from "../StandaloneNeeds";
 import { pageAddress } from "../space/page-address";
 import { sharedLink, type WhereItRuns, whereItRuns } from "../where";
 import { useEstimate } from "./estimate";
+import { StartsSection, StartsView } from "./StartsSection";
 import { TranslationsSection } from "./Translations";
 import { printQr, QrImage, qrSvg, saveQrPng, spacedCode } from "./WizardQr";
 
@@ -140,7 +146,7 @@ interface Way {
   plugin?: string;
 }
 
-type View = "main" | "qr" | "website" | "package" | "settings" | "channels" | "setup";
+type View = "main" | "qr" | "website" | "package" | "settings" | "channels" | "setup" | "starts";
 
 const HEADINGS: Record<Exclude<View, "main" | "setup">, Key> = {
   qr: "share.qr",
@@ -148,6 +154,7 @@ const HEADINGS: Record<Exclude<View, "main" | "setup">, Key> = {
   package: "share.wpLocal",
   settings: "share.settings",
   channels: "new.where",
+  starts: "starts.title",
 };
 
 /** A run of the wizard as the studio lists them; `shareToken` set where its result is shared. */
@@ -260,6 +267,316 @@ function PageSection({ wizard }: { wizard: WizardDetail }) {
       {change.error ? (
         <p className="text-[0.8125rem] text-rose">{(change.error as Error).message}</p>
       ) : null}
+    </section>
+  );
+}
+
+/** „Aus einem Postfach“: the space's mailboxes. An admin switches on that one is read while a run waits. */
+function MailboxRows({ wizard }: { wizard: WizardDetail }) {
+  const qc = useQueryClient();
+  const key = ["mailboxes", wizard.id];
+  const found = useQuery({
+    queryKey: key,
+    queryFn: () =>
+      api.get<{ mailboxes: MailboxView[]; canSwitch: boolean }>(
+        `/api/studio/wizards/${wizard.id}/mailboxes`,
+      ),
+    refetchInterval: 30_000,
+  });
+  const change = useMutation({
+    mutationFn: ({ id, on }: { id: string; on: boolean }) =>
+      api.patch(`/api/studio/connections/${id}`, { autonomousMode: on ? "read_only" : "off" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  });
+  const mailboxes = found.data?.mailboxes ?? [];
+  const failed = found.error ?? change.error;
+  return (
+    <div className="flex flex-col gap-2 rounded-xl bg-paper-2 px-3.5 py-3">
+      <div className="flex items-center gap-1.5 font-medium text-[0.875rem]">
+        <Mail className="size-3.5" />
+        {t("share.signalsFromMailbox")}
+      </div>
+      {found.data ? (
+        <p className="text-[0.8125rem] text-ink-3">
+          {t(mailboxes.length ? "share.signalsMailboxHint" : "share.signalsMailboxNone")}
+        </p>
+      ) : null}
+      {mailboxes.map((box) => (
+        <div key={box.id} className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[0.875rem]">
+              {t(box.on ? "share.signalsMailboxOn" : "share.signalsMailbox", { name: box.name })}
+            </div>
+            <div className="truncate text-[0.8125rem] text-ink-3" title={box.account}>
+              {!box.on
+                ? box.account
+                : box.readAt
+                  ? t("share.signalsMailboxRead", { account: box.account, when: ago(box.readAt) })
+                  : t("share.signalsMailboxNotYet", { account: box.account })}
+            </div>
+            {box.on && box.error ? (
+              <div className="text-[0.8125rem] text-rose">
+                {t(`share.signalsMailboxError.${box.error}`)}
+              </div>
+            ) : null}
+          </div>
+          <Switch
+            checked={box.on}
+            label={t("share.signalsMailbox", { name: box.name })}
+            disabled={wizard.readOnly || !found.data?.canSwitch || change.isPending}
+            onChange={(on) => change.mutate({ id: box.id, on })}
+          />
+        </div>
+      ))}
+      {failed ? <p className="text-[0.8125rem] text-rose">{(failed as Error).message}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * "Ereignisse": the wizard's address for other services. Address and secret are said once, as they
+ * are made; after that they can only be made anew.
+ */
+/** The people of the organization, as Settings shows them: read here to name who answers. */
+interface OrganizationPeople {
+  members: { userId: string; name: string; email: string; role: string }[];
+  canManage: boolean;
+}
+
+/**
+ * Who answers the steps with `who: "team"`. These are this organization's people, kept with the
+ * wizard here and never in its file. Only on a server: on a computer the one person answers it all.
+ */
+function AnswerersSection({ wizard }: { wizard: WizardDetail }) {
+  const qc = useQueryClient();
+  const id = useId();
+  const people = useQuery({
+    queryKey: ["organization"],
+    queryFn: () => api.get<OrganizationPeople>("/api/studio/organization"),
+  });
+  const save = useMutation({
+    mutationFn: (answerers: string[] | "admins") =>
+      api.put(`/api/studio/wizards/${wizard.id}/answerers`, { answerers }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.wizard(wizard.id) }),
+  });
+  const [adding, setAdding] = useState(false);
+  const answerers = save.isPending && save.variables ? save.variables : wizard.answerers;
+  const named = Array.isArray(answerers) ? answerers : [];
+  const members = people.data?.members ?? [];
+  const may = !wizard.readOnly;
+  const addable = members.filter((m) => m.role !== "client" && !named.includes(m.userId));
+  const initials = (name: string) =>
+    name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("");
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 id={id} className={heading}>
+            {t("share.answerers")}
+          </h3>
+          <p className="text-[0.8125rem] text-ink-3">{t("share.answerersHint")}</p>
+        </div>
+        <div className="flex shrink-0 gap-1 rounded-lg bg-paper-2 p-0.5">
+          {(["people", "admins"] as const).map((mode) => {
+            const on = mode === "admins" ? answerers === "admins" : answerers !== "admins";
+            return (
+              <button
+                key={mode}
+                type="button"
+                disabled={!may}
+                aria-pressed={on}
+                onClick={() => save.mutate(mode === "admins" ? "admins" : [])}
+                className={`rounded-md px-2.5 py-1 text-[0.8125rem] ${
+                  on ? "bg-paper text-ink shadow-sm" : "text-ink-3"
+                }`}
+              >
+                {t(mode === "admins" ? "share.answerersAdmins" : "share.answerersPeople")}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {answerers === "admins" ? (
+        <p className="text-[0.8125rem] text-ink-3">{t("share.answerersAdminsHint")}</p>
+      ) : (
+        <>
+          {named.length ? null : (
+            <p className="text-[0.8125rem] text-ink-3">{t("share.answerersNobody")}</p>
+          )}
+          {named.map((userId) => {
+            const person = members.find((m) => m.userId === userId);
+            const name = person?.name || person?.email || userId;
+            return (
+              <div key={userId} className="flex items-center gap-2.5">
+                <span className="grid size-7 place-items-center rounded-full bg-paper-2 font-medium text-[0.6875rem] text-ink-2">
+                  {initials(name)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[0.875rem]">{name}</span>
+                {may ? (
+                  <button
+                    type="button"
+                    aria-label={t("share.answerersRemove", { name })}
+                    className="text-ink-4 hover:text-ink"
+                    onClick={() => save.mutate(named.filter((n) => n !== userId))}
+                  >
+                    <X className="size-4" />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+          {may && addable.length ? (
+            adding ? (
+              <ul className="flex flex-col gap-1 rounded-xl bg-paper-2 p-1.5">
+                {addable.map((m) => (
+                  <li key={m.userId}>
+                    <button
+                      type="button"
+                      className="w-full truncate rounded-lg px-2.5 py-1.5 text-left text-[0.875rem] hover:bg-ink/5"
+                      onClick={() => {
+                        setAdding(false);
+                        save.mutate([...named, m.userId]);
+                      }}
+                    >
+                      {m.name || m.email}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div>
+                <Button size="sm" variant="secondary" onClick={() => setAdding(true)}>
+                  <Plus className="size-3.5" />
+                  {t("share.answerersAdd")}
+                </Button>
+              </div>
+            )
+          ) : null}
+        </>
+      )}
+      {save.error ? (
+        <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+      ) : null}
+    </section>
+  );
+}
+
+function SignalsSection({ wizard }: { wizard: WizardDetail }) {
+  const qc = useQueryClient();
+  const id = useId();
+  const key = ["signal-address", wizard.id];
+  const { copied, copy } = useCopy();
+  const [signed, setSigned] = useState(true);
+  const address = useQuery({
+    queryKey: key,
+    queryFn: () =>
+      api.get<{ on: boolean; signed: boolean }>(`/api/studio/wizards/${wizard.id}/signal-address`),
+  });
+  const make = useMutation({
+    mutationFn: () =>
+      api.post<{ url: string; secret: string | null }>(
+        `/api/studio/wizards/${wizard.id}/signal-address`,
+        { signed },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  });
+  const drop = useMutation({
+    mutationFn: () => api.del(`/api/studio/wizards/${wizard.id}/signal-address`),
+    onSuccess: () => {
+      make.reset();
+      return qc.invalidateQueries({ queryKey: key });
+    },
+  });
+  const made = make.data;
+  const on = address.data?.on;
+  const failed = address.error ?? make.error ?? drop.error;
+  const line = (label: string, text: string, what: string) => (
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">
+        <div className="text-[0.8125rem] text-ink-3">{label}</div>
+        <div className="select-all truncate font-mono text-[0.8125rem]" title={text}>
+          {text}
+        </div>
+      </div>
+      <Button size="sm" variant="secondary" aria-label={what} onClick={() => copy(what, text)}>
+        {copied === what ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+        {copied === what ? t("share.copied") : t("share.copy")}
+      </Button>
+    </div>
+  );
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 id={id} className={heading}>
+            {t("share.signals")}
+          </h3>
+          <p className="text-[0.8125rem] text-ink-3">{t("share.signalsHint")}</p>
+        </div>
+        {on || wizard.readOnly ? null : (
+          <Button size="sm" variant="secondary" busy={make.isPending} onClick={() => make.mutate()}>
+            {t("share.signalsAdd")}
+          </Button>
+        )}
+      </div>
+      {on || wizard.readOnly ? null : (
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[0.8125rem] text-ink-2">{t("share.signalsSigned")}</span>
+          <Switch checked={signed} onChange={setSigned} label={t("share.signalsSigned")} />
+        </div>
+      )}
+      {made ? (
+        <>
+          <Banner title={t("share.signalsOnce")}>{t("share.signalsOnceHint")}</Banner>
+          <div className="flex flex-col gap-2 rounded-xl bg-paper-2 px-3.5 py-3">
+            <div className="font-medium text-[0.875rem]">{t("share.signalsFromServices")}</div>
+            {line(t("share.signalsAddress"), made.url, t("share.signalsCopyAddress"))}
+            {made.secret ? (
+              <>
+                {line(t("share.signalsSecret"), made.secret, t("share.signalsCopySecret"))}
+                <p className="text-[0.8125rem] text-ink-3">{t("share.signalsSecretHint")}</p>
+              </>
+            ) : null}
+          </div>
+        </>
+      ) : on ? (
+        <p className="text-[0.8125rem] text-ink-2">
+          {t(address.data?.signed ? "share.signalsThereSigned" : "share.signalsThere")}
+        </p>
+      ) : null}
+      {on && !wizard.readOnly ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            busy={make.isPending}
+            onClick={async () =>
+              (await askConfirm(t("share.signalsNewConfirm"), { action: t("share.signalsNew") })) &&
+              make.mutate()
+            }
+          >
+            <RefreshCw className="size-3.5" /> {t("share.signalsNew")}
+          </Button>
+          <Button
+            size="sm"
+            variant="quiet"
+            busy={drop.isPending}
+            onClick={async () =>
+              (await askConfirm(t("share.signalsRemoveConfirm"), {
+                action: t("share.signalsRemove"),
+              })) && drop.mutate()
+            }
+          >
+            {t("share.signalsRemove")}
+          </Button>
+        </div>
+      ) : null}
+      {failed ? <p className="text-[0.8125rem] text-rose">{(failed as Error).message}</p> : null}
+      <MailboxRows wizard={wizard} />
     </section>
   );
 }
@@ -1391,6 +1708,9 @@ function SharePanel({
   const qc = useQueryClient();
   const account = useFeature("account");
   const wordpress = useFeature("wordpress");
+  const durableRuns = useFeature("durableRuns");
+  const startsOn = useFeature("startTriggers");
+  const durableOn = useFeature("durableRuns");
   const me = useMe();
   const local = me.data?.mode === "local";
   // A local install with an account sends what it publishes on to the account's cloud.
@@ -1422,6 +1742,8 @@ function SharePanel({
       ]),
   });
   const [view, setView] = useState<View>("main");
+  /** The start the sheet changes; null: a new one. */
+  const [editingStart, setEditingStart] = useState<WizardStart | null>(null);
   const { copied, copy } = useCopy();
   const navigate = useNavigate();
   const { sections, shareSetups } = useStudioPlugins();
@@ -1604,6 +1926,9 @@ function SharePanel({
               </PluginFrame>
             ) : null}
             {here && wizard.published ? <LocalOffer account={account} /> : null}
+            {durableOn && local && !linked ? (
+              <p className="text-[0.8125rem] text-ink-3">{t("share.noMailHere")}</p>
+            ) : null}
             {linked && wizard.published ? (
               <CloudProblem wizard={wizard} where={where} cloud={cloud.data} />
             ) : null}
@@ -1615,6 +1940,8 @@ function SharePanel({
               <p className="-mt-4 text-[0.8125rem] text-rose">{(access.error as Error).message}</p>
             ) : null}
             {here ? null : <PageSection wizard={wizard} />}
+            {durableRuns ? <SignalsSection wizard={wizard} /> : null}
+            {durableRuns && !local ? <AnswerersSection wizard={wizard} /> : null}
             {runners.data ? (
               <Ways
                 ways={ways}
@@ -1626,6 +1953,19 @@ function SharePanel({
                 onChange={() => setView("channels")}
                 onSetUp={setUp}
                 plansUrl={plansUrl}
+              />
+            ) : null}
+            {wizard.published && startsOn ? (
+              <StartsSection
+                wizard={wizard}
+                onAdd={() => {
+                  setEditingStart(null);
+                  setView("starts");
+                }}
+                onEdit={(start) => {
+                  setEditingStart(start);
+                  setView("starts");
+                }}
               />
             ) : null}
           </Body>
@@ -1681,6 +2021,15 @@ function SharePanel({
       ) : null}
       {view === "channels" ? (
         <ChannelsView wizard={wizard} answer={runners.data} onDone={() => setView("main")} />
+      ) : null}
+      {view === "starts" ? (
+        <StartsView
+          wizard={wizard}
+          editing={editingStart}
+          onDone={() => setView("main")}
+          Body={Body}
+          Footer={Footer}
+        />
       ) : null}
       {view === "setup" && setup ? (
         <SetupView wizard={wizard} setup={setup} onDone={setupDone} />

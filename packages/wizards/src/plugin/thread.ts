@@ -155,10 +155,20 @@ const texts = {
     screen: "Dieser Teil braucht einen Bildschirm. Danach geht es hier weiter.",
     open: "Öffnen",
     working: "{step} – das dauert einen Moment.",
+    answeredElsewhere: "Jemand aus dem Team kümmert sich jetzt darum. Danach geht es hier weiter.",
     sleeping: "Das geht am {date} von selbst weiter. Du musst nichts tun.",
     sleepingSoon: "Das geht gleich von selbst weiter. Du musst nichts tun.",
+    waitsCredits:
+      "Das Guthaben dieses Wizards ist aufgebraucht. Es geht von selbst weiter, sobald wieder Guthaben da ist.",
+    waitsSignIn: "{service} braucht eine neue Anmeldung. Danach geht es von selbst weiter.",
+    waitsSignal: "Der Wizard wartet auf ein Ereignis und geht dann von selbst weiter.",
+    waitsSignalUntil:
+      "Der Wizard wartet auf ein Ereignis, höchstens bis {date}, und geht dann von selbst weiter.",
+    signalTaken: "Danke, das ist angekommen.",
     reviewAsk: "Passt das so?",
     reviewOk: "Passt",
+    reviewApprove: "Freigeben",
+    reviewDecline: "Ablehnen",
     reviewRedo: "Neue Version",
     reviewWhich: "Was soll neu gemacht werden?",
     reviewNote: "Was soll anders sein?",
@@ -192,10 +202,20 @@ const texts = {
     screen: "This part needs a screen. You carry on here afterwards.",
     open: "Open",
     working: "{step} – this takes a moment.",
+    answeredElsewhere: "Someone from the team is on it now. This goes on here after that.",
     sleeping: "This goes on by itself on {date}. You don’t need to do anything.",
     sleepingSoon: "This goes on by itself in a moment. You don’t need to do anything.",
+    waitsCredits:
+      "This wizard has run out of credits for now. It goes on by itself once there are credits again.",
+    waitsSignIn: "{service} needs a new sign-in. This goes on by itself after that.",
+    waitsSignal: "The wizard is waiting for an event and goes on by itself after that.",
+    waitsSignalUntil:
+      "The wizard is waiting for an event, until {date} at the latest, and goes on by itself after that.",
+    signalTaken: "Thanks, that arrived.",
     reviewAsk: "Is this right?",
     reviewOk: "Looks good",
+    reviewApprove: "Approve",
+    reviewDecline: "Decline",
     reviewRedo: "New version",
     reviewWhich: "What should be redone?",
     reviewNote: "What should be different?",
@@ -239,6 +259,7 @@ const NO_WORDS = new Set(["nein", "no", "n", "nö", "nope", "false"]);
 type PageWaiting = Extract<PluginRunWaiting, { page: string }>;
 type ReviewWaiting = Extract<PluginRunWaiting, { review: string }>;
 type AskWaiting = Extract<PluginRunWaiting, { ask: string }>;
+type QuestionWaiting = Extract<PluginRunWaiting, { question: string }>;
 
 type Taken = { kind: "value"; value: unknown } | { kind: "again"; hint: string } | { kind: "wait" };
 
@@ -494,16 +515,51 @@ export class ThreadDoor {
       this.o.watch(thread);
       return;
     }
-    if ("wait" in w) {
-      // Said once, or when the person writes: for days this thread has nothing else to say.
-      const key = `wait:${w.wait}`;
+    if ("answeredBy" in w) {
+      // Theirs to answer, not the person's here: said once, then the thread waits for the run.
+      const key = `elsewhere:${report.step?.id ?? ""}`;
       if (s.said !== key || msg) {
         s.said = key;
+        await this.send(thread, { kind: "text", text: say(s.lang, "answeredElsewhere") });
+      }
+      this.o.watch(thread);
+      return;
+    }
+    if ("wait" in w) {
+      // What the person writes goes to one place: a wait that listens for it takes it as its
+      // signal, where a person's step would take it as the answer.
+      const text = msg?.text?.trim() || msg?.replyTitle?.trim();
+      if (w.signal && msg && text) {
+        const taken = await this.o.runs.message(runId, { text, delivery: msg.id });
+        if (taken) {
+          s.said = null;
+          await this.send(thread, { kind: "text", text: say(s.lang, "signalTaken") });
+          this.o.watch(thread);
+          return;
+        }
+        // The run may have gone on just now: then what was written is for the step it stands at.
+        const now = await this.report(thread);
+        if (now?.waitingFor && !("wait" in now.waitingFor)) {
+          await this.step(thread, now, msg);
+          return;
+        }
+      }
+      // Said once, or when the person writes: for days this thread has nothing else to say.
+      const key = `wait:${w.wait}:${w.pause?.kind ?? ""}`;
+      if (s.said !== key || msg) {
+        s.said = key;
+        const date = w.until ? dayAndTime(w.until, s.lang) : "";
         await this.send(thread, {
           kind: "text",
-          text: w.until
-            ? say(s.lang, "sleeping", { date: dayAndTime(w.until, s.lang) })
-            : say(s.lang, "sleepingSoon"),
+          text: w.signal
+            ? say(s.lang, date ? "waitsSignalUntil" : "waitsSignal", { date })
+            : w.pause?.kind === "credits"
+              ? say(s.lang, "waitsCredits")
+              : w.pause?.kind === "sign_in"
+                ? say(s.lang, "waitsSignIn", { service: w.pause.service })
+                : date
+                  ? say(s.lang, "sleeping", { date })
+                  : say(s.lang, "sleepingSoon"),
         });
       }
       this.o.watch(thread);
@@ -513,6 +569,8 @@ export class ThreadDoor {
       await this.page(thread, w, msg);
     } else if ("review" in w) {
       await this.review(thread, report, w, msg);
+    } else if ("question" in w) {
+      await this.question(thread, w, msg);
     } else {
       await this.ask(thread, w, msg);
     }
@@ -850,6 +908,13 @@ export class ThreadDoor {
       await this.after(thread);
       return;
     }
+    if (msg?.replyId === "r:no" && w.approve) {
+      await this.o.runs.review(runId, w.review, { type: "decline" });
+      s.said = null;
+      s.awaiting = null;
+      await this.after(thread);
+      return;
+    }
     if (msg?.replyId === "r:redo") {
       if (w.show.length > 1) {
         s.awaiting = "target";
@@ -899,11 +964,37 @@ export class ThreadDoor {
         kind: "choice",
         text: say(s.lang, "reviewAsk"),
         button: say(s.lang, "choose"),
-        options: [
-          { id: "r:ok", title: say(s.lang, "reviewOk") },
-          { id: "r:redo", title: say(s.lang, "reviewRedo") },
-        ],
+        options: w.approve
+          ? [
+              { id: "r:ok", title: say(s.lang, "reviewApprove") },
+              { id: "r:no", title: say(s.lang, "reviewDecline") },
+            ]
+          : [
+              { id: "r:ok", title: say(s.lang, "reviewOk") },
+              { id: "r:redo", title: say(s.lang, "reviewRedo") },
+            ],
       });
+    }
+  }
+
+  /** A step asks in words: the next message is the answer. */
+  private async question(
+    thread: Thread,
+    w: QuestionWaiting,
+    msg: ThreadInbound | null,
+  ): Promise<void> {
+    const s = thread.state;
+    const key = `question:${w.question}`;
+    const answer = msg?.text?.trim();
+    if (s.said === key && answer) {
+      await this.o.runs.answerQuestion(thread.runId!, answer);
+      s.said = null;
+      await this.after(thread);
+      return;
+    }
+    if (s.said !== key || msg) {
+      s.said = key;
+      await this.send(thread, { kind: "text", text: w.question });
     }
   }
 

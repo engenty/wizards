@@ -58,8 +58,16 @@ export function stateText(view: RunView, page: PageBinding | null, camera = fals
   if (view.ask) {
     lines.push(
       view.ask.kind === "confirm"
-        ? `question: the step wants to "${view.ask.action.summary}" in ${view.ask.service}; answer_ask allows or skips it`
+        ? view.ask.again
+          ? `question: "${view.ask.action.summary}" in ${view.ask.service} was interrupted and may have happened already; answer_ask allows doing it again or skips it`
+          : `question: the step wants to "${view.ask.action.summary}" in ${view.ask.service}; answer_ask allows or skips it`
         : `question: a sign-in at ${view.ask.site.host}; the person types it on the screen, wait`,
+    );
+    return lines.join("\n");
+  }
+  if (view.question) {
+    lines.push(
+      `question: "${view.question}"; ask the person, then answer_question with their words`,
     );
     return lines.join("\n");
   }
@@ -74,7 +82,19 @@ export function stateText(view: RunView, page: PageBinding | null, camera = fals
     return lines.join("\n");
   }
   if (view.status === "sleeping") {
-    lines.push(`waiting until: ${view.wakeAt ?? "soon"}; it goes on by itself, nothing to do`);
+    lines.push(
+      view.pause?.kind === "credits"
+        ? "out of credits; it goes on by itself once the account is topped up"
+        : view.pause?.kind === "sign_in"
+          ? `${view.pause.service} needs a new sign-in; it goes on by itself after that`
+          : `waiting until: ${view.wakeAt ?? "soon"}; it goes on by itself, nothing to do`,
+    );
+    return lines.join("\n");
+  }
+  if (view.status === "waiting_signal") {
+    lines.push(
+      `waiting for an event${view.waitsFor ? ` from ${view.waitsFor}` : ""}${view.wakeAt ? `, until ${view.wakeAt} at the latest` : ""}; it goes on by itself, nothing to do`,
+    );
     return lines.join("\n");
   }
   if (view.status === "done") {
@@ -107,6 +127,9 @@ export function stateText(view: RunView, page: PageBinding | null, camera = fals
   }
   if (view.step?.type === "review") {
     lines.push(`review: ${view.step.title}`);
+    if (view.step.approve) {
+      lines.push("this review asks for a decision: approve or decline");
+    }
     for (const { step, output } of view.shown) {
       lines.push(
         `- ${step.id} "${step.title}": ${clip(output?.text, 600) || "(a picture or file, on the screen)"}`,
@@ -338,6 +361,13 @@ export function useLiveVoice(
             return "no review is open";
           }
           return (await r.accept(v.step.id)) ? "accepted" : (r.error ?? "refused");
+        case "decline_review":
+          if (v?.step?.type !== "review" || !v.step.approve) {
+            return "no review asks for a decision";
+          }
+          return (await r.decline(v.step.id, args.note ? String(args.note) : undefined))
+            ? "declined"
+            : (r.error ?? "refused");
         case "regenerate":
           if (v?.step?.type !== "review") {
             return "no review is open";
@@ -354,6 +384,16 @@ export function useLiveVoice(
               type: args.allow ? "done" : "skip",
             });
             return args.allow ? "allowed" : "skipped";
+          } catch (err) {
+            return `refused: ${(err as Error).message}`;
+          }
+        case "answer_question":
+          if (!v?.question) {
+            return "no question is open";
+          }
+          try {
+            await api.post(`/api/runs/${runId}/question`, { answer: String(args.answer ?? "") });
+            return "answered";
           } catch (err) {
             return `refused: ${(err as Error).message}`;
           }

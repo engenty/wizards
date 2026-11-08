@@ -28,6 +28,7 @@ import { bothModes, useScopedLook } from "../../runner/theme";
 import { Button, cn, IconButton } from "../../ui";
 import { LookSwitch, type RunLook } from "../RunDrawer";
 import { type Audience, ResultPreview } from "./ResultPreview";
+import { TestRunControls } from "./RunControls";
 
 /** A theme the wizard offers, as the runtime draws it (`GET …/looks`). */
 interface ThemeLook {
@@ -280,6 +281,7 @@ export function PreviewPane({
           fieldErrors: {},
           submitPage: still,
           accept: still,
+          decline: still,
           regenerate: still,
           back: still,
           retry: still,
@@ -494,6 +496,9 @@ export function PreviewPane({
             </div>
           </div>
         </div>
+        {runId && !shown ? (
+          <TestRunControls runId={runId} wizardId={w.id} status={runView?.status ?? null} />
+        ) : null}
         {runId && !shown ? log : null}
       </div>
     </div>

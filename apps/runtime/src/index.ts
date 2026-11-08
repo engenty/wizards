@@ -11,7 +11,10 @@ import {
   openTenantDb,
   withTenant,
 } from "./db/client.js";
+import { startMailWatch } from "./engine/mail-watch.js";
+import { startNotices } from "./engine/notices.js";
 import { startRunner, stopRunner } from "./engine/runner.js";
+import { startStarts } from "./engine/starts.js";
 import { basePath, env } from "./env.js";
 import { pruneLive } from "./live/feed.js";
 import { hookConsole } from "./log.js";
@@ -45,6 +48,8 @@ await loadEntitlement();
 // Before any tenant database opens: each gets the plugins' own tables as it does.
 await loadPlugins();
 startJobs();
+startStarts();
+startNotices();
 if (managed) {
   // Every tenant database is brought to this release's schema; a new one migrates when first opened.
   void migrateAllTenants()
@@ -115,6 +120,7 @@ if (env.serves.runner) {
   await registerRunner();
   setInterval(() => void registerRunner().catch(() => undefined), 10_000).unref();
   startRunner();
+  startMailWatch();
 }
 
 // End-user results are kept RESULT_TTL_DAYS; expired runs and their files go once an hour.

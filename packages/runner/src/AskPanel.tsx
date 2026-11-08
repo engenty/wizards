@@ -1,10 +1,71 @@
 import type { AskAnswer, ConfirmAsk, LoginAsk, RunAsk } from "@engenty/wizards-shared/run";
-import { LockKeyhole, PencilLine, ShieldCheck, TriangleAlert } from "lucide-react";
+import {
+  ArrowRight,
+  LockKeyhole,
+  MessageCircleQuestion,
+  PencilLine,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
 import { useState } from "react";
 import { LiveBrowser } from "./browser-live.js";
 import { api, runBase } from "./env.js";
 import { t } from "./i18n.js";
-import { Button, cn, Input, Label, Switch } from "./ui.js";
+import { Button, cn, Input, Label, Switch, Textarea } from "./ui.js";
+
+/**
+ * What a durable step asks the person. The run waits, with no process behind it, so the panel can
+ * stay open for days: the answer goes on through the run's row.
+ */
+export function QuestionPanel({ runId, question }: { runId: string; question: string }) {
+  const [answer, setAnswer] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const send = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`${runBase(runId)}/question`, { answer: answer.trim() });
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="animate-rise">
+      <div className="mb-5 flex items-start gap-3">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-ember-tint text-ember-strong">
+          <MessageCircleQuestion className="size-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[0.8125rem] text-ink-3">{t("question.asks")}</p>
+          <h2 className="wizard-heading font-display font-semibold text-[1.25rem] leading-snug tracking-tight">
+            {question}
+          </h2>
+        </div>
+      </div>
+      <Textarea
+        autoFocus
+        minRows={4}
+        placeholder={t("question.placeholder")}
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+      />
+      <p className="mt-2 text-[0.75rem] text-ink-4">{t("question.later")}</p>
+      {error ? (
+        <div className="mt-3 rounded-lg bg-rose-tint px-4 py-3 text-[0.875rem] text-rose">
+          {error}
+        </div>
+      ) : null}
+      <div className="action-bar mt-6 flex items-center justify-end gap-3">
+        <Button busy={busy} disabled={!answer.trim()} onClick={() => void send()}>
+          {t("question.send")}
+          <ArrowRight className="size-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /** What a running step asks the person: a sign-in, or leave to change something. */
 export function AskPanel({ runId, ask }: { runId: string; ask: RunAsk }) {
@@ -46,7 +107,9 @@ function ConfirmPanel({ runId, ask }: { runId: string; ask: ConfirmAsk }) {
           <Icon className="size-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-[0.8125rem] text-ink-3">{t("ask.wants", { service: ask.service })}</p>
+          <p className="text-[0.8125rem] text-ink-3">
+            {t(ask.again ? "ask.again" : "ask.wants", { service: ask.service })}
+          </p>
           <h2 className="wizard-heading font-display font-semibold text-[1.25rem] leading-snug tracking-tight">
             {ask.reason}
           </h2>
@@ -55,6 +118,11 @@ function ConfirmPanel({ runId, ask }: { runId: string; ask: ConfirmAsk }) {
       <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-paper-2 p-4 text-[0.8125rem] leading-relaxed ring-1 ring-border-soft">
         {ask.input}
       </pre>
+      {ask.again ? (
+        <p className="mt-3 text-[0.8125rem] text-ink-2">
+          {t("ask.againHint", { service: ask.service })}
+        </p>
+      ) : null}
       {ask.once ? null : (
         <div className="mt-5 flex items-center gap-4">
           <Switch checked={remember} onChange={setRemember} label={t("ask.allowRest")} />
@@ -68,10 +136,10 @@ function ConfirmPanel({ runId, ask }: { runId: string; ask: ConfirmAsk }) {
       ) : null}
       <div className="action-bar mt-6 flex items-center justify-between gap-3">
         <Button variant="ghost" disabled={busy} onClick={() => void answer({ type: "skip" })}>
-          {t("ask.deny")}
+          {t(ask.again ? "ask.againDeny" : "ask.deny")}
         </Button>
         <Button busy={busy} onClick={() => void answer({ type: "done", remember })}>
-          {t("ask.allow")}
+          {t(ask.again ? "ask.againAllow" : "ask.allow")}
         </Button>
       </div>
     </div>

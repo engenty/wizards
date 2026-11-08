@@ -3,6 +3,7 @@ import { note } from "@engenty/wizards-shared/run";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import { effectIdOf } from "../broker/effect.js";
 import {
   type BrokerConnection,
   brokerCall,
@@ -10,15 +11,16 @@ import {
   kindOf,
   type Refusal,
   reachesOutside,
+  signInRefused,
   type Who,
   whereOf,
 } from "../broker/index.js";
 import { refreshConnector, resolveConnector } from "../connectors/external.js";
 import { spaceConnectionOf } from "../connectors/space-connections.js";
 import type { ConnectorAction } from "../engenty/connections-sdk/types.js";
-import { type StepContext, StepError } from "../engine/types.js";
+import { SignInNeeded, type StepContext, StepError } from "../engine/types.js";
 import { prompt } from "../prompts.js";
-import { inProgram } from "./code.js";
+import { inProgram, toolCallIdOf } from "./code.js";
 import { holderWho, stepWho } from "./plugin.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
 import { resolveFile } from "./store.js";
@@ -155,6 +157,8 @@ function refusalNote(refused: Refusal, service: string): string {
       return prompt("tools", "note.connector_calls_per_day", { service });
     case "run_ended":
       return prompt("tools", "note.run_ended");
+    case "may_have_happened":
+      return prompt("tools", "note.connector_may_have_happened", { service });
     default:
       return prompt("tools", "note.connector_refused", { service });
   }
@@ -236,28 +240,54 @@ export async function callConnection(
   if (!action) {
     throw new StepError(note("connectorNoAction", { name: service, id: call.action }));
   }
+  const effect = { visit: ctx.state.visits?.[ctx.stepId] };
+  // A change out there is not repeated by a later try of the step (engine/runner.ts stepFailed).
+  // With a row of its own the try is safe: the row answers, or says it may have happened.
+  ctx.resources.acted ||=
+    kindOf(action.group) !== "read" && !(await effectIdOf(whereOf(ctx), effect));
   const out = await brokerCall({
     who,
     where: whereOf(ctx),
     connection: held,
     action: { id: action.id, kind: kindOf(action.group) },
     input: input ?? {},
-    ctx: { ask: ctx.ask, allowed: ctx.resources.allowed },
+    ctx: {
+      ask: ctx.ask,
+      allowed: ctx.resources.allowed,
+      effect,
+    },
     handler: async (account) => {
       await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
       return action.handler(await sendContent(input ?? {}, ctx), account.ctx);
     },
+  }).catch((err) => {
+    if (signInRefused(err)) {
+      throw new SignInNeeded(
+        service,
+        note("stepCallRefused", {
+          service,
+          action: action.id,
+          reason: (err as Error).message.slice(0, 200),
+        }),
+      );
+    }
+    throw err;
   });
   if (!out.ok) {
-    throw new StepError(
+    if (out.refused === "may_have_happened") {
+      throw new StepError(
+        note("stepCallMayHaveHappened", { service, action: action.summary || action.id }),
+      );
+    }
+    const said =
       out.refused === "declined" || out.refused === "nobody"
         ? note("stepCallNotAllowed", { service })
         : out.refused === "calls_per_run"
           ? note("stepCallsPerRun", { service })
           : out.refused === "calls_per_day"
             ? note("stepCallsPerDay", { service })
-            : note("stepCallRefused", { service, action: action.id, reason: out.reason }),
-    );
+            : note("stepCallRefused", { service, action: action.id, reason: out.reason });
+    throw out.refused === "not_connected" ? new SignInNeeded(service, said) : new StepError(said);
   }
   return out.result;
 }
@@ -292,7 +322,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
     });
   }
 
-  const call = (action: ConnectorAction, input: unknown) =>
+  const call = (action: ConnectorAction, input: unknown, toolCallId?: string) =>
     attempt(async () => {
       const out = await brokerCall({
         who,
@@ -300,7 +330,11 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
         connection: held,
         action: { id: action.id, kind: kindOf(action.group) },
         input: input ?? {},
-        ctx: { ask: ctx.ask, allowed: ctx.resources.allowed },
+        ctx: {
+          ask: ctx.ask,
+          allowed: ctx.resources.allowed,
+          effect: { turn: ctx.turn, toolCallId },
+        },
         handler: async (account) => {
           await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
           return keepContent(
@@ -337,7 +371,8 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
             .join(" ")
             .slice(0, 1100),
           inputSchema: action.inputSchema as z.ZodType<any>,
-          execute: (input) => call(action, input),
+          execute: (input, context) =>
+            call(action, input, toolCallIdOf(context, `${prefix}_${action.id}`, input)),
         }),
       ]),
     );
@@ -382,10 +417,10 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
         action: z.string(),
         input: z.record(z.string(), z.unknown()).optional(),
       }),
-      execute: ({ action: id, input }) => {
+      execute: ({ action: id, input }, context) => {
         const action = usable.find((a) => a.id === id);
         return action
-          ? call(action, input)
+          ? call(action, input, toolCallIdOf(context, `${prefix}_${action.id}`, input))
           : Promise.resolve({ error: `No action "${id}". Use ${prefix}_actions to find one.` });
       },
     }),

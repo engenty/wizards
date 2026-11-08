@@ -4,7 +4,7 @@
  * drives it over a server-sent stream, the WordPress plugin over its own REST routes.
  */
 
-export { AskPanel } from "./AskPanel.js";
+export { AskPanel, QuestionPanel } from "./AskPanel.js";
 export { type Api, ApiError, createApi, isOffline, safeJson } from "./api.js";
 export { LiveBrowser } from "./browser-live.js";
 export { shrinkImage } from "./camera.js";
@@ -65,6 +65,7 @@ export {
   RunnerBody,
   type RunSource,
   useDoneSignal,
+  waitsSignalText,
 } from "./RunnerView.js";
 export { ConnectionField, ListCheck, ListDownloads, ListTable, StoreButton } from "./store.js";
 export {

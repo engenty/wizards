@@ -4,6 +4,7 @@ import {
   type Lang,
   upgradeDefinition,
 } from "@engenty/wizards-shared/definition";
+import { describeStart, startInputSchema } from "@engenty/wizards-shared/starts";
 import { isTextMime } from "@engenty/wizards-shared/workspace";
 import { Agent } from "@mastra/core/agent";
 import { createTool } from "@mastra/core/tools";
@@ -18,6 +19,7 @@ import {
 import { wizardOpSchema } from "../authoring/ops.js";
 import { importFromRegistry, listConnectors, searchRegistry } from "../connectors/external.js";
 import { guideSpaceConnections } from "../connectors/space-connections.js";
+import { currentFeatures } from "../features.js";
 import {
   agentModel,
   attachTools,
@@ -34,6 +36,7 @@ import { htmlToMarkdown } from "../render/convert.js";
 import { contentPolicy } from "../safety.js";
 import { sandboxGuideLine } from "../sandbox/index.js";
 import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
+import { listStarts, setStarts, withStartIds } from "../services/starts.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import { editWizard, ownedWizard, writeDraft } from "../services/wizards.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -42,6 +45,7 @@ import { assertPublicUrl, safeFetch } from "../tools/net-guard.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
 import { runScript } from "../widgets/script.js";
 import { thoughtLine } from "./thought.js";
+import type { TurnClock } from "./turn-clock.js";
 
 export interface ArchitectInput {
   /** What answers: the text classes, a provider's key or the credits (a subscription runs on its own). */
@@ -57,6 +61,8 @@ export interface ArchitectInput {
   onText?: (delta: string) => void;
   /** The language the admin reads the lines about its work in. */
   lang?: Lang;
+  /** Where the turn's time goes, for the log. */
+  clock?: TurnClock;
   /** A short line about what the architect is doing right now ("Loading lake shapes …"). */
   onActivity?: (label: string) => void;
   /** The latest line of its reasoning, for the line under the activity. */
@@ -88,10 +94,14 @@ function systemPrompt(
   connectors: GuideConnector[],
   pluginTools: GuideTool[],
   connections: GuideSpaceConnection[],
+  startsOn: boolean,
+  durableOn: boolean,
 ): string {
   return `${prompt("architect", "system", {
     persona: prompt("architect", "persona"),
+    starts: startsOn ? prompt("architect", "starts") : "",
     schema: prompt("authoring", "schema"),
+    durable: durableOn ? prompt("authoring", "durable") : "",
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
@@ -144,11 +154,47 @@ function activity(tool: string, args: Record<string, unknown>, lang: Lang = "en"
 /** A tool failure the model can read and fix, instead of a crashed turn: the whole message. */
 const attempt = <T>(run: () => Promise<T>) => attemptTool(run, { limit: Number.POSITIVE_INFINITY });
 
-function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wrote: () => void) {
+/** The starts of the wizard at hand, while the switch is on. */
+function startTools(userId: string, wizardId: string) {
+  return {
+    list_starts: createTool({
+      id: "list_starts",
+      description: prompt("mcp", "tool.list_starts"),
+      inputSchema: z.object({}),
+      execute: async () =>
+        attempt(async () => ({
+          starts: (await listStarts(userId, wizardId)).map((s) => ({
+            ...s,
+            text: describeStart(s, "en"),
+          })),
+        })),
+    }),
+    set_starts: createTool({
+      id: "set_starts",
+      description: prompt("mcp", "tool.set_starts"),
+      inputSchema: z.object({ starts: z.array(startInputSchema).max(20) }),
+      execute: async ({ starts }) =>
+        attempt(async () => ({
+          starts: (await setStarts(userId, wizardId, withStartIds(starts))).map((s) => ({
+            ...s,
+            text: describeStart(s, "en"),
+          })),
+        })),
+    }),
+  };
+}
+
+function buildTools(
+  input: ArchitectInput,
+  resolved: ResolvedModel<unknown>,
+  wrote: () => void,
+  startsOn: boolean,
+) {
   const { userId, wizardId } = input;
   const signal = input.signal;
   const spaceId = async () => (await ownedWizard(userId, wizardId)).spaceId;
   const tools: Record<string, any> = {
+    ...(startsOn ? startTools(userId, wizardId) : {}),
     find_connectors: createTool({
       id: "find_connectors",
       description: prompt("mcp", "tool.find_connectors"),
@@ -394,9 +440,16 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
   // Building a wizard is the hardest job here: widgets are code, so the editor chat starts on
   // extra effort.
   const resolved = await chatModel(input.way, input.extra === false ? "standard" : "high");
-  const tools = buildTools(input, resolved, () => {
-    changed = true;
-  });
+  input.clock?.runsOn(resolved.ref);
+  const { startTriggers: startsOn, durableRuns: durableOn } = await currentFeatures();
+  const tools = buildTools(
+    input,
+    resolved,
+    () => {
+      changed = true;
+    },
+    startsOn,
+  );
   attachTools(resolved, tools);
   const agent = new Agent({
     id: "architect",
@@ -408,6 +461,8 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
         input.connectors,
         await pluginToolsOf(currentTenant()),
         await guideSpaceConnections(w.spaceId),
+        startsOn,
+        durableOn,
       ),
       providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
     },
@@ -461,6 +516,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
     if (chunk.type === "reasoning-start") {
       reasoning = "";
     } else if (chunk.type === "reasoning-delta") {
+      input.clock?.reasoning();
       reasoning += payload.text ?? "";
       const line = thoughtLine(reasoning);
       if (line && line !== thought) {
@@ -468,10 +524,12 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
         input.onThought?.(line);
       }
     } else if (chunk.type === "text-delta") {
+      input.clock?.output();
       const text: string = payload.text ?? payload.delta ?? "";
       reply += text;
       input.onText?.(text);
     } else if (chunk.type === "tool-call-input-streaming-start") {
+      input.clock?.output();
       streaming.set(payload.toolCallId, { tool: payload.toolName, args: "", named: false });
       const label = activity(payload.toolName, {}, input.lang);
       if (label) {
@@ -490,7 +548,11 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
           }
         }
       }
+    } else if (chunk.type === "tool-result" || chunk.type === "tool-error") {
+      const issues = payload.result?.issues;
+      input.clock?.toolDone(Array.isArray(issues) ? issues.length : undefined);
     } else if (chunk.type === "tool-call") {
+      input.clock?.toolCalled();
       const label = activity(
         payload.toolName,
         (payload.args ?? payload.input ?? {}) as never,

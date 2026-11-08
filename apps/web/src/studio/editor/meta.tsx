@@ -1,4 +1,4 @@
-import type { Step } from "@engenty/wizards-shared/definition";
+import { MAIL_SIGNAL, MESSAGE_SIGNAL, type Step } from "@engenty/wizards-shared/definition";
 import {
   AppWindow,
   Bot,
@@ -78,13 +78,34 @@ export const TYPE_TONE: Record<Step["type"], string> = {
 
 const WAIT_UNIT = { m: "wait.minutes", h: "wait.hours", d: "wait.days" } as const;
 
-/** "3 Tage", or what a wait waits until: a date as the person reads it, a template as written. */
+/** "3 Tage" for "3d". */
+function lastsFor(duration: string | undefined): string | null {
+  const lasts = /^(\d+)([mhd])$/.exec(duration ?? "");
+  if (!lasts) {
+    return null;
+  }
+  return lasts[0] === "1d"
+    ? t("wait.day")
+    : t(WAIT_UNIT[lasts[2] as keyof typeof WAIT_UNIT], { n: lasts[1] });
+}
+
+/** "3 Tage", or what a wait waits until or for: a date as the person reads it, a template as written. */
 export function waitSummary(step: Extract<Step, { type: "wait" }>): string {
-  const lasts = /^(\d+)([mhd])$/.exec(step.for ?? "");
+  if (step.signal) {
+    const { key, name, timeout } = step.signal;
+    const waits =
+      name === MESSAGE_SIGNAL
+        ? t("inspector.waitFromPerson")
+        : name === MAIL_SIGNAL
+          ? key.startsWith("thread:")
+            ? t("wait.mailThread")
+            : t("wait.mail", { key })
+          : t("wait.signal", { key });
+    return timeout ? t("wait.signalTimeout", { waits, time: lastsFor(timeout) ?? timeout }) : waits;
+  }
+  const lasts = lastsFor(step.for);
   if (lasts) {
-    return lasts[0] === "1d"
-      ? t("wait.day")
-      : t(WAIT_UNIT[lasts[2] as keyof typeof WAIT_UNIT], { n: lasts[1] });
+    return lasts;
   }
   const date = Date.parse(step.until ?? "");
   const until = Number.isNaN(date)
