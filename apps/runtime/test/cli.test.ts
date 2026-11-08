@@ -1,10 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { localTicketExpiry, mintLocalTicket } from "../src/auth/local-ticket.js";
 import { loginItemText, unitText } from "../src/cli/autostart.js";
 import { installCommand } from "../src/cli/clients.js";
+import { findExternal } from "../src/cli/external.js";
 import { inherited, runtimeEnv, runtimePath } from "../src/cli/environment.js";
 import { layout, readEnvFile, wizardsHome } from "../src/cli/home.js";
 import {
@@ -277,5 +278,30 @@ describe("starting at login on a Mac", () => {
     );
     expect(plist).toContain("<key>SuccessfulExit</key>\n    <false/>");
     expect(plist).toContain("<string>/tmp/a.log</string>");
+  });
+});
+
+describe("commands from other tools", () => {
+  const put = (name: string, mode: number) => {
+    mkdirSync(join(dir, "commands"), { recursive: true });
+    writeFileSync(join(dir, "commands", name), "#!/bin/sh\n");
+    chmodSync(join(dir, "commands", name), mode);
+  };
+
+  it("are the executable files of the commands folder", () => {
+    put("control", 0o755);
+    expect(findExternal(layout(dir), "control", false)).toBe(join(dir, "commands", "control"));
+  });
+
+  it("are not files without the executable bit, missing files, or names with a path in them", () => {
+    put("plain", 0o644);
+    expect(findExternal(layout(dir), "plain", false)).toBeNull();
+    expect(findExternal(layout(dir), "nothing", false)).toBeNull();
+    expect(findExternal(layout(dir), "../data", false)).toBeNull();
+  });
+
+  it("are not run on Windows", () => {
+    put("control", 0o755);
+    expect(findExternal(layout(dir), "control", true)).toBeNull();
   });
 });
