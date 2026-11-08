@@ -303,6 +303,7 @@ function standIn(wizard: WizardRow, userId: string): RunRow {
     deviceOffer: null,
     costMicros: 0,
     clientSpaceId: null,
+    chatId: null,
     clientSharedAt: null,
     shareToken: null,
     sharedAt: null,

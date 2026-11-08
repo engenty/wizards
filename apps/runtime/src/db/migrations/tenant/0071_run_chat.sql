@@ -1,0 +1,1 @@
+ALTER TABLE `run` ADD `chat_id` text;

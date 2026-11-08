@@ -435,6 +435,18 @@ export const useRenameSection = () =>
     api.patch(`${BASE}/sections/${id}`, { name, infos }),
   );
 
+/** What a folder holds besides its chats: the files of its chats and the results of its runs. */
+export function useFolderContents(id: string) {
+  return useQuery({
+    queryKey: [...SIDEBAR, "folder", id],
+    queryFn: () =>
+      api.get<{
+        files: { id: string; name: string; mime: string; url: string }[];
+        results: { runId: string; wizardId: string; title: string; doneAt: string }[];
+      }>(`${BASE}/sections/${id}/contents`),
+  });
+}
+
 export const useMoveSection = () =>
   useChange(({ id, direction }: { id: string; direction: "up" | "down" }) =>
     api.post(`${BASE}/sections/${id}/move`, { direction }),

@@ -1,11 +1,12 @@
-import { FolderOpen, MessageSquare, Pencil } from "lucide-react";
+import { FileText, FolderOpen, MessageSquare, Pencil, Sparkles } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { withBase } from "../../lib/base";
 import { t } from "../../lib/i18n";
 import { useCurrentSpace } from "../../lib/session";
 import { Button, cn } from "../../ui";
 import { useCrumbs } from "../AppFrame";
-import { useCreateChat, useRenameSection, useSidebar } from "./chats";
+import { useCreateChat, useFolderContents, useRenameSection, useSidebar } from "./chats";
 
 /**
  * A folder of Work, opened like a project (docs/plans/org-spaces.md): start a chat in it, its
@@ -18,6 +19,7 @@ export function FolderPage({ id }: { id: string }) {
   const folder = data?.sections.find((s) => s.id === id);
   const chats = (data?.chats ?? []).filter((c) => c.sectionId === id && !c.archived && !c.parentId);
   const createChat = useCreateChat();
+  const contents = useFolderContents(id).data;
   const rename = useRenameSection();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
@@ -124,6 +126,43 @@ export function FolderPage({ id }: { id: string }) {
               >
                 {folder.infos || t("work.folderInfosEmpty")}
               </p>
+            )}
+          </section>
+          <section className="grid gap-1.5 rounded-xl bg-card p-3 ring-1 ring-border-soft">
+            <h2 className="font-semibold text-[0.8125rem] text-ink">{t("work.folderFiles")}</h2>
+            {contents?.files.length ? (
+              contents.files.map((f) => (
+                <a
+                  key={f.id}
+                  href={withBase(f.url)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex min-w-0 items-center gap-2 text-[0.8125rem] text-ink-2 hover:text-ink"
+                >
+                  <FileText className="size-3.5 shrink-0 text-ink-3" />
+                  <span className="truncate">{f.name}</span>
+                </a>
+              ))
+            ) : (
+              <p className="text-[0.8125rem] text-ink-4">{t("work.folderFilesEmpty")}</p>
+            )}
+          </section>
+          <section className="grid gap-1.5 rounded-xl bg-card p-3 ring-1 ring-border-soft">
+            <h2 className="font-semibold text-[0.8125rem] text-ink">{t("work.folderResults")}</h2>
+            {contents?.results.length ? (
+              contents.results.map((r) => (
+                <button
+                  key={r.runId}
+                  type="button"
+                  onClick={() => navigate(`/work/r/${r.runId}`)}
+                  className="flex min-w-0 items-center gap-2 text-left text-[0.8125rem] text-ink-2 hover:text-ink"
+                >
+                  <Sparkles className="size-3.5 shrink-0 text-ember-strong" />
+                  <span className="truncate">{r.title}</span>
+                </button>
+              ))
+            ) : (
+              <p className="text-[0.8125rem] text-ink-4">{t("work.folderResultsEmpty")}</p>
             )}
           </section>
         </aside>

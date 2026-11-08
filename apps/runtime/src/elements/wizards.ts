@@ -108,6 +108,8 @@ export async function wizardTools(caller: ElementCaller): Promise<Record<string,
               const { runId, refused } = await startRun(userId, input.wizardId, input.answers, {
                 // A wizard of the parent runs with its data here.
                 clientSpaceId: from === caller.space.id ? null : caller.space.id,
+                // Started in a Work chat: its folder lists the result.
+                chatId: caller.where.chatId ?? null,
               });
               const report = await runReport(userId, runId, input.waitSeconds);
               return { ...report, ...(refused ? { refusedAnswers: refused } : {}) };

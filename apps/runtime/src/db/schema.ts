@@ -419,6 +419,11 @@ export const run = sqliteTable(
       onDelete: "cascade",
     }),
     /**
+     * The Work chat the run was started from; its folder lists the run's result as one of its
+     * Ergebnisse (docs/plans/org-spaces.md). Null outside a chat.
+     */
+    chatId: text("chat_id"),
+    /**
      * When the firm shared the run with the client space's clients, on purpose; null: it stays
      * the firm's. A client's own runs need none.
      */

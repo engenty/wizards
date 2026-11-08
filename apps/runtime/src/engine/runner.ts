@@ -570,6 +570,8 @@ export async function createRun(input: {
   client?: string | null;
   /** The client space it runs in, with its parent's wizard (docs/plans/client-portal.md). */
   clientSpaceId?: string | null;
+  /** The Work chat it was started from (docs/plans/org-spaces.md). */
+  chatId?: string | null;
   /**
    * A start began the run, nobody is there: `start` is what started it, `fill` the answers it
    * brings. Pages are filled as the run reaches them; what is missing waits for the owner.
@@ -646,6 +648,7 @@ export async function createRun(input: {
       unattended: input.unattended ?? false,
       client: input.client ?? null,
       clientSpaceId: input.clientSpaceId ?? null,
+      chatId: input.chatId ?? null,
       startedBy: input.startedBy ?? null,
       occurrence: input.occurrence ?? null,
       status: waits ? "waiting_input" : "running",

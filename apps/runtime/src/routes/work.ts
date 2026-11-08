@@ -19,6 +19,7 @@ import {
   decideApproval,
   deleteChat,
   deleteSection,
+  folderContents,
   followTurn,
   moveSection,
   readChat,
@@ -232,6 +233,9 @@ export const workRoutes = new Hono<Vars>()
       .parse(await c.req.json());
     return c.json(await renameSection(c.get("user"), c.req.param("id"), body));
   })
+  .get("/sections/:id/contents", async (c) =>
+    c.json(await folderContents(c.get("user"), c.req.param("id"))),
+  )
   .post("/sections/:id/move", async (c) => {
     const { direction } = z.object({ direction: z.enum(["up", "down"]) }).parse(await c.req.json());
     await moveSection(c.get("user"), c.req.param("id"), direction);

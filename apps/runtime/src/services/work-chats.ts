@@ -1181,6 +1181,68 @@ export async function renameSection(
   return { id, name, infos };
 }
 
+/**
+ * What a folder holds besides its chats (docs/plans/org-spaces.md): the files added to its chats
+ * (Dateien) and the results of the runs started in them (Ergebnisse), newest first.
+ */
+export async function folderContents(user: SessionUser, id: string) {
+  const section = await ownSection(user, id);
+  const chats = await db.query.chat.findMany({
+    columns: { id: true, spaceId: true },
+    where: and(eq(schema.chat.sectionId, section.id), visible(user)),
+  });
+  const { memory } = await workMastra();
+  const files = new Map<string, ChatFile>();
+  for (const c of chats) {
+    const { messages } = await memory.recall({
+      threadId: c.id,
+      resourceId: c.spaceId,
+      perPage: false,
+    });
+    for (const m of [...(messages as unknown as StoredMessage[])].reverse()) {
+      for (const f of m.content.metadata?.signal?.metadata?.files ?? []) {
+        files.set(f.id, f);
+      }
+    }
+  }
+  const runs = chats.length
+    ? await db
+        .select({
+          id: schema.run.id,
+          wizardId: schema.run.wizardId,
+          title: schema.wizard.title,
+          doneAt: schema.run.updatedAt,
+        })
+        .from(schema.run)
+        .innerJoin(schema.wizard, eq(schema.wizard.id, schema.run.wizardId))
+        .where(
+          and(
+            inArray(
+              schema.run.chatId,
+              chats.map((c) => c.id),
+            ),
+            eq(schema.run.status, "done"),
+          ),
+        )
+        .orderBy(desc(schema.run.updatedAt))
+        .limit(50)
+    : [];
+  return {
+    files: [...files.values()].map((f) => ({
+      id: f.id,
+      name: f.name,
+      mime: f.mime,
+      url: `/api/studio/spaces/${section.spaceId}/files/${f.id}/content`,
+    })),
+    results: runs.map((r) => ({
+      runId: r.id,
+      wizardId: r.wizardId,
+      title: r.title,
+      doneAt: r.doneAt.toISOString(),
+    })),
+  };
+}
+
 /** Moves a section one place up or down among its space's sections. */
 export async function moveSection(user: SessionUser, id: string, direction: "up" | "down") {
   const section = await ownSection(user, id);
