@@ -66,6 +66,9 @@
 # RWX rules per space, enforced at every reader (on by default)
 # broker=on|off
 #
+# the Docker sandbox reaches the internet only through the runtime, per run (off by default)
+# dockerEgress=on|off
+#
 # Fähigkeiten: one place in the app bar for Skills and Verbindungen, the Protokoll and Entdecken (on by default)
 # capabilities=on|off
 #

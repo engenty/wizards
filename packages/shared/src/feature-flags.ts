@@ -155,6 +155,12 @@ export const FEATURES = {
     label: "Broker",
     hint: "RWX rules per space: who may read, write and execute what; enforced at every reader.",
   },
+  dockerEgress: {
+    kind: "release",
+    default: false,
+    label: "Docker sandbox through the broker",
+    hint: "A Docker sandbox reaches the internet only through the runtime: the hosts its run may reach and the package registries, each connection in the log.",
+  },
   capabilities: {
     kind: "release",
     default: true,

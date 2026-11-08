@@ -21,6 +21,8 @@ export class MastraRunSandbox implements Sandbox {
   constructor(
     readonly capabilities: SandboxCapabilities,
     private readonly make: () => WorkspaceSandbox | Promise<WorkspaceSandbox>,
+    /** After the provider is gone: what the engine set up for it. */
+    private readonly destroyed: () => void = () => undefined,
   ) {}
 
   private start(): Promise<WorkspaceSandbox> {
@@ -78,6 +80,10 @@ export class MastraRunSandbox implements Sandbox {
   async destroy(): Promise<void> {
     const provider = this.provider;
     this.provider = null;
-    await (await provider?.catch(() => null))?.destroy?.();
+    try {
+      await (await provider?.catch(() => null))?.destroy?.();
+    } finally {
+      this.destroyed();
+    }
   }
 }

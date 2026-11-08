@@ -41,7 +41,7 @@ export {
   type KnownConnector,
   runGrant,
 } from "./grant.js";
-export { brokerHost, type HostResult } from "./host.js";
+export { brokerHost, type HostResult, runHosts } from "./host.js";
 export { keptStepIds } from "./kept.js";
 export {
   CALLS_PER_DAY,

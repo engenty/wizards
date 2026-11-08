@@ -190,8 +190,11 @@ same function the broker uses, with no side effect. The same shows on a wizard's
   and `connectionContext` become private to the broker. A test walks every tool and fails on one
   without a descriptor.
 - **The sandbox's network is a broker rule.** agentOS gets its allow-list from the grant
-  (registries plus the hosts the wizard named); Docker is not offered to guests (A1). A command
-  that needs a service asks the AI, which calls the broker.
+  (registries plus the hosts the wizard named) when the run's VM starts; Docker is not offered to
+  guests (A1). With the `dockerEgress` switch a Docker container sits on a network with no way
+  out but a proxy in the runtime, which asks `brokerHost` for every connection
+  (`sandbox/docker-egress.ts`). A command that needs a service asks the AI, which calls the
+  broker.
 - **Secrets live in the vault, read only by the broker.** Today `store_secret` and
   `plugin_connection` hold them sealed; the broker becomes the only reader. Step 2 of
   „Guests and the team“ moves the vault and the key into the broker's own process.

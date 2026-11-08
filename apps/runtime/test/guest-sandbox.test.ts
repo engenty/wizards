@@ -66,13 +66,13 @@ describe("a run's sandbox with SANDBOX=docker and SANDBOX_GUESTS=agentos, agentO
   });
 
   it("is what the step's tools see: capabilities for a member, none and no handle for a guest", () => {
-    const scope = { kind: "run", id: "r" } as never;
+    const scope = (holder: string) => ({ kind: "run", id: "r", holder, wizardId: "w" }) as never;
     const theirs = new resources.RunResources("run-member");
-    theirs.bind(scope, member);
+    theirs.bind(scope("u:local"), member);
     expect(theirs.sandboxCapabilities()?.commands).toContain("python3");
 
     const visitors = new resources.RunResources("run-guest");
-    visitors.bind(scope, guest);
+    visitors.bind(scope("v:visitor"), guest);
     expect(visitors.sandboxCapabilities()).toBeNull();
     expect(() => visitors.sandboxHandle()).toThrow("This run has no sandbox.");
   });

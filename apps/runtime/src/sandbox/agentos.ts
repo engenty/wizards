@@ -8,12 +8,15 @@ import {
   agentOsSidecar,
 } from "./agentos-package.js";
 import { importFromEngine, installedVersion } from "./install.js";
-import type {
-  ExecOptions,
-  ExecResult,
-  Sandbox,
-  SandboxCapabilities,
-  SandboxEngine,
+import {
+  type ExecOptions,
+  type ExecResult,
+  PACKAGE_REGISTRIES,
+  type RunHosts,
+  type Sandbox,
+  type SandboxCapabilities,
+  type SandboxEgress,
+  type SandboxEngine,
 } from "./types.js";
 
 const WORKDIR = "/workspace";
@@ -24,8 +27,17 @@ const EXEC_TIMEOUT_MS = 120_000;
  */
 const PYTHON_FOLLOWS_CD =
   'python3() { HOME="$PWD" command python3 "$@"; }; python() { python3 "$@"; }\n';
-/** Where npm and Python packages come from: every VM reaches them. */
-const REGISTRIES = ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org"];
+
+/**
+ * The hosts a VM reaches besides the registries. A run's: its grant's, and the server's
+ * (`SANDBOX_ALLOW_HOSTS`) too where it may reach every public host. A Work chat's: the server's.
+ */
+export function agentOsHosts(run?: RunHosts): readonly string[] {
+  if (!run) {
+    return env.sandboxHosts;
+  }
+  return run.everyPublicHost ? [...new Set([...run.hosts, ...env.sandboxHosts])] : run.hosts;
+}
 
 /**
  * What an agentOS VM runs: a Linux userland compiled to WebAssembly (bash, coreutils and the
@@ -141,24 +153,34 @@ export const agentOsDir = () => join(env.sandboxEngines, "agentos");
 export const agentOsEngine: SandboxEngine = {
   name: "agentos",
   ready: () => installedVersion(agentOsDir()) !== null,
-  capabilities: () => agentOsCapabilities(env.sandboxHosts),
-  create: () => new AgentOsSandbox(),
+  capabilities: (run) => agentOsCapabilities(agentOsHosts(run)),
+  create: (_runId, egress) => new AgentOsSandbox(agentOsDir(), egress),
 };
 
-/** One agentOS VM per run, in the server's helper process: no Docker, no container. */
+/**
+ * One agentOS VM per run, in the server's helper process: no Docker, no container. A run's VM
+ * reaches the hosts the broker gives it when it starts; a list instead of an egress (a Work chat,
+ * a test) is taken as it is.
+ */
 export class AgentOsSandbox implements Sandbox {
   readonly capabilities: SandboxCapabilities;
   private machine: Promise<AgentOsVm> | null = null;
 
   constructor(
     private readonly dir: string = agentOsDir(),
-    private readonly hosts: readonly string[] = env.sandboxHosts,
+    private readonly egress: SandboxEgress | readonly string[] = env.sandboxHosts,
   ) {
-    this.capabilities = agentOsCapabilities(hosts);
+    this.capabilities = agentOsCapabilities(Array.isArray(egress) ? egress : []);
+  }
+
+  private async hosts(): Promise<readonly string[]> {
+    const egress = this.egress;
+    return Array.isArray(egress) ? egress : agentOsHosts(await (egress as SandboxEgress).hosts());
   }
 
   private vm(): Promise<AgentOsVm> {
     this.machine ??= (async () => {
+      const hosts = await this.hosts();
       const { agentOs, sidecar } = await agentOsRuntime(this.dir);
       const vm = await agentOs.create({
         sidecar: { kind: "explicit", handle: sidecar },
@@ -175,7 +197,7 @@ export class AgentOsSandbox implements Sandbox {
               {
                 mode: "allow",
                 operations: ["*"],
-                patterns: [...REGISTRIES, ...this.hosts].flatMap((host) => [
+                patterns: [...PACKAGE_REGISTRIES, ...hosts].flatMap((host) => [
                   `dns://${host}`,
                   `tcp://${host}:443`,
                 ]),

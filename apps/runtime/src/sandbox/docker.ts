@@ -1,13 +1,24 @@
 import { execFileSync } from "node:child_process";
 import { DockerSandbox } from "@mastra/docker";
 import { env } from "../env.js";
+import { feature } from "../features.js";
+import { dockerEgress } from "./docker-egress.js";
 import { MastraRunSandbox } from "./mastra.js";
-import type { Sandbox, SandboxCapabilities, SandboxEngine } from "./types.js";
+import type {
+  RunHosts,
+  Sandbox,
+  SandboxCapabilities,
+  SandboxEgress,
+  SandboxEngine,
+} from "./types.js";
 
 /** The image's own working directory, the one its unprivileged user may write to. */
 const WORKDIR = "/sandbox";
 
-/** What the engenty-sandbox image carries. The container sits on Docker's default bridge. */
+/**
+ * What the engenty-sandbox image carries. The container sits on Docker's default bridge, or on
+ * the sandbox network with the `dockerEgress` switch on.
+ */
 export const DOCKER_CAPABILITIES: SandboxCapabilities = {
   commands: ["bash", "python3", "pip", "uv", "node", "npm", "bun", "jq", "curl", "git", "unzip"],
   network: "open internet",
@@ -15,12 +26,36 @@ export const DOCKER_CAPABILITIES: SandboxCapabilities = {
   workdir: WORKDIR,
 };
 
-/** One container per run through the host's Docker, with Mastra's Docker sandbox. */
-export function dockerSandbox(runId: string, image: string): Sandbox {
+/**
+ * What a run's container reaches with the `dockerEgress` switch on (docker-egress.ts): only
+ * what the broker lets through, the package registries always.
+ */
+export function dockerCapabilities(run?: RunHosts): SandboxCapabilities {
+  if (!run || !feature("dockerEgress")) {
+    return DOCKER_CAPABILITIES;
+  }
+  let network = "the public internet, not this computer's own networks";
+  if (!run.everyPublicHost) {
+    network = run.hosts.length
+      ? `only the npm and PyPI registries and ${run.hosts.join(", ")}`
+      : "none, except the npm and PyPI registries";
+  }
+  return { ...DOCKER_CAPABILITIES, network };
+}
+
+/**
+ * One container per run through the host's Docker, with Mastra's Docker sandbox. With a run's
+ * egress and the `dockerEgress` switch on it reaches outside only through the broker.
+ */
+export function dockerSandbox(runId: string, image: string, egress?: SandboxEgress): Sandbox {
+  let release: () => void = () => undefined;
   return new MastraRunSandbox(
     DOCKER_CAPABILITIES,
-    () =>
-      new DockerSandbox({
+    async () => {
+      release();
+      const way = egress && feature("dockerEgress") ? await dockerEgress(image, egress) : null;
+      release = way?.release ?? (() => undefined);
+      return new DockerSandbox({
         id: `wizards-${runId.toLowerCase()}`,
         image,
         memory: 1024 * 1024 * 1024,
@@ -29,7 +64,10 @@ export function dockerSandbox(runId: string, image: string): Sandbox {
         securityOpt: ["no-new-privileges"],
         workingDir: WORKDIR,
         labels: { "engenty-wizards.run": runId },
-      }),
+        ...(way ? { network: way.network, env: way.env } : {}),
+      });
+    },
+    () => release(),
   );
 }
 
@@ -49,6 +87,6 @@ export function dockerHasImage(image: string): boolean {
 export const dockerEngine: SandboxEngine = {
   name: "docker",
   ready: () => dockerHasImage(env.sandboxImage),
-  capabilities: () => DOCKER_CAPABILITIES,
-  create: (runId) => dockerSandbox(runId, env.sandboxImage),
+  capabilities: dockerCapabilities,
+  create: (runId, egress) => dockerSandbox(runId, env.sandboxImage, egress),
 };

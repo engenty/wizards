@@ -11,6 +11,9 @@ import { brokerOn } from "./rwx.js";
  * what the steps named in `hosts`; a member's run every public host, as before, until the
  * space's `broker` switch is on, then the same rule. A run that is over reaches no host at all
  * (over.ts), asked first. Every call is logged, a refusal as critical.
+ *
+ * A run's sandbox goes through here as well: each connection it opens is one call (method
+ * `CONNECT`), and the package registries are reached whatever the grant says.
  */
 
 export type HostResult<T> =
@@ -23,6 +26,8 @@ export async function brokerHost<T>(call: {
   url: URL;
   method: string;
   handler: () => Promise<T>;
+  /** Hosts reached whatever the grant says: the package registries, for a sandbox. */
+  alwaysAllowed?: readonly string[];
 }): Promise<HostResult<T>> {
   const started = Date.now();
   const { who, where, url } = call;
@@ -58,7 +63,9 @@ export async function brokerHost<T>(call: {
   }
   const bound = where.guest || (await brokerOn());
   let reason = "Members reach every public host.";
-  if (bound) {
+  if (call.alwaysAllowed?.includes(host)) {
+    reason = "The host is a package registry.";
+  } else if (bound) {
     const grant = where.runId ? await runGrant(where.runId) : null;
     if (!grant || !hostInGrant(grant, host)) {
       const why = grant
@@ -77,4 +84,17 @@ export async function brokerHost<T>(call: {
     await line("allow", reason, err instanceof Error ? err.constructor.name || "Error" : "Error");
     throw err;
   }
+}
+
+/**
+ * What a run's sandbox may reach besides the package registries: the hosts of its grant, and
+ * whether it reaches every public host instead (a member's run while the `broker` switch is
+ * off), by the same rule as `brokerHost`.
+ */
+export async function runHosts(
+  where: Where,
+): Promise<{ hosts: string[]; everyPublicHost: boolean }> {
+  const grant = where.runId ? await runGrant(where.runId) : null;
+  const bound = where.guest || (await brokerOn());
+  return { hosts: grant?.hosts ?? [], everyPublicHost: !bound };
 }

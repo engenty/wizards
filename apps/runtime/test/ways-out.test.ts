@@ -272,6 +272,46 @@ describe("hosts in the grant", () => {
   });
 });
 
+describe("a run's sandbox", () => {
+  it("reaches the package registries whatever the grant says, and no other host past it", async () => {
+    const open = (host: string) =>
+      inTenant(() =>
+        broker.brokerHost({
+          who: guest,
+          where: where("run-g", "guest"),
+          url: new URL(`https://${host}/`),
+          method: "CONNECT",
+          handler: async () => "socket",
+          alwaysAllowed: ["pypi.org"],
+        }),
+      );
+    expect(await open("pypi.org")).toEqual({ ok: true, result: "socket" });
+    expect((await logOf("host:pypi.org")).at(-1)).toMatchObject({
+      outcome: "allow",
+      reason: "The host is a package registry.",
+    });
+    expect(await open("api.example.com")).toEqual({ ok: true, result: "socket" });
+    expect(await open("evil.com")).toMatchObject({ ok: false, refused: "not_in_grant" });
+  });
+
+  it("is told the grant's hosts, and every public host only for a member's run with the switch off", async () => {
+    const hosts = ["*.prices.example.org", "api.example.com"];
+    expect(await inTenant(() => broker.runHosts(where("run-g", "guest")))).toEqual({
+      hosts,
+      everyPublicHost: false,
+    });
+    expect(await inTenant(() => broker.runHosts(where("run-m", "member")))).toEqual({
+      hosts,
+      everyPublicHost: false,
+    });
+    process.env.FEATURES = "broker=off";
+    const off = await inTenant(() => broker.runHosts(where("run-m", "member"))).finally(() => {
+      delete process.env.FEATURES;
+    });
+    expect(off).toEqual({ hosts, everyPublicHost: true });
+  });
+});
+
 describe("sends from a guest's run", () => {
   const send = (
     who: "guest" | "member",
