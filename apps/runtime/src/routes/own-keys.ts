@@ -81,6 +81,7 @@ export function companyOf(baseUrl: string): string {
 }
 
 function settingsFor(
+  source: string | null,
   input: z.infer<typeof settingsInput>,
   user: SessionUser,
 ): Record<string, unknown> | undefined {
@@ -93,7 +94,10 @@ function settingsFor(
     ...rest,
     ...(noAbuseLog !== undefined ? { noAbuseLog: said(noAbuseLog) } : {}),
     ...(noRetention !== undefined ? { noRetention: said(noRetention) } : {}),
-    ...(rest.euServers !== undefined && rest.baseUrl ? { company: companyOf(rest.baseUrl) } : {}),
+    // Another provider always names its company: the Manage-App asks for it with the address.
+    ...((source === "compat" || rest.euServers !== undefined) && rest.baseUrl
+      ? { company: companyOf(rest.baseUrl) }
+      : {}),
   };
 }
 
@@ -161,7 +165,7 @@ export async function addKey(c: C) {
     return refused(c);
   }
   const input = addInput.parse(await c.req.json());
-  const settings = settingsFor(input.settings, user);
+  const settings = settingsFor(input.source, input.settings, user);
   return passOn(
     c,
     () =>
@@ -185,13 +189,19 @@ export async function changeKey(c: C) {
     return refused(c);
   }
   const input = changeInput.parse(await c.req.json());
-  const settings = settingsFor(input.settings, user);
+  const id = c.req.param("id") ?? "";
+  // A new address for another provider names its company too: which kind of account it is.
+  const source = input.settings?.baseUrl
+    ? ((await upstreamsOf(user.tenantId).catch(() => null))?.accounts.find((a) => a.id === id)
+        ?.source ?? null)
+    : null;
+  const settings = settingsFor(source, input.settings, user);
   const change: UpstreamInput = {
     ...(input.label ? { label: input.label } : {}),
     ...(input.key ? { key: input.key } : {}),
     ...(settings ? { settings } : {}),
   };
-  return passOn(c, () => changeUpstream(user.tenantId, c.req.param("id") ?? "", change));
+  return passOn(c, () => changeUpstream(user.tenantId, id, change));
 }
 
 export async function checkKeyOf(c: C, id: string) {

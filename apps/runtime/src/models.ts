@@ -335,8 +335,10 @@ async function config(): Promise<ModelConfig> {
     await moveTenantKeys(tenant, gatewayBindings, () => tenantConfigs.delete(tenant));
     // What a provider's refusal means depends on whether the organization has an account ready.
     hasOwnAccount(tenant);
+    // Read again: the move may just have rewritten the bindings.
+    const moved = await storedConfig();
     return {
-      settings: organizationSettings(await gatewayBindings(cfg.settings.bindings)),
+      settings: organizationSettings(await gatewayBindings(moved.settings.bindings)),
       keys: {},
     };
   }
@@ -573,22 +575,71 @@ async function gatewayIds(): Promise<Set<string>> {
   return known;
 }
 
+/**
+ * Whether the organization chooses models itself: its admins' way B or C. Way A leaves it to
+ * engenty, and it is all a plan like Free offers. Without a policy (`modelTiers` off) the
+ * Manage-App doesn't say which ways the plan offers: Free offers none but A, the others choice.
+ */
+async function choosesModels(): Promise<boolean> {
+  const tenant = managed ? currentTenantOrNull() : null;
+  const info = tenant ? await tenantInfo(tenant).catch(() => null) : null;
+  if (!info) {
+    return false;
+  }
+  if (feature("modelTiers", info.features) && info.modelPolicy) {
+    return info.modelPolicy.way !== "A";
+  }
+  return info.plan?.id !== "free";
+}
+
+/** What was logged of bindings the gateway has nothing for: each once per process. */
+const unserved = new Set<string>();
+
+/**
+ * A binding as the gateway serves it (`gatewayRef`). Where the organization doesn't choose models,
+ * a text class that names one is left to its class: no model the plan wouldn't allow stays named.
+ */
+function served(
+  cls: ModelClass,
+  ref: string,
+  known: ReadonlySet<string>,
+  choose: boolean,
+): string | null {
+  const named = !isCreditsRef(ref) || creditsModelOf(ref) !== null;
+  const out = !choose && isText(cls) && named ? null : gatewayRef(ref, known);
+  if (!out) {
+    const key = `${currentTenantOrNull() ?? ""}|${cls}|${ref}`;
+    if (!unserved.has(key)) {
+      unserved.add(key);
+      console.warn(
+        choose || !isText(cls)
+          ? `[models] ${cls}: ${ref} has no model at the gateway; the class decides`
+          : `[models] ${cls}: ${ref} is a model the organization doesn't choose; the class decides`,
+      );
+    }
+  }
+  return out;
+}
+
 /** An organization's bindings as the gateway serves them; what it can't serve is left to its class. */
 async function gatewayBindings(
   bindings: Partial<Record<ModelClass, string>>,
 ): Promise<Partial<Record<ModelClass, string>>> {
-  const entries = Object.entries(bindings).filter(([, ref]) => ref);
-  if (entries.every(([, ref]) => isCreditsRef(ref))) {
+  const entries = Object.entries(bindings).filter(([, ref]) => ref) as [ModelClass, string][];
+  const choose = await choosesModels();
+  if (
+    entries.every(
+      ([cls, ref]) => isCreditsRef(ref) && (choose || !isText(cls) || !creditsModelOf(ref)),
+    )
+  ) {
     return bindings;
   }
   const known = await gatewayIds();
   const out: Partial<Record<ModelClass, string>> = {};
-  for (const [cls, ref] of entries as [ModelClass, string][]) {
-    const served = gatewayRef(ref, known);
-    if (served) {
-      out[cls] = served;
-    } else {
-      console.warn(`[models] ${cls}: ${ref} has no model at the gateway; the class decides`);
+  for (const [cls, bound] of entries) {
+    const ref = served(cls, bound, known, choose);
+    if (ref) {
+      out[cls] = ref;
     }
   }
   return out;
@@ -599,10 +650,11 @@ export async function asGatewayBindings(
   bindings: Partial<Record<ModelClass, string>>,
 ): Promise<Partial<Record<ModelClass, string>>> {
   const known = await gatewayIds();
+  const choose = await choosesModels();
   return Object.fromEntries(
     Object.entries(bindings).map(([cls, ref]) => [
       cls,
-      ref?.trim() ? (gatewayRef(ref.trim(), known) ?? "") : "",
+      ref?.trim() ? (served(cls as ModelClass, ref.trim(), known, choose) ?? "") : "",
     ]),
   );
 }

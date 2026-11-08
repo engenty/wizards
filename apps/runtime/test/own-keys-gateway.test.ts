@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { generateText } from "ai";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // A stand-in Manage-App and gateway. Tenant G has `ownKeysGateway` on, tenant O has it off.
 // The Manage-App keeps tenant G's accounts as the contract's upstream routes do.
@@ -151,7 +151,7 @@ const server: Server = createServer(async (req, res) => {
       status: "active",
       // Tenants Z and Y have the switch on and no credits; Z has an account ready, Y none.
       balanceCredits: tenant === "tenant-z" || tenant === "tenant-y" ? 0 : 100,
-      plan: { id: "pro", name: "Pro" },
+      plan: tenant === "tenant-free" ? { id: "free", name: "Free" } : { id: "pro", name: "Pro" },
       limits: { concurrentRuns: 2 },
       db: null,
       features: { ownKeys: true, ownKeysGateway: tenant !== "tenant-o" },
@@ -246,6 +246,7 @@ describe("a provider's binding through the gateway", () => {
 
 describe("an organization with ownKeysGateway on", () => {
   it("calls the gateway for every class and moves its saved keys to the Manage-App once", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     await withTenant("tenant-g", () =>
       models.saveModels({
         keys: {
@@ -284,6 +285,10 @@ describe("an organization with ownKeysGateway on", () => {
     expect(view.keys.openai).toBe(false);
     // A class bound to a language model the gateway serves can start a run.
     expect(await withTenant("tenant-g", () => models.classProblem("high"))).toBeNull();
+    // The binding the gateway has nothing for is told once, not at every look.
+    const told = warn.mock.calls.filter((args) => String(args[0]).includes("google:gemini-pro-latest"));
+    warn.mockRestore();
+    expect(told).toHaveLength(1);
   });
 
   it("doesn't add an account twice when a move was cut short", async () => {
@@ -316,6 +321,32 @@ describe("an organization with ownKeysGateway on", () => {
     expect(await askedFor("high")).toBe("openai/gpt-5.5");
     // Within five minutes the move doesn't try again.
     expect(upstreamCalls.filter((c) => c.method === "POST")).toHaveLength(2);
+  });
+});
+
+describe("an organization whose plan doesn't let it choose models", () => {
+  it("leaves its text classes to the gateway instead of naming models, and keeps media models", async () => {
+    await withTenant("tenant-free", () =>
+      models.saveModels({
+        bindings: {
+          high: "openai:gpt-5.5",
+          standard: "credits:anthropic/claude-sonnet-5.5",
+          low: "credits",
+          image: "fal:fal-ai/flux/schnell",
+        },
+      }),
+    );
+    const resolved = await withTenant("tenant-free", () => models.textModel("high"));
+    expect(resolved.metered).toBe(true);
+    expect((await stored("tenant-free"))?.bindings).toEqual({
+      low: "credits",
+      image: "credits:fal:fal-ai/flux/schnell",
+    });
+    // A binding saved later is taken out the same way.
+    const saved = await withTenant("tenant-free", () =>
+      models.asGatewayBindings({ high: "anthropic:claude-sonnet-5-5", image: "fal:fal-ai/flux/schnell" }),
+    );
+    expect(saved).toEqual({ high: "", image: "credits:fal:fal-ai/flux/schnell" });
   });
 });
 
@@ -442,6 +473,27 @@ describe("the studio's API keys in the cloud", () => {
       company: "ionos",
       euServers: true,
       noRetention: { by: "user-g" },
+    });
+
+    // Another provider names its company whether or not the request says where its servers are.
+    const plain = await call("POST", "/models/keys", owner, {
+      source: "compat",
+      label: "Anderer Anbieter",
+      key: "compat-key-6666",
+      settings: { baseUrl: "https://api.example-llm.de/v1" },
+    });
+    expect(plain.status).toBe(201);
+    expect(upstreamCalls.at(-1)?.body.settings).toEqual({
+      baseUrl: "https://api.example-llm.de/v1",
+      company: "example-llm",
+    });
+    const moved = (await plain.json()) as Account;
+    await call("PATCH", `/models/keys/${moved.id}`, owner, {
+      settings: { baseUrl: "https://eu.other-llm.com/v1" },
+    });
+    expect(upstreamCalls.at(-1)?.body.settings).toEqual({
+      baseUrl: "https://eu.other-llm.com/v1",
+      company: "other-llm",
     });
 
     const bad = await call("POST", "/models/keys", owner, {
