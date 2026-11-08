@@ -8,7 +8,8 @@ on the same branch. Nothing of it is on `main` but this text (Order). From the r
 and that branch at 6bac6ed0, by reading the code. Part 1 brought in line with what was built the
 same day, against `fe9b26d3`. Step 1 is built on that branch and was measured on 2026-11-07 on a
 laptop (Order, step 1). The cloud is not measured yet. Step 2, the text form, is built there the
-same day, and Part 2 is brought in line with it.
+same day, and Part 2 is brought in line with it. Step 3, the first pass, is built there on
+2026-11-08 and measured the same way; Part 3 is brought in line with it.
 
 Scope: a new wizard shows its first page about two seconds after the wish, and a run moves from
 page to page without waiting on the server. The definition stays JSON and stays at version 2:
@@ -650,29 +651,56 @@ text form yet.
 
 For a new wizard, before the architect.
 
-1. The wish arrives. One `streamText` call: the `standard` class, low effort, no tools.
-2. The prompt is short: the text form's rules, the tag signatures generated from the schemas
-   (name, attributes, one line on what it is for), two or three worked examples. About 3k
-   tokens instead of 15k. New: `packages/shared/src/catalog-prompt.ts`, so the list cannot fall
-   behind the schema. It leaves out what a switch keeps off: `<Wait>` and the keys above only with
-   `durableRuns`, as the architect's prompt leaves out its `durable` section.
-3. Every chunk goes through `parseWizardText(…, { partial: true })`. Each step that completes is
-   saved to the draft; the editor and the test run show it at once (the existing `change`
-   event on the wizard's stream).
-4. At the end the validator runs. The code fixes what needs no model: a missing `id` (made from
-   the label), duplicate ids, a missing `result` step, a `next` to an unknown step (dropped), a
-   `look` that does not fit (dropped). What remains goes to the architect.
-5. The architect runs in the background on the wizard that now exists: the issues left, widgets,
-   connectors, downloads, images, and starts where `startTriggers` is on (`list_starts` and
-   `set_starts` come with durable runs' PR 7). The step it works on shows "being prepared"; the person can
-   already go through the pages.
+Built as step 3 (`d6086588`), behind `fastCreate`, in `apps/runtime/src/services/first-pass.ts`
+and `fastCreateTurn` in `services/architect.ts`. It is taken only for the first message of a
+blank wizard; with the switch off, every message goes to `architectTurn` as before.
 
-On a computer that thinks through an AI client (Claude Code, Codex, Cursor), the CLI starts
-when the wish box gets focus and stays open, so the call does not wait for a process start.
-Whether that reaches two seconds is open (below).
+1. The wish arrives. One call, no tools, the `standard` class. "Low effort" exists only as
+   OpenAI's `reasoningEffort: "low"`; the gateway's standard model needs none, and Anthropic's
+   does not think without one. With a key it is `streamText` on `chatModel(way, "standard")`.
+   Through an AI client it is `subscriptionText` in `agents/subscription.ts`: the client's CLI,
+   started per call, with its normal model (Claude Code: sonnet, Codex: gpt-6.1-sol), no MCP and
+   no session. The harness model (`client.model(alias)`) does not stream, so the CLI's JSON lines
+   are read instead. The wish's attachments are left out; the architect after it gets them.
+2. The prompt is short. `packages/shared/src/catalog-prompt.ts` builds the tags from the schemas
+   (`wizardTextTags({ durableRuns })`, with each attribute, optional ones marked, enums with
+   their values) and holds two worked examples (`WIZARD_TEXT_EXAMPLES`), which a test parses and
+   validates. The rules for the model are in `prompts/architect.md` (`firstpass.system`), where
+   `prompts/README.md` wants every sentence a model reads. `<Wait>` and durable runs' keys are
+   there only with `durableRuns`. The tags take about 4k characters; the whole system prompt is
+   under 20k characters, about 3k to 4k tokens instead of 15k.
+3. Every chunk goes through `parseWizardText(…, { partial: true })`. A step counts as closed
+   unless a cut names it as open (`TextCut.open`). Closed steps go to the draft through
+   `writeDraft`, one save at a time; a step that closes while a save runs goes into the next one.
+   The editor and the test run show each save through the existing `change` event. If the person
+   changed the wizard meanwhile, the save retries once on the new revision.
+4. At the end: the full parse, then the code fixes, then one last save. The fixes: a missing or
+   invalid `id` (made from the label or title, umlauts written out), field ids unique across the
+   wizard (a page's `Field` component renamed with its field), a missing `result` step (only at
+   the end, so the editor never shows one the text then brings itself), a `next` to an unknown
+   step and a `look` that does not fit (both dropped). A step the schema refuses is dropped and
+   listed as an issue, or `writeDraft` would refuse the whole draft. What remains goes to the
+   architect.
+5. The architect runs after the first pass, on the wizard that now exists: the issues left,
+   widgets, connectors, downloads, images, and starts where `startTriggers` is on. Its message
+   is `firstpass.followup` (the wish and the issues left), and the thread holds the wish once.
+   It runs in the same chat request, so the chat shows its work and Stop stops it; closing the
+   editor ends it, as today. The pages are usable meanwhile: the preview and the flow show each
+   save, and the test run can start. It does not say which step it works on, so the steps
+   marked "Wird vorbereitet …" / "Being prepared…" are set once, after the first pass: steps with
+   issues left and widget steps, until the turn ends. If the first pass writes no step or fails,
+   the architect builds from the wish as before.
+
+Each first pass logs one `[timing] firstPass` line (way, model, outcome, time to the first text,
+the first and the last step saved, steps, saves, fixes, issues, cuts, characters), followed by
+the architect's own line.
+
+Not built: a CLI that starts when the wish box gets focus and stays open. It would take away the
+process start, but Codex and Cursor hand over their text only when it is finished, so on a
+computer with either, every page arrives at once whether the CLI is kept open or not.
 
 Targets: the first page in two seconds or less, every page in five seconds or less, widgets and
-images when they are ready.
+images when they are ready. Measured in step 3 (Order).
 
 ## Part 4 — state in the browser, saved on the server
 
@@ -986,7 +1014,27 @@ The first pass stays behind a switch `fastCreate` (registered in
    `examples/wizards`. `calc`, page `components` and Markdown in a page are there from the start.
    Built on the branch (`dddb88b0`); Part 2 says what it does and what it measured.
 3. **The fast first pass.** Part 3, behind `fastCreate`, with the richer pages and the starts tools
-   (`list_starts`, `set_starts`) that are already on the branch.
+   (`list_starts`, `set_starts`) that are already on the branch. Built on the branch
+   (`d6086588`); Part 3 says what it does. Measured on 2026-11-08 on a laptop, local runtime in
+   one process, with step 1's wish, three runs each, at a load of 5 to 22 and 69 to 71 % of
+   memory free:
+
+   | How it thinks (first-pass model) | First text | First page saved | Last page | Issues left | Architect after |
+   |---|---|---|---|---|---|
+   | Anthropic key (claude-sonnet-5-5) | 0.7 to 1.1 s | 1.4, 1.5, 1.8 s | 7.4 to 7.5 s | 0 | 23 to 30 s, 1 round |
+   | Gateway (deepseek-v4.1-flash) | 1.3 to 3.9 s | 1.5, 2.4, 4.2 s | 2.9 to 5.6 s | 1 to 4 | 7 to 23 s |
+   | Claude Code (sonnet) | 2.1 to 3.4 s | 3.6, 4.6, 8.6 s | 8.6 to 9.9 s | 0 | 10 to 16 s |
+   | Codex (gpt-6.1-sol) | 15.8 to 16.9 s | the same | 16.5 to 17.5 s | 0 | 15 to 46 s |
+
+   Before, the person saw nothing until the architect was done: about 22 s with a key, 65 to 77 s
+   through Claude Code, 47 to 59 s through Codex (step 1). The first page within two seconds is
+   met with the Anthropic key and twice of three with the gateway. It is not met through Claude
+   Code, which starts its CLI per call, or through Codex, which hands over its text only when it
+   is finished. Every page within five seconds is met only with the gateway. The code fixes had
+   nothing to fix in any of the 12 runs; the gateway's drafts left 1 to 4 issues for the
+   architect. Not measured: Cursor, an OpenAI key, the cloud. All tests pass with `fastCreate`
+   and `durableRuns` on and off. "Wird vorbereitet …" was not seen in the browser, as no draft
+   left an issue or had a widget.
 4. **Copy for ChatGPT.** Part 5; needs only step 2.
 5. **The shortcut on the server.** Part 4, in the branch's `answerGoesOn`. It is small, and every
    client gets it.
@@ -1007,7 +1055,7 @@ off until they are flipped.
 
 ## Changes by file
 
-Built on the combined branch, for Part 1 and the text form:
+Built on the combined branch, for Part 1, the text form and the first pass:
 
 | File | Change |
 |---|---|
@@ -1029,7 +1077,16 @@ Built on the combined branch, for Part 1 and the text form:
 | `apps/runtime/src/prompts/authoring.md` | `look`, `section`, `calc`, page components, view inputs |
 | `apps/docs/public/schema/v2/wizard.json`, `wizard-package.json` | regenerated |
 | `docs/content/dev/wizard-format` | the format additions |
-| `packages/shared/src/wizard-text.ts` | new: `parseWizardText` (with `partial`), `printWizardText` |
+| `packages/shared/src/wizard-text.ts` | new: `parseWizardText` (with `partial`), `printWizardText`; `TextCut.open` |
+| `packages/shared/src/feature-flags.ts` | `fastCreate` |
+| `packages/shared/src/catalog-prompt.ts` | new: `wizardTextTags`, `WIZARD_TEXT_EXAMPLES` |
+| `packages/shared/src/surface.ts` | `SURFACE_COMPONENTS`, `SURFACE_REQUIRED` exported |
+| `apps/runtime/src/services/first-pass.ts` | new: the first pass, the code fixes |
+| `apps/runtime/src/services/architect.ts` | `fastCreateTurn`; `architectTurn` with `{ asked }` |
+| `apps/runtime/src/agents/subscription.ts`, `chat-clients.ts` | `subscriptionText`: the CLI without tools, MCP or session |
+| `apps/runtime/src/prompts/architect.md` | `firstpass.system`, `firstpass.lang`, `firstpass.followup` |
+| `apps/runtime/src/texts.ts`, `apps/web/src/lib/i18n.ts` | the first pass's status lines, "Being prepared…" |
+| `apps/web/src/studio/editor/ChatPanel.tsx`, `FlowDiagram.tsx` | the `preparing` event; steps marked while the architect works |
 
 Still to do:
 
@@ -1039,15 +1096,10 @@ Still to do:
 | `packages/shared/src/run.ts` | `RunView.rev`, `unsent`, `ahead`; `RunState.pagesSent` |
 | `apps/runtime/src/db/schema.ts`, a tenant migration | `run.unsent` |
 | `apps/runtime/src/services/runs.ts` | the view: `rev`; `unsent` and `ahead` for who may answer |
-| `packages/shared/src/feature-flags.ts` | `fastCreate` |
 | `apps/runtime/src/routes/runs.ts` | `PUT /:id/pages/:stepId/unsent`; sequence numbers and `rev` on `POST /:id/pages/:stepId` |
 | `apps/runtime/src/engine/runner.ts` | `needsNoRunner`; `answerGoesOn`: the shortcut; `submitPage` and `reviewStep`: `kick` only when the run went on; `submitPage`: sequence numbers, clears `unsent[stepId]` |
-| `packages/shared/src/catalog-prompt.ts` | new: tag signatures from the schemas |
 | `packages/runner/src/RunnerView.tsx` | advance in the browser; saves what is typed |
 | `apps/web/src/runner/useRun.ts` | pages in flight, one at a time; drops a view older than the last confirmed `rev` |
-| `apps/runtime/src/services/architect.ts` | the fast first pass before the architect; deterministic fixes |
-| `apps/runtime/src/agents/architect.ts` | background turn after the first pass |
-| `apps/runtime/src/agents/subscription.ts` | the AI client's CLI kept open from the wish box's focus |
 | `apps/web/src/studio/editor/ShareDialog.tsx` | "Copy for ChatGPT" |
 | `apps/runtime/src/cli/main.ts` | new command `export --chatgpt` |
 | `docs/content/dev` | the text form |
@@ -1057,9 +1109,12 @@ Still to do:
 - Does the architect also write the text form for edits, or keep `edit_wizard` on JSON?
   Printing makes both possible; one form for both is simpler for the model.
 - Can a CLI kept open reach two seconds on a computer with Claude Code, Codex or Cursor, or does
-  the first pass there need the credits or an API key? Step 1 measured each CLI started per
-  turn: the first output came after 1.1 to 2.4 s with Claude Code and 4.1 to 13.9 s with Codex.
-  A CLI kept open is not measured.
+  the first pass there need the credits or an API key? With the CLI started per call, step 3's
+  first page came after 3.6 to 8.6 s through Claude Code and 16 to 17 s through Codex. Codex and
+  Cursor hand over their text only when it is finished, so keeping their CLI open does not bring
+  the first page sooner than the whole draft. A CLI kept open is not measured.
+- On a computer with Codex or Cursor, should the first pass go through the credits or a key when
+  the person has either, and the AI client only for the architect after it?
 - Should the text form get expressions for `in`, `notEmpty`, `empty`, `contains`, and a short
   way to give a calc its `as`? Today those are written as JSON (Part 2, rule 4), which a model
   may get wrong more often.
