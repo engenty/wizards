@@ -71,12 +71,12 @@
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
-    "@types/node": "^26.6.4",
-    "ai": "7.0.102",
-    "hono": "^4.13.14",
+    "@types/node": "^26.6.6",
+    "ai": "7.0.163",
+    "hono": "^4.13.16",
     "openai": "^7.45.1",
     "typescript": "~7.0.2",
-    "vitest": "^5.0.5",
-    "zod": "4.6.6"
+    "vitest": "^5.1.0",
+    "zod": "4.6.7"
   }
 }
