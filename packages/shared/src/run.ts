@@ -144,6 +144,11 @@ export interface RunState {
    */
   pagesSent?: { n: number; step: string; tab?: string };
   /**
+   * A person's step gave its credit hold back while it waited, and was answered: the run holds again
+   * right before its next step that costs anything, not while the person waits for the next page.
+   */
+  holdLater?: true;
+  /**
    * Who gave the last answer, and the step it led to: a wait reached right there tells them nothing,
    * since they did it themselves. A step that worked in between is news to them again.
    */

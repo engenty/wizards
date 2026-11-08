@@ -41,10 +41,15 @@ export async function balanceCredits(): Promise<number | null> {
  */
 export async function reserveForRun(
   runId: string,
-  credits: number,
+  /** How many; a function when working that out costs something: called only where a hold is made. */
+  amount: number | (() => Promise<number>),
   guest = false,
 ): Promise<boolean | "guest_budget"> {
-  if (!managed || credits <= 0) {
+  if (!managed) {
+    return true;
+  }
+  const credits = typeof amount === "number" ? amount : await amount();
+  if (credits <= 0) {
     return true;
   }
   try {

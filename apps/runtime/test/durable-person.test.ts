@@ -475,13 +475,14 @@ describe("credits", () => {
     expect(await jsonOf(id, "ask")).toEqual({ timedOut: true });
   });
 
-  it("an answer holds again before the run goes on", async () => {
+  it("an answer holds again before the step after it that costs", async () => {
     const id = await start([ask(), agent("after"), end]);
     expect(await waits(id)).toBe(true);
     hold.reserved.length = 0;
     await inTenant(() => runner.submitPage(id, "ask", { x: "yes" }));
-    expect(hold.reserved).toContain(id);
     expect(await hasStatus(id, "done")).toBe(true);
+    expect(hold.reserved).toContain(id);
+    expect((await row(id))?.state.holdLater).toBeUndefined();
   });
 
   it("an answer refused credits stays, and the run waits for them", async () => {

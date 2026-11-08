@@ -244,17 +244,17 @@ describe("the slow path: the answer leaves the run running for a runner, and kic
   });
 });
 
-describe("credits come first", () => {
+describe("credits are held before the next step that costs, not at the answer", () => {
   it.each([
     ["timeout", { timeout: "2d" }],
     ["remind", { remind: "1d" }],
-  ])("a step with %s gave its hold back: refused, the run waits for credits", async (_n, more) => {
+  ])("a step with %s gave its hold back: the next plain page comes at once", async (_n, more) => {
     const runId = await startRun(flow(page("a", more), page("b")));
     credits = "out_of_credits";
     const left = await answer(runId, "a");
-    expect(left.status).toBe("sleeping");
-    expect(left.cursor).toBe("b");
-    expect(left.state?.pause?.kind).toBe("credits");
-    expect(left.kicked).toBe(false);
+    // Nothing is asked of the Manage-App here: the run marks that it holds again later.
+    expect(left).toMatchObject({ status: "waiting_input", cursor: "b", kicked: false });
+    expect(left.state?.holdLater).toBe(true);
+    expect(left.state?.pause).toBeUndefined();
   });
 });

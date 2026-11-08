@@ -1517,13 +1517,20 @@ async function finishWait(run: RunRow, step: WaitStep, { state, cursor, said }: 
 
 /** Holds the credits a run needs to go on; what it says when they are refused, else null. */
 async function holdAgain(run: RunRow): Promise<RunNote | null> {
-  const estimate = await estimateRun(
-    run.wizardId,
-    run.version,
-    run.definition,
-    await stepsWithoutModel(run.definition),
+  // Without the Manage-App nothing is held: the estimate is worked out only where a hold is made.
+  const held = await reserveForRun(
+    run.id,
+    async () =>
+      (
+        await estimateRun(
+          run.wizardId,
+          run.version,
+          run.definition,
+          await stepsWithoutModel(run.definition),
+        )
+      ).reserve,
+    guestRun(run),
   );
-  const held = await reserveForRun(run.id, estimate.reserve, guestRun(run));
   return held === true
     ? null
     : note(held === "guest_budget" ? "guestBudget" : "wizardRunOutCredits");
@@ -1764,7 +1771,7 @@ function handOnAnswer(
 
 /**
  * A person's answer takes the run on, if the deadline has not. A step that gave its hold back holds
- * again first. Refused: the answer stays and the run waits for credits, as on a wake. The control
+ * again before the run's next step that costs anything (`holdLater`, in `drive()`). The control
  * copy of the deadline stays too: the extra wake finds the run moved on, and clearing it here could
  * wipe the next wait's. A next step that needs no runner is reached here, in the same update
  * (docs/plans/fast-creation.md, Part 4). True: the run is `running` and a runner has work.
@@ -1778,25 +1785,13 @@ async function answerGoesOn(
   by?: Actor,
 ): Promise<boolean> {
   const next = stepOf(run.definition, cursor);
-  let refused: RunNote | null = null;
   if (next && next.type !== "result" && (await waitsLong(step))) {
-    // The Manage-App out of reach stops no answer: `canSpend` still guards the next step.
-    refused = await holdAgain(run).catch((err) => {
-      console.warn(`[run ${run.id}] holding credits on an answer:`, (err as Error).message);
-      return null;
-    });
+    // The step gave its hold back while it waited. The run holds again right before its next step
+    // that costs anything (`drive()`), so the answer and the pages after it wait for no estimate
+    // and no call to the Manage-App, and no step that costs runs without a hold.
+    state.holdLater = true;
   }
   try {
-    if (refused) {
-      await waitForPerson({ ...run, cursor }, cursor ?? step.id, { kind: "credits" }, state, {
-        rev: run.rev,
-      });
-      // The answer is in the run either way: what was typed for it goes.
-      if (patch.unsent !== undefined) {
-        await db.update(schema.run).set({ unsent: patch.unsent }).where(eq(schema.run.id, run.id));
-      }
-      return false;
-    }
     if (needsNoRunner(next, run.startedBy, state)) {
       // As `drive()` reaches a page, with the answer's time logged; `by` is not told of it.
       const { answered, ...rest } = state;
@@ -2334,6 +2329,21 @@ async function drive(runId: string, signal: AbortSignal) {
       // A step that ran is over and the next one is the person's: a phone in a pocket hears it.
       void pushRun(runId, "waiting");
       return;
+    }
+    // An answer moved the run on without holding again (`answerGoesOn`): it holds before it spends.
+    if (run.state.holdLater) {
+      const refused = await holdAgain(run).catch((err) => {
+        // The Manage-App out of reach stops no run: `canSpend` still guards the step.
+        console.warn(`[run ${runId}] holding credits before ${step.id}:`, (err as Error).message);
+        return null;
+      });
+      const { holdLater: _, ...state } = run.state;
+      if (refused) {
+        await waitForPerson(run, step.id, { kind: "credits" }, state, "running");
+        return;
+      }
+      await updateRun(runId, { state });
+      continue;
     }
     if (!(await canSpend())) {
       if (await durableRunsOn()) {
