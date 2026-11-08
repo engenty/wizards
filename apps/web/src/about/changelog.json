@@ -1,7 +1,97 @@
 [
   {
+    "version": "v0.18.0",
+    "timestamp": 1794148523,
+    "commits": [
+      {
+        "id": "4e892ec",
+        "message": "only vX.Y.Z tags count as releases in the changelog (#557)",
+        "group": "Fixed",
+        "scope": "release",
+        "breaking": false
+      },
+      {
+        "id": "8cc0b20",
+        "message": "runs that wait for days and pages without waiting, behind durableRuns and fastCreate (#556)",
+        "group": "Added",
+        "scope": "durable-runs",
+        "breaking": false
+      },
+      {
+        "id": "944f226",
+        "message": "documentation updates (#530, #532, #533, #535, #538, #540, #542, #546, #547, #548, #549, #550, #552, #554, #555)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "461eeb6",
+        "message": "a run's sandbox reaches only what the broker allows (#553)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "83c99ff",
+        "message": "an organization's model settings and assistant layout in its tenant database, and nothing of a deleted tenant left in the control database (#551)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "6f13020",
+        "message": "an icon in Work's app bar with registerNav's mode (#497)",
+        "group": "Added",
+        "scope": "plugins",
+        "breaking": false
+      },
+      {
+        "id": "efb4664",
+        "message": "the start page says in one sentence what a wizard is (#544)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "73e004d",
+        "message": "adding a connection opens a dialog, with no form in front of a service to import (#541)",
+        "group": "Added",
+        "scope": "connectors",
+        "breaking": false
+      },
+      {
+        "id": "e64408c",
+        "message": "MIT libraries decision-model, search-index, search-libsql and goose on npm (#543)",
+        "group": "Added",
+        "scope": "packages",
+        "breaking": false
+      },
+      {
+        "id": "a3ce9b8",
+        "message": "the drop gets a rounded top (#539)",
+        "group": "Added",
+        "scope": "engenty",
+        "breaking": false
+      },
+      {
+        "id": "bbeaae6",
+        "message": "follow-redirects 1.16.2, which keeps custom credentials off a redirect (#534)",
+        "group": "Fixed",
+        "scope": "deps",
+        "breaking": false
+      },
+      {
+        "id": "8130813",
+        "message": "Fähigkeiten keeps its address when signed out, a fixed step shows what it calls, MCP returns a draft's warnings (#531)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.17.2",
-    "timestamp": 1793951559,
+    "timestamp": 1793951790,
     "commits": [
       {
         "id": "08f9b3e",

@@ -4,6 +4,20 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.18.0] - 2026-11-08
+- ADDED **[durable-runs]** Runs that wait for days and pages without waiting, behind durableRuns and fastCreate (#556)
+- ADDED **[runtime]** A run's sandbox reaches only what the broker allows (#553)
+- ADDED **[runtime]** An organization's model settings and assistant layout in its tenant database, and nothing of a deleted tenant left in the control database (#551)
+- ADDED **[plugins]** An icon in Work's app bar with registerNav's mode (#497)
+- ADDED **[studio]** The start page says in one sentence what a wizard is (#544)
+- ADDED **[connectors]** Adding a connection opens a dialog, with no form in front of a service to import (#541)
+- ADDED **[packages]** MIT libraries decision-model, search-index, search-libsql and goose on npm (#543)
+- ADDED **[engenty]** The drop gets a rounded top (#539)
+- DOCS Documentation updates (#530, #532, #533, #535, #538, #540, #542, #546, #547, #548, #549, #550, #552, #554, #555)
+- FIXED **[release]** Only vX.Y.Z tags count as releases in the changelog (#557)
+- FIXED **[deps]** Follow-redirects 1.16.2, which keeps custom credentials off a redirect (#534)
+- FIXED **[studio]** Fähigkeiten keeps its address when signed out, a fixed step shows what it calls, MCP returns a draft's warnings (#531)
+
 ## [0.17.2] - 2026-11-06
 - ADDED **[studio]** A plugin's repository or zip becomes a Connector with its Skills, and Entdecken shows it as one hit (#527)
 - DOCS Documentation updates (#524, #525)
