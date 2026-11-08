@@ -47,7 +47,7 @@ Errors: `{ "error": string, "code": string }`.
 
 | Call | Body → answer |
 |---|---|
-| `GET /v1/tenants/:id` | → `{ id, name, slug?, pagesHost?, status: "active" \| "suspended" \| "deleted", balanceCredits, plan?: { id, name }, limits: { concurrentRuns, projects?, build?, members? }, modules?: string[], features?: { [id]: boolean }, db: { url: string } \| null }` · `db: null` means the runtime keeps the tenant's database as a file · `slug`, `pagesHost`: the organization's address (`acme`, `acme.wizards.page`), shown in the studio's "Public page" part; an older Manage-App names none · `plan`: the plan the tenant is on (Free, Pro, Team, …), shown in the studio · `limits.projects`: how many spaces the tenant works with (the Manage-App's name for them; the studio shows a space switcher above one; a space a local install synced counts); `null` for as many as it wants; left out, the runtime keeps one · `limits.build: false`: the tenant makes and changes nothing on the runtime, its studio shows what its local install synced; left out, it builds · `limits.members`: the people the plan allows (`null`: no limit), shown on the studio's organization page; the Manage-App enforces it · `modules` (optional, a list of plugin ids): the plugins of the runtime switched on for the tenant, besides the runtime's `PLUGINS_DEFAULT`; an id the runtime has no plugin for is ignored ([content/dev/plugins/shipping.md](content/dev/plugins/shipping.md)) · `features`: the plan's switches the runtime reads; one not named counts as the runtime declares it (a core switch of `kind: "plan"` is on, a plugin's is off), so a plan that leaves one out says `false`. Known: `personSignIn` — a space's connection may have each person sign in themselves (the Pro and Team plans have it, the Free plan names `false`); with `false` the runtime refuses to set one up that way or to change one to it (`POST /api/studio/spaces/:id/connections`, `PATCH /api/studio/connections/:id` answer `403 { code: "plan" }`, naming `plan.name`), while a connection that already has each person sign in keeps working and its admins may change it to the space · `ownKeys` — the tenant's own API keys and bindings to a provider's model in the cloud studio (`PUT /api/studio/models` refuses them with `403 { code: "plan" }` otherwise); it gates by plan, not by tier: with `modelTiers` on, a plan with `ownKeys` still has its admins choose `modelPolicy.ownKeys`, and `false` there refuses them with `403 { code: "tier" }`; while either says no, saved keys and bindings stay but every call runs on the credits, and so it does while the Manage-App can't say · `checks`: `{ guests: boolean }`, whether the runtime checks what guests make ([plans/guest-content-guards.md](plans/guest-content-guards.md)); an admin switches it on the Abuse checks page; left out or unreachable: checked · `holds`: `{ page: { reason } \| null, wizards: [{ id, reason }] }`, what an admin held; a held wizard's run page starts no new run (`wizardPaused`) · `tier`, `modelPolicy`: the organization's model tier and how it manages its models ([Model tiers](#model-tiers)); left out, the organization has none and every class runs as before |
+| `GET /v1/tenants/:id` | → `{ id, name, slug?, pagesHost?, status: "active" \| "suspended" \| "deleted", balanceCredits, plan?: { id, name }, limits: { concurrentRuns, projects?, build?, members? }, modules?: string[], features?: { [id]: boolean }, db: { url: string } \| null }` · `db: null` means the runtime keeps the tenant's database as a file · `slug`, `pagesHost`: the organization's address (`acme`, `acme.wizards.page`), shown in the studio's "Public page" part; an older Manage-App names none · `plan`: the plan the tenant is on (Free, Pro, Team, …), shown in the studio · `limits.projects`: how many spaces the tenant works with (the Manage-App's name for them; the studio shows a space switcher above one; a space a local install synced counts); `null` for as many as it wants; left out, the runtime keeps one · `limits.build: false`: the tenant makes and changes nothing on the runtime, its studio shows what its local install synced; left out, it builds · `limits.members`: the people the plan allows (`null`: no limit), shown on the studio's organization page; the Manage-App enforces it · `modules` (optional, a list of plugin ids): the plugins of the runtime switched on for the tenant, besides the runtime's `PLUGINS_DEFAULT`; an id the runtime has no plugin for is ignored ([content/dev/plugins/shipping.md](content/dev/plugins/shipping.md)) · `features`: the plan's switches the runtime reads; one not named counts as the runtime declares it (a core switch of `kind: "plan"` is on, a plugin's is off), so a plan that leaves one out says `false`. Known: `personSignIn` — a space's connection may have each person sign in themselves (the Pro and Team plans have it, the Free plan names `false`); with `false` the runtime refuses to set one up that way or to change one to it (`POST /api/studio/spaces/:id/connections`, `PATCH /api/studio/connections/:id` answer `403 { code: "plan" }`, naming `plan.name`), while a connection that already has each person sign in keeps working and its admins may change it to the space · `ownKeys` — the tenant's own API keys and bindings to a provider's model in the cloud studio (`PUT /api/studio/models` refuses them with `403 { code: "plan" }` otherwise); it gates by plan, not by tier: with `modelTiers` on, a plan with `ownKeys` still has its admins choose `modelPolicy.ownKeys`, and `false` there refuses them with `403 { code: "tier" }`; while either says no, saved keys and bindings stay but every call runs on the credits, and so it does while the Manage-App can't say; with `ownKeysGateway` on, own keys are accounts at the Manage-App and every call goes through the gateway ([Own accounts](#own-accounts)) · `checks`: `{ guests: boolean }`, whether the runtime checks what guests make ([plans/guest-content-guards.md](plans/guest-content-guards.md)); an admin switches it on the Abuse checks page; left out or unreachable: checked · `holds`: `{ page: { reason } \| null, wizards: [{ id, reason }] }`, what an admin held; a held wizard's run page starts no new run (`wizardPaused`) · `tier`, `modelPolicy`: the organization's model tier and how it manages its models ([Model tiers](#model-tiers)); left out, the organization has none and every class runs as before |
 | `GET /v1/tenants/:id/members` | → `{ members: [{ userId, name, email, image, role, joinedAt }], invitations: [{ id, email, role, expiresAt }], seats: { limit: number \| null, taken } }` · the people of the tenant and who is invited, for the studio's organization page; they are invited, given roles and removed with the calls below · `seats.taken` counts members and open invitations |
 | `POST /v1/tenants/:id/invitations` | `{ actorId, email, role, lang: "de" \| "en" }` → `{ invitation: { id, email, role, expiresAt } }` · invites for the person signed in to the studio (`actorId`), whose role the Manage-App checks in its own records: owners and admins invite (on plans other than Team only the owner), only an owner invites an owner · mails the invitation in `lang`; an open invitation to the same address is replaced · refusals: `403` `forbidden`, `PLAN_SEATS` (with `limit`), `PLAN_ROLES`, `not_member`; `409` `already_member` |
 | `DELETE /v1/tenants/:id/invitations/:invitationId` | `{ actorId }` → `{ ok: true }` · withdraws an open invitation; owners and admins, an owner's invitation only an owner |
@@ -574,3 +574,80 @@ already has `MASKING_PER_TENANT` calls at the detector. `POST /v1/tenants/:id/mo
 answers `409 no_tier` without a tier or `modelTiers`, and `429 rate_limited` past 20 a minute;
 `PUT /v1/tenants/:id/model-policy` answers `429 rate_limited` when the masking instructions
 change more than 20 times an hour.
+
+## Own accounts
+
+An organization keeps its own accounts at the providers in the Manage-App, and every model call
+of a cloud runtime goes to the gateway, which runs it on such an account or on credits. All of
+this is behind the switch `ownKeysGateway` (`kind: "release"`, resolved everyone → plan → team
+like the others). While it is off for a tenant, the runtime keeps today's way: own keys sealed in
+the tenant's settings, called straight from the runtime. A computer keeps its keys in its vault
+either way; a computer linked to an organization reaches the organization's accounts only
+through the gateway, on its credits path.
+
+**Routes for the runtime** (service key, like the other `/v1/tenants/:id/*` routes; the runtime
+lets owners and admins write and members read, and names no actor):
+
+| Call | Body → answer |
+|---|---|
+| `GET /v1/tenants/:id/upstreams` | → `{ fallback: boolean, accounts: Account[] }` |
+| `POST /v1/tenants/:id/upstreams` | `{ source, label, key, settings? }` → `201 Account` · the key is checked with the provider first (a model list or an account call); refused: `422 { error: { type: "key_refused", message } }` with the provider's own words |
+| `PATCH /v1/tenants/:id/upstreams/:uid` | `{ label?, key?, settings? }` → `Account` · a new key is checked like `POST` |
+| `POST /v1/tenants/:id/upstreams/:uid/check` | → `Account`, its `status` checked again |
+| `DELETE /v1/tenants/:id/upstreams/:uid` | → `204` |
+| `PATCH /v1/tenants/:id/upstreams` | `{ fallback: boolean }` → `{ fallback }` · "Guthaben springt ein": the credits take over a call the provider refuses |
+
+Writes answer `403 { error: { type: "plan" } }` when the plan's `ownKeys` is `false`. A tier never
+blocks storing an account; it decides which of the account's models are used.
+
+```ts
+type Account = {
+  id: string;
+  source: "openai" | "anthropic" | "google" | "mistral" | "bedrock" | "azure"
+        | "compat" | "ai-gateway" | "fal" | "elevenlabs";
+  label: string;
+  place: string;            // one word for the list: "Frankfurt", "EU", "USA"
+  keyHint: string;          // the key's last four; the key never comes back
+  status: "ready" | "refused" | "resting"; // resting: no model passes the tier, or policy.ownKeys is off
+  error: string | null;     // the provider's words when it refused the key
+  checkedAt: string;
+  models: number;
+  passing: number;          // models that pass the tenant's tier
+  uses: { class: string; model: string }[]; // classes that resolve onto this account now
+  month: { calls: number; usd: number };     // this month, from the ledger
+};
+```
+
+`settings` per source: `bedrock` `{ region }` (the key is a Bedrock API key or
+`AKIA…:<secret>`); `azure` `{ baseUrl, deployments: [{ deployment, model?, zone? }], noAbuseLog:
+{ by, at } | null }`; `compat` (any OpenAI-compatible address) `{ baseUrl, company, euServers,
+noRetention: { by, at } | null }`; the others none. The runtime fills `by` (the person) and `at`
+when an admin ticks the box, and `company` from the address's host name.
+
+**The runtime with the switch on.** It calls no provider itself: every class goes to the gateway
+as `wizards/<class>`, or as the model a binding names. A binding to a provider's model
+(`openai:gpt-5.5`, `anthropic:claude-sonnet-5-5`) becomes the catalog id of the same model
+(`openai/gpt-5.5`, `anthropic/claude-sonnet-5.5`) where the gateway is known to serve it (its
+`/v1/models`, the tier's `models`, the AI Gateway models the studio offers); otherwise it is left
+to its class, and the log says so. A fal or ElevenLabs binding stays where `/v1/models` lists it.
+`creditFallback` is a computer's setting only.
+
+**The move.** The first time a tenant runs with the switch on, the keys it saved in the cloud
+studio go to `POST /v1/tenants/:id/upstreams`, one account each, labelled with the provider's
+name (`gateway` becomes `ai-gateway`), and leave the setting, whose bindings are rewritten as
+above. A key the Manage-App refuses (a `4xx`) and a Replicate key don't move: they are dropped,
+logged, and told once to the next owner or admin who opens the page. A key the Manage-App can't
+take now (`5xx`, unreachable) stays for another try five minutes later. An account with the same
+`source` and `keyHint` that is already there is not added again, so a move cut short goes on
+where it stopped.
+
+**A refused call.** When the gateway answers a call with the provider's words because an own
+account failed and no credits stepped in, an empty provider account ("insufficient_quota",
+"credit balance") is the organization's own to top up: the run waits for a person, as on a
+computer, instead of failing for good.
+
+**The studio** passes its requests on: `GET /api/studio/models/keys` → `{ fallback, accounts,
+kept }` (`kept`: the keys the move left out, once, for owners and admins), `POST` and `PATCH
+/api/studio/models/keys` (the fallback), `PATCH` and `DELETE /api/studio/models/keys/:id`,
+`POST /api/studio/models/keys/:id/check`. `PUT /api/studio/models` refuses keys then with `400 {
+code: "own_keys_gateway" }` and saves bindings as the gateway serves them.

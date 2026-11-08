@@ -1,7 +1,7 @@
 ---
 title: Architecture
 description: How engenty wizards is built – the runtime and its roles, your computer and the cloud, tenants and spaces, the engine and its sandboxes, skills, plugins, the broker and the feature switches.
-version: 0.15.0
+version: 0.18.0
 ---
 
 engenty wizards is one server program, the **runtime**, and one web app, the **studio**, that it
@@ -64,7 +64,7 @@ database’s `runner` table, and `RUNNER_URL` says where the web reaches one.
 | Databases | libSQL files: `tenants/local.db` and `control.db` in the data folder | libSQL: a control database (`DATABASE_URL`) and one database per tenant, at the address the Manage-App hands out |
 | Files | `objects/` in the data folder | An S3-compatible bucket (`S3_ENDPOINT`, `S3_BUCKET`) |
 | Sign-in | A one-time link the command line opens | The Manage-App’s tokens (OAuth 2.1 / OIDC), which name the person, the tenant and the role |
-| Models | An AI client on the computer (Claude Code, Codex, Antigravity, Cursor Agent), your own API keys, a local model, or a linked account’s credits | The model gateway. The runtime holds no model keys |
+| Models | An AI client on the computer (Claude Code, Codex, Antigravity, Cursor Agent), your own API keys, a local model, or a linked account’s credits | The model gateway, which runs a call on the organization’s own account at a provider or on credits. The organization’s keys live in the Manage-App; the runtime holds none (behind `ownKeysGateway`) |
 
 ![Your computer runs one process with your own AI and keeps its spaces the same as the cloud’s studio. The cloud runs studio, doors and runner behind a proxy, with the Manage-App and the model gateway beside it](../../assets/diagrams/architecture-places.svg)
 
