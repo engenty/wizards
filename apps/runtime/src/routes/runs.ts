@@ -241,6 +241,11 @@ function visitorId(c: Context, create: boolean, embedded = false): string | null
  */
 /** A view's kept state stays small: ticks and choices, not data. */
 const MAX_VIEW_STATE = 32_000;
+/**
+ * A run's stream sends at most one view in this time: a burst of changes is one view after the first.
+ * Short, since an answer's own view and the runner's next page come a few milliseconds apart.
+ */
+const VIEW_GAP_MS = 40;
 /** What a page's typed answers may take, as JSON. */
 const MAX_UNSENT = 64_000;
 
@@ -884,15 +889,11 @@ export const runRoutes = new Hono()
     const member = await memberViewing(c, first);
     const caller = await callerOf(c, first);
     return streamSSE(c, async (stream) => {
-      let pending = false;
       let closed = false;
-      const push = async () => {
-        if (pending || closed) {
-          return;
-        }
-        pending = true;
-        await new Promise((r) => setTimeout(r, 120));
-        pending = false;
+      let busy = false;
+      let again = false;
+      let sentAt = 0;
+      const send = async () => {
         const run = await db.query.run.findFirst({ where: eq(schema.run.id, id) });
         if (run && !closed) {
           const hide = member
@@ -902,6 +903,33 @@ export const runRoutes = new Hono()
             event: "view",
             data: JSON.stringify(await viewOf(run, hide, caller)),
           });
+        }
+      };
+      // The first change goes out at once; what follows within VIEW_GAP_MS is one view after it.
+      const push = async () => {
+        if (closed) {
+          return;
+        }
+        if (busy) {
+          again = true;
+          return;
+        }
+        busy = true;
+        try {
+          for (;;) {
+            const wait = sentAt + VIEW_GAP_MS - Date.now();
+            if (wait > 0) {
+              await new Promise((r) => setTimeout(r, wait));
+            }
+            again = false;
+            sentAt = Date.now();
+            await send();
+            if (!again || closed) {
+              break;
+            }
+          }
+        } finally {
+          busy = false;
         }
       };
       // Calls the runner put to the device the run is watched from, each sent once per stream.
