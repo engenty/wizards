@@ -9,6 +9,7 @@ import { AssistantSlot } from "../assistant/StudioAssistant";
 import { useSpaceFiles } from "./data";
 import { Preview } from "./Files";
 import { useKnowledge } from "./Knowledge";
+import { PartArt } from "./PartArt";
 import { Section } from "./Section";
 import { useSpaceData } from "./SpaceData";
 
@@ -230,7 +231,7 @@ export function SpaceOverview({ space, parts }: { space: Space; parts: OverviewP
     <div className="flex flex-col gap-9 pb-20">
       <AssistantSlot />
       <Section title={t("nav.sources")} hint={t("space.overviewHint")} plain>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {parts.map((part) => {
             const s = status(part.id);
             const teaser = TEASER[part.id];
@@ -239,28 +240,28 @@ export function SpaceOverview({ space, parts }: { space: Space; parts: OverviewP
                 key={part.id}
                 type="button"
                 onClick={() => navigate(part.to)}
-                className="group flex min-w-0 flex-col gap-2 rounded-xl bg-card p-4 text-left shadow-soft ring-1 ring-border-soft transition hover:ring-border"
+                className="group flex min-w-0 flex-col overflow-hidden rounded-2xl bg-card text-left shadow-soft ring-1 ring-border-soft transition hover:-translate-y-0.5 hover:ring-border motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
-                <span className="flex items-center gap-2.5">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-paper-2 text-ember-strong">
-                    <part.icon className="size-4" />
+                <PartArt id={part.id} icon={part.icon} />
+                <span className="flex min-w-0 flex-1 flex-col gap-2 p-4">
+                  <span className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate font-display font-semibold text-[1.0625rem]">
+                      {part.label}
+                    </span>
+                    <ChevronRight className="size-4 text-ink-4 transition group-hover:translate-x-0.5 group-hover:text-ink-3" />
                   </span>
-                  <span className="min-w-0 flex-1 truncate font-semibold text-[0.9375rem]">
-                    {part.label}
-                  </span>
-                  <ChevronRight className="size-4 text-ink-4 transition group-hover:translate-x-0.5 group-hover:text-ink-3" />
+                  {teaser ? (
+                    <span className="text-[0.8125rem] text-ink-3 leading-relaxed">{t(teaser)}</span>
+                  ) : null}
+                  {look(part.id) ? (
+                    <span className="block rounded-lg bg-paper-2/50 p-3">{look(part.id)}</span>
+                  ) : null}
+                  {s ? (
+                    <span className="mt-auto pt-1">
+                      <Chip tone={s.filled ? "live" : "warn"}>{s.text}</Chip>
+                    </span>
+                  ) : null}
                 </span>
-                {teaser ? (
-                  <span className="text-[0.8125rem] text-ink-3 leading-relaxed">{t(teaser)}</span>
-                ) : null}
-                {look(part.id) ? (
-                  <span className="block rounded-lg bg-paper-2/50 p-3">{look(part.id)}</span>
-                ) : null}
-                {s ? (
-                  <span className="mt-auto pt-1">
-                    <Chip tone={s.filled ? "live" : "warn"}>{s.text}</Chip>
-                  </span>
-                ) : null}
               </button>
             );
           })}
