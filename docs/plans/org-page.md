@@ -1,7 +1,11 @@
 # Plan: the organization's page
 
 Status: planned 2026-11-01. Step 1 done on 2026-11-06: the portal app serves the host in production
-since v0.17.0, and the Manage-App's renderer is gone.
+since v0.17.0, and the Manage-App's renderer is gone. Open points 4–6 added on 2026-11-08 from
+the technical plan of 2026-10-22, „Pages and tenants“ (`engenty-wizards-manage`,
+`docs/plans/pages-and-tenants.md` on `feat/responsible-use`): the rest of that plan, a runtime
+per page that runs the wizards on its own host, gave way to this one, where the run stays at
+`engenty.ai/w/<token>`.
 Builds on the client portal (`docs/plans/client-portal.md`,
 decision "The organization's page"), the public space page the Manage-App renders today
 (`engenty-wizards-manage` `apps/server/src/pages/`), the `pages` switch and „Wer sieht“ for Wissen
@@ -23,6 +27,7 @@ client portal. One app, one look, one address.
 | Own domains | Later. `<team>.wizards.page` now; the host lookup and the routes leave room for a team's own domain |
 | Who a visitor is | The broker's `guest`: what a guest may read follows „Wer sieht“ (Wissen folders and Dateien with Gäste on), what they may start follows the wizards listed |
 | Who pays | The firm's credits, as for a client (`client-portal.md`, "Who pays") |
+| How many runs a visitor starts (2026-11-08) | Counted per organization: how many runs one visitor may start in an hour on its wizards is the owner's setting, by default today's number. Today one number holds for the whole runtime (`LIMIT_VISITOR_RUNS_PER_HOUR`, 6) and counts a visitor's runs across every organization (`visitorOverLimit` in `tenants/control.ts`). Not built |
 
 ## What a visitor may do
 
@@ -98,3 +103,16 @@ Steps 1 and 2 go first; 3–5 may follow in any order, each behind its switch.
 2. The public chat's limits: messages per visitor and day, a monthly budget, what the owner sees
    of visitors' chats (none kept? kept like a client's?).
 3. Whether the home is a page of Wissen the owner writes (blocks), or fields in settings.
+4. The run page names who offers the wizard. A wizard's page (`engenty.ai/w/<token>`) shows only
+   "made with engenty wizards" under the run (`runner/PublicRunner.tsx`). It needs the
+   organization's imprint from Info, its privacy notice, a line saying an AI answers, and a link
+   to report the wizard. The same footer on the organization's page.
+5. `wizards.page` on the Public Suffix List, so a browser treats each team's host as a site of its
+   own, before more teams get a page. It is not on the list (checked 2026-11-08). Nothing may set
+   a cookie on `.wizards.page`: the portal's cookies are host-only today, and so must every
+   cookie a capability above brings.
+6. Who may open the page, and how a wizard may be reached. The page is public today. Proposed:
+   `link` (not listed, reached by its address only), `members` (a visitor signs in with one
+   account at account.engenty.ai that works on every team's page) and `password` (one secret for
+   the page). Per wizard, the owner picks the ways in: link, embed on allowed sites, MCP, the API,
+   channels. A wizard has only `shareEnabled` and `dailyRunLimit` today.
