@@ -22,6 +22,7 @@ export const STUDIO = `${BASE}/studio`;
 export const STUDIO_PAGES = new Set([
   "",
   "new",
+  "wizards",
   "edit",
   "space",
   "skills",
