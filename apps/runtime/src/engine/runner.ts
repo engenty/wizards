@@ -109,6 +109,7 @@ import { nameOf } from "../services/access.js";
 import { reportRun } from "../services/manage-reports.js";
 import { switchedOffRunners } from "../services/runners.js";
 import { spaceFiles } from "../services/space-files.js";
+import { brandSpaceId } from "../services/space-parent.js";
 import { spaceProfile } from "../services/spaces.js";
 import { storedTranslation } from "../services/translations.js";
 import { decidedHeld, holdReview } from "../services/work-approvals.js";
@@ -1105,7 +1106,7 @@ export async function makeContext(
     },
     space,
     dataSpace: await dataSpaceOf(run, space),
-    spaceFiles: (await spaceFiles(space.id)).filter((f) => f.status === "ready"),
+    spaceFiles: await runSpaceFiles(space.id),
     signal,
     resources,
     ask: own.ask ?? ((ask) => askOf(run, ask, stepId, signal)),
@@ -3290,4 +3291,20 @@ export async function signalRun(
     key: waitKeyOf(run, step),
     ...signal,
   });
+}
+
+/** The brand's own kinds of file: a space that takes the organization's brand shows the root's. */
+const BRAND_FILES = new Set(["logo", "pattern", "asset"]);
+
+/** The space's ready files a run sees, with the organization's brand files where it takes them. */
+async function runSpaceFiles(spaceId: string) {
+  const own = (await spaceFiles(spaceId)).filter((f) => f.status === "ready");
+  const from = await brandSpaceId(spaceId);
+  if (from === spaceId) {
+    return own;
+  }
+  const brand = (await spaceFiles(from)).filter(
+    (f) => f.status === "ready" && BRAND_FILES.has(f.kind),
+  );
+  return [...brand, ...own.filter((f) => !BRAND_FILES.has(f.kind))];
 }

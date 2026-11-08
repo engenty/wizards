@@ -58,6 +58,8 @@ export async function spacesView(r: Reader) {
       /** `space`, `client` or `personal` (Mein Space); the space it sits under, if any. */
       kind: p.kind,
       parentId: p.parentId,
+      access: p.access,
+      brandFrom: p.brandFrom,
       /** With `orgSpaces` (docs/plans/org-spaces.md): the organization's own space. */
       root: "root" in p ? p.root : false,
       /** Mein Space: the person's own. */

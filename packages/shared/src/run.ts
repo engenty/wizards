@@ -536,6 +536,7 @@ const NOTES_EN = {
   onlyFinishedResultsShared: "Only finished results can be shared.",
   gradientFailed: "Couldn’t make a gradient from that. Try describing it differently.",
   onlyOneSpaceAllowed: "Only one space is allowed here.",
+  spaceChoiceNotHere: "This space can’t be set that way: only a space in the organization can.",
   mostSpaces: {
     one: "You can have at most {count} space here.",
     other: "You can have at most {count} spaces here.",
@@ -1058,6 +1059,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   onlyFinishedResultsShared: "Nur fertige Ergebnisse lassen sich teilen.",
   gradientFailed: "Daraus ließ sich kein Verlauf machen. Beschreib ihn anders.",
   onlyOneSpaceAllowed: "Hier ist nur ein Space möglich.",
+  spaceChoiceNotHere: "Das lässt sich hier nicht einstellen, nur bei einem Space der Organisation.",
   mostSpaces: {
     one: "Hier ist höchstens {count} Space möglich.",
     other: "Hier sind höchstens {count} Spaces möglich.",

@@ -1065,6 +1065,26 @@ const de: Record<Key, Line> = {
   "share.clientsSee":
     "Kund:innen sehen ihre Chats, was sie hochladen und die Ergebnisse, die ihr mit ihnen teilt.",
   "nav.mySpace": "Mein Space",
+  "nav.localSpace": "Lokaler Space",
+  "share.who": "Wer sieht den Space?",
+  "share.whoAll": "Alle in {organization}",
+  "share.whoAllHint": "Jedes Mitglied findet ihn im Space-Menü.",
+  "share.whoMembers": "Nur ausgewählte Personen",
+  "share.whoMembersHint": "Erst nur du. Wen du dazunimmst, wählst du unter Teilen.",
+  "share.whoMembersHere": "Nur die Personen, die du unten einschaltest.",
+  "share.membersOnlySee":
+    "Nur die Personen, die du hier auswählst, sehen diesen Space. Kund:innen lädst du hier ein: Sie melden sich auf der Seite deiner Organisation an und sehen nur diesen Space.",
+  "share.people": "Personen im Space",
+  "share.you": "du",
+  "space.brandFrom": "Info und Marke",
+  "space.brandFromRoot": "Von {organization} übernommen",
+  "space.brandFromRootHint":
+    "Ändert {organization} Info oder Marke, ändert sich dieser Space mit. Wissen, Daten und Wizards von {organization} gelten hier immer.",
+  "space.brandFromOwn": "Eigene Info und Marke",
+  "space.brandFromOwnHint":
+    "Dieser Space hat eigene Info und Marke. Wissen, Daten und Wizards von {organization} gelten hier weiter.",
+  "space.brandUseOwn": "Eigene verwenden",
+  "space.brandUseRoot": "Von {organization} übernehmen",
   "nav.spaceAll": "alle",
   "nav.spaceMine": "nur du",
   "nav.spacesHeading": "Spaces",
@@ -5906,6 +5926,26 @@ const en = {
   "share.clientsSee":
     "Clients see their chats, what they upload and the results you share with them.",
   "nav.mySpace": "My space",
+  "nav.localSpace": "Local space",
+  "share.who": "Who sees the space?",
+  "share.whoAll": "Everyone in {organization}",
+  "share.whoAllHint": "Every member finds it in the space menu.",
+  "share.whoMembers": "Only people you choose",
+  "share.whoMembersHint": "Only you at first. You add people under Share.",
+  "share.whoMembersHere": "Only the people you switch on below.",
+  "share.membersOnlySee":
+    "Only the people you choose here see this space. Invite clients here: they sign in on your page and see only this space.",
+  "share.people": "People in the space",
+  "share.you": "you",
+  "space.brandFrom": "Info and brand",
+  "space.brandFromRoot": "Taken from {organization}",
+  "space.brandFromRootHint":
+    "When {organization} changes its info or brand, this space changes with it. The knowledge, data and wizards of {organization} always apply here.",
+  "space.brandFromOwn": "Its own info and brand",
+  "space.brandFromOwnHint":
+    "This space has its own info and brand. The knowledge, data and wizards of {organization} still apply here.",
+  "space.brandUseOwn": "Use its own",
+  "space.brandUseRoot": "Take from {organization}",
   "nav.spaceAll": "everyone",
   "nav.spaceMine": "only you",
   "nav.spacesHeading": "Spaces",

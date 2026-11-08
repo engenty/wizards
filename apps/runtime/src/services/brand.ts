@@ -16,13 +16,16 @@ import { db, schema } from "../db/client.js";
 import { textModel } from "../models.js";
 import { prompt } from "../prompts.js";
 import { ServiceError } from "./errors.js";
+import { brandSpaceId } from "./space-parent.js";
 
 /** The space's main logo, the first standard one: what end users, documents and widgets get. */
 export async function mainLogoId(spaceId: string): Promise<string | null> {
   const p = await db.query.space.findFirst({ where: eq(schema.space.id, spaceId) });
+  // A space that takes the organization's brand shows the organization's logos.
+  const from = await brandSpaceId(spaceId);
   const logos = await db.query.spaceFile.findMany({
     columns: { id: true },
-    where: and(eq(schema.spaceFile.spaceId, spaceId), eq(schema.spaceFile.kind, "logo")),
+    where: and(eq(schema.spaceFile.spaceId, from), eq(schema.spaceFile.kind, "logo")),
     orderBy: [asc(schema.spaceFile.position), asc(schema.spaceFile.createdAt)],
   });
   return mainLogo(logos, p?.brand.logoSections)?.id ?? null;

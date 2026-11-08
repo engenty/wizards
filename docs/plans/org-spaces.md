@@ -1,6 +1,6 @@
 # Plan: organization, spaces and folders
 
-Status: decided on 2026-11-08, built behind `orgSpaces` (off by default): steps 1–5 below. The mockups: the
+Status: decided on 2026-11-08, built behind `orgSpaces` (off by default): steps 1–6 below. The mockups: the
 artifact "Organization, Spaces and Folders" (claude.ai/artifact/8eL7YzxQJPcQAeP5SgZNeS).
 
 As in Google Drive: Mein Space is yours, spaces are shared, folders sort what is inside. The
@@ -23,18 +23,17 @@ only the space you are in.
 | Organization switching | Not a use case: platform admins switch under Konto › Organisationen |
 | Your computer | The install's root syncs to the cloud root of the person's own organization (Free), or to their Mein Space in another; spaces with Kund:innen stay out of the sync |
 
-## Proposed, not yet decided
+## Decided on 2026-11-08 (the open points)
 
-1. The word for your own space: „Mein Space“ (alternatives: „Persönlich“, „Meine Ablage“).
-2. What a Kund:in sees of a space: the chats they are in, what they uploaded, results marked
-   "geteilt", wizards marked "für Kund:innen". Never folders, Daten or the organization's Wissen.
-3. New spaces are shared with all members by default.
-4. A space may replace brand and Info as a whole; its own Wissen, Daten and wizards add to the
-   root's.
-5. The plan's space limit counts shared spaces only; Mein Space and spaces with Kund:innen do not.
-6. A solo organization's first invitation turns the root into the shared root; the owner gets an
-   empty Mein Space.
-7. The root is a place to work (first entry of the menu) and its page (the house).
+| | Decision |
+|---|---|
+| Your own space | „Mein Space“ / "My space" in an organization. On a computer alone the one space is „Lokaler Space“ / "Local space" |
+| What a Kund:in sees | The chats they are in, what they uploaded, results marked "geteilt", wizards marked "für Kund:innen". Never folders, Daten or the organization's Wissen |
+| Who sees a new space | Asked in the „Neuer Space“ dialog: everyone in the organization, or only the people chosen (`space.access`: `all` or `members`). Changed later in Teilen |
+| Brand and Info | Each space chooses: take the organization's (`space.brandFrom: "root"`, kept in step with the root) or its own (`"own"`). New spaces and Mein Space start with the organization's. Wissen, Daten and wizards always add to the root's |
+| Space limit | Counts shared spaces only, the root among them; Mein Space and spaces with Kund:innen do not |
+| A solo organization's first invitation | The root becomes the shared root; the owner gets an empty Mein Space |
+| The root | A place to work (first entry of the menu) and its page (the house) |
 
 ## Steps
 
@@ -47,3 +46,5 @@ only the space you are in.
 4. **Ordner** (built: Infos the AI reads; Dateien from its chats and a linked mount, `chat_section.mountId`, behind `dateien`; Ergebnisse of the runs started in them, `run.chatId`; the folder page, `studio/work/FolderPage.tsx`):
    sections become folders with Infos, Dateien, Ergebnisse and a linked drive; the folder page.
 5. **Your computer** (built: `placeArrivingSpace` in `services/spaces.ts`): the sync rule above.
+6. **The open points** (built): the decisions of the table above: „Lokaler Space“, the choice in
+   „Neuer Space“ and in Teilen, brand and Info taken or own (Space › Info and Marke), the limit.

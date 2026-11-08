@@ -958,8 +958,13 @@ export const studio = new Hono<Vars>()
   // --- spaces --------------------------------------------------------------
   .get("/spaces", async (c) => c.json(await spacesView(reader(c))))
   .post("/spaces", async (c) => {
-    const body = z.object({ name: z.string().min(1).max(80) }).parse(await c.req.json());
-    return c.json(await createSpace(c.get("user").id, body.name));
+    const body = z
+      .object({
+        name: z.string().min(1).max(80),
+        access: z.enum(["all", "members"]).default("all"),
+      })
+      .parse(await c.req.json());
+    return c.json(await createSpace(c.get("user").id, body.name, body.access));
   })
   .patch("/spaces/:id", async (c) => {
     const patch = spacePatchSchema.parse(await c.req.json());

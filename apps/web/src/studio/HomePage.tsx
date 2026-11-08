@@ -45,6 +45,7 @@ import { MarketplaceHits } from "./Marketplace";
 import { spaceLabel } from "./SpacePath";
 import { WizardMenu } from "./WizardMenu";
 import { ownLink, sharedLink, WhereChip, whereItRuns } from "./where";
+import { WhoSees } from "./work/ShareSpace";
 
 /** What a space holds, row by row: its own wizards and what they share. */
 const SPACE_HOLDS: { icon: LucideIcon; name: () => string; what: Key }[] = [
@@ -63,9 +64,14 @@ const SPACE_HOLDS: { icon: LucideIcon; name: () => string; what: Key }[] = [
 export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { select } = useCurrentSpace();
   const qc = useQueryClient();
+  const me = useMe().data;
+  // In an organization the dialog asks who sees the new space (docs/plans/org-spaces.md).
+  const asks = useFeature("orgSpaces") && me?.mode === "managed";
   const [name, setName] = useState("");
+  const [access, setAccess] = useState<"all" | "members">("all");
   const create = useMutation({
-    mutationFn: () => api.post<{ id: string }>("/api/studio/spaces", { name }),
+    mutationFn: () =>
+      api.post<{ id: string }>("/api/studio/spaces", { name, ...(asks ? { access } : {}) }),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: keys.spaces() });
       select(id);
@@ -101,6 +107,18 @@ export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () =
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
+        {asks && me ? (
+          <div className="mt-5">
+            <WhoSees
+              value={access}
+              organization={me.tenant.name || t("nav.space")}
+              onChange={setAccess}
+            />
+          </div>
+        ) : null}
+        {create.error ? (
+          <p className="mt-3 text-[0.8125rem] text-rose">{(create.error as Error).message}</p>
+        ) : null}
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
             {t("common.cancel")}

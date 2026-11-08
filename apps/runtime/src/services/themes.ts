@@ -12,7 +12,7 @@ import { db, schema } from "../db/client.js";
 import { spaceChanged } from "../plugins/events.js";
 import { requireBuild, requireWritable } from "./access.js";
 import { ServiceError } from "./errors.js";
-import { ownedSpace } from "./spaces.js";
+import { ownedSpace, passBrandDown } from "./spaces.js";
 
 /**
  * The space's themes, which of its wizards name each, the brand's fonts for headings and text
@@ -63,11 +63,13 @@ async function writeThemes(spaceId: string, themes: Theme[]) {
   if (themes.length > MAX_SPACE_THEMES) {
     throw new ServiceError("invalid", `A space keeps at most ${MAX_SPACE_THEMES} themes.`);
   }
+  // Themes are part of the brand: changed in a space that took the organization's, they are its own.
   await db
     .update(schema.space)
-    .set({ themes, updatedAt: new Date() })
+    .set({ themes, brandFrom: "own", updatedAt: new Date() })
     .where(eq(schema.space.id, spaceId));
   spaceChanged("space.updated", spaceId);
+  await passBrandDown(spaceId);
 }
 
 /** Adds the theme to the space, or replaces the one with its id. */

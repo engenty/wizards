@@ -40,6 +40,7 @@ import { Voice } from "./Voice";
 
 type Patch = {
   name?: string;
+  brandFrom?: "own" | "root";
   brand?: {
     name?: string;
     about?: string;
@@ -124,6 +125,52 @@ function MembersStudioRow({
         }}
       />
     </div>
+  );
+}
+
+/**
+ * Info und Marke of a space in an organization: taken from the organization and kept in step,
+ * or its own (docs/plans/org-spaces.md). Its own starts as a copy of the organization's.
+ */
+function BrandFrom({
+  space,
+  organization,
+  save,
+}: {
+  space: Space;
+  organization: string;
+  save: (patch: Patch) => Promise<unknown>;
+}) {
+  const admin = useIsAdmin();
+  const [busy, setBusy] = useState(false);
+  const taken = space.brandFrom === "root";
+  const flip = async () => {
+    setBusy(true);
+    try {
+      await save({ brandFrom: taken ? "own" : "root" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="flex flex-wrap items-start gap-x-4 gap-y-2 rounded-xl bg-card p-4 ring-1 ring-border-soft">
+      <div className="min-w-0 flex-1">
+        <div className="text-[0.75rem] text-ink-3">{t("space.brandFrom")}</div>
+        <div className="font-medium text-[0.9375rem] text-ink">
+          {taken ? t("space.brandFromRoot", { organization }) : t("space.brandFromOwn")}
+        </div>
+        <p className="mt-1 text-[0.8125rem] text-ink-3">
+          {taken
+            ? t("space.brandFromRootHint", { organization })
+            : t("space.brandFromOwnHint", { organization })}
+        </p>
+      </div>
+      {admin && !space.readOnly ? (
+        <Button variant="secondary" busy={busy} onClick={flip}>
+          {taken ? t("space.brandUseOwn") : t("space.brandUseRoot", { organization })}
+        </Button>
+      ) : null}
+    </section>
   );
 }
 
@@ -274,6 +321,14 @@ export function SpaceSettings({
   const sectioned = useFeature("brandSections");
   const ruled = useFeature("brandRules");
   const typography = useFeature("typography");
+  const me = useMe().data;
+  // A space under the organization's root chooses whose Info and brand it shows.
+  const choosing =
+    useFeature("orgSpaces") &&
+    Boolean(space.parentId) &&
+    space.kind !== "client" &&
+    (group === "info" || group === "brand");
+  const taken = choosing && space.brandFrom === "root";
   useAssistantPage(
     readOnly
       ? {}
@@ -314,7 +369,16 @@ export function SpaceSettings({
       ) : top ? (
         <AssistantSlot />
       ) : null}
-      {group === "info" ? (
+      {choosing && me ? (
+        <BrandFrom
+          key={`from:${space.brandFrom}`}
+          space={space}
+          organization={me.tenant.name || t("nav.space")}
+          save={save}
+        />
+      ) : null}
+      {group === "info" && taken ? <MembersStudioRow space={space} save={save} /> : null}
+      {group === "info" && !taken ? (
         <>
           <Anchor id="base">
             <Base
@@ -345,7 +409,7 @@ export function SpaceSettings({
           </Anchor>
         </>
       ) : null}
-      {group === "brand" ? (
+      {group === "brand" && !taken ? (
         <>
           <Anchor id="identity">
             <Identity key={`identity:${key}`} space={space} save={save} />
