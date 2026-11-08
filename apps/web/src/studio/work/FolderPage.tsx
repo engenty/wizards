@@ -119,7 +119,6 @@ export function FolderPage({ id }: { id: string }) {
             </div>
             {editing ? (
               <textarea
-                // biome-ignore lint/a11y/noAutofocus: opened on purpose to write
                 autoFocus
                 value={infos}
                 rows={6}
