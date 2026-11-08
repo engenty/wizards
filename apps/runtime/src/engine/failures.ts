@@ -151,7 +151,14 @@ export function retryAfterMs(links: Link[], now = Date.now()): number | null {
  * it did at worst, and only what is known to be short trouble is worth that. So `retry` needs a
  * status or a network code that says so, and anything else lands on `final`.
  */
-export function classifyFailure(err: unknown, opts: { managed: boolean }): Failure {
+export function classifyFailure(
+  err: unknown,
+  opts: {
+    managed: boolean;
+    /** The organization's calls run on its own provider accounts through the gateway (`ownKeysGateway`). */
+    ownAccount?: boolean;
+  },
+): Failure {
   const final = (why: Failure["why"] = "other"): Failure => ({
     class: "final",
     retryAfterMs: null,
@@ -188,9 +195,10 @@ export function classifyFailure(err: unknown, opts: { managed: boolean }): Failu
     return { class: "credits", retryAfterMs: null, why: "credits" };
   }
   if (ACCOUNT_EMPTY.test(text)) {
-    // A runtime that runs alone pays its provider itself, so its admin can top up. In the cloud it
-    // is the platform's own account: nothing the run's people can do, and no use waiting for them.
-    return opts.managed
+    // A runtime that runs alone pays its provider itself, so its admin can top up; so does an
+    // organization whose calls run on its own accounts. Otherwise in the cloud it is the platform's
+    // own account: nothing the run's people can do, and no use waiting for them.
+    return opts.managed && !opts.ownAccount
       ? final("provider_credits")
       : { class: "credits", retryAfterMs: null, why: "provider_credits" };
   }

@@ -20,6 +20,7 @@ import {
   CAPABILITY_CLASSES,
   type CreditModel,
   creditsModelOf,
+  creditsRef,
   isCreditsRef,
   type ModelCapability,
   type ModelNeed,
@@ -82,6 +83,7 @@ import { chatModelId } from "./services/chat-models.js";
 import { readSetting, readTenantSetting, writeSetting, writeTenantSetting } from "./settings.js";
 import { currentTenant, currentTenantOrNull } from "./tenants/tenant.js";
 import { serverText } from "./texts.js";
+import { gatewayOnly, hasOwnAccount, moveTenantKeys } from "./upstreams.js";
 
 export { isHarnessVendor } from "./harness/index.js";
 /**
@@ -327,6 +329,17 @@ async function ownKeysAllowed(tenant: string): Promise<boolean> {
 async function config(): Promise<ModelConfig> {
   const cfg = await storedConfig();
   const tenant = managed ? currentTenantOrNull() : null;
+  // Own keys through the gateway: every class goes there, which runs it on one of the
+  // organization's accounts at the Manage-App or on the credits. The keys saved here move there once.
+  if (tenant && (await gatewayOnly(tenant))) {
+    await moveTenantKeys(tenant, gatewayBindings, () => tenantConfigs.delete(tenant));
+    // What a provider's refusal means depends on whether the organization has an account ready.
+    hasOwnAccount(tenant);
+    return {
+      settings: organizationSettings(await gatewayBindings(cfg.settings.bindings)),
+      keys: {},
+    };
+  }
   if (!tenant || (await ownKeysAllowed(tenant))) {
     return cfg;
   }
@@ -503,6 +516,105 @@ function ownRef(cfg: ModelConfig, cls: ModelClass): string {
   }
   // The defaults name gateway models; without a gateway key nothing reaches them.
   return reachable(cfg, env.models[cls]) ? env.models[cls] : "";
+}
+
+/**
+ * A binding as the gateway serves it, for an organization whose calls all go there: the credits
+ * as they are, an AI Gateway id as it is, a provider's model as the catalog id of the same model
+ * (`openai:gpt-5.5` → `openai/gpt-5.5`, `anthropic:claude-sonnet-5-5` → `anthropic/claude-sonnet-5.5`)
+ * where the catalog knows it, a fal or ElevenLabs model where the credits pay for it. Null: the
+ * gateway has nothing for it (a Replicate model, a client, a local model), and its class decides.
+ */
+export function gatewayRef(ref: string, known: ReadonlySet<string>): string | null {
+  if (isCreditsRef(ref)) {
+    return ref;
+  }
+  const { provider, id, vendor } = parse(ref);
+  if (provider === null) {
+    return id.includes("/") && !isHarnessVendor(vendor) ? creditsRef(id) : null;
+  }
+  if (provider === "gateway") {
+    return creditsRef(id);
+  }
+  if (provider === "fal" || provider === "elevenlabs") {
+    return known.has(ref) ? creditsRef(ref) : null;
+  }
+  if (provider === "openai" || provider === "anthropic" || provider === "google") {
+    const twin = `${provider}/${id.replace(/(\d)-(\d)/g, "$1.$2")}`;
+    return known.has(twin)
+      ? creditsRef(twin)
+      : known.has(`${provider}/${id}`)
+        ? creditsRef(`${provider}/${id}`)
+        : null;
+  }
+  return null;
+}
+
+/** The model ids the gateway is known to serve: its catalog, the tier's models, the offered ones. */
+async function gatewayIds(): Promise<Set<string>> {
+  const known = new Set<string>();
+  const catalog = await classCatalog();
+  for (const price of Object.values(catalog?.classes ?? {})) {
+    if (price?.model) {
+      known.add(price.model);
+    }
+  }
+  for (const model of catalog?.models ?? []) {
+    known.add(model.id);
+  }
+  for (const model of (await currentTier())?.models ?? []) {
+    known.add(model.id);
+  }
+  for (const list of Object.values(providerInfo("gateway")?.models ?? {})) {
+    for (const option of list ?? []) {
+      known.add(option.ref);
+    }
+  }
+  return known;
+}
+
+/** An organization's bindings as the gateway serves them; what it can't serve is left to its class. */
+async function gatewayBindings(
+  bindings: Partial<Record<ModelClass, string>>,
+): Promise<Partial<Record<ModelClass, string>>> {
+  const entries = Object.entries(bindings).filter(([, ref]) => ref);
+  if (entries.every(([, ref]) => isCreditsRef(ref))) {
+    return bindings;
+  }
+  const known = await gatewayIds();
+  const out: Partial<Record<ModelClass, string>> = {};
+  for (const [cls, ref] of entries as [ModelClass, string][]) {
+    const served = gatewayRef(ref, known);
+    if (served) {
+      out[cls] = served;
+    } else {
+      console.warn(`[models] ${cls}: ${ref} has no model at the gateway; the class decides`);
+    }
+  }
+  return out;
+}
+
+/** Bindings to save, as the gateway serves them; one it has nothing for is taken out (""). */
+export async function asGatewayBindings(
+  bindings: Partial<Record<ModelClass, string>>,
+): Promise<Partial<Record<ModelClass, string>>> {
+  const known = await gatewayIds();
+  return Object.fromEntries(
+    Object.entries(bindings).map(([cls, ref]) => [
+      cls,
+      ref?.trim() ? (gatewayRef(ref.trim(), known) ?? "") : "",
+    ]),
+  );
+}
+
+/** Moves the keys the organization saved here to the Manage-App, where its calls go through the gateway. */
+export async function moveOwnKeys(): Promise<void> {
+  await config();
+}
+
+/** Whether the organization's calls all go through the gateway (`ownKeysGateway`). */
+export async function ownKeysThroughGateway(): Promise<boolean> {
+  return gatewayOnly(managed ? currentTenantOrNull() : null);
 }
 
 /** What a class makes, to say that nothing makes it. */
@@ -763,8 +875,11 @@ let gatewayCatalog: { at: number; base: string; value: GatewayCatalog } | null =
 
 /** What the gateway binds each class to, with prices in credits. Cached for five minutes. */
 export async function classCatalog(): Promise<GatewayCatalog | null> {
-  const cfg = await config();
-  const access = await creditAccess(cfg, cfg.settings.source === "account").catch(() => null);
+  // A Manage-App's runtime always reaches the gateway; reading its settings would ask for this again.
+  const cfg = managed ? null : await config();
+  const access = cfg
+    ? await creditAccess(cfg, cfg.settings.source === "account").catch(() => null)
+    : await creditAccess(local, true).catch(() => null);
   if (!access) {
     return null;
   }
@@ -1940,6 +2055,7 @@ export function waysIn(ways: Record<ModelClass, ClassWay>, lang: Lang) {
 /** What the settings page shows: the choices, which keys are there (never the keys), and the ways. */
 export async function modelSettings(lang: Lang = "en") {
   const cfg = await config();
+  const gateway = await ownKeysThroughGateway();
   const stored = await storedConfig();
   const ways = await classWays();
   return {
@@ -1954,7 +2070,9 @@ export async function modelSettings(lang: Lang = "en") {
     /** Each key there is, masked, and the environment variable it came from. */
     keyHints: await keyHints(stored),
     /** Saved keys and provider bindings the plan or the admins' policy leaves unused for now. */
-    ownKeysUnused: cfg !== stored,
+    ownKeysUnused: !gateway && cfg !== stored,
+    /** Every call goes through the gateway; the own keys are accounts at the Manage-App. */
+    ownKeysGateway: gateway,
     ways: waysIn(ways, lang),
     /** Who answers decisions; where no decision model does, the classifier class's way. */
     decision: await decisionSettings(cfg),

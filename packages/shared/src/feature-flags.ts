@@ -143,6 +143,12 @@ export const FEATURES = {
     label: "Model tiers",
     hint: "The organization's model tier: steps may name a maker, calls say what they are for, and the studio shows what each class runs on in the tier.",
   },
+  ownKeysGateway: {
+    kind: "release",
+    default: false,
+    label: "Own API keys through the gateway",
+    hint: "The organization's own accounts at the providers live in the Manage-App, and every cloud call goes through the gateway, which runs it on such an account or on credits. Keys saved in the cloud studio move there once.",
+  },
   customDomains: {
     kind: "release",
     default: false,

@@ -128,7 +128,8 @@ import {
   wakeDue,
   wakeRun,
 } from "../tenants/control.js";
-import { currentTenant } from "../tenants/tenant.js";
+import { currentTenant, currentTenantOrNull } from "../tenants/tenant.js";
+import { hasOwnAccount } from "../upstreams.js";
 import { whoOf } from "./answerers.js";
 import { type AskResult, askPerson, clearStaleAsk } from "./asks.js";
 import { decide } from "./decide.js";
@@ -468,6 +469,11 @@ function stepOf(def: WizardDefinition, id: string | null): Step | undefined {
   return id ? def.steps.find((s) => s.id === id) : undefined;
 }
 
+/** What a failure is read against: the cloud, and an organization on its own provider accounts. */
+function failureContext() {
+  return { managed, ownAccount: managed && hasOwnAccount(currentTenantOrNull()) };
+}
+
 function friendly(err: unknown): Said {
   if (err instanceof StepError || err instanceof ModelUnavailableError) {
     return saidOf(err);
@@ -481,12 +487,16 @@ function friendly(err: unknown): Said {
   // The model-gateway answers 402 once the tenant's credits are used up.
   if (
     /insufficient_credits|\b402\b/i.test(msg) ||
-    classifyFailure(err, { managed }).why === "credits"
+    classifyFailure(err, failureContext()).why === "credits"
   ) {
     return saidOf(new NoCreditsError());
   }
-  // A runtime that runs alone pays its provider itself: its admin can top the account up.
-  if (!managed && /minimum balance|insufficient_funds|top up your credits/i.test(msg)) {
+  // A runtime that runs alone pays its provider itself: its admin can top the account up. So
+  // does an organization whose calls run on its own accounts.
+  if (
+    (!managed || failureContext().ownAccount) &&
+    /minimum balance|insufficient_funds|top up your credits/i.test(msg)
+  ) {
     return note("providerCreditLow");
   }
   if (/rate.?limit|429/i.test(msg)) {
@@ -495,7 +505,7 @@ function friendly(err: unknown): Said {
   if (/timeout|timed out/i.test(msg)) {
     return note("stepTookTooLong");
   }
-  const { why } = classifyFailure(err, { managed });
+  const { why } = classifyFailure(err, failureContext());
   if (why === "rate_limit") {
     return note("aiServiceBusyRight");
   }
@@ -2045,7 +2055,7 @@ async function stepFailed(run: RunRow, stepId: string, err: unknown, acted = fal
     await failRun(run, stepId, err);
     return false;
   }
-  const failure = classifyFailure(err, { managed });
+  const failure = classifyFailure(err, failureContext());
   // From the row, not from the step's copy: what the step did to its copy is not to stay, and what
   // was written while it worked (run_effect's visit) is.
   const latest = (await loadRun(run.id)) ?? run;
