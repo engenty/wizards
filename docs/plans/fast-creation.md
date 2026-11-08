@@ -2,7 +2,8 @@
 
 Status: part of the durable work. Part 1 is built on `claude/durable-runs-combined` (`a719337c` to
 `fe9b26d3`, the ids from before its rebase on `main`; no PR), and so are Parts 2 and 3 (below).
-Part 4 is a plan, to be built on the same branch. Part 5 needs nothing new: chat apps get the
+Of Part 4, the shortcut on the server is built there (step 5); the next page in the browser is
+being built. Part 5 needs nothing new: chat apps get the
 wizard through MCP Apps, and no prompt for ChatGPT is built (2026-11-08). Nothing of it is on
 `main` but this text (Order). From the review of ChatGPT's Intelligent UI on
 2026-10-29, checked against `feat/work-mode` (v0.13.0, Work mode, spaces, model tiers) on
@@ -11,7 +12,8 @@ and that branch at 6bac6ed0, by reading the code. Part 1 brought in line with wh
 same day, against `fe9b26d3`. Step 1 is built on that branch and was measured on 2026-11-07 on a
 laptop (Order, step 1). The cloud is not measured yet. Step 2, the text form, is built there the
 same day, and Part 2 is brought in line with it. Step 3, the first pass, is built there on
-2026-11-08 and measured the same way; Part 3 is brought in line with it.
+2026-11-08 and measured the same way; Part 3 is brought in line with it. Step 5 is built there
+the same day; Part 4's shortcut is brought in line with it.
 
 Scope: a new wizard shows its first page about two seconds after the wish, and a run moves from
 page to page without waiting on the server. The definition stays JSON and stays at version 2:
@@ -772,9 +774,24 @@ both call, in place of the write of `running`:
 A step someone on the team answered can lead to a plain page of the run's person, who is not there.
 `updateRun` tells them just the same: that is the test for this part.
 
-`pushRun` stays in `drive()`: without `durableRuns` it tells a phone in a pocket that a step that
-ran is over, and a person who has just answered is looking. With `durableRuns` it does nothing,
-because the notices do that work.
+The shortcut calls `pushRun` as `drive()` does when it reaches a page: without `durableRuns` a
+phone hears the next page at once; with them `pushRun` does nothing, because the notices do that
+work.
+
+Built as step 5 (`890a34f7`), as above, with these details:
+
+- `waitForAnswer` gets `{ ...run, cursor }`, so the deadline comes from the run's row and the next
+  step goes in as the step. The state is written without `answered`, as `drive()` writes it;
+  `lastBy` stays.
+- The `[timing] page` line is written by the shortcut with `runner=no`, and by `drive()` with
+  `runner=yes`.
+- `reviewStep`'s redo goes through `answerGoesOn` too. Its target is an AI step, so it always takes
+  the slow path.
+- A refused hold of credits no longer calls `kick`. Before, a runner found the run sleeping and did
+  nothing.
+- The tests check `kick` through the control line (`run_index.woken_at`), in a process without a
+  runner: the slow path leaves the run `running` and woken, the shortcut `waiting_input` and not
+  woken.
 
 ### Then: the next page in the browser
 
@@ -1012,7 +1029,19 @@ The first pass stays behind a switch `fastCreate` (registered in
 4. **Dropped.** A prompt for ChatGPT is not built (Part 5). Chat apps get the wizard through
    the MCP server and MCP Apps, which are built.
 5. **The shortcut on the server.** Part 4, in the branch's `answerGoesOn`. It is small, and every
-   client gets it.
+   client gets it. Built on the branch (`890a34f7`); Part 4 says how. Measured on 2026-11-08 on a
+   laptop, plain pages, 30 answers per set, at a load of 3 to 17, as the server logged it and as
+   the client saw it:
+
+   | Web and runner | `durableRuns` | Before: logged / client, median | Before: at most | After: logged / client, median | After: at most |
+   |---|---|---|---|---|---|
+   | One process | on | 9.5 / 24 ms | 32 / 234 ms | 4 / 15 ms | 8 / 27 ms |
+   | One process | off | 6 / 16 ms | 78 / 119 ms | 3.5 / 15 ms | 8 / 24 ms |
+   | Separate processes | on | 708 / 725 ms | 2007 / 2306 ms | 5.5 / 16 ms | 11 / 26 ms |
+   | Separate processes | off | 1292 / 1370 ms | 1997 / 2026 ms | 4 / 14 ms | 8 / 24 ms |
+
+   All 120 answers after it went the shortcut's way (`runner=no`). With separate processes, as on
+   the cloud, the wait between plain pages goes from 0.7 to 1.3 s to about 15 ms.
 6. **The next page in the browser.** Part 4: first `run.unsent` and saving what is typed, which is
    worth having alone, then `rev`, `ahead`, `nextInBrowser`. Needs step 5.
 7. **Test it all together.** Durable runs and this plan, on the one branch:
@@ -1030,7 +1059,7 @@ off until they are flipped.
 
 ## Changes by file
 
-Built on the combined branch, for Part 1, the text form and the first pass:
+Built on the combined branch, for Part 1, the text form, the first pass and the shortcut:
 
 | File | Change |
 |---|---|
@@ -1062,6 +1091,7 @@ Built on the combined branch, for Part 1, the text form and the first pass:
 | `apps/runtime/src/prompts/architect.md` | `firstpass.system`, `firstpass.lang`, `firstpass.followup` |
 | `apps/runtime/src/texts.ts`, `apps/web/src/lib/i18n.ts` | the first pass's status lines, "Being prepared…" |
 | `apps/web/src/studio/editor/ChatPanel.tsx`, `FlowDiagram.tsx` | the `preparing` event; steps marked while the architect works |
+| `apps/runtime/src/engine/runner.ts` | `needsNoRunner`; `answerGoesOn`: the shortcut, `pushRun`, the timing line; `submitPage` and `reviewStep`: `kick` only when the run went on |
 
 Still to do:
 
@@ -1072,7 +1102,7 @@ Still to do:
 | `apps/runtime/src/db/schema.ts`, a tenant migration | `run.unsent` |
 | `apps/runtime/src/services/runs.ts` | the view: `rev`; `unsent` and `ahead` for who may answer |
 | `apps/runtime/src/routes/runs.ts` | `PUT /:id/pages/:stepId/unsent`; sequence numbers and `rev` on `POST /:id/pages/:stepId` |
-| `apps/runtime/src/engine/runner.ts` | `needsNoRunner`; `answerGoesOn`: the shortcut; `submitPage` and `reviewStep`: `kick` only when the run went on; `submitPage`: sequence numbers, clears `unsent[stepId]` |
+| `apps/runtime/src/engine/runner.ts` | `submitPage`: sequence numbers, clears `unsent[stepId]` |
 | `packages/runner/src/RunnerView.tsx` | advance in the browser; saves what is typed |
 | `apps/web/src/runner/useRun.ts` | pages in flight, one at a time; drops a view older than the last confirmed `rev` |
 | `docs/content/dev` | the text form |
