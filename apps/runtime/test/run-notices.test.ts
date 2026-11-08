@@ -491,6 +491,7 @@ describe("who is told, and how", () => {
       tenantId: T,
       to: { userId: USER },
       lang: "de",
+      asked: false,
     });
     // A member signs in: their link carries no ticket.
     expect(mail.url).toBe(`http://localhost:5181/studio/edit/${wizardId}?run=${runId}`);
@@ -550,7 +551,7 @@ describe("who is told, and how", () => {
       expect(sent).not.toContain("GEHEIM");
       expect(sent).not.toContain("Noch eine Frage");
       expect(Object.keys(call).sort()).toEqual(
-        ["key", "kind", "lang", "tenantId", "to", "url", "wizard"].sort(),
+        ["asked", "key", "kind", "lang", "tenantId", "to", "url", "wizard"].sort(),
       );
     }
   });

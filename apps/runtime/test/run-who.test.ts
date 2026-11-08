@@ -840,9 +840,13 @@ describe("telling people", () => {
   it("the mail goes to them with the link into Work, and no device hears of it", async () => {
     const { runId } = await onTeamStep();
     await deliver(runId);
-    const sent = mails.mock.calls.map((c) => c[0] as { to: { userId?: string }; url: string });
+    const sent = mails.mock.calls.map(
+      (c) => c[0] as { to: { userId?: string }; url: string; asked?: boolean },
+    );
     const toTeam = sent.filter((m) => m.url.endsWith(`/work/r/${runId}`));
     expect(toTeam.map((m) => m.to.userId).sort()).toEqual([ANNA, JONAS].sort());
+    // The mail says they are asked to answer, not that they started the run.
+    expect(toTeam.every((m) => m.asked === true)).toBe(true);
     expect(sent.filter((m) => m.url.includes(runId)).length).toBe(2);
     expect(pushes).not.toHaveBeenCalled();
   });

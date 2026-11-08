@@ -789,6 +789,8 @@ export interface RunMail {
   lang: Lang;
   /** The same key is one mail, also when a sender tries again. */
   key: string;
+  /** A member asked to answer a run someone else started: the mail says so, not that they started it. */
+  asked?: boolean;
 }
 
 /** A mail about a run, in the account's look; the Manage-App keeps the limit and who unsubscribed. */

@@ -453,7 +453,12 @@ async function mailOf(row: NoticeRow, run: RunRow): Promise<Delivery> {
     } else if (address) {
       await runMail({ ...mail, tenantId: currentTenant(), to: { email: address } });
     } else if (row.userId) {
-      await runMail({ ...mail, tenantId: currentTenant(), to: { userId: row.userId } });
+      await runMail({
+        ...mail,
+        tenantId: currentTenant(),
+        to: { userId: row.userId },
+        asked: askedOfAnother(row, run),
+      });
     }
     return "dealt";
   } catch (err) {
