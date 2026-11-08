@@ -1,208 +1,223 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
+import { type EngentyKind, ENGENTY_FILL as F } from "../../engenty/colors";
+import { Engenty } from "../../engenty/engenty";
 import { cn } from "../../ui";
 
 /**
- * The picture at the top of a part's card in Ressourcen › Übersicht: what the part holds, drawn
- * small in the studio's own colours, so it reads in both themes. A part without a drawing of its
- * own (a plugin's) shows its icon, large.
+ * The picture at the top of a part's card in Ressourcen › Übersicht: an engenty with what the part
+ * holds, drawn flat in the engenties' own colours. The figures are the studio's own (`Engenty`),
+ * never drawn here. A part without a scene of its own (a plugin's) shows its icon, large.
  */
 
-/** Each part's ground and its one colour. */
-const TONE: Record<string, { ground: string; ink: string }> = {
-  info: { ground: "bg-ember-tint", ink: "text-ember-strong" },
-  brand: { ground: "bg-violet-500/10", ink: "text-violet-700 dark:text-violet-300" },
-  knowledge: { ground: "bg-cobalt-tint", ink: "text-cobalt" },
-  data: { ground: "bg-moss-tint", ink: "text-moss" },
-  page: { ground: "bg-amber-tint", ink: "text-amber" },
+/** Each part's ground. */
+const GROUND: Record<string, string> = {
+  info: "bg-cobalt-tint",
+  brand: "bg-violet-500/10",
+  knowledge: "bg-moss-tint",
+  data: "bg-amber-tint",
+  page: "bg-ember-tint",
 };
 
-const FALLBACK = { ground: "bg-paper-2", ink: "text-ink-3" };
+const PAPER = "var(--color-paper)";
+const LINE = "var(--color-paper-3)";
+const SHADOW = { fill: "#000", opacity: 0.12 };
 
-/** A sheet of paper: the cards' and documents' common shape. */
-function Sheet({
+/** An engenty standing in the scene: its foot at (x, y), `size` wide. */
+function Figure({
+  kind,
   x,
   y,
-  w,
-  h,
-  r = 8,
-  rotate = 0,
-  className = "fill-paper stroke-border",
+  size = 92,
 }: {
+  kind: EngentyKind;
   x: number;
   y: number;
-  w: number;
-  h: number;
-  r?: number;
-  rotate?: number;
-  className?: string;
+  size?: number;
 }) {
+  // The figure's own frame is 120 wide with its foot near 106: placed so the foot meets `y`.
+  const s = size / 120;
   return (
-    <rect
-      x={x}
-      y={y}
-      width={w}
-      height={h}
-      rx={r}
-      strokeWidth={1}
-      className={className}
-      transform={rotate ? `rotate(${rotate} ${x + w / 2} ${y + h / 2})` : undefined}
-    />
+    <g transform={`translate(${x - 60 * s} ${y - 106 * s})`}>
+      <Engenty kind={kind} size={size} />
+    </g>
   );
 }
 
-/** Grey lines of text on a sheet. */
-function Lines({
-  x,
-  y,
-  widths,
-  gap = 9,
-}: {
-  x: number;
-  y: number;
-  widths: number[];
-  gap?: number;
-}) {
-  return (
-    <>
-      {widths.map((w, i) => (
-        <rect key={i} x={x} y={y + i * gap} width={w} height={4} rx={2} className="fill-paper-3" />
-      ))}
-    </>
-  );
+function Floor({ cx, cy, rx }: { cx: number; cy: number; rx: number }) {
+  return <ellipse cx={cx} cy={cy} rx={rx} ry={5} {...SHADOW} />;
 }
 
-/** Info: who is behind the wizards, a card with a face, a name and facts. */
-function InfoArt() {
+/** Info: who is behind the wizards. A big name badge on its lanyard, the round one beside it. */
+function InfoScene() {
   return (
     <>
-      <Sheet x={78} y={22} w={110} h={72} rotate={-6} className="fill-paper-2 stroke-border-soft" />
-      <Sheet x={66} y={26} w={116} h={74} />
-      <circle cx={92} cy={52} r={13} className="fill-current opacity-15" />
-      <circle cx={92} cy={48} r={5} className="fill-current" />
-      <path d="M83 60a9 7 0 0 1 18 0" className="fill-current" />
-      <rect x={113} y={42} width={50} height={6} rx={3} className="fill-current" />
-      <Lines x={113} y={55} widths={[56, 40]} />
-      <Lines x={78} y={78} widths={[90]} />
-      <circle cx={180} cy={92} r={11} className="fill-paper stroke-current" strokeWidth={1.5} />
+      <Floor cx={196} cy={142} rx={48} />
       <path
-        d="M175 92l3.5 3.5L185 88"
-        className="stroke-current"
-        strokeWidth={2}
+        d="M180 30 L196 54 L212 30"
         fill="none"
+        stroke={F.ember}
+        strokeWidth={6}
         strokeLinecap="round"
-        strokeLinejoin="round"
       />
+      <g transform="rotate(6 196 96)">
+        <rect x={150} y={50} width={92} height={92} rx={14} fill={PAPER} />
+        <rect x={150} y={50} width={92} height={24} rx={14} fill={F.ember} />
+        <rect x={150} y={62} width={92} height={12} fill={F.ember} />
+        <rect x={188} y={44} width={16} height={12} rx={4} fill={F.slate} />
+        <circle cx={174} cy={98} r={14} fill={F.amber} />
+        <circle cx={176} cy={96} r={4.5} fill="#fff" />
+        <circle cx={177} cy={96} r={2.2} fill="#1d1b19" />
+        <rect x={196} y={88} width={34} height={8} rx={4} fill={F.slate} />
+        <rect x={196} y={102} width={24} height={6} rx={3} fill={LINE} />
+        <rect x={162} y={122} width={68} height={6} rx={3} fill={LINE} />
+      </g>
+      <Figure kind="round" x={98} y={144} size={124} />
     </>
   );
 }
 
-/** Brand: colour cards fanned out, the type on the front one. */
-function BrandArt() {
+/** Brand: how you look. A palette with its paints and a brush, the tower one beside it. */
+function BrandScene() {
   return (
     <>
-      <g transform="rotate(-14 120 96)">
-        <Sheet x={88} y={20} w={52} h={76} className="fill-ember stroke-none" />
-      </g>
-      <g transform="rotate(-2 120 96)">
-        <Sheet x={96} y={18} w={52} h={78} className="fill-cobalt stroke-none" />
-      </g>
-      <g transform="rotate(11 120 96)">
-        <Sheet x={104} y={18} w={56} h={80} className="fill-paper stroke-border" />
-        <text
-          x={132}
-          y={60}
-          textAnchor="middle"
-          className="fill-current font-display font-semibold"
-          fontSize={24}
-        >
-          Aa
-        </text>
-        <circle cx={120} cy={80} r={4} className="fill-moss" />
-        <circle cx={132} cy={80} r={4} className="fill-current" />
-        <circle cx={144} cy={80} r={4} className="fill-amber" />
-      </g>
-    </>
-  );
-}
-
-/** Knowledge: documents stacked, the front one marked. */
-function KnowledgeArt() {
-  return (
-    <>
-      <Sheet x={92} y={16} w={64} h={82} rotate={8} className="fill-paper-2 stroke-border-soft" />
-      <Sheet x={78} y={20} w={64} h={82} rotate={-5} className="fill-paper stroke-border-soft" />
-      <Sheet x={88} y={22} w={66} h={82} />
-      <Lines x={98} y={38} widths={[40, 46, 30, 44, 36]} />
-      <path d="M136 22h10v20l-5-4-5 4z" className="fill-current" />
-      <circle cx={160} cy={88} r={14} className="fill-paper stroke-current" strokeWidth={1.5} />
-      <circle cx={158} cy={86} r={5} className="stroke-current" strokeWidth={2} fill="none" />
-      <path d="M162 90l4 4" className="stroke-current" strokeWidth={2} strokeLinecap="round" />
-    </>
-  );
-}
-
-/** Memory: what the wizards keep, rows of a table filling up. */
-function DataArt() {
-  const rows = [0, 1, 2, 3];
-  return (
-    <>
-      <Sheet x={62} y={20} w={124} h={84} />
-      <rect x={62} y={20} width={124} height={16} rx={8} className="fill-current opacity-15" />
-      <rect x={62} y={28} width={124} height={8} className="fill-current opacity-15" />
-      {rows.map((i) => (
-        <g key={i}>
-          <circle
-            cx={76}
-            cy={48 + i * 14}
-            r={3.5}
-            className={i < 3 ? "fill-current" : "fill-paper-3"}
-          />
-          <rect
-            x={86}
-            y={46 + i * 14}
-            width={i % 2 ? 34 : 46}
-            height={4}
-            rx={2}
-            className="fill-paper-3"
-          />
-          <rect x={140} y={46 + i * 14} width={30} height={4} rx={2} className="fill-paper-3" />
-        </g>
-      ))}
-      <circle cx={186} cy={98} r={11} className="fill-current" />
+      <Floor cx={200} cy={142} rx={56} />
       <path
-        d="M186 93v10M181 98h10"
-        className="stroke-paper"
-        strokeWidth={2}
-        strokeLinecap="round"
+        d="M150 98c0-30 26-52 58-52s50 18 50 40c0 14-10 20-22 18-10-2-16 4-14 14 3 14-6 24-24 24-28 0-48-18-48-44z"
+        fill={PAPER}
       />
+      <circle cx={180} cy={78} r={10} fill={F.rose} />
+      <circle cx={208} cy={64} r={10} fill={F.amber} />
+      <circle cx={234} cy={76} r={9} fill={F.moss} />
+      <circle cx={172} cy={108} r={10} fill={F.cobalt} />
+      <circle cx={204} cy={124} r={6} fill="var(--color-paper-2)" />
+      <g transform="rotate(-38 236 112)">
+        <rect x={230} y={64} width={12} height={62} rx={6} fill={F.slate} />
+        <rect x={229} y={58} width={14} height={12} rx={3} fill="#c9c3bb" />
+        <path d="M230 58c0-14 6-22 6-22s6 8 6 22z" fill={F.violet} />
+      </g>
+      <Figure kind="tower" x={100} y={144} size={124} />
     </>
   );
 }
 
-/** The public page: a browser window with a page in it. */
-function PageArt() {
+/** Knowledge: what the AI looks things up in. The dome one on a stack of books, one open above. */
+function KnowledgeScene() {
+  const book = (y: number, w: number, color: string, shift = 0) => (
+    <g>
+      <rect x={128 + shift} y={y} width={w} height={20} rx={4} fill={color} />
+      <rect
+        x={128 + shift + w - 18}
+        y={y + 4}
+        width={14}
+        height={12}
+        rx={2}
+        fill={PAPER}
+        opacity={0.9}
+      />
+    </g>
+  );
   return (
     <>
-      <Sheet x={58} y={18} w={132} h={88} />
-      <rect x={58} y={18} width={132} height={14} rx={8} className="fill-paper-2" />
-      <rect x={58} y={26} width={132} height={6} className="fill-paper-2" />
-      <circle cx={68} cy={25} r={2} className="fill-paper-3" />
-      <circle cx={75} cy={25} r={2} className="fill-paper-3" />
-      <circle cx={82} cy={25} r={2} className="fill-paper-3" />
-      <rect x={72} y={42} width={60} height={7} rx={3.5} className="fill-current" />
-      <Lines x={72} y={56} widths={[48, 38]} />
-      <rect x={72} y={76} width={30} height={10} rx={5} className="fill-current opacity-80" />
-      <rect x={144} y={42} width={34} height={44} rx={6} className="fill-current opacity-15" />
+      <Floor cx={190} cy={142} rx={68} />
+      {book(120, 124, F.cobalt)}
+      {book(100, 112, F.rose, 8)}
+      {book(80, 118, F.amber, 2)}
+      <Figure kind="dome" x={188} y={84} size={100} />
+      <g transform="rotate(-8 82 66)">
+        <path d="M50 62c12-8 24-8 32 0v34c-8-8-20-8-32 0z" fill={PAPER} />
+        <path d="M114 62c-12-8-24-8-32 0v34c8-8 20-8 32 0z" fill={PAPER} />
+        <path d="M82 62v34" stroke={LINE} strokeWidth={2} />
+        <rect x={56} y={70} width={18} height={4} rx={2} fill={LINE} />
+        <rect x={56} y={78} width={14} height={4} rx={2} fill={LINE} />
+        <rect x={90} y={70} width={18} height={4} rx={2} fill={LINE} />
+        <rect x={90} y={78} width={12} height={4} rx={2} fill={LINE} />
+      </g>
+      <circle cx={46} cy={40} r={4} fill={F.moss} opacity={0.6} />
+      <circle cx={120} cy={34} r={3} fill={F.amber} opacity={0.7} />
     </>
   );
 }
 
-const ART: Record<string, ComponentType> = {
-  info: InfoArt,
-  brand: BrandArt,
-  knowledge: KnowledgeArt,
-  data: DataArt,
-  page: PageArt,
+/** Memory: what the wizards keep. A card box filling up, the bean one dropping a card in. */
+function DataScene() {
+  return (
+    <>
+      <Floor cx={200} cy={142} rx={58} />
+      <rect
+        x={158}
+        y={50}
+        width={52}
+        height={40}
+        rx={6}
+        fill={PAPER}
+        transform="rotate(-8 184 70)"
+      />
+      <rect
+        x={176}
+        y={44}
+        width={52}
+        height={44}
+        rx={6}
+        fill={PAPER}
+        transform="rotate(6 202 66)"
+      />
+      <rect
+        x={168}
+        y={56}
+        width={22}
+        height={6}
+        rx={3}
+        fill={F.teal}
+        transform="rotate(-8 184 70)"
+      />
+      <rect
+        x={186}
+        y={52}
+        width={26}
+        height={6}
+        rx={3}
+        fill={F.violet}
+        transform="rotate(6 202 66)"
+      />
+      <rect x={146} y={74} width={108} height={68} rx={12} fill={F.amber} />
+      <rect x={146} y={74} width={108} height={14} rx={7} fill="#000" opacity={0.08} />
+      <rect x={184} y={104} width={32} height={10} rx={5} fill="#000" opacity={0.14} />
+      <g transform="rotate(-14 112 40)">
+        <rect x={94} y={26} width={40} height={28} rx={5} fill={PAPER} />
+        <rect x={100} y={34} width={22} height={5} rx={2.5} fill={F.ember} />
+        <rect x={100} y={43} width={14} height={4} rx={2} fill={LINE} />
+      </g>
+      <Figure kind="bean" x={90} y={144} size={120} />
+    </>
+  );
+}
+
+/** The public page: a window onto the web, the sprout one in front of it. */
+function PageScene() {
+  return (
+    <>
+      <Floor cx={196} cy={142} rx={60} />
+      <rect x={136} y={30} width={122} height={106} rx={14} fill={PAPER} />
+      <rect x={136} y={30} width={122} height={20} rx={10} fill="var(--color-paper-2)" />
+      <circle cx={150} cy={40} r={3.5} fill={F.rose} />
+      <circle cx={161} cy={40} r={3.5} fill={F.amber} />
+      <circle cx={172} cy={40} r={3.5} fill={F.moss} />
+      <rect x={150} y={62} width={56} height={10} rx={5} fill={F.ember} />
+      <rect x={150} y={80} width={70} height={6} rx={3} fill={LINE} />
+      <rect x={150} y={92} width={48} height={6} rx={3} fill={LINE} />
+      <rect x={150} y={108} width={40} height={14} rx={7} fill={F.cobalt} />
+      <circle cx={232} cy={102} r={16} fill={F.teal} opacity={0.85} />
+      <Figure kind="sprout" x={96} y={144} size={120} />
+    </>
+  );
+}
+
+const SCENE: Record<string, ComponentType> = {
+  info: InfoScene,
+  brand: BrandScene,
+  knowledge: KnowledgeScene,
+  data: DataScene,
+  page: PageScene,
 };
 
 export function PartArt({
@@ -213,24 +228,24 @@ export function PartArt({
   id: string;
   icon: ComponentType<{ className?: string }>;
   className?: string;
-}) {
-  const tone = TONE[id] ?? FALLBACK;
-  const Art = ART[id];
+}): ReactNode {
+  const Scene = SCENE[id];
   return (
     <span
       aria-hidden
-      className={cn("relative block h-32 overflow-hidden", tone.ground, tone.ink, className)}
+      className={cn("relative block h-36 overflow-hidden", GROUND[id] ?? "bg-paper-2", className)}
     >
-      {Art ? (
+      {Scene ? (
         <svg
-          viewBox="44 8 160 104"
-          className="absolute inset-x-0 top-3 bottom-1 m-auto h-[calc(100%-1rem)] w-full transition duration-300 ease-out group-hover:scale-[1.04] motion-reduce:transition-none"
-          preserveAspectRatio="xMidYMid meet"
+          viewBox="20 10 280 140"
+          className="absolute inset-0 h-full w-full"
+          preserveAspectRatio="xMidYMax meet"
+          overflow="visible"
         >
-          <Art />
+          <Scene />
         </svg>
       ) : (
-        <span className="absolute inset-0 grid place-items-center">
+        <span className="absolute inset-0 grid place-items-center text-ink-3">
           <span className="grid size-16 place-items-center rounded-2xl bg-paper shadow-soft">
             <Icon className="size-8" />
           </span>
