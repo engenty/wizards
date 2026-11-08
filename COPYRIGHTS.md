@@ -74,84 +74,84 @@ Declared by two or more of the workspaces below:
 | [@fontsource/nunito](https://fontsource.org/fonts/nunito) | 5.3.0 | OFL-1.1 |
 | [@fontsource/playfair-display](https://fontsource.org/fonts/playfair-display) | 5.3.0 | OFL-1.1 |
 | [@fontsource/young-serif](https://fontsource.org/fonts/young-serif) | 5.3.0 | OFL-1.1 |
-| [@hono/node-server](https://github.com/honojs/node-server) | 2.1.3 | MIT |
-| [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
-| [@modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps) | 2.0.3 | MIT |
-| [ai](https://ai-sdk.dev/docs) | 7.0.102 | Apache-2.0 |
+| [@hono/node-server](https://github.com/honojs/node-server) | 2.1.6 | MIT |
+| [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.4.0 | Apache-2.0 |
+| [@modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps) | 2.0.4 | MIT |
+| [ai](https://ai-sdk.dev/docs) | 7.0.163 | Apache-2.0 |
 | [dompurify](https://github.com/cure53/DOMPurify) | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
 | [fflate](https://101arrowz.github.io/fflate) | 0.8.3 | MIT |
-| [hono](https://hono.dev) | 4.13.14 | MIT |
-| [lucide-react](https://lucide.dev) | 1.49.0 | ISC |
-| [marked](https://marked.js.org) | 18.0.14 | MIT |
-| [pdfmake](http://pdfmake.org) | 0.3.11 | MIT |
+| [hono](https://hono.dev) | 4.13.16 | MIT |
+| [lucide-react](https://lucide.dev) | 1.69.0 | ISC |
+| [marked](https://marked.js.org) | 18.1.3 | MIT |
+| [pdfmake](http://pdfmake.org) | 0.3.13 | MIT |
 | [qr-scanner](https://github.com/nimiq/qr-scanner#readme) | 1.4.2 | MIT |
-| [react](https://react.dev/) | 19.3.0 | MIT |
-| [react-dom](https://react.dev/) | 19.3.0 | MIT |
+| [react](https://react.dev/) | 19.3.1 | MIT |
+| [react-dom](https://react.dev/) | 19.3.1 | MIT |
+| [undici](https://undici.nodejs.org) | 8.12.3 | MIT |
 | [zod](https://zod.dev) | 4.6.7 | MIT |
 
 ### docs (apps/docs)
 
 | Package | Version | Licence |
 |---|---|---|
-| [fumadocs-core](https://fumadocs.dev) | 16.15.11 | MIT |
-| [fumadocs-mdx](https://fumadocs.dev) | 15.4.1 | MIT |
-| [fumadocs-ui](https://fumadocs.dev) | 16.15.11 | MIT |
+| [fumadocs-core](https://fumadocs.dev) | 16.17.10 | MIT |
+| [fumadocs-mdx](https://fumadocs.dev) | 15.4.10 | MIT |
+| [fumadocs-ui](https://fumadocs.dev) | 16.17.10 | MIT |
 | [mermaid](https://github.com/mermaid-js/mermaid#readme) | 11.17.2 | MIT |
-| [next](https://nextjs.org) | 16.4.1 | MIT |
+| [next](https://nextjs.org) | 16.4.5 | MIT |
 | [next-themes](https://github.com/pacocoursey/next-themes#readme) | 0.4.6 | MIT |
 
 ### runtime (apps/runtime)
 
 | Package | Version | Licence |
 |---|---|---|
-| [@ai-sdk/anthropic](https://ai-sdk.dev/docs) | 4.0.54 | Apache-2.0 |
-| [@ai-sdk/elevenlabs](https://ai-sdk.dev/docs) | 3.0.42 | Apache-2.0 |
-| [@ai-sdk/fal](https://ai-sdk.dev/docs) | 3.0.42 | Apache-2.0 |
-| [@ai-sdk/gateway](https://ai-sdk.dev/docs) | 4.0.82 | Apache-2.0 |
-| [@ai-sdk/google](https://ai-sdk.dev/docs) | 4.0.72 | Apache-2.0 |
-| [@ai-sdk/openai](https://ai-sdk.dev/docs) | 4.0.67 | Apache-2.0 |
-| [@ai-sdk/replicate](https://ai-sdk.dev/docs) | 3.0.42 | Apache-2.0 |
+| [@ai-sdk/anthropic](https://ai-sdk.dev/docs) | 4.0.97 | Apache-2.0 |
+| [@ai-sdk/elevenlabs](https://ai-sdk.dev/docs) | 3.0.80 | Apache-2.0 |
+| [@ai-sdk/fal](https://ai-sdk.dev/docs) | 3.0.76 | Apache-2.0 |
+| [@ai-sdk/gateway](https://ai-sdk.dev/docs) | 4.0.136 | Apache-2.0 |
+| [@ai-sdk/google](https://ai-sdk.dev/docs) | 4.0.112 | Apache-2.0 |
+| [@ai-sdk/openai](https://ai-sdk.dev/docs) | 4.0.109 | Apache-2.0 |
+| [@ai-sdk/replicate](https://ai-sdk.dev/docs) | 3.0.76 | Apache-2.0 |
 | [@clack/prompts](https://github.com/bombshell-dev/clack/tree/main/packages/prompts#readme) | 1.8.1 | MIT |
-| [@executor-js/plugin-openapi](https://github.com/UsefulSoftwareCo/executor/tree/main/packages/plugins/openapi) | 1.6.10 | MIT |
+| [@executor-js/plugin-openapi](https://github.com/UsefulSoftwareCo/executor/tree/main/packages/plugins/openapi) | 1.6.11 | MIT |
 | [@libsql/client](https://github.com/tursodatabase/libsql-client-ts#readme) | 0.18.0 | MIT |
-| [@llamaindex/liteparse](https://github.com/run-llama/liteparse#readme) | 2.17.0 | Apache-2.0 |
+| [@llamaindex/liteparse](https://github.com/run-llama/liteparse#readme) | 2.18.0 | Apache-2.0 |
 | [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
-| [@mastra/ai-sdk](https://mastra.ai) | 1.11.2 | Apache-2.0 |
-| [@mastra/core](https://mastra.ai) | 1.80.0 | Apache-2.0 |
-| [@mastra/docker](https://mastra.ai) | 0.12.1 | Apache-2.0 |
-| [@mastra/libsql](https://mastra.ai) | 1.27.1 | Apache-2.0 |
-| [@mastra/memory](https://mastra.ai) | 1.39.1 | Apache-2.0 |
+| [@mastra/ai-sdk](https://mastra.ai) | 1.11.3 | Apache-2.0 |
+| [@mastra/core](https://mastra.ai) | 1.82.0 | Apache-2.0 |
+| [@mastra/docker](https://mastra.ai) | 0.13.0 | Apache-2.0 |
+| [@mastra/libsql](https://mastra.ai) | 1.29.0 | Apache-2.0 |
+| [@mastra/memory](https://mastra.ai) | 1.41.0 | Apache-2.0 |
 | [@mastra/quickjs](https://mastra.ai) | 0.1.5 | Apache-2.0 |
-| [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
+| [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.4.0 | Apache-2.0 |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 1.0.13 | MIT |
-| [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.1 | MIT |
+| [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.3 | MIT |
 | [aws4fetch](https://github.com/mhart/aws4fetch#readme) | 1.0.20 | MIT |
 | [cross-spawn](https://github.com/moxystudio/node-cross-spawn) | 7.0.6 | MIT |
-| [drizzle-orm](https://orm.drizzle.team) | 0.45.3 | Apache-2.0 |
+| [drizzle-orm](https://orm.drizzle.team) | 0.45.4 | Apache-2.0 |
 | [effect](https://effect.website) | 4.0.0-beta.59 | MIT |
 | [exceljs](https://github.com/exceljs/exceljs#readme) | 4.4.0 | MIT |
-| [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser#readme) | 5.11.2 | MIT |
-| [imapflow](https://imapflow.com/) | 2.2.1 | MIT |
+| [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser#readme) | 5.12.0 | MIT |
+| [imapflow](https://imapflow.com/) | 2.10.2 | MIT |
 | [jiti](https://github.com/unjs/jiti#readme) | 2.7.0 | MIT |
-| [jose](https://github.com/panva/jose) | 6.2.12 | MIT |
+| [jose](https://github.com/panva/jose) | 6.2.15 | MIT |
 | [mammoth](https://github.com/mwilliamson/mammoth.js#readme) | 1.13.0 | BSD-2-Clause |
 | [nanoid](https://github.com/ai/nanoid#readme) | 6.0.2 | MIT |
-| [nodemailer](https://nodemailer.com/) | 10.1.4 | MIT-0 |
+| [nodemailer](https://nodemailer.com/) | 10.3.1 | MIT-0 |
 | [pdf-parse](https://mehmet-kozan.github.io/pdf-parse/) | 2.4.5 | Apache-2.0 |
-| [playwright-core](https://playwright.dev) | 1.63.0 | Apache-2.0 |
-| [postal-mime](https://postal-mime.postalsys.com) | 4.0.8 | MIT-0 |
-| [rfc6902](https://github.com/chbrown/rfc6902) | 5.3.0 | MIT |
-| [turndown](https://github.com/mixmark-io/turndown#readme) | 7.2.4 | MIT |
-| [undici](https://undici.nodejs.org) | 8.12.3 | MIT |
+| [playwright-core](https://playwright.dev) | 1.64.1 | Apache-2.0 |
+| [postal-mime](https://postal-mime.postalsys.com) | 4.2.0 | MIT-0 |
+| [rfc6902](https://github.com/chbrown/rfc6902) | 5.4.0 | MIT |
+| [turndown](https://github.com/mixmark-io/turndown#readme) | 7.2.5 | MIT |
 | [word-extractor](https://github.com/morungos/node-word-extractor) | 1.0.4 | MIT |
 
 ### studio (apps/web)
 
 | Package | Version | Licence |
 |---|---|---|
-| [@ai-sdk/react](https://ai-sdk.dev/docs) | 4.0.105 | Apache-2.0 |
+| [@ai-sdk/react](https://ai-sdk.dev/docs) | 4.0.167 | Apache-2.0 |
 | [@base-ui/react](https://base-ui.com) | 1.9.0 | MIT |
-| @codemirror/autocomplete | 6.20.3 | MIT |
+| @codemirror/autocomplete | 6.20.4 | MIT |
 | @codemirror/commands | 6.11.1 | MIT |
 | [@codemirror/lang-json](https://github.com/codemirror/lang-json#readme) | 6.0.2 | MIT |
 | @codemirror/lang-markdown | 6.5.2 | MIT |
@@ -159,30 +159,30 @@ Declared by two or more of the workspaces below:
 | @codemirror/lint | 6.9.7 | MIT |
 | @codemirror/search | 6.7.2 | MIT |
 | @codemirror/state | 6.7.6 | MIT |
-| @codemirror/view | 6.43.14 | MIT |
-| [@dagrejs/dagre](https://github.com/dagrejs/dagre#readme) | 3.1.1 | MIT |
+| @codemirror/view | 6.43.15 | MIT |
+| [@dagrejs/dagre](https://github.com/dagrejs/dagre#readme) | 3.1.3 | MIT |
 | [@floating-ui/dom](https://floating-ui.com) | 1.8.0 | MIT |
 | @lezer/highlight | 1.2.5 | MIT |
 | [@shadcn/react](https://ui.shadcn.com) | 0.3.1 | MIT |
-| [@tanstack/react-query](https://tanstack.com/query) | 5.104.0 | MIT |
-| [@tiptap/core](https://tiptap.dev) | 3.32.1 | MIT |
-| [@tiptap/extension-bubble-menu](https://tiptap.dev) | 3.32.1 | MIT |
-| [@tiptap/extension-image](https://tiptap.dev) | 3.32.1 | MIT |
-| [@tiptap/extension-list](https://tiptap.dev) | 3.32.1 | MIT |
-| [@tiptap/extension-table](https://tiptap.dev) | 3.32.1 | MIT |
-| [@tiptap/extensions](https://tiptap.dev) | 3.32.1 | MIT |
-| [@tiptap/pm](https://tiptap.dev) | 3.32.1 | MIT |
-| [@tiptap/react](https://tiptap.dev) | 3.32.1 | MIT |
-| [@tiptap/starter-kit](https://tiptap.dev) | 3.32.1 | MIT |
-| [@tiptap/suggestion](https://tiptap.dev) | 3.32.1 | MIT |
+| [@tanstack/react-query](https://tanstack.com/query) | 5.106.1 | MIT |
+| [@tiptap/core](https://tiptap.dev) | 3.32.2 | MIT |
+| [@tiptap/extension-bubble-menu](https://tiptap.dev) | 3.32.2 | MIT |
+| [@tiptap/extension-image](https://tiptap.dev) | 3.32.2 | MIT |
+| [@tiptap/extension-list](https://tiptap.dev) | 3.32.2 | MIT |
+| [@tiptap/extension-table](https://tiptap.dev) | 3.32.2 | MIT |
+| [@tiptap/extensions](https://tiptap.dev) | 3.32.2 | MIT |
+| [@tiptap/pm](https://tiptap.dev) | 3.32.2 | MIT |
+| [@tiptap/react](https://tiptap.dev) | 3.32.2 | MIT |
+| [@tiptap/starter-kit](https://tiptap.dev) | 3.32.2 | MIT |
+| [@tiptap/suggestion](https://tiptap.dev) | 3.32.2 | MIT |
 | [@xterm/addon-fit](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.11.0 | MIT |
 | [@xterm/addon-web-links](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.12.0 | MIT |
 | [@xterm/xterm](https://github.com/xtermjs/xterm.js#readme) | 6.0.0 | MIT |
-| [@xyflow/react](https://reactflow.dev) | 12.12.0 | MIT |
+| [@xyflow/react](https://reactflow.dev) | 12.12.1 | MIT |
 | [class-variance-authority](https://github.com/joe-bell/cva#readme) | 0.7.1 | Apache-2.0 |
-| [cn](https://github.com/shadcn-ui/cn#readme) | 0.5.0 | MIT |
+| [cn](https://github.com/shadcn-ui/cn#readme) | 0.5.2 | MIT |
 | [modern-screenshot](https://github.com/qq15725/modern-screenshot) | 4.7.0 | MIT |
-| [pdfjs-dist](https://mozilla.github.io/pdf.js/) | 6.4.299 | Apache-2.0 |
+| [pdfjs-dist](https://mozilla.github.io/pdf.js/) | 6.5.438 | Apache-2.0 |
 | [react-router](https://github.com/remix-run/react-router#readme) | 8.5.1 | MIT |
 | [tw-animate-css](https://github.com/Wombosvideo/tw-animate-css#readme) | 1.4.0 | MIT |
 | [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT |
@@ -194,32 +194,34 @@ Used to build, check and test; not part of what people run:
 
 | Package | Version | Licence |
 |---|---|---|
+| [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript#readme) | 1.5.0 | Apache-2.0 |
 | [@biomejs/biome](https://biomejs.dev) | 2.5.0 | MIT OR Apache-2.0 |
-| [@microsoft/api-extractor](https://api-extractor.com) | 7.59.4 | MIT |
-| [@openuidev/react-lang](https://openui.com) | 1.0.1 | MIT |
-| [@tailwindcss/postcss](https://tailwindcss.com) | 4.3.3 | MIT |
-| [@tailwindcss/vite](https://tailwindcss.com) | 4.3.3 | MIT |
+| [@microsoft/api-extractor](https://api-extractor.com) | 7.60.1 | MIT |
+| [@openuidev/react-lang](https://openui.com) | 1.1.0 | MIT |
+| [@tailwindcss/postcss](https://tailwindcss.com) | 4.3.4 | MIT |
+| [@tailwindcss/vite](https://tailwindcss.com) | 4.3.4 | MIT |
 | [@types/cross-spawn](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/cross-spawn) | 6.0.6 | MIT |
 | [@types/mdx](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/mdx) | 2.0.14 | MIT |
-| [@types/node](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node) | 26.6.4 | MIT |
+| [@types/node](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node) | 26.6.6 | MIT |
 | [@types/nodemailer](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/nodemailer) | 8.0.2 | MIT |
 | [@types/pdfmake](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/pdfmake) | 0.3.3 | MIT |
 | [@types/react](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react) | 19.3.0 | MIT |
 | [@types/react-dom](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react-dom) | 19.3.0 | MIT |
 | [@types/turndown](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/turndown) | 5.0.6 | MIT |
 | [@types/word-extractor](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/word-extractor) | 1.0.6 | MIT |
-| [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#readme) | 6.1.1 | MIT |
+| [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#readme) | 6.2.1 | MIT |
 | [ajv](https://ajv.js.org) | 8.20.0 | MIT |
 | [concurrently](https://github.com/open-cli-tools/concurrently#readme) | 10.0.6 | MIT |
 | [drizzle-kit](https://orm.drizzle.team) | 0.31.11 | MIT |
 | [git-cliff](https://github.com/orhun/git-cliff#readme) | 2.14.2 | MIT OR Apache-2.0 |
 | [jsdom](https://github.com/jsdom/jsdom#readme) | 30.1.3 | MIT |
-| [postcss](https://postcss.org/) | 8.5.31 | MIT |
-| [tailwindcss](https://tailwindcss.com) | 4.3.3 | MIT |
+| [openai](https://github.com/openai/openai-node#readme) | 7.51.0 | Apache-2.0 |
+| [postcss](https://postcss.org/) | 8.5.32 | MIT |
+| [tailwindcss](https://tailwindcss.com) | 4.3.4 | MIT |
 | [tsx](https://tsx.hirok.io) | 4.23.15 | MIT |
 | [typescript](https://www.typescriptlang.org/) | 7.0.2 | Apache-2.0 |
-| [vite](https://vite.dev) | 8.3.4 | MIT |
-| [vite-plugin-singlefile](https://github.com/richardtallent/vite-plugin-singlefile/tree/main/#readme) | 2.3.3 | MIT |
-| [vitest](https://vitest.dev) | 5.0.5 | MIT |
+| [vite](https://vite.dev) | 8.3.6 | MIT |
+| [vite-plugin-singlefile](https://github.com/richardtallent/vite-plugin-singlefile/tree/main/#readme) | 2.3.4 | MIT |
+| [vitest](https://vitest.dev) | 5.1.0 | MIT |
 
 <!-- /third-party -->
