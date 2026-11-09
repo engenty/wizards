@@ -67,7 +67,10 @@ function guideAgentStep(): string {
   return `${GUIDE.slice(start, end)}\n${GUIDE.split("\n")[durable + 1] ?? ""}`;
 }
 
-const STEP_BASE = ["id", "title", "description", "section", "next", "onFail", "type"];
+/** The keys every step type has (id, title, next, onFail …): described once, not per step. */
+const STEP_BASE = stepSchema.options
+  .map((o) => Object.keys(o.shape))
+  .reduce((common, keys) => common.filter((k) => keys.includes(k)));
 
 describe("the format's reference lists", () => {
   it("step types", () => {

@@ -161,7 +161,7 @@ stand together: “A”, “B”, “A” is an issue.
 | The task | The step | Why |
 |---|---|---|
 | Research, write, read files, work in a service | An [agent step](./agent-steps.md) with `tools` | A model plans its own tool calls |
-| Fetch data a later page shows unchanged, or write as the space through a connection | An agent step with [`call`](./agent-steps.md#a-fixed-step-call-without-a-model) | No model: the same call every run, in about a second |
+| Fetch data a later step shows unchanged, or write as the space through a connection | An agent step with [`call`](./agent-steps.md#a-fixed-step-call-without-a-model) | No model: the same call every run, in about a second |
 | Choose a path: yes or no, one of a few options, a level | A [decision](./agent-steps.md#decisions), or an `ask` rule on [`next`](./branches.md) | One fast, cheap call |
 | An image, a video, a voice-over, a document or a dashboard | A [`generate` step](./generate-steps.md) | Made by the class for that kind of thing |
 
