@@ -13,7 +13,7 @@ import { Braces } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Mascot } from "../brand";
 import { useRunTheme } from "../runner/theme";
-import { fridgeShape } from "./data-shape";
+import { fridgeSchema, fridgeShape } from "./data-shape";
 import { ChatLab } from "./view-lab-chat";
 import { cookWidget } from "./view-lab-cook";
 import { fridgePlan, fridgeView } from "./view-lab-sample";
@@ -53,7 +53,7 @@ const PLAN_STEP = {
   title: "Menüplan",
   instructions: "Plan meals from the photos.",
   tools: [],
-  output: { format: "json", schema: fridgeShape },
+  output: { format: "json", schema: fridgeSchema },
 } as unknown as Step;
 
 // Development only: the brands' typefaces from Google Fonts. A run page will serve them itself.
