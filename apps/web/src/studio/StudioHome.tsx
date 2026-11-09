@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowUp, ChevronRight, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowUp, Check, ChevronRight, Sparkles, X } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Mascot } from "../brand";
@@ -16,9 +16,10 @@ import { useWaiting } from "./work/chats";
 import { greeting, RunCard } from "./work/WorkHome";
 
 /*
- * The studio's Home (docs/plans/org-spaces.md, the Studio Home design): a new organization meets
- * a wizard there, one question per page; once it is through, Home shows what waits, what finished
- * and which wizards run. Behind `orgSpaces`, at `/`; the wizards list is at `/wizards`.
+ * The studio's Home (docs/plans/org-spaces.md, the Studio Home design): what waits, what finished
+ * and which wizards run. While a new organization is not set up, a card on it offers the setup, a
+ * wizard with one question per page, which starts only when the admin asks for it. Behind
+ * `orgSpaces`, at `/`; the wizards list is at `/wizards`.
  */
 
 type PageId = "info" | "knowledge" | "wizard" | "team";
@@ -93,13 +94,13 @@ export function StudioHome() {
   if (!me || !space || !done) {
     return <div className="min-h-[60vh]" />;
   }
-  const open = PAGES.filter((p) => !done[p]);
+  // Only an admin sets the organization up; everyone else sees the dashboard alone.
+  const open = admin ? PAGES.filter((p) => !done[p]) : [];
   const ahead = open.filter((p) => !skipped.includes(p));
-  // Only an admin sets the organization up; everyone else gets the dashboard.
-  const current = admin ? (at && open.includes(at) ? at : (ahead[0] ?? null)) : null;
+  const current = at && open.includes(at) ? at : null;
   if (current) {
     const next = () => {
-      const after = ahead.filter((p) => p !== current);
+      const after = ahead.filter((p) => PAGES.indexOf(p) > PAGES.indexOf(current));
       setAt(after[0] ?? null);
     };
     return (
@@ -112,6 +113,7 @@ export function StudioHome() {
           setSkipped([...new Set([...skipped, current])]);
           next();
         }}
+        onClose={() => setAt(null)}
         onBack={
           PAGES.indexOf(current) > 0 && open.some((p) => PAGES.indexOf(p) < PAGES.indexOf(current))
             ? () =>
@@ -125,7 +127,17 @@ export function StudioHome() {
     <Dashboard
       me={me}
       space={space}
-      left={admin ? open : []}
+      setup={
+        ahead.length
+          ? {
+              open,
+              done,
+              onStart: setAt,
+              onLater: () => setSkipped([...new Set([...skipped, ...open])]),
+            }
+          : null
+      }
+      left={ahead.length ? [] : open}
       onResume={(page) => {
         setSkipped(skipped.filter((p) => p !== page));
         setAt(page);
@@ -158,6 +170,13 @@ const QUESTION: Record<PageId, { q: Key; hint: Key }> = {
   team: { q: "start.team.q", hint: "start.team.hint" },
 };
 
+/** A page's question; on a local install the last one asks to connect instead. */
+function question(me: Me, page: PageId): string {
+  return page === "team" && me.mode === "local"
+    ? t("start.connect.q")
+    : t(QUESTION[page].q, { organization: me.tenant.name ?? "" });
+}
+
 /** One page of the setup: one question, the engenty beside it, one button. */
 function SetupPage({
   me,
@@ -166,6 +185,7 @@ function SetupPage({
   done,
   onLater,
   onBack,
+  onClose,
 }: {
   me: Me;
   space: Space;
@@ -173,6 +193,7 @@ function SetupPage({
   done: Record<PageId, boolean>;
   onLater: () => void;
   onBack?: () => void;
+  onClose: () => void;
 }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -191,19 +212,24 @@ function SetupPage({
       navigate(`/new?wish=${encodeURIComponent(text)}`);
     }
   };
-  const question = QUESTION[page];
-  const q =
-    page === "team" && local
-      ? t("start.connect.q")
-      : t(question.q, { organization: me.tenant.name ?? "" });
-  const hint = page === "team" && local ? t("start.connect.hint") : t(question.hint);
+  const q = question(me, page);
+  const hint = page === "team" && local ? t("start.connect.hint") : t(QUESTION[page].hint);
   const later = (
     <button type="button" onClick={onLater} className="text-[0.875rem] text-ink-3 hover:text-ink">
       {t("start.later")}
     </button>
   );
   return (
-    <div className="grid min-h-[min(36rem,70vh)] animate-rise place-items-center">
+    <div className="relative grid min-h-[min(36rem,70vh)] animate-rise place-items-center">
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label={t("start.close")}
+        title={t("start.close")}
+        className="absolute top-0 right-0 grid size-9 place-items-center rounded-full text-ink-3 hover:bg-ink/5 hover:text-ink"
+      >
+        <X className="size-4" />
+      </button>
       <div className="grid w-full max-w-3xl items-center gap-10 md:grid-cols-[12rem_minmax(0,1fr)]">
         <div className="grid place-items-center max-md:hidden">
           <Mascot kind={FIGURE[page]} size={168} fluffy />
@@ -321,14 +347,89 @@ function Spark({ days }: { days: number[] }) {
 }
 
 /** Home once the setup is through: a new wizard, what waits, what finished, what runs. */
+interface Setup {
+  open: PageId[];
+  done: Record<PageId, boolean>;
+  onStart: (page: PageId) => void;
+  onLater: () => void;
+}
+
+/**
+ * What a new organization's Home shows first: the setup's questions with what is done, and a
+ * button that starts it. Later hides the card; the questions left stay a line on the dashboard.
+ */
+function SetupCard({ me, setup }: { me: Me; setup: Setup }) {
+  const first = setup.open[0];
+  return (
+    <section className="grid items-center gap-8 rounded-3xl bg-card p-6 shadow-soft ring-1 ring-border-soft md:grid-cols-[11rem_minmax(0,1fr)] md:p-10">
+      <div className="grid place-items-center max-md:hidden">
+        <Mascot kind="round" size={156} fluffy />
+      </div>
+      <div className="grid gap-5">
+        <div className="grid gap-1.5">
+          <h2 className="text-balance font-display font-semibold text-[1.5rem] leading-tight tracking-tight">
+            {t("start.setup.title", { n: setup.open.length })}
+          </h2>
+          <p className="text-[0.9375rem] text-ink-2 leading-relaxed">{t("start.setup.hint")}</p>
+        </div>
+        <ol className="grid">
+          {PAGES.map((p, i) => (
+            <li key={p}>
+              <button
+                type="button"
+                disabled={setup.done[p]}
+                onClick={() => setup.onStart(p)}
+                className="-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left text-[0.9375rem] enabled:hover:bg-ink/5"
+              >
+                <span
+                  className={cn(
+                    "grid size-6 shrink-0 place-items-center rounded-full font-medium text-[0.75rem] tabular-nums",
+                    setup.done[p]
+                      ? "bg-moss text-white"
+                      : "bg-paper-2 text-ink-3 ring-1 ring-border-soft",
+                  )}
+                >
+                  {setup.done[p] ? <Check className="size-3.5" /> : i + 1}
+                </span>
+                <span
+                  className={cn(
+                    "min-w-0 flex-1",
+                    setup.done[p] ? "text-ink-3 line-through decoration-ink-4" : "text-ink",
+                  )}
+                >
+                  {question(me, p)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ol>
+        <div className="flex items-center gap-5">
+          {first ? (
+            <Button onClick={() => setup.onStart(first)}>{t("start.setup.go")}</Button>
+          ) : null}
+          <button
+            type="button"
+            onClick={setup.onLater}
+            className="text-[0.875rem] text-ink-3 hover:text-ink"
+          >
+            {t("start.later")}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Dashboard({
   me,
   space,
+  setup,
   left,
   onResume,
 }: {
   me: Me;
   space: Space;
+  setup: Setup | null;
   left: PageId[];
   onResume: (page: PageId) => void;
 }) {
@@ -365,6 +466,7 @@ function Dashboard({
           <p className="text-[0.875rem] text-ink-3">{t("start.week", { n: runs.length })}</p>
         </div>
       </div>
+      {setup ? <SetupCard me={me} setup={setup} /> : null}
       <form
         onSubmit={start}
         className="flex items-end gap-2 rounded-2xl bg-card p-3 pl-4 shadow-soft ring-1 ring-border-soft"
@@ -388,105 +490,106 @@ function Dashboard({
           <ArrowUp className="size-4" />
         </button>
       </form>
-      <div className="grid gap-7 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <section className="grid content-start gap-3">
-          <h2 className="font-semibold text-[0.875rem] text-ink">
-            {t("start.waiting")}
+      {/* A new organization with nothing yet: the card alone, no empty lists below it. */}
+      {setup && !needs.length && !runs.length ? null : (
+        <div className="grid gap-7 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+          <section className="grid content-start gap-3">
+            <h2 className="font-semibold text-[0.875rem] text-ink">
+              {t("start.waiting")}
+              {needs.length ? (
+                <span className="ml-2 font-normal text-ink-3">{needs.length}</span>
+              ) : null}
+            </h2>
             {needs.length ? (
-              <span className="ml-2 font-normal text-ink-3">{needs.length}</span>
-            ) : null}
-          </h2>
-          {needs.length ? (
-            needs.slice(0, 3).map((run) => <RunCard key={run.runId} run={run} />)
-          ) : (
-            <p className="text-[0.875rem] text-ink-3">{t("start.nothingWaits")}</p>
-          )}
-          <h2 className="mt-4 flex items-baseline font-semibold text-[0.875rem] text-ink">
-            {t("start.finished")}
-            <Link
-              to="/space/results"
-              className="ml-auto font-normal text-[0.8125rem] text-ink-3 hover:text-ink"
-            >
-              {t("start.allResults")}
-            </Link>
-          </h2>
-          {runs.length ? (
-            <ul className="grid">
-              {runs.slice(0, 4).map((r) => (
-                <li key={r.id}>
-                  <Link
-                    to="/space/results"
-                    className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-ink/5"
-                  >
-                    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-moss-tint text-moss">
-                      <Sparkles className="size-3.5" />
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[0.875rem] text-ink">
-                      {titles.get(r.wizardId) ?? ""}
-                    </span>
-                    <span className="shrink-0 text-[0.75rem] text-ink-3 tabular-nums">
-                      {new Date(r.doneAt).toLocaleDateString(lang, {
-                        day: "numeric",
-                        month: "short",
-                      })}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-[0.875rem] text-ink-3">{t("start.noResults")}</p>
-          )}
-        </section>
-        <section className="grid content-start gap-3">
-          <h2 className="flex items-baseline font-semibold text-[0.875rem] text-ink">
-            {t("start.running")}
-            <Link
-              to="/wizards"
-              className="ml-auto font-normal text-[0.8125rem] text-ink-3 hover:text-ink"
-            >
-              {t("start.allWizards")}
-            </Link>
-          </h2>
-          {byWizard.length ? (
-            <ul className="grid">
-              {byWizard.map((w) => (
-                <li key={w.id}>
-                  <Link
-                    to={`/edit/${w.id}`}
-                    className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-ink/5"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-[0.875rem] text-ink">
-                      {w.title}
-                    </span>
-                    <Spark days={perDay(w.stamps)} />
-                    <span className="w-7 shrink-0 text-right text-[0.8125rem] text-ink-3 tabular-nums">
-                      {w.stamps.length}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-[0.875rem] text-ink-3">{t("start.noRuns")}</p>
-          )}
-          {left.length ? (
-            <button
-              type="button"
-              onClick={() => onResume(left[0])}
-              className="mt-3 flex items-center gap-3 rounded-xl bg-card px-3.5 py-2.5 text-left text-[0.875rem] ring-1 ring-border-soft transition hover:ring-border"
-            >
-              <span className="min-w-0 flex-1">
-                {t("start.left", { n: left.length })}{" "}
-                <span className="font-medium">
-                  {t(QUESTION[left[0]].q, { organization: me.tenant.name ?? "" })}
+              needs.slice(0, 3).map((run) => <RunCard key={run.runId} run={run} />)
+            ) : (
+              <p className="text-[0.875rem] text-ink-3">{t("start.nothingWaits")}</p>
+            )}
+            <h2 className="mt-4 flex items-baseline font-semibold text-[0.875rem] text-ink">
+              {t("start.finished")}
+              <Link
+                to="/space/results"
+                className="ml-auto font-normal text-[0.8125rem] text-ink-3 hover:text-ink"
+              >
+                {t("start.allResults")}
+              </Link>
+            </h2>
+            {runs.length ? (
+              <ul className="grid">
+                {runs.slice(0, 4).map((r) => (
+                  <li key={r.id}>
+                    <Link
+                      to="/space/results"
+                      className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-ink/5"
+                    >
+                      <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-moss-tint text-moss">
+                        <Sparkles className="size-3.5" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[0.875rem] text-ink">
+                        {titles.get(r.wizardId) ?? ""}
+                      </span>
+                      <span className="shrink-0 text-[0.75rem] text-ink-3 tabular-nums">
+                        {new Date(r.doneAt).toLocaleDateString(lang, {
+                          day: "numeric",
+                          month: "short",
+                        })}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[0.875rem] text-ink-3">{t("start.noResults")}</p>
+            )}
+          </section>
+          <section className="grid content-start gap-3">
+            <h2 className="flex items-baseline font-semibold text-[0.875rem] text-ink">
+              {t("start.running")}
+              <Link
+                to="/wizards"
+                className="ml-auto font-normal text-[0.8125rem] text-ink-3 hover:text-ink"
+              >
+                {t("start.allWizards")}
+              </Link>
+            </h2>
+            {byWizard.length ? (
+              <ul className="grid">
+                {byWizard.map((w) => (
+                  <li key={w.id}>
+                    <Link
+                      to={`/edit/${w.id}`}
+                      className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-ink/5"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-[0.875rem] text-ink">
+                        {w.title}
+                      </span>
+                      <Spark days={perDay(w.stamps)} />
+                      <span className="w-7 shrink-0 text-right text-[0.8125rem] text-ink-3 tabular-nums">
+                        {w.stamps.length}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[0.875rem] text-ink-3">{t("start.noRuns")}</p>
+            )}
+            {left.length ? (
+              <button
+                type="button"
+                onClick={() => onResume(left[0])}
+                className="mt-3 flex items-center gap-3 rounded-xl bg-card px-3.5 py-2.5 text-left text-[0.875rem] ring-1 ring-border-soft transition hover:ring-border"
+              >
+                <span className="min-w-0 flex-1">
+                  {t("start.left", { n: left.length })}{" "}
+                  <span className="font-medium">{question(me, left[0])}</span>
                 </span>
-              </span>
-              <ChevronRight className="size-4 shrink-0 text-ink-4" />
-            </button>
-          ) : null}
-        </section>
-      </div>
+                <ChevronRight className="size-4 shrink-0 text-ink-4" />
+              </button>
+            ) : null}
+          </section>
+        </div>
+      )}
     </div>
   );
 }
