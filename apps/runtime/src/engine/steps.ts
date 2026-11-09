@@ -3,6 +3,7 @@ import {
   type AgentStep,
   allFields,
   classIdOf,
+  type DataStep,
   dataRef,
   decisionAsAgent,
   type GenerateStep,
@@ -10,6 +11,7 @@ import {
   localeOf,
   type Step,
   stepShape,
+  type ToolStep,
   templateRefs,
   textClassOf,
   wizardLang,
@@ -188,7 +190,7 @@ function answersBlock(ctx: StepContext): string {
  * What the step returns: its schema, its fields as one, or else one table. The model's
  * structured output takes it as JSON Schema; its own JSON is checked against it.
  */
-export function outputSchema(step: AgentStep) {
+export function outputSchema(step: DataStep) {
   const shape = stepShape(step);
   return { schema: shapeZod(shape) as z.ZodType<Record<string, unknown>>, shape };
 }
@@ -483,7 +485,7 @@ const MAX_AGENT_ENTRIES = 20;
 
 /** The entries an agent step with `each` runs for: rows of a table, entries of a list, list rows. */
 function agentEntries(step: AgentStep, ctx: StepContext): unknown[] {
-  const ref = dataRef(step.each ?? "");
+  const ref = dataRef(step.foreach ?? "");
   const list = ref.match(/^lists\.([a-zA-Z][a-zA-Z0-9_]*)$/)?.[1];
   const value = list
     ? (ctx.scope.lists?.[list]?.rows ?? []).map((r) => r.cells)
@@ -504,7 +506,7 @@ async function runAgentEach(step: AgentStep, ctx: StepContext): Promise<StepOutp
   // The view, if any, is composed once over the table of all entries.
   const single: AgentStep = {
     ...step,
-    each: undefined,
+    foreach: undefined,
     output: { ...step.output, surface: false },
   };
   const rows: Record<string, unknown>[] = [];
@@ -595,10 +597,7 @@ function callInput(value: unknown, ctx: StepContext): unknown {
  * step's json output as it is. A connection's action runs through the broker as the step, with
  * the fields the wizard fixed: the one way a run writes as the space.
  */
-async function runCallStep(
-  step: AgentStep & { call: NonNullable<AgentStep["call"]> },
-  ctx: StepContext,
-): Promise<StepOutput> {
+async function runToolStep(step: ToolStep, ctx: StepContext): Promise<StepOutput> {
   // What it is doing is the step's `working` line, shown as it starts, and what the tool says.
   const input = callInput(step.call.input, ctx);
   const answer =
@@ -630,13 +629,7 @@ export async function runAgentStep(
   ctx: StepContext,
   decision = false,
 ): Promise<StepOutput> {
-  if (step.call) {
-    return runCallStep({ ...step, call: step.call }, ctx);
-  }
-  if (step.code) {
-    return runCodeStep({ ...step, code: step.code }, ctx);
-  }
-  if (step.each) {
+  if (step.foreach) {
     return runAgentEach(step, ctx);
   }
   const resolved = await textModel(textClassOf(step.model ?? "standard"), {
@@ -873,10 +866,10 @@ const MAX_ENTRIES = 8;
 /** The entries of a step with `each` — or the single one of a step without. */
 function entriesOf(step: GenerateStep, ctx: StepContext): Entry[] {
   const references = step.referenceImage ? imagesOf(step.referenceImage, ctx) : [];
-  if (!step.each) {
+  if (!step.foreach) {
     return [{ item: null, index: 0, count: 1, reference: references[0] }];
   }
-  const ref = dataRef(step.each);
+  const ref = dataRef(step.foreach);
   let items: { item: unknown; own?: string }[];
   if (ref.startsWith("steps.") && ref.split(".").length > 2) {
     const value = resolveRef(ref, ctx.scope);
@@ -1133,7 +1126,7 @@ async function runMediaStep(
     // An entry's brief was written for it by the step that made the table: it goes to the model
     // as it is. One brief for all, or a change the person asked for, is turned into a prompt first.
     const visual =
-      step.each && !note
+      step.foreach && !note
         ? [
             renderTemplate(step.prompt, { ...ctx.scope, entry }),
             step.options?.style ? `Style: ${step.options.style}` : "",
@@ -1264,6 +1257,12 @@ export async function runAutomaticStep(step: Step, ctx: StepContext): Promise<St
   }
   if (step.type === "decision") {
     return runAgentStep(decisionAsAgent(step), ctx, true);
+  }
+  if (step.type === "tool") {
+    return runToolStep(step, ctx);
+  }
+  if (step.type === "code") {
+    return runCodeStep(step, ctx);
   }
   if (step.type === "generate") {
     return runGenerateStep(step, ctx);

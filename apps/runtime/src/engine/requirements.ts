@@ -11,7 +11,6 @@ import {
   MODEL_CLASSES,
   type ModelClass,
   type NextRule,
-  runsWithoutModel,
   type Step,
   type TextClass,
   textClassOf,
@@ -71,10 +70,6 @@ function ownClasses(step: Step): ModelClass[] {
     case "decision":
       return ["classifier"];
     case "agent": {
-      // A call runs one tool and no model, code the wizard's own function.
-      if (runsWithoutModel(step)) {
-        return [];
-      }
       const classes: ModelClass[] = [textClassOf(step.model ?? "standard")];
       if (step.tools.includes("image")) {
         classes.push("image");
@@ -166,6 +161,17 @@ function conditionHolds(c: Condition, facts: Facts): boolean | null {
             : null;
       return inside === null ? null : (c.op === "in") === inside;
     }
+    case "truthy":
+    case "falsy": {
+      // A known value is held as text: "false" and "0" are what false and 0 were.
+      const truthy =
+        k?.is !== undefined
+          ? !["", "false", "0"].includes(k.is)
+          : k?.filled === false
+            ? false
+            : null;
+      return truthy === null ? null : (c.op === "truthy") === truthy;
+    }
     case "gt":
     case "gte":
     case "lt":
@@ -187,7 +193,7 @@ function learn(rule: NextRule, held: boolean, facts: Facts): Facts {
     return facts;
   }
   const tests = Array.isArray(rule.when) ? rule.when : [rule.when];
-  if (tests.some((t) => "any" in t)) {
+  if (tests.some((t) => "or" in t || "and" in t)) {
     return facts;
   }
   const leaves = tests as ConditionLeaf[];
@@ -214,7 +220,10 @@ function learnCondition(c: Condition, held: boolean, facts: Facts): Facts {
     k.not.push(...c.value.map(String));
   } else if (op === "exists" || op === "notExists") {
     k.filled = (op === "exists") === held;
-  } else if ((COMPARING.has(op) || op === "contains") && held) {
+  } else if (
+    ((COMPARING.has(op) || op === "contains" || op === "truthy") && held) ||
+    (op === "falsy" && !held)
+  ) {
     k.filled = true;
   }
   return { ...facts, [field]: k };

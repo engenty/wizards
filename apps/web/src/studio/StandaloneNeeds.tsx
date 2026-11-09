@@ -1,5 +1,5 @@
 import { FORMAT_LABEL } from "@engenty/wizards-runner";
-import { runsWithoutModel, type WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import {
   type Capability,
   capabilityOf,
@@ -57,9 +57,7 @@ export function needLines(def: WizardDefinition, fit: StandaloneFit): Line[] {
     }
   };
   // Text is always there: the one thing the site's provider does.
-  if (
-    def.steps.some((s) => (s.type === "agent" && !runsWithoutModel(s)) || s.type === "decision")
-  ) {
+  if (def.steps.some((s) => s.type === "agent" || s.type === "decision")) {
     add("text", { text: marketLabel("capability", "text", lang), tone: "ok" });
   }
   for (const c of fit.missing) {

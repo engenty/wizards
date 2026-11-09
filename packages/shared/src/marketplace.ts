@@ -4,7 +4,6 @@ import {
   LANGS,
   type Lang,
   pluginToolOf,
-  runsWithoutModel,
   type WizardDefinition,
 } from "./definition.js";
 import { CAPABILITY_IDS, type Capability } from "./fit.js";
@@ -263,10 +262,6 @@ export function capabilitiesOf(def: WizardDefinition): Capability[] {
     } else if (step.type === "decision") {
       found.add("text");
     } else if (step.type === "agent") {
-      // A call runs no model: it needs nothing but its plugin. Code runs in the runtime itself.
-      if (runsWithoutModel(step)) {
-        continue;
-      }
       found.add("text");
       for (const tool of step.tools) {
         if (tool === "web_search" || tool === "web_fetch") {
@@ -308,10 +303,12 @@ export function capabilitiesOf(def: WizardDefinition): Capability[] {
 export function pluginsOf(def: WizardDefinition): string[] {
   const found = new Set<string>();
   for (const step of def.steps) {
-    if (step.type === "agent") {
-      for (const tool of step.call && "tool" in step.call
-        ? [...step.tools, step.call.tool]
-        : step.tools) {
+    if (step.type === "agent" || (step.type === "tool" && "tool" in step.call)) {
+      for (const tool of step.type === "tool" && "tool" in step.call
+        ? [step.call.tool]
+        : step.type === "agent"
+          ? step.tools
+          : []) {
         const of = pluginToolOf(tool);
         if (of) {
           found.add(of.plugin);
@@ -352,7 +349,7 @@ export function effortOf(def: WizardDefinition): Effort {
     } else if (step.type === "review") {
       reviews += 1;
       seconds += 30;
-    } else if (step.type === "agent" && runsWithoutModel(step)) {
+    } else if (step.type === "tool" || step.type === "code") {
       seconds += 1;
     } else if (step.type === "decision") {
       seconds += WORK_SECONDS.agent;
@@ -363,8 +360,8 @@ export function effortOf(def: WizardDefinition): Effort {
           ? WORK_SECONDS.tools
           : WORK_SECONDS.agent;
     } else if (step.type === "generate") {
-      // "each" makes one result per entry; three stands in for a number nobody knows yet.
-      const times = step.each ? 3 : 1;
+      // "foreach" makes one result per entry; three stands in for a number nobody knows yet.
+      const times = step.foreach ? 3 : 1;
       seconds +=
         times *
         (step.asset === "image"

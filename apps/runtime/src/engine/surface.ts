@@ -44,7 +44,7 @@ export function surfaceData(
     if (source && (source.type === "generate" || source.type === "widget")) {
       // Pictures and clips by asset id: the runner shows them from the run's files.
       const ids = (ctx.state.outputs[source.id]?.assets ?? []).map((a) => a.id);
-      out[key] = source.type === "generate" && source.each ? ids : (ids[0] ?? null);
+      out[key] = source.type === "generate" && source.foreach ? ids : (ids[0] ?? null);
       continue;
     }
     const output = source ? ctx.state.outputs[source.id] : undefined;

@@ -1,8 +1,10 @@
 import {
   FORMATS,
   type Format,
+  isDataStep,
   LIST_FORMATS,
   listRef,
+  outputOf,
   type ResultStep,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
@@ -126,7 +128,7 @@ export function resultText(run: RunRow): string | null {
   for (const d of resultStepOf(run)?.deliverables ?? []) {
     const step = run.definition.steps.find((s) => s.id === d.from);
     const text = run.state.outputs[d.from]?.text?.trim();
-    if (step?.type === "agent" && step.output.format !== "json" && text) {
+    if (isDataStep(step) && outputOf(step).format !== "json" && text) {
       return text;
     }
   }
@@ -143,7 +145,7 @@ export function resultBrief(run: RunRow): string {
       continue;
     }
     const title = d.label ?? step.title;
-    if (step.type === "decision" || (step.type === "agent" && step.output.format === "json")) {
+    if (isDataStep(step) && outputOf(step).format === "json") {
       lines.push(`## ${title} (data)\n${JSON.stringify(output.json, null, 2).slice(0, 6000)}`);
     } else if (step.type === "agent") {
       lines.push(`## ${title} (text)\n${(output.text ?? "").slice(0, 12_000)}`);

@@ -158,6 +158,8 @@ export function outputKindOf(step: Step): OutputKind | null {
     case "agent":
       return step.output?.fields?.length || step.output?.schema ? "data" : "text";
     case "decision":
+    case "tool":
+    case "code":
       return "data";
     case "generate":
       return step.asset;

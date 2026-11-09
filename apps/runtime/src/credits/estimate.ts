@@ -1,6 +1,5 @@
 import {
   isDecidedField,
-  runsWithoutModel,
   type Step,
   type TextClass,
   textClassOf,
@@ -57,18 +56,14 @@ function stepFormula(step: Step, catalog: GatewayCatalog): number {
     return textCredits(cls("classifier"), TOKENS.decision);
   }
   if (step.type === "agent") {
-    // A call runs one tool and no model, code the wizard's own function: nothing to pay for.
-    if (runsWithoutModel(step)) {
-      return 0;
-    }
     const shape = step.tools.includes("browser")
       ? TOKENS.browser
       : step.tools.length || step.connections?.length
         ? TOKENS.tools
         : TOKENS.plain;
-    // A step with `each` runs once per entry; until it has run, three stand in.
+    // A step with `foreach` runs once per entry; until it has run, three stand in.
     let credits =
-      textCredits(cls(textClassOf(step.model ?? "standard")), shape) * (step.each ? 3 : 1);
+      textCredits(cls(textClassOf(step.model ?? "standard")), shape) * (step.foreach ? 3 : 1);
     if (step.tools.includes("web_search")) {
       credits += 4 * catalog.webSearchCredits;
     }

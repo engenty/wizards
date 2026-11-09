@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
-import type { Field, WizardDefinition } from "./definition.js";
+import { type Field, isDataStep, type WizardDefinition } from "./definition.js";
 
 /**
  * A wizard translated for its viewer, on request: what the person reads is written in their
@@ -74,7 +74,7 @@ function visitTexts(def: WizardDefinition, visit: Visit, choices: Visit) {
       });
     }
     // What an AI step's output fields hold: the headings a review and the result show them under.
-    if (step.type === "agent" || step.type === "decision") {
+    if (isDataStep(step)) {
       for (const field of step.output?.fields ?? []) {
         visit(field.description, (t) => {
           field.description = t;

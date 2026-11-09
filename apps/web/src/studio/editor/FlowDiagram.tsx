@@ -422,6 +422,10 @@ export function conditionText(c: Condition): string {
       return t("editor.whenFilled", { field: c.field });
     case "notExists":
       return t("editor.whenEmpty", { field: c.field });
+    case "truthy":
+      return t("editor.whenTruthy", { field: c.field });
+    case "falsy":
+      return t("editor.whenFalsy", { field: c.field });
     case "gt":
       return `${c.field} > ${v}`;
     case "gte":
