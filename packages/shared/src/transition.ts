@@ -159,6 +159,8 @@ export const FLOW_LIMITS = {
   personWaitMaxMs: 30 * 86_400_000,
   /** How often a step's `onFail` is taken. */
   onFailMax: 3,
+  /** How long a run waits before it tries a step again under the step's `retries`. */
+  failureRetryMs: 10_000,
   lookAgainMs: 5 * 60_000,
 } as const;
 
@@ -441,6 +443,16 @@ function failed(
       state.retries = { ...retries, count: retries.count + 1 };
       state.pause = { kind: "retry" };
       return settle(stepId, "sleeping", state, host.now + delay, { kind: "sleep" });
+    }
+    // The step's own failure: tried again as often as its `retries` says, before `onFail`.
+    const step = stepOf(def, stepId);
+    const allowed = step && "retries" in step ? (step.retries ?? 0) : 0;
+    if (failure.class === "final" && (retries.failures ?? 0) < allowed) {
+      state.retries = { ...retries, failures: (retries.failures ?? 0) + 1 };
+      state.pause = { kind: "retry" };
+      return settle(stepId, "sleeping", state, host.now + FLOW_LIMITS.failureRetryMs, {
+        kind: "sleep",
+      });
     }
   }
   // Past every try: where the step's `onFail` says, at most `onFailMax` times.

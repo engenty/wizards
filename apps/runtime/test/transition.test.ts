@@ -541,6 +541,25 @@ describe("a step that fails", () => {
     );
   });
 
+  it("tries a step again as often as its retries say when it fails for its own reason", () => {
+    const tried = wizard([agent("made", { onFail: "fallback", retries: 2 }), agent("fallback"), end()]);
+    const final = fail({ class: "final" });
+    let run = walk(tried, []).run;
+    let now = NOW;
+    for (let i = 0; i < 2; i++) {
+      const slept = transition(tried, run, final, host({ now }));
+      expect(slept.run).toMatchObject({ cursor: "made", status: "sleeping", wakeAt: now + FLOW_LIMITS.failureRetryMs });
+      now += FLOW_LIMITS.failureRetryMs;
+      const woken = transition(tried, slept.run, { kind: "woke" }, host({ now }));
+      expect(woken.command).toMatchObject({ kind: "run", step: { id: "made" } });
+      run = woken.run;
+    }
+    expect(transition(tried, run, final, host({ now })).run).toMatchObject({ cursor: "fallback" });
+    // Not a step that may have acted, and none without retries.
+    expect(transition(tried, walk(tried, []).run, fail({ class: "final" }, true), host()).run.cursor).toBe("fallback");
+    expect(transition(def, walk(def, []).run, final, host()).run.cursor).toBe("fallback");
+  });
+
   it("takes onFail at most three times, then fails the run", () => {
     const loop = wizard([agent("made", { onFail: "made2" }), agent("made2", { onFail: "made" }), end()]);
     let run = walk(loop, []).run;

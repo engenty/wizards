@@ -752,6 +752,16 @@ function withOptions<T extends z.ZodType<{ kind: string; options?: string[] }>>(
     });
 }
 
+/** What a step that runs without a person has besides the base. */
+const automaticStep = {
+  /**
+   * How often the step is tried again, right away, when it fails for its own reason (a missing
+   * value, an answer that does not fit), before `onFail`. A provider's trouble is tried again by
+   * itself. 0–5, default 0. Not after a step that may have acted.
+   */
+  retries: z.number().int().min(0).max(5).optional(),
+};
+
 export const outputFieldSchema = withOptions(z.object(outputFieldShape));
 
 /** A question of a decision: yes or no, one of its options, or a level of a score. */
@@ -803,6 +813,7 @@ const pluginToolIdSchema = z.templateLiteral([
 
 export const agentStepSchema = z.object({
   ...stepBase,
+  ...automaticStep,
   type: z.literal("agent"),
   /** What the agent does. A template: {{field}}, {{steps.id}}, {{brand.name}}. Empty with `call`. */
   instructions: z.string().default(""),
@@ -869,6 +880,8 @@ export const agentStepSchema = z.object({
    * The output is a table: the entry's columns and the step's output fields, one row per entry.
    */
   each: z.string().optional(),
+  /** With `each`: how many entries run at the same time, 1–5. Default 1, one after another. */
+  concurrency: z.number().int().min(1).max(5).optional(),
   /**
    * The step keeps its conversation: after a crash or a deploy it goes on at the call it was at,
    * and it can stop to ask a person with no process waiting. Needs a model an API serves; not with
@@ -885,6 +898,7 @@ export const agentStepSchema = z.object({
  */
 export const decisionStepSchema = z.object({
   ...stepBase,
+  ...automaticStep,
   type: z.literal("decision"),
   /** What the decision weighs, as a template: {{field}}, {{steps.id}}. */
   instructions: z.string().min(1),
@@ -895,6 +909,7 @@ export const decisionStepSchema = z.object({
 
 export const generateStepSchema = z.object({
   ...stepBase,
+  ...automaticStep,
   type: z.literal("generate"),
   asset: z.enum(ASSET_KINDS),
   /** For image/video the visual prompt; for document/dashboard the brief. A template. */
@@ -933,6 +948,7 @@ export const generateStepSchema = z.object({
 
 export const widgetStepSchema = z.object({
   ...stepBase,
+  ...automaticStep,
   type: z.literal("widget"),
   /** Workspace path of the widget's HTML. Written once; every run only brings new data. */
   entry: z.string().min(1),
@@ -978,6 +994,7 @@ export const MOTION_SIZES: Record<MotionFormat, { width: number; height: number 
  */
 export const motionGraphicsStepSchema = z.object({
   ...stepBase,
+  ...automaticStep,
   type: z.literal("motion-graphics"),
   /** What the video is: story, look, what to use. A template. */
   brief: z.string().min(1),
@@ -1028,6 +1045,7 @@ export const surfaceCandidateSchema = z.object({
 export const surfaceStepSchema = z
   .object({
     ...stepBase,
+    ...automaticStep,
     type: z.literal("surface"),
     /** A view from the surface catalog, written once like a widget; every run brings new data. */
     components: surfaceComponentsSchema.optional(),
@@ -2085,6 +2103,9 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
           )) {
             issues.push({ stepId: step.id, message: `View: ${issue.message}` });
           }
+        }
+        if (step.concurrency !== undefined && !step.each) {
+          issues.push({ stepId: step.id, message: '"concurrency" goes with "each".' });
         }
         if (step.each) {
           const ref = dataRef(step.each);

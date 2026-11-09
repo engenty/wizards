@@ -174,9 +174,11 @@ those safe to repeat.
 | Short trouble at a provider: a 429, a 5xx, a timeout, the network | Waits and tries again after 1, 5 and 30 minutes, or what `Retry-After` says, up to 6 hours |
 | Out of credits | Waits, and goes on within minutes of a top-up. After 30 days it fails |
 | A sign-in ran out | Waits until someone signs in |
-| Anything else, or the step already acted outside | Goes to `onFail`, or fails |
+| Anything else | Tries again after 10 seconds, as often as the step’s `retries` says. Then goes to `onFail`, or fails |
+| The step already acted outside | Goes to `onFail`, or fails |
 
-`onFail` names the step the run goes to when this one fails for good, at most three times. A
+`retries`, 0 to 5, is on every step that runs without a person. Default 0. `onFail` names the step
+the run goes to when this one fails for good, at most three times. A
 `wait` fails this way too, when its `until` is no date or its signal’s `key` comes out empty. A
 person can still try a failed run again, which starts the step anew.
 
