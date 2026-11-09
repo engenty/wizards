@@ -38,7 +38,7 @@ describe("validator", () => {
     const parsed = parseWizard({
       title: "x",
       steps: [
-        { id: "p", type: "page", title: "P", fields: [{ id: "kind", label: "K", kind: "select", options: ["a", "b"] }], next: [{ when: { field: "kind", op: "equals", value: "b" }, goto: "r" }] },
+        { id: "p", type: "page", title: "P", fields: [{ id: "kind", label: "K", kind: "select", options: ["a", "b"] }], next: [{ when: { field: "kind", op: "eq", value: "b" }, goto: "r" }] },
         { id: "q", type: "page", title: "Q", fields: [{ id: "x", label: "X", kind: "text" }] },
         { id: "r", type: "result", title: "R", deliverables: [] },
       ],
@@ -131,7 +131,7 @@ describe("a wait step", () => {
       instructions: "x",
       tools: [],
       output: { format: "text" },
-      next: [{ when: { field, op: "equals", value: true }, goto: "done" }],
+      next: [{ when: { field, op: "eq", value: true }, goto: "done" }],
     });
     expect(parseWizard(wizard({ for: "1d" }, [branch("steps.pause.waited")])).issues).toEqual([]);
     expect(messages(wizard({ for: "1d" }, [branch("steps.pause.nope")])).length).toBeGreaterThan(0);
@@ -149,7 +149,7 @@ describe("a wait step", () => {
       instructions: "x",
       tools: [],
       output: { format: "text" },
-      next: [{ when: { field, op: "equals", value: true }, goto: "done" }],
+      next: [{ when: { field, op: "eq", value: true }, goto: "done" }],
     });
 
     it("takes a name, a key, a timeout and fields, and the version stays", () => {
@@ -263,7 +263,7 @@ describe("decisions", () => {
   it("branches on a yes/no answer", () => {
     const parsed = parseWizard(
       wizard({
-        next: [{ when: { field: "steps.check.refund", op: "equals", value: true }, goto: "refund" }],
+        next: [{ when: { field: "steps.check.refund", op: "eq", value: true }, goto: "refund" }],
       }),
     );
     if (!parsed.ok) {
@@ -282,7 +282,7 @@ describe("decisions", () => {
   it("refuses a branch on an output field the step does not have", () => {
     const parsed = parseWizard(
       wizard({
-        next: [{ when: { field: "steps.check.nope", op: "equals", value: true }, goto: "refund" }],
+        next: [{ when: { field: "steps.check.nope", op: "eq", value: true }, goto: "refund" }],
       }),
     );
     expect(parsed.issues.map((i) => i.message)).toEqual([
@@ -472,7 +472,7 @@ describe("a person's step: timeout, remind, approve", () => {
   });
 
   it("a branch reads timedOut only of a step with a timeout", () => {
-    const next = [{ when: { field: "steps.ask.timedOut", op: "equals", value: true }, goto: "done" }];
+    const next = [{ when: { field: "steps.ask.timedOut", op: "eq", value: true }, goto: "done" }];
     expect(issues(page({ timeout: "1d", next }), end)).toEqual([]);
     expect(issues(page({ next }), end).length).toBeGreaterThan(0);
   });
@@ -480,7 +480,7 @@ describe("a person's step: timeout, remind, approve", () => {
   it("approve needs a branch on the decision", () => {
     const review = { id: "check", type: "review", title: "C", show: ["made"], approve: true };
     expect(issues(made, review, end).join()).toMatch(/needs a branch on steps\.check\.approved/);
-    const next = [{ when: { field: "steps.check.approved", op: "equals", value: false }, goto: "done" }];
+    const next = [{ when: { field: "steps.check.approved", op: "eq", value: false }, goto: "done" }];
     expect(issues(made, { ...review, next }, end)).toEqual([]);
     const reads = [{ when: { field: "steps.check.note", op: "contains", value: "x" }, goto: "done" }];
     expect(issues(made, { ...review, next: [...next, ...reads] }, end)).toEqual([]);

@@ -758,9 +758,10 @@ function Review({
           .filter((x) => x.output)
           .map(({ step: s, output }) => {
             // A json step's data is edited by its schema, a written one as its text.
-            const data = editableData(s) ? s : null;
+            const data = editableData(s);
             const editable =
-              Boolean(step.edit) && s.type === "agent" && (s.output.format !== "json" || !!data);
+              Boolean(step.edit) &&
+              ((s.type === "agent" && s.output.format !== "json") || Boolean(data));
             const draft = drafts[s.id];
             const heading = (menu: React.ReactNode) => (
               <div className="mb-2 flex items-center justify-between gap-3">
@@ -1009,6 +1010,7 @@ function Result({
           ))}
         {/* A step the run skipped (a branch) has made nothing to hand over. */}
         {made.map(({ step: s, output, formats, label }) => {
+          const data = editableData(s);
           const heading = (menu: React.ReactNode) => (
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h3 className="font-display font-semibold text-[1.0625rem]">{label ?? s.title}</h3>
@@ -1037,8 +1039,8 @@ function Result({
           );
           return (
             <Card key={s.id} className="p-4 sm:p-5">
-              {studio && editableData(s) && output ? (
-                <StudioData runId={view.id} step={s} output={output} header={heading}>
+              {studio && data && output ? (
+                <StudioData runId={view.id} step={data} output={output} header={heading}>
                   {shown}
                 </StudioData>
               ) : (

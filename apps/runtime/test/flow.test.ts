@@ -63,7 +63,7 @@ describe("conditions", () => {
           next: [
             {
               when: [
-                { field: "kind", op: "equals", value: "ship" },
+                { field: "kind", op: "eq", value: "ship" },
                 { field: "amount", op: "gt", value: 500 },
               ],
               goto: "approve",
@@ -132,7 +132,7 @@ describe("conditions", () => {
           type: "page",
           title: "P",
           fields: [{ id: "k", label: "K", kind: "toggle" }],
-          next: [{ when: { field: "k", op: "equals", value: true }, goto: "r" }],
+          next: [{ when: { field: "k", op: "eq", value: true }, goto: "r" }],
         },
         result,
       ],
@@ -152,13 +152,13 @@ describe("fields shown under a condition", () => {
         label: "Street",
         kind: "text",
         required: true,
-        when: { field: "delivery", op: "equals", value: "ship" },
+        when: { field: "delivery", op: "eq", value: "ship" },
       },
       {
         id: "door",
         label: "Door code",
         kind: "text",
-        when: { field: "street", op: "notEmpty" },
+        when: { field: "street", op: "exists" },
       },
     ],
   };
@@ -183,7 +183,7 @@ describe("fields shown under a condition", () => {
   it("read what is known before the page", () => {
     const later: PageStep = {
       ...page,
-      fields: [{ id: "note", label: "Note", kind: "text", required: true, when: { field: "steps.check.urgent", op: "equals", value: true } }],
+      fields: [{ id: "note", label: "Note", kind: "text", required: true, when: { field: "steps.check.urgent", op: "eq", value: true } }],
     };
     expect(pageNeeds(later.fields)).toEqual(["steps.check.urgent"]);
     expect(readPageInput(later, {}, { known: { "steps.check.urgent": false } }).errors).toEqual([]);
@@ -199,7 +199,7 @@ describe("fields shown under a condition", () => {
           type: "page",
           title: "P",
           fields: [
-            { id: "a", label: "A", kind: "text", when: { field: "later", op: "notEmpty" } },
+            { id: "a", label: "A", kind: "text", when: { field: "later", op: "exists" } },
           ],
         },
         { id: "q", type: "page", title: "Q", fields: [{ id: "later", label: "L", kind: "text" }] },
@@ -434,7 +434,7 @@ describe("requirements with condition lists", () => {
           next: [
             {
               when: [
-                { field: "a", op: "equals", value: true },
+                { field: "a", op: "eq", value: true },
                 { field: "n", op: "gt", value: 3 },
               ],
               goto: "r",
@@ -503,7 +503,7 @@ describe("an otherwise branch", () => {
             type: "page",
             title: "P",
             fields: [{ id: "n", label: "N", kind: "number" }],
-            next: [{ when: { field: "n", op: "notEmpty" }, ask: "Yes", goto: "r" }],
+            next: [{ when: { field: "n", op: "exists" }, ask: "Yes", goto: "r" }],
           },
           result,
         ],

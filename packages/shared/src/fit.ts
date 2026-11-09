@@ -96,6 +96,8 @@ function templatesOf(step: Step): string[] {
   switch (step.type) {
     case "agent":
       return [step.instructions, step.call ? JSON.stringify(step.call.input) : ""];
+    case "decision":
+      return [step.instructions];
     case "generate":
       return [step.prompt, step.options?.style ?? ""];
     case "motion-graphics":
@@ -116,7 +118,10 @@ function readsFilesLater(def: WizardDefinition, index: number): boolean {
     .slice(index + 1)
     .some(
       (s) =>
-        (s.type === "agent" && !s.call) || s.type === "generate" || s.type === "motion-graphics",
+        (s.type === "agent" && !s.call) ||
+        s.type === "decision" ||
+        s.type === "generate" ||
+        s.type === "motion-graphics",
     );
 }
 
@@ -254,6 +259,7 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
         // What a media step, a widget or a video makes is the step's own need.
         const written =
           from?.type === "agent" ||
+          from?.type === "decision" ||
           (from?.type === "generate" && (from.asset === "document" || from.asset === "dashboard"));
         if (!written) {
           continue;
@@ -265,7 +271,7 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
           }
           // A PDF of a written text the runner makes in the browser (packages/runner/src/pdf.ts);
           // of a document the browser prints the HTML. The others fall away where another stays.
-          if (f === "pdf" && from?.type === "agent") {
+          if (f === "pdf" && (from?.type === "agent" || from?.type === "decision")) {
             continue;
           }
           add(`format:${f}`, f !== "pdf" && !stays);

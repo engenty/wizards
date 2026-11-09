@@ -38,6 +38,7 @@ import {
   Eye,
   FileText,
   Flag,
+  GitFork,
   Globe,
   Hourglass,
   Image as ImageIcon,
@@ -312,6 +313,8 @@ function stepIcon(step: OutlineStep): LucideIcon {
       return ListChecks;
     case "agent":
       return Bot;
+    case "decision":
+      return GitFork;
     case "generate":
       return step.asset === "image"
         ? ImageIcon

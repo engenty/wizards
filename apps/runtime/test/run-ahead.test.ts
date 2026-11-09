@@ -130,7 +130,7 @@ describe("ahead", () => {
     const runId = await startRun(
       flow(
         page("a", {
-          next: [{ when: { field: "a_f", op: "equals", value: "x" }, goto: "c" }],
+          next: [{ when: { field: "a_f", op: "eq", value: "x" }, goto: "c" }],
         }),
         page("b", { section: "Zwei" }),
         page("c"),
@@ -141,7 +141,7 @@ describe("ahead", () => {
     expect(v.pagesSent).toBe(0);
     expect(Object.keys(v.ahead).sort()).toEqual(["a", "b", "c"]);
     expect(v.ahead.a.next).toEqual([
-      { when: { field: "a_f", op: "equals", value: "x" }, goto: "c" },
+      { when: { field: "a_f", op: "eq", value: "x" }, goto: "c" },
       { goto: "b" },
     ]);
     // The last page goes to the result: the browser shows no result, the server decides.
@@ -185,7 +185,7 @@ describe("ahead", () => {
         [
           page("a"),
           page("b", {}, [
-            { id: "b_f", kind: "text", label: "T", when: { field: "steps.a.x", op: "notEmpty" } },
+            { id: "b_f", kind: "text", label: "T", when: { field: "steps.a.x", op: "exists" } },
           ]),
         ],
       ],
@@ -199,7 +199,7 @@ describe("ahead", () => {
   it("says the server decides after a page with an `ask`, a `max` or a rule back", async () => {
     for (const next of [
       [{ ask: "Will die Person mehr?", goto: "b" }],
-      [{ when: { field: "a_f", op: "notEmpty" }, goto: "b", max: 2 }],
+      [{ when: { field: "a_f", op: "exists" }, goto: "b", max: 2 }],
     ]) {
       const runId = await startRun(flow(page("a", { next }), page("b")));
       const v = await view(runId);

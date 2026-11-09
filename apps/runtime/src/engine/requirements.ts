@@ -1,10 +1,10 @@
 import {
+  COMPARING,
   type Condition,
+  type ConditionLeaf,
   classIdOf,
   conditionMatches,
-  conditionsOf,
   isDecidedField,
-  isDecisionStep,
   isOtherwise,
   type Lang,
   MODEL_CLASSES,
@@ -16,6 +16,7 @@ import {
   textClassOf,
   type WizardDefinition,
   whenCalc,
+  whenValue,
 } from "@engenty/wizards-shared/definition";
 import {
   type Capability,
@@ -66,13 +67,12 @@ export function stepClasses(step: Step): ModelClass[] {
 
 function ownClasses(step: Step): ModelClass[] {
   switch (step.type) {
+    case "decision":
+      return ["classifier"];
     case "agent": {
       // A call runs one tool and no model.
       if (step.call) {
         return [];
-      }
-      if (isDecisionStep(step)) {
-        return ["classifier"];
       }
       const classes: ModelClass[] = [textClassOf(step.model ?? "standard")];
       if (step.tools.includes("image")) {
@@ -131,48 +131,44 @@ function ruleHolds(rule: NextRule, facts: Facts): boolean | null {
   if (rule.ask || whenCalc(rule.when) !== null) {
     return null;
   }
-  let all: boolean | null = true;
-  for (const c of conditionsOf(rule.when)) {
-    const holds = conditionHolds(c, facts);
-    if (holds === false) {
-      return false;
-    }
-    if (holds === null) {
-      all = null;
-    }
-  }
-  return all;
+  return whenValue(rule.when, (c) => conditionHolds(c, facts));
 }
 
 function conditionHolds(c: Condition, facts: Facts): boolean | null {
   const k = facts[c.field];
   const value = c.value;
   switch (c.op) {
-    case "empty":
+    case "notExists":
       return k?.filled === undefined ? (k?.is !== undefined ? false : null) : !k.filled;
-    case "notEmpty":
+    case "exists":
       return k?.filled === undefined ? (k?.is !== undefined ? true : null) : k.filled;
-    case "equals":
+    case "eq":
       return k?.is !== undefined
         ? k.is === String(value)
         : k?.not.includes(String(value))
           ? false
           : null;
-    case "notEquals":
+    case "ne":
       return k?.is !== undefined
         ? k.is !== String(value)
         : k?.not.includes(String(value))
           ? true
           : null;
-    case "in": {
+    case "in":
+    case "notIn": {
       const list = Array.isArray(value) ? value.map(String) : [];
-      if (k?.is !== undefined) {
-        return list.includes(k.is);
-      }
-      return list.every((v) => k?.not.includes(v)) ? false : null;
+      const inside =
+        k?.is !== undefined
+          ? list.includes(k.is)
+          : list.every((v) => k?.not.includes(v))
+            ? false
+            : null;
+      return inside === null ? null : (c.op === "in") === inside;
     }
     case "gt":
+    case "gte":
     case "lt":
+    case "lte":
     case "contains":
       if (k?.is !== undefined) {
         return conditionMatches(c, { [c.field]: k.is });
@@ -183,17 +179,23 @@ function conditionHolds(c: Condition, facts: Facts): boolean | null {
 
 /**
  * What is known once a rule did (`held`) or did not match. A rule of several conditions that
- * did not match says nothing about any one of them.
+ * did not match says nothing about any one of them, and neither does an `any`.
  */
 function learn(rule: NextRule, held: boolean, facts: Facts): Facts {
-  if (rule.ask) {
+  if (rule.ask || whenCalc(rule.when) !== null || rule.when === undefined) {
     return facts;
   }
-  const conditions = conditionsOf(rule.when);
-  if (held) {
-    return conditions.reduce((known, c) => learnCondition(c, true, known), facts);
+  const tests = Array.isArray(rule.when) ? rule.when : [rule.when];
+  if (tests.some((t) => "any" in t)) {
+    return facts;
   }
-  return conditions.length === 1 ? learnCondition(conditions[0], false, facts) : facts;
+  const leaves = tests as ConditionLeaf[];
+  const learnLeaf = (leaf: ConditionLeaf, holds: boolean, known: Facts) =>
+    "not" in leaf ? learnCondition(leaf.not, !holds, known) : learnCondition(leaf, holds, known);
+  if (held) {
+    return leaves.reduce((known, leaf) => learnLeaf(leaf, true, known), facts);
+  }
+  return leaves.length === 1 ? learnLeaf(leaves[0], false, facts) : facts;
 }
 
 function learnCondition(c: Condition, held: boolean, facts: Facts): Facts {
@@ -202,16 +204,19 @@ function learnCondition(c: Condition, held: boolean, facts: Facts): Facts {
   k.not = [...k.not];
   const value = String(c.value);
   const op = c.op;
-  if ((op === "equals" && held) || (op === "notEquals" && !held)) {
+  if ((op === "eq" && held) || (op === "ne" && !held)) {
     k.is = value;
     k.filled = true;
-  } else if ((op === "equals" && !held) || (op === "notEquals" && held)) {
+  } else if ((op === "eq" && !held) || (op === "ne" && held)) {
     k.not.push(value);
-  } else if (op === "in" && !held && Array.isArray(c.value)) {
+  } else if (
+    ((op === "in" && !held) || (op === "notIn" && held)) &&
+    Array.isArray(c.value)
+  ) {
     k.not.push(...c.value.map(String));
-  } else if (op === "empty" || op === "notEmpty") {
-    k.filled = (op === "notEmpty") === held;
-  } else if ((op === "gt" || op === "lt" || op === "contains") && held) {
+  } else if (op === "exists" || op === "notExists") {
+    k.filled = (op === "exists") === held;
+  } else if ((COMPARING.has(op) || op === "contains") && held) {
     k.filled = true;
   }
   return { ...facts, [field]: k };

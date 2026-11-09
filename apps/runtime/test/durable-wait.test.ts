@@ -288,7 +288,7 @@ describe("wait 2 days", () => {
     const id = await start([
       pause({
         for: "1d",
-        next: [{ when: { field: "steps.pause.waited", op: "equals", value: true }, goto: "late" }],
+        next: [{ when: { field: "steps.pause.waited", op: "eq", value: true }, goto: "late" }],
       }),
       agent("skipped"),
       agent("late"),

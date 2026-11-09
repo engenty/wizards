@@ -59,13 +59,13 @@ const configurator1g = {
             "Groß – mehr als 1.000 Produkte",
           ],
           look: "list",
-          when: { field: "type", op: "equals", value: "Shop" },
+          when: { field: "type", op: "eq", value: "Shop" },
         },
         {
           id: "pages",
           label: "Wie viele Seiten?",
           kind: "number",
-          when: { field: "type", op: "equals", value: "Website" },
+          when: { field: "type", op: "eq", value: "Website" },
         },
       ],
     },
@@ -193,7 +193,7 @@ const durable = {
         { id: "c4", component: "Field", name: "note" },
       ],
       next: [
-        { when: [{ field: "amount", op: "gt", value: -5 }, { field: "note", op: "notEmpty" }], goto: "check" },
+        { when: [{ field: "amount", op: "gt", value: -5 }, { field: "note", op: "exists" }], goto: "check" },
         { ask: "Die Rechnung ist doppelt", goto: "end" },
         { goto: "pay" },
       ],
@@ -252,7 +252,7 @@ describe("printWizardText and parseWizardText", () => {
     const text = printWizardText(durable as unknown as WizardDefinition);
     expect(text).toContain("## Neue Rechnung");
     // notEmpty has no expression: that `when` stays JSON.
-    expect(text).toContain('when={[{"field":"amount","op":"gt","value":-5},{"field":"note","op":"notEmpty"}]}');
+    expect(text).toContain('when={[{"field":"amount","op":"gt","value":-5},{"field":"note","op":"exists"}]}');
     expect(text).toContain('when={amount > 1000 or amount < 0}');
     expect(text).toContain('<Next ask="Die Rechnung ist doppelt" goto="end" />');
     expect(text).toContain('<YesNo id="paid" description="Bezahlt?" />');
@@ -296,7 +296,7 @@ describe("printWizardText and parseWizardText", () => {
     const p = page(definition, "p");
     expect(p.fields.map((f: any) => f.when)).toEqual([
       [
-        { field: "x", op: "equals", value: "Shop" },
+        { field: "x", op: "eq", value: "Shop" },
         { field: "y", op: "gt", value: 2 },
       ],
       { calc: "budget > demo * 2" },

@@ -1,13 +1,13 @@
 import dagre from "@dagrejs/dagre";
 import {
   type Condition,
-  conditionsOf,
   type EngentyCostume,
   isOtherwise,
   type ResultStep,
   type Step,
   type WizardDefinition,
-  whenCalc,
+  type WhenWords,
+  whenText,
 } from "@engenty/wizards-shared/definition";
 import type { BranchDecision, RunEstimate, ShownDecision } from "@engenty/wizards-shared/run";
 import {
@@ -403,30 +403,45 @@ function conditionLabel(rule: NonNullable<Step["next"]>[number]): string {
     ? t("editor.whenAsk", { text: rule.ask })
     : isOtherwise(rule)
       ? t("editor.otherwise")
-      : (whenCalc(rule.when) ?? conditionsOf(rule.when).map(conditionText).join(" · "));
+      : whenText(rule.when, conditionText, whenWords(" · "));
   return rule.max ? `${label} (${t("editor.atMost", { count: rule.max })})` : label;
 }
 
 export function conditionText(c: Condition): string {
   const v = Array.isArray(c.value) ? c.value.join(" / ") : String(c.value ?? "");
   switch (c.op) {
-    case "equals":
+    case "eq":
       return `${c.field} = ${v}`;
-    case "notEquals":
+    case "ne":
       return `${c.field} ≠ ${v}`;
     case "in":
       return `${c.field} ∈ ${v}`;
-    case "notEmpty":
+    case "notIn":
+      return `${c.field} ∉ ${v}`;
+    case "exists":
       return t("editor.whenFilled", { field: c.field });
-    case "empty":
+    case "notExists":
       return t("editor.whenEmpty", { field: c.field });
     case "gt":
       return `${c.field} > ${v}`;
+    case "gte":
+      return `${c.field} ≥ ${v}`;
     case "lt":
       return `${c.field} < ${v}`;
+    case "lte":
+      return `${c.field} ≤ ${v}`;
     case "contains":
       return t("editor.whenContains", { field: c.field, value: v });
   }
+}
+
+/** How the studio joins conditions in words; `and` is what stands between two that must hold. */
+export function whenWords(and = ` ${t("editor.branch.and")} `): WhenWords {
+  return {
+    and: (first, second) => `${first}${and}${second}`,
+    or: (first, second) => `${first} ${t("editor.branch.or")} ${second}`,
+    not: (part) => `${t("editor.branch.not")} ${part}`,
+  };
 }
 
 function layout(

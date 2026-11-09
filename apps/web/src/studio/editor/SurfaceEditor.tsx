@@ -74,7 +74,7 @@ export function sampleData(
     const [head, stepId, fieldId] = ref.split(".");
     if (head === "steps") {
       const source = def.steps.find((s) => s.id === stepId);
-      if (source?.type !== "agent") {
+      if (source?.type !== "agent" && source?.type !== "decision") {
         return null;
       }
       const shape = declaredShape(source);

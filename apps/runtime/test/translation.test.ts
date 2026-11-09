@@ -51,7 +51,7 @@ const definition = {
         { id: "slot", kind: "slot", label: "Termin", options: ["2026-10-12T09:00:00+02:00"] },
       ],
       // A run past "Fisch" needs no model: the test runtime has none.
-      next: [{ when: { field: "kind", op: "equals", value: "Fisch" }, goto: "done" }],
+      next: [{ when: { field: "kind", op: "eq", value: "Fisch" }, goto: "done" }],
     },
     {
       id: "plan",

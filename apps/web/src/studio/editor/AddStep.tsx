@@ -3,6 +3,7 @@ import {
   AppWindow,
   Bot,
   ChevronDown,
+  GitFork,
   Hourglass,
   Image,
   LayoutTemplate,
@@ -16,11 +17,19 @@ import { type Key, t } from "../../lib/i18n";
 import { Button, cn, Input, Textarea } from "../../ui";
 
 /** What a new step is to be: the assistant picks with "auto". */
-export const ADD_KINDS = ["auto", "page", "agent", "generate", "surface", "widget"] as const;
+export const ADD_KINDS = [
+  "auto",
+  "page",
+  "agent",
+  "decision",
+  "generate",
+  "surface",
+  "widget",
+] as const;
 export type AddKind = (typeof ADD_KINDS)[number];
 
 /** The kinds an empty step can be inserted as, without the assistant. */
-export const EMPTY_KINDS = ["page", "agent", "generate", "widget"] as const;
+export const EMPTY_KINDS = ["page", "agent", "decision", "generate", "widget"] as const;
 /** A wait comes with the `durableRuns` switch. */
 export type EmptyKind = (typeof EMPTY_KINDS)[number] | "wait";
 
@@ -29,6 +38,7 @@ const KIND_ICON: Record<AddKind | EmptyKind, typeof Bot> = {
   auto: Sparkles,
   page: ListChecks,
   agent: Bot,
+  decision: GitFork,
   generate: Image,
   surface: LayoutTemplate,
   widget: AppWindow,
@@ -352,6 +362,13 @@ const NEW_STEP: Record<EmptyKind, (id: string) => Step> = {
     tools: [],
     output: { format: "markdown" },
   }),
+  decision: (id) => ({
+    id,
+    type: "decision",
+    title: t("step.new.decision"),
+    instructions: t("step.new.decisionTask"),
+    output: { fields: [{ id: "answer", kind: "yesno", description: t("step.new.decisionQuestion") }] },
+  }),
   generate: (id) => ({
     id,
     type: "generate",
@@ -381,6 +398,8 @@ export function withEmptyStep(
       ? "page"
       : kind === "agent"
         ? "ai"
+        : kind === "decision"
+          ? "decision"
         : kind === "widget"
           ? "widget"
           : kind === "wait"

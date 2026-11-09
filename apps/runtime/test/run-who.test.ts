@@ -719,7 +719,7 @@ describe("an approval", () => {
     const no = { ...end, id: "no", title: "Nein" };
     const decides = {
       ...check,
-      next: [{ when: { field: "steps.check.approved", op: "equals", value: true }, goto: "yes" }, { goto: "no" }],
+      next: [{ when: { field: "steps.check.approved", op: "eq", value: true }, goto: "yes" }, { goto: "no" }],
     };
     const { runId } = await onTeamStep([form, made, decides, yes, no]);
     const held = () =>
@@ -745,7 +745,7 @@ describe("an approval", () => {
     const decides = {
       ...check,
       next: [
-        { when: { field: "steps.check.approved", op: "equals", value: true }, goto: "yes" },
+        { when: { field: "steps.check.approved", op: "eq", value: true }, goto: "yes" },
         { goto: "no" },
       ],
     };

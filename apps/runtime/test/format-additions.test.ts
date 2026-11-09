@@ -196,7 +196,7 @@ describe("1c: calculated values", () => {
     expect(whenHolds(when, { budget: 10, demo: 10 })).toBe(false);
     expect(whenHolds(when, {})).toBe(false);
     expect(ruleMatches({ when, goto: "x" } as never, { budget: 100, demo: 10 })).toBe(true);
-    expect(whenHolds({ field: "a", op: "equals", value: "1" }, { a: "1" })).toBe(true);
+    expect(whenHolds({ field: "a", op: "eq", value: "1" }, { a: "1" })).toBe(true);
   });
 
   const page = (extra: object = {}) => ({

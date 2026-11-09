@@ -78,7 +78,7 @@ ${space_tools}
 
 Models: a step names the KIND of model it needs, never a model. Pick the cheapest class that does the job:
 - "classifier": routing, yes/no, picking from options, pulling a few values out of text.
-  A DECISION is a "classifier" step with no tools whose json output has only "yesno", "choice" and "score" fields: it is answered in one fast, very cheap call. A branch can also read how sure it is: "steps.<id>.<field>.p" is the probability of its answer (a number 0–1; 1 or 0 where no decision model is set up), e.g. { field: "steps.check.urgent.p", op: "gt", value: 0.8 }. Write the question into each field's description, give the step everything it must judge in its instructions via {{templates}}, and branch on the answer with "next" (e.g. { when: { field: "steps.check.refund", op: "equals", value: true }, goto: "refund" }).
+  A DECISION is a "classifier" step with no tools whose json output has only "yesno", "choice" and "score" fields: it is answered in one fast, very cheap call. A branch can also read how sure it is: "steps.<id>.<field>.p" is the probability of its answer (a number 0–1; 1 or 0 where no decision model is set up), e.g. { field: "steps.check.urgent.p", op: "gt", value: 0.8 }. Write the question into each field's description, give the step everything it must judge in its instructions via {{templates}}, and branch on the answer with "next" (e.g. { when: { field: "steps.check.refund", op: "eq", value: true }, goto: "refund" }).
 - "low": short copy, calling an API, reformatting, simple summaries.
 - "standard": research with tools, long documents, reasoning over many sources (the default).
 - "high": hard reasoning or writing code; rare in a run, several times the cost of "standard".
@@ -183,7 +183,7 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   max: how often the branch may be taken in one run. A branch BACK to an earlier step is a loop ("improve until
 //   the check passes": a decision step branches back to the writing step) — give it max (at most 10 without);
 //   the step that runs again sees what it made last time.
-// Condition = { field, op: "equals"|"notEquals"|"in"|"notEmpty"|"empty"|"gt"|"lt"|"contains", value? }
+// Condition = { field, op: "eq"|"notEquals"|"in"|"notEmpty"|"empty"|"gt"|"lt"|"contains", value? }
 // { calc: "budget > steps.estimate.total * 2" }: for a test conditions cannot write; names read as `field` does. The language is under the surface catalog. Anything a condition can say stays a condition.
 //   field is a page field id, an output field of this or an earlier agent step as "steps.<stepId>.<fieldId>",
 //   or how many rows a stored list has as "lists.<listId>.count"
@@ -471,7 +471,7 @@ type WaitStep = { type: "wait", for?: Duration, until?: string, signal?: { name,
 //   "message.received": what the person writes on a channel while the run waits. key: "person".
 //   "run.done": another run ended. key: that run's id.
 // Example: { "id": "reply", "type": "wait", "title": "Wait for the reply", "signal": { "name": "mail.received", "key": "thread:{{steps.send.thread_id}}", "timeout": "3d" },
-//            "next": [{ "when": { "field": "steps.reply.timedOut", "op": "equals", "value": true }, "goto": "remind" }] }
+//            "next": [{ "when": { "field": "steps.reply.timedOut", "op": "eq", "value": true }, "goto": "remind" }] }
 
 On a page or a review:
   who?: "person"|"owner"|"team"  // who answers. person (default): whoever does the run. owner: the run's owner. team: the people the admin names in the share dialog. The validator can't see them: a wizard with a team step can't be published until someone is named. On a test run the member who tests answers.

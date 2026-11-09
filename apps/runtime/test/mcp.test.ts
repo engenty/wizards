@@ -207,7 +207,7 @@ describe("MCP endpoint", () => {
                 id: "why",
                 label: "Warum locker?",
                 kind: "text",
-                when: { field: "tone", op: "equals", value: "locker" },
+                when: { field: "tone", op: "eq", value: "locker" },
               },
               { id: "logo", label: "Logo", kind: "image" },
             ],
@@ -267,7 +267,7 @@ describe("MCP endpoint", () => {
     expect(fields.find((f: { id: string }) => f.id === "logo").inChat).toBe(false);
     // A field with a condition on another field of the page is listed with it, not shown yet.
     expect(fields.find((f: { id: string }) => f.id === "why")).toMatchObject({
-      when: { field: "tone", op: "equals", value: "locker" },
+      when: { field: "tone", op: "eq", value: "locker" },
       shown: false,
     });
     expect(fields.find((f: { id: string }) => f.id === "tone").when).toBeUndefined();

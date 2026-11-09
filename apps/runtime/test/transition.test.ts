@@ -157,7 +157,7 @@ describe("a page's answer", () => {
 
   it("follows `when` rules on the answer", () => {
     const def = wizard([
-      page("ask", { next: [{ when: { field: "askA", op: "equals", value: "b" }, goto: "b" }] }),
+      page("ask", { next: [{ when: { field: "askA", op: "eq", value: "b" }, goto: "b" }] }),
       agent("a"),
       agent("b"),
       end(),
@@ -296,7 +296,7 @@ describe("a wait for a signal", () => {
       title: "Reply",
       signal: { name: "invoice.paid", key: "thread:{{steps.send.thread_id}}", timeout: "3d", fields: ["amount"] },
       next: [
-        { when: { field: "steps.reply.timedOut", op: "equals", value: true }, goto: "remind" },
+        { when: { field: "steps.reply.timedOut", op: "eq", value: true }, goto: "remind" },
         { goto: "done" },
       ],
     },
@@ -354,7 +354,7 @@ describe("a person's step past its deadline", () => {
     const def = wizard([
       page("ask", {
         timeout: "2d",
-        next: [{ when: { field: "steps.ask.timedOut", op: "equals", value: true }, goto: "late" }],
+        next: [{ when: { field: "steps.ask.timedOut", op: "eq", value: true }, goto: "late" }],
       }),
       agent("onTime", { next: [{ goto: "done" }] }),
       agent("late"),
@@ -377,7 +377,7 @@ describe("a person's step past its deadline", () => {
       review("check", {
         approve: true,
         timeout: "2d",
-        next: [{ when: { field: "steps.check.approved", op: "equals", value: false }, goto: "made" }],
+        next: [{ when: { field: "steps.check.approved", op: "eq", value: false }, goto: "made" }],
       }),
       end(),
     ]);
@@ -393,7 +393,7 @@ describe("a review", () => {
     review("check", {
       approve: true,
       edit: true,
-      next: [{ when: { field: "steps.check.approved", op: "equals", value: false }, goto: "made" }],
+      next: [{ when: { field: "steps.check.approved", op: "eq", value: false }, goto: "made" }],
     }),
     end(),
   ]);

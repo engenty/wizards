@@ -418,7 +418,7 @@ describe("a signal and a run that waits", () => {
 describe("what a sender can set", () => {
   it("not `came` or `timedOut`: they stay the run's, and its path too", async () => {
     const definition = [
-      listening({}, { next: [{ when: { field: "steps.reply.came", op: "equals", value: false }, goto: "missed" }] }),
+      listening({}, { next: [{ when: { field: "steps.reply.came", op: "eq", value: false }, goto: "missed" }] }),
       agent("answered", { next: [{ goto: "done" }] }),
       agent("missed"),
       end,

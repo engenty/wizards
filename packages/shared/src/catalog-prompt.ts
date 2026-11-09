@@ -30,7 +30,8 @@ const DURABLE_KEYS: ReadonlySet<string> = new Set([
 /** What each step is for, in one line. */
 const STEP_PURPOSE: Record<string, string> = {
   page: "a page the person answers",
-  agent: "an AI step that writes, researches or decides",
+  agent: "an AI step that writes, researches or calls tools",
+  decision: "answers yes/no, choice or score questions about the run in one cheap call; branch on them",
   generate: "makes an image, a video, a document or a dashboard",
   widget: "an interactive HTML view; leave its HTML to the architect",
   surface: "a view of data from the component catalog",
@@ -135,7 +136,7 @@ export function wizardTextTags(opts: { durableRuns: boolean }): string {
       leaveOut.add("fields");
       leaveOut.add("components");
       children = " Children: <Field>, components, Markdown.";
-    } else if (name === "agent") {
+    } else if (name === "agent" || name === "decision") {
       leaveOut.add("output");
       children = " Child: <Output>.";
     }
@@ -190,14 +191,14 @@ Write a project concept for a {{type}} with a budget of {{budget}} €: scope, p
   <Field id="kind" kind="select" label="What is it?" required options={["Pothole", "Broken street light", "Something else"]} />
   <Field id="other" kind="text" label="What else?" when={kind == "Something else"} />
 </Page>
-<Agent id="triage" title="Sort the report" model="classifier">
+<Decision id="triage" title="Sort the report">
 How urgent is the {{kind}} at {{where}}, judged from the photo?
-  <Output format="json">
+  <Output>
     <Choice id="urgency" description="How urgent it is" options={["today", "this week", "later"]} />
   </Output>
   <Next when={steps.triage.urgency == "today"} goto="call" />
   <Next goto="letter" />
-</Agent>
+</Decision>
 <Page id="call" title="We call you">
 ## It looks urgent
 We call you back within the hour.

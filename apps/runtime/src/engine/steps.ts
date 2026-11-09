@@ -5,7 +5,7 @@ import {
   classIdOf,
   dataRef,
   type GenerateStep,
-  isDecisionStep,
+  decisionAsAgent,
   langNameEn,
   localeOf,
   type Step,
@@ -615,7 +615,12 @@ function callPluginToolOnce(tool: string, input: unknown, ctx: StepContext) {
   return callPluginTool(tool, input, ctx);
 }
 
-export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<StepOutput> {
+/** An agent step; `decision`: a decision step, answered in one call where it has no uploads. */
+export async function runAgentStep(
+  step: AgentStep,
+  ctx: StepContext,
+  decision = false,
+): Promise<StepOutput> {
   if (step.call) {
     return runCallStep({ ...step, call: step.call }, ctx);
   }
@@ -707,7 +712,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     .join("\n\n");
 
   // A decision needs no agent: its questions go to the classifier class in one call.
-  if (isDecisionStep(step) && uploads.length === 0) {
+  if (decision && uploads.length === 0) {
     return decideStep(step, request, ctx);
   }
 
@@ -1244,6 +1249,9 @@ export async function runAutomaticStep(step: Step, ctx: StepContext): Promise<St
   await prepareInputs(ctx);
   if (step.type === "agent") {
     return runAgentStep(step, ctx);
+  }
+  if (step.type === "decision") {
+    return runAgentStep(decisionAsAgent(step), ctx, true);
   }
   if (step.type === "generate") {
     return runGenerateStep(step, ctx);

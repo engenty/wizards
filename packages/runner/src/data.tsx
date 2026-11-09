@@ -1,4 +1,9 @@
-import { type AgentStep, stepShape } from "@engenty/wizards-shared/definition";
+import {
+  type AgentStep,
+  decisionAsAgent,
+  type Step,
+  stepShape,
+} from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import {
   type FieldShape,
@@ -807,10 +812,13 @@ export function JsonSchemaDialog({
   );
 }
 
-/** A json step whose data can be edited by its shape: not one run per entry, not a tool's answer. */
-export function editableData(step: { type: string }): step is AgentStep {
-  const s = step as AgentStep;
-  return s.type === "agent" && s.output.format === "json" && !s.each && !s.call;
+/**
+ * A json step whose data can be edited by its shape, as the agent step it is or runs as: not one
+ * run per entry, not a tool's answer. Null for any other step.
+ */
+export function editableData(step: Step): AgentStep | null {
+  const s = step.type === "decision" ? decisionAsAgent(step) : step;
+  return s.type === "agent" && s.output.format === "json" && !s.each && !s.call ? s : null;
 }
 
 /**
