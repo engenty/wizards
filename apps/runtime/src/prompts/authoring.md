@@ -580,6 +580,18 @@ one-off pages stay "generate" steps. A widget is code in the wizard's WORKSPACE 
   ground. Cards for things, generous spacing, legible labels; no table of things.
 - After writing, ALWAYS run check_widget, read its errors and look at the screenshot; fix until clean.
 
+Skills of the wizard — when to use: open work where the model decides what to read and run (a house style, how to
+fill a supplier's forms, a few scripts it combines as the case needs). A fixed task with known inputs and output is
+no skill: a code step does it with no model, and a tool with typed arguments that runs in the sandbox comes later.
+- Files: "skills/<name>/SKILL.md" in the workspace, written with the file tools, plus the files it points to (references,
+  scripts). Front matter: name (the folder's name: lower-case letters, digits, hyphens), description (when a step
+  should use it), and mode: always to put it whole into every AI step; without mode, a step loads it when it fits.
+- Every AI step of this wizard sees it, before a space skill of the same name: always on in the instructions, on demand
+  by name and description, read with skill_load and skill_read. Other wizards don't see it.
+- Scripts: a step with "sandbox" gets the folder at skills/<name>/ when it loads the skill and runs them with run_command.
+  Without the sandbox the text still counts and the scripts don't run. Link every file the SKILL.md names
+  ([fill.py](scripts/fill.py)): validate checks that each exists.
+
 <!-- section: surfaces -->
 <!-- The surface catalog: what a model needs to compose a view (also used by engine/steps.ts). -->
 A surface is a flat JSON array of components; the one with id "root" is drawn. Containers list their children by id.
