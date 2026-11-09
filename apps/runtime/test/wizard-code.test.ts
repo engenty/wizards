@@ -7,7 +7,7 @@ import {
   type WizardDefinition,
   wizardSchema,
 } from "@engenty/wizards-shared/definition";
-import { pluginsOf } from "@engenty/wizards-shared/marketplace";
+import { pluginsOf, requiresOf, withRequires } from "@engenty/wizards-shared/requires";
 import {
   jsonSchemaIssues,
   wizardCodeOf,
@@ -44,6 +44,15 @@ describe("the wizard's own tool ids", () => {
     expect(pluginToolOf("wizard.score")).toBeNull();
     expect(pluginToolOf("contacts.list")).toEqual({ plugin: "contacts", tool: "list" });
     expect(pluginsOf(definition(["wizard.score", "contacts.list"]))).toEqual(["contacts"]);
+  });
+
+  it("are in requires, with the code they run and its switch", () => {
+    expect(requiresOf(definition(["web_fetch", "wizard.score"]))).toMatchObject({
+      tools: ["web_fetch", "wizard.score"],
+      run: ["code"],
+      features: ["codeSteps"],
+    });
+    expect(requiresOf(definition(["web_fetch"])).run).toBeUndefined();
   });
 
   it("are read from tools/ in the workspace, directly and by .ts or .js", () => {
@@ -130,7 +139,11 @@ describe("checks of a wizard's function tools", () => {
   it("are part of wizards validate", async () => {
     const dir = mkdtempSync(join(tmpdir(), "wizards-validate-tools-"));
     const manifest = (tools: string[]) =>
-      JSON.stringify({ format: "engenty-wizard", version: 1, definition: definition(tools) });
+      JSON.stringify({
+        format: "engenty-wizard",
+        version: 1,
+        definition: withRequires(definition(tools)),
+      });
     const write = (name: string, files: Record<string, string>, tools: string[]) => {
       const path = join(dir, name);
       writeFileSync(
