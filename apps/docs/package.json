@@ -10,10 +10,10 @@
     "typecheck": "fumadocs-mdx && next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "fumadocs-core": "16.17.10",
-    "fumadocs-mdx": "15.4.10",
-    "fumadocs-ui": "16.17.10",
-    "lucide-react": "^1.69.0",
+    "fumadocs-core": "16.18.1",
+    "fumadocs-mdx": "15.5.0",
+    "fumadocs-ui": "16.18.1",
+    "lucide-react": "^1.70.0",
     "mermaid": "^11.17.2",
     "next": "16.4.5",
     "next-themes": "^0.4.6",
@@ -22,13 +22,13 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.4",
+    "@tailwindcss/postcss": "^4.3.5",
     "@types/mdx": "^2.0.14",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "postcss": "^8.5.32",
-    "tailwindcss": "^4.3.4",
+    "tailwindcss": "^4.3.5",
     "typescript": "~7.0.2"
   }
 }
