@@ -1,7 +1,7 @@
 ---
 title: The wizard format
 description: A wizard as one JSON document, what its keys mean, and where each part is described.
-version: 0.11.2
+version: 0.18.0
 ---
 
 A wizard is one JSON document, its **definition**. The studio exports it as a `.wizard` file
@@ -155,6 +155,15 @@ stand together: “A”, “B”, “A” is an issue.
 | `motion-graphics` | Makes an animated video as code: an explainer, a product spot, a short | [Motion graphics](./motion-graphics-steps.md) |
 | `review` | Shows earlier results to check, change or make again | [Review and result](./review-and-result.md) |
 | `result` | The last page: the message and the downloads | [Review and result](./review-and-result.md) |
+
+### Which step for a task
+
+| The task | The step | Why |
+|---|---|---|
+| Research, write, read files, work in a service | An [agent step](./agent-steps.md) with `tools` | A model plans its own tool calls |
+| Fetch data a later page shows unchanged, or write as the space through a connection | An agent step with [`call`](./agent-steps.md#a-fixed-step-call-without-a-model) | No model: the same call every run, in about a second |
+| Choose a path: yes or no, one of a few options, a level | A [decision](./agent-steps.md#decisions), or an `ask` rule on [`next`](./branches.md) | One fast, cheap call |
+| An image, a video, a voice-over, a document or a dashboard | A [`generate` step](./generate-steps.md) | Made by the class for that kind of thing |
 
 Steps run from top to bottom unless a step’s `next` sends the run elsewhere. See
 [Branches and loops](./branches.md). Steps read what came before through templates such as

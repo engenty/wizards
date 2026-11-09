@@ -274,6 +274,8 @@ type AgentStep = {
                                 //   connection a write still asks them first.
   tools: ("web_search"|"web_fetch"|"browser"|"sandbox"|"image"|"http"|"pages"|"code")[]
   connections?: string[]        // ids of wizard connections this step may read (mail → mail_search, mail_read, mail_save)
+  hosts?: string[]              // the hosts the "http" tool (http_request) may call, at most 20: "api.example.com", or "*.example.org"
+                                //   for every host below it. A guest's run calls no other host; part of what the run may reach.
   output: { format: "text"|"markdown"|"json", fields?: { id, kind: "text"|"number"|"list"|"table"|"yesno"|"choice"|"score", description, columns?: string[], options?: string[] }[], schema?: Schema, surface?: SurfaceComponent[] | true }
                                 // "score" answers its description on the scale in options, lowest first ("low", "medium", "high")
                                 // fields: one level of keys (the short form). schema: nested data, below. One of the two, not both.
@@ -283,7 +285,10 @@ type AgentStep = {
                                 //   one table, steps.<id>.rows: the entry's columns plus the step's output fields, a row per entry.
                                 // a table with columns gives rows as objects with exactly those keys — what widgets read
                                 // "yesno" answers the question in its description with true/false; "choice" picks one of its options
-  model?: "classifier"|"low"|"standard"|"high"  // the kind of model, see "Models"; default "standard"
+  model?: "classifier"|"low"|"standard"|"high"|"highest"  // the kind of model, see "Models"; default "standard". "highest" only with a maker
+  maker?: "anthropic"|"openai"|"google"|"mistral"  // that maker's model of the class, never another's. Its classes: anthropic, openai
+                                //   low|standard|high|highest · google low|standard|high · mistral low|high. Not with "classifier".
+                                //   Leave it out unless the admin asks for a maker: without one the organization's tier picks the model
   effort?: "low"|"medium"|"high"                // how hard it should think; leave out unless it matters
   working?: string              // shown while it runs ("Recherchiert im Web …")
 }
