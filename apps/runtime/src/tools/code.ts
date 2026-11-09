@@ -61,8 +61,27 @@ export const CODE_TOOL_ID = "execute_typescript";
 interface ProgramCall {
   id?: string;
   seen: Map<string, number>;
+  /** A wizard's function tool (wizard.ts): its call ends after seconds, so nobody is asked. */
+  noAsk?: boolean;
 }
 const program = new AsyncLocalStorage<ProgramCall>();
+
+/**
+ * Runs the tool calls of one call of a wizard's function tool (wizard.ts) as a program's: their
+ * ids come from the call's, and nobody is asked (`askOf`).
+ */
+export function wizardToolScope(id: string | undefined) {
+  const call: ProgramCall = { id, seen: new Map(), noAsk: true };
+  return <T>(fn: () => T): T => program.run(call, fn);
+}
+
+/**
+ * Who a tool may put a question to: the step's person, but nobody inside a wizard's function tool.
+ * A write that needs a yes is refused there; the model calls that tool itself and is asked.
+ */
+export function askOf(ctx: Pick<StepContext, "ask">): StepContext["ask"] | undefined {
+  return program.getStore()?.noAsk ? undefined : ctx.ask;
+}
 
 /**
  * Whether a tool is running for a program. Nobody can be asked from inside one: a tool that needs

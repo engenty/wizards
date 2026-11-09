@@ -11,6 +11,7 @@ import {
   type WizardDefinition,
 } from "./definition.js";
 import { unavoidableSteps } from "./fit.js";
+import { wizardCodeOf, wizardToolsUsed } from "./wizard-code.js";
 
 /**
  * What a wizard needs before a run starts, worked out from its steps: the root `requires` of a
@@ -118,7 +119,7 @@ export function requiresOf(def: WizardDefinition): Requires {
     }
     if (step.type === "agent") {
       for (const tool of step.tools) {
-        if (BUILT_IN.has(tool)) {
+        if (BUILT_IN.has(tool) || wizardCodeOf(tool)?.kind === "tool") {
           tools.add(tool);
         }
       }
@@ -129,7 +130,8 @@ export function requiresOf(def: WizardDefinition): Requires {
   for (const cls of models) {
     optionalModels.delete(cls);
   }
-  const code = def.steps.some((s) => s.type === "code");
+  // A code step, or a function tool of the wizard: its own code runs.
+  const code = def.steps.some((s) => s.type === "code") || wizardToolsUsed(def).length > 0;
   const connections = sorted((def.connections ?? []).flatMap((c) => (c.kind ? [c.kind] : [])));
   const features = [
     ...(code ? (["codeSteps"] as const) : []),

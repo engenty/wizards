@@ -24,7 +24,7 @@ import { type ExecResult, shellToolDescription } from "../sandbox/index.js";
 import { snapshotFile } from "../services/files.js";
 import { hasStoreFiles } from "../store/index.js";
 import { browserTools } from "./browser.js";
-import { codeTool, toolCallIdOf } from "./code.js";
+import { askOf, codeTool, toolCallIdOf } from "./code.js";
 import { connectorTools } from "./connector.js";
 import { mailTools } from "./mail.js";
 import { assertPublicUrl, safeFetch } from "./net-guard.js";
@@ -34,6 +34,7 @@ import { clip, FileKeeper } from "./shared.js";
 import { skillsOf } from "./skills.js";
 import { storeTools, type UploadRef } from "./store.js";
 import { gatewayWebSearch } from "./web-search.js";
+import { wizardTools } from "./wizard.js";
 
 // A request to a host is a send to that host; the broker holds a guest's run to the hosts in its grant.
 reachesOutside("http_request", { connection: "host", action: "http_request", kind: "send" });
@@ -184,7 +185,7 @@ export async function buildStepTools(
             turn: ctx.turn,
             toolCallId: toolCallIdOf(context, "http_request", { method, url, headers, json }),
           },
-          ask: ctx.ask,
+          ask: askOf(ctx),
           handler: async (idempotencyKey) => {
             await ctx.emit("tool", `${method} ${safe.hostname}${safe.pathname}`);
             const res = await safeFetch(safe.toString(), {
@@ -353,6 +354,9 @@ export async function buildStepTools(
       },
     });
   }
+
+  // The wizard's own function tools, over the step's other tools (wizard.ts).
+  Object.assign(tools, await wizardTools(step, ctx, tools, browser));
 
   // An installed client writes and runs code of its own.
   let instructions: string | undefined;

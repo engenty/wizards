@@ -231,7 +231,7 @@ export const FEATURES = {
     kind: "release",
     default: false,
     label: "Code steps",
-    hint: "A step that runs a function from the wizard's files with no model: maths, reshaping, scoring. The architect knows it, and a run with one starts (docs/plans/code-step.md).",
+    hint: "A step that runs a function from the wizard's files with no model: maths, reshaping, scoring. With it, function tools in the wizard's files that a step's model calls (docs/plans/wizard-code.md). The architect knows both, and a run with them starts (docs/plans/code-step.md).",
   },
   ownKeys: {
     kind: "plan",

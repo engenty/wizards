@@ -3,6 +3,7 @@ import { basename, dirname, join, relative } from "node:path";
 import { parseWizard, type ValidationIssue } from "@engenty/wizards-shared/definition";
 import { requiresProblem } from "@engenty/wizards-shared/requires";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
+import { wizardToolFileIssues } from "../engine/wizard-code.js";
 import { json, readManifest, readPackage } from "../services/package-file.js";
 import { bad, dim, ok } from "./ui.js";
 
@@ -11,7 +12,8 @@ import { bad, dim, ok } from "./ui.js";
  * running studio and no account. A path is a `.wizard` package, an unpacked one (its folder or
  * its wizard.json, with the workspace beside it under files/), or a definition on its own.
  *
- * What a space holds — its connectors, MCP servers and plugins — is checked on import.
+ * What a space holds — its connectors, MCP servers and plugins — is checked on import. The
+ * wizard's function tools (`files/tools/`) are loaded in QuickJS, as a run loads them.
  */
 
 interface Checked {
@@ -33,8 +35,15 @@ function workspace(folder: string): string[] {
   }
 }
 
-/** The definition and the workspace's paths, read the way the import reads them. */
-function read(path: string): { definition: unknown; files: string[] } {
+interface Given {
+  definition: unknown;
+  files: string[];
+  /** A workspace file's text, or null where it isn't there. */
+  read: (path: string) => Promise<string | null>;
+}
+
+/** The definition and the workspace, read the way the import reads them. */
+function read(path: string): Given {
   const folder = statSync(path).isDirectory()
     ? path
     : basename(path) === PACKAGE_MANIFEST
@@ -42,14 +51,27 @@ function read(path: string): { definition: unknown; files: string[] } {
       : null;
   if (folder) {
     const manifest = readManifest(json(readFileSync(join(folder, PACKAGE_MANIFEST))));
-    return { definition: manifest.definition, files: workspace(folder) };
+    const files = workspace(folder);
+    return {
+      definition: manifest.definition,
+      files,
+      read: async (file) =>
+        files.includes(file) ? readFileSync(join(folder, PACKAGE_FILES, file), "utf8") : null,
+    };
   }
   const { manifest, files } = readPackage(readFileSync(path));
-  return { definition: manifest.definition, files: files.map((f) => f.path) };
+  return {
+    definition: manifest.definition,
+    files: files.map((f) => f.path),
+    read: async (file) => {
+      const found = files.find((f) => f.path === file);
+      return found ? new TextDecoder().decode(found.data) : null;
+    },
+  };
 }
 
-export function validatePath(path: string): Checked {
-  let given: { definition: unknown; files: string[] };
+export async function validatePath(path: string): Promise<Checked> {
+  let given: Given;
   try {
     given = read(path);
   } catch (err) {
@@ -62,7 +84,15 @@ export function validatePath(path: string): Checked {
   const parsed = parseWizard(given.definition, given.files);
   // `requires` says what the steps need: a file that says otherwise is out of date.
   const requires = parsed.ok ? requiresProblem(parsed.wizard) : null;
-  const issues = requires ? [...parsed.issues, { message: requires }] : parsed.issues;
+  const checked = requires ? [...parsed.issues, { message: requires }] : parsed.issues;
+  // A tool a step names is checked by the definition too: each message once.
+  const said = new Set(checked.map((issue) => issue.message));
+  const issues = [
+    ...checked,
+    ...(await wizardToolFileIssues(given.files, given.read))
+      .filter((message) => !said.has(message))
+      .map((message) => ({ message })),
+  ];
   return {
     path,
     ok: parsed.ok && issues.length === 0,
@@ -72,12 +102,12 @@ export function validatePath(path: string): Checked {
   };
 }
 
-export function validateCommand(paths: string[], asJson: boolean): number {
+export async function validateCommand(paths: string[], asJson: boolean): Promise<number> {
   if (!paths.length) {
     console.error("Give a path: a .wizard file, an unpacked package or a wizard JSON file.");
     return 2;
   }
-  const results = paths.map(validatePath);
+  const results = await Promise.all(paths.map(validatePath));
   if (asJson) {
     console.log(JSON.stringify(results, null, 2));
   } else {

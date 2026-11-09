@@ -65,49 +65,49 @@ describe("wizards validate", () => {
     return path;
   };
 
-  it("checks a definition on its own", () => {
-    const r = validatePath(write("example.json", JSON.stringify(EXAMPLE_WIZARD)));
+  it("checks a definition on its own", async () => {
+    const r = await validatePath(write("example.json", JSON.stringify(EXAMPLE_WIZARD)));
     expect(r).toMatchObject({ ok: true, steps: EXAMPLE_WIZARD.steps.length, issues: [] });
   });
 
-  it("checks a package against its workspace", () => {
+  it("checks a package against its workspace", async () => {
     const zip = (files: Record<string, Uint8Array>) =>
       zipSync({ "wizard.json": strToU8(JSON.stringify(manifest(widget))), ...files });
-    const whole = validatePath(
+    const whole = await validatePath(
       write("whole.wizard", zip({ "files/map/index.html": strToU8("<h1>Karte</h1>") })),
     );
     expect(whole).toMatchObject({ ok: true, steps: 2, files: 1 });
-    const lacking = validatePath(write("lacking.wizard", zip({})));
+    const lacking = await validatePath(write("lacking.wizard", zip({})));
     expect(lacking.ok).toBe(false);
     expect(lacking.issues.map((i) => i.message).join("\n")).toContain("map/index.html");
   });
 
-  it("checks an unpacked package by its folder or its wizard.json", () => {
+  it("checks an unpacked package by its folder or its wizard.json", async () => {
     const folder = join(dir, "unpacked");
     mkdirSync(join(folder, "files/map"), { recursive: true });
     writeFileSync(join(folder, "wizard.json"), JSON.stringify(manifest(widget)));
     writeFileSync(join(folder, "files/map/index.html"), "<h1>Karte</h1>");
-    expect(validatePath(folder)).toMatchObject({ ok: true, files: 1 });
-    expect(validatePath(join(folder, "wizard.json"))).toMatchObject({ ok: true, files: 1 });
+    expect(await validatePath(folder)).toMatchObject({ ok: true, files: 1 });
+    expect(await validatePath(join(folder, "wizard.json"))).toMatchObject({ ok: true, files: 1 });
   });
 
-  it("names where the shape is wrong, and answers with 1", () => {
+  it("names where the shape is wrong, and answers with 1", async () => {
     const path = write(
       "broken.json",
       JSON.stringify({ title: "x", steps: [{ id: "ask", type: "form", title: 3 }] }),
     );
-    const r = validatePath(path);
+    const r = await validatePath(path);
     expect(r.ok).toBe(false);
     expect(r.issues[0].message).toMatch(/^steps\[0\] "ask"/);
-    expect(validatePath(join(dir, "missing.wizard")).issues[0].message).toBe(
+    expect((await validatePath(join(dir, "missing.wizard"))).issues[0].message).toBe(
       "No such file or folder.",
     );
     const log = console.log;
     console.log = () => {};
     try {
-      expect(validateCommand([path], false)).toBe(1);
-      expect(validateCommand([join(dir, "example.json")], true)).toBe(0);
-      expect(validateCommand([], false)).toBe(2);
+      expect(await validateCommand([path], false)).toBe(1);
+      expect(await validateCommand([join(dir, "example.json")], true)).toBe(0);
+      expect(await validateCommand([], false)).toBe(2);
     } finally {
       console.log = log;
     }
