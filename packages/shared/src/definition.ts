@@ -794,6 +794,23 @@ export const agentStepSchema = z.object({
       }),
     ])
     .optional(),
+  /**
+   * A fixed step: a function of the wizard, run once with these inputs and no model
+   * (docs/plans/code-step.md). `entry` is a workspace file (.ts or .js) that defines
+   * `function run(input)`; what it returns is the step's json output, fitted to `output.fields`
+   * or `output.schema`. For maths, reshaping and scoring that `calc` cannot say in one line.
+   */
+  code: z
+    .object({
+      /** Workspace path of the code, like a widget's `entry`. */
+      entry: z.string().min(1),
+      /**
+       * What `run` gets: key → a path ("budget", "steps.find.offers", "lists.prices", "today")
+       * for the raw value, or a template ("{{name}} in {{city}}") for text.
+       */
+      input: z.record(z.string(), z.string()).default({}),
+    })
+    .optional(),
   tools: z.array(z.union([z.enum(TOOL_IDS), pluginToolIdSchema])).default([]),
   /** Ids of wizard connections (the person's accounts) this step may use. */
   connections: z.array(z.string()).optional(),
@@ -1181,6 +1198,16 @@ export type PageStep = z.infer<typeof pageStepSchema>;
 export type SurfaceStep = z.infer<typeof surfaceStepSchema>;
 export type AgentStep = z.infer<typeof agentStepSchema>;
 
+/** A fixed step: one `call` or the wizard's own `code`, run once with no model and no credits. */
+export function runsWithoutModel(step: AgentStep): boolean {
+  return Boolean(step.call || step.code);
+}
+
+/** Whether a wizard has a code step: it runs only where the `codeSteps` switch is on. */
+export function hasCodeStep(def: Pick<WizardDefinition, "steps">): boolean {
+  return def.steps.some((s) => s.type === "agent" && Boolean(s.code));
+}
+
 /**
  * A decision: a step on the classifier class that uses no tools and whose output is only
  * yes/no and choice fields. It is answered in one call, which a model that only decides
@@ -1189,7 +1216,7 @@ export type AgentStep = z.infer<typeof agentStepSchema>;
 export function isDecisionStep(step: AgentStep): boolean {
   const fields = step.output.fields ?? [];
   return (
-    !step.call &&
+    !runsWithoutModel(step) &&
     !step.output.schema &&
     step.model === "classifier" &&
     step.output.format === "json" &&
@@ -1503,6 +1530,43 @@ export function sectionOf(def: Pick<WizardDefinition, "steps">, stepId: string):
     }
   }
   return null;
+}
+
+/**
+ * What a code step may not have: it runs the wizard's function once, with no model, so nothing
+ * of an AI step applies, and its output is json of a declared shape. Its inputs are checked with
+ * the step's templates.
+ */
+function codeStepIssues(
+  step: AgentStep,
+  code: NonNullable<AgentStep["code"]>,
+  files: string[] | undefined,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const say = (message: string) => issues.push({ stepId: step.id, message });
+  if (!/\.(ts|js)$/.test(code.entry)) {
+    say(`Code entry "${code.entry}" is a .ts or .js file.`);
+  } else if (files && !files.includes(code.entry)) {
+    say(`Code entry "${code.entry}" is not in the workspace.`);
+  }
+  const extra = [
+    step.each && "each",
+    step.durable && "durable",
+    step.tools.length && "tools",
+    step.connections?.length && "connections",
+  ].filter(Boolean);
+  if (extra.length) {
+    say(`A step with "code" runs no model: no ${extra.map((k) => `"${k}"`).join(", ")}.`);
+  }
+  if (step.output.format !== "json") {
+    say('A step with "code" returns json: output format "json".');
+  } else if (!step.output.fields?.length && !step.output.schema) {
+    say('A step with "code" declares what it returns: output "fields" or "schema".');
+  }
+  if (step.output.surface === true) {
+    say('A step with "code" runs no model to compose a view: give "surface" its components.');
+  }
+  return issues;
 }
 
 /** A name that comes back after another ("A", "B", "A"): the bar could not show it in order. */
@@ -1986,6 +2050,20 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
               stepId: step.id,
               message: 'A step with "call" keeps the tool\'s answer: output format "json".',
             });
+          }
+          if (step.code) {
+            issues.push({ stepId: step.id, message: 'A step has "call" or "code", not both.' });
+          }
+        } else if (step.code) {
+          issues.push(...codeStepIssues(step, step.code, files));
+          for (const [key, value] of Object.entries(step.code.input)) {
+            if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+              issues.push({
+                stepId: step.id,
+                message: `Code input "${key}" is not an identifier.`,
+              });
+            }
+            checkTemplate(step, value.includes("{{") ? value : `{{${dataRef(value)}}}`);
           }
         } else if (!step.instructions.trim()) {
           issues.push({ stepId: step.id, message: "An AI step needs instructions." });

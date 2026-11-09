@@ -311,7 +311,7 @@ export function registerTools(server: McpServer, who: Principal) {
         await listConnectors(space.id),
         await pluginToolsOf(who.tenantId),
         await guideSpaceConnections(space.id),
-        (await currentFeatures()).durableRuns,
+        await currentFeatures(),
       );
     },
   );

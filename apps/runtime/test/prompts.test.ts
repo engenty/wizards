@@ -67,7 +67,12 @@ describe("prompts", () => {
 
   it("the guide tells of waits only while a run can do them", () => {
     expect(authoringGuide()).not.toContain("type WaitStep");
-    expect(authoringGuide([], [], [], true)).toContain("type WaitStep");
+    expect(authoringGuide([], [], [], { durableRuns: true })).toContain("type WaitStep");
+  });
+
+  it("the guide tells of code steps only while a run can do them", () => {
+    expect(authoringGuide()).not.toContain("Code steps.");
+    expect(authoringGuide([], [], [], { codeSteps: true })).toContain("Code steps.");
   });
 
   it("fills placeholders strictly", () => {

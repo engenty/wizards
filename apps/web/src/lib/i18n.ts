@@ -2362,6 +2362,7 @@ const de: Record<Key, Line> = {
   "type.page": "Seite",
   "type.agent": "KI-Schritt",
   "type.fixed": "Fester Schritt",
+  "type.code": "Code-Schritt",
   "type.generate": "Erzeugen",
   "type.surface": "Ansicht",
   "type.widget": "Widget",
@@ -2779,6 +2780,13 @@ const de: Record<Key, Line> = {
   "inspector.callTool": "Werkzeug eines Plugins",
   "inspector.callInput": "Eingaben",
   "inspector.callNoInput": "Die Aktion bekommt keine Eingaben.",
+  "inspector.code": "Code",
+  "inspector.codeHint":
+    "Dieser Schritt führt eine Funktion aus den Dateien des Wizards aus, einmal und ohne KI. Was sie zurückgibt, ist sein Ergebnis. Ändern lässt er sich im Chat.",
+  "inspector.codeFile": "Datei",
+  "inspector.codeMissing": "Diese Datei fehlt in den Dateien des Wizards.",
+  "inspector.codeNoInput": "Die Funktion bekommt keine Eingaben.",
+  "inspector.codeReturns": "Gibt zurück",
   "inspector.tools": "Werkzeuge",
   "inspector.personAccounts": "Konten der Person",
   "inspector.personAccountsHint":
@@ -7319,6 +7327,7 @@ const en = {
   "type.page": "Page",
   "type.agent": "AI step",
   "type.fixed": "Fixed step",
+  "type.code": "Code step",
   "type.generate": "Generate",
   "type.surface": "View",
   "type.widget": "Widget",
@@ -7729,6 +7738,13 @@ const en = {
   "inspector.callTool": "A plugin’s tool",
   "inspector.callInput": "Input",
   "inspector.callNoInput": "The action gets no input.",
+  "inspector.code": "Code",
+  "inspector.codeHint":
+    "This step runs a function from the wizard’s files, once and without AI. What it returns is the step’s result. Change it in the chat.",
+  "inspector.codeFile": "File",
+  "inspector.codeMissing": "This file isn’t in the wizard’s files.",
+  "inspector.codeNoInput": "The function gets no input.",
+  "inspector.codeReturns": "Returns",
   "inspector.tools": "Tools",
   "inspector.personAccounts": "The person’s accounts",
   "inspector.personAccountsHint":

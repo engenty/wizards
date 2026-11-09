@@ -1656,6 +1656,29 @@
                       }
                     ]
                   },
+                  "code": {
+                    "type": "object",
+                    "properties": {
+                      "entry": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "input": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "entry"
+                    ],
+                    "additionalProperties": false
+                  },
                   "tools": {
                     "default": [],
                     "type": "array",

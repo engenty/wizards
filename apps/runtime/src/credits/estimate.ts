@@ -1,6 +1,7 @@
 import {
   isDecidedField,
   isDecisionStep,
+  runsWithoutModel,
   type Step,
   type TextClass,
   textClassOf,
@@ -53,8 +54,8 @@ function formula(step: Step, catalog: GatewayCatalog): number {
 function stepFormula(step: Step, catalog: GatewayCatalog): number {
   const cls = (c: TextClass) => catalog.classes[c];
   if (step.type === "agent") {
-    // A call runs one tool and no model: nothing to pay for.
-    if (step.call) {
+    // A call runs one tool and no model, code the wizard's own function: nothing to pay for.
+    if (runsWithoutModel(step)) {
       return 0;
     }
     // A decision is one small call to the classifier class.

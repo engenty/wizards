@@ -17,6 +17,7 @@ import {
   type Format,
   followRules,
   formatsFor,
+  hasCodeStep,
   isDecidedField,
   LIST_FORMATS,
   listRef,
@@ -26,6 +27,7 @@ import {
   pageNeeds,
   type ReviewStep,
   RUN_DONE_SIGNAL,
+  runsWithoutModel,
   type Step,
   sectionOf,
   sectionsOf,
@@ -584,6 +586,12 @@ export async function createRun(input: {
   // Off, nothing starts that would need the clock; a run that already waits goes on.
   if (input.definition.steps.some((s) => s.type === "wait") && !(await durableRunsOn())) {
     throw new ModelUnavailableError(note("waitsOff"));
+  }
+  if (
+    hasCodeStep(input.definition) &&
+    !feature("codeSteps", await remoteFeatures().catch(() => null))
+  ) {
+    throw new ModelUnavailableError(note("codeStepsOff"));
   }
   // A step every run passes through needs a model this runtime cannot serve: refuse before anything is held.
   const blocked = blockingMessage(await missingModelsSaid(input.definition));
@@ -2299,7 +2307,7 @@ async function drive(runId: string, signal: AbortSignal) {
       if (
         step.type === "agent" &&
         step.durable &&
-        !step.call &&
+        !runsWithoutModel(step) &&
         !step.each &&
         state.turn?.stepId !== step.id &&
         (await effectsOn())
