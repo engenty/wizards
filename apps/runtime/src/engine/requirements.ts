@@ -11,6 +11,7 @@ import {
   MODEL_CLASSES,
   type ModelClass,
   type NextRule,
+  runsWithoutModel,
   type Step,
   type TextClass,
   textClassOf,
@@ -70,8 +71,8 @@ function ownClasses(step: Step): ModelClass[] {
     case "decision":
       return ["classifier"];
     case "agent": {
-      // A call runs one tool and no model.
-      if (step.call) {
+      // A call runs one tool and no model, code the wizard's own function.
+      if (runsWithoutModel(step)) {
         return [];
       }
       const classes: ModelClass[] = [textClassOf(step.model ?? "standard")];

@@ -101,7 +101,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
             ctx.space ? await listConnectors(ctx.space.id) : [],
             await pluginToolsOf(user.tenantId),
             ctx.space ? await guideSpaceConnections(ctx.space.id) : [],
-            (await currentFeatures()).durableRuns,
+            await currentFeatures(),
           );
           const start = Math.min(from ?? 0, guide.length);
           return {
