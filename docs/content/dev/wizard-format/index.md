@@ -145,7 +145,8 @@ stand together: “A”, “B”, “A” is an issue.
 | Type | What it does | Page |
 |---|---|---|
 | `page` | Asks the person, one to five fields | [Pages and fields](./pages-and-fields.md) |
-| `agent` | An AI step: researches, writes, decides, calls tools | [Agent steps](./agent-steps.md) |
+| `agent` | An AI step: researches, writes, calls tools | [Agent steps](./agent-steps.md) |
+| `decision` | Answers yes or no, a choice or a score about the run, in one cheap call | [Agent steps](./agent-steps.md#decisions) |
 | `generate` | Makes an image, a video, a voice-over, a document or a dashboard | [Images, video and documents](./generate-steps.md) |
 | `surface` | Shows a view built from the surface catalog | [Views and widgets](./views-and-widgets.md) |
 | `widget` | Shows an HTML app from the wizard’s workspace | [Views and widgets](./views-and-widgets.md) |
@@ -159,7 +160,7 @@ stand together: “A”, “B”, “A” is an issue.
 |---|---|---|
 | Research, write, read files, work in a service | An [agent step](./agent-steps.md) with `tools` | A model plans its own tool calls |
 | Fetch data a later step shows unchanged, or write as the space through a connection | An agent step with [`call`](./agent-steps.md#a-fixed-step-call-without-a-model) | No model: the same call every run, in about a second |
-| Choose a path: yes or no, one of a few options, a level | A [decision](./agent-steps.md#decisions), or an `ask` rule on [`next`](./branches.md) | One fast, cheap call |
+| Choose a path: yes or no, one of a few options, a level | A [`decision` step](./agent-steps.md#decisions), or an `ask` rule on [`next`](./branches.md) | One fast, cheap call |
 | An image, a video, a voice-over, a document or a dashboard | A [`generate` step](./generate-steps.md) | Made by the class for that kind of thing |
 
 Steps run from top to bottom unless a step’s `next` sends the run elsewhere. See

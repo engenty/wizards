@@ -31,7 +31,8 @@ const DURABLE_KEYS: ReadonlySet<string> = new Set([
 const STEP_PURPOSE: Record<string, string> = {
   page: "a page the person answers",
   agent: "an AI step that writes, researches or calls tools",
-  decision: "answers yes/no, choice or score questions about the run in one cheap call; branch on them",
+  decision:
+    "answers yes/no, choice or score questions about the run in one cheap call; branch on them",
   generate: "makes an image, a video, a document or a dashboard",
   widget: "an interactive HTML view; leave its HTML to the architect",
   surface: "a view of data from the component catalog",

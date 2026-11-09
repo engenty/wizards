@@ -21,7 +21,7 @@ durableRuns=on
 {
   "id": "reply", "type": "wait", "title": "Wait for the reply",
   "signal": { "name": "mail.received", "key": "thread:{{steps.send.thread_id}}", "timeout": "3d" },
-  "next": [{ "when": { "field": "steps.reply.timedOut", "op": "equals", "value": true }, "goto": "remind" }]
+  "next": [{ "when": { "field": "steps.reply.timedOut", "op": "eq", "value": true }, "goto": "remind" }]
 }
 ```
 
@@ -141,7 +141,7 @@ A review with `approve` asks to approve or decline instead of “Looks good”:
 {
   "id": "approveOffer", "type": "review", "title": "Approve the offer",
   "show": ["offer"], "who": "team", "approve": true, "timeout": "2d",
-  "next": [{ "when": { "field": "steps.approveOffer.approved", "op": "equals", "value": false }, "goto": "rewrite" }]
+  "next": [{ "when": { "field": "steps.approveOffer.approved", "op": "eq", "value": false }, "goto": "rewrite" }]
 }
 ```
 

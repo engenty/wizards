@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Once: every stored wizard definition becomes version 1 with today's class names. Not part of
+// Once: every stored wizard definition becomes version 1 of the format as it is now. Not part of
 // the product; run it where the runtime's data is, with the runtime's environment.
 //
 //   node apps/runtime/scripts/definition-v1.mjs            counts per tenant, writes nothing
@@ -17,10 +17,19 @@
 // written with today's names, by a build that writes version 1: it stays as it is. Run again,
 // the script finds nothing to do.
 //
+// What changes in a definition of version 2, besides its version:
+// - An agent step that is a decision (the classifier class, no tools, call, each or connections,
+//   json output of only yesno, choice and score fields) becomes `type: "decision"` with its
+//   instructions, its fields and `working`.
+// - Condition operators take their new names in every `when`: equals → eq, notEquals → ne,
+//   empty → notExists, notEmpty → exists. The others keep theirs.
+//
+// `toVersion1` is exported for the marketplace's entries (the Manage repo), which are files.
+//
 // A tenant database that 0021 has not reached yet still holds the old names: the script leaves
 // it and says so. Start the runtime once (it migrates every tenant), then run the script.
 import { existsSync, readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { createClient } from "@libsql/client";
 
 const args = process.argv.slice(2);
@@ -32,15 +41,102 @@ const MODEL_CLASSES_MIGRATION = 1792568616734;
 
 const open = (url, authToken) => createClient({ url, ...(authToken ? { authToken } : {}) });
 
-/** The definition at version 1, or the reason it stays. */
-function converted(def) {
+const OPS = { equals: "eq", notEquals: "ne", empty: "notExists", notEmpty: "exists" };
+const DECISION_KINDS = new Set(["yesno", "choice", "score"]);
+
+/** Whether an agent step of version 2 was a decision: the shape the app recognized it by. */
+function isDecision(step) {
+  const fields = step.output?.fields ?? [];
+  return (
+    step.type === "agent" &&
+    !step.call &&
+    !step.output?.schema &&
+    step.model === "classifier" &&
+    step.output?.format === "json" &&
+    fields.length > 0 &&
+    fields.every((f) => DECISION_KINDS.has(f?.kind)) &&
+    !step.each &&
+    !(step.tools ?? []).length &&
+    !step.connections?.length
+  );
+}
+
+/** The decision step an agent step of that shape becomes: its own keys, nothing of an agent's. */
+function asDecision(step) {
+  const { id, title, description, section, next, onFail, instructions, working } = step;
+  const fields = step.output.fields.map(({ columns: _, ...field }) => field);
+  return Object.fromEntries(
+    Object.entries({
+      id,
+      type: "decision",
+      title,
+      description,
+      section,
+      instructions,
+      output: { fields },
+      working,
+      next,
+      onFail,
+    }).filter(([, v]) => v !== undefined),
+  );
+}
+
+/** Every `when` in a value, with the operators renamed; counts each renamed one. */
+function renamedOps(value, counts) {
+  if (Array.isArray(value)) {
+    return value.map((v) => renamedOps(v, counts));
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const out = {};
+  for (const [key, v] of Object.entries(value)) {
+    out[key] = key === "when" ? renamedInWhen(v, counts) : renamedOps(v, counts);
+  }
+  return out;
+}
+
+function renamedInWhen(when, counts) {
+  if (Array.isArray(when)) {
+    return when.map((w) => renamedInWhen(w, counts));
+  }
+  if (!when || typeof when !== "object") {
+    return when;
+  }
+  if (typeof when.op === "string" && OPS[when.op]) {
+    counts.ops++;
+    return { ...when, op: OPS[when.op] };
+  }
+  if (Array.isArray(when.any)) {
+    return { ...when, any: when.any.map((w) => renamedInWhen(w, counts)) };
+  }
+  if (when.not) {
+    return { ...when, not: renamedInWhen(when.not, counts) };
+  }
+  return when;
+}
+
+/**
+ * A definition of version 2 at version 1 as the format is now, with what changed counted
+ * (`decisions`, `ops`). Anything else comes back with `kind` saying why it stays.
+ */
+export function toVersion1(def) {
   if (!def || typeof def !== "object" || Array.isArray(def) || !Array.isArray(def.steps)) {
     return { kind: "skipped" };
   }
-  if (def.version === 2) {
-    return { kind: "v2", def: { ...def, version: 1 } };
+  if (def.version !== 2) {
+    return { kind: def.version === 1 || def.version === undefined ? "current" : "skipped" };
   }
-  return { kind: def.version === 1 || def.version === undefined ? "current" : "skipped" };
+  const counts = { decisions: 0, ops: 0 };
+  const steps = def.steps.map((step) => {
+    if (step && typeof step === "object" && isDecision(step)) {
+      counts.decisions++;
+      return asDecision(step);
+    }
+    return step;
+  });
+  const next = renamedOps({ ...def, version: 1, steps }, counts);
+  return { kind: "v2", def: next, ...counts };
 }
 
 /** Reads JSON text, or null. */
@@ -99,7 +195,7 @@ function setAt(obj, path, value) {
 }
 
 async function convertTenant(db) {
-  const counts = { v2: 0, current: 0, skipped: 0 };
+  const counts = { v2: 0, current: 0, skipped: 0, decisions: 0, ops: 0 };
   if (!(await hasTable(db, "wizard"))) {
     return { counts, missing: "no wizard table" };
   }
@@ -127,8 +223,10 @@ async function convertTenant(db) {
         if (def === undefined || def === null) {
           continue;
         }
-        const out = converted(def);
+        const out = toVersion1(def);
         counts[out.kind]++;
+        counts.decisions += out.decisions ?? 0;
+        counts.ops += out.ops ?? 0;
         if (out.def) {
           doc = setAt(doc, path, out.def);
           changed = true;
@@ -180,8 +278,8 @@ async function main() {
   }
   const token = process.env.TENANT_DB_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN;
   console.log(`${write ? "Converting" : "Dry run, nothing written:"} ${tenants.length} tenants`);
-  console.log("tenant\tversion 2 → 1\talready 1\tnot a definition\trows");
-  const total = { v2: 0, current: 0, skipped: 0, rows: 0 };
+  console.log("tenant\tversion 2 → 1\tdecisions\toperators\talready 1\tnot a definition\trows");
+  const total = { v2: 0, decisions: 0, ops: 0, current: 0, skipped: 0, rows: 0 };
   const failed = [];
   for (const t of tenants) {
     const url = tenantUrl(t.id, t.dbUrl);
@@ -200,8 +298,10 @@ async function main() {
         continue;
       }
       const c = out.counts;
-      console.log(`${t.id}\t${c.v2}\t${c.current}\t${c.skipped}\t${out.rows}`);
-      for (const k of ["v2", "current", "skipped"]) {
+      console.log(
+        `${t.id}\t${c.v2}\t${c.decisions}\t${c.ops}\t${c.current}\t${c.skipped}\t${out.rows}`,
+      );
+      for (const k of ["v2", "decisions", "ops", "current", "skipped"]) {
         total[k] += c[k];
       }
       total.rows += out.rows;
@@ -213,7 +313,7 @@ async function main() {
     }
   }
   console.log(
-    `total\t${total.v2}\t${total.current}\t${total.skipped}\t${total.rows}${write ? "" : " (not written)"}`,
+    `total\t${total.v2}\t${total.decisions}\t${total.ops}\t${total.current}\t${total.skipped}\t${total.rows}${write ? "" : " (not written)"}`,
   );
   if (failed.length) {
     console.log(`not converted: ${failed.join(", ")}`);
@@ -221,4 +321,8 @@ async function main() {
   }
 }
 
-await main();
+// Run as a script (a file, or piped in on stdin), not when imported for `toVersion1`.
+const entry = process.argv[1];
+if (entry === "-" || (entry && import.meta.url.endsWith(`/${basename(entry)}`))) {
+  await main();
+}

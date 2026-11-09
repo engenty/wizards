@@ -149,7 +149,7 @@ the person types, or anything known before the page:
 
 ```json
 { "id": "company", "label": "Company", "kind": "text",
-  "when": { "field": "customerType", "op": "equals", "value": "Business" } }
+  "when": { "field": "customerType", "op": "eq", "value": "Business" } }
 ```
 
 A hidden field is not asked and not kept. Its template is empty. Conditions are described on

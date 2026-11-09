@@ -180,9 +180,31 @@ told. Leave it out unless a step is clearly simple or clearly hard.
 
 ## Decisions
 
-A `classifier` step with no tools whose `json` output holds only `yesno`, `choice` and `score`
-fields is a decision. It is answered in one fast, cheap call. A branch reads its answer, and
-`steps.<id>.<field>.p` is how sure it is, from 0 to 1. See [Branches and loops](./branches.md).
+A decision is a step of its own, `type: "decision"`. It asks questions about the run and answers
+them in one fast, cheap call to the `classifier` class:
+
+```json
+{
+  "id": "check", "type": "decision", "title": "Refund or exchange?",
+  "instructions": "The customer wrote: {{message}}",
+  "output": { "fields": [
+    { "id": "refund", "kind": "yesno", "description": "Does the customer want their money back?" },
+    { "id": "urgency", "kind": "score", "description": "How urgent is it?", "options": ["low", "medium", "high"] }
+  ] },
+  "next": [{ "when": { "field": "steps.check.refund", "op": "eq", "value": true }, "goto": "refund" }]
+}
+```
+
+| Key | What it holds |
+|---|---|
+| `instructions` | What the decision weighs, with `{{…}}` placeholders |
+| `output.fields` | One to twelve questions: `yesno`, `choice` or `score`, the question in `description`, the options of a choice or a score in `options` |
+| `working` | Shown while it runs |
+
+A decision has no `tools`, `call`, `each`, `model` or `maker`. A branch reads its answer as
+`steps.<id>.<field>`, and `steps.<id>.<field>.p` is how sure it is, from 0 to 1. With the person’s
+uploads to look at, it runs as an agent step on the `classifier` class. See
+[Branches and loops](./branches.md).
 
 ## A fixed step: `call` without a model
 

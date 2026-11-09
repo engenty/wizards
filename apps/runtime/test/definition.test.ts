@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  type AgentStep,
   branchValues,
   DEFINITION_VERSION,
-  isDecisionStep,
+  type DecisionStep,
+  decisionAsAgent,
   itemsTotals,
   nextStepId,
   parseWizard,
+  readable,
   waitDurationMs,
 } from "@engenty/wizards-shared/definition";
 import { EXAMPLE_WIZARD } from "../src/authoring/example";
@@ -222,11 +223,10 @@ describe("decisions", () => {
       { id: "p", type: "page", title: "P", fields: [{ id: "mail", label: "M", kind: "textarea" }] },
       {
         id: "check",
-        type: "agent",
+        type: "decision",
         title: "Check",
         instructions: "Judge {{mail}}",
-        model: "classifier",
-        output: { format: "json", fields },
+        output: { fields },
         ...step,
       },
       { id: "thanks", type: "agent", title: "Thanks", instructions: "Write a thank-you note." },
@@ -239,25 +239,32 @@ describe("decisions", () => {
     if (!parsed.ok) {
       throw new Error(parsed.issues.map((i) => i.message).join("; "));
     }
-    return parsed.wizard.steps[1] as AgentStep;
+    return parsed.wizard.steps[1] as DecisionStep;
   };
 
   it("takes yes/no and choice fields; a choice lists its options", () => {
-    expect(isDecisionStep(checkStep())).toBe(true);
-    const bare = parseWizard(
-      wizard({ output: { format: "json", fields: [{ id: "topic", kind: "choice" }] } }),
-    );
+    expect(checkStep().output.fields.map((f) => f.id)).toEqual(["refund", "topic"]);
+    const bare = parseWizard(wizard({ output: { fields: [{ id: "topic", kind: "choice" }] } }));
     expect(bare.ok).toBe(false);
   });
 
-  it("is a decision only on the classifier class, without tools and other fields", () => {
-    expect(isDecisionStep(checkStep({ model: "low" }))).toBe(false);
-    expect(isDecisionStep(checkStep({ tools: ["web_search"] }))).toBe(false);
-    expect(
-      isDecisionStep(
-        checkStep({ output: { format: "json", fields: [...fields, { id: "why", kind: "text" }] } }),
-      ),
-    ).toBe(false);
+  it("takes only yes/no, choice and score questions, and no tools or model", () => {
+    const parses = (step: Record<string, unknown>) => parseWizard(wizard(step)).ok;
+    expect(parses({ output: { fields: [...fields, { id: "why", kind: "text" }] } })).toBe(false);
+    expect(parses({ output: { fields: [] } })).toBe(false);
+    // Keys a decision does not have are dropped, and readable() says so.
+    expect(readable(wizard({ tools: ["web_search"] }))).toBe(false);
+    expect(readable(wizard({ model: "low" }))).toBe(false);
+    expect(readable(wizard())).toBe(true);
+  });
+
+  it("runs as an agent step on the classifier class with its questions as json fields", () => {
+    expect(decisionAsAgent(checkStep())).toMatchObject({
+      type: "agent",
+      model: "classifier",
+      tools: [],
+      output: { format: "json", fields },
+    });
   });
 
   it("branches on a yes/no answer", () => {

@@ -2626,15 +2626,27 @@ export function whenText(
   };
   const text = (test: Test | ConditionLeaf[], nested: boolean): string => {
     if (Array.isArray(test)) {
-      return join(test.map((t) => text(t, true)), words.and, nested);
+      return join(
+        test.map((t) => text(t, true)),
+        words.and,
+        nested,
+      );
     }
     if ("any" in test) {
-      return join(test.any.map((t) => text(t, true)), words.or, nested);
+      return join(
+        test.any.map((t) => text(t, true)),
+        words.or,
+        nested,
+      );
     }
     return "not" in test ? words.not(leaf(test.not)) : leaf(test);
   };
   const tests = testsOf(when);
-  return join(tests.map((t) => text(t, tests.length > 1)), words.and, false);
+  return join(
+    tests.map((t) => text(t, tests.length > 1)),
+    words.and,
+    false,
+  );
 }
 
 /** The calculation a `when` tests, if it is one. */

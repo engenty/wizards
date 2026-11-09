@@ -209,10 +209,7 @@ function learnCondition(c: Condition, held: boolean, facts: Facts): Facts {
     k.filled = true;
   } else if ((op === "eq" && !held) || (op === "ne" && held)) {
     k.not.push(value);
-  } else if (
-    ((op === "in" && !held) || (op === "notIn" && held)) &&
-    Array.isArray(c.value)
-  ) {
+  } else if (((op === "in" && !held) || (op === "notIn" && held)) && Array.isArray(c.value)) {
     k.not.push(...c.value.map(String));
   } else if (op === "exists" || op === "notExists") {
     k.filled = (op === "exists") === held;

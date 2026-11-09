@@ -367,7 +367,9 @@ const NEW_STEP: Record<EmptyKind, (id: string) => Step> = {
     type: "decision",
     title: t("step.new.decision"),
     instructions: t("step.new.decisionTask"),
-    output: { fields: [{ id: "answer", kind: "yesno", description: t("step.new.decisionQuestion") }] },
+    output: {
+      fields: [{ id: "answer", kind: "yesno", description: t("step.new.decisionQuestion") }],
+    },
   }),
   generate: (id) => ({
     id,
@@ -400,11 +402,11 @@ export function withEmptyStep(
         ? "ai"
         : kind === "decision"
           ? "decision"
-        : kind === "widget"
-          ? "widget"
-          : kind === "wait"
-            ? "wait"
-            : "generate",
+          : kind === "widget"
+            ? "widget"
+            : kind === "wait"
+              ? "wait"
+              : "generate",
   );
   const steps = [...def.steps];
   steps.splice(at, 0, NEW_STEP[kind](id));

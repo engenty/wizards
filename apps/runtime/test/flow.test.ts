@@ -1,6 +1,7 @@
 import {
   branchValues,
   conditionMatches,
+  conditionsOf,
   nextStepId,
   cardsFromData,
   optionsFromData,
@@ -11,6 +12,8 @@ import {
   slotDayText,
   slotText,
   type WizardDefinition,
+  whenHolds,
+  whenValue,
 } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
 import { readPageInput } from "../src/engine/input";
@@ -38,6 +41,50 @@ describe("conditions", () => {
     expect(conditionMatches({ field: "a", op: "gt", value: 500 }, { a: 500 })).toBe(false);
     expect(conditionMatches({ field: "a", op: "lt", value: 3 }, { a: 2 })).toBe(true);
     expect(conditionMatches({ field: "a", op: "lt", value: 3 }, { a: "" })).toBe(false);
+  });
+
+  it("compare at least and at most, and take none of a list", () => {
+    expect(conditionMatches({ field: "a", op: "gte", value: 3 }, { a: 3 })).toBe(true);
+    expect(conditionMatches({ field: "a", op: "lte", value: 3 }, { a: 4 })).toBe(false);
+    expect(conditionMatches({ field: "a", op: "notIn", value: ["x", "y"] }, { a: "z" })).toBe(true);
+    expect(conditionMatches({ field: "a", op: "notIn", value: ["x", "y"] }, { a: "x" })).toBe(false);
+    expect(conditionMatches({ field: "a", op: "exists" }, { a: "" })).toBe(false);
+    expect(conditionMatches({ field: "a", op: "notExists" }, {})).toBe(true);
+  });
+
+  it("hold with any of their parts, and turn with not", () => {
+    const when = [
+      { field: "country", op: "eq" as const, value: "AT" },
+      {
+        any: [
+          { field: "budget", op: "gte" as const, value: 5000 },
+          [
+            { field: "urgent", op: "eq" as const, value: true },
+            { not: { field: "phone", op: "notExists" as const } },
+          ],
+        ],
+      },
+    ];
+    expect(whenHolds(when, { country: "AT", budget: 6000 })).toBe(true);
+    expect(whenHolds(when, { country: "AT", budget: 10, urgent: true, phone: "1" })).toBe(true);
+    expect(whenHolds(when, { country: "AT", budget: 10, urgent: true })).toBe(false);
+    expect(whenHolds(when, { country: "DE", budget: 6000 })).toBe(false);
+    expect(conditionsOf(when).map((c) => c.field)).toEqual(["country", "budget", "urgent", "phone"]);
+    // Unknown parts leave the answer open; a part known to hold settles an any.
+    expect(whenValue(when, (c) => (c.field === "budget" ? null : conditionMatches(c, { country: "AT" })))).toBe(null);
+    expect(whenValue(when, (c) => (c.field === "phone" ? null : conditionMatches(c, { country: "AT", budget: 9000 })))).toBe(true);
+  });
+
+  it("with any or not are valid on a branch, and a field they read must be known", () => {
+    const def = (when: unknown) => ({
+      title: "x",
+      steps: [
+        { id: "p", type: "page", title: "P", fields: [{ id: "a", label: "A", kind: "text" }], next: [{ when, goto: "r" }] },
+        result,
+      ],
+    });
+    valid(def({ any: [{ field: "a", op: "eq", value: "x" }, { not: { field: "a", op: "exists" } }] }));
+    expect(issuesOf(def({ not: { field: "nope", op: "exists" } }))).toContain('unknown field "nope"');
   });
 
   it("look into multiselects, lists and texts", () => {

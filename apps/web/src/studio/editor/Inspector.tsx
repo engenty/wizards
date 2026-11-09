@@ -5,6 +5,8 @@ import {
   COMPARING,
   CONDITION_OPS,
   type Condition,
+  DECISION_KINDS,
+  type DecisionStep,
   declaredShape,
   ENGENTY_COSTUMES,
   ENGENTY_KINDS,
@@ -12,9 +14,6 @@ import {
   type Field,
   type Format,
   formatsFor,
-  DECISION_KINDS,
-  type DecisionStep,
-  plainConditions,
   isOtherwise,
   isRealLanguage,
   langName,
@@ -24,16 +23,17 @@ import {
   outputKeys,
   type PageStep,
   personStepRefs,
+  plainConditions,
   RUN_DONE_SIGNAL,
   type Step,
   stepShape,
   TOOL_IDS,
+  VALUELESS,
   VIDEO_RESOLUTIONS,
   type VideoResolution,
   WIZARD_LANGS,
   type WizardDefinition,
   waitOutputRefs,
-  VALUELESS,
   whenCalc,
   whenText,
 } from "@engenty/wizards-shared/definition";
@@ -294,9 +294,9 @@ function ConditionEditor({
                       .filter(Boolean)
                   : COMPARING.has(op)
                     ? Number(first.value) || 0
-                      : Array.isArray(first.value)
-                        ? first.value.join(", ")
-                        : (first.value ?? "");
+                    : Array.isArray(first.value)
+                      ? first.value.join(", ")
+                      : (first.value ?? "");
               set({ field: first.field, op, ...(value === undefined ? {} : { value }) });
             }}
             options={CONDITION_OPS.map((op) => ({ value: op, label: t(`editor.op.${op}`) }))}

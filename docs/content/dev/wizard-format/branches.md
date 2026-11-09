@@ -1,14 +1,14 @@
 ---
 title: Branches and loops
 description: A step's next rules, the conditions they test, decisions in words, and loops back.
-version: 0.7.10
+version: 0.18.0
 ---
 
 Steps run from top to bottom. A step’s `next` sends the run elsewhere:
 
 ```json
 "next": [
-  { "when": { "field": "steps.check.refund", "op": "equals", "value": true }, "goto": "refund" },
+  { "when": { "field": "steps.check.refund", "op": "eq", "value": true }, "goto": "refund" },
   { "ask": "The person wants an exchange", "goto": "exchange" },
   { "goto": "done" }
 ]
@@ -35,16 +35,35 @@ A [wait](./runs-that-last.md) branches on what ended it, a [person’s step](./r
 { "field": "budget", "op": "gt", "value": 1000 }
 ```
 
-`field` is a page field’s id, an output of an agent step as `steps.<id>.<field>`, or how many rows
-a stored list has as `lists.<id>.count`. A list of conditions holds when every one holds.
+`field` is a page field’s id, an output of an agent step or a decision as `steps.<id>.<field>`, or
+how many rows a stored list has as `lists.<id>.count`.
 
 | `op` | Holds when the value |
 |---|---|
-| `equals`, `notEquals` | Is, or is not, `value` |
-| `in` | Is one of a list of values |
-| `empty`, `notEmpty` | Is empty, or is not |
-| `gt`, `lt` | Is greater or less than a number |
+| `eq`, `ne` | Is, or is not, `value` |
+| `gt`, `gte` | Is greater than a number, or at least that number |
+| `lt`, `lte` | Is less than a number, or at most that number |
+| `in`, `notIn` | Is one of a list of values, or none of them |
 | `contains` | Holds `value`: a multiselect, a list output or a text |
+| `exists`, `notExists` | Is filled in, or is empty. These take no `value` |
+
+### Several conditions
+
+A list of conditions holds when every one holds. `{ "any": [ … ] }` holds when one of its parts
+holds, and `{ "not": … }` holds when its condition does not:
+
+```json
+"when": [
+  { "field": "country", "op": "eq", "value": "AT" },
+  { "any": [
+    { "field": "budget", "op": "gte", "value": 5000 },
+    [{ "field": "urgent", "op": "eq", "value": true }, { "not": { "field": "phone", "op": "notExists" } }]
+  ] }
+]
+```
+
+A part of `any` is a condition, a `not`, or a list that holds when all of it holds. Nothing nests
+deeper than that. The studio edits a plain list of conditions and shows the others as text.
 
 A decision’s answer has a probability: `steps.<id>.<field>.p`, from 0 to 1. A rule can test it,
 for example `{ "field": "steps.check.urgent.p", "op": "gt", "value": 0.8 }`.

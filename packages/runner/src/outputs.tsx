@@ -698,8 +698,7 @@ export function DownloadButtons({
       ? {
           title: title ?? step.title,
           text: output.text,
-          json:
-            step.type === "decision" || step.output.format === "json" ? output.json : undefined,
+          json: step.type === "decision" || step.output.format === "json" ? output.json : undefined,
           label: (key) => labelFor(step, key),
           foot,
         }
