@@ -309,15 +309,15 @@ describe("concurrency and retries", () => {
   });
   const messages = (step: Record<string, unknown>) => parseWizard(wizard(step)).issues.map((i) => i.message);
 
-  it("takes concurrency with each only, from 1 to 5", () => {
-    expect(messages({ each: "steps.find.offers", concurrency: 3 })).toEqual([]);
-    expect(messages({ concurrency: 3 })).toContain('"concurrency" goes with "each".');
-    expect(parseWizard(wizard({ each: "steps.find.offers", concurrency: 6 })).ok).toBe(false);
+  it("takes concurrency with foreach only, from 1 to 5", () => {
+    expect(messages({ foreach: "steps.find.offers", concurrency: 3 })).toEqual([]);
+    expect(messages({ concurrency: 3 })).toContain('"concurrency" goes with "foreach".');
+    expect(parseWizard(wizard({ foreach: "steps.find.offers", concurrency: 6 })).ok).toBe(false);
   });
 
   it("takes retries from 0 to 5 on a step that runs without a person", () => {
-    expect(messages({ each: "steps.find.offers", retries: 5 })).toEqual([]);
-    expect(parseWizard(wizard({ each: "steps.find.offers", retries: 6 })).ok).toBe(false);
+    expect(messages({ foreach: "steps.find.offers", retries: 5 })).toEqual([]);
+    expect(parseWizard(wizard({ foreach: "steps.find.offers", retries: 6 })).ok).toBe(false);
   });
 });
 
@@ -389,17 +389,17 @@ describe("one result per entry, prefilled fields, lists gone through row by row"
   it("takes a table of an earlier step as the entries of an image step", () => {
     const parsed = wizard([
       shots,
-      { id: "stills", type: "generate", title: "I", asset: "image", each: "steps.script.shots", prompt: "{{item.still}} {{index}}/{{count}}" },
-      { id: "clips", type: "generate", title: "V", asset: "video", each: "steps.script.shots", referenceImage: "stills", prompt: "move" },
+      { id: "stills", type: "generate", title: "I", asset: "image", foreach: "steps.script.shots", prompt: "{{item.still}} {{index}}/{{count}}" },
+      { id: "clips", type: "generate", title: "V", asset: "video", foreach: "steps.script.shots", referenceImage: "stills", prompt: "move" },
     ]);
     expect(parsed.issues).toEqual([]);
   });
 
-  it("refuses {{item}} without each, and each on a document", () => {
+  it("refuses {{item}} without foreach, and foreach on a document", () => {
     const parsed = wizard([
       shots,
       { id: "a", type: "generate", title: "I", asset: "image", prompt: "{{item.still}}" },
-      { id: "b", type: "generate", title: "D", asset: "document", each: "steps.script.shots", prompt: "x" },
+      { id: "b", type: "generate", title: "D", asset: "document", foreach: "steps.script.shots", prompt: "x" },
     ]);
     expect(parsed.issues.map((i) => i.stepId)).toEqual(["a", "b"]);
   });
