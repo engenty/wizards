@@ -157,15 +157,6 @@ export async function findSignal(run: RunRow, spaceId: string, step: WaitStep, k
   );
 }
 
-/** What a wait hands on from a signal: below `data`, and of a listed wait only what it listed. */
-export function signalData(step: WaitStep, data: Record<string, unknown> | null) {
-  const fields = step.signal?.fields;
-  if (!(fields && data)) {
-    return data ?? {};
-  }
-  return Object.fromEntries(fields.map((id) => [id, data[id]]));
-}
-
 /** Signals past their 30 days. Runs hourly, with the expired runs. */
 export async function purgeOldSignals(now = Date.now()) {
   await db.delete(schema.runSignal).where(lt(schema.runSignal.at, new Date(now - KEPT_MS)));

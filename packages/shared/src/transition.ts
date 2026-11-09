@@ -11,6 +11,10 @@
  * Left to the host: what a page accepts (`readPageInput`), the fields a decision picks for a page,
  * a start's `passStep`, credit holds, a durable AI step's turn, what happens once (`run_effect`),
  * who may answer, telling people, the label and the log.
+ *
+ * The runtime is such a host (apps/runtime/src/engine/runner.ts): every move of a run goes through
+ * here. It writes a move at once and stands the run at a wait or a person's step in its drive loop,
+ * with `resume`, where the log says so and that step's own work comes first.
  */
 import {
   branchValues,
@@ -84,6 +88,11 @@ export type FlowEvent =
   | { kind: "signal"; stepId: string; id: string; data: Record<string, unknown> | null }
   /** The clock: `wakeAt` came, or someone pressed "Continue now". */
   | { kind: "woke" }
+  /**
+   * Stand the run at its cursor again: a person's "try again" on a failed run, or a host that moved
+   * the run and comes back to stand it at that step (its drive loop, after a crash on the way in).
+   */
+  | { kind: "resume" }
   | { kind: "cancel" };
 
 /** The one thing the host does next. */
@@ -100,14 +109,19 @@ export type FlowCommand =
   | { kind: "waitSignal"; name: string; key: string }
   /** The run is done or cancelled. */
   | { kind: "end" }
-  /** The run failed: the step's own error, or `said` where the flow found the reason. */
-  | { kind: "fail"; stepId: string | null; said?: RunNote }
+  /** The run failed at this step. */
+  | { kind: "fail"; stepId: string | null }
   /** Nothing changed: a wake that came early, a signal taken already. */
   | { kind: "stay" };
 
 export interface FlowResult {
   run: FlowRun;
   command: FlowCommand;
+  /**
+   * A step the flow itself could not enter (an `until` that is no date, a signal key that came out
+   * empty), and why: it failed as a step fails, so the run took its `onFail` or failed.
+   */
+  error?: { stepId: string; said: RunNote };
 }
 
 /** What the function needs from its host, all of it known before the call. */
@@ -164,7 +178,12 @@ export function transition(
     case "stepDone":
       expect(run, "running", event.stepId);
       state.outputs[event.stepId] = event.output;
+      // A note and a redo asked for this result are answered by it; its visit and turn are over.
+      delete state.notes[event.stepId];
+      delete state.redo?.[event.stepId];
+      delete state.visiting;
       delete state.retries;
+      delete state.turn;
       return go(def, state, event.stepId, host);
 
     case "stepFailed":
@@ -293,6 +312,17 @@ export function transition(
     case "woke":
       return woke(def, run, state, host, at);
 
+    case "resume":
+      if (run.status === "failed") {
+        // Every try anew; a turn that failed has dropped its snapshot.
+        delete state.retries;
+        delete state.pause;
+        delete state.turn;
+      } else if (run.status !== "running") {
+        throw new FlowRefused("runBusy");
+      }
+      return standAt(def, state, run.cursor, host);
+
     case "cancel":
       return settle(run.cursor, "cancelled", state, null, { kind: "end" });
   }
@@ -327,7 +357,7 @@ function woke(
         return stay;
       }
       delete state.pause;
-      return enter(def, state, run.cursor, host);
+      return standAt(def, state, run.cursor, host);
     }
     if (step?.type !== "wait") {
       return enter(def, state, run.cursor, host);
@@ -427,6 +457,18 @@ function failed(
   return enter(def, state, target.id, host);
 }
 
+/** The run stands at `stepId` again: where a decision over its rules was open, that first. */
+function standAt(
+  def: WizardDefinition,
+  state: RunState,
+  stepId: string | null,
+  host: FlowHost,
+): FlowResult {
+  return stepId !== null && state.deciding === stepId
+    ? go(def, state, stepId, host)
+    : enter(def, state, stepId, host);
+}
+
 /** Leaves `fromId` by its `next` rules: to a step, to the end, or to a decision first. */
 function go(def: WizardDefinition, state: RunState, fromId: string, host: FlowHost): FlowResult {
   const values = branchValues(state.values, state.outputs, host.listCounts);
@@ -476,7 +518,7 @@ function enter(
 
     case "wait":
       return step.signal
-        ? enterSignalWait(step, state, host)
+        ? enterSignalWait(def, step, state, host)
         : enterTimeWait(def, step, state, host);
 
     case "page":
@@ -497,15 +539,16 @@ function enter(
   }
 }
 
-function enterSignalWait(step: WaitStep, state: RunState, host: FlowHost): FlowResult {
+function enterSignalWait(
+  def: WizardDefinition,
+  step: WaitStep,
+  state: RunState,
+  host: FlowHost,
+): FlowResult {
   const signal = step.signal as NonNullable<WaitStep["signal"]>;
   const key = host.render(signal.key, state).trim();
   if (!key) {
-    return settle(step.id, "failed", state, null, {
-      kind: "fail",
-      stepId: step.id,
-      said: note("signalKeyEmpty", { key: signal.key }),
-    });
+    return cannotEnter(def, step, state, host, note("signalKeyEmpty", { key: signal.key }));
   }
   const wakeAt = signal.timeout ? host.now + waitDurationMs(signal.timeout) : null;
   return settle(step.id, "waiting_signal", state, wakeAt, {
@@ -526,11 +569,7 @@ function enterTimeWait(
     const said = host.render(step.until, state).trim();
     wakeAt = new Date(said).getTime();
     if (Number.isNaN(wakeAt)) {
-      return settle(step.id, "failed", state, null, {
-        kind: "fail",
-        stepId: step.id,
-        said: note("waitDateUnreadable", { date: said }),
-      });
+      return cannotEnter(def, step, state, host, note("waitDateUnreadable", { date: said }));
     }
   }
   if (wakeAt <= host.now) {
@@ -539,6 +578,23 @@ function enterTimeWait(
     return go(def, state, step.id, host);
   }
   return settle(step.id, "sleeping", state, wakeAt, { kind: "sleep" });
+}
+
+/** The flow can't enter `step`: it fails as a step fails, for good, and says why. */
+function cannotEnter(
+  def: WizardDefinition,
+  step: Step,
+  state: RunState,
+  host: FlowHost,
+  said: RunNote,
+): FlowResult {
+  const result = failed(
+    def,
+    state,
+    { kind: "stepFailed", stepId: step.id, failure: { class: "final" } },
+    host,
+  );
+  return { ...result, error: { stepId: step.id, said } };
 }
 
 /** What a person's answer hands on, for `next` to read. */

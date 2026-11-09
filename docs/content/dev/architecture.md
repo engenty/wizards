@@ -131,6 +131,50 @@ name and key are woken. Any runner then claims the run with a higher generation 
 it acts, and a `durable` agent step keeps its conversation in Mastra’s `DurableAgent`
 (`engine/durable-turn.ts`).
 
+### Where a run goes
+
+One function decides every move of a run: `transition()` in `packages/shared/src/transition.ts`.
+It takes the wizard, where the run stands and what happened. It answers where the run stands now
+and the one thing to do next. It reads no database, calls no model and keeps nothing, so a test
+walks a wizard through days of waits in milliseconds.
+
+```ts
+const event = { kind: "stepDone", stepId: "send", output };
+const { run: next, command } = transition(wizard, run, event, host);
+// next:    cursor "reply", status "waiting_signal", wakeAt in 3 days
+// command: { kind: "waitSignal", name: "mail.received", key: "thread:t-42" }
+```
+
+| What happened (`FlowEvent`) | When |
+|---|---|
+| `start` | A run begins |
+| `stepDone`, `stepFailed` | An automatic step finished, or failed with a passing or a final reason |
+| `decided` | A model picked one of a step’s `ask` rules |
+| `answered`, `reviewed`, `regenerate` | A person answered a page, approved or declined a review, or sent a result back |
+| `back` | A person went back a page |
+| `signal`, `woke` | A signal the wait matches came, or the clock rang |
+| `resume`, `cancel` | “Try again” on a failed run, or the run is stopped |
+
+| What to do next (`FlowCommand`) | The runtime |
+|---|---|
+| `run` | Runs the AI step, then sends `stepDone` or `stepFailed` |
+| `decide` | Asks a model which `ask` rule holds, then sends `decided` |
+| `ask` | Shows the page or review to whoever `who` names, with its deadline and reminder |
+| `sleep`, `waitSignal` | Writes the wake time, or the wait for the signal, and lets go of the run |
+| `end`, `fail` | Ends the run |
+| `stay` | Nothing: a wake came early, or a signal came twice |
+
+The runner (`engine/runner.ts`) is the function’s host. It loads the row, sends the event, writes
+the answer, and does what the command says: it runs the step, holds credits, tells people and
+writes the log. A move after a step or an answer is written at once. The drive loop then stands the
+run at a wait, a person’s step or the result (`resume`), because some steps need work first: a start
+fills its page, a decision picks a page’s fields. The function’s limits are its own (`FLOW_LIMITS`): retries
+after 1, 5 and 30 minutes, a `Retry-After` of at most 6 hours, 30 days for a person to act, and
+`onFail` at most three times.
+
+The function is MIT-licensed, like the format’s other files. A tool that checks or shows a wizard
+can follow the same flow as the runtime.
+
 A step names a **model class** (`classifier`, `low`, `standard`, `high`, plus `image`, `video`,
 `audio`, `speech`), never a model. Which model serves a class is a setting outside the wizard
 (`models.ts`).

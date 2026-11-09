@@ -73,14 +73,12 @@ const fresh = (): FlowRun => ({
 
 /** Feeds events in order; each runs at its own time when given one. */
 function walk(def: WizardDefinition, events: (FlowEvent | [FlowEvent, number])[], h = host()) {
-  let run = fresh();
-  let command = transition(def, run, { kind: "start" }, h).command;
-  run = transition(def, run, { kind: "start" }, h).run;
+  let result = transition(def, fresh(), { kind: "start" }, h);
   for (const item of events) {
     const [event, now] = Array.isArray(item) ? item : [item, h.now];
-    ({ run, command } = transition(def, run, event, { ...h, now }));
+    result = transition(def, result.run, event, { ...h, now });
   }
-  return { run, command };
+  return result;
 }
 
 const done = (stepId: string, json?: unknown): FlowEvent => ({
@@ -258,11 +256,34 @@ describe("a wait for a time", () => {
     const nonsense = until("next Tuesday-ish");
     const failed = walk(nonsense.def, [{ kind: "answered", stepId: "ask", values: nonsense.values }]);
     expect(failed.run).toMatchObject({ cursor: "pause", status: "failed" });
-    expect(failed.command).toMatchObject({
-      kind: "fail",
-      stepId: "pause",
-      said: { code: "waitDateUnreadable", params: { date: "next Tuesday-ish" } },
+    expect(failed.command).toEqual({ kind: "fail", stepId: "pause" });
+    expect(failed).toMatchObject({
+      error: {
+        stepId: "pause",
+        said: { code: "waitDateUnreadable", params: { date: "next Tuesday-ish" } },
+      },
     });
+  });
+
+  it("takes the wait's onFail when it can't be entered, and says why", () => {
+    const def = wizard([
+      page("ask", { fields: [{ id: "deadline", kind: "text", label: "Deadline" }] }),
+      {
+        id: "pause",
+        type: "wait",
+        title: "Pause",
+        until: "{{deadline}}",
+        onFail: "fallback",
+        next: [{ goto: "done" }],
+      },
+      agent("fallback", { next: [{ goto: "end" }] }),
+      end(),
+    ]);
+    const result = walk(def, [{ kind: "answered", stepId: "ask", values: { deadline: "soon" } }]);
+    expect(result.run).toMatchObject({ cursor: "fallback", status: "running" });
+    expect(result.command).toMatchObject({ kind: "run", step: { id: "fallback" } });
+    expect(result).toMatchObject({ error: { stepId: "pause", said: { code: "waitDateUnreadable" } } });
+    expect(result.run.state.loops).toEqual({ "pause→fallback": 1 });
   });
 });
 
@@ -321,9 +342,10 @@ describe("a wait for a signal", () => {
       { id: "reply", type: "wait", title: "Reply", signal: { name: "invoice.paid", key: "{{steps.send.thread_id}}" } },
       end(),
     ]);
-    const { run, command } = walk(bare, [done("send", { thread_id: " " })]);
-    expect(run.status).toBe("failed");
-    expect(command).toMatchObject({ kind: "fail", said: { code: "signalKeyEmpty" } });
+    const result = walk(bare, [done("send", { thread_id: " " })]);
+    expect(result.run.status).toBe("failed");
+    expect(result.command).toEqual({ kind: "fail", stepId: "reply" });
+    expect(result).toMatchObject({ error: { said: { code: "signalKeyEmpty" } } });
   });
 });
 
@@ -558,6 +580,74 @@ describe("a step that fails", () => {
     const { run: after, command } = transition(def, run, retry, host({ durable: false }));
     expect(after.status).toBe("failed");
     expect(command).toEqual({ kind: "fail", stepId: "made" });
+  });
+});
+
+describe("a step that is done", () => {
+  it("answers the note and redo asked for it, and closes its visit and turn", () => {
+    const def = wizard([agent("made"), review("check"), end()]);
+    const run = walk(def, []).run;
+    run.state.notes = { made: "Shorter, please.", other: "keep" };
+    run.state.redo = { made: [1] };
+    run.state.visiting = { step: "made", n: 2 } as never;
+    run.state.turn = { stepId: "made" } as never;
+    const after = transition(def, run, done("made"), host()).run;
+    expect(after.state.notes).toEqual({ other: "keep" });
+    expect(after.state.redo).toEqual({});
+    expect(after.state.visiting).toBeUndefined();
+    expect(after.state.turn).toBeUndefined();
+  });
+});
+
+describe("resume", () => {
+  const def = wizard([
+    agent("made", { next: [{ ask: "It needs a check", goto: "check" }, { goto: "done" }] }),
+    page("check", { timeout: "1d" }),
+    end(),
+  ]);
+
+  it("stands a running run at its step, as on arrival", () => {
+    const moved: FlowRun = { ...fresh(), cursor: "check" };
+    const { run, command } = transition(def, moved, { kind: "resume" }, host());
+    expect(run).toMatchObject({ cursor: "check", status: "waiting_input", wakeAt: NOW + DAY });
+    expect(command).toMatchObject({ kind: "ask", step: { id: "check" } });
+  });
+
+  it("asks for the open decision again, not for the step it is about", () => {
+    const deciding = walk(def, [done("made")]).run;
+    const { command } = transition(def, deciding, { kind: "resume" }, host());
+    expect(command).toEqual({ kind: "decide", stepId: "made", rules: [0] });
+  });
+
+  it("is a person's try again on a failed run: every try anew", () => {
+    const failedRun = transition(def, walk(def, []).run, {
+      kind: "stepFailed",
+      stepId: "made",
+      failure: { class: "final" },
+    }, host()).run;
+    failedRun.state.retries = { step: "made", count: 3, since: "" };
+    const { run, command } = transition(def, failedRun, { kind: "resume" }, host());
+    expect(run).toMatchObject({ cursor: "made", status: "running" });
+    expect(run.state.retries).toBeUndefined();
+    expect(command).toMatchObject({ kind: "run", step: { id: "made" } });
+  });
+
+  it("is refused while the run waits", () => {
+    const waiting: FlowRun = { ...fresh(), cursor: "check", status: "waiting_input" };
+    expect(() => transition(def, waiting, { kind: "resume" }, host())).toThrow(
+      new FlowRefused("runBusy"),
+    );
+  });
+
+  it("a retry of a decision decides again after its sleep", () => {
+    const deciding = walk(def, [done("made")]).run;
+    const slept = transition(def, deciding, {
+      kind: "stepFailed",
+      stepId: "made",
+      failure: { class: "retry", retryAfterMs: null },
+    }, host()).run;
+    const { command } = transition(def, slept, { kind: "woke" }, host({ now: NOW + MIN }));
+    expect(command).toEqual({ kind: "decide", stepId: "made", rules: [0] });
   });
 });
 

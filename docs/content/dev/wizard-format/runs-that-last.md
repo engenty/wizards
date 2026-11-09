@@ -30,7 +30,7 @@ A `wait` has exactly one of these:
 | Key | Waits |
 |---|---|
 | `for` | This long from the moment the run gets here: `"90m"`, `"6h"`, `"2d"` |
-| `until` | Until a date: an ISO date or a [template](./templates.md) such as `"{{deadline}}"`. A date gone by waits for nothing. Text that is no date fails the run |
+| `until` | Until a date: an ISO date or a [template](./templates.md) such as `"{{deadline}}"`. A date gone by waits for nothing. Text that is no date fails the step, see [When a step fails](#when-a-step-fails) |
 | `signal` | Until something arrives from outside. See [Signals](#signals) |
 
 What a wait hands on, for `next` rules and templates:
@@ -176,8 +176,12 @@ those safe to repeat.
 | A sign-in ran out | Waits until someone signs in |
 | Anything else, or the step already acted outside | Goes to `onFail`, or fails |
 
-`onFail` names the step the run goes to when this one fails for good, at most three times. A person
-can still try a failed run again, which starts the step anew.
+`onFail` names the step the run goes to when this one fails for good, at most three times. A
+`wait` fails this way too, when its `until` is no date or its signal’s `key` comes out empty. A
+person can still try a failed run again, which starts the step anew.
+
+These rules live in one function, `transition()`, which the runtime and a test follow alike. See
+[Where a run goes](../architecture.md#where-a-run-goes).
 
 An automatic step has a time limit of 8 hours, 12 for motion graphics. Past it, the step fails.
 
