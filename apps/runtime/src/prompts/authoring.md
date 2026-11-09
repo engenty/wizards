@@ -101,7 +101,7 @@ ${example}
 <!-- section: schema -->
 <!-- The wizard's format, as TypeScript-like types. -->
 type Wizard = {
-  version: 2                    // always write it: the class names below are those of version 2
+  version: 1                    // always write it
   title: string                 // short, what the end user gets ("Rechnung erstellen")
   description: string           // one sentence
   avatar: "round"|"drop"|"dome"|"flame"|"oval"|"bean"|"pebble"|"sprout"|"tower"|"wedge"  // the engenty mascot shown to end users

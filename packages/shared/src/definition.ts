@@ -1272,48 +1272,14 @@ export const connectionSchema = z.object({
 });
 
 /**
- * The version of the definition this app writes; raised only by a breaking change. It reads the
- * earlier ones too (`upgradeDefinition`). Version 1 named the text classes one step lower: its
- * `standard`, `high` and `highest` are `low`, `standard` and `high` since version 2.
+ * The version of the definition this app writes and reads. The format is in beta until 1.0: it
+ * can change without a new version, and stored definitions are converted once when it does.
+ * A definition without a version is of this one.
  */
-export const DEFINITION_VERSION = 2 as const;
+export const DEFINITION_VERSION = 1 as const;
 
-const CLASSES_OF_VERSION_1: Record<string, TextClass> = {
-  standard: "low",
-  high: "standard",
-  highest: "high",
-};
-
-/**
- * A definition of an earlier version, brought to this one; anything else comes back as it is.
- * One without a version is of version 1, unless `unversioned` says which one its writer read:
- * a model that wrote it from today's authoring guide writes today's (`DEFINITION_VERSION`).
- */
-export function upgradeDefinition(raw: unknown, unversioned = 1): unknown {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return raw;
-  }
-  const def = raw as { version?: unknown; steps?: unknown };
-  const version = def.version ?? unversioned;
-  if (version === DEFINITION_VERSION) {
-    return def.version === undefined ? { ...def, version } : def;
-  }
-  if (version !== 1) {
-    return raw;
-  }
-  const steps = Array.isArray(def.steps)
-    ? def.steps.map((step) => {
-        const model = (step as { model?: unknown } | null)?.model;
-        return typeof model === "string" && CLASSES_OF_VERSION_1[model]
-          ? { ...step, model: CLASSES_OF_VERSION_1[model] }
-          : step;
-      })
-    : def.steps;
-  return { ...def, version: DEFINITION_VERSION, steps };
-}
-
-/** A definition of this version, as it is written: what the JSON Schema describes. */
-export const currentWizardSchema = z
+/** A definition as it is written: what the JSON Schema describes. */
+export const wizardSchema = z
   .object({
     version: z.literal(DEFINITION_VERSION).default(DEFINITION_VERSION),
     title: z.string().min(1),
@@ -1366,9 +1332,7 @@ export const currentWizardSchema = z
     });
   });
 
-/** A definition of any version this app reads, brought to this one. */
-export const wizardSchema = z.preprocess((raw) => upgradeDefinition(raw), currentWizardSchema);
-export type WizardDefinition = z.infer<typeof currentWizardSchema>;
+export type WizardDefinition = z.infer<typeof wizardSchema>;
 
 export const INTERACTIVE: ReadonlySet<StepType> = new Set(["page", "review", "result"]);
 
@@ -2928,7 +2892,6 @@ function keepsAll(given: unknown, read: unknown): boolean {
 
 /** True when this app's schema reads the definition without losing anything of it. */
 export function readable(definition: unknown): boolean {
-  const upgraded = upgradeDefinition(definition);
-  const parsed = currentWizardSchema.safeParse(upgraded);
-  return parsed.success && keepsAll(upgraded, parsed.data);
+  const parsed = wizardSchema.safeParse(definition);
+  return parsed.success && keepsAll(definition, parsed.data);
 }

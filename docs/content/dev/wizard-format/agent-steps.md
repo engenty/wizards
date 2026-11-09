@@ -178,10 +178,6 @@ step’s model by name.
 `effort` (`low`, `medium`, `high`) tells the model how hard to think, where the bound model can be
 told. Leave it out unless a step is clearly simple or clearly hard.
 
-Version 1 of the format named these classes one step lower: its `standard`, `high` and `highest`
-are `low`, `standard` and `high` now. A file without `version`, or with `"version": 1`, is read
-that way and saved as version 2.
-
 ## Decisions
 
 A `classifier` step with no tools whose `json` output holds only `yesno`, `choice` and `score`

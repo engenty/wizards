@@ -140,7 +140,7 @@ const check = {
   approve: true,
 };
 const flowOf = (...steps: unknown[]) => ({
-  version: 2,
+  version: 1,
   title: "Angebot",
   description: "",
   avatar: "round",

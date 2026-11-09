@@ -54,7 +54,7 @@ const agent = {
   output: { format: "text" },
 };
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
-const base = { version: 2, title: "Timing", description: "", avatar: "round" };
+const base = { version: 1, title: "Timing", description: "", avatar: "round" };
 
 const row = (id: string) =>
   client.withTenant(T, () =>

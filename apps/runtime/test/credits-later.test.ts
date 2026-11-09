@@ -57,7 +57,7 @@ const T = "tenant-credits-later";
 const SPACE = "space-1";
 
 const def = {
-  version: 2,
+  version: 1,
   title: "Später halten",
   description: "",
   avatar: "round",

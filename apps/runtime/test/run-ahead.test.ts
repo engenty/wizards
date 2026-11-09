@@ -63,7 +63,7 @@ const agent = {
 };
 const done = { id: "done", type: "result", title: "Fertig", deliverables: [] };
 const flow = (...steps: object[]) => ({
-  version: 2,
+  version: 1,
   title: "Voraus",
   description: "",
   avatar: "round",

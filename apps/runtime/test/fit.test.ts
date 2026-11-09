@@ -156,14 +156,14 @@ describe("what a step needs beyond a text model", () => {
 
   it("a wait needs a process that stays", () => {
     const wait = { id: "pause", type: "wait", title: "Pause", for: "2d" };
-    const def = { version: 2, title: "T", description: "", avatar: "round", steps: [wait] };
+    const def = { version: 1, title: "T", description: "", avatar: "round", steps: [wait] };
     expect(needs(wait as never, def as unknown as WizardDefinition)).toEqual([
       expect.objectContaining({ need: "wait", hard: true }),
     ]);
   });
 
   it("a person's step with a deadline needs a process that stays, and an approval too", () => {
-    const def = { version: 2, title: "T", description: "", avatar: "round", steps: [] };
+    const def = { version: 1, title: "T", description: "", avatar: "round", steps: [] };
     const page = { id: "a", type: "page", title: "A", fields: [], timeout: "1d" };
     const review = { id: "b", type: "review", title: "B", show: [], approve: true };
     const plain = { id: "c", type: "review", title: "C", show: [] };

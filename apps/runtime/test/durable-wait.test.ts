@@ -93,11 +93,11 @@ const pause = (more: object = { for: "2d" }) => ({
   ...more,
 });
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
-const base = { version: 2, title: "Wait", description: "", avatar: "round" };
+const base = { version: 1, title: "Wait", description: "", avatar: "round" };
 
 const start = (
   steps: unknown[],
-  options: { version?: number; mode?: "test" | "live"; visitorId?: string } = {},
+  options: { mode?: "test" | "live"; visitorId?: string } = {},
 ) =>
   client.withTenant(T, async () => {
     const created = await wizards.createWizard("u", {
@@ -105,8 +105,7 @@ const start = (
     });
     return runner.createRun({
       wizardId: created.id,
-      // As stored, whichever version it was written in.
-      definition: { ...base, version: options.version ?? 2, steps } as never,
+      definition: { ...base, steps } as never,
       files: [],
       version: null,
       mode: options.mode ?? "test",
@@ -422,22 +421,6 @@ describe("what a wait outlasts", () => {
     hold.answer = true;
     expect(await hasStatus(id, "done")).toBe(true);
     expect(steps(id)).toEqual(["after"]);
-  });
-
-  it("a waiting run on an older definition version goes on, and its steps read today's", async () => {
-    // Version 1 called today's `high` class `highest`.
-    const id = await start([pause(), agent("after", { model: "highest" }), end], { version: 1 });
-    expect(await rests(id)).toBe(true);
-    const stored = await client.withTenant(T, () =>
-      client.db.all<{ version: number }>(
-        sql`select json_extract(definition, '$.version') as version from run where id = ${id}`,
-      ),
-    );
-    expect(stored[0].version).toBe(1);
-    expect((await row(id))?.definition.version).toBe(2);
-    await pass(id);
-    expect(await hasStatus(id, "done")).toBe(true);
-    expect(worked.find((w) => w.run === id && w.step === "after")?.model).toBe("high");
   });
 });
 

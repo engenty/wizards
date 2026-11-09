@@ -14,7 +14,7 @@ const MIN = 60_000;
 const DAY = 86_400_000;
 const NOW = Date.parse("2026-11-09T09:00:00Z");
 
-const base = { version: 2, title: "Flow", description: "", avatar: "round" };
+const base = { version: 1, title: "Flow", description: "", avatar: "round" };
 const agent = (id: string, more: object = {}) => ({
   id,
   type: "agent",

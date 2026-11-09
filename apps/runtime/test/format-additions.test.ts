@@ -17,7 +17,7 @@ import { readPageInput } from "../src/engine/input";
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
 const wizard = (steps: unknown[]) =>
   wizardSchema.parse({
-    version: 2,
+    version: 1,
     title: "Test",
     description: "",
     avatar: "round",

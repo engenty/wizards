@@ -51,7 +51,7 @@ describe("validator", () => {
 
 describe("onFail", () => {
   const wizard = (onFail: string) => ({
-    version: 2,
+    version: 1,
     title: "On fail",
     description: "",
     avatar: "round",
@@ -84,7 +84,7 @@ describe("onFail", () => {
 
 describe("a wait step", () => {
   const wizard = (wait: object, more: object[] = []) => ({
-    version: 2,
+    version: 1,
     title: "Wait",
     description: "",
     avatar: "round",
@@ -101,7 +101,7 @@ describe("a wait step", () => {
     expect(parseWizard(wizard({ for: "2d" })).issues).toEqual([]);
     expect(parseWizard(wizard({ until: "2026-11-10T08:00:00.000Z" })).issues).toEqual([]);
     expect(parseWizard(wizard({ until: "{{due}}" })).issues).toEqual([]);
-    expect(DEFINITION_VERSION).toBe(2);
+    expect(DEFINITION_VERSION).toBe(1);
   });
 
   it("has one of them", () => {
@@ -155,7 +155,7 @@ describe("a wait step", () => {
     it("takes a name, a key, a timeout and fields, and the version stays", () => {
       expect(parseWizard(wizard(signal())).issues).toEqual([]);
       expect(parseWizard(wizard(signal({ timeout: "3d", fields: ["amount"] }))).issues).toEqual([]);
-      expect(DEFINITION_VERSION).toBe(2);
+      expect(DEFINITION_VERSION).toBe(1);
     });
 
     it("is one of the three, with a known key and a readable timeout", () => {
@@ -452,7 +452,7 @@ describe("a person's step: timeout, remind, approve", () => {
   const made = { id: "made", type: "agent", title: "M", instructions: "x", tools: [], output: { format: "text" } };
   const end = { id: "done", type: "result", title: "E", deliverables: [] };
   const issues = (...steps: object[]) =>
-    parseWizard({ version: 2, title: "T", description: "", avatar: "round", steps }).issues.map(
+    parseWizard({ version: 1, title: "T", description: "", avatar: "round", steps }).issues.map(
       (i) => i.message,
     );
 

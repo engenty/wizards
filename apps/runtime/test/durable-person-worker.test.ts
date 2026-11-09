@@ -23,7 +23,7 @@ vi.mock("../src/engine/requirements.js", async (original) => ({
 
 const T = "tenant-durable-person-process";
 const definition = {
-  version: 2,
+  version: 1,
   title: "Across processes",
   description: "",
   avatar: "round",

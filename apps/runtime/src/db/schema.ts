@@ -9,7 +9,7 @@ import {
   type ConnectionRules,
   MAILBOX_ERRORS,
 } from "@engenty/wizards-shared/connectors";
-import { upgradeDefinition, type WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
 import {
   type AskAnswer,
@@ -51,7 +51,6 @@ import { sql } from "drizzle-orm";
 import {
   type AnySQLiteColumn,
   blob,
-  customType,
   index,
   integer,
   primaryKey,
@@ -68,13 +67,6 @@ import type { DraftChange } from "../services/draft-events.js";
 const now = sql`(unixepoch() * 1000)`;
 const createdAt = () => integer("created_at", { mode: "timestamp_ms" }).notNull().default(now);
 const updatedAt = () => integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now);
-
-/** JSON text that reads as the definition of this version, whichever version was written. */
-const runDefinition = customType<{ data: WizardDefinition; driverData: string }>({
-  dataType: () => "text",
-  toDriver: (def) => JSON.stringify(def),
-  fromDriver: (json) => upgradeDefinition(JSON.parse(json)) as WizardDefinition,
-});
 
 // One database per tenant holds these tables; `tenant_id` stays in every row so a tenant's
 // rows can be moved or merged. Users and tenants themselves live outside (Manage-App).
@@ -340,8 +332,7 @@ export const run = sqliteTable(
       .references(() => wizard.id, { onDelete: "cascade" }),
     tenantId: text("tenant_id").notNull(),
     /** The definition the run started on — edits never reach a running wizard. */
-    /** Read through `upgradeDefinition`: a run can outlast a version of the format. */
-    definition: runDefinition("definition").notNull(),
+    definition: text("definition", { mode: "json" }).$type<WizardDefinition>().notNull(),
     /** The workspace the run started with. */
     files: text("files", { mode: "json" }).$type<WorkspaceFile[]>().notNull().default([]),
     /**

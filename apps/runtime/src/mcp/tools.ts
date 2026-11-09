@@ -1,9 +1,5 @@
 import type { StepWarning } from "@engenty/wizards-shared/connectors";
-import {
-  DEFINITION_VERSION,
-  signalNameSchema,
-  upgradeDefinition,
-} from "@engenty/wizards-shared/definition";
+import { signalNameSchema } from "@engenty/wizards-shared/definition";
 import { describeStart, startInputSchema } from "@engenty/wizards-shared/starts";
 import type { CallToolResult, McpServer, ToolCallback } from "@modelcontextprotocol/server";
 import { z } from "zod";
@@ -58,8 +54,6 @@ const definition = z
   .record(z.string(), z.unknown())
   .describe("The complete wizard JSON as described by get_authoring_guide.");
 
-/** A wizard a model wrote from today's authoring guide is of today's version, said or not. */
-const authored = (raw: unknown) => upgradeDefinition(raw, DEFINITION_VERSION);
 const note = z
   .string()
   .max(500)
@@ -499,7 +493,7 @@ export function registerTools(server: McpServer, who: Principal) {
     async (args) => {
       try {
         const space = await studioSpace(args.spaceId);
-        const { draft } = parseDraft(authored(args.definition));
+        const { draft } = parseDraft(args.definition);
         const issues = await checkDraft(space.id, draft);
         return { ok: issues.length === 0, issues };
       } catch (err) {
@@ -526,11 +520,7 @@ export function registerTools(server: McpServer, who: Principal) {
       }),
     },
     async (args) => {
-      const created = await createWizard(
-        who.userId,
-        { ...args, definition: args.definition && authored(args.definition) },
-        writer,
-      );
+      const created = await createWizard(who.userId, args, writer);
       return {
         wizardId: created.id,
         revision: created.revision,
@@ -572,12 +562,7 @@ export function registerTools(server: McpServer, who: Principal) {
       studio: true,
     },
     async ({ wizardId, ...input }) => {
-      const { revision, issues, warnings } = await writeDraft(
-        who.userId,
-        wizardId,
-        { ...input, definition: authored(input.definition) },
-        writer,
-      );
+      const { revision, issues, warnings } = await writeDraft(who.userId, wizardId, input, writer);
       return { revision, issues, warnings: worded(warnings) };
     },
   );

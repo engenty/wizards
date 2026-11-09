@@ -101,7 +101,7 @@ const check = (more: object = { timeout: "2d" }) => ({
   ...more,
 });
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
-const base = { version: 2, title: "Person", description: "", avatar: "round" };
+const base = { version: 1, title: "Person", description: "", avatar: "round" };
 /** A page with a deadline whose `next` reads `timedOut`. */
 const branching = [
   ask({ timeout: "2d", next: [{ when: { field: "steps.ask.timedOut", op: "equals", value: true }, goto: "late" }] }),

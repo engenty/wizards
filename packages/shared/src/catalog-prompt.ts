@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import type { z } from "zod";
 import {
-  currentWizardSchema,
   fieldSchema,
   nextRuleSchema,
   outputFieldSchema,
   stepSchema,
+  wizardSchema,
 } from "./definition.js";
 import { SURFACE_COMPONENTS, SURFACE_REQUIRED } from "./surface.js";
 import { OUTPUT_TAGS, STEP_TAGS, STEP_TEXT } from "./wizard-text.js";
@@ -118,7 +118,7 @@ export function wizardTextTags(opts: { durableRuns: boolean }): string {
   const durable = opts.durableRuns;
   const lines: string[] = [];
   lines.push(
-    `<Wizard ${attrs(shapeOf(currentWizardSchema), new Set(["steps", "version"]), durable)}> — the wizard; its children are the steps, in order.`,
+    `<Wizard ${attrs(shapeOf(wizardSchema), new Set(["steps", "version"]), durable)}> — the wizard; its children are the steps, in order.`,
     "",
     "Steps (each takes <Next> children; Text: the key the text inside the tag fills):",
   );

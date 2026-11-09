@@ -95,7 +95,7 @@ const agent = (id: string, more: object = {}) => ({
   ...more,
 });
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
-const base = { version: 2, title: "Signals", description: "", avatar: "round" };
+const base = { version: 1, title: "Signals", description: "", avatar: "round" };
 /** Every test its own key: all of them share one space. */
 let KEY = "anna@example.com";
 let tests = 0;

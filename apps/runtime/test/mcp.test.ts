@@ -410,7 +410,7 @@ describe("a draft's warnings", () => {
       }),
     );
     const definition = {
-      version: 2,
+      version: 1,
       title: "Bestätigung",
       description: "Schickt eine Bestätigung.",
       avatar: "dome",

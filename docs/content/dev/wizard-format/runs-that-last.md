@@ -5,7 +5,7 @@ version: 0.16.2
 ---
 
 A run can wait for hours or days. Nothing runs meanwhile, it spends no credits, and it survives a
-restart of every process. The keys on this page are all optional, so the format stays at version 2.
+restart of every process. The keys on this page are all optional, so the format stays at version 1.
 
 They come with the switch `durableRuns`, which is off by default. With it off, a wizard with a
 `wait` step doesn’t start. On your computer you switch it on with a line in

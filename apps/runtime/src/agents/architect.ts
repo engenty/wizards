@@ -1,9 +1,5 @@
 import { anthropic } from "@ai-sdk/anthropic";
-import {
-  DEFINITION_VERSION,
-  type Lang,
-  upgradeDefinition,
-} from "@engenty/wizards-shared/definition";
+import type { Lang } from "@engenty/wizards-shared/definition";
 import { describeStart, startInputSchema } from "@engenty/wizards-shared/starts";
 import { isTextMime } from "@engenty/wizards-shared/workspace";
 import { Agent } from "@mastra/core/agent";
@@ -234,8 +230,7 @@ function buildTools(
         attempt(async () => {
           const w = await ownedWizard(userId, wizardId);
           const { revision, issues } = await writeDraft(userId, wizardId, {
-            // Written from today's authoring guide: today's version, said or not.
-            definition: upgradeDefinition(wizard, DEFINITION_VERSION),
+            definition: wizard,
             baseRevision: w.revision,
           });
           wrote();
