@@ -12,8 +12,9 @@ import {
   wizardSchema,
 } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
+import { inputSchemaOf, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { applyOps, OpError, type WizardOp } from "../authoring/ops.js";
 import { decide, kindOf } from "../broker/index.js";
@@ -133,6 +134,41 @@ export async function listWizards(_userId: string, spaceId?: string) {
     orderBy: [desc(schema.wizard.updatedAt)],
   });
   return rows.map(wizardSummary);
+}
+
+/** What a run of the wizard takes and gives, as JSON Schema, worked out from its definition. */
+export function runSchemas(def: WizardDefinition) {
+  return { inputSchema: inputSchemaOf(def), outputSchema: outputSchemaOf(def) };
+}
+
+/**
+ * What runs of the space's wizards take and give, by wizard: of the published version where there
+ * is one, else of the draft.
+ */
+export async function runSchemasOf(spaceId?: string) {
+  const rows = await db.query.wizard.findMany({
+    where: and(
+      eq(schema.wizard.tenantId, currentTenant()),
+      spaceId ? eq(schema.wizard.spaceId, spaceId) : undefined,
+    ),
+    columns: { id: true, draft: true, publishedVersion: true },
+  });
+  const published = rows.filter((w) => w.publishedVersion !== null);
+  const versions = published.length
+    ? await db.query.wizardVersion.findMany({
+        where: or(
+          ...published.map((w) =>
+            and(
+              eq(schema.wizardVersion.wizardId, w.id),
+              eq(schema.wizardVersion.version, w.publishedVersion as number),
+            ),
+          ),
+        ),
+        columns: { wizardId: true, definition: true },
+      })
+    : [];
+  const live = new Map(versions.map((v) => [v.wizardId, v.definition]));
+  return new Map(rows.map((w) => [w.id, runSchemas(live.get(w.id) ?? w.draft)]));
 }
 
 /** The organization has made a wizard: the studio offers itself as an app from then on. */

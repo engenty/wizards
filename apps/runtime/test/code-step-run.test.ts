@@ -35,7 +35,13 @@ let files: typeof import("../src/services/files");
 
 const T = "tenant-code-step";
 const end = { id: "done", type: "result", title: "Done", deliverables: [] };
-const big = { id: "big", type: "result", title: "Big", deliverables: [] };
+const big = {
+  id: "big",
+  type: "result",
+  title: "Big",
+  deliverables: [],
+  data: { total: "steps.sum.total", who: "name", note: "{{steps.sum.note}}" },
+};
 const base = { title: "Code", description: "", avatar: "round" };
 const SOURCE = `
 export function run(input: { budget: number; note: string; today: string }) {
@@ -139,6 +145,13 @@ describe("a code step in a run", () => {
     });
     // The branch on its total went past "done" to "big".
     expect(r?.cursor).toBe("big");
+    // The result's data, filled as the run reached it, is what the report gives back.
+    const data = { total: 120, who: "Ada", note: "Ada pays 60" };
+    expect(r?.state.data).toEqual(data);
+    const report = await client.withTenant(T, async () =>
+      (await import("../src/services/runs")).runReportOf(r as never),
+    );
+    expect(report.data).toEqual(data);
   });
 
   it("does not start while code steps are off", async () => {
