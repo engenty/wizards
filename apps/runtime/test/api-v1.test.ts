@@ -138,7 +138,7 @@ const WIZARD = {
   steps: [
     {
       id: "start",
-      type: "page",
+      type: "form",
       title: "Anfrage",
       fields: [
         { id: "name", kind: "text", label: "Name" },

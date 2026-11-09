@@ -5,8 +5,8 @@ import {
   nextStepId,
   cardsFromData,
   optionsFromData,
-  type PageStep,
-  pageNeeds,
+  type FormStep,
+  formNeeds,
   parseWizard,
   shownFields,
   slotDayText,
@@ -16,7 +16,7 @@ import {
   whenValue,
 } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
-import { readPageInput } from "../src/engine/input";
+import { readFormInput } from "../src/engine/input";
 import { unavoidableSteps } from "../src/engine/requirements";
 
 function valid(input: unknown): WizardDefinition {
@@ -79,7 +79,7 @@ describe("conditions", () => {
     const def = (when: unknown) => ({
       title: "x",
       steps: [
-        { id: "p", type: "page", title: "P", fields: [{ id: "a", label: "A", kind: "text" }], next: [{ when, goto: "r" }] },
+        { id: "p", type: "form", title: "P", fields: [{ id: "a", label: "A", kind: "text" }], next: [{ when, goto: "r" }] },
         result,
       ],
     });
@@ -101,7 +101,7 @@ describe("conditions", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [
             { id: "kind", label: "K", kind: "select", options: ["ship", "pickup"] },
@@ -117,8 +117,8 @@ describe("conditions", () => {
             },
           ],
         },
-        { id: "plain", type: "page", title: "Plain", fields: [{ id: "x", label: "X", kind: "text" }] },
-        { id: "approve", type: "page", title: "Approve", fields: [{ id: "y", label: "Y", kind: "text" }] },
+        { id: "plain", type: "form", title: "Plain", fields: [{ id: "x", label: "X", kind: "text" }] },
+        { id: "approve", type: "form", title: "Approve", fields: [{ id: "y", label: "Y", kind: "text" }] },
         result,
       ],
     });
@@ -134,12 +134,12 @@ describe("conditions", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [{ id: "x", label: "X", kind: "text" }],
           next: [{ when: { field: "lists.seen.count", op: "gt", value: 0 }, goto: "r" }],
         },
-        { id: "first", type: "page", title: "First", fields: [{ id: "y", label: "Y", kind: "text" }] },
+        { id: "first", type: "form", title: "First", fields: [{ id: "y", label: "Y", kind: "text" }] },
         result,
       ],
     });
@@ -153,7 +153,7 @@ describe("conditions", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [{ id: "a", label: "A", kind: "number" }],
           next: [
@@ -176,7 +176,7 @@ describe("conditions", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [{ id: "k", label: "K", kind: "toggle" }],
           next: [{ when: { field: "k", op: "eq", value: true }, goto: "r" }],
@@ -188,9 +188,9 @@ describe("conditions", () => {
 });
 
 describe("fields shown under a condition", () => {
-  const page: PageStep = {
+  const page: FormStep = {
     id: "p",
-    type: "page",
+    type: "form",
     title: "P",
     fields: [
       { id: "delivery", label: "Delivery", kind: "select", options: ["ship", "pickup"], required: true },
@@ -219,22 +219,22 @@ describe("fields shown under a condition", () => {
   });
 
   it("are not required and not kept while hidden", () => {
-    const hidden = readPageInput(page, { delivery: "pickup", street: "left over", door: "12" });
+    const hidden = readFormInput(page, { delivery: "pickup", street: "left over", door: "12" });
     expect(hidden.errors).toEqual([]);
     expect(hidden.values).toEqual({ delivery: "pickup" });
 
-    const missing = readPageInput(page, { delivery: "ship" });
+    const missing = readFormInput(page, { delivery: "ship" });
     expect(missing.errors.map((e) => e.field)).toEqual(["street"]);
   });
 
   it("read what is known before the page", () => {
-    const later: PageStep = {
+    const later: FormStep = {
       ...page,
       fields: [{ id: "note", label: "Note", kind: "text", required: true, when: { field: "steps.check.urgent", op: "eq", value: true } }],
     };
-    expect(pageNeeds(later.fields)).toEqual(["steps.check.urgent"]);
-    expect(readPageInput(later, {}, { known: { "steps.check.urgent": false } }).errors).toEqual([]);
-    expect(readPageInput(later, {}, { known: { "steps.check.urgent": true } }).errors).toHaveLength(1);
+    expect(formNeeds(later.fields)).toEqual(["steps.check.urgent"]);
+    expect(readFormInput(later, {}, { known: { "steps.check.urgent": false } }).errors).toEqual([]);
+    expect(readFormInput(later, {}, { known: { "steps.check.urgent": true } }).errors).toHaveLength(1);
   });
 
   it("are checked by the validator", () => {
@@ -243,13 +243,13 @@ describe("fields shown under a condition", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [
             { id: "a", label: "A", kind: "text", when: { field: "later", op: "exists" } },
           ],
         },
-        { id: "q", type: "page", title: "Q", fields: [{ id: "later", label: "L", kind: "text" }] },
+        { id: "q", type: "form", title: "Q", fields: [{ id: "later", label: "L", kind: "text" }] },
         result,
       ],
     });
@@ -332,7 +332,7 @@ describe("choices from earlier data", () => {
             tools: [],
             output: { format: "json", fields: [{ id: "products", kind: "table", description: "p", ...(columns ? { columns } : {}) }, { id: "names", kind: "list", description: "n" }] },
           },
-          { id: "pick", type: "page", title: "P", fields: [{ id: "f", label: "F", kind: "multiselect", optionsFrom: "steps.search.products", ...field }] },
+          { id: "pick", type: "form", title: "P", fields: [{ id: "f", label: "F", kind: "multiselect", optionsFrom: "steps.search.products", ...field }] },
           { id: "r", type: "result", title: "R", deliverables: [] },
         ],
       });
@@ -346,17 +346,17 @@ describe("choices from earlier data", () => {
   });
 
   it("are what the page accepts", () => {
-    const page: PageStep = {
+    const page: FormStep = {
       id: "p",
-      type: "page",
+      type: "form",
       title: "P",
       fields: [{ id: "supplier", label: "S", kind: "select", optionsFrom: "steps.research.names", options: ["Other"] }],
     };
     const options = { supplier: ["Holz Huber"] };
-    expect(readPageInput(page, { supplier: "Holz Huber" }, { options }).errors).toEqual([]);
-    expect(readPageInput(page, { supplier: "Other" }, { options }).errors).toHaveLength(1);
+    expect(readFormInput(page, { supplier: "Holz Huber" }, { options }).errors).toEqual([]);
+    expect(readFormInput(page, { supplier: "Other" }, { options }).errors).toHaveLength(1);
     // Without data the fixed choices stand in.
-    expect(readPageInput(page, { supplier: "Other" }).errors).toEqual([]);
+    expect(readFormInput(page, { supplier: "Other" }).errors).toEqual([]);
   });
 
   it("are checked by the validator", () => {
@@ -366,7 +366,7 @@ describe("choices from earlier data", () => {
         research,
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [
             { id: "a", label: "A", kind: "select", optionsFrom: "steps.research.names" },
@@ -382,7 +382,7 @@ describe("choices from earlier data", () => {
         research,
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [
             { id: "a", label: "A", kind: "select", optionsFrom: "steps.research.suppliers" },
@@ -411,9 +411,9 @@ describe("appointment slots", () => {
       fields: [{ id: "slots", kind: "table", columns: ["start", "label"], description: "Free times" }],
     },
   };
-  const page: PageStep = {
+  const page: FormStep = {
     id: "p",
-    type: "page",
+    type: "form",
     title: "P",
     fields: [{ id: "when", label: "When", kind: "slot", required: true, optionsFrom: "steps.free.slots.start" }],
   };
@@ -426,7 +426,7 @@ describe("appointment slots", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [
             { id: "a", label: "A", kind: "slot" },
@@ -443,17 +443,17 @@ describe("appointment slots", () => {
   });
 
   it("accept an offered time and refuse another", () => {
-    expect(readPageInput(page, { when: "2026-10-13T10:30:00+02:00" }, { options })).toEqual({
+    expect(readFormInput(page, { when: "2026-10-13T10:30:00+02:00" }, { options })).toEqual({
       values: { when: "2026-10-13T10:30:00+02:00" },
       errors: [],
     });
     // The same moment in another offset is the offered time.
-    expect(readPageInput(page, { when: "2026-10-12T07:00:00Z" }, { options }).values).toEqual({
+    expect(readFormInput(page, { when: "2026-10-12T07:00:00Z" }, { options }).values).toEqual({
       when: "2026-10-12T09:00:00+02:00",
     });
-    expect(readPageInput(page, { when: "2026-10-12T09:30:00+02:00" }, { options }).errors).toHaveLength(1);
+    expect(readFormInput(page, { when: "2026-10-12T09:30:00+02:00" }, { options }).errors).toHaveLength(1);
     // Without free times nothing can be picked.
-    expect(readPageInput(page, { when: "2026-10-12T09:00:00+02:00" }).errors).toHaveLength(1);
+    expect(readFormInput(page, { when: "2026-10-12T09:00:00+02:00" }).errors).toHaveLength(1);
   });
 
   it("read as day and time on their own clock", () => {
@@ -472,7 +472,7 @@ describe("requirements with condition lists", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [
             { id: "a", label: "A", kind: "toggle" },
@@ -488,7 +488,7 @@ describe("requirements with condition lists", () => {
             },
           ],
         },
-        { id: "extra", type: "page", title: "E", fields: [{ id: "x", label: "X", kind: "text" }] },
+        { id: "extra", type: "form", title: "E", fields: [{ id: "x", label: "X", kind: "text" }] },
         result,
       ],
     });
@@ -505,13 +505,13 @@ describe("an otherwise branch", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [{ id: "n", label: "N", kind: "number" }],
           next: [{ when: { field: "n", op: "lt", value: 100 }, goto: "small" }, { goto: "after" }],
         },
-        { id: "small", type: "page", title: "S", fields: [{ id: "s", label: "S", kind: "text" }] },
-        { id: "after", type: "page", title: "A", fields: [{ id: "a", label: "A", kind: "text" }] },
+        { id: "small", type: "form", title: "S", fields: [{ id: "s", label: "S", kind: "text" }] },
+        { id: "after", type: "form", title: "A", fields: [{ id: "a", label: "A", kind: "text" }] },
         result,
       ],
     });
@@ -532,7 +532,7 @@ describe("an otherwise branch", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [{ id: "n", label: "N", kind: "number" }],
           next: [{ goto: "r" }, { goto: "r" }],
@@ -547,7 +547,7 @@ describe("an otherwise branch", () => {
         steps: [
           {
             id: "p",
-            type: "page",
+            type: "form",
             title: "P",
             fields: [{ id: "n", label: "N", kind: "number" }],
             next: [{ when: { field: "n", op: "exists" }, ask: "Yes", goto: "r" }],

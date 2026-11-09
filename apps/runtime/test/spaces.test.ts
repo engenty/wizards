@@ -170,7 +170,7 @@ const definition = (title: string, extra: Record<string, unknown> = {}) => ({
   steps: [
     {
       id: "start",
-      type: "page",
+      type: "form",
       title: "Start",
       fields: [{ id: "name", kind: "text", label: "Name" }],
     },
@@ -366,7 +366,7 @@ describe("a tenant that builds nothing here (the free tier)", () => {
         steps: [
           {
             id: "start",
-            type: "page",
+            type: "form",
             title: "Start",
             fields: [{ id: "name", kind: "text", label: "Name" }],
           },

@@ -151,7 +151,7 @@ export default definePlugin((wizards) => {
     definition: {
       title: "Willkommen",
       steps: [
-        { id: "start", type: "page", title: "Start", fields: [{ id: "name", kind: "text", label: "Name" }] },
+        { id: "start", type: "form", title: "Start", fields: [{ id: "name", kind: "text", label: "Name" }] },
         { id: "done", type: "result", title: "Fertig", deliverables: [] },
       ],
     },
@@ -484,7 +484,7 @@ describe("a plugin's tools", () => {
       description: "",
       avatar: "round",
       steps: [
-        { id: "start", type: "page", title: "Start", fields: [{ id: "name", kind: "text", label: "Name" }] },
+        { id: "start", type: "form", title: "Start", fields: [{ id: "name", kind: "text", label: "Name" }] },
         { id: "ask", type: "agent", title: "A", instructions: "{{name}}", tools: ["guestbook.count", "crm.lookup"] },
         { id: "done", type: "result", title: "Fertig", deliverables: [] },
       ],
@@ -507,7 +507,7 @@ describe("a run that ends", () => {
       description: "",
       avatar: "round",
       steps: [
-        { id: "start", type: "page", title: "Start", fields: [{ id: "name", kind: "text", label: "Name" }] },
+        { id: "start", type: "form", title: "Start", fields: [{ id: "name", kind: "text", label: "Name" }] },
         { id: "done", type: "result", title: "Fertig", deliverables: [] },
       ],
     };
@@ -686,7 +686,7 @@ describe("a plugin's runners", () => {
     steps: [
       {
         id: "start",
-        type: "page",
+        type: "form",
         title: "Start",
         fields: [{ id: "name", kind: "text", label: "Name", required: true }],
       },
@@ -812,6 +812,6 @@ describe("a plugin's runners", () => {
       ),
     );
     expect(body.refused).toEqual([{ field: "name", message: "Required" }]);
-    expect(body.report.waitingFor.page).toBe("start");
+    expect(body.report.waitingFor.form).toBe("start");
   });
 });

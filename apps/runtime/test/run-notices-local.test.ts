@@ -48,13 +48,13 @@ const flow = {
   steps: [
     {
       id: "first",
-      type: "page",
+      type: "form",
       title: "Erste",
       fields: [{ id: "email", kind: "email", label: "E-Mail", notify: true }],
     },
     {
       id: "second",
-      type: "page",
+      type: "form",
       title: "Zweite",
       fields: [{ id: "more", kind: "text", label: "Mehr" }],
     },

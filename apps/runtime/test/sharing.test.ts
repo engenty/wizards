@@ -94,7 +94,7 @@ const definition = (share?: unknown) => ({
   steps: [
     {
       id: "start",
-      type: "page",
+      type: "form",
       title: "Start",
       fields: [{ id: "email", kind: "email", label: "E-Mail" }],
     },

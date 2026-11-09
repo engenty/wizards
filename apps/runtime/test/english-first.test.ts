@@ -3,7 +3,7 @@ import { note, noteText, saidText } from "@engenty/wizards-shared/run";
 import { textOf, type Texts } from "@engenty/wizards-shared/texts";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import { fieldErrorsIn, readPageInput } from "../src/engine/input";
+import { fieldErrorsIn, readFormInput } from "../src/engine/input";
 import { errorText, NotedError, saidOf } from "../src/model-errors";
 import { requestLang, say } from "../src/routes/lang";
 import { ServiceError } from "../src/services/errors";
@@ -65,10 +65,10 @@ describe("English first", () => {
   });
 
   it("checks answers with messages in both languages", () => {
-    const { errors } = readPageInput(
+    const { errors } = readFormInput(
       {
         id: "start",
-        type: "page",
+        type: "form",
         title: "Start",
         fields: [
           { id: "name", label: "Name", kind: "text", required: true },

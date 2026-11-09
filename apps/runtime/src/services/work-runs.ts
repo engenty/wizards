@@ -28,8 +28,8 @@ export interface WaitingRun {
   wizard: string;
   stepId: string;
   step: string;
-  /** What it is that waits: a page, a review, an approval, a question of an AI step, a pause. */
-  kind: "page" | "review" | "approve" | "question" | "pause";
+  /** What it is that waits: a form, a review, an approval, a question of an AI step, a pause. */
+  kind: "form" | "review" | "approve" | "question" | "pause";
   status: RunRow["status"];
   /** The wizard's `label` of the run, else the address the run knows its person by. */
   about: string | null;
@@ -70,13 +70,13 @@ function line(run: RunRow, spaceId: string): WaitingRun | null {
     ? "question"
     : pause
       ? "pause"
-      : step.type === "page"
-        ? "page"
+      : step.type === "form"
+        ? "form"
         : step.type === "review"
           ? step.approve
             ? "approve"
             : "review"
-          : "page";
+          : "form";
   return {
     runId: run.id,
     wizardId: run.wizardId,

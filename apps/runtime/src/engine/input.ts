@@ -2,6 +2,7 @@ import {
   type AudioValue,
   type CardOption,
   type Field,
+  type FormStep,
   isDecidedField,
   isLang,
   isLocationValue,
@@ -9,7 +10,6 @@ import {
   type LocationValue,
   MAX_FILES,
   offeredSlot,
-  type PageStep,
   shownFields,
 } from "@engenty/wizards-shared/definition";
 import { readNumber } from "@engenty/wizards-shared/numbers";
@@ -155,7 +155,7 @@ function readAudio(raw: unknown): AudioValue | undefined {
 }
 
 /** What a page knows beyond the person's input: earlier answers and outputs, data-driven choices. */
-export interface PageContext {
+export interface FormContext {
   /** Values the fields' `when` read from before the page. */
   known?: Record<string, unknown>;
   /** Choices from earlier data (`optionsFrom`), by field id. */
@@ -170,10 +170,10 @@ export interface PageContext {
  * Keep only this page's fields that are shown, typed; report what is missing or wrong. A field
  * whose `when` does not hold is not asked: it is neither required nor kept.
  */
-export function readPageInput(
-  step: PageStep,
+export function readFormInput(
+  step: FormStep,
   input: Record<string, unknown>,
-  context: PageContext = {},
+  context: FormContext = {},
 ): { values: Record<string, unknown>; errors: InputError[] } {
   const values: Record<string, unknown> = {};
   const errors: InputError[] = [];
@@ -259,7 +259,7 @@ export function readPageInput(
   return { values, errors };
 }
 
-export function defaultsFor(step: PageStep): Record<string, unknown> {
+export function defaultsFor(step: FormStep): Record<string, unknown> {
   return Object.fromEntries(
     step.fields.filter((f) => f.default !== undefined).map((f) => [f.id, f.default]),
   );

@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 const page = (id: string, title: string, label = "Name") => ({
   id,
   title,
-  type: "page" as const,
+  type: "form" as const,
   fields: [{ id: `${id}-f`, kind: "text" as const, label, required: true }],
 });
 

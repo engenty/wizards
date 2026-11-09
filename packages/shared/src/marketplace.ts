@@ -250,7 +250,7 @@ export function formatsOf(def: WizardDefinition): ItemFormat[] {
 export function capabilitiesOf(def: WizardDefinition): Capability[] {
   const found = new Set<Capability>();
   for (const step of def.steps) {
-    if (step.type === "page") {
+    if (step.type === "form") {
       for (const field of step.fields) {
         if (field.kind === "image" || field.kind === "file") {
           found.add("documents");
@@ -344,7 +344,7 @@ export function effortOf(def: WizardDefinition): Effort {
   let reviews = 0;
   let seconds = 0;
   for (const step of def.steps) {
-    if (step.type === "page") {
+    if (step.type === "form") {
       fields += step.fields.length;
       required += step.fields.filter((f) => f.required).length;
       seconds += step.fields.length * 15;

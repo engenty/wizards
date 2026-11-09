@@ -31,7 +31,7 @@ const definition = {
   steps: [
     {
       id: "start",
-      type: "page",
+      type: "form",
       title: "Anlass",
       fields: [
         { id: "occasion", label: "Anlass", kind: "select", options: ["Geburtstag", "Hochzeit"] },
@@ -242,7 +242,7 @@ describe("an entry", () => {
       usable: true,
       description: "Eine Karte zum Anlass.",
       outline: [
-        { id: "start", type: "page", title: "Anlass" },
+        { id: "start", type: "form", title: "Anlass" },
         { id: "card", type: "agent", title: "Karte schreiben" },
         { id: "done", type: "result", title: "Fertig" },
       ],

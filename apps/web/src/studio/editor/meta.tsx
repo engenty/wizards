@@ -37,7 +37,7 @@ export function callSummary(call: NonNullable<AgentStep["call"]>): string {
 
 export function stepIcon(step: Step) {
   switch (step.type) {
-    case "page":
+    case "form":
       return ListChecks;
     case "agent":
       return step.call ? Plug : Bot;
@@ -68,7 +68,7 @@ export function stepIcon(step: Step) {
 }
 
 export const TYPE_TONE: Record<Step["type"], string> = {
-  page: "bg-cobalt-tint text-cobalt",
+  form: "bg-cobalt-tint text-cobalt",
   agent: "bg-ember-tint text-ember-strong",
   decision: "bg-ember-tint text-ember-strong",
   generate: "bg-amber-tint text-ink-2",
@@ -119,7 +119,7 @@ export function waitSummary(step: Extract<Step, { type: "wait" }>): string {
 }
 
 export function typeLabel(step: Step): string {
-  return isFixedStep(step) ? t("type.fixed") : t(`type.${step.type}` as "type.page");
+  return isFixedStep(step) ? t("type.fixed") : t(`type.${step.type}` as "type.form");
 }
 
 const TOOLS = ["web_search", "web_fetch", "browser", "sandbox", "image", "http", "pages", "code"];
@@ -131,7 +131,7 @@ export function toolLabel(id: string) {
 /** One line under a node's title: what the step asks or does. */
 export function stepSummary(step: Step): string {
   switch (step.type) {
-    case "page":
+    case "form":
       return step.fields.map((f) => f.label).join(" · ");
     case "agent": {
       if (step.call) {

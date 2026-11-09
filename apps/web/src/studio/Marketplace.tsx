@@ -309,7 +309,7 @@ const CAPABILITY_ICONS: Record<Capability, LucideIcon> = {
 /** A step of the flow as its icon: what the person or the wizard does there. */
 function stepIcon(step: OutlineStep): LucideIcon {
   switch (step.type) {
-    case "page":
+    case "form":
       return ListChecks;
     case "agent":
       return Bot;

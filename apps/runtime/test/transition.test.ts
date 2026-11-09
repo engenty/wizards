@@ -26,7 +26,7 @@ const agent = (id: string, more: object = {}) => ({
 });
 const page = (id: string, more: object = {}) => ({
   id,
-  type: "page",
+  type: "form",
   title: id,
   fields: [
     { id: `${id}A`, kind: "text", label: "A" },

@@ -79,7 +79,7 @@ server.registerPublicRoute({
       answers: { name: said },
     });
     const report = await server.runs.report(runId, { waitSeconds: 20 });
-    if (report.waitingFor && "page" in report.waitingFor) {
+    if (report.waitingFor && "form" in report.waitingFor) {
       // Ask the next field; fields with inChat=false need the run page.
       const link = await server.runs.handoffUrl(runId);
     }
@@ -93,15 +93,15 @@ server.registerPublicRoute({
 | `runs.start({ token \| wizardId, person, answers?, runner? })` | Starts a live run. `person` names who it is for on the door; the runtime keeps a hash of it as the run’s visitor, so what the wizard remembers is theirs on the run page too. `answers` fills the first page; what did not fit comes back as `refused`. Gives the run’s ticket |
 | `runs.report(runId, { waitSeconds?, draft? })` | The run as it stands: `lang`, `waitingFor` (a page with the fields shown and what they know, a review, a question), outputs with signed links and a `picture` (a PNG of a document, a dashboard or a widget), cost, `browserUrl`. Waits up to 45 seconds while the run works. A door that asks a page one field at a time passes what it has as `draft`: a field’s `shown` then follows those answers, as the form on the screen does |
 | `runs.wizards(runner)` | The published wizards of the tenant that switched the runner on: what the door offers, with `token`, `title` and `lang` |
-| `runs.answerPage(runId, stepId, values)` | Fills the page the run waits for |
+| `runs.answerForm(runId, stepId, values)` | Fills the form the run waits for |
 | `runs.review(runId, stepId, action)` | Accepts a review, or asks for one of the shown steps again with a note. A review with `approve` (`waitingFor.approve`) takes `{ type: "decline", note? }` too, and accepting approves |
 | `runs.answerAsk(runId, askId, "allow" \| "skip")` | Answers a running step’s question. A sign-in cannot be answered here: hand off |
 | `runs.answerQuestion(runId, answer)` | An AI step stopped to ask the person something (`waitingFor.question`): it goes on with their words |
-| `runs.message(runId, { text, delivery? })` | What the person wrote while the run stands at a wait. A wait for `message.received` takes it as its signal; otherwise the answer is `null` and it goes nowhere. A person’s step takes what they write through `answerPage`, never both |
+| `runs.message(runId, { text, delivery? })` | What the person wrote while the run stands at a wait. A wait for `message.received` takes it as its signal; otherwise the answer is `null` and it goes nowhere. A person’s step takes what they write through `answerForm`, never both |
 | `runs.control(runId, "back" \| "retry" \| "cancel")` | |
 | `runs.subscribe(runId, listener)` | Hears every change of the run: its events with their note in both languages, or a status change. Returns the function that stops it |
 | `runs.handoffUrl(runId)` | The run page with the run’s ticket: the link to send for what the door cannot do. The person who opens it and the door’s person are one to the wizard |
-| `runs.upload(runId, { data, mime, name })` | A file of the person, checked as an upload on the run page is ([Uploads](../wizard-format/pages-and-fields.md#uploads)); the asset id goes into an image or file field with `answerPage` |
+| `runs.upload(runId, { data, mime, name })` | A file of the person, checked as an upload on the run page is ([Uploads](../wizard-format/forms-and-fields.md#uploads)); the asset id goes into an image or file field with `answerForm` |
 | `runs.transcribe(runId, { data, mime })` | What is said in a recording of the person (a voice message), written down with the tenant’s audio model and charged to the run. Up to 10 MB |
 
 A refused command throws an error with a `status` and a `code` (`not_found`, `invalid`,

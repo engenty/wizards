@@ -19,7 +19,7 @@ import { Button, cn, Input, Textarea } from "../../ui";
 /** What a new step is to be: the assistant picks with "auto". */
 export const ADD_KINDS = [
   "auto",
-  "page",
+  "form",
   "agent",
   "decision",
   "generate",
@@ -29,14 +29,14 @@ export const ADD_KINDS = [
 export type AddKind = (typeof ADD_KINDS)[number];
 
 /** The kinds an empty step can be inserted as, without the assistant. */
-export const EMPTY_KINDS = ["page", "agent", "decision", "generate", "widget"] as const;
+export const EMPTY_KINDS = ["form", "agent", "decision", "generate", "widget"] as const;
 /** A wait comes with the `durableRuns` switch. */
 export type EmptyKind = (typeof EMPTY_KINDS)[number] | "wait";
 
 const KIND_ICON: Record<AddKind | EmptyKind, typeof Bot> = {
   wait: Hourglass,
   auto: Sparkles,
-  page: ListChecks,
+  form: ListChecks,
   agent: Bot,
   decision: GitFork,
   generate: Image,
@@ -335,7 +335,7 @@ export interface StepAssistant {
 export function uniqueId(def: WizardDefinition, base: string): string {
   const taken = new Set([
     ...def.steps.map((s) => s.id),
-    ...def.steps.flatMap((s) => (s.type === "page" ? s.fields.map((f) => f.id) : [])),
+    ...def.steps.flatMap((s) => (s.type === "form" ? s.fields.map((f) => f.id) : [])),
   ]);
   let i = 1;
   let id = base;
@@ -348,9 +348,9 @@ export function uniqueId(def: WizardDefinition, base: string): string {
 
 const NEW_STEP: Record<EmptyKind, (id: string) => Step> = {
   wait: (id) => ({ id, type: "wait", title: t("step.new.wait"), for: "1d" }),
-  page: (id) => ({
+  form: (id) => ({
     id,
-    type: "page",
+    type: "form",
     title: t("step.new.page"),
     fields: [{ id: `${id}Text`, label: t("step.new.question"), kind: "text" }],
   }),
@@ -396,8 +396,8 @@ export function withEmptyStep(
 ): { def: WizardDefinition; id: string } {
   const id = uniqueId(
     def,
-    kind === "page"
-      ? "page"
+    kind === "form"
+      ? "form"
       : kind === "agent"
         ? "ai"
         : kind === "decision"

@@ -166,7 +166,7 @@ const definition = (title: string) => ({
   steps: [
     {
       id: "upload",
-      type: "page",
+      type: "form",
       title: "Belege hochladen",
       fields: [
         { id: "files", kind: "file", label: "Belege", required: true },

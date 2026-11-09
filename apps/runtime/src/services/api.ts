@@ -197,7 +197,7 @@ function answersOf(run: Pick<RunRow, "definition" | "state">) {
   const answers: { field: string; label: string; kind: string; value: string }[] = [];
   const lang = textLang(wizardLang(run.definition));
   for (const step of run.definition.steps) {
-    if (step.type !== "page") {
+    if (step.type !== "form") {
       continue;
     }
     for (const field of step.fields) {

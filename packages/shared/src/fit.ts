@@ -4,10 +4,10 @@ import {
   dataRef,
   type FieldKind,
   type Format,
+  type FormStep,
   isOtherwise,
   listRef,
   type ModelClass,
-  type PageStep,
   pluginToolOf,
   ruleMatches,
   type Step,
@@ -105,7 +105,7 @@ function templatesOf(step: Step): string[] {
     case "widget":
     case "surface":
       return Object.values(step.data).map((ref) => `{{${dataRef(ref)}}}`);
-    case "page":
+    case "form":
       return Object.values(step.data ?? {}).map((ref) => `{{${dataRef(ref)}}}`);
     default:
       return [];
@@ -146,7 +146,7 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
     }
   }
   switch (step.type) {
-    case "page":
+    case "form":
       // A deadline needs a server that stays.
       if (step.timeout || step.remind) {
         add("wait", true);
@@ -466,13 +466,13 @@ export function otherwiseIndex(
 // --- closed choices ---------------------------------------------------------------------------
 
 /** The choices a page offers: each select's options, a toggle's on and off. */
-export interface PageChoice {
+export interface FormChoice {
   field: string;
   values: (string | boolean)[];
 }
 
-export function choicesOf(step: PageStep): PageChoice[] {
-  return step.fields.flatMap((f): PageChoice[] => {
+export function choicesOf(step: FormStep): FormChoice[] {
+  return step.fields.flatMap((f): FormChoice[] => {
     if (f.kind === "select" && f.options?.length) {
       return [{ field: f.id, values: f.options }];
     }
@@ -493,10 +493,10 @@ export function choicesOf(step: PageStep): PageChoice[] {
  */
 export function closedChoicesFor(
   def: WizardDefinition,
-  step: PageStep,
+  step: FormStep,
   values: Record<string, unknown>,
   lacking: (step: Step) => ModelClass[],
-  closedFields: (field: PageStep["fields"][number]) => ModelClass[] | null = () => null,
+  closedFields: (field: FormStep["fields"][number]) => ModelClass[] | null = () => null,
 ): Record<string, ClosedChoice> {
   const byId = new Map(def.steps.map((s) => [s.id, s]));
   const known = Object.fromEntries(
@@ -531,7 +531,7 @@ export function closedChoicesFor(
 
 /** The answer a closed choice gets instead: its first value that stays open. */
 export function openValue(
-  step: PageStep,
+  step: FormStep,
   field: string,
   closed: ClosedChoice,
 ): string | boolean | undefined {

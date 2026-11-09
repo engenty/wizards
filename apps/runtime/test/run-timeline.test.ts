@@ -78,7 +78,7 @@ const pause = { id: "pause", type: "wait", title: "Pause", for: "2d" };
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
 const page = {
   id: "ask",
-  type: "page",
+  type: "form",
   title: "Kunde",
   fields: [
     { id: "kunde", kind: "text", label: "Kunde" },

@@ -48,7 +48,7 @@ const VISITOR = "v-ahead";
 
 const page = (id: string, more: Record<string, unknown> = {}, fields?: object[]) => ({
   id,
-  type: "page",
+  type: "form",
   title: `Seite ${id}`,
   fields: fields ?? [{ id: `${id}_f`, kind: "text", label: "Text" }],
   ...more,

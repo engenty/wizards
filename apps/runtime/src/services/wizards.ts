@@ -58,7 +58,7 @@ function blankWizard(lang: Lang): WizardDefinition {
     steps: [
       {
         id: "start",
-        type: "page",
+        type: "form",
         title: serverText(lang, "newWizardStart"),
         fields: [
           {

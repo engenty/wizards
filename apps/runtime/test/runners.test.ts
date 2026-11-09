@@ -27,7 +27,7 @@ const definition = {
   steps: [
     {
       id: "contact",
-      type: "page",
+      type: "form",
       title: "Kontakt",
       fields: [
         { id: "name", kind: "text", label: "Name", required: true },
@@ -36,7 +36,7 @@ const definition = {
     },
     {
       id: "proof",
-      type: "page",
+      type: "form",
       title: "Nachweis",
       fields: [
         { id: "photos", kind: "image", label: "Fotos", multiple: true },

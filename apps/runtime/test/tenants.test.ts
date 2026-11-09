@@ -25,7 +25,7 @@ const definition = {
   steps: [
     {
       id: "start",
-      type: "page",
+      type: "form",
       title: "Start",
       fields: [{ id: "name", kind: "text", label: "Name" }],
     },

@@ -390,7 +390,7 @@ describe("surface steps", () => {
       title: "x",
       lists: [{ id: "seen", title: "Seen", columns: [{ id: "name", name: "Name", type: "text" }] }],
       steps: [
-        { id: "p", type: "page", title: "P", fields: [{ id: "who", label: "Who", kind: "text" }] },
+        { id: "p", type: "form", title: "P", fields: [{ id: "who", label: "Who", kind: "text" }] },
         research,
         { id: "view", type: "surface", title: "View", components: facts, data: { count: "steps.research.count", suppliers: "steps.research.suppliers", seen: "lists.seen", who: "who" } },
         { id: "r", type: "result", title: "R", deliverables: [] },
@@ -462,13 +462,13 @@ describe("a chat's view", () => {
     expect(validateSurface(form, [], { chat: true })).toEqual([]);
   });
 
-  it("is the only view that asks: a wizard asks on its pages", () => {
+  it("is the only view that asks: a wizard asks on its forms", () => {
     const messages = validateSurface(form, []).map((i) => i.message);
     expect(messages).toEqual(
       expect.arrayContaining([
-        'Form "form" is for a chat\'s view; a wizard asks on its pages.',
-        'Field "day" is for a chat\'s view; a wizard asks on its pages.',
-        'Ref "ref" is for a chat\'s view; a wizard asks on its pages.',
+        'Form "form" is for a chat\'s view; a wizard asks on its forms.',
+        'Field "day" is for a chat\'s view; a wizard asks on its forms.',
+        'Ref "ref" is for a chat\'s view; a wizard asks on its forms.',
         '"ask": "ask" is for a chat\'s view.',
       ]),
     );

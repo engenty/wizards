@@ -95,7 +95,7 @@ const definitionWith = (connection: string) => ({
   avatar: "dome",
   connections: [{ id: "crm", spaceConnection: connection, actions: ["list_contacts"] }],
   steps: [
-    { id: "start", type: "page", title: "You", fields: [{ id: "email", kind: "email", label: "Mail" }] },
+    { id: "start", type: "form", title: "You", fields: [{ id: "email", kind: "email", label: "Mail" }] },
     { id: "read", type: "agent", title: "Read", instructions: "Read.", connections: ["crm"] },
     {
       id: "save",

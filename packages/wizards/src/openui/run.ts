@@ -122,7 +122,7 @@ export function useWizardRun(
 
   // The chat's answers start the page's fields, under what the run already holds.
   const shown = useMemo(() => {
-    if (!view || !prefill || view.step?.type !== "page") {
+    if (!view || !prefill || view.step?.type !== "form") {
       return view;
     }
     const known = Object.fromEntries(

@@ -54,7 +54,7 @@ const SECRET = "AT611904300234573201";
 const result = { id: "done", type: "result", title: "Fertig", deliverables: [] };
 const first = {
   id: "first",
-  type: "page",
+  type: "form",
   title: "Deine Daten",
   fields: [
     { id: "iban", kind: "text", label: "IBAN" },
@@ -64,7 +64,7 @@ const first = {
 };
 const second = {
   id: "second",
-  type: "page",
+  type: "form",
   title: "Noch eine Frage",
   fields: [{ id: "more", kind: "text", label: "Mehr" }],
 };

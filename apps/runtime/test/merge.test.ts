@@ -4,7 +4,7 @@ import { mergeDrafts } from "@engenty/wizards-shared/merge";
 
 const page = (id: string, title = id): Step => ({
   id,
-  type: "page",
+  type: "form",
   title,
   fields: [{ id: `${id}F`, label: "F", kind: "text" }],
 });

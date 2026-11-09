@@ -41,7 +41,7 @@ export interface ParsedWizardText {
 }
 
 export const STEP_TAGS: Record<string, string> = {
-  page: "Page",
+  form: "Page",
   agent: "Agent",
   decision: "Decision",
   generate: "Generate",
@@ -678,7 +678,7 @@ function compileStep(elem: Elem, cuts: TextCut[]): Json | null {
   }
   const step: Json = { ...attrsOf(elem, false, cuts), type };
   const id = typeof step.id === "string" ? step.id : undefined;
-  if (type === "page") {
+  if (type === "form") {
     compilePage(elem, step, cuts);
   } else {
     const rules: Json[] = [];
@@ -1021,7 +1021,7 @@ function niceStep(step: Json): string {
   const children: string[] = [];
   let text: string | null = null;
 
-  if (type === "page") {
+  if (type === "form") {
     const body = pageBody(rest);
     if (body) {
       delete rest.components;

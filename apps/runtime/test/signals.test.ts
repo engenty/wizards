@@ -238,7 +238,7 @@ describe("a signal and a run that waits", () => {
   it("before the wait: is not lost", async () => {
     const page = {
       id: "ask",
-      type: "page",
+      type: "form",
       title: "Ask",
       fields: [{ id: "x", kind: "text", label: "X" }],
     };
@@ -390,7 +390,7 @@ describe("a signal and a run that waits", () => {
   it("a key that comes out empty fails the run and says why", async () => {
     const page = {
       id: "ask",
-      type: "page",
+      type: "form",
       title: "Ask",
       fields: [{ id: "email", kind: "text", label: "E-Mail", required: false }],
     };
@@ -403,7 +403,7 @@ describe("a signal and a run that waits", () => {
   it("compares keys as a person and a service write them", async () => {
     const page = {
       id: "ask",
-      type: "page",
+      type: "form",
       title: "Ask",
       fields: [{ id: "email", kind: "text", label: "E-Mail" }],
     };
@@ -791,7 +791,7 @@ describe("run.done", () => {
   it("one wizard waits for another run's end", async () => {
     const page = {
       id: "ask",
-      type: "page",
+      type: "form",
       title: "Ask",
       fields: [{ id: "x", kind: "text", label: "X" }],
     };
@@ -815,7 +815,7 @@ describe("run.done", () => {
   it("before the wait is not lost, and a cancel says how it ended", async () => {
     const page = {
       id: "ask",
-      type: "page",
+      type: "form",
       title: "Ask",
       fields: [{ id: "x", kind: "text", label: "X" }],
     };
@@ -885,7 +885,7 @@ describe("a message on a channel", () => {
   it("a person's step takes the answer, and no signal is written", async () => {
     const page = {
       id: "ask",
-      type: "page",
+      type: "form",
       title: "Ask",
       fields: [{ id: "x", kind: "text", label: "X" }],
     };

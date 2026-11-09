@@ -9,7 +9,7 @@ const base: WizardDefinition = {
   avatar: "round",
   intro: "Hallo",
   steps: [
-    { id: "ask", type: "page", title: "Ask", fields: [{ id: "topic", label: "T", kind: "text" }] },
+    { id: "ask", type: "form", title: "Ask", fields: [{ id: "topic", label: "T", kind: "text" }] },
     { id: "done", type: "result", title: "Done", deliverables: [] },
   ],
 };
@@ -29,12 +29,12 @@ describe("applyOps", () => {
 
   it("replaces a step in place and moves it when anchored", () => {
     const replaced = applyOps(base, [
-      { op: "upsert_step", step: { id: "ask", type: "page", title: "New", fields: [] } },
+      { op: "upsert_step", step: { id: "ask", type: "form", title: "New", fields: [] } },
     ]) as WizardDefinition;
     expect(replaced.steps[0].title).toBe("New");
 
     const moved = applyOps(base, [
-      { op: "upsert_step", step: { id: "ask", type: "page", title: "A", fields: [] }, after: "done" },
+      { op: "upsert_step", step: { id: "ask", type: "form", title: "A", fields: [] }, after: "done" },
     ]);
     expect(ids(moved)).toEqual(["done", "ask"]);
   });

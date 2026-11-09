@@ -4,13 +4,13 @@ import {
   type ConditionLeaf,
   classIdOf,
   conditionMatches,
+  type FormStep,
   isDecidedField,
   isOtherwise,
   type Lang,
   MODEL_CLASSES,
   type ModelClass,
   type NextRule,
-  type PageStep,
   type Step,
   type TextClass,
   textClassOf,
@@ -61,7 +61,7 @@ export { openValue, unavoidableFrom, unavoidableSteps };
 export function stepClasses(step: Step): ModelClass[] {
   const own = ownClasses(step);
   const decides =
-    step.next?.some((r) => r.ask) || (step.type === "page" && step.fields.some(isDecidedField));
+    step.next?.some((r) => r.ask) || (step.type === "form" && step.fields.some(isDecidedField));
   return decides && !own.includes("classifier") ? [...own, "classifier"] : own;
 }
 
@@ -99,7 +99,7 @@ function ownClasses(step: Step): ModelClass[] {
       }
     case "motion-graphics":
       return [textClassOf(step.model ?? "low")];
-    case "page":
+    case "form":
       // A voice note the page asks for is listened to before the next step reads it.
       return step.fields.some((f) => f.kind === "audio" && f.required) ? ["audio"] : [];
     default:
@@ -110,7 +110,7 @@ function ownClasses(step: Step): ModelClass[] {
 
 /** The classes a step can do without: a voice note the person may leave out. */
 export function optionalStepClasses(step: Step): ModelClass[] {
-  return step.type === "page" &&
+  return step.type === "form" &&
     step.fields.some((f) => f.kind === "audio" && !f.required) &&
     !stepClasses(step).includes("audio")
     ? ["audio"]
@@ -583,7 +583,7 @@ export function optionalCapabilities(def: WizardDefinition): Set<Capability> {
  */
 export async function closedChoices(
   def: WizardDefinition,
-  step: PageStep,
+  step: FormStep,
   values: Record<string, unknown>,
 ): Promise<Record<string, ClosedChoice>> {
   const missing = await missingClasses();

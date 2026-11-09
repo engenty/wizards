@@ -501,9 +501,9 @@ function wantsTranslation(w: { translate: boolean }, def: WizardDefinition, lang
 }
 
 /** What the wizard's pages ask, in order (`PublicWizard.fields`). */
-export function pageFields(def: WizardDefinition): PublicField[] {
+export function formFields(def: WizardDefinition): PublicField[] {
   return def.steps.flatMap((step) =>
-    step.type === "page"
+    step.type === "form"
       ? step.fields.map((f) => ({
           id: f.id,
           label: f.label,
@@ -551,7 +551,7 @@ async function publicBody(
             machine: machineTranslated(as.memory, original),
           }
         : null,
-    fields: pageFields(def),
+    fields: formFields(def),
   };
 }
 

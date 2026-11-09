@@ -102,7 +102,7 @@ for (;;) {
     console.log("FAILED:", view.error);
     process.exit(1);
   }
-  if (view.status === "waiting_input" && view.step.type === "page") {
+  if (view.status === "waiting_input" && view.step.type === "form") {
     console.log(`→ page ${view.step.id}`);
     await call("POST", `/api/runs/${runId}/pages/${view.step.id}`, {
       values: await withUploads(runId, { ...view.prefill, ...answers[view.step.id] }),

@@ -1,6 +1,6 @@
 import {
+  type FormStep,
   isDecidedField,
-  type PageStep,
   type ResultStep,
   type ReviewStep,
   type Step,
@@ -144,7 +144,7 @@ function StepHeading({
   );
 }
 
-export function initialValues(step: PageStep, view: RunView): Values {
+export function initialValues(step: FormStep, view: RunView): Values {
   const out: Values = {};
   // What was typed here and not sent (another tab, another device, before a reload) comes first.
   const typed = view.step?.id === step.id ? (view.unsent ?? {}) : {};
@@ -223,7 +223,7 @@ function useKeepTyping(runId: string, stepId: string, values: Values, sent: { cu
   }, []);
 }
 
-function PageForm({ view, run, step }: { view: RunView; run: Run; step: PageStep }) {
+function PageForm({ view, run, step }: { view: RunView; run: Run; step: FormStep }) {
   // Keyed by the page at the call site, so a page (or a page revisited) starts from the run's values.
   const [values, setValues] = useState<Values>(() => initialValues(step, view));
   // Once the page is on its way, its typed answers are in it: nothing more is kept apart.
@@ -1223,7 +1223,7 @@ export function RunnerBody({
     body = <Failed view={view} run={run} />;
   } else if (view.status === "cancelled") {
     body = <div className="py-24 text-center text-ink-3">{t("run.cancelled")}</div>;
-  } else if (step?.type === "page") {
+  } else if (step?.type === "form") {
     body = <PageForm key={step.id} view={view} run={run} step={step} />;
   } else if (step?.type === "review") {
     // A regenerated output is a fresh review: drafts and notes start over.

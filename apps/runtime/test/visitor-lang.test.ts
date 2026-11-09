@@ -27,7 +27,7 @@ let wizards: typeof import("../src/services/wizards");
 
 const page = (title: string, label: string) => ({
   id: "start",
-  type: "page",
+  type: "form",
   title,
   fields: [{ id: "name", kind: "text", label }],
 });

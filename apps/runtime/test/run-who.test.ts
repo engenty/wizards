@@ -120,13 +120,13 @@ const made = { id: "made", type: "agent", title: "Machen", instructions: "Do.", 
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
 const form = {
   id: "form",
-  type: "page",
+  type: "form",
   title: "Deine Daten",
   fields: [{ id: "kunde", kind: "text", label: "Kunde" }],
 };
 const teamPage = {
   id: "team",
-  type: "page",
+  type: "form",
   title: "Rückfrage",
   who: "team",
   fields: [{ id: "intern", kind: "text", label: "Intern" }],
@@ -417,7 +417,7 @@ describe("on a step for the team", () => {
     );
     const refused = { code: "forbidden" };
     await inTenant(async () => {
-      await expect(services.answerRunPage(MAX, runId, "check", {})).rejects.toMatchObject(refused);
+      await expect(services.answerRunForm(MAX, runId, "check", {})).rejects.toMatchObject(refused);
       await expect(
         services.reviewRun(MAX, runId, "check", { type: "accept" }),
       ).rejects.toMatchObject(refused);
@@ -436,7 +436,7 @@ describe("on a step for the team", () => {
     const refused = { code: "forbidden" };
     const file = { name: "a.txt", mime: "text/plain", data: new Uint8Array([1]) };
     await inTenant(async () => {
-      await expect(api.answerPage(runId, "check", {})).rejects.toMatchObject(refused);
+      await expect(api.answerForm(runId, "check", {})).rejects.toMatchObject(refused);
       await expect(api.review(runId, "check", { type: "accept" })).rejects.toMatchObject(refused);
       await expect(api.answerAsk(runId, "a", "allow")).rejects.toMatchObject(refused);
       await expect(api.answerQuestion(runId, "ja")).rejects.toMatchObject(refused);
@@ -459,7 +459,7 @@ describe("on a step for the team", () => {
     const { runId } = await startRun([form, end], { userId: MAX });
     const api = plugins.runsApiFor("door");
     await inTenant(async () => {
-      await expect(api.answerPage(runId, "form", {})).rejects.toMatchObject({ code: "forbidden" });
+      await expect(api.answerForm(runId, "form", {})).rejects.toMatchObject({ code: "forbidden" });
       await expect(api.handoffUrl(runId)).rejects.toMatchObject({ code: "forbidden" });
     });
   });
@@ -1059,9 +1059,9 @@ describe("with the switch off", () => {
       (await call(a.runId, "/pages/team", "POST", { values: {} }, { visitor: "v-off2" })).status,
     ).toBe(200);
     const b = await startRun([teamPage, end], { visitorId: "v-off3" });
-    await inTenant(() => plugins.runsApiFor("door").answerPage(b.runId, "team", {}));
+    await inTenant(() => plugins.runsApiFor("door").answerForm(b.runId, "team", {}));
     const c = await startRun([teamPage, end], { userId: "someone", mode: "test" });
-    await inTenant(() => services.answerRunPage(MAX, c.runId, "team", {}));
+    await inTenant(() => services.answerRunForm(MAX, c.runId, "team", {}));
     expect((await row(c.runId))?.state.history).toContain("team");
   });
 

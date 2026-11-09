@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import {
-  type AheadPage,
+  type AheadForm,
   type CardOption,
   type EngentyCostume,
   type Format,
@@ -1487,7 +1487,7 @@ export interface RunView {
    * The plain pages the run can reach from here with no server, the current one included, each
    * with where it goes and the progress bar on it (`nextInBrowser`). For a viewer who may answer.
    */
-  ahead?: Record<string, AheadPage & { progress: RunView["progress"] }>;
+  ahead?: Record<string, AheadForm & { progress: RunView["progress"] }>;
   /** The number of the last page sent with one (`RunState.pagesSent`): the next is one more. */
   pagesSent?: number;
   /** What fields of the current page start with, from earlier steps (`prefill`). */

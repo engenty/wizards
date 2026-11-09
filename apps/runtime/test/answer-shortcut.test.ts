@@ -51,7 +51,7 @@ const TEAMMATE = "u-team";
 
 const page = (id: string, more: Record<string, unknown> = {}) => ({
   id,
-  type: "page",
+  type: "form",
   title: `Seite ${id}`,
   fields: [{ id: `${id}_f`, kind: "text", label: "Text" }],
   ...more,
@@ -213,7 +213,7 @@ describe("the slow path: the answer leaves the run running for a runner, and kic
       "a page with decided fields",
       flow(page("a"), {
         id: "b",
-        type: "page",
+        type: "form",
         title: "Seite b",
         fields: [{ id: "b_f", kind: "text", label: "Text", ask: "Die Person will mehr sagen" }],
       }),

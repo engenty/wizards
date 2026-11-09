@@ -1,4 +1,4 @@
-import { FIELD_WAYS, type Field, type PageStep } from "@engenty/wizards-shared/definition";
+import { FIELD_WAYS, type Field, type FormStep } from "@engenty/wizards-shared/definition";
 import type { RunView } from "@engenty/wizards-shared/run";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
@@ -24,7 +24,7 @@ export interface Caption {
 }
 
 export interface PageBinding {
-  step: PageStep;
+  step: FormStep;
   fields: Field[];
   values: Record<string, unknown>;
   setField(id: string, value: unknown): string | null;

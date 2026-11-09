@@ -86,7 +86,7 @@ function effortSent(def: WizardDefinition) {
     reviews: effort.reviews,
     minutes: effort.minutes,
     uploads: def.steps.some(
-      (s) => s.type === "page" && s.fields.some((f) => UPLOAD_KINDS.has(f.kind)),
+      (s) => s.type === "form" && s.fields.some((f) => UPLOAD_KINDS.has(f.kind)),
     ),
   };
 }

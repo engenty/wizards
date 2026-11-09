@@ -60,10 +60,10 @@ describe("mergeJson on a wizard", () => {
   it("keeps two steps added at the same place", () => {
     const m = merged(
       (d) => {
-        d.steps.splice(1, 0, { id: "phone", type: "page", title: "Phone", fields: [] } as any);
+        d.steps.splice(1, 0, { id: "phone", type: "form", title: "Phone", fields: [] } as any);
       },
       (d) => {
-        d.steps.splice(1, 0, { id: "consent", type: "page", title: "Consent", fields: [] } as any);
+        d.steps.splice(1, 0, { id: "consent", type: "form", title: "Consent", fields: [] } as any);
       },
     );
     expect(m.conflicts).toEqual([]);

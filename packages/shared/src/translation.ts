@@ -81,7 +81,7 @@ function visitTexts(def: WizardDefinition, visit: Visit, choices: Visit) {
         });
       }
     }
-    if (step.type === "page") {
+    if (step.type === "form") {
       visit(step.cta, (t) => {
         step.cta = t;
       });

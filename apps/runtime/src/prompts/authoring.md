@@ -196,7 +196,7 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   A step only some runs take sits right after the step that branches to it; that step's otherwise branch
 //   leads every other run past it, and the step itself goes on as the next in the list.
 
-type PageStep = { type: "page", fields: Field[] (1–5 per page), groups?: { id, instructions, optional? }[], cta?: string,
+type FormStep = { type: "form", fields: Field[] (1–5 per page), groups?: { id, instructions, optional? }[], cta?: string,
   components?: SurfaceComponent[],   // how the page is laid out, for a page with a key figure or an explanation between its fields; from the surface catalog.
                                      //   Each field of the page is placed by exactly one { id, component: "Field", name: fieldId }, which says nothing else: the field says how it asks.
                                      //   A field whose when does not hold draws nothing. Paths and calc read the page's answers by field id, as the person types, and the keys of data.
@@ -486,7 +486,7 @@ type WaitStep = { type: "wait", for?: Duration, until?: string, signal?: { name,
 // Example: { "id": "reply", "type": "wait", "title": "Wait for the reply", "signal": { "name": "mail.received", "key": "thread:{{steps.send.thread_id}}", "timeout": "3d" },
 //            "next": [{ "when": { "field": "steps.reply.timedOut", "op": "eq", "value": true }, "goto": "remind" }] }
 
-On a page or a review:
+On a form or a review:
   who?: "person"|"owner"|"team"  // who answers. person (default): whoever does the run. owner: the run's owner. team: the people the admin names in the share dialog. The validator can't see them: a wizard with a team step can't be published until someone is named. On a test run the member who tests answers.
   timeout?: Duration             // go on without an answer after this long: steps.<id>.timedOut is true, and a next rule on it decides. Without a rule the next step follows, and the page's fields stay empty. At most 31 days.
   remind?: Duration              // remind whoever is asked after this long, once. Shorter than timeout. At most 31 days.

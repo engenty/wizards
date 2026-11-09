@@ -44,7 +44,7 @@ function textCredits(price: ClassPrice | null | undefined, [input, output]: read
 /** A step's own work, and one decision where `ask` branches or a page's fields are decided. */
 function formula(step: Step, catalog: GatewayCatalog): number {
   const decides =
-    step.next?.some((r) => r.ask) || (step.type === "page" && step.fields.some(isDecidedField));
+    step.next?.some((r) => r.ask) || (step.type === "form" && step.fields.some(isDecidedField));
   const decision = decides ? textCredits(catalog.classes.classifier, TOKENS.decision) : 0;
   return decision + stepFormula(step, catalog);
 }

@@ -85,7 +85,7 @@ const asking = {
   steps: [
     {
       id: "first",
-      type: "page",
+      type: "form",
       title: "First",
       fields: [{ id: "name", kind: "text", label: "Name", required: true }],
     },

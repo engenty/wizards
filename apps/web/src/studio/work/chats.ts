@@ -145,7 +145,7 @@ export interface WaitingRun {
   wizard: string;
   stepId: string;
   step: string;
-  kind: "page" | "review" | "approve" | "question" | "pause";
+  kind: "form" | "review" | "approve" | "question" | "pause";
   status: string;
   about: string | null;
   detail: string | null;

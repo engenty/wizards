@@ -32,7 +32,7 @@ const tour = {
   steps: [
     {
       id: "object",
-      type: "page",
+      type: "form",
       title: "Welches Objekt?",
       fields: [
         { id: "motion", kind: "select", label: "Bewegung", options: ["Kamerafahrt", "Fotos"] },
@@ -124,7 +124,7 @@ describe("what a wizard needs of the models before it starts", () => {
 });
 
 describe("choices that lead to a step without a model", () => {
-  const page = tour.steps[0] as Extract<WizardDefinition["steps"][number], { type: "page" }>;
+  const page = tour.steps[0] as Extract<WizardDefinition["steps"][number], { type: "form" }>;
 
   it("closes the values whose path runs through it", async () => {
     unavailable.clear();
@@ -158,7 +158,7 @@ describe("voice notes without a model to listen to them", () => {
       steps: [
         {
           id: "what",
-          type: "page",
+          type: "form",
           title: "Was ist passiert?",
           fields: [
             { id: "note", kind: "audio", label: "Erzähl es", required },
@@ -176,7 +176,7 @@ describe("voice notes without a model to listen to them", () => {
     const def = report(false);
     expect((await missingModels(def)).map((m) => [m.cls, m.blocking])).toEqual([["audio", false]]);
     expect([...optionalCapabilities(def)]).toEqual(["listening"]);
-    const page = def.steps[0] as Extract<WizardDefinition["steps"][number], { type: "page" }>;
+    const page = def.steps[0] as Extract<WizardDefinition["steps"][number], { type: "form" }>;
     expect(await closedChoices(def, page, {})).toEqual({
       note: { values: [], classes: ["audio"] },
     });
@@ -196,7 +196,7 @@ describe("what a run adds up to along one way", () => {
   const ad = {
     title: "Werbevideo",
     steps: [
-      { id: "look", type: "page", title: "Wie soll es aussehen?", fields: [] },
+      { id: "look", type: "form", title: "Wie soll es aussehen?", fields: [] },
       {
         id: "stillsCheck",
         type: "review",

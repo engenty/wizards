@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { placeLabel } from "../src/geocode";
-import { fieldErrorsIn, readPageInput } from "../src/engine/input";
+import { fieldErrorsIn, readFormInput } from "../src/engine/input";
 import { prepareInputs } from "../src/engine/prepare";
 import { renderTemplate, type TemplateScope } from "../src/engine/template";
 import type { StepContext } from "../src/engine/types";
@@ -12,7 +12,7 @@ import {
   uploadMime,
   wizardManifest,
 } from "../src/routes/delivery";
-import { locationText, type PageStep, parseWizard, type WizardDefinition } from "@engenty/wizards-shared/definition";
+import { locationText, type FormStep, parseWizard, type WizardDefinition } from "@engenty/wizards-shared/definition";
 
 const assets = new Map<string, { runId: string; mime: string }>();
 const transcribe = vi.fn(async () => ({ text: "Die Stoßstange ist eingedrückt.", costUsd: 0.002 }));
@@ -32,7 +32,7 @@ const report = {
   steps: [
     {
       id: "site",
-      type: "page",
+      type: "form",
       title: "Vor Ort",
       fields: [
         { id: "place", label: "Ort", kind: "location", required: true },
@@ -77,7 +77,7 @@ describe("device field kinds", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [
             { id: "a", label: "A", kind: "number", scan: true },
@@ -95,8 +95,8 @@ describe("device field kinds", () => {
 });
 
 describe("page input from a phone", () => {
-  const page = wizard().steps[0] as PageStep;
-  const read = (input: Record<string, unknown>) => readPageInput(page, input);
+  const page = wizard().steps[0] as FormStep;
+  const read = (input: Record<string, unknown>) => readFormInput(page, input);
 
   it("keeps a position with its accuracy and address", () => {
     const { values, errors } = read({
@@ -287,25 +287,25 @@ describe("delivery", () => {
 });
 
 describe("how many files a page takes", () => {
-  const page: PageStep = {
+  const page: FormStep = {
     id: "p",
-    type: "page",
+    type: "form",
     title: "P",
     fields: [{ id: "photos", label: "Photos", kind: "image", multiple: true, min: 2, max: 3 }],
   };
 
   it("keeps the files in the order the person put them", () => {
-    const { values, errors } = readPageInput(page, { photos: ["c", "a", "b"] });
+    const { values, errors } = readFormInput(page, { photos: ["c", "a", "b"] });
     expect(errors).toEqual([]);
     expect(values.photos).toEqual(["c", "a", "b"]);
   });
 
   it("asks for more below the minimum and for fewer above the maximum", () => {
-    expect(readPageInput(page, { photos: ["a"] }).errors.map((e) => e.field)).toEqual(["photos"]);
-    expect(readPageInput(page, { photos: ["a", "b", "c", "d"] }).errors).toHaveLength(1);
+    expect(readFormInput(page, { photos: ["a"] }).errors.map((e) => e.field)).toEqual(["photos"]);
+    expect(readFormInput(page, { photos: ["a", "b", "c", "d"] }).errors).toHaveLength(1);
   });
 
   it("takes none where the field is not required", () => {
-    expect(readPageInput(page, {}).errors).toEqual([]);
+    expect(readFormInput(page, {}).errors).toEqual([]);
   });
 });

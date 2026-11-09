@@ -195,7 +195,7 @@ export function runnerFit(def: WizardDefinition, runner: RunnerInfo): RunnerFit 
   const carries = (kind: OutputKind | null) =>
     kind === null || caps.output.shows.includes(kind) || caps.output.pictures.includes(kind);
   for (const step of def.steps) {
-    if (step.type === "page") {
+    if (step.type === "form") {
       // A decided field may or may not be shown: it counts as if it were.
       const missing = step.fields.filter((f) => !caps.input.includes(f.kind));
       const login =

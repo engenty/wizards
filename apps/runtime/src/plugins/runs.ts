@@ -133,7 +133,7 @@ export function runsApiFor(pluginId: string): PluginRuns {
       // A first page the team answers isn't filled by whoever starts the run.
       const started = await pluginRun(runId);
       if (
-        first?.type === "page" &&
+        first?.type === "form" &&
         input.answers &&
         Object.keys(input.answers).length &&
         (await mayAct(started, doorCaller(started)))
@@ -201,7 +201,7 @@ export function runsApiFor(pluginId: string): PluginRuns {
           : [];
       });
     },
-    async answerPage(runId, stepId, values) {
+    async answerForm(runId, stepId, values) {
       const run = await pluginAnswerableRun(runId);
       await submitPage(runId, stepId, values, doorCaller(run)).catch(refusedInput);
     },

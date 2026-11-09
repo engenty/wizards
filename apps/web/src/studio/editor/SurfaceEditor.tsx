@@ -51,7 +51,7 @@ export function sampleData(
 ): Record<string, unknown> {
   const numeric = valueKeys(components);
   const isNumber = (key: string) => numeric.has(key) || AMOUNT.test(key);
-  const fields = def.steps.flatMap((s) => (s.type === "page" ? s.fields : []));
+  const fields = def.steps.flatMap((s) => (s.type === "form" ? s.fields : []));
   const sampleOf = (raw: string): unknown => {
     const ref = dataRef(raw);
     const list = listRef(ref);

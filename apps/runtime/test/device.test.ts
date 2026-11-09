@@ -67,7 +67,7 @@ async function newRun(): Promise<string> {
         description: "",
         avatar: "round",
         steps: [
-          { id: "start", type: "page", title: "Start", fields: [] },
+          { id: "start", type: "form", title: "Start", fields: [] },
           { id: "done", type: "result", title: "Fertig", deliverables: [] },
         ],
       },

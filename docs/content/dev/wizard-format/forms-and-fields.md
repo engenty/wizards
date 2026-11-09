@@ -1,15 +1,16 @@
 ---
-title: Pages and fields
-description: A page step and its fields, the field kinds, and fields that show only when they fit.
+title: Forms and fields
+description: A form step and its fields, the field kinds, and fields that show only when they fit.
 version: 0.7.10
 ---
 
-A `page` step asks the person. It holds at least one field, and a good page has at most five.
+A `form` step asks the person: every field is something they give. It holds at least one field,
+and a good form has at most five. `components` stand between the fields as context.
 `cta` is the button’s label.
 
 ```json
 {
-  "id": "about", "type": "page", "title": "What is it about?", "cta": "Write it",
+  "id": "about", "type": "form", "title": "What is it about?", "cta": "Write it",
   "fields": [
     { "id": "topic", "label": "Topic", "kind": "textarea", "required": true,
       "placeholder": "e.g. We open our new studio on Friday", "help": "For the first line" },
@@ -62,15 +63,15 @@ A number field can have a range and a unit. The server refuses a value outside `
 Without `look`, a number is a text box, up to five short choices are buttons, and longer ones are a
 dropdown.
 
-## How a page is laid out
+## How a form is laid out
 
-Without `components`, a page’s fields stand one under the other. With them, a page is laid out from
+Without `components`, a form’s fields stand one under the other. With them, a form is laid out from
 the [surface catalog](./views-and-widgets.md#surfaces): text, figures, images and callouts between its
 fields.
 
 ```json
 {
-  "id": "budget", "type": "page", "title": "Wie hoch ist dein Budget?",
+  "id": "budget", "type": "form", "title": "Wie hoch ist dein Budget?",
   "fields": [
     { "id": "budget", "label": "Budget", "kind": "number", "unit": "€",
       "min": 2000, "max": 30000, "increment": 500, "look": "slider" },
@@ -87,13 +88,13 @@ fields.
 }
 ```
 
-Each field of the page is placed by exactly one `Field`, which has only a `name`: the field itself
+Each field of the form is placed by exactly one `Field`, which has only a `name`: the field itself
 says how it asks. A field whose `when` does not hold draws nothing where it is placed. Paths and
-[calculations](./views-and-widgets.md#calculated-values) read the page’s answers by field id, as the
+[calculations](./views-and-widgets.md#calculated-values) read the form’s answers by field id, as the
 person types, and the keys of `data`, which reads what a surface step’s `data` reads. A key of
 `data` is not also a field id.
 
-Only the run page draws `components`. A page answered in a chat, in a call or by an AI client
+Only the run page draws `components`. A form answered in a chat, in a call or by an AI client
 asks its fields one after the other.
 
 ## Uploads
@@ -144,8 +145,8 @@ from another field instead. Documents take the table with its totals from `{{pos
 
 ## Fields that show only when they fit
 
-`when` shows a field only while a condition holds. It reads a field of the same page, decided as
-the person types, or anything known before the page:
+`when` shows a field only while a condition holds. It reads a field of the same form, decided as
+the person types, or anything known before the form:
 
 ```json
 { "id": "company", "label": "Company", "kind": "text",
@@ -159,7 +160,7 @@ Where no rule on one field can say it, a decision picks the fields as the run re
 
 - `ask` on a field: a statement. The field shows when the decision finds it true of the run,
   for example “The complaint is about a damaged article”.
-- `groups` on the page and `group` on fields: of a group’s fields the decision shows one. With
+- `groups` on the form and `group` on fields: of a group’s fields the decision shows one. With
   `optional`, it may show none.
 
 ```json
@@ -170,5 +171,5 @@ Where no rule on one field can say it, a decision picks the fields as the run re
 ]
 ```
 
-A page with decided fields holds up to 12 fields and shows at most 5. A field has `ask` or
+A form with decided fields holds up to 12 fields and shows at most 5. A field has `ask` or
 `group`, not both.

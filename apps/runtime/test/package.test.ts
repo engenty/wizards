@@ -24,7 +24,7 @@ const definition = {
   description: "Mit Karte",
   avatar: "round",
   steps: [
-    { id: "start", type: "page", title: "See", fields: [{ id: "lake", label: "See", kind: "text" }] },
+    { id: "start", type: "form", title: "See", fields: [{ id: "lake", label: "See", kind: "text" }] },
     {
       id: "map",
       type: "widget",

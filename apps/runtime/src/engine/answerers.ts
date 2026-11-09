@@ -46,7 +46,7 @@ export async function answeringNarrowed(): Promise<boolean> {
 
 /** The role a step asks for. */
 export const whoOf = (step: Step | null | undefined): Who =>
-  step?.type === "page" || step?.type === "review" ? (step.who ?? "person") : "person";
+  step?.type === "form" || step?.type === "review" ? (step.who ?? "person") : "person";
 
 export const stepOfRun = (run: Pick<RunRow, "cursor" | "definition">, stepId = run.cursor) =>
   run.definition.steps.find((s) => s.id === stepId) ?? null;
@@ -185,7 +185,7 @@ export async function viewFor(view: RunView, run: RunRow, caller: Caller): Promi
   }
   const inside = run.definition.steps.filter((s) => whoOf(s) === "team");
   const hiddenFields = new Set(
-    inside.flatMap((s) => (s.type === "page" ? s.fields.map((f) => f.id) : [])),
+    inside.flatMap((s) => (s.type === "form" ? s.fields.map((f) => f.id) : [])),
   );
   const seen: RunView = {
     ...narrowed,

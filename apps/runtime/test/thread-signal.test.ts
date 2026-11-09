@@ -20,7 +20,7 @@ const pageReport = {
   mode: "live",
   lang: "de",
   status: "waiting_input",
-  step: { id: "ask", type: "page", title: "Frage" },
+  step: { id: "ask", type: "form", title: "Frage" },
   passed: [],
   waitingFor: {
     page: "ask",
@@ -32,7 +32,7 @@ const pageReport = {
 
 function door(reports: PluginRunReport[], message: PluginRuns["message"]) {
   const sent: { text?: string }[] = [];
-  const answerPage = vi.fn(async () => undefined);
+  const answerForm = vi.fn(async () => undefined);
   const report = vi.fn(async () => reports.shift() ?? (reports[0] as PluginRunReport));
   const thread: Thread = {
     id: "t",
@@ -40,7 +40,7 @@ function door(reports: PluginRunReport[], message: PluginRuns["message"]) {
     state: freshThreadState("de"),
   } as Thread;
   const it = new ThreadDoor({
-    runs: { report, message, answerPage } as unknown as PluginRuns,
+    runs: { report, message, answerForm } as unknown as PluginRuns,
     surface: {
       runner: "test",
       asks: ["text"],
@@ -55,31 +55,31 @@ function door(reports: PluginRunReport[], message: PluginRuns["message"]) {
   });
   const write = (text: string) =>
     it.inbound(thread, { id: "m-1", from: "t", at: 0, kind: "text", text });
-  return { write, sent, answerPage, thread };
+  return { write, sent, answerForm, thread };
 }
 
 describe("what a person writes while the run stands at a wait", () => {
   it("goes to a wait that listens, as a signal with the message's id", async () => {
     const message = vi.fn(async () => ({ runs: 1 }));
-    const { write, sent, answerPage } = door(
+    const { write, sent, answerForm } = door(
       [waiting("message.received")],
       message as PluginRuns["message"],
     );
     await write("Ja, passt");
     expect(message).toHaveBeenCalledWith("r", { text: "Ja, passt", delivery: "m-1" });
-    expect(answerPage).not.toHaveBeenCalled();
+    expect(answerForm).not.toHaveBeenCalled();
     expect(sent.map((s) => s.text)).toEqual(["Danke, das ist angekommen."]);
   });
 
   it("is only told it waits when the wait listens for something else", async () => {
     const message = vi.fn(async () => null);
-    const { write, sent, answerPage } = door(
+    const { write, sent, answerForm } = door(
       [waiting("invoice.paid"), waiting("invoice.paid")],
       message as PluginRuns["message"],
     );
     await write("Ist bezahlt");
     expect(message).toHaveBeenCalledOnce();
-    expect(answerPage).not.toHaveBeenCalled();
+    expect(answerForm).not.toHaveBeenCalled();
     expect(sent.map((s) => s.text)).toEqual([
       "Der Wizard wartet auf ein Ereignis und geht dann von selbst weiter.",
     ]);

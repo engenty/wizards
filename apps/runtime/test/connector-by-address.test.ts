@@ -534,7 +534,7 @@ describe("what an admin says an action does, at the broker", () => {
     steps: [
       {
         id: "start",
-        type: "page",
+        type: "form",
         title: "Du",
         fields: [{ id: "email", kind: "email", label: "E-Mail" }],
       },

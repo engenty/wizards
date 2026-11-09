@@ -703,7 +703,7 @@ export const waitDurationSchema = z
 const WAIT_UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000 } as const;
 
 /**
- * What a person's step (a page, a review) may add. Without them it waits for its answer as long as
+ * What a person's step (a form, a review) may add. Without them it waits for its answer as long as
  * it takes. `timeout`: give up after this long, `steps.<id>.timedOut` is true and `next` decides.
  * `remind`: remind whoever is asked after this long, once.
  */
@@ -761,25 +761,29 @@ export const decisionFieldSchema = withOptions(
 );
 
 /**
- * Who answers a page or a review: the run's own person (the default), the run's owner, or the people
+ * Who answers a form or a review: the run's own person (the default), the run's owner, or the people
  * the share dialog names (`wizard.answerers`). A role, never a person: people are the install's.
  */
 export const whoSchema = z.enum(["person", "owner", "team"]);
 export type Who = z.infer<typeof whoSchema>;
 
-export const pageStepSchema = z.object({
+/**
+ * A form: what the person gives, field by field. Every field kind is an input; `components` stand
+ * between the fields as context. The run shows it as a page of its own.
+ */
+export const formStepSchema = z.object({
   ...stepBase,
   ...personStep,
-  type: z.literal("page"),
+  type: z.literal("form"),
   who: whoSchema.optional(),
   fields: z.array(fieldSchema).min(1),
   /** Fields of which a decision shows one: see `group` on a field. */
   groups: z.array(fieldGroupSchema).max(6).optional(),
   cta: z.string().optional(),
   /**
-   * How the page is laid out, from the surface catalog: its fields placed with `Field`, with text,
+   * How the form is laid out, from the surface catalog: its fields placed with `Field`, with text,
    * figures, images and callouts between them. Without it the fields stand one under the other.
-   * Paths and calc read the page's answers by field id, as the person types, and the keys of `data`.
+   * Paths and calc read the form's answers by field id, as the person types, and the keys of `data`.
    */
   components: surfaceComponentsSchema.optional(),
   /** What the components read besides the answers: key → steps.id.key, lists.id, brand.name or today. */
@@ -1182,8 +1186,8 @@ export function waitHandsOn(step: WaitStep, key: string, more: string[]): boolea
   return (key === "came" || key === "timedOut") && more.length === 0;
 }
 
-/** Whether `steps.<page or review>.<key>` is something this person's step hands on. */
-export function personStepHandsOn(step: PageStep | ReviewStep, key: string): boolean {
+/** Whether `steps.<form or review>.<key>` is something this person's step hands on. */
+export function personStepHandsOn(step: FormStep | ReviewStep, key: string): boolean {
   if (key === "timedOut") {
     return Boolean(step.timeout);
   }
@@ -1191,7 +1195,7 @@ export function personStepHandsOn(step: PageStep | ReviewStep, key: string): boo
 }
 
 /** What a person's step hands on, as refs for the editor's lists. */
-export function personStepRefs(step: PageStep | ReviewStep): string[] {
+export function personStepRefs(step: FormStep | ReviewStep): string[] {
   return ["timedOut", "approved", "note"]
     .filter((key) => personStepHandsOn(step, key))
     .map((key) => `steps.${step.id}.${key}`);
@@ -1212,7 +1216,7 @@ export function waitOutputRefs(step: WaitStep): string[] {
 }
 
 export const stepSchema = z.discriminatedUnion("type", [
-  pageStepSchema,
+  formStepSchema,
   agentStepSchema,
   decisionStepSchema,
   generateStepSchema,
@@ -1224,7 +1228,7 @@ export const stepSchema = z.discriminatedUnion("type", [
   resultStepSchema,
 ]);
 export type Step = z.infer<typeof stepSchema>;
-export type PageStep = z.infer<typeof pageStepSchema>;
+export type FormStep = z.infer<typeof formStepSchema>;
 export type SurfaceStep = z.infer<typeof surfaceStepSchema>;
 export type AgentStep = z.infer<typeof agentStepSchema>;
 export type DecisionStep = z.infer<typeof decisionStepSchema>;
@@ -1387,7 +1391,7 @@ export const wizardSchema = z
 
 export type WizardDefinition = z.infer<typeof wizardSchema>;
 
-export const INTERACTIVE: ReadonlySet<StepType> = new Set(["page", "review", "result"]);
+export const INTERACTIVE: ReadonlySet<StepType> = new Set(["form", "review", "result"]);
 
 /** Which formats each producing step can be downloaded in. */
 export function formatsFor(step: Step): Format[] {
@@ -1462,7 +1466,7 @@ export interface ValidationIssue {
 /** The longest a person's step waits or reminds. */
 const PERSON_WAIT_MAX_MS = 31 * 86_400_000;
 
-function personStepIssues(step: PageStep | ReviewStep): ValidationIssue[] {
+function personStepIssues(step: FormStep | ReviewStep): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   for (const [name, duration] of [
     ["timeout", step.timeout],
@@ -1652,7 +1656,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       issues.push({ stepId: step.id, message: `Duplicate step id "${step.id}".` });
     }
     stepIds.add(step.id);
-    if (step.type === "page") {
+    if (step.type === "form") {
       for (const field of step.fields) {
         if (fieldIds.has(field.id)) {
           issues.push({ stepId: step.id, message: `Duplicate field id "${field.id}".` });
@@ -1780,7 +1784,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       return waitHandsOn(source, key, more);
     }
     if (
-      (source?.type === "page" || source?.type === "review") &&
+      (source?.type === "form" || source?.type === "review") &&
       more.length === 0 &&
       personStepHandsOn(source, key)
     ) {
@@ -1899,27 +1903,27 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       }
     };
     switch (step.type) {
-      case "page": {
+      case "form": {
         if (step.data && !step.components) {
-          issues.push({ stepId: step.id, message: 'A page reads "data" only with "components".' });
+          issues.push({ stepId: step.id, message: 'A form reads "data" only with "components".' });
         }
         if (step.components) {
-          checkDataRefs(step.data ?? {}, "Page");
+          checkDataRefs(step.data ?? {}, "Form");
           const fieldNames = step.fields.map((f) => f.id);
           for (const key of Object.keys(step.data ?? {})) {
             if (fieldNames.includes(key)) {
               issues.push({
                 stepId: step.id,
-                message: `Page data key "${key}" is also a field of this page; they read the same name.`,
+                message: `Form data key "${key}" is also a field of this form; they read the same name.`,
               });
             }
           }
           for (const issue of validateSurface(
             step.components,
             [...fieldNames, ...Object.keys(step.data ?? {})],
-            { page: fieldNames },
+            { form: fieldNames },
           )) {
-            issues.push({ stepId: step.id, message: `Page: ${issue.message}` });
+            issues.push({ stepId: step.id, message: `Form: ${issue.message}` });
           }
         }
         const groups = new Set<string>();
@@ -1936,7 +1940,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         if (decided && step.fields.length > MAX_DECIDED_FIELDS) {
           issues.push({
             stepId: step.id,
-            message: `A page whose fields are decided has at most ${MAX_DECIDED_FIELDS} fields.`,
+            message: `A form whose fields are decided has at most ${MAX_DECIDED_FIELDS} fields.`,
           });
         }
         for (const field of step.fields) {
@@ -1959,7 +1963,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
             if (!own && !knownBefore(step, name)) {
               issues.push({
                 stepId: step.id,
-                message: `Field "${field.id}": "when" reads "${name}", which is neither on this page nor known before it.`,
+                message: `Field "${field.id}": "when" reads "${name}", which is neither on this form nor known before it.`,
               });
             }
           }
@@ -2303,7 +2307,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         issues.push({ stepId: step.id, message: `onFail goes to unknown step "${step.onFail}".` });
       }
     }
-    if (step.type === "page" || step.type === "review") {
+    if (step.type === "form" || step.type === "review") {
       issues.push(...personStepIssues(step));
     }
     for (const rule of step.next ?? []) {
@@ -2495,8 +2499,8 @@ export interface AheadRule {
  * A page the browser may show with no server (`RunView.ahead`): the page, and where it goes. `next`
  * is null where the server decides that (an `ask`, a loop, a name the browser has no value for).
  */
-export interface AheadPage {
-  step: PageStep;
+export interface AheadForm {
+  step: FormStep;
   next: AheadRule[] | null;
 }
 
@@ -2506,7 +2510,7 @@ export interface AheadPage {
  * (the end, a step that works, a review, the result).
  */
 export function nextInBrowser(
-  ahead: Record<string, AheadPage>,
+  ahead: Record<string, AheadForm>,
   stepId: string,
   values: Record<string, unknown>,
 ): string | null {
@@ -2761,7 +2765,7 @@ export function shownFields(
 }
 
 /** The references the `when` of a page's fields read outside the page: what the page must know. */
-export function pageNeeds(fields: Field[]): string[] {
+export function formNeeds(fields: Field[]): string[] {
   const own = new Set(fields.map((f) => f.id));
   return [...new Set(fields.flatMap((f) => whenNames(f.when)).filter((r) => !own.has(r)))];
 }
@@ -3013,7 +3017,7 @@ function round2(n: number): number {
 }
 
 export function allFields(def: WizardDefinition): Field[] {
-  return def.steps.flatMap((s) => (s.type === "page" ? s.fields : []));
+  return def.steps.flatMap((s) => (s.type === "form" ? s.fields : []));
 }
 
 const GERMAN =
@@ -3035,7 +3039,7 @@ export function wizardLang(def: WizardDefinition): string {
     ...def.steps.flatMap((s) => [
       s.title,
       s.description,
-      ...(s.type === "page" ? s.fields.flatMap((f) => [f.label, f.help, f.placeholder]) : []),
+      ...(s.type === "form" ? s.fields.flatMap((f) => [f.label, f.help, f.placeholder]) : []),
     ]),
   ]
     .filter(Boolean)
