@@ -14,13 +14,11 @@ import {
   cardsFromData,
   conditionMatches,
   dataRef,
-  decisionAsAgent,
   type Format,
   type FormStep,
   followRules,
   formatsFor,
   formNeeds,
-  hasCodeStep,
   isDataStep,
   isDecidedField,
   LIST_FORMATS,
@@ -43,6 +41,7 @@ import {
   whenValue,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
+import { requiresOf } from "@engenty/wizards-shared/requires";
 import type {
   AskInput,
   RunNote,
@@ -108,6 +107,7 @@ import {
   takeMasked,
 } from "../models.js";
 import { runEnded } from "../plugins/events.js";
+import { pluginsOf as loadedPlugins } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
 import {
   ContentBlockedError,
@@ -586,15 +586,19 @@ export async function createRun(input: {
     state.start = input.start;
     state.fill = input.fill ?? {};
   }
-  // Off, nothing starts that would need the clock; a run that already waits goes on.
-  if (input.definition.steps.some((s) => s.type === "wait") && !(await durableRunsOn())) {
-    throw new ModelUnavailableError(note("waitsOff"));
+  // What the wizard needs and this runtime lacks: nothing starts. Off, nothing starts that would
+  // need the clock; a run that already waits goes on.
+  const requires = input.definition.requires ?? requiresOf(input.definition);
+  const switches = await remoteFeatures().catch(() => null);
+  for (const name of requires.features ?? []) {
+    if (!feature(name, switches)) {
+      throw new ModelUnavailableError(note(name === "durableRuns" ? "waitsOff" : "codeStepsOff"));
+    }
   }
-  if (
-    hasCodeStep(input.definition) &&
-    !feature("codeSteps", await remoteFeatures().catch(() => null))
-  ) {
-    throw new ModelUnavailableError(note("codeStepsOff"));
+  const installed = new Set((await loadedPlugins(currentTenant())).map((p) => p.source.id));
+  const lacking = (requires.plugins ?? []).filter((p) => !installed.has(p));
+  if (lacking.length) {
+    throw new ModelUnavailableError(note("pluginsMissing", { plugins: lacking.join(", ") }));
   }
   // A step every run passes through needs a model this runtime cannot serve: refuse before anything is held.
   const blocked = blockingMessage(await missingModelsSaid(input.definition));

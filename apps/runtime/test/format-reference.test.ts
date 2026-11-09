@@ -7,6 +7,7 @@ import {
   MAKER_CLASSES,
   MAKERS,
   outputFieldSchema,
+  requiresSchema,
   STEP_CLASSES,
   stepSchema,
   TEXT_CLASSES,
@@ -124,6 +125,13 @@ describe("the format's reference lists", () => {
         expect(page.includes(`\`${key}\``), `docs: ${name} ${key}`).toBe(true);
       }
     }
+  });
+
+  it("what a wizard needs", () => {
+    expect(firstColumn(doc("index"), "`requires` key")).toEqual(
+      sorted(Object.keys(requiresSchema.shape)),
+    );
+    expect(GUIDE).toContain("requires?:");
   });
 
   it("tool ids", () => {

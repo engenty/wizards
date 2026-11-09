@@ -130,6 +130,42 @@ knows: it refuses a wizard of a newer version instead of running it the wrong wa
 The versions of a wizard itself, its drafts and what is published, are kept in the studio, not
 in the definition.
 
+## What a wizard needs
+
+`requires` says what a wizard needs before a run starts. It is filled in from the steps, never
+written by hand: the studio, the architect and the AI clients’ tools write it on every save, and
+`wizards validate` says when a file’s `requires` is not what its steps need.
+
+```json
+"requires": {
+  "models": ["classifier", "standard"],
+  "makers": ["anthropic"],
+  "tools": ["sandbox", "web_search"],
+  "run": ["code"],
+  "sandbox": "shell",
+  "plugins": ["appointments"],
+  "connections": ["mail"],
+  "features": ["codeSteps", "durableRuns"],
+  "optional": { "models": ["image"] }
+}
+```
+
+| `requires` key | What it lists |
+|---|---|
+| `models` | The model classes the steps call, decisions and `ask` rules included |
+| `makers` | The makers steps name |
+| `tools` | The built-in tools agent steps list |
+| `run` | `code` when the wizard has a code step |
+| `sandbox` | `shell` when a step works in a sandbox |
+| `plugins` | The plugins whose tools a step lists or a tool step calls |
+| `connections` | The kinds of the wizard’s connections |
+| `features` | The switches that must be on: `durableRuns` for a wait step, `codeSteps` for a code step |
+| `optional` | Classes only steps on some branches call: a run can go around them |
+
+A runtime that lacks something the wizard needs doesn’t start a run, and says what is missing.
+An import names the plugins the space still needs, and the marketplace doesn’t add a wizard
+whose plugins aren’t installed. Lists are sorted, and empty ones are left out.
+
 ## Steps
 
 Every step has an `id`, a `title`, an optional `description` and an optional `next`. Ids are
