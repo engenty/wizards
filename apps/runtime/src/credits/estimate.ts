@@ -1,5 +1,6 @@
 import {
   isDecidedField,
+  runsWithoutModel,
   type Step,
   type TextClass,
   textClassOf,
@@ -56,8 +57,8 @@ function stepFormula(step: Step, catalog: GatewayCatalog): number {
     return textCredits(cls("classifier"), TOKENS.decision);
   }
   if (step.type === "agent") {
-    // A call runs one tool and no model: nothing to pay for.
-    if (step.call) {
+    // A call runs one tool and no model, code the wizard's own function: nothing to pay for.
+    if (runsWithoutModel(step)) {
       return 0;
     }
     const shape = step.tools.includes("browser")

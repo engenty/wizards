@@ -18,7 +18,7 @@
 // the script finds nothing to do.
 //
 // What changes in a definition of version 2, besides its version:
-// - An agent step that is a decision (the classifier class, no tools, call, each or connections,
+// - An agent step that is a decision (the classifier class, no tools, call, code, each or connections,
 //   json output of only yesno, choice and score fields) becomes `type: "decision"` with its
 //   instructions, its fields and `working`.
 // - Condition operators take their new names in every `when`: equals → eq, notEquals → ne,
@@ -50,6 +50,7 @@ function isDecision(step) {
   return (
     step.type === "agent" &&
     !step.call &&
+    !step.code &&
     !step.output?.schema &&
     step.model === "classifier" &&
     step.output?.format === "json" &&

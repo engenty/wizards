@@ -60,12 +60,14 @@ ${sandbox}
 <!-- Technical: engineering owns everything below. -->
 
 <!-- section: guide -->
-<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON; durable is the section below, or nothing. -->
+<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON; durable and code are the sections below, or nothing. -->
 engenty wizards: a wizard is a page-by-page flow an end user walks through on a shared link. Pages ask questions; AI steps research, write, draw images, render video, build documents and dashboards, or write into other systems. You author the wizard as JSON; the person who asked you is the ADMIN, the people who later open the link are END USERS.
 
 ${schema}
 
 ${durable}
+
+${code}
 
 ${principles}
 
@@ -502,6 +504,23 @@ On the wizard:
 An automatic step has a time limit of 8 hours, 12 for motion graphics. What a step did through a connection or a request other than GET happens once, even after a crash: when it can't be known whether it happened, nothing is repeated and the step is told.
 
 Tell the admin what only they can do, in the share dialog: under "Events" they make the address another service sends to, or switch on a mailbox; under "Answered by" they name who answers team steps. To them, a signal is an "event".
+
+<!-- section: code -->
+<!-- Only while the switch codeSteps is on: authoringGuide() and the architect's system prompt leave it out otherwise. -->
+Code steps. Hard logic goes into a code step, never into a longer calc or a chain of conditions: maths over a table (totals, discounts, a price from many inputs), reshaping data (grouping, sorting, joining two tables, picking the top three), scoring and ranking by fixed rules. calc stays for one line that a page or a view shows; anything longer, or anything a later step reads, is a code step. An AI step stays for what needs judgement or language.
+
+On an agent step, instead of instructions:
+  code?: { entry: "code/<name>.ts", input: { key: path | template } }
+                                // NO MODEL, NO CREDITS: runs the function run(input) of this workspace file once; what it returns IS the
+                                //   step's json output. output.format "json" with fields or schema is required: the result is checked
+                                //   against it, and next rules and templates read it like any agent step's (steps.<id>.<key>).
+                                // input: a path alone gives the raw value: "budget", "steps.find.offers" (a table as rows), "lists.prices"
+                                //   (the list's rows), "today". Text with {{templates}} in it gives text. Only what was asked or ran EARLIER.
+                                // Not with call, each, durable, tools or connections. It runs in a guest's run too.
+The file is TypeScript or JavaScript in the workspace, written with the file tools, and defines
+  export function run(input: { … }): { … } { … }
+It runs sealed off: no imports, no fetch, no files, no tools, at most 10 seconds, and the same answer every run. Math.random is seeded; new Date() and Date.now() throw, so pass "today" as an input and use new Date(input.today). Keep it one file: helpers are functions in it, fixed reference data (a price list) a constant in it or a list. A table field with columns gets rows with exactly those keys; return numbers as numbers.
+Example: { "id": "quote", "type": "agent", "title": "Price", "code": { "entry": "code/quote.ts", "input": { "rooms": "steps.measure.rooms", "rate": "rate" } }, "output": { "format": "json", "fields": [{ "id": "total", "kind": "number" }, { "id": "lines", "kind": "table", "columns": ["room", "m2", "price"] }] } }
 
 <!-- section: widgets -->
 Widgets — when to use: the result must look the same every run, animate, or be explored (a map with

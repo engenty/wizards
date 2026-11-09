@@ -58,13 +58,19 @@ function guideUnion(key: string, within = GUIDE): string[] {
   return sorted(quoted((line ?? "").split("//")[0]));
 }
 
-/** The guide's `type AgentStep = { … }`, and its durable section's line on an agent step. */
+/**
+ * The guide's `type AgentStep = { … }`, and the line on an agent step of each section a switch
+ * adds: durable runs, code steps.
+ */
 function guideAgentStep(): string {
   const start = GUIDE.indexOf("type AgentStep = {");
   const end = GUIDE.indexOf("\n}\n", start);
-  const durable = GUIDE.split("\n").findIndex((l) => l.startsWith("On an agent step:"));
+  const lines = GUIDE.split("\n");
+  const added = ["On an agent step:", "On an agent step, instead of instructions:"].map(
+    (head) => lines[lines.findIndex((l) => l === head) + 1] ?? "",
+  );
   expect(start).toBeGreaterThanOrEqual(0);
-  return `${GUIDE.slice(start, end)}\n${GUIDE.split("\n")[durable + 1] ?? ""}`;
+  return [GUIDE.slice(start, end), ...added].join("\n");
 }
 
 /** The keys every step type has (id, title, next, onFail …): described once, not per step. */
