@@ -288,7 +288,7 @@ describe("score fields", () => {
   });
 });
 
-describe("each on agent steps", () => {
+describe("foreach on agent steps", () => {
   const research = {
     id: "research",
     type: "agent",
@@ -303,7 +303,7 @@ describe("each on agent steps", () => {
       title: "x",
       steps: [
         research,
-        { id: "visit", type: "agent", title: "V", instructions: "Read {{item.url}} ({{index}} of {{count}})", tools: ["web_fetch"], each: "steps.research.suppliers", output: { format: "json", fields: [{ id: "price", kind: "number" }] } },
+        { id: "visit", type: "agent", title: "V", instructions: "Read {{item.url}} ({{index}} of {{count}})", tools: ["web_fetch"], foreach: "steps.research.suppliers", output: { format: "json", fields: [{ id: "price", kind: "number" }] } },
         { id: "pick", type: "form", title: "P", fields: [{ id: "s", label: "S", kind: "select", optionsFrom: "steps.visit.rows.name" }] },
         { id: "r", type: "result", title: "R", deliverables: [] },
       ],
@@ -314,10 +314,10 @@ describe("each on agent steps", () => {
     expect(issuesOf({
       title: "x",
       steps: [
-        { id: "visit", type: "agent", title: "V", instructions: "{{item.url}}", tools: [], each: "nowhere" },
+        { id: "visit", type: "agent", title: "V", instructions: "{{item.url}}", tools: [], foreach: "nowhere" },
         { id: "r", type: "result", title: "R", deliverables: [] },
       ],
-    })).toContain('each "nowhere" is "steps.<id>.<key>"');
+    })).toContain('foreach "nowhere" is "steps.<id>.<key>"');
   });
 });
 

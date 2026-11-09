@@ -480,10 +480,10 @@ async function composeSurface(
   return undefined;
 }
 
-/** An agent step runs this many times at most with `each`; more entries are left out. */
+/** An agent step runs this many times at most with `foreach`; more entries are left out. */
 const MAX_AGENT_ENTRIES = 20;
 
-/** The entries an agent step with `each` runs for: rows of a table, entries of a list, list rows. */
+/** The entries an agent step with `foreach` runs for: rows of a table, entries of a list, list rows. */
 function agentEntries(step: AgentStep, ctx: StepContext): unknown[] {
   const ref = dataRef(step.foreach ?? "");
   const list = ref.match(/^lists\.([a-zA-Z][a-zA-Z0-9_]*)$/)?.[1];
@@ -494,7 +494,7 @@ function agentEntries(step: AgentStep, ctx: StepContext): unknown[] {
 }
 
 /**
- * An agent step with `each`: the step once per entry, one after the other, each reading its
+ * An agent step with `foreach`: the step once per entry, one after the other, each reading its
  * entry as {{item}}. The results become one table — the entry's columns and the step's output
  * fields — and one text with a heading per entry.
  */
@@ -863,7 +863,7 @@ interface Entry {
 /** A step makes at most this many results; more entries are left out. */
 const MAX_ENTRIES = 8;
 
-/** The entries of a step with `each` — or the single one of a step without. */
+/** The entries of a step with `foreach` — or the single one of a step without. */
 function entriesOf(step: GenerateStep, ctx: StepContext): Entry[] {
   const references = step.referenceImage ? imagesOf(step.referenceImage, ctx) : [];
   if (!step.foreach) {

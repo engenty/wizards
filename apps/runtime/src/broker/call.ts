@@ -313,7 +313,7 @@ export function decide(call: {
         outcome: "deny",
         rule: "ai_step_writes",
         refused: "ai_step_writes",
-        reason: `An AI step only reads as the space: ${VERB[kind]} goes in a fixed step with "call".`,
+        reason: `An AI step only reads as the space: ${VERB[kind]} goes in a tool step.`,
       };
     }
     const rule = row.rules[kind] ?? "deny";

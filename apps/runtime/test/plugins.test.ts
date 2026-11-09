@@ -437,16 +437,13 @@ describe("a plugin's tools", () => {
   });
 
   it("answer a step that calls one, with no model", async () => {
-    const { runAgentStep } = await import("../src/engine/steps");
+    const { runAutomaticStep } = await import("../src/engine/steps");
     const emitted: string[] = [];
     const step = {
       id: "count",
-      type: "agent",
+      type: "tool",
       title: "Zählen",
-      instructions: "",
-      tools: [],
       call: { tool: "guestbook.count", input: { word: "{{wort}}", unused: "{{leer}}" } },
-      output: { format: "json" },
       working: "Zählt nach …",
     };
     const scope = {
@@ -455,16 +452,16 @@ describe("a plugin's tools", () => {
       brand: {},
     };
     const out = await client.withTenant(LOCAL, () =>
-      runAgentStep(step as any, { ...ctx(emitted), scope } as any),
+      runAutomaticStep(step as any, { ...ctx(emitted), scope, def: scope.def, state: scope.state } as any),
     );
     expect(out.json).toEqual({ entries: 1, word: "Gast", space: "Projekt" });
     expect(emitted).toEqual(["Zählt Einträge"]);
     // An input the tool's schema refuses is the step's error, not a model's guess.
     await expect(
       client.withTenant(LOCAL, () =>
-        runAgentStep(
+        runAutomaticStep(
           { ...step, call: { tool: "guestbook.count", input: { word: 5 } } } as any,
-          { ...ctx([]), scope } as any,
+          { ...ctx([]), scope, def: scope.def, state: scope.state } as any,
         ),
       ),
     ).rejects.toThrow(/word/);

@@ -419,14 +419,13 @@ describe("a draft's warnings", () => {
         { id: "start", type: "form", title: "Du", fields: [{ id: "email", kind: "email", label: "E-Mail" }] },
         {
           id: "send",
-          type: "agent",
+          type: "tool",
           title: "Senden",
           call: {
             connection: "mail",
             action: "send_message",
             input: { to: "{{email}}", subject: "Danke", body_text: "Angekommen." },
           },
-          output: { format: "json" },
         },
         { id: "done", type: "result", title: "Fertig", deliverables: [] },
       ],

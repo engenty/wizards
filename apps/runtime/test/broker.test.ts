@@ -660,12 +660,10 @@ describe("fixed steps write, AI steps on space connections read", () => {
   /** A step with a fixed `call`: the action and the fields are the wizard's. */
   const fixed = (connection: string, action = "create_contact") => ({
     id: "save",
-    type: "agent",
+    type: "tool",
     title: "Save",
-    instructions: "",
-    tools: [],
     call: { connection, action, input: { email: "{{email}}", id: "{{steps.read.id}}" } },
-    output: { format: "json" },
+    output: {},
   });
   /** The step that reads the id the fixed step sends along. */
   const read = {
@@ -743,7 +741,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
     const ask = vi.fn();
     const steps = await import("../src/engine/steps");
     const out = await inTenant(() =>
-      steps.runAgentStep(
+      steps.runAutomaticStep(
         def.steps[2] as never,
         contextOf(def, "run-f", { kind: "guest", id: "visitor-9" }, ask),
       ),
@@ -772,7 +770,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
     const steps = await import("../src/engine/steps");
     const tryIt = async (action: string, ctxDef = withFixed(viaSpace(), fixed("crm", action))) => {
       const ctx = contextOf(ctxDef, "run-f", { kind: "guest", id: "visitor-9" }, vi.fn());
-      await inTenant(() => steps.runAgentStep(ctxDef.steps[2] as never, ctx));
+      await inTenant(() => steps.runAutomaticStep(ctxDef.steps[2] as never, ctx));
       return ctx.resources.acted;
     };
     expect(await tryIt("list_contacts")).toBeFalsy();
@@ -785,7 +783,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
     const def = withFixed(viaSpace());
     const run = () =>
       inTenant(() =>
-        steps.runAgentStep(
+        steps.runAutomaticStep(
           def.steps[2] as never,
           contextOf(def, "run-f", { kind: "guest", id: "visitor-9" }, vi.fn()),
         ),
@@ -805,7 +803,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
     const def = withFixed(hub());
     await runRow("run-n", def, broker.grantOf(def as never));
     const out = await inTenant(() =>
-      steps.runAgentStep(
+      steps.runAutomaticStep(
         def.steps[2] as never,
         contextOf(def, "run-n", { kind: "guest", id: "visitor-none" }, vi.fn()),
       ),
@@ -882,7 +880,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
     const ask = vi.fn(async () => ({ type: "done" as const }));
     const steps = await import("../src/engine/steps");
     const out = await inTenant(() =>
-      steps.runAgentStep(
+      steps.runAutomaticStep(
         def.steps[2] as never,
         contextOf(def, "run-p", { kind: "person", id: "user-b", role: "member" }, ask),
       ),
@@ -906,7 +904,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
     // Declined: the step fails, in the person's words.
     await expect(
       inTenant(() =>
-        steps.runAgentStep(
+        steps.runAutomaticStep(
           def.steps[2] as never,
           contextOf(def, "run-p", { kind: "person", id: "user-b", role: "member" }, async () => ({ type: "skip" })),
         ),
@@ -945,7 +943,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
     };
     const issues = await inTenant(() => wizards.checkDraft(space, aiWrites as never));
     expect(issues.map((i) => i.message)).toEqual([
-      expect.stringMatching(/"create_contact" writes in CRM, which signs in as the space\. An AI step only reads there; put the write in a step with "call"/),
+      expect.stringMatching(/"create_contact" writes in CRM, which signs in as the space\. An AI step only reads there; put the write in a tool step/),
     ]);
     // A fixed step may write there.
     expect(await inTenant(() => wizards.checkDraft(space, withFixed(viaSpace()) as never))).toEqual([]);
