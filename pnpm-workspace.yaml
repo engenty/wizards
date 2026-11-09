@@ -16,6 +16,13 @@ overrides:
   # proxy-agent's get-uri still asks for basic-ftp 5, whose directory-listing parser can be made to
   # burn CPU (GHSA-c475-qrg2-pj4r). 6.x has the same API; its breaking change is a stricter PASV check.
   get-uri>basic-ftp: ^6.2.1
+  # The runtime's install size (scripts/npm-package.mjs ships these parents with the same
+  # dependencies, REWIRED there): pdf-parse and its pdfjs-dist draw with the @napi-rs/canvas the
+  # runtime has, instead of two more copies of the canvas binary (~50 MB); the OpenAPI plugin's
+  # React screens, and with them lucide-react (~50 MB), are not used: the runtime imports /core.
+  pdf-parse>@napi-rs/canvas: 1.0.13
+  pdfjs-dist@5>@napi-rs/canvas: 1.0.13
+  "@executor-js/plugin-openapi>lucide-react": "-"
   # Security fixes for packages others pull in, until their parents move up:
   # mermaid (docs) pins dompurify 3.4.16, whose HTML cleaning can be bypassed (critical).
   mermaid>dompurify: ^3.4.17
