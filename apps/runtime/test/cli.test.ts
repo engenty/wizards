@@ -1,9 +1,19 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { localTicketExpiry, mintLocalTicket } from "../src/auth/local-ticket.js";
-import { loginItemText, unitText } from "../src/cli/autostart.js";
+import { loginApp, loginItemText, unitText, writeMacLoginItem } from "../src/cli/autostart.js";
 import { installCommand } from "../src/cli/clients.js";
 import { findExternal } from "../src/cli/external.js";
 import { inherited, runtimeEnv, runtimePath } from "../src/cli/environment.js";
@@ -278,6 +288,28 @@ describe("starting at login on a Mac", () => {
     );
     expect(plist).toContain("<key>SuccessfulExit</key>\n    <false/>");
     expect(plist).toContain("<string>/tmp/a.log</string>");
+  });
+
+  it("starts through an app with the icon, written again only where it changed", () => {
+    const paths = layout(join(dir, "it's home"));
+    const item = join(dir, "LaunchAgents", "login.plist");
+    writeMacLoginItem(paths, item);
+    const app = join(loginApp(paths), "Contents");
+    expect(app).toBe(join(paths.tools, "engenty wizards.app", "Contents"));
+    expect(readFileSync(item, "utf8")).toContain(`<string>${join(app, "MacOS", "wizards")}</string>`);
+    expect(readFileSync(join(app, "Info.plist"), "utf8")).toContain("<string>AppIcon</string>");
+    expect(statSync(join(app, "Resources", "AppIcon.icns")).size).toBeGreaterThan(10_000);
+    const start = join(app, "MacOS", "wizards");
+    expect(statSync(start).mode & 0o111).toBeTruthy();
+    // The command, with the quote in its path, gets the arguments.
+    mkdirSync(paths.bin, { recursive: true });
+    writeFileSync(join(paths.bin, "wizards"), '#!/bin/sh\necho "ran $*"\n', { mode: 0o755 });
+    expect(execFileSync(start, ["start", "--no-open"], { encoding: "utf8" })).toBe(
+      "ran start --no-open\n",
+    );
+    utimesSync(item, 0, 0);
+    writeMacLoginItem(paths, item);
+    expect(statSync(item).mtimeMs).toBe(0);
   });
 });
 
