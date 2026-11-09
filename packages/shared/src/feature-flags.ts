@@ -227,6 +227,12 @@ export const FEATURES = {
     label: "Fast first draft",
     hint: "A new wizard's first pages within seconds: one quick model call writes the text form, each page is saved as it arrives, and the architect finishes the rest while the person looks (docs/plans/fast-creation.md, Part 3).",
   },
+  codeSteps: {
+    kind: "release",
+    default: false,
+    label: "Code steps",
+    hint: "A step that runs a function from the wizard's files with no model: maths, reshaping, scoring. The architect knows it, and a run with one starts (docs/plans/code-step.md).",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

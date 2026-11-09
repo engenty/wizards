@@ -92,7 +92,15 @@ import {
 import { ModelClassControl, StepCost, useEstimate } from "./estimate";
 import { conditionText, percent, whenWords } from "./FlowDiagram";
 import { HoldToDelete } from "./HoldToDelete";
-import { isFixedStep, stepIcon, stepSummary, TYPE_TONE, toolLabel, typeLabel } from "./meta";
+import {
+  isCodeStep,
+  isFixedStep,
+  stepIcon,
+  stepSummary,
+  TYPE_TONE,
+  toolLabel,
+  typeLabel,
+} from "./meta";
 import { ShareEditor } from "./ShareEditor";
 import { StepWarnings } from "./StepWarnings";
 import { SurfaceBody } from "./SurfaceEditor";
@@ -985,6 +993,71 @@ function DecisionBody({
   );
 }
 
+/**
+ * A code step: which file of the wizard it runs, with which inputs, and what it returns. It runs
+ * with no model, so it has no task, no tools and no class. The code itself is changed in the chat
+ * or the files; here stay the file, picked from the workspace, and the words shown while it works.
+ */
+function CodeStepBody({
+  step,
+  set,
+  files,
+}: {
+  step: Extract<Step, { type: "agent" }> & {
+    code: NonNullable<Extract<Step, { type: "agent" }>["code"]>;
+  };
+  set: (s: Step) => void;
+  files: WorkspaceFile[];
+}) {
+  const { code } = step;
+  const scripts = files.filter((f) => /\.(ts|js)$/.test(f.path));
+  const hasEntry = scripts.some((f) => f.path === code.entry);
+  const inputs = Object.entries(code.input);
+  const returns = step.output.schema
+    ? Object.keys(step.output.schema.fields)
+    : (step.output.fields ?? []).map((f) => f.id);
+  return (
+    <>
+      <Section title={t("inspector.code")}>
+        <p className="text-[0.8125rem] text-ink-3">{t("inspector.codeHint")}</p>
+        <Label>{t("inspector.codeFile")}</Label>
+        <Select
+          value={code.entry}
+          onChange={(v) => set({ ...step, code: { ...code, entry: v } })}
+          options={(hasEntry ? scripts : [{ path: code.entry }, ...scripts]).map((f) => ({
+            value: f.path,
+            label: f.path,
+          }))}
+        />
+        {hasEntry ? null : (
+          <p className="text-[0.8125rem] text-ember-strong">{t("inspector.codeMissing")}</p>
+        )}
+      </Section>
+      <Section title={t("inspector.callInput")}>
+        {inputs.length ? (
+          inputs.map(([key, value]) => (
+            <CallRow key={key} label={key}>
+              {value}
+            </CallRow>
+          ))
+        ) : (
+          <p className="text-[0.8125rem] text-ink-3">{t("inspector.codeNoInput")}</p>
+        )}
+      </Section>
+      <Section title={t("inspector.output")}>
+        {returns.length ? (
+          <CallRow label={t("inspector.codeReturns")}>{returns.join(", ")}</CallRow>
+        ) : null}
+        <Input
+          placeholder={t("inspector.working")}
+          value={step.working ?? ""}
+          onChange={(e) => set({ ...step, working: e.target.value || undefined })}
+        />
+      </Section>
+    </>
+  );
+}
+
 function StepBody({
   def,
   step,
@@ -1085,6 +1158,9 @@ function StepBody({
     case "agent":
       if (isFixedStep(step)) {
         return <FixedStepBody def={def} step={step} set={set} />;
+      }
+      if (isCodeStep(step)) {
+        return <CodeStepBody step={step} set={set} files={files} />;
       }
       return (
         <>

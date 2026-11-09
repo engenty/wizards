@@ -68,6 +68,7 @@ import { callPluginTool, spaceContextOf } from "../tools/plugin.js";
 import { skillsBlock, skillsOf } from "../tools/skills.js";
 import { personUploads, type UploadRef } from "../tools/store.js";
 import { runWidgetStep } from "../widgets/step.js";
+import { runCodeStep } from "./code-step.js";
 import { decide } from "./decide.js";
 import { durableTurn, turnContext, turnOf } from "./durable-turn.js";
 import { prepareInputs } from "./prepare.js";
@@ -623,6 +624,9 @@ export async function runAgentStep(
 ): Promise<StepOutput> {
   if (step.call) {
     return runCallStep({ ...step, call: step.call }, ctx);
+  }
+  if (step.code) {
+    return runCodeStep({ ...step, code: step.code }, ctx);
   }
   if (step.each) {
     return runAgentEach(step, ctx);

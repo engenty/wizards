@@ -91,13 +91,14 @@ function systemPrompt(
   pluginTools: GuideTool[],
   connections: GuideSpaceConnection[],
   startsOn: boolean,
-  durableOn: boolean,
+  on: { durableRuns?: boolean; codeSteps?: boolean },
 ): string {
   return `${prompt("architect", "system", {
     persona: prompt("architect", "persona"),
     starts: startsOn ? prompt("architect", "starts") : "",
     schema: prompt("authoring", "schema"),
-    durable: durableOn ? prompt("authoring", "durable") : "",
+    durable: on.durableRuns ? prompt("authoring", "durable") : "",
+    code: on.codeSteps ? prompt("authoring", "code") : "",
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
@@ -436,7 +437,8 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
   // extra effort.
   const resolved = await chatModel(input.way, input.extra === false ? "standard" : "high");
   input.clock?.runsOn(resolved.ref);
-  const { startTriggers: startsOn, durableRuns: durableOn } = await currentFeatures();
+  const features = await currentFeatures();
+  const startsOn = features.startTriggers;
   const tools = buildTools(
     input,
     resolved,
@@ -457,7 +459,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
         await pluginToolsOf(currentTenant()),
         await guideSpaceConnections(w.spaceId),
         startsOn,
-        durableOn,
+        features,
       ),
       providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
     },

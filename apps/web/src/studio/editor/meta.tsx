@@ -2,6 +2,7 @@ import { MAIL_SIGNAL, MESSAGE_SIGNAL, type Step } from "@engenty/wizards-shared/
 import {
   AppWindow,
   Bot,
+  Braces,
   Clapperboard,
   Eye,
   FileText,
@@ -30,6 +31,16 @@ export function isFixedStep(
   return step.type === "agent" && Boolean(step.call);
 }
 
+/**
+ * A code step: an agent step with `code`. It runs a function from the wizard's files, once and
+ * with no model, so the editor never shows it as an AI step either.
+ */
+export function isCodeStep(
+  step: Step,
+): step is AgentStep & { code: NonNullable<AgentStep["code"]> } {
+  return step.type === "agent" && !step.call && Boolean(step.code);
+}
+
 /** What a fixed step calls, in one line: the connection and its action, or the plugin's tool. */
 export function callSummary(call: NonNullable<AgentStep["call"]>): string {
   return "connection" in call ? `${call.connection} · ${call.action}` : call.tool;
@@ -40,7 +51,7 @@ export function stepIcon(step: Step) {
     case "form":
       return ListChecks;
     case "agent":
-      return step.call ? Plug : Bot;
+      return step.call ? Plug : step.code ? Braces : Bot;
     case "decision":
       return GitFork;
     case "generate":
@@ -119,7 +130,11 @@ export function waitSummary(step: Extract<Step, { type: "wait" }>): string {
 }
 
 export function typeLabel(step: Step): string {
-  return isFixedStep(step) ? t("type.fixed") : t(`type.${step.type}` as "type.form");
+  return isFixedStep(step)
+    ? t("type.fixed")
+    : isCodeStep(step)
+      ? t("type.code")
+      : t(`type.${step.type}` as "type.form");
 }
 
 const TOOLS = ["web_search", "web_fetch", "browser", "sandbox", "image", "http", "pages", "code"];
@@ -136,6 +151,9 @@ export function stepSummary(step: Step): string {
     case "agent": {
       if (step.call) {
         return callSummary(step.call);
+      }
+      if (step.code) {
+        return step.code.entry;
       }
       return step.tools.map(toolLabel).join(" · ") || step.instructions.slice(0, 90);
     }

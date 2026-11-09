@@ -1,6 +1,6 @@
 ---
 title: Agent steps
-description: What an AI step’s model gets, its tools, output, model class and maker, decisions, fixed calls and one run per entry.
+description: What an AI step’s model gets, its tools, output, model class and maker, decisions, fixed calls, code steps and one run per entry.
 version: 0.18.0
 ---
 
@@ -240,6 +240,65 @@ The step calls as the wizard, with the fields the wizard fixed: nothing a person
 it to another action. This is how a wizard writes through a connection of the space (see
 [Lists and connections](./lists-and-connections.md)): an AI step only reads there. On the person’s
 own connection the step asks them before it writes, as an AI step’s tool would.
+
+## A code step: `code` without a model
+
+`code` runs a function from the wizard’s own files, once, with no model and no credits. Use it for
+maths, reshaping and scoring: totals over a table, grouping and sorting, a price from many
+inputs, a ranking by fixed rules. A `calc` stays one line on a page or in a view, and anything
+longer belongs here.
+
+```json
+{
+  "id": "score", "type": "agent", "title": "Score the offers",
+  "code": {
+    "entry": "code/score.ts",
+    "input": { "budget": "budget", "offers": "steps.find.offers", "note": "{{name}} in {{city}}" }
+  },
+  "output": {
+    "format": "json",
+    "fields": [
+      { "id": "best", "kind": "text" },
+      { "id": "ranked", "kind": "table", "columns": ["name", "price", "score"] }
+    ]
+  }
+}
+```
+
+The file is TypeScript or JavaScript in the wizard’s workspace, like a widget’s HTML. It defines
+`run`, and what `run` returns is the step’s result:
+
+```ts
+type Offer = { name: string; price: number; stars: number };
+
+export function run(input: { budget: number; offers: Offer[] }) {
+  const ranked = input.offers
+    .map((o) => ({ name: o.name, price: o.price, score: o.stars * 20 - o.price / input.budget }))
+    .sort((a, b) => b.score - a.score);
+  return { best: ranked[0]?.name ?? "", ranked };
+}
+```
+
+| Key | What it holds |
+|---|---|
+| `entry` | The file’s path in the workspace, ending in `.ts` or `.js` |
+| `input` | What `run` gets, key by key. A path alone gives the value as it is: `budget`, `steps.find.offers` (a table as rows), `lists.prices` (the list’s rows), `today`. Text with `{{…}}` in it gives text |
+
+The output needs `format: "json"` and `fields` or a `schema`. The result is checked against them,
+and a result that doesn’t fit fails the step. Branches and later templates read it like any
+agent step’s output, as `steps.score.best`.
+
+The function runs sealed off from everything else:
+
+- It has no imports, no network, no files and no tools.
+- It stops after 10 seconds.
+- It gives the same answer every run. `Math.random` starts from the same seed, and `new Date()`
+  without a date fails. Pass `today` as an input when the code needs the date.
+- It runs in a guest’s run too, and it costs nothing.
+
+A code step has no `instructions`, `tools`, `connections`, `each` or `durable`, and no `call`.
+`wizards validate` checks that the file is in the workspace and that the inputs read only what
+was asked or ran before the step.
 
 ## One run per entry
 
