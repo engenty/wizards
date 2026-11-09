@@ -256,7 +256,7 @@ async function spaceConnectionIssues(spaceId: string, draft: WizardDefinition) {
         for (const id of writes) {
           issues.push({
             stepId: step.id,
-            message: `Step "${step.id}": "${id}" writes in ${name}, which signs in as the space. An AI step only reads there; put the write in a step with "call".`,
+            message: `Step "${step.id}": "${id}" writes in ${name}, which signs in as the space. An AI step only reads there; put the write in a tool step.`,
           });
         }
       }

@@ -2060,7 +2060,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     };
     /** A view written as components reads the step's own keys; with `foreach`, its `rows`. */
     const viewIssues = (data: AgentStep | FixedStep): ValidationIssue[] => {
-      const surface = data.output.surface;
+      const surface = data.output?.surface;
       if (!Array.isArray(surface)) {
         return [];
       }

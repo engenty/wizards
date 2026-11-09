@@ -943,7 +943,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
     };
     const issues = await inTenant(() => wizards.checkDraft(space, aiWrites as never));
     expect(issues.map((i) => i.message)).toEqual([
-      expect.stringMatching(/"create_contact" writes in CRM, which signs in as the space\. An AI step only reads there; put the write in a step with "call"/),
+      expect.stringMatching(/"create_contact" writes in CRM, which signs in as the space\. An AI step only reads there; put the write in a tool step/),
     ]);
     // A fixed step may write there.
     expect(await inTenant(() => wizards.checkDraft(space, withFixed(viaSpace()) as never))).toEqual([]);

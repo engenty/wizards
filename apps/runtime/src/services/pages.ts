@@ -99,7 +99,7 @@ function joinTitles(titles: string[], lang: PageLang): string {
  * The way through as the teaser shows it: the steps along the path a run takes when no
  * condition applies (a branch's "otherwise", else the next step), each page, review and result
  * step as written, the AI steps between them merged into one row, and about five rows in all.
- * An `each` step is one step and so one row.
+ * A `foreach` step is one step and so one row.
  */
 export function pageSteps(def: WizardDefinition, lang: PageLang): PageWizard["steps"] {
   const path: Step[] = [];

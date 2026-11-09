@@ -324,8 +324,8 @@ type ToolStep = {
                                 //   through a connection that signs in as the space. String inputs are templates ("{{email}}",
                                 //   "{{steps.read.summary}}"); a filled-in whole number or true/false is passed as one, an empty
                                 //   one is left out. On the person's own connection a write still asks them first.
-  output?: { fields?: OutputField[], surface?: SurfaceComponent[] }
-                                // fields name the keys of the answer later steps read; surface: a view written once
+  output?: { fields?: { id, kind, description, columns?, options? }[], surface?: SurfaceComponent[] }
+                                // fields, as on an agent step, name the keys of the answer later steps read; surface: a view written once
   retries?: 0|1|2|3|4|5
   working?: string              // shown while it runs
 }
@@ -366,7 +366,7 @@ type SurfaceStep = {
 //   view binds — nothing it does not show or a later step does not read. One step returns the whole tree.
 //   Paths: {"path": "/recipes"} from the data; inside a repeated entry "title" or "meals" reads the entry; a Link's
 //   view reads the entry it opens. The view is checked against the schema.
-//   Later steps read top-level keys ({{steps.id.key}}, optionsFrom, each, conditions); a list of entries is a table
+//   Later steps read top-level keys ({{steps.id.key}}, optionsFrom, foreach, conditions); a list of entries is a table
 //   there ("steps.id.recipes.title"). Downloads: xlsx one sheet per top-level list, csv the first list of flat
 //   entries, md and pdf the whole tree.
 //   Example (Kühlschrank-Koch): { kind: "object", label: "Menüplan", fields: {
@@ -531,7 +531,8 @@ type CodeStep = {
                                 //   step's (steps.<id>.<key>).
                                 // input: a path alone gives the raw value: "budget", "steps.find.offers" (a table as rows), "lists.prices"
                                 //   (the list's rows), "today". Text with {{templates}} in it gives text. Only what was asked or ran EARLIER.
-  output: { fields?: OutputField[], schema?: Schema, surface?: SurfaceComponent[] }   // fields or schema, one of them
+  output: { fields?: { id, kind, description, columns?, options? }[], schema?: Schema, surface?: SurfaceComponent[] }
+                                // fields (as on an agent step) or schema, one of them
   retries?: 0|1|2|3|4|5
   working?: string
 }
@@ -645,7 +646,7 @@ actions appear once an account is connected
 
 <!-- section: line.space_connections -->
 <!-- Only where the space has connections; connections: one "- id — name (connector), signs in as …, actions: …" line each. -->
-Connections of this space, set up by its admins (a wizard uses one with { "spaceConnection": id }; where it signs in as the space, agent steps read and a step with "call" writes):
+Connections of this space, set up by its admins (a wizard uses one with { "spaceConnection": id }; where it signs in as the space, agent steps read and a tool step writes):
 ${connections}
 
 <!-- section: line.plugin_tools -->
