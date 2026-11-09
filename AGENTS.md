@@ -11,7 +11,7 @@
 - `main` takes changes only through pull requests, with CI green; nobody pushes to it, agents included.
 - Work in a worktree of your own, branched from `origin/main` (`git worktree add ../engenty-wizards-<name> -b <type>/<name> origin/main`), never in the shared main checkout.
 - Push the branch, open a pull request with `gh pr create`, and turn on auto-merge (`gh pr merge --auto --squash`) once the work is done; it merges when CI is green.
-- Several agents share one machine. Locally, run only the test files you touched (`pnpm exec vitest run test/<file>.test.ts` in the package); CI runs the full suite on every push, so push and read CI. A full local run takes the machine-wide lock, so only one runs at a time: from the repository's root `lockf -k /tmp/engenty-wizards-tests.lock pnpm -r --workspace-concurrency=1 test --maxWorkers=3`, or in one package `lockf -k /tmp/engenty-wizards-tests.lock pnpm exec vitest run --maxWorkers=3`.
+- Several agents share one machine. Locally, run only the test files you touched (`pnpm exec vitest run test/<file>.test.ts` in the package); CI runs the full suite on every push, so push and read CI. A full local run takes the machine-wide lock, so only one runs at a time: from the repository's root `OLLAMA_URL=http://127.0.0.1:9/v1 lockf -k /tmp/engenty-wizards-tests.lock pnpm -r --workspace-concurrency=1 test --maxWorkers=3`, or in one package `OLLAMA_URL=http://127.0.0.1:9/v1 lockf -k /tmp/engenty-wizards-tests.lock pnpm exec vitest run --maxWorkers=3`. `OLLAMA_URL` keeps an Ollama running on the machine out of the tests, as on CI, which has none.
 
 ## Releases
 
