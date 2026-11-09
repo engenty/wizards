@@ -1,6 +1,6 @@
 import type { SpaceData } from "@engenty/wizards-shared/space-data";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Plus, Table2 } from "lucide-react";
+import { Database, FileText, Plus, Table2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
@@ -21,7 +21,7 @@ export function useSpaceData(spaceId: string | undefined) {
 /** What the Data menu and overview show: `t:<id>` a table, `p:<id>` a page. */
 export interface DataItem {
   key: string;
-  kind: "table" | "page";
+  kind: "table" | "page" | "database";
   title: string;
   /** How many rows a table has. */
   rows?: number;
@@ -36,6 +36,13 @@ export function dataGroups(data: SpaceData): { key: string; label: string; items
     ...data.pages
       .filter((x) => x.wizardId === wizardId)
       .map((x) => ({ key: `p:${x.id}`, kind: "page" as const, title: x.title })),
+    ...(data.databases ?? [])
+      .filter((x) => x.wizardId === wizardId)
+      .map((x) => ({
+        key: `d:${x.id}`,
+        kind: "database" as const,
+        title: t("data.database.item"),
+      })),
   ];
   return [
     { key: "own", label: t("data.own"), items: of(null) },
@@ -43,7 +50,7 @@ export function dataGroups(data: SpaceData): { key: string; label: string; items
   ].filter((g) => g.items.length);
 }
 
-export const DATA_ICON = { table: Table2, page: FileText };
+export const DATA_ICON = { table: Table2, page: FileText, database: Database };
 
 /** A new table or page: its title and whose it is. */
 function NewDialog({
@@ -147,6 +154,7 @@ export function DataOverview({
   const updated = new Map<string, string>([
     ...data.tables.map((x) => [`t:${x.id}`, x.updatedAt] as const),
     ...data.pages.map((x) => [`p:${x.id}`, x.updatedAt] as const),
+    ...(data.databases ?? []).map((x) => [`d:${x.id}`, x.updatedAt] as const),
   ]);
   const fmt = new Intl.DateTimeFormat(lang, { dateStyle: "medium" });
   return (

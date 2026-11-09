@@ -430,6 +430,34 @@ describe("many guests", () => {
   }, 60_000);
 });
 
+describe("Space → Data", () => {
+  it("lists the shared database with how many people keep their own, and none of theirs", async () => {
+    const listed = await json(send("GET", `/api/studio/spaces/${spaceId}/data`));
+    const shared = (await databases()).find((r) => r.holder === `shared:${spaceId}`);
+    const people = (await databases()).filter((r) => !r.holder.startsWith("shared:")).length;
+    expect(listed.databases).toEqual([
+      { id: shared?.id, wizardId, people, updatedAt: expect.any(String) },
+    ]);
+    const person = (await databases()).find((r) => r.holder === "v:bob");
+    expect((await send("GET", `/api/studio/databases/${person?.id}`)).status).toBe(404);
+  });
+
+  it("shows its tables read-only, a page of rows at a time, and each as CSV", async () => {
+    const shared = (await databases()).find((r) => r.holder === `shared:${spaceId}`);
+    const db = await json(send("GET", `/api/studio/databases/${shared?.id}`));
+    expect(db.tables).toEqual([
+      { name: "notes", rows: 0 },
+      { name: "signups", rows: 1 },
+    ]);
+    const rows = await json(send("GET", `/api/studio/databases/${shared?.id}/tables/signups`));
+    expect(rows).toMatchObject({ columns: ["email", "name"], rows: [{ email: "ann@example.com", name: "Ann" }], total: 1 });
+    expect((await send("GET", `/api/studio/databases/${shared?.id}/tables/nope`)).status).toBe(404);
+    const csv = await send("GET", `/api/studio/databases/${shared?.id}/tables/signups/csv`);
+    expect(csv.headers.get("content-type")).toContain("text/csv");
+    expect(await csv.text()).toBe("email,name\r\nann@example.com,Ann\r\n");
+  });
+});
+
 describe("deleting", () => {
   it("deletes a person's database with the rest of their store", async () => {
     const store = await import("../src/store/index");
