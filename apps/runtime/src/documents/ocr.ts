@@ -7,6 +7,7 @@ import type {
 } from "../engenty/doc-converter/interface.js";
 import { markdownFromPagedParseResult } from "../engenty/doc-converter/page-break.js";
 import { env } from "../env.js";
+import { onDemand } from "../on-demand.js";
 
 /**
  * Reads scans and photos on this computer, as an engenty doc-converter provider: LlamaIndex's
@@ -24,11 +25,14 @@ let loaded: Promise<typeof import("@llamaindex/liteparse")> | null = null;
 
 /** A parser for one read: which pages it reads is part of its config. */
 async function liteparse(targetPages?: string): Promise<LiteParse> {
-  loaded ??= import("@llamaindex/liteparse").catch((err) => {
-    // A platform LiteParse has no build for: no OCR.
-    console.error("[ocr] LiteParse is not available:", err);
-    throw err;
-  });
+  loaded ??= onDemand<typeof import("@llamaindex/liteparse")>("@llamaindex/liteparse").catch(
+    (err) => {
+      // A platform LiteParse has no build for, or its download failed: no OCR this time.
+      console.error("[ocr] LiteParse is not available:", err);
+      loaded = null;
+      throw err;
+    },
+  );
   const { LiteParse } = await loaded;
   return new LiteParse({
     outputFormat: "markdown",

@@ -123,6 +123,12 @@ export interface InstallNote {
   autoUpdate?: boolean;
   /** The setup ran without a terminal (CI, a script): no updates by themselves unless turned on. */
   unattended?: boolean;
+  /**
+   * The setup's minimal or full installation: what only a few wizards need (on-demand.ts) comes
+   * the first time one needs it ("on-use", also unset), or with the install and every update
+   * ("all").
+   */
+  extras?: "all" | "on-use";
 }
 
 export function readInstallNote(paths: Layout = layout()): InstallNote {

@@ -43,6 +43,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const root = resolve(import.meta.dirname, "..");
 const outDir = join(root, "dist", "npm");
@@ -275,6 +276,21 @@ for (const name of Object.keys(REWIRED)) {
     throw new Error(`${name} is in REWIRED, but nothing the runtime installs needs it.`);
   }
 }
+
+// Libraries only a few features need are optional peers: an install leaves them out, the
+// runtime installs one the first time a feature needs it, at the version named here
+// (apps/runtime/src/on-demand.ts).
+const { ON_DEMAND } = await import(
+  pathToFileURL(join(root, "apps", "runtime", "dist", "on-demand.js")).href
+);
+const peers = {};
+for (const name of Object.keys(ON_DEMAND)) {
+  if (!dependencies[name]) {
+    throw new Error(`${name} is in ON_DEMAND, but the runtime doesn't depend on it.`);
+  }
+  peers[name] = dependencies[name];
+  delete dependencies[name];
+}
 const sorted = (names) =>
   Object.fromEntries(
     names.sort((a, b) => a.localeCompare(b)).map((name) => [name, dependencies[name]]),
@@ -294,6 +310,10 @@ writeFileSync(
       engines: pkg.engines,
       files: ["apps", "bin", "modules", "plugin", "LICENSE-FIGURES", "TRADEMARKS.md"],
       dependencies: sorted(Object.keys(dependencies)),
+      peerDependencies: peers,
+      peerDependenciesMeta: Object.fromEntries(
+        Object.keys(peers).map((name) => [name, { optional: true }]),
+      ),
       bundleDependencies: bundled,
     },
     null,
