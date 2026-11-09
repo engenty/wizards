@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { DockerSandbox } from "@mastra/docker";
 import { env } from "../env.js";
 import { feature } from "../features.js";
+import { onDemand } from "../on-demand.js";
 import { dockerEgress } from "./docker-egress.js";
 import { MastraRunSandbox } from "./mastra.js";
 import type {
@@ -55,6 +55,7 @@ export function dockerSandbox(runId: string, image: string, egress?: SandboxEgre
       release();
       const way = egress && feature("dockerEgress") ? await dockerEgress(image, egress) : null;
       release = way?.release ?? (() => undefined);
+      const { DockerSandbox } = await onDemand<typeof import("@mastra/docker")>("@mastra/docker");
       return new DockerSandbox({
         id: `wizards-${runId.toLowerCase()}`,
         image,

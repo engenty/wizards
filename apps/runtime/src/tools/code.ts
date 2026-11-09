@@ -1,9 +1,16 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
-import { createCodeMode, createTool, noopObserve, type ToolObserve } from "@mastra/core/tools";
-import { QuickJsCodeModeTransport } from "@mastra/quickjs";
+import {
+  type CodeModeTransport,
+  createCodeMode,
+  createTool,
+  noopObserve,
+  type ToolObserve,
+} from "@mastra/core/tools";
+import type { QuickJsCodeModeTransport } from "@mastra/quickjs";
 import type { z } from "zod";
 import type { StepContext } from "../engine/types.js";
+import { onDemand } from "../on-demand.js";
 import { prompt } from "../prompts.js";
 import { clip } from "./shared.js";
 
@@ -95,12 +102,25 @@ export function toolCallIdOf(
 /** Heap of one program's QuickJS runtime. */
 const MEMORY_LIMIT_MB = 64;
 
-/** One transport for the process; it loads the WebAssembly module once, on the first program. */
-let transport: QuickJsCodeModeTransport | null = null;
-function quickJs(): QuickJsCodeModeTransport {
-  transport ??= new QuickJsCodeModeTransport({ memoryLimitMb: MEMORY_LIMIT_MB });
-  return transport;
-}
+/**
+ * One transport for the process; it loads QuickJS (on demand: on-demand.ts) and its WebAssembly
+ * module once, on the first program.
+ */
+let transport: Promise<QuickJsCodeModeTransport> | null = null;
+const quickJsTransport: CodeModeTransport = {
+  requiresSandbox: false,
+  run: async (opts) => {
+    transport ??= onDemand<typeof import("@mastra/quickjs")>("@mastra/quickjs").then(
+      ({ QuickJsCodeModeTransport }) =>
+        new QuickJsCodeModeTransport({ memoryLimitMb: MEMORY_LIMIT_MB }),
+    );
+    transport.catch(() => {
+      transport = null;
+    });
+    return (await transport).run(opts);
+  },
+};
+const quickJs = () => quickJsTransport;
 
 /** Runs at most `max` tasks at a time; the others wait their turn. */
 function limiter(max: number) {

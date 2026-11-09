@@ -15,6 +15,7 @@
  * spreadsheet in it should never download.
  */
 import type ExcelJS from "exceljs";
+import { onDemand } from "../../on-demand.js";
 import type { CsvMatrix } from "./csv-matrix.js";
 
 /**
@@ -202,7 +203,7 @@ function readSheet(worksheet: ExcelJS.Worksheet, mergeType: number): XlsxSheet {
 export async function readXlsxWorkbook(
   data: ArrayBuffer | Uint8Array
 ): Promise<XlsxWorkbook> {
-  const excel = unwrap(await import("exceljs"));
+  const excel = unwrap(await onDemand("exceljs"));
   const workbook = new excel.Workbook();
   const buffer: ArrayBuffer =
     data instanceof Uint8Array

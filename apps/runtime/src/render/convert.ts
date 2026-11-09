@@ -1,8 +1,7 @@
 import type { Format } from "@engenty/wizards-shared/definition";
-import HTMLtoDOCX from "@turbodocx/html-to-docx";
-import ExcelJS from "exceljs";
 import { marked } from "marked";
 import TurndownService from "turndown";
+import { onDemand } from "../on-demand.js";
 import { offlineContext } from "./chromium.js";
 
 /** Elements that turndown writes as blocks of their own, with blank lines around them. */
@@ -313,6 +312,10 @@ export async function htmlToPng(
 
 export async function htmlToDocx(html: string): Promise<Uint8Array> {
   const cleaned = html.replace(/<script[\s\S]*?<\/script>/gi, "");
+  // CommonJS: import() gives module.exports as `default`.
+  const { default: HTMLtoDOCX } = await onDemand<{
+    default: typeof import("@turbodocx/html-to-docx");
+  }>("@turbodocx/html-to-docx");
   const out = await HTMLtoDOCX(cleaned, null, {
     table: { row: { cantSplit: true } },
     font: "Arial",
@@ -384,6 +387,7 @@ export function allTables(value: unknown): { name: string; rows: Record<string, 
 export async function tablesToXlsx(
   tables: { name: string; rows: Record<string, unknown>[]; headers?: Record<string, string> }[],
 ): Promise<Uint8Array> {
+  const { default: ExcelJS } = await onDemand<{ default: typeof import("exceljs") }>("exceljs");
   const wb = new ExcelJS.Workbook();
   for (const [index, table] of tables.entries()) {
     const ws = wb.addWorksheet(

@@ -2,6 +2,7 @@
 import "./no-webstorage.js";
 import { serve } from "@hono/node-server";
 import { localEntryUrl, purgeSessions } from "./auth/index.js";
+import { installedByScript, readInstallNote } from "./cli/home.js";
 import { startClientChecks } from "./clients.js";
 import { adoptLegacyData } from "./db/adopt.js";
 import {
@@ -21,6 +22,7 @@ import { hookConsole } from "./log.js";
 import { managed } from "./manage.js";
 import { pruneSeen } from "./mcp/seen.js";
 import { checkModelsAtStart, loadCatalog, loadLocalModels } from "./models.js";
+import { installAll } from "./on-demand.js";
 import { startJobs } from "./plugins/jobs.js";
 import { loadPlugins } from "./plugins/loader.js";
 import { loadEntitlement, startProChecks } from "./plugins/pro.js";
@@ -78,6 +80,14 @@ if (managed) {
   startProChecks();
   // A newer release is downloaded beside this one and used from the next start.
   startUpdateChecks();
+  // A full installation keeps everything installed, also what an update brought in new versions.
+  if (installedByScript() && readInstallNote().extras === "all") {
+    void installAll((_name, err) => {
+      if (err) {
+        console.error(`[on-demand] ${err.message}`);
+      }
+    });
+  }
 }
 
 // The marketplace's starters and the starred entries, kept for offline use; checked hourly.

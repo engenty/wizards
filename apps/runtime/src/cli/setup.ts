@@ -3,6 +3,7 @@ import { homedir, totalmem } from "node:os";
 import { delimiter, join } from "node:path";
 import * as p from "@clack/prompts";
 import { LOCAL_DECISION_MODEL } from "../decision-model.js";
+import { installAll, ON_DEMAND } from "../on-demand.js";
 import { accountStep } from "./account.js";
 import { autostartForStatus, setAutostart } from "./autostart.js";
 import { installClient, installCommand } from "./clients.js";
@@ -195,6 +196,65 @@ async function toolsStep(interactive: boolean): Promise<"cancelled" | undefined>
     }
   }
 }
+
+/**
+ * Minimal or full installation: what only a few wizards need (ON_DEMAND) downloads the first time
+ * one needs it, or now and with every update (index.ts). Only an install made by the installer
+ * leaves it out; a checkout or the image has all of it.
+ */
+async function extrasStep(paths: Layout, interactive: boolean): Promise<"cancelled" | undefined> {
+  if (!installedByScript(paths)) {
+    return;
+  }
+  let extras = readInstallNote(paths).extras ?? "on-use";
+  if (interactive) {
+    const answer = await p.select({
+      message: "Minimal or full installation?",
+      initialValue: extras,
+      options: [
+        {
+          value: "on-use" as const,
+          label: "Minimal",
+          hint: "the rest downloads the first time a wizard needs it",
+        },
+        {
+          value: "all" as const,
+          label: "Full",
+          hint: `about ${FULL_EXTRA_MB} MB more now: ${Object.values(ON_DEMAND).join(", ")}`,
+        },
+      ],
+    });
+    if (cancelled(answer)) {
+      return "cancelled";
+    }
+    extras = answer;
+  }
+  writeInstallNote({ ...readInstallNote(paths), extras }, paths);
+  if (extras !== "all") {
+    return;
+  }
+  const task = p.taskLog({ title: "Installing everything", limit: 6 });
+  const failed: string[] = [];
+  await installAll(
+    (name, err) => {
+      if (err) {
+        failed.push(name);
+        task.message(err.message);
+      }
+    },
+    { onInstall: (name, version) => task.message(`${name} ${version} (for ${ON_DEMAND[name]})`) },
+  );
+  if (failed.length) {
+    task.error(
+      `${failed.join(", ")} didn’t install. Each is downloaded the first time a wizard needs it.`,
+    );
+  } else {
+    task.success("Everything is installed");
+  }
+}
+
+/** What a full installation adds on disk (macOS arm64, 0.18). */
+const FULL_EXTRA_MB = 230;
 
 const gb = (bytes: number) => (bytes / 2 ** 30).toFixed(1);
 
@@ -500,7 +560,8 @@ async function howToUse(paths: Layout) {
 
 /**
  * The guided setup: the account this computer joins, then what this machine has, what is
- * missing, and what to install — an AI client to think with, ffmpeg, a decision model, starting at login. It
+ * missing, and what to install — an AI client to think with, ffmpeg, minimal or full, a decision model,
+ * starting at login. It
  * starts nothing; it ends with what runs and how to start, stop and check it. Returns false
  * when it was stopped.
  */
@@ -522,6 +583,9 @@ export async function setup(paths: Layout, options: SetupOptions): Promise<boole
     return false;
   }
   if ((await toolsStep(interactive)) === "cancelled") {
+    return false;
+  }
+  if ((await extrasStep(paths, interactive)) === "cancelled") {
     return false;
   }
   if ((await decisionModelStep(paths, interactive)) === "cancelled") {
