@@ -4,6 +4,7 @@ import {
   LANGS,
   type Lang,
   pluginToolOf,
+  runsWithoutModel,
   type WizardDefinition,
 } from "./definition.js";
 import { CAPABILITY_IDS, type Capability } from "./fit.js";
@@ -256,8 +257,8 @@ export function capabilitiesOf(def: WizardDefinition): Capability[] {
         }
       }
     } else if (step.type === "agent") {
-      // A call runs no model: it needs nothing but its plugin.
-      if (step.call) {
+      // A call runs no model: it needs nothing but its plugin. Code runs in the runtime itself.
+      if (runsWithoutModel(step)) {
         continue;
       }
       found.add("text");
@@ -345,7 +346,7 @@ export function effortOf(def: WizardDefinition): Effort {
     } else if (step.type === "review") {
       reviews += 1;
       seconds += 30;
-    } else if (step.type === "agent" && step.call) {
+    } else if (step.type === "agent" && runsWithoutModel(step)) {
       seconds += 1;
     } else if (step.type === "agent") {
       seconds += step.tools.includes("browser")

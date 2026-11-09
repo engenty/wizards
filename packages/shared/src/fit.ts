@@ -10,6 +10,7 @@ import {
   type PageStep,
   pluginToolOf,
   ruleMatches,
+  runsWithoutModel,
   type Step,
   type ToolId,
   templateRefs,
@@ -95,7 +96,13 @@ const MEMORY_RE = /\{\{\s*memory\b/;
 function templatesOf(step: Step): string[] {
   switch (step.type) {
     case "agent":
-      return [step.instructions, step.call ? JSON.stringify(step.call.input) : ""];
+      return [
+        step.instructions,
+        step.call ? JSON.stringify(step.call.input) : "",
+        ...Object.values(step.code?.input ?? {}).map((v) =>
+          v.includes("{{") ? v : `{{${dataRef(v)}}}`,
+        ),
+      ];
     case "generate":
       return [step.prompt, step.options?.style ?? ""];
     case "motion-graphics":
@@ -116,7 +123,9 @@ function readsFilesLater(def: WizardDefinition, index: number): boolean {
     .slice(index + 1)
     .some(
       (s) =>
-        (s.type === "agent" && !s.call) || s.type === "generate" || s.type === "motion-graphics",
+        (s.type === "agent" && !runsWithoutModel(s)) ||
+        s.type === "generate" ||
+        s.type === "motion-graphics",
     );
 }
 

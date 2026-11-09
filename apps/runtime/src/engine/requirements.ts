@@ -11,6 +11,7 @@ import {
   type ModelClass,
   type NextRule,
   type PageStep,
+  runsWithoutModel,
   type Step,
   type TextClass,
   textClassOf,
@@ -67,8 +68,8 @@ export function stepClasses(step: Step): ModelClass[] {
 function ownClasses(step: Step): ModelClass[] {
   switch (step.type) {
     case "agent": {
-      // A call runs one tool and no model.
-      if (step.call) {
+      // A call runs one tool and no model, code the wizard's own function.
+      if (runsWithoutModel(step)) {
         return [];
       }
       if (isDecisionStep(step)) {
