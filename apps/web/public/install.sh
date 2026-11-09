@@ -152,15 +152,15 @@ style() {
   FRAMES=(◒ ◐ ◓ ◑)
 }
 
-# The tall engenty, the rose one with one eye, in pixels: two rows of them make one line of half
-# blocks. . nothing  R rose  r its shade  K the mouth. The eye goes on top.
+# The rose engenty with one eye and a round top, in pixels: two rows of them make one line of
+# half blocks. . nothing  R rose  r its shade  K the mouth. The eye goes on top.
 ENGENTY=(
-  "....R...."
-  "...RRR..."
-  "..RRRRR.."
+  "........."
   "..RRRRR.."
   ".RRRRRRr."
-  ".RRRRRRr."
+  "RRRRRRRRr"
+  "RRRRRRRRr"
+  "RRRRRRRRr"
   "RRRRRRRRr"
   "RRRRRRRRr"
   "RRRRRRRRr"
@@ -170,9 +170,9 @@ ENGENTY=(
   ".rRRRRrr."
   "..rrrrr.."
 )
-# Its tip swaying to one side or the other, like a flame.
-ENGENTY_LEFT=("...R....." "..RRR...." "..RRRR..." ".RRRRRR..")
-ENGENTY_RIGHT=(".....R..." "....RRR.." "...RRRR.." "..RRRRRR.")
+# Its top leaning to one side or the other.
+ENGENTY_LEFT=("........." ".RRRRR..." "RRRRRRr.." "RRRRRRRRr")
+ENGENTY_RIGHT=("........." "...RRRRR." "..RRRRRRr" "RRRRRRRRr")
 
 # The eye: five rows of five pixels from the body's fifth row. W white, K pupil, . the body.
 eye_rows() {
@@ -196,7 +196,7 @@ pixel_colour() {
   esac
 }
 
-# One picture of the engenty, into PICTURE: 9 lines of 9 columns. $1 the tip (still, left,
+# One picture of the engenty, into PICTURE: 9 lines of 9 columns. $1 the lean (still, left,
 # right), $2 the eye, $3 how many pixels it is off the ground (0 to 2).
 engenty_picture() {
   local tip="$1" lift="${3:-0}" rows=() y x row top bottom line pixel
