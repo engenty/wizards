@@ -205,7 +205,7 @@ function Install-Runtime($spec) {
   $runtime = Join-Path $HomeDir "runtime"
   New-Item -ItemType Directory -Force $runtime | Out-Null
   $stage = Join-Path $runtime (".staging-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
-  Write-Host "  ... Installing engenty wizards (about 650 MB on disk, a few minutes)" -ForegroundColor DarkGray
+  Write-Host "  ... Installing engenty wizards (about 770 MB on disk, a few minutes)" -ForegroundColor DarkGray
   $node = Join-Path $NodeDir "node.exe"
   $npm = Join-Path $NodeDir "node_modules\npm\bin\npm-cli.js"
   # Our Node first on the PATH, for npm and whatever it starts. No install scripts run; the

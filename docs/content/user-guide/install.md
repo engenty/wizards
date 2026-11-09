@@ -1,7 +1,7 @@
 ---
 title: Install
 description: One command on macOS, Linux or Windows. It brings its own Node.js and asks for no password.
-version: 0.9.3
+version: 0.18.0
 ---
 
 ## Install
@@ -30,7 +30,7 @@ this system”), type `npx.cmd wizards`. `npx wizards` runs the same installer a
 
 The installer needs nothing but `curl` and `tar`. On Windows it may add Microsoft’s Visual C++
 runtime; Windows asks once. It brings its own Node.js (a Node you already have is left alone),
-installs engenty wizards into `~/.engenty/wizards` (about 650 MB), links the `wizards` command into
+installs engenty wizards into `~/.engenty/wizards` (about 950 MB with its Node.js), links the `wizards` command into
 `~/.local/bin` (on Windows it puts `~\.engenty\wizards\bin` on your PATH) and then walks you
 through the rest:
 

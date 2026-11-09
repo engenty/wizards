@@ -37,6 +37,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -199,6 +200,81 @@ const collect = (dir) => {
   }
 };
 collect("apps/runtime");
+
+// Third-party packages that ship with the dependencies the overrides in pnpm-workspace.yaml give
+// them here: npm reads overrides only from the folder it installs into, so the runtime brings
+// these along (bundled), each with a package.json that names what pnpm resolved for it. What
+// they need joins the runtime's dependencies. Beside each, its folders Node never loads.
+const REWIRED = {
+  // Reads PDFs with the canvas the runtime has, not a copy of its own. web/: its browser build.
+  "pdf-parse": ["dist/pdf-parse/web"],
+  // pdf-parse's 5.x, with the same canvas; pdf-parse loads legacy/ alone.
+  "pdfjs-dist": ["build", "web"],
+  // Without its React screens' icons (lucide-react): the runtime imports /core.
+  "@executor-js/plugin-openapi": [],
+};
+const manifestAt = (dir) => JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+const rewire = (name, dir) => {
+  const manifest = manifestAt(dir);
+  // pnpm puts what it resolved for a package beside it, in the same node_modules.
+  const beside = dir.slice(0, dir.length - name.length);
+  const resolvedFor = (list, optional) =>
+    list &&
+    Object.fromEntries(
+      Object.entries(list).flatMap(([dep, range]) => {
+        const at = join(beside, dep);
+        if (!existsSync(at)) {
+          // An override took it out; an optional one for another platform stays as it was.
+          return optional ? [[dep, range]] : [];
+        }
+        const real = realpathSync(at);
+        const version = manifestAt(real).version;
+        if (REWIRED[dep]) {
+          rewire(dep, real);
+        } else if (!optional || dependencies[dep]) {
+          if (dependencies[dep] && dependencies[dep] !== version) {
+            throw new Error(`${name} needs ${dep} ${version}, the runtime ${dependencies[dep]}.`);
+          }
+          dependencies[dep] = version;
+        }
+        return [[dep, version]];
+      }),
+    );
+  const to = join(stage, "node_modules", name);
+  const leave = REWIRED[name].map((path) => join(dir, path));
+  cpSync(dir, to, {
+    recursive: true,
+    filter: (source) => !leave.some((path) => source === path || source.startsWith(`${path}/`)),
+  });
+  const { devDependencies: _dev, scripts: _scripts, ...rest } = manifest;
+  writeFileSync(
+    join(to, "package.json"),
+    `${JSON.stringify(
+      {
+        ...rest,
+        dependencies: resolvedFor(manifest.dependencies, false),
+        optionalDependencies: resolvedFor(manifest.optionalDependencies, true),
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  dependencies[name] = manifest.version;
+  if (!bundled.includes(name)) {
+    bundled.push(name);
+  }
+};
+for (const name of Object.keys(REWIRED)) {
+  const at = join(root, "apps", "runtime", "node_modules", name);
+  if (existsSync(at)) {
+    rewire(name, realpathSync(at));
+  }
+}
+for (const name of Object.keys(REWIRED)) {
+  if (!bundled.includes(name)) {
+    throw new Error(`${name} is in REWIRED, but nothing the runtime installs needs it.`);
+  }
+}
 const sorted = (names) =>
   Object.fromEntries(
     names.sort((a, b) => a.localeCompare(b)).map((name) => [name, dependencies[name]]),
