@@ -9,8 +9,10 @@ data
 docs/*
 !docs/content
 apps/docs
-# The client portal has an image of its own (apps/portal/Dockerfile).
+# The client portal has an image of its own (apps/portal/Dockerfile), the sandbox too
+# (deploy/Dockerfile.sandbox, with its own ignore file).
 apps/portal
+apps/sandbox
 apps/runtime/test
 examples
 # The MIT libraries go to npm on their own (scripts/npm-package.mjs). The runtime doesn't use them

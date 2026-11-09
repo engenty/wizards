@@ -275,8 +275,8 @@ export const env = {
    */
   sandbox: str("SANDBOX_ENABLED", "1") === "1" ? str("SANDBOX").toLowerCase() : "off",
   /**
-   * The engine for a guest's run (a visitor's, a channel's): `off` or `agentos`, never Docker;
-   * `agentos` only when it is ready here (sandbox/index.ts, pickGuestEngine).
+   * The engine for a guest's run (a visitor's, a channel's): `off`, `agentos` or `agentos-remote`,
+   * never Docker; only when it is ready here (sandbox/index.ts, pickGuestEngine).
    */
   sandboxGuests: str("SANDBOX_GUESTS", "off").toLowerCase(),
   sandboxImage,
@@ -284,6 +284,10 @@ export const env = {
   sandboxEngines: enginesDir(),
   /** Hosts an agentOS sandbox reaches besides the npm and PyPI registries: `api.example.com`. */
   sandboxHosts: list("SANDBOX_ALLOW_HOSTS"),
+  /** The cloud's sandbox container (`SANDBOX=agentos-remote`, deploy/Dockerfile.sandbox). */
+  sandboxUrl: str("SANDBOX_URL").replace(/\/$/, ""),
+  /** What the runtime sends the sandbox container; the container has the same. */
+  sandboxSecret: str("SANDBOX_SECRET"),
 
   /** Assets and workspace files in an S3-compatible bucket (R2); empty = the data folder. */
   s3: {
