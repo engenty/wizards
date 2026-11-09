@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { join, resolve } from "node:path";
+import { DATA_LIMITS } from "@engenty/wizards-shared/wizard-data";
 import { findChrome } from "./render/browser-path.js";
 import { enginesDir } from "./sandbox/install.js";
 
@@ -358,6 +359,23 @@ export const env = {
     signalsPerHour: num("SIGNALS_PER_HOUR", 600),
     /** What a wizard keeps for a person (lists, files, accounts) goes when unused this long. */
     storeTtlDays: num("STORE_TTL_DAYS", 400),
+  },
+  /**
+   * A wizard's own database (store/data.ts, docs/plans/wizard-data.md). `WIZARD_DATA`: `off`
+   * offers none, `person` only a person's; a wizard that requires more refuses to start.
+   */
+  wizardData: {
+    scopes: ((v) => (v === "off" ? [] : v === "person" ? ["person"] : ["person", "shared"]))(
+      str("WIZARD_DATA"),
+    ) as ("person" | "shared")[],
+    /** Megabytes one database may grow to. */
+    maxMb: num("WIZARD_DATA_MAX_MB", DATA_LIMITS.maxMb),
+    /** Rows a read hands back; the rest are cut off and said so. */
+    maxRows: num("WIZARD_DATA_MAX_ROWS", DATA_LIMITS.maxRows),
+    /** Rows one write may change; a statement that changes more writes nothing. */
+    maxChanges: num("WIZARD_DATA_MAX_CHANGES", DATA_LIMITS.maxChanges),
+    /** Milliseconds one statement may take. */
+    timeoutMs: num("WIZARD_DATA_TIMEOUT_MS", DATA_LIMITS.timeoutMs),
   },
 };
 

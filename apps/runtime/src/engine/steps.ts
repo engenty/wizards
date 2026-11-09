@@ -71,6 +71,7 @@ import { skillsBlock, skillsOf } from "../tools/skills.js";
 import { personUploads, type UploadRef } from "../tools/store.js";
 import { runWidgetStep } from "../widgets/step.js";
 import { runCodeStep } from "./code-step.js";
+import { runStepData } from "./data-step.js";
 import { decide } from "./decide.js";
 import { durableTurn, turnContext, turnOf } from "./durable-turn.js";
 import { prepareInputs } from "./prepare.js";
@@ -598,6 +599,12 @@ function callInput(value: unknown, ctx: StepContext): unknown {
  * the fields the wizard fixed: the one way a run writes as the space.
  */
 async function runToolStep(step: ToolStep, ctx: StepContext): Promise<StepOutput> {
+  if (!step.call) {
+    if (!step.data) {
+      throw new StepError('A tool step has "call" or "data".');
+    }
+    return { json: await runStepData(step.data, ctx), at: new Date().toISOString() };
+  }
   // What it is doing is the step's `working` line, shown as it starts, and what the tool says.
   const input = callInput(step.call.input, ctx);
   const answer =

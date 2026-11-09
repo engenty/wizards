@@ -97,10 +97,15 @@ function templatesOf(step: Step): string[] {
     case "agent":
       return [step.instructions];
     case "tool":
-      return [JSON.stringify(step.call.input)];
+      return [
+        ...(step.call ? [JSON.stringify(step.call.input)] : []),
+        ...Object.values(step.data?.params ?? {}).map((v) =>
+          v.includes("{{") ? v : `{{${dataRef(v)}}}`,
+        ),
+      ];
     case "code":
-      return Object.values(step.code.input).map((v) =>
-        v.includes("{{") ? v : `{{${dataRef(v)}}}`,
+      return [...Object.values(step.code.input), ...Object.values(step.data?.params ?? {})].map(
+        (v) => (v.includes("{{") ? v : `{{${dataRef(v)}}}`),
       );
     case "decision":
       return [step.instructions];
@@ -200,7 +205,7 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
       break;
     case "tool": {
       // A connection's action needs the wizard's connections, which the wizard notes once.
-      const plugin = "tool" in step.call ? pluginToolOf(step.call.tool) : null;
+      const plugin = step.call && "tool" in step.call ? pluginToolOf(step.call.tool) : null;
       if (plugin) {
         add(`plugin:${plugin.plugin}`, true);
       }

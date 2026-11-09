@@ -87,7 +87,7 @@ export function pluginsOf(def: Pick<WizardDefinition, "steps">): string[] {
       const tools =
         step.type === "agent"
           ? step.tools
-          : step.type === "tool" && "tool" in step.call
+          : step.type === "tool" && step.call && "tool" in step.call
             ? [step.call.tool]
             : [];
       return tools.flatMap((tool) => pluginToolOf(tool)?.plugin ?? []);
@@ -144,6 +144,7 @@ export function requiresOf(def: WizardDefinition): Requires {
     plugins: pluginsOf(def),
     connections,
     features: [...features].sort(),
+    ...(def.data ? { data: def.data.scope } : {}),
     ...(optionalModels.size ? { optional: { models: sorted(optionalModels) } } : {}),
   };
   return Object.fromEntries(

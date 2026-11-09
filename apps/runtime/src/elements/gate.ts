@@ -82,6 +82,19 @@ export async function mayDo(
 }
 
 /**
+ * Refuses a call before any rule is asked (a rule of the runtime's own, such as a guest's AI step
+ * on a wizard's shared database), with its line in the log.
+ */
+export async function refuseCall(
+  caller: ElementCaller,
+  call: ElementCall,
+  reason: string,
+): Promise<never> {
+  await logCall(caller, call, "deny", "forbidden", Date.now(), { reason });
+  throw forbidden(call.resource ?? { kind: "data", id: call.about ?? "" }, call.perm);
+}
+
+/**
  * Runs `run` once the rules allow the call, and logs it either way. A refusal throws the
  * broker's 403 (`forbidden`), which a tool hands the model as its error.
  */

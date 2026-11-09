@@ -241,7 +241,10 @@ it to another action. This is how a wizard writes through a connection of the sp
 [Lists and connections](./lists-and-connections.md)): an AI step only reads there. On the person’s
 own connection the step asks them before it writes, as an AI step’s tool would.
 
-A tool step has `call`, `output`, `working`, `retries` and the keys every step has.
+Instead of `call`, a tool step can have `data`: one statement on the wizard’s own database, with
+its parameters bound. See [A wizard’s own data](./data.md#fixed-steps).
+
+A tool step has `call` or `data`, `output`, `working`, `retries` and the keys every step has.
 
 ## Code steps
 
@@ -297,7 +300,10 @@ The function runs sealed off from everything else:
   without a date fails. Pass `today` as an input when the code needs the date.
 - It runs in a guest’s run too, and it costs nothing.
 
-A code step has `code`, `output`, `working`, `retries` and the keys every step has.
+With `data`, the step runs one statement on the wizard’s own database first, and `run` gets what
+it gave as `input.data`.
+
+A code step has `code`, `data`, `output`, `working`, `retries` and the keys every step has.
 `wizards validate` checks that the file is in the workspace and that the inputs read only what
 was asked or ran before the step.
 

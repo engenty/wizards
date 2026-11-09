@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { parseWizard, type ValidationIssue } from "@engenty/wizards-shared/definition";
 import { requiresProblem } from "@engenty/wizards-shared/requires";
+import { wizardDataIssues } from "@engenty/wizards-shared/wizard-data";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
 import { json, readManifest, readPackage } from "../services/package-file.js";
 import { bad, dim, ok } from "./ui.js";
@@ -11,7 +12,9 @@ import { bad, dim, ok } from "./ui.js";
  * running studio and no account. A path is a `.wizard` package, an unpacked one (its folder or
  * its wizard.json, with the workspace beside it under files/), or a definition on its own.
  *
- * What a space holds — its connectors, MCP servers and plugins — is checked on import.
+ * What a space holds — its connectors, MCP servers and plugins — is checked on import. The SQL
+ * of the wizard's own database is read too: its schema and migrations split into statements the
+ * runtime runs.
  */
 
 interface Checked {
@@ -33,8 +36,15 @@ function workspace(folder: string): string[] {
   }
 }
 
+interface Given {
+  definition: unknown;
+  files: string[];
+  /** A workspace file's text, or null where it is not there. */
+  text: (path: string) => string | null;
+}
+
 /** The definition and the workspace's paths, read the way the import reads them. */
-function read(path: string): { definition: unknown; files: string[] } {
+function read(path: string): Given {
   const folder = statSync(path).isDirectory()
     ? path
     : basename(path) === PACKAGE_MANIFEST
@@ -42,14 +52,27 @@ function read(path: string): { definition: unknown; files: string[] } {
       : null;
   if (folder) {
     const manifest = readManifest(json(readFileSync(join(folder, PACKAGE_MANIFEST))));
-    return { definition: manifest.definition, files: workspace(folder) };
+    const files = workspace(folder);
+    return {
+      definition: manifest.definition,
+      files,
+      text: (p) =>
+        files.includes(p) ? readFileSync(join(folder, PACKAGE_FILES, p), "utf8") : null,
+    };
   }
   const { manifest, files } = readPackage(readFileSync(path));
-  return { definition: manifest.definition, files: files.map((f) => f.path) };
+  return {
+    definition: manifest.definition,
+    files: files.map((f) => f.path),
+    text: (p) => {
+      const file = files.find((f) => f.path === p);
+      return file ? new TextDecoder().decode(file.data) : null;
+    },
+  };
 }
 
 export function validatePath(path: string): Checked {
-  let given: { definition: unknown; files: string[] };
+  let given: Given;
   try {
     given = read(path);
   } catch (err) {
@@ -60,9 +83,18 @@ export function validatePath(path: string): Checked {
     return { path, ok: false, issues: [{ message }] };
   }
   const parsed = parseWizard(given.definition, given.files);
-  // `requires` says what the steps need: a file that says otherwise is out of date.
+  // `requires` says what the steps need: a file that says otherwise is out of date. The SQL of
+  // the wizard's own database: each file splits into statements the runtime runs.
   const requires = parsed.ok ? requiresProblem(parsed.wizard) : null;
-  const issues = requires ? [...parsed.issues, { message: requires }] : parsed.issues;
+  const issues = parsed.ok
+    ? [
+        ...parsed.issues,
+        ...(requires ? [{ message: requires }] : []),
+        ...wizardDataIssues(parsed.wizard, given.files, given.text).map((i) => ({
+          message: i.message,
+        })),
+      ]
+    : parsed.issues;
   return {
     path,
     ok: parsed.ok && issues.length === 0,

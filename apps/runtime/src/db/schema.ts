@@ -1684,6 +1684,28 @@ export const storeSecret = sqliteTable(
   (t) => [uniqueIndex("store_secret_slot").on(t.wizardId, t.holder, t.slot)],
 );
 
+/**
+ * A wizard's own database (docs/plans/wizard-data.md, store/data.ts): one per person, or the one
+ * shared by every run of a space (`holder` is then `shared:<space id>`). The database itself is
+ * libSQL beside the tenant's: a file in the tenant's data folder, or on the database server.
+ */
+export const storeDatabase = sqliteTable(
+  "store_database",
+  {
+    /** Also the database's name: its file, or its part of the server's address. */
+    id: text("id").primaryKey(),
+    wizardId: text("wizard_id")
+      .notNull()
+      .references(() => wizard.id, { onDelete: "cascade" }),
+    holder: text("holder").notNull(),
+    /** The migrations of the wizard's files it has run, by path. */
+    migrations: text("migrations", { mode: "json" }).$type<string[]>().notNull().default([]),
+    createdAt: createdAt(),
+    usedAt: integer("used_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (t) => [uniqueIndex("store_database_holder").on(t.wizardId, t.holder)],
+);
+
 /** Marketplace entries starred here: the runtime keeps them for offline use. */
 export const marketplaceStar = sqliteTable(
   "marketplace_star",

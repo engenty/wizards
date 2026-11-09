@@ -196,9 +196,13 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
   });
 
   if (uploads.length) {
+    // Kept for every run beside the wizard's shared database; never by a guest's AI step.
+    const shelf = ctx.def.data?.scope === "shared" && ctx.holder.kind !== "guest";
     tools.files_keep = createTool({
       id: "files_keep",
-      description: prompt("tools", "tool.files_keep"),
+      description: shelf
+        ? `${prompt("tools", "tool.files_keep")} ${prompt("tools", "note.files_keep_shared")}`
+        : prompt("tools", "tool.files_keep"),
       inputSchema: z.object({
         items: z
           .array(
@@ -209,8 +213,9 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
           )
           .min(1)
           .max(40),
+        ...(shelf ? { shared: z.boolean().optional() } : {}),
       }),
-      execute: ({ items }) =>
+      execute: ({ items, ...rest }) =>
         attempt(async () => {
           await ctx.emit("tool", { code: "files", params: { count: items.length } });
           const kept: Record<string, unknown>[] = [];
@@ -220,6 +225,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
               const file = await keeper.keep(item.path, source.data, {
                 mime: source.mime,
                 source: `Von der Person: ${source.name}`,
+                shared: shelf && (rest as { shared?: boolean }).shared === true,
               });
               kept.push({ file: item.file, path: file.path });
             } catch (err) {

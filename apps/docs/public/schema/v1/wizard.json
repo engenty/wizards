@@ -561,6 +561,27 @@
         "additionalProperties": false
       }
     },
+    "data": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "default": "person",
+          "type": "string",
+          "enum": [
+            "person",
+            "shared"
+          ]
+        },
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "schema"
+      ],
+      "additionalProperties": false
+    },
     "themes": {
       "maxItems": 8,
       "type": "array",
@@ -643,6 +664,13 @@
               "codeSteps"
             ]
           }
+        },
+        "data": {
+          "type": "string",
+          "enum": [
+            "person",
+            "shared"
+          ]
         },
         "optional": {
           "type": "object",
@@ -13901,6 +13929,38 @@
                   }
                 ]
               },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "default": "person",
+                    "type": "string",
+                    "enum": [
+                      "person",
+                      "shared"
+                    ]
+                  },
+                  "sql": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20000
+                  },
+                  "params": {
+                    "default": {},
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "sql"
+                ],
+                "additionalProperties": false
+              },
               "output": {
                 "default": {},
                 "type": "object",
@@ -14049,8 +14109,7 @@
             "required": [
               "id",
               "title",
-              "type",
-              "call"
+              "type"
             ],
             "additionalProperties": false
           },
@@ -16396,6 +16455,38 @@
                 },
                 "required": [
                   "entry"
+                ],
+                "additionalProperties": false
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "default": "person",
+                    "type": "string",
+                    "enum": [
+                      "person",
+                      "shared"
+                    ]
+                  },
+                  "sql": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20000
+                  },
+                  "params": {
+                    "default": {},
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "sql"
                 ],
                 "additionalProperties": false
               },

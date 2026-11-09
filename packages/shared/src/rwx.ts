@@ -34,6 +34,7 @@ export const RWX_RESOURCE_KINDS = [
   "skill",
   "setup",
   "mount",
+  "data",
 ] as const;
 export type RwxResourceKind = (typeof RWX_RESOURCE_KINDS)[number];
 
@@ -97,6 +98,8 @@ const NO_PLUGIN = ["guest", "person", "role", "goose", "wizard", "agent"] as con
 const THROUGH_GOOSE = ["person", "role", "goose"] as const;
 /** A person, or an AI working for one: a Work chat, a client's chat, an outside client. */
 const A_PERSON = ["person", "role", "agent"] as const;
+/** A run's step: who holds the run, a guest or a person, and the wizard it runs. */
+const A_RUN = ["guest", "person", "role", "wizard"] as const;
 
 /**
  * What the runtime asks today, and so all a rule can say: per kind of resource and permission, the
@@ -117,6 +120,9 @@ const A_PERSON = ["person", "role", "agent"] as const;
  * - `setup` · `w`: Goose's writes to the space's setup.
  * - `mount` · `r`: `readableMounts`; `w`: a draft and „Veröffentlichen“ (mounts/drafts.ts), which a
  *   wizard is refused before any rule is asked. Its rules are written by its form in Dateien alone.
+ * - `data` · `r`, `w`: a wizard's own database (docs/plans/wizard-data.md), its id the wizard's:
+ *   `data_query` and `data_exec` in a step, and a fixed step's statement, for the run's holder and
+ *   its wizard. A guest's AI step reaches the person's database alone, whatever a rule says.
  * - `connection`, `mail`, `host`, `sandbox`: nothing. A connection has its own audience and rules
  *   (broker/call.ts), which decide mail too; a run's grant decides hosts; the sandbox is a step's.
  */
@@ -131,6 +137,7 @@ export const RWX_ASKED: Record<
   skill: { r: NO_PLUGIN, x: ["guest", "person", "role", "wizard", "agent"] },
   setup: { w: THROUGH_GOOSE },
   mount: { r: NO_PLUGIN, w: A_PERSON },
+  data: { r: A_RUN, w: A_RUN },
   connection: {},
   mail: {},
   host: {},
@@ -184,7 +191,15 @@ export const RWX_ASK_WHO = ["guest", "person", "goose", "agent", "wizard", "plug
 export type RwxAskWho = (typeof RWX_ASK_WHO)[number];
 
 /** What „Was darf …?“ asks about for content: the kinds decided by one rule lookup. */
-export const RWX_ASK_KINDS = ["document", "page", "table", "wizard", "skill", "setup"] as const;
+export const RWX_ASK_KINDS = [
+  "document",
+  "page",
+  "table",
+  "wizard",
+  "skill",
+  "setup",
+  "data",
+] as const;
 export type RwxAskKind = (typeof RWX_ASK_KINDS)[number];
 
 /** The answer of „Was darf …?“ for content (`GET /api/studio/spaces/:id/rules/ask`). */

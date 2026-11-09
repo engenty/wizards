@@ -37,6 +37,8 @@ so any tool may read, write and run wizards. [Licensing](../licensing.md) lists 
 | `lang` | The language the wizard speaks, as a two-letter code. See [Languages](#languages) |
 | `lists` | Tables the wizard keeps between runs. See [Lists and connections](./lists-and-connections.md) |
 | `connections` | Accounts the person connects during a run. See [Lists and connections](./lists-and-connections.md) |
+| `data` | A SQL database the runtime keeps for the wizard, per person or shared. See [A wizard’s own data](./data.md) |
+| `requires` | What a run needs, filled in from the steps. See [What a wizard needs](#what-a-wizard-needs) |
 | `themes` | The space’s themes the wizard offers, in order. See [Themes](./themes.md) |
 | `label` | What tells its runs apart. See [Runs that last days](./runs-that-last.md#a-runs-label) |
 | `steps` | What the run does, from top to bottom |
@@ -146,6 +148,7 @@ written by hand: the studio, the architect and the AI clients’ tools write it 
   "plugins": ["appointments"],
   "connections": ["mail"],
   "features": ["codeSteps", "durableRuns"],
+  "data": "shared",
   "optional": { "models": ["image"] }
 }
 ```
@@ -160,6 +163,7 @@ written by hand: the studio, the architect and the AI clients’ tools write it 
 | `plugins` | The plugins whose tools a step lists or a tool step calls |
 | `connections` | The kinds of the wizard’s connections |
 | `features` | The switches that must be on: `durableRuns` for a wait step, `codeSteps` for a code step |
+| `data` | The wizard’s own database, `person` or `shared`, as `data.scope` says. See [A wizard’s own data](./data.md) |
 | `optional` | Classes only steps on some branches call: a run can go around them |
 
 A runtime that lacks something the wizard needs doesn’t start a run, and says what is missing.

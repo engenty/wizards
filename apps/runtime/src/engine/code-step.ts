@@ -10,6 +10,7 @@ import {
 } from "@engenty/wizards-shared/shape";
 import { QuickJsCodeModeTransport } from "@mastra/quickjs";
 import { snapshotFile } from "../services/files.js";
+import { runStepData } from "./data-step.js";
 import { surfaceData } from "./surface.js";
 import { renderTemplate } from "./template.js";
 import { type StepContext, StepError } from "./types.js";
@@ -202,9 +203,11 @@ export async function runCodeStep(step: CodeStep, ctx: StepContext): Promise<Ste
   if (!file) {
     throw new StepError(note("codeMissing", { entry: step.code.entry }));
   }
+  // The step's statement runs first; the function gets what it gave as `data`.
+  const data = step.data ? { data: await runStepData(step.data, ctx) } : {};
   const result = await runCode(
     file.data.toString("utf8"),
-    codeInput(step.code.input, ctx),
+    { ...codeInput(step.code.input, ctx), ...data },
     ctx.signal,
   );
   const json = codeOutput(step, result);

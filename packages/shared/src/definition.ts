@@ -7,6 +7,7 @@ import { type ObjectShape, outputSchemaSchema, shapeOfFields, shapeOfSchema } fr
 import { isShareTargetId } from "./sharing.js";
 import { CONNECTION_KINDS } from "./store.js";
 import { type SurfaceComponent, surfaceComponentsSchema, validateSurface } from "./surface.js";
+import { sqlParams, sqlRefusal } from "./wizard-data.js";
 
 /** The engenty avatars a wizard can wear. Same cast as engenty's ui-core. */
 export const ENGENTY_KINDS = [
@@ -883,6 +884,33 @@ export const agentStepSchema = z.object({
 });
 
 /**
+ * Who a wizard's own database is for (docs/plans/wizard-data.md): each person who runs it, or
+ * besides that one for every run (`shared`). The runtime keeps it; the wizard brings its SQL.
+ */
+export const DATA_SCOPES = ["person", "shared"] as const;
+export type DataScope = (typeof DATA_SCOPES)[number];
+
+/** The wizard's database: whose it is, and the SQL file in its files that makes it. */
+export const dataSchema = z.object({
+  scope: z.enum(DATA_SCOPES).default("person"),
+  /** A .sql file of the wizard's files, run when a database is made. */
+  schema: z.string().min(1),
+});
+
+/**
+ * One fixed statement a tool or code step runs on the wizard's database. Its parameters are bound,
+ * never spliced: `:email` in `sql` takes `params.email`, a path ("email", "steps.find.total") for
+ * its raw value or a template for text.
+ */
+export const stepDataSchema = z.object({
+  scope: z.enum(DATA_SCOPES).default("person"),
+  sql: z.string().min(1).max(20_000),
+  params: z.record(z.string(), z.string()).default({}),
+});
+
+export type StepData = z.infer<typeof stepDataSchema>;
+
+/**
  * The output of a step that runs no model: the keys later steps read, and a view of them from
  * the surface catalog, written once (no model composes one).
  */
@@ -903,19 +931,24 @@ export const toolStepSchema = z.object({
   ...stepBase,
   ...automaticStep,
   type: z.literal("tool"),
-  call: z.union([
-    z.object({
-      tool: pluginToolIdSchema,
-      input: z.record(z.string(), z.unknown()).default({}),
-    }),
-    z.object({
-      /** A connection of the wizard, by id. */
-      connection: id,
-      /** The connector's action to run. */
-      action: z.string().min(1).max(120),
-      input: z.record(z.string(), z.unknown()).default({}),
-    }),
-  ]),
+  /** A tool or a connection's action; or, instead, `data`. */
+  call: z
+    .union([
+      z.object({
+        tool: pluginToolIdSchema,
+        input: z.record(z.string(), z.unknown()).default({}),
+      }),
+      z.object({
+        /** A connection of the wizard, by id. */
+        connection: id,
+        /** The connector's action to run. */
+        action: z.string().min(1).max(120),
+        input: z.record(z.string(), z.unknown()).default({}),
+      }),
+    ])
+    .optional(),
+  /** Instead of `call`: one statement on the wizard's database; its rows are the step's output. */
+  data: stepDataSchema.optional(),
   /** The keys of the answer later steps read by name. */
   output: z.object(fixedOutput).default({}),
   /** Shown to the person while it works. */
@@ -941,6 +974,8 @@ export const codeStepSchema = z.object({
      */
     input: z.record(z.string(), z.string()).default({}),
   }),
+  /** One statement on the wizard's database, run first; `run` gets its rows as `input.data`. */
+  data: stepDataSchema.optional(),
   /** What `run` returns: `fields`, or nested data as `schema`. */
   output: z.object({ ...fixedOutput, schema: outputSchemaSchema.optional() }),
   /** Shown to the person while it works. */
@@ -1500,6 +1535,8 @@ export const requiresSchema = z.object({
   connections: z.array(z.enum(CONNECTION_KINDS)).optional(),
   /** The switches that must be on. */
   features: z.array(z.enum(REQUIRED_FEATURES)).optional(),
+  /** The wizard's own database: `person`, or `shared` besides (`data.scope`). */
+  data: z.enum(DATA_SCOPES).optional(),
   optional: z.object(requiredLists).optional(),
 });
 export type Requires = z.infer<typeof requiresSchema>;
@@ -1541,6 +1578,8 @@ export const wizardSchema = z
     lists: z.array(listSchema).max(12).optional(),
     /** Accounts the person connects; kept between runs, per person. */
     connections: z.array(connectionSchema).max(12).optional(),
+    /** A database of the wizard's own, kept by the runtime per person, or shared as well. */
+    data: dataSchema.optional(),
     /** How the wizard's pages look, over its space's brand: colours, typefaces, effects, CSS. */
     /**
      * The themes the wizard offers, in its order: ids of the space's themes, or `brand`, `host`
@@ -1720,6 +1759,61 @@ function codeStepIssues(step: CodeStep, files: string[] | undefined): Validation
   return issues;
 }
 
+/**
+ * The wizard's database: its schema is a .sql file of its files. What the SQL says is read where
+ * the files' text is at hand (`wizardDataIssues`, wizard-data.ts); `requires.data` is filled in
+ * from `data` (requires.ts).
+ */
+function dataIssues(def: WizardDefinition, files: string[] | undefined): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  if (!def.data) {
+    return issues;
+  }
+  const { schema } = def.data;
+  if (!/\.sql$/i.test(schema)) {
+    issues.push({ message: `data.schema "${schema}" is a .sql file.` });
+  } else if (files && !files.includes(schema)) {
+    issues.push({ message: `data.schema "${schema}" is not in the wizard's files.` });
+  }
+  return issues;
+}
+
+/**
+ * A fixed step's statement: the wizard has the database it names, the statement is one the
+ * runtime runs, and each parameter it names is given. `ref` checks a parameter's template.
+ */
+function stepDataIssues(
+  def: WizardDefinition,
+  step: ToolStep | CodeStep,
+  ref: (template: string) => void,
+): ValidationIssue[] {
+  const data = step.data;
+  if (!data) {
+    return [];
+  }
+  const say = (message: string) => ({ stepId: step.id, message });
+  if (!def.data) {
+    return [say('The step\'s "data" needs the wizard\'s own "data" at the root.')];
+  }
+  const issues: ValidationIssue[] = [];
+  if (data.scope === "shared" && def.data.scope !== "shared") {
+    issues.push(say('data.scope is "shared", but the wizard\'s data is per person.'));
+  }
+  const refused = sqlRefusal(data.sql);
+  if (refused) {
+    issues.push(say(`data.sql: ${refused}`));
+  }
+  for (const name of sqlParams(data.sql)) {
+    if (!(name in data.params)) {
+      issues.push(say(`data.sql names :${name}, which "params" doesn't give.`));
+    }
+  }
+  for (const value of Object.values(data.params)) {
+    ref(value.includes("{{") ? value : `{{${dataRef(value)}}}`);
+  }
+  return issues;
+}
+
 /** A name that comes back after another ("A", "B", "A"): the bar could not show it in order. */
 function sectionIssues(def: WizardDefinition): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -1829,6 +1923,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       }
     }
   }
+  issues.push(...dataIssues(def, files));
   for (const connection of def.connections ?? []) {
     if (connectionIds.has(connection.id)) {
       issues.push({ message: `Duplicate connection id "${connection.id}".` });
@@ -2209,8 +2304,19 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         checkTemplate(step, step.instructions);
         break;
       case "tool": {
-        checkTemplate(step, JSON.stringify(step.call.input));
-        if ("connection" in step.call) {
+        if (!step.call === !step.data) {
+          issues.push({
+            stepId: step.id,
+            message: 'A tool step has "call" or "data", one of them.',
+          });
+        }
+        if (step.data) {
+          issues.push(...stepDataIssues(def, step, (ref) => checkTemplate(step, ref)));
+        }
+        if (step.call) {
+          checkTemplate(step, JSON.stringify(step.call.input));
+        }
+        if (step.call && "connection" in step.call) {
           const called = step.call.connection;
           const named = (def.connections ?? []).find((c) => c.id === called);
           if (!named) {
@@ -2235,6 +2341,9 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
             });
           }
           checkTemplate(step, value.includes("{{") ? value : `{{${dataRef(value)}}}`);
+        }
+        if (step.data) {
+          issues.push(...stepDataIssues(def, step, (ref) => checkTemplate(step, ref)));
         }
         if (step.output.schema && step.output.fields?.length) {
           issues.push({ stepId: step.id, message: 'Output has "fields" or "schema", not both.' });

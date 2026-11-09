@@ -231,7 +231,7 @@ describe("the rules, for the space's admins", () => {
   it("seeds a space on its first read: admins and owners rwx, members rw, guests r", async () => {
     on();
     const { rules } = await json(send("GET", `/api/studio/spaces/${spaceId}/rules`));
-    expect(rules).toHaveLength(22);
+    expect(rules).toHaveLength(26);
     expect(rules.every((r: any) => r.createdBy === "seed" && r.resourceId === "*")).toBe(true);
     const of = (kind: string, id: string | null) =>
       rules.filter((r: any) => r.subjectKind === kind && r.subjectId === id).map((r: any) => [r.resourceKind, r.r, r.w, r.x]);
@@ -242,6 +242,7 @@ describe("the rules, for the space's admins", () => {
       ["wizard", "allow", "allow", "allow"],
       ["skill", "allow", "allow", "allow"],
       ["setup", "allow", "allow", "allow"],
+      ["data", "allow", "allow", "allow"],
     ]);
     // A member runs wizards and skills' scripts, and writes the space's setup; building a wizard
     // is the studio's, by the members' studio rule.
@@ -252,12 +253,15 @@ describe("the rules, for the space's admins", () => {
       ["wizard", "allow", null, "allow"],
       ["skill", "allow", null, "allow"],
       ["setup", "allow", "allow", null],
+      ["data", "allow", "allow", null],
     ]);
+    // A guest's run reads and writes the wizard's own data: its AI steps the guest's own alone.
     expect(of("guest", null)).toEqual([
       ["document", "allow", null, null],
       ["table", "allow", null, null],
       ["page", "allow", null, null],
       ["skill", "allow", null, "allow"],
+      ["data", "allow", "allow", null],
     ]);
   });
 
@@ -272,11 +276,11 @@ describe("the rules, for the space's admins", () => {
     const rules = await putRules([
       { subjectKind: "person", subjectId: "b2", resourceKind: "page", resourceId: fixture.pageOfD, r: "deny" },
     ]);
-    expect(rules).toHaveLength(23);
+    expect(rules).toHaveLength(27);
     const added = rules.find((r: any) => r.subjectId === "b2");
     expect(added).toMatchObject({ createdBy: B, resourceKind: "page", r: "deny", w: null, x: null });
     expect((await send("DELETE", `/api/studio/spaces/${spaceId}/rules/${added.id}`)).status).toBe(200);
-    expect((await json(send("GET", `/api/studio/spaces/${spaceId}/rules`))).rules).toHaveLength(22);
+    expect((await json(send("GET", `/api/studio/spaces/${spaceId}/rules`))).rules).toHaveLength(26);
     expect((await send("DELETE", `/api/studio/spaces/${spaceId}/rules/${added.id}`)).status).toBe(404);
     // The whole list is no longer saved at once.
     expect((await send("PUT", `/api/studio/spaces/${spaceId}/rules`, { rules: [] })).status).toBe(404);
@@ -684,6 +688,7 @@ describe("the walk over every resource kind", () => {
     wizard: "wizard_run refused without x (elements.test.ts)",
     skill: "skill_load refused without r, scripts without x (elements.test.ts)",
     setup: "Goose's writes refused without w (elements.test.ts)",
+    data: "data_query and data_exec, a guest's AI step on shared data (wizard-data.test.ts)",
   };
   it("enforces exactly the kinds that have a fixture", async () => {
     expect([...rwx.ENFORCED].sort()).toEqual(Object.keys(fixtures).sort());
@@ -1023,6 +1028,6 @@ describe("a folder closed to guests: a plugin's reads, a step's counts", () => {
     const { rules } = await json(send("GET", `/api/studio/spaces/${spaceId}/rules`));
     const keys = rules.map((r: any) => [r.subjectKind, r.subjectId ?? "", r.resourceKind, r.resourceId].join("|"));
     expect(keys.length).toBe(new Set(keys).size);
-    expect(rules.filter((r: any) => r.subjectKind === "guest").length).toBe(4);
+    expect(rules.filter((r: any) => r.subjectKind === "guest").length).toBe(5);
   });
 });
