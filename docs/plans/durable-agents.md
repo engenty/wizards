@@ -5,7 +5,9 @@ Rewritten on 2026-11-06 to what was built. PRs 0 and 1 are on main. PRs 2 to 11 
 2026-11-08 from `claude/durable-runs-combined`, PR 3 with them ([#498](https://github.com/engenty/wizards/pull/498)
 closed), after Manage's `feat/run-mail`
 ([engenty-wizards-manage#191](https://github.com/engenty/engenty-wizards-manage/pull/191)). Starts have their own
-plan (`starts.md`, behind `startTriggers`). "Before the switch flips" below holds what is left.
+plan (`starts.md`, behind `startTriggers`). "Before the switch flips" below holds what is left. On 2026-11-09 the
+flow's rules moved into one pure function, `transition()` ([#571](https://github.com/engenty/wizards/pull/571)),
+and the runner became its host. See "The flow as one function".
 
 Scope: a run that lasts hours or days. It follows its steps, branches and waits, survives restarts of
 every process, and stops for a person where it needs one, then goes on.
@@ -31,7 +33,7 @@ cursor per run stays), Engenties as chat members (`work-chats.md`, "After step 3
 
 | Layer | Owner | Why |
 |---|---|---|
-| Flow between steps | ours: `drive()`, `run.cursor`, `run.state` | `goBack` works from done and failed, `reviewStep` jumps to any shown step with a note, `next` rules jump anywhere. A Mastra graph runs its entries in order, with no jump |
+| Flow between steps | ours: `transition()` decides, `drive()` hosts it, on `run.cursor` and `run.state` | `goBack` works from done and failed, `reviewStep` jumps to any shown step with a note, `next` rules jump anywhere. A Mastra graph runs its entries in order, with no jump |
 | Line and takeover | ours: `run_index` | One line over all tenants with a limit per tenant; a process without a runner tells a runner directly to take a run it hands on (`POST /api/peer/runs/:id/take`), the 2 s look stays as the fallback. Mastra recovers at boot only, per instance, with no limit on concurrent runs |
 | Clock and signals | ours: rows and one sweep | Mastra's sleep is a timer in memory: a 31-day sleep ran at once, and a restart started a 20 s sleep over. `waitForEvent` was removed from Mastra |
 | Inside an agent turn | Mastra `DurableAgent` | Checkpoints per model step, claims with fenced writes on libSQL, stops a superseded owner |
@@ -90,6 +92,31 @@ another step. `durable` refuses `browser` and `sandbox`, and says it does nothin
 
 Migrations only add, except `0059` to `0062`, which rename and rebuild `chat_approval`. That is behind
 `workMode`, and a process on the old code touching it during a rolling deploy fails.
+
+## The flow as one function
+
+`packages/shared/src/transition.ts` holds every rule of where a run goes: `next` rules and loops, `ask`
+decisions, waits and their timeouts, signals, a person's step and its deadline, reviews, regenerate, back,
+retries, waits for credits or a sign-in, `onFail`, try again and cancel. `transition(def, run, event, host)`
+takes the run as the row has it (`cursor`, `status`, `state`, `wakeAt`) and one event. It returns the run
+as it stands now and one command for the host. It is pure: `host` brings the time, the templates, the list
+counts and whether durable runs are on. It is MIT, like the format's other files, and
+`test/transition.test.ts` walks it with no database.
+
+The runner is the host, in `engine/runner.ts`:
+
+- `flow()` sends the event. `apply()` writes the answer with what goes with it: the control copy of the
+  wake first, the notices with the status, the log's lines, credits given back, the label.
+- A move after a step, a decision, an answer, a wake or a failure is written at once. Where it arrives at a
+  `wait`, a person's step or the result, the row says `running` there, and the drive loop stands the run
+  at it with `resume`. That keeps the log's order, and the work some steps need first: a start fills its
+  page, a decision picks a page's fields. An answer that leads to a plain page stands there in the same
+  update (`needsNoRunner`).
+- What stays in the host: holding credits before a step that costs and on a wake, whether a step may have
+  acted (`run_effect`, a turn's mark), sorting an error (`classifyFailure`), the start's answers
+  (`passStep`), picked fields, a durable turn's question, who may answer, telling people, a crash on the
+  way into a wait (the time the log said stays).
+- A refusal of the function (`FlowRefused`) is a `RunConflict` for whoever asked.
 
 ## The line
 
