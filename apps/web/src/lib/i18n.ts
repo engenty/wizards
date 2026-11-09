@@ -4145,6 +4145,13 @@ const de: Record<Key, Line> = {
   "share.onPageNotShared": "Die Seite zeigt ihn, sobald jeder mit dem Link ihn öffnen darf.",
   "share.signals": "Ereignisse",
   "share.signalsHint": "Ein Ereignis weckt einen Lauf, der darauf wartet.",
+  "share.schema": "Für Apps und AI-Clients",
+  "share.schemaHint":
+    "Was ein Programm mitgibt, wenn es den Wizard ohne Person startet, und was es zurückbekommt.",
+  "share.schemaTakes": "Braucht",
+  "share.schemaGives": "Liefert",
+  "share.schemaNone": "Nichts",
+  "share.schemaCopy": "JSON Schema kopieren",
   "share.answerers": "Beantwortet von",
   "share.answerersHint":
     "Wer hier steht, bekommt Fragen und Prüfungen des Laufs unter „Braucht dich“.",
@@ -9071,6 +9078,13 @@ const en = {
   "share.onPageNotShared": "The page shows it once anyone with the link may open it.",
   "share.signals": "Events",
   "share.signalsHint": "An event wakes a run that waits for it.",
+  "share.schema": "For apps and AI clients",
+  "share.schemaHint":
+    "What a program gives when it starts the wizard without a person, and what it gets back.",
+  "share.schemaTakes": "Takes",
+  "share.schemaGives": "Gives",
+  "share.schemaNone": "Nothing",
+  "share.schemaCopy": "Copy JSON Schema",
   "share.answerers": "Answered by",
   "share.answerersHint": "The people here get the run’s questions and reviews under “Needs you”.",
   "share.answerersPeople": "People",
