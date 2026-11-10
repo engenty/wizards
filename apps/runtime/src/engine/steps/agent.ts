@@ -28,7 +28,6 @@ import { Agent } from "@mastra/core/agent";
 import { generateText, type JSONSchema7, jsonSchema, Output, parsePartialJson } from "ai";
 import type { z } from "zod";
 import { subjectsOf } from "../../broker/rwx.js";
-import { loadAsset } from "../../files/storage.js";
 import {
   agentModel,
   attachTools,
@@ -41,13 +40,13 @@ import {
   totalUsage,
 } from "../../models.js";
 import { prompt } from "../../prompts.js";
+import type { UploadRef } from "../../run-services/files.js";
 import { knowledgeBlock } from "../../services/knowledge.js";
 import { watchActions } from "../../tools/acted.js";
 import { agentTools, stepOfAgent } from "../../tools/agent.js";
 import { buildStepTools } from "../../tools/index.js";
 import { spaceContextOf } from "../../tools/plugin.js";
 import { skillsBlock, skillsOf } from "../../tools/skills.js";
-import { personUploads, type UploadRef } from "../../tools/store.js";
 import { durableTurn, turnContext, turnOf } from "../durable-turn.js";
 import { renderTask } from "../template.js";
 import { type StepContext, StepError } from "../types.js";
@@ -231,9 +230,9 @@ async function seenPhotos(
   const out: { upload: UploadRef; id: string; data: Uint8Array; mime: string }[] = [];
   for (const id of ids) {
     const upload = uploads.find((u) => u.ref === `upload:${id}`);
-    const found = upload ? await loadAsset(id) : null;
-    if (upload && found && /^image\/(jpeg|png|webp)$/.test(found.row.mime)) {
-      out.push({ upload, id, data: new Uint8Array(found.data), mime: found.row.mime });
+    const found = upload ? await ctx.services.files.read(id) : null;
+    if (upload && found && /^image\/(jpeg|png|webp)$/.test(found.ref.mime)) {
+      out.push({ upload, id, data: found.data, mime: found.ref.mime });
     }
   }
   return out;
@@ -326,7 +325,7 @@ export async function runAgentStep(
     effort: step.effort,
     makerClass: step.maker ? classIdOf(step, "standard") : undefined,
   });
-  const uploads = await personUploads(ctx);
+  const uploads = await ctx.services.files.uploads();
   // An installed client or the run's device keeps its tool loop in a process of its own: nothing
   // of it could go on elsewhere, so such a step runs as a step without `durable`.
   const going = turnOf(ctx.state, step.id);

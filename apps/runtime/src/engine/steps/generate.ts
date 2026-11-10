@@ -9,8 +9,6 @@ import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
 import { mainLogo, runTheme } from "@engenty/wizards-shared/spaces";
 import { generateText } from "ai";
-import { extFor, loadAsset } from "../../files/storage.js";
-import { snapshotHtmlImages } from "../../files/web-images.js";
 import {
   type GeneratedMedia,
   generateImageMedia,
@@ -21,6 +19,7 @@ import {
 import { type AiOrigin, markMedia } from "../../media/marking.js";
 import { costOf, textModel } from "../../models.js";
 import { prompt } from "../../prompts.js";
+import { extFor } from "../../run-services/files.js";
 import { contentPolicy } from "../../safety.js";
 import { spaceContextOf } from "../../tools/plugin.js";
 import { skillsBlock, skillsOf } from "../../tools/skills.js";
@@ -52,9 +51,9 @@ function imagesOf(name: string, ctx: StepContext): string[] {
 }
 
 async function loadReference(id: string | undefined, ctx: StepContext) {
-  const found = id ? await loadAsset(id) : null;
-  return found && found.row.runId === ctx.runId
-    ? ({ bytes: new Uint8Array(found.data), mediaType: found.row.mime } satisfies MediaReference)
+  const found = id ? await ctx.services.files.read(id) : null;
+  return found && found.runId === ctx.runId
+    ? ({ bytes: found.data, mediaType: found.ref.mime } satisfies MediaReference)
     : null;
 }
 
@@ -358,7 +357,7 @@ async function runMediaStep(
     // A picture changed from one the person gave is "edited"; everything else a model made.
     const origin: AiOrigin =
       asset === "image" && entry.reference && given.has(entry.reference) ? "edited" : "generated";
-    const ref = await ctx.saveAsset({
+    const ref = await ctx.services.files.save({
       stepId: step.id,
       kind: asset,
       mime: media.mime,
@@ -410,7 +409,7 @@ export async function runGenerateStep(step: GenerateStep, ctx: StepContext): Pro
         abortSignal: ctx.signal,
       });
       await ctx.chargeUsd(media.costUsd);
-      const ref = await ctx.saveAsset({
+      const ref = await ctx.services.files.save({
         stepId: step.id,
         kind: "audio",
         mime: media.mime,
@@ -423,13 +422,11 @@ export async function runGenerateStep(step: GenerateStep, ctx: StepContext): Pro
     case "document":
     case "dashboard": {
       // Pictures the model took from the web stay: the page itself may load none.
-      const html = await snapshotHtmlImages(
+      const html = await ctx.services.files.keepWebImages(
         await writeHtml(step, ctx, step.asset),
-        ctx.saveAsset,
         step.id,
-        ctx.signal,
       );
-      const ref: AssetRef = await ctx.saveAsset({
+      const ref: AssetRef = await ctx.services.files.save({
         stepId: step.id,
         kind: "html",
         mime: "text/html",
