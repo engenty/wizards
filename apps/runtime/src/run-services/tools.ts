@@ -1,6 +1,7 @@
 import {
   type AgentStep,
   classIdOf,
+  listWriteInputSchema,
   textClassOf,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
@@ -21,7 +22,7 @@ import { agentTools, stepOfAgent } from "../tools/agent.js";
 import { callConnection } from "../tools/connector.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool } from "../tools/plugin.js";
-import { personUploads, type UploadRef } from "../tools/store.js";
+import { personUploads, type UploadRef, writeListOnce } from "../tools/store.js";
 import type { InProcessContext } from "./in-process.js";
 import type { AgentModel, InProcessServices } from "./index.js";
 
@@ -160,9 +161,17 @@ export function inProcessTools(options: {
 
     async call(request) {
       const step = stepOf(request.stepId);
-      // A tool step's one call: a plugin's tool or a connection's action, as the step names it.
+      // A tool step's one call: a plugin's tool, list_write or a connection's action, as the step names it.
       if (step?.type === "tool" && step.call) {
         const c = options.at(request.stepId);
+        if ("tool" in step.call && step.call.tool === "list_write") {
+          // The wizard's own list, once per visit: the input is checked as the AI step's tool is.
+          const input = listWriteInputSchema.safeParse(request.input);
+          if (!input.success) {
+            throw new ServiceError({ class: "final" }, `list_write: ${input.error.message}`);
+          }
+          return { output: await writeListOnce(c, input.data) };
+        }
         if ("tool" in step.call) {
           // What a plugin's tool does nobody knows here, so a later try of the step does not repeat it.
           c.resources.acted = true;

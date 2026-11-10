@@ -4,6 +4,7 @@ import { isPending } from "@engenty/wizards-shared/run-services";
 import { runStepData } from "../data-step.js";
 import { renderTemplate } from "../template.js";
 import { type StepContext, StepError } from "../types.js";
+import { listWriteInput } from "./list-write.js";
 
 /**
  * A call's input as the step's answers fill it: string values are templates; a filled-in whole
@@ -34,9 +35,9 @@ function callInput(value: unknown, ctx: StepContext): unknown {
 }
 
 /**
- * A step's `call`: one plugin tool or one action of a connection, no model; its answer is the
- * step's json output as it is. A connection's action runs through the broker as the step, with
- * the fields the wizard fixed: the one way a run writes as the space.
+ * A step's `call`: one plugin tool, `list_write` or one action of a connection, no model; its
+ * answer is the step's json output as it is. A connection's action runs through the broker as the
+ * step, with the fields the wizard fixed: the one way a run writes as the space.
  */
 export async function runToolStep(step: ToolStep, ctx: StepContext): Promise<StepOutput> {
   if (!step.call) {
@@ -46,7 +47,10 @@ export async function runToolStep(step: ToolStep, ctx: StepContext): Promise<Ste
     return { json: await runStepData(step.data, ctx), at: new Date().toISOString() };
   }
   // What it is doing is the step's `working` line, shown as it starts, and what the tool says.
-  const input = callInput(step.call.input, ctx);
+  const input =
+    "tool" in step.call && step.call.tool === "list_write"
+      ? listWriteInput(step.call.input, ctx)
+      : callInput(step.call.input, ctx);
   const called = await ctx.services.tools.call(
     {
       stepId: step.id,

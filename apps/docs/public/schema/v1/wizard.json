@@ -13946,6 +13946,51 @@
                   {
                     "type": "object",
                     "properties": {
+                      "tool": {
+                        "type": "string",
+                        "const": "list_write"
+                      },
+                      "input": {
+                        "type": "object",
+                        "properties": {
+                          "list": {
+                            "type": "string",
+                            "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,40}$"
+                          },
+                          "rows": {
+                            "maxItems": 200,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            }
+                          },
+                          "delete": {
+                            "maxItems": 200,
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "list"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "tool",
+                      "input"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
                       "connection": {
                         "type": "string",
                         "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,40}$"

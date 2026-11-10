@@ -212,6 +212,9 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
       if (plugin) {
         add(`plugin:${plugin.plugin}`, true);
       }
+      if (step.call && "tool" in step.call && step.call.tool === "list_write") {
+        add("lists", true);
+      }
       break;
     }
     case "agent": {

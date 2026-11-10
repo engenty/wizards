@@ -1,12 +1,16 @@
-import { allFields } from "@engenty/wizards-shared/definition";
+import { allFields, type ListWriteInput } from "@engenty/wizards-shared/definition";
 import { TableColumnValueError } from "@engenty/wizards-shared/engenty/data-tables";
+import { note } from "@engenty/wizards-shared/run";
 import type { ListDef } from "@engenty/wizards-shared/store";
 import { createTool } from "@mastra/core/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { whereOf } from "../broker/call.js";
+import { effectDone, effectIdOf, effectThrew, findEffect, startEffect } from "../broker/effect.js";
 import { subjectsOf } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { parseDocument, type ScanKind, scanDocument } from "../documents/parse.js";
+import { StepError } from "../engine/types.js";
 import { loadAsset } from "../files/storage.js";
 import { prompt } from "../prompts.js";
 import type { InProcessContext } from "../run-services/in-process.js";
@@ -104,6 +108,76 @@ function describeColumns(def: ListDef): string {
 }
 
 /**
+ * `list_write`, for an AI step's tool and a tool step's call alike: saves `rows`, deletes rows by
+ * key or id. A failure is the answer `{ error }`, as a tool's is.
+ */
+export function writeList(
+  ctx: InProcessContext,
+  def: ListDef,
+  { rows, delete: remove }: { rows?: Record<string, unknown>[]; delete?: string[] },
+) {
+  return attempt(async () => {
+    try {
+      const saved = rows?.length ? await saveRows(ctx.store, def, rows) : { added: 0, updated: 0 };
+      const deleted = remove?.length ? await deleteRows(ctx.store, def, remove) : 0;
+      await ctx.emit("tool", { code: "remembers", params: { title: def.title } });
+      return { ...saved, deleted };
+    } catch (err) {
+      if (err instanceof TableColumnValueError) {
+        return {
+          error: `Column "${err.columnId}": ${err.message}. Nothing after that row was saved.`,
+        };
+      }
+      throw err;
+    }
+  });
+}
+
+/**
+ * A tool step's `list_write`, its input filled in: the same write as the AI step's tool, once per
+ * visit of the step. A restart finds the visit's row in `run_effect` and answers what the write
+ * answered. Where runs keep no such row, the step counts as acted, so a failure is not tried again
+ * by itself.
+ */
+export async function writeListOnce(ctx: InProcessContext, input: ListWriteInput) {
+  const def = ctx.def.lists?.find((l) => l.id === input.list);
+  if (!def) {
+    throw new StepError(note("listWriteNoList", { list: input.list }));
+  }
+  const write = () => writeList(ctx, def, input);
+  const effectId = await effectIdOf(whereOf(ctx), { visit: ctx.state.visits?.[ctx.stepId] });
+  if (!effectId) {
+    ctx.resources.acted = true;
+    return write();
+  }
+  const found = await findEffect(effectId);
+  if (found?.state === "done") {
+    return found.output;
+  }
+  const taken = await startEffect({
+    id: effectId,
+    runId: ctx.runId,
+    stepId: ctx.stepId,
+    tool: "list_write",
+  });
+  // Broken off between the row and the write: a row with a key is only saved again, any other
+  // may be there already.
+  if (!(taken || def.key)) {
+    throw new StepError(note("listWriteMayHaveHappened", { title: def.title }));
+  }
+  const answer = await write().catch(async (err) => {
+    await effectThrew(effectId, err);
+    throw err;
+  });
+  if (answer && typeof answer === "object" && "error" in answer) {
+    await effectThrew(effectId, new Error(String(answer.error)));
+  } else {
+    await effectDone(effectId, answer);
+  }
+  return answer;
+}
+
+/**
  * What every agent step can do with the wizard's store and the person's files: read and write
  * the lists, read documents (PDF, scans, photos, Word, Excel, CSV, saved mails).
  */
@@ -154,24 +228,7 @@ export function storeTools(ctx: InProcessContext, uploads: UploadRef[], keeper: 
           .describe("Rows to remove: their key column's value, or their id."),
       }),
       execute: ({ list, rows, delete: remove }) =>
-        attempt(async () => {
-          const def = defOf(list);
-          try {
-            const saved = rows?.length
-              ? await saveRows(ctx.store, def, rows)
-              : { added: 0, updated: 0 };
-            const deleted = remove?.length ? await deleteRows(ctx.store, def, remove) : 0;
-            await ctx.emit("tool", { code: "remembers", params: { title: def.title } });
-            return { ...saved, deleted };
-          } catch (err) {
-            if (err instanceof TableColumnValueError) {
-              return {
-                error: `Column "${err.columnId}": ${err.message}. Nothing after that row was saved.`,
-              };
-            }
-            throw err;
-          }
-        }),
+        writeList(ctx, defOf(list), { rows, delete: remove }),
     });
   }
 
