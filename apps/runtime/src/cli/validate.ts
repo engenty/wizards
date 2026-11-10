@@ -4,6 +4,7 @@ import { parseWizard, type ValidationIssue } from "@engenty/wizards-shared/defin
 import { requiresProblem } from "@engenty/wizards-shared/requires";
 import { wizardDataIssues } from "@engenty/wizards-shared/wizard-data";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
+import { WIZARD_SKILLS_DIR, wizardSkillIssues } from "@engenty/wizards-shared/wizard-skills";
 import { json, readManifest, readPackage } from "../services/package-file.js";
 import { bad, dim, ok } from "./ui.js";
 
@@ -36,9 +37,14 @@ function workspace(folder: string): string[] {
   }
 }
 
+const isSkillMd = (path: string) =>
+  path.startsWith(WIZARD_SKILLS_DIR) && path.endsWith("/SKILL.md");
+
 interface Given {
   definition: unknown;
   files: string[];
+  /** The text of each skill's `SKILL.md`, by its path in the workspace. */
+  skillMds: Record<string, string>;
   /** A workspace file's text, or null where it is not there. */
   text: (path: string) => string | null;
 }
@@ -53,17 +59,25 @@ function read(path: string): Given {
   if (folder) {
     const manifest = readManifest(json(readFileSync(join(folder, PACKAGE_MANIFEST))));
     const files = workspace(folder);
+    const skillMds = Object.fromEntries(
+      files.filter(isSkillMd).map((f) => [f, readFileSync(join(folder, PACKAGE_FILES, f), "utf8")]),
+    );
     return {
       definition: manifest.definition,
       files,
+      skillMds,
       text: (p) =>
         files.includes(p) ? readFileSync(join(folder, PACKAGE_FILES, p), "utf8") : null,
     };
   }
   const { manifest, files } = readPackage(readFileSync(path));
+  const skillMds = Object.fromEntries(
+    files.filter((f) => isSkillMd(f.path)).map((f) => [f.path, new TextDecoder().decode(f.data)]),
+  );
   return {
     definition: manifest.definition,
     files: files.map((f) => f.path),
+    skillMds,
     text: (p) => {
       const file = files.find((f) => f.path === p);
       return file ? new TextDecoder().decode(file.data) : null;
@@ -86,15 +100,15 @@ export function validatePath(path: string): Checked {
   // `requires` says what the steps need: a file that says otherwise is out of date. The SQL of
   // the wizard's own database: each file splits into statements the runtime runs.
   const requires = parsed.ok ? requiresProblem(parsed.wizard) : null;
-  const issues = parsed.ok
-    ? [
-        ...parsed.issues,
-        ...(requires ? [{ message: requires }] : []),
-        ...wizardDataIssues(parsed.wizard, given.files, given.text).map((i) => ({
+  const issues = [
+    ...(requires ? [...parsed.issues, { message: requires }] : parsed.issues),
+    ...wizardSkillIssues(given.files, given.skillMds),
+    ...(parsed.ok
+      ? wizardDataIssues(parsed.wizard, given.files, given.text).map((i) => ({
           message: i.message,
-        })),
-      ]
-    : parsed.issues;
+        }))
+      : []),
+  ];
   return {
     path,
     ok: parsed.ok && issues.length === 0,
