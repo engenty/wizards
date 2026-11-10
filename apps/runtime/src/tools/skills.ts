@@ -9,6 +9,7 @@ import { getBlob } from "../files/blobs.js";
 import { prompt } from "../prompts.js";
 import type { Sandbox } from "../sandbox/index.js";
 import { activeSkills, skillConnectors } from "../services/skills.js";
+import { withWizardSkills } from "../services/wizard-skills.js";
 import { attempt, clip } from "./shared.js";
 
 /**
@@ -21,6 +22,10 @@ import { attempt, clip } from "./shared.js";
  * into the run's sandbox when a step that has the sandbox loads it: `skills/<name>/` in the
  * working directory, where `run_command` runs its scripts. Without the sandbox its scripts stay
  * text, as every other skill's do.
+ *
+ * A wizard's own skills (`skills/<name>/SKILL.md` in its workspace, services/wizard-skills.ts)
+ * join the space's in its steps, before them: one hides a space skill of the same name. Their
+ * scripts may run, and go to the sandbox the same way.
  */
 
 type Skills = Awaited<ReturnType<typeof activeSkills>>;
@@ -28,11 +33,16 @@ type Skill = Skills["always"][number];
 
 const found = new WeakMap<StepContext, Promise<Skills>>();
 
-/** The space's skills that count, asked once per step. */
+/** The skills that count in a step, the wizard's and the space's, asked once per step. */
 export function skillsOf(ctx: StepContext): Promise<Skills> {
   let skills = found.get(ctx);
   if (!skills) {
-    skills = activeSkills(ctx.space.id);
+    skills = activeSkills(ctx.space.id).then((space) =>
+      withWizardSkills(space, ctx.files ?? [], {
+        spaceId: ctx.space.id,
+        tenantId: ctx.tenantId,
+      }),
+    );
     found.set(ctx, skills);
   }
   return skills;
