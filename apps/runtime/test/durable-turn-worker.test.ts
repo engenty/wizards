@@ -200,15 +200,6 @@ describe.runIf(PHASE)(`turn phase ${PHASE}`, () => {
   it("runs", { timeout: 90_000 }, async () => {
     const client = await import("../src/db/client");
     await client.migrateControlDb();
-    if (process.env.TURN_CRASH_AT_DROP === "1") {
-      // The moment Mastra drops the turn's snapshot: synchronously, with nothing awaited before.
-      const { DurableAgent } = await import("@mastra/core/agent/durable");
-      DurableAgent.prototype.deleteRunSnapshots = async () => {
-        say("kill -9 as Mastra drops the snapshot");
-        process.kill(process.pid, "SIGKILL");
-        await new Promise(() => undefined);
-      };
-    }
     const runner = await import("../src/engine/runner");
     const wizards = await import("../src/services/wizards");
     stopNow = runner.stopRunner;

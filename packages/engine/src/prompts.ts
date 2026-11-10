@@ -3,8 +3,9 @@ import { STEP_PROMPTS } from "./step-prompts.js";
 /**
  * The texts a run's steps give a model. They are written in the runtime's prompt files
  * (apps/runtime/src/prompts, its README says how) and reach the engine as a module, so it reads
- * no files: `pnpm prompts:engine` writes step-prompts.ts from `step.md`, `safety.md`'s `policy`
- * and `authoring.md`'s `surfaces`, and a test of the runtime fails while it is behind.
+ * no files: `pnpm prompts:engine` writes step-prompts.ts from `step.md`, `safety.md`'s `policy`,
+ * `authoring.md`'s `surfaces` and `tools.md`'s `tool.ask_person`, and a test of the runtime fails
+ * while it is behind.
  */
 export type StepPromptFile = keyof typeof STEP_PROMPTS;
 

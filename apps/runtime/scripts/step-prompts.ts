@@ -8,6 +8,7 @@ export const STEP_PROMPT_SECTIONS: Partial<Record<PromptFile, "all" | string[]>>
   step: "all",
   safety: ["policy"],
   authoring: ["surfaces"],
+  tools: ["tool.ask_person"],
 };
 
 /** The sections, by file and name, as the files give them now. */

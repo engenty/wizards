@@ -105,6 +105,7 @@ function memoryHost(def: WizardDefinition, more: Partial<MemoryOptions> = {}) {
         return row.rev;
       },
     },
+    turns: { load: async () => null, save: async () => {}, drop: async () => {} },
     clock: {
       now: () => host.now,
       wakeAt: async (at) => {
@@ -540,29 +541,6 @@ describe("advance", () => {
     };
     await advance(runHost, { kind: "start" });
     expect(host.contexts[0]).toMatchObject({ visiting: "send", visits: { send: 1 } });
-  });
-
-  it("gives a durable agent step its turn's id before it runs", async () => {
-    const parsed = wizard([made("think"), end()]);
-    const think = {
-      id: "think",
-      type: "agent",
-      title: "Think",
-      instructions: "Think.",
-      tools: [],
-      durable: true,
-      output: { format: "text" },
-    } as unknown as Step;
-    const def = { ...parsed, steps: [think, parsed.steps[1]] } as WizardDefinition;
-    const { host, runHost } = memoryHost(def, { effects: true });
-    runHost.guard = {
-      before: async () => {
-        throw new Error("stopped");
-      },
-      after: async () => {},
-    };
-    await advance(runHost, { kind: "start" });
-    expect(host.contexts[0].turn).toMatchObject({ stepId: "think", id: expect.stringMatching(/^run1\.[\w-]{12}$/) });
   });
 
   it("cancels a waiting run", async () => {

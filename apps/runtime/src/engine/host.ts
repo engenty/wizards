@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import type { Failure } from "@engenty/wizards-engine/failures";
 import type { Move, RunHost, StepFailure } from "@engenty/wizards-engine/host";
 import { answersAsText } from "@engenty/wizards-engine/template";
-import type { StepServices } from "@engenty/wizards-engine/types";
+import { type StepServices, TurnAsks } from "@engenty/wizards-engine/types";
 import { isNoteTime, note, type RunEventType, type Said } from "@engenty/wizards-shared/run";
 import type { FlowFailure, FlowRun } from "@engenty/wizards-shared/transition";
 import { effectsOn } from "../broker/effect.js";
@@ -23,7 +23,6 @@ import type { SpaceRow } from "../run-services/in-process.js";
 import { checkGuestInput, checkGuestText, guestChecksOn, guestRun } from "../safety.js";
 import { listRows, scopeOf } from "../store/index.js";
 import { setWake } from "../tenants/control.js";
-import { TurnAsks } from "./durable-turn.js";
 import { emitEvent, saidInVisit, visitLeftOpen } from "./events.js";
 import { classifyFailure } from "./failures.js";
 import { withMailText } from "./mail-watch.js";
@@ -48,6 +47,7 @@ import {
 } from "./runner.js";
 import { dropWait, findSignal, registerWait } from "./signals.js";
 import { startOf } from "./starts.js";
+import { runTurns } from "./turns.js";
 import type { RunRow } from "./types.js";
 import { SignInNeeded } from "./types.js";
 
@@ -206,6 +206,7 @@ export async function runtimeHost(
     def: row.definition,
     files: row.files,
     interrupted,
+    turns: runTurns(runId),
     store: {
       async load() {
         const run = await loadRun(runId);

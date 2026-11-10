@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -94,6 +94,8 @@ vi.mock("../src/engine/requirements.js", async (original) => ({
 
 /** What the step's outside tool did, in the order it did it. */
 let acted: string[] = [];
+/** Runs after each send, inside it: how many there were so far. */
+let afterSend: ((n: number) => Promise<void>) | null = null;
 let answerChars = 0;
 vi.mock("../src/tools/index.js", async (original) => ({
   ...(await original<typeof import("../src/tools/index.js")>()),
@@ -113,6 +115,7 @@ vi.mock("../src/tools/index.js", async (original) => ({
           effect: { turn: ctx.turn, toolCallId: toolCallIdOf(context, "send", input) },
           handler: async () => {
             acted.push(input.to);
+            await afterSend?.(acted.length);
             return { sent: input.to, filler: "x".repeat(answerChars) };
           },
         });
@@ -198,14 +201,14 @@ const waitFor = async (id: string, status: string, tenant = T, ms = 30_000) => {
   return r!;
 };
 
-/** Mastra's rows of a tenant, by run id. */
-const snapshots = async (tenant = T) => {
+/** The agent turns a tenant keeps (`run_turn`), by run. */
+const turnRows = async (tenant = T) => {
   const db = await client.tenantClient(tenant);
-  const found = await db.execute(
-    "SELECT workflow_name, run_id, length(snapshot) AS size FROM mastra_workflow_snapshot",
-  );
-  return found.rows as unknown as { workflow_name: string; run_id: string; size: number }[];
+  const found = await db.execute("SELECT id, run_id, length(data) AS size FROM run_turn");
+  return found.rows as unknown as { id: string; run_id: string; size: number }[];
 };
+const turnsOf = async (id: string, tenant = T) =>
+  (await turnRows(tenant)).filter((t) => t.run_id === id);
 
 beforeAll(async () => {
   client = await import("../src/db/client");
@@ -227,6 +230,7 @@ beforeEach(() => {
   switchOn = true;
   modelCalls = 0;
   acted = [];
+  afterSend = null;
   answerChars = 0;
   script = () => say("done");
 });
@@ -268,7 +272,7 @@ describe("the format", () => {
 });
 
 describe("a turn", () => {
-  it("runs to its result as any step, and leaves no snapshot", async () => {
+  it("runs to its result as any step, and lets its turn go once the output is saved", async () => {
     script = (options) =>
       resultsOf(options).length
         ? say("The last message.")
@@ -283,7 +287,7 @@ describe("a turn", () => {
     const r = await waitFor(id, "done");
     expect(r.state.outputs.work?.text).toBe("The last message.");
     expect(r.state.turn).toBeUndefined();
-    expect((await snapshots()).filter((s) => s.run_id.startsWith(id))).toEqual([]);
+    expect(await turnsOf(id)).toEqual([]);
     // Effects carry the turn's id, whose first part is the run's.
     const effects = await inTenant(() => client.db.query.runEffect.findMany());
     expect(effects.find((e) => e.runId === id)?.id).toMatch(new RegExp(`^${id}\\.[^:]+:c-1$`));
@@ -341,8 +345,8 @@ describe("a turn", () => {
   });
 
   it("stops before a second write when a server repeats tool call ids", async () => {
-    // A server that counts its ids per model step: every call is "call_0". Mastra shows its model
-    // only the first result, and `run_effect` would take the second write for the first.
+    // A server that counts its ids per model step: every call is "call_0". `run_effect` would
+    // take the second write for the first.
     script = (options) => {
       const n = resultsOf(options, "send").length;
       return n < 2 ? call("call_0", "send", { to: `person-${n}` }) : say("done");
@@ -402,7 +406,7 @@ describe("a turn", () => {
     script = (options) => {
       const n = resultsOf(options, "execute_typescript").length;
       program += 1;
-      // The model repeats the same call id, as a crash in the program makes Mastra do.
+      // A crash in the program repeats it under the same call id.
       return n === 0
         ? call("program-1", "execute_typescript", { code })
         : say(`ran ${program}`);
@@ -424,7 +428,7 @@ describe("a turn", () => {
     expect(codeTool).toBeTypeOf("function");
   });
 
-  it("runs as any step while the switch is off: no turn, no question, no snapshot", async () => {
+  it("asks nobody while the switch is off, and keeps no effects", async () => {
     switchOn = false;
     let offered: string[] = [];
     script = (options) => {
@@ -436,10 +440,11 @@ describe("a turn", () => {
     expect(r.state.outputs.work?.text).toBe("done");
     expect(offered).toContain("send");
     expect(offered).not.toContain("ask_person");
-    expect((await snapshots()).filter((s) => s.run_id.startsWith(id))).toEqual([]);
+    const effects = await inTenant(() => client.db.query.runEffect.findMany());
+    expect(effects.filter((e) => e.runId === id)).toEqual([]);
   });
 
-  it("falls back to a normal step on an installed client, and says so", async () => {
+  it("can't ask on an installed client, and says so", async () => {
     vendor = "claude";
     const id = await startRun(definitionOf(agentStep()));
     const r = await waitFor(id, "done");
@@ -450,7 +455,6 @@ describe("a turn", () => {
         (e) => e.runId === id && e.note?.code === "noDurable",
       ),
     ).toBe(true);
-    expect((await snapshots()).filter((s) => s.run_id.startsWith(id))).toEqual([]);
   });
 });
 
@@ -475,7 +479,7 @@ describe("a turn that asks a person", () => {
     const view = await inTenant(() => runner.runView(waiting, {} as never));
     expect(view.question).toBe("Welches Angebot?");
     expect(view.ask).toBeNull();
-    expect((await snapshots()).filter((s) => s.run_id.startsWith(id)).length).toBeGreaterThan(0);
+    expect(await turnsOf(id)).toHaveLength(1);
 
     await inTenant(() => runner.answerTurn(id, "Das vom 28. Oktober"));
     const done = await waitFor(id, "done");
@@ -598,50 +602,29 @@ describe("a turn that asks a person", () => {
       const n = resultsOf(options, "send").length;
       return n >= 8 ? say("done") : call(`c-${n}`, "send", { to: `person-${n}` });
     };
-    const id = await startRun(definitionOf(agentStep({ tools: [] })));
-    await until(() => acted.length >= 2, 15_000);
-    await inTenant(() => runner.cancel(id));
+    let id = "";
+    // The person cancels while the second send is under way.
+    afterSend = async (n) => {
+      if (n === 2) {
+        await runner.cancel(id);
+      }
+    };
+    id = await startRun(definitionOf(agentStep({ tools: [] })));
+    await until(async () => (await row(id))?.status === "cancelled", 15_000);
     await new Promise((r) => setTimeout(r, 1500));
-    const after = acted.length;
-    await new Promise((r) => setTimeout(r, 500));
-    expect(acted.length).toBe(after);
-    expect(after).toBeLessThan(8);
+    expect(acted).toEqual(["person-0", "person-1"]);
     expect((await row(id))?.status).toBe("cancelled");
   });
 });
 
-describe("the turn's end", () => {
-  it("is on the row before Mastra drops the snapshot", async () => {
-    // A process that dies in between would start the whole turn over, with new tool call ids.
-    const { DurableAgent } = await import("@mastra/core/agent/durable");
-    const seen: unknown[] = [];
-    let id = "";
-    const original = DurableAgent.prototype.deleteRunSnapshots;
-    DurableAgent.prototype.deleteRunSnapshots = async function (runId: string) {
-      const r = id ? await row(id) : null;
-      seen.push(r?.state.turn?.end ?? (r?.state.outputs.work ? "saved" : null));
-      return original.call(this, runId);
-    };
-    try {
-      script = () => say("The end.");
-      id = await startRun(definitionOf(agentStep()));
-      await waitFor(id, "done");
-    } finally {
-      DurableAgent.prototype.deleteRunSnapshots = original;
-    }
-    expect(seen.length).toBeGreaterThan(0);
-    expect(seen.every(Boolean)).toBe(true);
-  });
-});
-
 describe("what a run leaves behind", () => {
-  it("removes a waiting turn's snapshot with the run, and nobody else's", async () => {
+  it("removes a waiting turn with the run, and nobody else's", async () => {
     script = () => call("ask-1", "ask_person", { question: "Was noch?" });
     const gone = await startRun(definitionOf(agentStep()));
     const stays = await startRun(definitionOf(agentStep()));
     await waitFor(gone, "waiting_input");
     await waitFor(stays, "waiting_input");
-    expect((await snapshots()).some((s) => s.run_id.startsWith(gone))).toBe(true);
+    expect(await turnsOf(gone)).toHaveLength(1);
     await inTenant(async () => {
       await client.db
         .update(client.schema.run)
@@ -649,36 +632,14 @@ describe("what a run leaves behind", () => {
         .where(eq(client.schema.run.id, gone));
       await shares.purgeExpiredRuns();
     });
-    const left = await snapshots();
-    expect(left.some((s) => s.run_id.startsWith(gone))).toBe(false);
-    expect(left.some((s) => s.run_id.startsWith(stays))).toBe(true);
-    // What this leaves is exactly what a chat's Mastra store has: no other table holds the run.
-    const db = await client.tenantClient(T);
-    const tables = await db.execute(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'mastra_%'",
-    );
-    for (const { name } of tables.rows as unknown as { name: string }[]) {
-      const columns = await db.execute(`PRAGMA table_info(${name})`);
-      const runColumn = (columns.rows as unknown as { name: string }[]).find((c) =>
-        ["run_id", "runId"].includes(c.name),
-      );
-      if (runColumn) {
-        const found = await db.execute({
-          sql: `SELECT count(*) AS n FROM ${name} WHERE ${runColumn.name} LIKE ?`,
-          args: [`${gone}%`],
-        });
-        expect({ name, rows: (found.rows[0] as unknown as { n: number }).n }).toEqual({
-          name,
-          rows: 0,
-        });
-      }
-    }
+    expect(await turnsOf(gone)).toEqual([]);
+    expect(await turnsOf(stays)).toHaveLength(1);
     await inTenant(() => runner.cancel(stays));
   });
 });
 
 describe("two tenants in one process", () => {
-  it("keeps each turn's snapshot in its own database, and both run at once", async () => {
+  it("keeps each turn in its own database, and both run at once", async () => {
     script = (options) => {
       const asked = resultsOf(options, "ask_person").length;
       const sent = resultsOf(options, "send").length;
@@ -691,10 +652,10 @@ describe("two tenants in one process", () => {
     const b = await startRun(definitionOf(agentStep()), OTHER);
     await waitFor(a, "waiting_input", T);
     await waitFor(b, "waiting_input", OTHER);
-    expect((await snapshots(T)).some((s) => s.run_id.startsWith(a))).toBe(true);
-    expect((await snapshots(T)).some((s) => s.run_id.startsWith(b))).toBe(false);
-    expect((await snapshots(OTHER)).some((s) => s.run_id.startsWith(b))).toBe(true);
-    expect((await snapshots(OTHER)).some((s) => s.run_id.startsWith(a))).toBe(false);
+    expect(await turnsOf(a, T)).toHaveLength(1);
+    expect(await turnsOf(b, T)).toEqual([]);
+    expect(await turnsOf(b, OTHER)).toHaveLength(1);
+    expect(await turnsOf(a, OTHER)).toEqual([]);
     await Promise.all([
       inTenant(() => runner.answerTurn(a, "A"), T),
       inTenant(() => runner.answerTurn(b, "B"), OTHER),
@@ -708,89 +669,13 @@ describe("two tenants in one process", () => {
   });
 });
 
-/**
- * A turn stored by the pinned Mastra, resumed on every run of this test: a Mastra upgrade that can
- * no longer read what a waiting run has stored fails here, before it reaches a run that waits.
- * `WRITE_TURN_FIXTURE=1` stores a new one, after looking at why the old one stopped working.
- */
-describe("a turn stored by an earlier Mastra", () => {
-  const file = join(__dirname, "fixtures", "durable-turn-suspended.json");
-  const rowsOf = async (turn: string) => {
-    const db = await client.tenantClient(T);
-    const rows = await db.execute({
-      sql: "SELECT workflow_name, run_id, resourceId, json(snapshot) AS snapshot, createdAt, updatedAt FROM mastra_workflow_snapshot WHERE run_id = ?",
-      args: [turn],
-    });
-    return rows.rows.map((r) => ({ ...r }));
-  };
-
-  it.runIf(process.env.WRITE_TURN_FIXTURE)("is stored", async () => {
-    script = () => call("ask-stored", "ask_person", { question: "Stored question?" });
-    const id = await startRun(definitionOf(agentStep()));
-    const r = await waitFor(id, "waiting_input");
-    const turn = r.state.turn?.id as string;
-    const { version } = JSON.parse(
-      readFileSync(join(__dirname, "../node_modules/@mastra/core/package.json"), "utf8"),
-    );
-    writeFileSync(
-      file,
-      `${JSON.stringify({ mastra: version, turn, rows: await rowsOf(turn) }, null, 1)}\n`,
-    );
-  });
-
-  it("goes on with the answer", async () => {
-    const stored = JSON.parse(readFileSync(file, "utf8")) as {
-      mastra: string;
-      turn: string;
-      rows: Record<string, unknown>[];
-    };
-    expect(stored.mastra).toMatch(/^\d+\.\d+\.\d+/);
-    const db = await client.tenantClient(T);
-    const definition = definitionOf(agentStep());
-    const id = await startRun(definition);
-    await waitFor(id, "done");
-    for (const r of stored.rows) {
-      const names = Object.keys(r);
-      await db.execute({
-        sql: `INSERT OR REPLACE INTO mastra_workflow_snapshot (${names.join(",")}) VALUES (${names.map((n) => (n === "snapshot" ? "jsonb(?)" : "?")).join(",")})`,
-        args: names.map((n) => r[n]) as never[],
-      });
-    }
-    await inTenant(() =>
-      client.db
-        .update(client.schema.run)
-        .set({
-          status: "waiting_input",
-          cursor: "work",
-          state: {
-            history: [],
-            values: {},
-            outputs: {},
-            notes: {},
-            turn: { stepId: "work", id: stored.turn, question: "Stored question?" },
-          } as never,
-        })
-        .where(eq(client.schema.run.id, id)),
-    );
-    script = (options) =>
-      resultsOf(options, "ask_person").length
-        ? say(`Resumed with ${JSON.stringify(resultsOf(options, "ask_person")[0].output)}`)
-        : say("It started over, which it must not.");
-    await inTenant(() => runner.answerTurn(id, "from the fixture"));
-    const done = await waitFor(id, "done");
-    expect(done.state.outputs.work?.text).toContain("from the fixture");
-  });
-});
-
 describe("a turn of 60 model steps", () => {
-  it("measures its snapshot and what a checkpoint costs", { timeout: 180_000 }, async () => {
+  it("measures its saved turn and what saving costs", { timeout: 180_000 }, async () => {
     const STEPS = 60;
     const CHARS = 8000; // What a connector's answer is clipped to.
     answerChars = CHARS;
-    const db = await client.tenantClient(T);
     const sizes: number[] = [];
     const times: number[] = [];
-    let turnId = "";
     script = (options) => {
       const n = resultsOf(options, "send").length;
       times.push(Date.now());
@@ -805,16 +690,9 @@ describe("a turn of 60 model steps", () => {
     const started = Date.now();
     const id = await startRun(definition);
     const look = setInterval(async () => {
-      turnId ||= (await row(id))?.state.turn?.id ?? "";
-      if (turnId) {
-        const rows = await db.execute({
-          sql: "SELECT sum(length(snapshot)) AS size FROM mastra_workflow_snapshot WHERE run_id = ?",
-          args: [turnId],
-        });
-        const size = Number((rows.rows[0] as unknown as { size: number }).size ?? 0);
-        if (size) {
-          sizes.push(size);
-        }
+      const size = (await turnsOf(id)).reduce((sum, t) => sum + Number(t.size), 0);
+      if (size) {
+        sizes.push(size);
       }
     }, 500);
     const r = await waitFor(id, "done", T, 150_000);
@@ -828,39 +706,13 @@ describe("a turn of 60 model steps", () => {
       `[60 steps] ms per model step: steps 1-10 ${gap(0, 10)}, 20-30 ${gap(20, 30)}, 40-50 ${gap(40, 50)}, 50-59 ${gap(50, 59)}`,
     );
     console.log(
-      `[60 steps] ${STEPS} model steps, ${CHARS} characters per tool answer: ${ms} ms in all, ${Math.round(ms / STEPS)} ms per step, largest snapshot ${Math.round(biggest / 1024)} KB`,
+      `[60 steps] ${STEPS} model steps, ${CHARS} characters per tool answer: ${ms} ms in all, ${Math.round(ms / STEPS)} ms per step, largest saved turn ${Math.round(biggest / 1024)} KB`,
     );
     writeFileSync(
       join(process.env.DATA_DIR as string, "measure.json"),
       JSON.stringify({ STEPS, CHARS, ms, biggest }),
     );
-    // What the conversation holds, a few times over at most: both of Mastra's rows hold it.
-    expect(biggest).toBeLessThan(STEPS * CHARS * 6);
-
-    // The same turn on a plain agent, without a store: what the checkpoints add.
-    acted = [];
-    const { Agent } = await import("@mastra/core/agent");
-    const { buildStepTools } = await import("../src/tools/index.js");
-    const { tools } = await buildStepTools(
-      {} as never,
-      { stepId: "plain", signal: new AbortController().signal, emit: async () => {} } as never,
-      {} as never,
-      [],
-    );
-    const plain = new Agent({
-      id: "plain",
-      name: "plain",
-      instructions: "x",
-      model: model as never,
-      tools: tools as never,
-    });
-    const before = Date.now();
-    const stream = await plain.stream("Do it.", { maxSteps: 60 });
-    for await (const _ of stream.fullStream as AsyncIterable<unknown>) {
-      // Reads it to the end.
-    }
-    const plainMs = Date.now() - before;
-    expect(acted).toHaveLength(STEPS - 1);
-    console.log(`[60 steps] the same on a plain agent: ${plainMs} ms in all`);
+    // The conversation once, with what JSON adds to it.
+    expect(biggest).toBeLessThan(STEPS * CHARS * 2);
   });
 });

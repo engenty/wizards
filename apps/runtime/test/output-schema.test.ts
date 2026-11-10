@@ -12,38 +12,38 @@ import { fridgePlan, fridgeView } from "../../web/src/dev/view-lab-sample";
 
 // The model answers with the plan in a fenced block, as an agent mostly does.
 const answer = vi.hoisted(() => ({ text: "", chunk: 120 }));
-vi.mock("@mastra/core/agent", () => ({
-  Agent: class {
-    async generate() {
-      return { text: answer.text, steps: [{ text: answer.text }], usage: {} };
-    }
-    // A json step streams: the answer arrives in pieces, as from a model.
-    async stream() {
-      const text = answer.text;
-      async function* chunks() {
-        for (let i = 0; i < text.length; i += answer.chunk) {
-          yield { type: "text-delta", payload: { text: text.slice(i, i + answer.chunk) } };
-        }
+// A json step streams: the answer arrives in pieces, as from a model.
+const model = vi.hoisted(async () => {
+  const { convertArrayToReadableStream, MockLanguageModelV3 } = await import("ai/test");
+  const usage = {
+    inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+    outputTokens: { total: 1, text: 1, reasoning: 0 },
+  };
+  return new MockLanguageModelV3({
+    doStream: async () => {
+      const deltas: string[] = [];
+      for (let i = 0; i < answer.text.length; i += answer.chunk) {
+        deltas.push(answer.text.slice(i, i + answer.chunk));
       }
       return {
-        fullStream: chunks(),
-        text: Promise.resolve(text),
-        steps: Promise.resolve([{ text }]),
-        usage: Promise.resolve({}),
-        totalUsage: Promise.resolve({}),
+        stream: convertArrayToReadableStream([
+          { type: "stream-start", warnings: [] },
+          { type: "text-start", id: "t" },
+          ...deltas.map((delta) => ({ type: "text-delta", id: "t", delta })),
+          { type: "text-end", id: "t" },
+          { type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage },
+        ] as never[]),
       };
-    }
-  },
-}));
+    },
+  });
+});
 vi.mock("../src/models.js", () => ({
-  textModel: async () => ({ model: "test", vendor: "test" }),
+  textModel: async () => ({ model: await model, vendor: "test" }),
   attachTools: () => {},
   takesTools: () => true,
   costOf: () => 0,
   isHarnessVendor: () => false,
-  agentModel: (resolved: { model: unknown }) => resolved.model,
-  totalUsage: async (out: { totalUsage?: unknown; usage?: unknown }) =>
-    (await out.totalUsage) ?? (await out.usage),
+  keepsOwnLoop: () => false,
 }));
 vi.mock("../src/tools/index.js", () => ({
   buildStepTools: async () => ({ tools: {}, assets: [] }),
@@ -216,6 +216,9 @@ describe("a step with a schema, run", () => {
       brand: {},
     },
     emit: async () => {},
+    saveState: async () => {},
+    turns: { load: async () => null, save: async () => {}, drop: async () => {} },
+    durable: false,
     };
     c.services = inProcessServices(
       { id: "r", definition: wizard() } as never,

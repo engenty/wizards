@@ -65,21 +65,20 @@ export interface StepOutput {
   at: string;
 }
 
-/** A durable agent step's turn, on the row: whoever goes on with the run finds it here. */
+/**
+ * An agent step's turn, on the row: whoever goes on with the run finds it here. Its conversation
+ * is kept by the run's host under `id` (packages/engine/src/steps/agent-turn.ts).
+ */
 export interface RunTurn {
   stepId: string;
-  /** The run of the turn in Mastra's store: `<run>.<random>`, so its snapshots go with the run. */
+  /** `<run>.<random>`. */
   id: string;
   /** What the turn last asked the person. */
   question?: string;
   /** Their answer to `question`, kept until the turn has gone on with it. */
   answer?: string;
-  /** What the turn's tools made so far: a process that goes on no longer has them in memory. */
-  assets?: AssetRef[];
   /** A tool of the turn may have done something: a failure then ends it, and no try repeats that. */
   acted?: boolean;
-  /** How the turn ended: Mastra has dropped its snapshot by then, so a repeat would start it over. */
-  end?: { text: string; closing: string };
 }
 
 export interface RunState {
@@ -167,7 +166,7 @@ export interface RunState {
    * answer to page is logged by whichever process gets there, often not the one that took the answer.
    */
   answered?: { at: number; next: string | null };
-  /** The durable agent step at work (engine/durable-turn.ts); gone when the step has finished. */
+  /** The agent step at work; gone when the step has finished. */
   turn?: RunTurn;
 }
 

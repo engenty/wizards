@@ -60,6 +60,7 @@ import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
+import { effectsOn } from "../broker/effect.js";
 import { grantNote, grantOf, type KnownConnector, kindOf } from "../broker/index.js";
 import { runHolder, subjectsOf } from "../broker/rwx.js";
 import { resolveConnector } from "../connectors/external.js";
@@ -139,6 +140,7 @@ import { releaseResources, resourcesFor } from "./resources.js";
 import { type RunPatch, type RunValues, runStore } from "./run-store.js";
 import { dropWait, runScope, SPACE_SCOPE, sendSignal } from "./signals.js";
 import { startedRunEnded, startOf } from "./starts.js";
+import { runTurns } from "./turns.js";
 import type { RunRow } from "./types.js";
 import { wizardAgentFiles } from "./wizard-code.js";
 
@@ -1085,6 +1087,8 @@ export async function inProcessContext(
     call: { runId: run.id, stepId },
     ...(own.share ? { share: true } : {}),
     saveState: () => updateRun(run.id, { state }),
+    turns: runTurns(run.id),
+    durable: await effectsOn(),
     chargeUsd: (usd) => addLocalCost(run.id, stepId, usd),
     saveAsset: (input) =>
       saveAsset({

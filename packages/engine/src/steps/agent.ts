@@ -7,9 +7,9 @@ import {
   templateRefs,
   textClassOf,
 } from "@engenty/wizards-shared/definition";
-import type { StepOutput } from "@engenty/wizards-shared/run";
+import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
-import type { UploadRef } from "@engenty/wizards-shared/run-services";
+import type { TurnMessage, UploadRef } from "@engenty/wizards-shared/run-services";
 import {
   fitData,
   labelOf,
@@ -27,9 +27,11 @@ import {
 } from "@engenty/wizards-shared/surface";
 import { parsePartialJson } from "ai";
 import type { z } from "zod";
+import { randomId } from "../ids.js";
 import { prompt } from "../prompts.js";
 import { renderTask } from "../template.js";
-import { type StepContext, StepError } from "../types.js";
+import { type StepContext, StepError, TurnAsks } from "../types.js";
+import { actedOn, agentTurn, newTurn, type TurnEnd } from "./agent-turn.js";
 import { decideStep } from "./decision.js";
 import { runAgentEach } from "./foreach.js";
 import { answersBlock, brandBlock, groundRules, revisionBlock } from "./prompt.js";
@@ -157,12 +159,12 @@ const MAX_SEEN = 8;
  * and leaves the step with a description instead of the picture. `seesImages`: the model takes
  * pictures in a message.
  */
-async function seenPhotos(
+function seenPhotos(
   step: AgentStep,
   ctx: StepContext,
   seesImages: boolean,
   uploads: UploadRef[],
-) {
+): { upload: UploadRef; id: string }[] {
   if (!seesImages) {
     return [];
   }
@@ -176,15 +178,10 @@ async function seenPhotos(
       );
     })
     .slice(0, MAX_SEEN);
-  const out: { upload: UploadRef; id: string; data: Uint8Array; mime: string }[] = [];
-  for (const id of ids) {
+  return ids.flatMap((id) => {
     const upload = uploads.find((u) => u.ref === `upload:${id}`);
-    const found = upload ? await ctx.services.files.read(id) : null;
-    if (upload && found && /^image\/(jpeg|png|webp)$/.test(found.ref.mime)) {
-      out.push({ upload, id, data: found.data, mime: found.ref.mime });
-    }
-  }
-  return out;
+    return upload && /^image\/(jpeg|png|webp)$/.test(upload.mime) ? [{ upload, id }] : [];
+  });
 }
 
 /** The JSON array in a model's answer, fenced or not. */
@@ -254,15 +251,69 @@ export async function composeSurface(
 }
 
 /**
+ * The turn an agent step runs in: the one its context names (a foreach entry's, a wizard's
+ * agent's), else the run's for the step, written on the run before the first model call.
+ */
+async function turnIdOf(step: AgentStep, ctx: StepContext): Promise<string> {
+  if (ctx.turn) {
+    return ctx.turn;
+  }
+  const going = turnOf(ctx.state, step.id);
+  if (going) {
+    return going.id;
+  }
+  const id = `${ctx.runId}.${randomId()}`;
+  ctx.state.turn = { stepId: step.id, id };
+  await ctx.saveState();
+  return id;
+}
+
+/** What the step asks: its task, the person's answers, the photos and files it is given. */
+async function requestOf(
+  step: AgentStep,
+  ctx: StepContext,
+  photos: { upload: UploadRef }[],
+  others: UploadRef[],
+): Promise<string> {
+  return [
+    `# TASK\n${renderTask(step.instructions, ctx.scope)}`,
+    answersBlock(ctx),
+    photos.length
+      ? prompt("step", "photos", {
+          photos: photos
+            .map((p, i) => `${i + 1}. ${p.upload.ref} — ${p.upload.name}, from "${p.upload.field}"`)
+            .join("\n"),
+        })
+      : "",
+    others.length
+      ? prompt("step", "files", {
+          files: others
+            .map((u) => `- ${u.ref} — ${u.name} (${u.mime}), from "${u.field}"`)
+            .join("\n"),
+        })
+      : "",
+    await revisionBlock(ctx, step.id),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/**
  * An agent step; `decision`: a decision step, answered in one call where it has no uploads.
  * `agentPart`: the instructions of the wizard's agent that runs it (tools/agent.ts).
  */
 export async function runAgentStep(
   step: AgentStep,
-  ctx: StepContext,
+  given: StepContext,
   decision = false,
   agentPart?: string,
 ): Promise<StepOutput> {
+  // A decision needs no agent: its questions go to the classifier class in one call.
+  if (decision && (await given.services.files.uploads()).length === 0) {
+    return decideStep(step, await requestOf(step, given, [], []), given);
+  }
+  const ctx: StepContext = { ...given, turn: await turnIdOf(step, given) };
+  const id = ctx.turn as string;
   if (step.agent) {
     // An agent of the wizard runs the step: its file gives the model and the tools.
     const ran = await ctx.services.tools.ofAgent({ ...step, agent: step.agent }, ctx);
@@ -278,30 +329,25 @@ export async function runAgentStep(
     maker: step.maker ? classIdOf(step, "standard") : undefined,
   });
   const uploads = await ctx.services.files.uploads();
-  // An installed client or the run's device keeps its tool loop in a process of its own: nothing
-  // of it could go on elsewhere, so such a step runs as a step without `durable`.
-  const going = turnOf(ctx.state, step.id);
-  const turn = going && !model.ownLoop ? going : undefined;
-  const stepTools = await ctx.services.tools.forStep(step, ctx, { model, uploads, turn });
+  const stepTools = await ctx.services.tools.forStep(step, ctx, { model, uploads, turn: id });
   const { assets, instructions } = stepTools;
-  // The model's tools, from what the service lists: a call goes to the service, which runs it.
-  const tools: Record<string, any> = {};
+  // What a model that runs its tools itself calls, and a provider's own tools: a call goes to the
+  // service, which runs it.
+  const attached: Record<string, unknown> = {};
   for (const tool of stepTools.list()) {
-    tools[tool.name] = tool.provider
+    attached[tool.name] = tool.provider
       ? tool.mastra
       : {
           ...tool.mastra,
           execute: async (input: unknown, context: unknown) => {
-            // A turn notes on its row that a tool may have done something: a later process has
-            // nothing else to tell it by.
-            if (turn && !tool.onlyReads && !turn.acted) {
-              turn.acted = true;
-              await ctx.saveState();
+            if (!tool.onlyReads) {
+              await actedOn(ctx);
             }
-            const id = (context as { agent?: { toolCallId?: string } } | undefined)?.agent
-              ?.toolCallId;
+            const callId =
+              (context as { agent?: { toolCallId?: string } } | undefined)?.agent?.toolCallId ??
+              randomId();
             const { output } = await stepTools.call(
-              { name: tool.name, input, effect: turn && id ? `${turn.id}:${id}` : null },
+              { name: tool.name, input, effect: `${id}:${callId}` },
               context,
             );
             return output;
@@ -313,8 +359,8 @@ export async function runAgentStep(
     await ctx.emit("info", { code: "noSandbox" });
   }
   // A step without tools of its own and without uploads: the run's device may answer it alone.
-  model.attach(tools, step.tools.length === 0 && uploads.length === 0);
-  const photos = await seenPhotos(step, ctx, model.seesImages, uploads);
+  model.attach(attached, step.tools.length === 0 && uploads.length === 0);
+  const photos = seenPhotos(step, ctx, model.seesImages, uploads);
   const others = uploads.filter((u) => !photos.some((p) => p.upload === u));
   const formatHint =
     step.output.format === "markdown"
@@ -345,34 +391,11 @@ export async function runAgentStep(
   ]
     .filter(Boolean)
     .join("\n\n");
-  const request = [
-    `# TASK\n${renderTask(step.instructions, ctx.scope)}`,
-    answersBlock(ctx),
-    photos.length
-      ? prompt("step", "photos", {
-          photos: photos
-            .map((p, i) => `${i + 1}. ${p.upload.ref} — ${p.upload.name}, from "${p.upload.field}"`)
-            .join("\n"),
-        })
-      : "",
-    others.length
-      ? prompt("step", "files", {
-          files: others
-            .map((u) => `- ${u.ref} — ${u.name} (${u.mime}), from "${u.field}"`)
-            .join("\n"),
-        })
-      : "",
-    await revisionBlock(ctx, step.id),
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const request = await requestOf(step, ctx, photos, others);
 
-  // A decision needs no agent: its questions go to the classifier class in one call.
-  if (decision && uploads.length === 0) {
-    return decideStep(step, request, ctx);
-  }
-
-  if (going && !turn) {
+  // An installed client or the run's device keeps its tool loop in a process of its own: nothing
+  // of it could go on elsewhere, and it can't ask.
+  if (step.durable && model.ownLoop) {
     await ctx.emit("info", { code: "noDurable" });
   }
   // Working through a mailbox or a row of portals takes many small tool calls.
@@ -380,54 +403,58 @@ export async function runAgentStep(
   for (const [i, photo] of photos.entries()) {
     await ctx.emit("info", { code: "photo", params: { n: i + 1, total: photos.length } }, photo.id);
   }
-  const message = photos.length
-    ? [
-        {
-          role: "user" as const,
-          content: [
-            { type: "text" as const, text: request },
-            ...photos.map((p) => ({
-              type: "file" as const,
-              data: p.data,
-              mediaType: p.mime,
-              filename: p.upload.name,
-            })),
-          ],
-        },
-      ]
-    : request;
-  let result: { text?: string; steps?: unknown };
-  if (turn) {
-    const end = await model.durableTurn(turn, ctx, {
-      instructions: system,
-      tools,
-      assets,
+  // The photos go by reference: the models service reads them.
+  const message: TurnMessage = photos.length
+    ? {
+        role: "user",
+        content: [
+          { type: "text", text: request },
+          ...photos.map((p) => ({
+            type: "file" as const,
+            url: p.upload.ref,
+            mediaType: p.upload.mime,
+            name: p.upload.name,
+          })),
+        ],
+      }
+    : { role: "user", content: request };
+  try {
+    const ended = await agentTurn(id, ctx, {
+      model,
+      request: {
+        class: textClassOf(step.model ?? "standard"),
+        effort: step.effort,
+        maker: step.maker ? classIdOf(step, "standard") : undefined,
+      },
+      system,
       message,
+      tools: stepTools,
+      mayAsk: ctx.durable && Boolean(step.durable) && !model.ownLoop && ctx.state.turn?.id === id,
       maxSteps,
-      // Each model step is booked as it ends: a crash neither repeats nor loses the ones before it.
-      onStepUsage: (usage) => model.charge(usage),
-      onText: step.output.format === "json" ? foundLines(step, ctx).text : undefined,
-    });
-    assets.splice(0, assets.length, ...end.assets);
-    result = { text: end.text, steps: [{ text: end.closing }] };
-  } else {
-    result = await model.generate({
-      id: `step-${step.id}`,
-      name: step.title,
-      instructions: system,
-      tools,
-      message,
-      maxSteps,
-      signal: ctx.signal,
       // A json step streams, so the person sees its entries as they are written (`found`).
       onText: step.output.format === "json" ? foundLines(step, ctx).text : undefined,
     });
-    await model.chargeTotal(result);
+    return await stepOutput(step, ctx, ended, assets);
+  } catch (err) {
+    // A failure starts the turn over on its next try; a stop, a cancel or a question keep it.
+    if (!(err instanceof TurnAsks) && !ctx.signal.aborted) {
+      await ctx.turns.save(newTurn(id, ctx.stepId, message));
+    }
+    throw err;
   }
-  // `result.text` strings together what the model said between tool calls ("I open the page …").
+}
+
+/** The step's output from how its turn ended: its text, or its JSON checked against its shape. */
+async function stepOutput(
+  step: AgentStep,
+  ctx: StepContext,
+  ended: TurnEnd,
+  assets: AssetRef[],
+): Promise<StepOutput> {
+  // `ended.text` strings together what the model said between tool calls ("I open the page …").
   // A written result is its last message; structuring keeps everything, numbers may sit anywhere.
-  const closing = String((result as any).steps?.at?.(-1)?.text ?? "").trim();
-  const everything = (result.text ?? "").trim();
+  const closing = ended.closing.trim();
+  const everything = ended.text.trim();
   const text = step.output.format === "json" ? everything : closing || everything;
 
   if (step.output.format !== "json") {

@@ -24,7 +24,13 @@ import { advance } from "../src/advance.js";
 import { NOTE_CLASS } from "../src/failures.js";
 import { type Move, type RunHost, RunMoved, type SignalCame } from "../src/host.js";
 import { surfaceData } from "../src/surface.js";
-import { type AgentModel, type StepContext, StepError, type StepServices } from "../src/types.js";
+import {
+  type AgentModel,
+  type AgentTurn,
+  type StepContext,
+  StepError,
+  type StepServices,
+} from "../src/types.js";
 
 /** A model call as a script reads it. */
 export interface ModelCall {
@@ -183,19 +189,23 @@ export function memoryHost(def: WizardDefinition, o: MemoryOptions = {}): Memory
     takesTools: true,
     seesImages: false,
     attach: () => {},
-    charge: async () => {},
-    chargeTotal: async () => {},
-    async generate(call) {
+    async *turn(request): AsyncIterable<TurnPart> {
       const text = answer(stepId, false, {
-        instructions: call.instructions,
-        message: call.message,
+        instructions: request.system,
+        message: request.messages,
       });
-      return { text, steps: [{ text }] };
-    },
-    durableTurn: async () => {
-      throw new Error("A durable turn is not scripted in memory.");
+      yield { type: "text", text };
+      yield {
+        type: "finish",
+        reason: "stop",
+        usage: { inputTokens: 1, outputTokens: 1 },
+        model: "memory/scripted",
+      };
     },
   });
+
+  /** The run's agent turns, by id. */
+  const turns = new Map<string, AgentTurn>();
 
   const callTool = async (name: string, stepId: string, input: unknown) => {
     const tool = tools[name];
@@ -300,6 +310,19 @@ export function memoryHost(def: WizardDefinition, o: MemoryOptions = {}): Memory
     runId,
     def,
     files,
+    turns: {
+      load: async (id) => structuredClone(turns.get(id) ?? null),
+      save: async (turn) => {
+        turns.set(turn.id, structuredClone(turn));
+      },
+      drop: async (stepId) => {
+        for (const [id, turn] of turns) {
+          if (turn.stepId === stepId) {
+            turns.delete(id);
+          }
+        }
+      },
+    },
     store: {
       load: async () => structuredClone(row),
       async save(move, rev) {
@@ -380,6 +403,8 @@ export function memoryHost(def: WizardDefinition, o: MemoryOptions = {}): Memory
         saveState: async () => {
           row = { ...row, run: { ...row.run, state: structuredClone(state) } };
         },
+        turns: host.turns,
+        durable: host.switches.durable,
         services,
       };
       return ctx;

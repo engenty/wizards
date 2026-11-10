@@ -6,7 +6,6 @@ import {
   noteText,
   type RunNote,
   type RunState,
-  type RunTurn,
   type StepOutput,
 } from "@engenty/wizards-shared/run";
 import type {
@@ -17,6 +16,8 @@ import type {
   ToolDescriptor,
   ToolResult,
   ToolsService,
+  TurnMessage,
+  TurnPart,
   TurnRequest,
   UploadRef,
 } from "@engenty/wizards-shared/run-services";
@@ -44,7 +45,10 @@ export interface StepContext {
   test: boolean;
   /** The current step's id. */
   stepId: string;
-  /** The durable turn this step runs in; none: its tool calls have no lasting id (broker/effect.ts). */
+  /**
+   * The agent turn this step's code runs in: its tool calls' effect ids are `<turn>:<toolCallId>`
+   * (broker/effect.ts). The agent step sets it; none outside an agent step.
+   */
   turn?: string;
   def: WizardDefinition;
   /** The language the viewer reads the wizard in, translated on request; null: its own. */
@@ -70,6 +74,10 @@ export interface StepContext {
   share?: boolean;
   /** Writes `state` to the run's row, for what must outlive this process in the middle of a step. */
   saveState(): Promise<void>;
+  /** The run's agent turns, saved after every model call (RunHost.turns). */
+  turns: TurnStore;
+  /** Durable runs are on: a `durable` step's turn may stop to ask the person. */
+  durable: boolean;
   /** Everything outside the run, as the run's services (docs/plans/runs-on-their-own.md). */
   services: StepServices;
 }
@@ -90,10 +98,9 @@ export class StepError extends Error {
 // --- the services step code calls -------------------------------------------------------------
 
 /**
- * The run's services as step code calls them: `RunServices`, and what an agent step needs while
- * its loop runs in Mastra's `Agent` inside the runtime (until package 2.4 of
- * docs/plans/runs-on-their-own.md keeps the loop in the engine). The runtime implements them
- * (apps/runtime/src/run-services).
+ * The run's services as step code calls them: `RunServices`, and what an agent step needs of the
+ * runtime while a step's tools and its model's own tools are built there (docs/plans/runs-on-their-own.md).
+ * The runtime implements them (apps/runtime/src/run-services).
  */
 export interface StepServices extends RunServices {
   models: ModelsService & {
@@ -118,7 +125,7 @@ export interface StepServices extends RunServices {
   };
 }
 
-/** The model of an agent step whose loop runs in Mastra's `Agent`, and what the step asks of it. */
+/** The model of an agent step, and what the step's loop asks of it. */
 export interface AgentModel {
   /** Its tool loop runs in a process of its own: an installed client, the run's device. */
   readonly ownLoop: boolean;
@@ -126,68 +133,65 @@ export interface AgentModel {
   readonly takesTools: boolean;
   /** It takes pictures in a message: the installed clients and the large vendors' models. */
   readonly seesImages: boolean;
-  /** Hands the step's tools to a model that runs them itself; `ignorable`: the device may answer alone. */
+  /**
+   * Hands the step's tools to the model: one that runs them itself calls them, a provider's own
+   * tool goes with each call. `ignorable`: the device may answer alone.
+   */
   attach(tools: Record<string, unknown>, ignorable: boolean): void;
-  /** Books what one model step used. */
-  charge(usage: unknown): Promise<void>;
-  /** Books what an `Agent` call used over all its steps. */
-  chargeTotal(result: object): Promise<void>;
-  /** One call of Mastra's `Agent` with this model: streamed where `onText` takes the text. */
-  generate(call: AgentCall): Promise<AgentAnswer>;
-  /** Runs a durable turn with this model or goes on with it, until it ends or stops for a person. */
-  durableTurn(turn: RunTurn, ctx: StepContext, input: AgentTurnInput): Promise<AgentTurnEnd>;
+  /** One model call, as `models.turn`, with this model and what was attached to it. */
+  turn(request: TurnRequest, signal?: AbortSignal): AsyncIterable<TurnPart>;
 }
 
-/** What an `Agent` call takes. */
-export interface AgentCall {
-  id: string;
+/** A tool call the model asked for in a turn. */
+export interface TurnToolCall {
+  toolCallId: string;
   name: string;
-  instructions: string;
-  /** The tools as Mastra's `Agent` takes them, each with its `execute`. */
-  tools: Record<string, unknown>;
-  /** The request: text, or messages with pictures. */
-  message: unknown;
-  maxSteps: number;
-  signal: AbortSignal;
-  /** Text the model writes as it writes it; given, the call streams. */
-  onText?(delta: string): Promise<void>;
+  input: unknown;
 }
 
-/** What an `Agent` call gives back: its text, its steps' texts, and the usage `chargeTotal` reads. */
-export interface AgentAnswer {
-  text?: string;
-  steps?: { text?: string }[];
-}
-
-/** What a durable turn takes. */
-export interface AgentTurnInput {
-  instructions: string;
-  /** Built over the turn's context. */
-  tools: Record<string, unknown>;
-  /** The array the tools add to. */
-  assets: AssetRef[];
-  message: unknown;
-  maxSteps: number;
-  /** A model step has ended, with what it used. */
-  onStepUsage(usage: unknown): Promise<void>;
-  /** Text the model writes as it writes it. */
-  onText?(delta: string): Promise<void>;
-}
-
-/** How a durable turn ended. */
-export interface AgentTurnEnd {
+/**
+ * An agent turn as its host keeps it, saved after every model call and every tool call: a process
+ * that goes on with the step finds the conversation where it stopped.
+ */
+export interface AgentTurn {
+  /** `<run>.<random>`; a foreach entry's and a wizard's agent's add to the step's. */
+  id: string;
+  stepId: string;
+  /** The conversation from the step's request on. The system part is built again each time. */
+  messages: TurnMessage[];
+  /** The tool calls of the model's last answer that have no result yet, in order. */
+  pending: TurnToolCall[];
+  /** Model calls made. */
+  calls: number;
+  /** What the model wrote across its calls. */
   text: string;
-  /** The turn's last message: `text` holds what the model said between its tool calls too. */
-  closing: string;
+  /** The files the turn's tools made. */
   assets: AssetRef[];
+  /** How the turn ended, kept until the step's output is saved. */
+  end?: { text: string; closing: string };
+}
+
+/** Where a host keeps the run's agent turns. */
+export interface TurnStore {
+  load(id: string): Promise<AgentTurn | null>;
+  save(turn: AgentTurn): Promise<void>;
+  /** The step's output is saved: its turns (an entry's, a wizard's agent's too) are let go. */
+  drop(stepId: string): Promise<void>;
+}
+
+/** A turn stopped to ask the person: the run waits with the question, and no process holds it. */
+export class TurnAsks extends Error {
+  constructor(readonly question: string) {
+    super(question);
+    this.name = "TurnAsks";
+  }
 }
 
 /** A tool of an agent step, as the step's model is told of it. */
 export interface StepToolDescriptor extends ToolDescriptor {
   /**
-   * The tool as Mastra's `Agent` takes it, without its code: its id, its schema as built, how its
-   * result reaches the model; a provider's own tool whole. The step's model is told of each tool
-   * as before, until the engine keeps its own loop (package 2.4) and builds it from the descriptor.
+   * The tool as the runtime built it, without its code: what `AgentModel.attach` hands a model
+   * that runs its tools itself; a provider's own tool whole.
    */
   mastra: Record<string, unknown>;
 }
@@ -195,7 +199,7 @@ export interface StepToolDescriptor extends ToolDescriptor {
 /** The tools of one agent step as it runs: built once, over the step's own context. */
 export interface StepToolSet {
   list(): StepToolDescriptor[];
-  /** `context`: what Mastra's loop hands the tool, passed on to it as it is. */
+  /** `context`: what a model that runs its tools itself hands the tool, passed on as it is. */
   call(request: Omit<ToolCallRequest, "stepId">, context?: unknown): Promise<ToolResult>;
   /** The array the tools add the files they make to (screenshots, images, exported files). */
   assets: AssetRef[];
@@ -208,6 +212,6 @@ export interface StepToolSet {
 export interface StepToolsOptions {
   model: AgentModel;
   uploads: UploadRef[];
-  /** The durable turn the step runs in: its tools work in the turn's context. */
-  turn?: RunTurn;
+  /** The turn the step runs in: its tools work in the turn's context. */
+  turn: string;
 }
