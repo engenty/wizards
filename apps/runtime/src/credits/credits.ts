@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
+import { runStore } from "../engine/run-store.js";
 import { ManageError, managed, release, reserve, runUsage, tenantInfo } from "../manage.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { ownAccountReady } from "../upstreams.js";
@@ -96,10 +97,7 @@ export async function syncRunCost(runId: string) {
   }
   try {
     const usage = await runUsage(currentTenant(), runId);
-    await db
-      .update(schema.run)
-      .set({ costMicros: Math.round(usage.credits * MICROS_PER_CREDIT) })
-      .where(sql`${schema.run.id} = ${runId}`);
+    await runStore.setCost(runId, Math.round(usage.credits * MICROS_PER_CREDIT));
     for (const [stepId, credits] of Object.entries(usage.steps)) {
       await setStepCost(runId, stepId, Math.round(credits * MICROS_PER_CREDIT));
     }
@@ -114,10 +112,7 @@ export async function addLocalCost(runId: string, stepId: string, usd: number) {
   if (managed || micros <= 0) {
     return;
   }
-  await db
-    .update(schema.run)
-    .set({ costMicros: sql`${schema.run.costMicros} + ${micros}` })
-    .where(sql`${schema.run.id} = ${runId}`);
+  await runStore.addCost(runId, micros);
   await db
     .insert(schema.runCost)
     .values({ runId, stepId, micros })

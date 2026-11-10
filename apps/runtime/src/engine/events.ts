@@ -1,8 +1,9 @@
 import { AsyncResource } from "node:async_hooks";
 import { EventEmitter } from "node:events";
 import { note as noted, noteText, type RunEvent, type RunNote } from "@engenty/wizards-shared/run";
-import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
+import { runStore } from "./run-store.js";
 
 const bus = new EventEmitter();
 bus.setMaxListeners(0);
@@ -118,18 +119,7 @@ export function watchRun(runId: string, listener: (signal: RunSignal) => void): 
     lookedAt = now;
     busy = true;
     try {
-      const [row] = await db
-        .select({
-          updatedAt: schema.run.updatedAt,
-          event: sql<
-            number | null
-          >`(select max(${schema.runEvent.id}) from ${schema.runEvent} where ${schema.runEvent.runId} = ${runId})`,
-          call: sql<
-            number | null
-          >`(select max(${schema.deviceCall.id}) from ${schema.deviceCall} where ${schema.deviceCall.runId} = ${runId})`,
-        })
-        .from(schema.run)
-        .where(eq(schema.run.id, runId));
+      const row = await runStore.lastChange(runId);
       const newest = row?.event ?? 0;
       if (told === null) {
         told = newest;

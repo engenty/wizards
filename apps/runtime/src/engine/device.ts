@@ -4,6 +4,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
 import { parseJsonAnswer, renderPrompt } from "../harness/prompt.js";
+import { runStore } from "./run-store.js";
 
 /**
  * The device a run is watched from as a model: the mobile app (engenty-wizards-apps) offers Apple
@@ -50,10 +51,7 @@ const ANSWER_POLL_MS = 250;
 
 /** The runner says what the device around it can do; renewed on every (re)connect. */
 export async function offerDevice(runId: string, offer: DeviceOffer) {
-  await db
-    .update(schema.run)
-    .set({ deviceOffer: offer.think?.classes.length ? { offer, at: Date.now() } : null })
-    .where(eq(schema.run.id, runId));
+  await runStore.offerDevice(runId, offer.think?.classes.length ? { offer, at: Date.now() } : null);
 }
 
 /** Whether the device of this run thinks the class, and how much it takes. */
@@ -61,10 +59,7 @@ export async function deviceThinks(
   runId: string,
   cls: string,
 ): Promise<{ maxChars: number } | null> {
-  const row = await db.query.run.findFirst({
-    where: eq(schema.run.id, runId),
-    columns: { deviceOffer: true },
-  });
+  const row = await runStore.pick(runId, "deviceOffer");
   const hit = row?.deviceOffer;
   if (!hit || Date.now() - hit.at > OFFER_TTL_MS) {
     return null;
