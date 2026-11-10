@@ -20,6 +20,7 @@ import {
 } from "../models.js";
 import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
+import { openSandboxData, sandboxDataEnv } from "../sandbox/data.js";
 import { type ExecResult, shellToolDescription } from "../sandbox/index.js";
 import { snapshotFile } from "../services/files.js";
 import { hasStoreFiles } from "../store/index.js";
@@ -238,6 +239,8 @@ export async function buildStepTools(
   }
   // The run's sandbox: a guest's run has none unless SANDBOX_GUESTS says so (engine/resources.ts).
   const sandbox = allowed.has("sandbox") ? await ctx.resources.runSandboxCapabilities() : null;
+  // Its commands reach the wizard's database as this step (sandbox/data.ts).
+  openSandboxData(ctx);
   // The space's Knowledge and skills, from the tool catalogue (elements/), for the run's holder.
   Object.assign(
     tools,
@@ -267,7 +270,19 @@ export async function buildStepTools(
     });
     tools.run_command = createTool({
       id: "run_command",
-      description: shellToolDescription(sandbox),
+      description: [
+        shellToolDescription(sandbox),
+        sandboxDataEnv(ctx.runId).WIZARD_DATA_URL
+          ? prompt("tools", "note.run_command_data", {
+              where:
+                ctx.def.data?.scope === "shared" && ctx.holder.kind !== "guest"
+                  ? prompt("tools", "note.data_scopes")
+                  : prompt("tools", "note.data_person"),
+            })
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
       inputSchema: z.object({ command: z.string(), timeoutSeconds: z.number().optional() }),
       execute: async ({ command, timeoutSeconds }) => {
         await ctx.emit("tool", { code: "runs", params: { command: command.slice(0, 80) } });

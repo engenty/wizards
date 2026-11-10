@@ -58,6 +58,10 @@ Run a shell command in a private Linux sandbox (${commands}). Working directory 
 <!-- section: tool.run_command.guide_line -->
 - The sandbox runs code (python/node) for ${uses}; export_file hands files to the person.
 
+<!-- After run_command's description when the wizard keeps data: how a command reaches its database. -->
+<!-- section: note.run_command_data -->
+The wizard's own database answers commands too: `curl -s "$WIZARD_DATA_URL/query" -H "authorization: Bearer $WIZARD_DATA_TOKEN" -H "content-type: application/json" -d '{"sql":"SELECT …","params":{"name":"…"}}'` reads (SQLite, values as `:name`), `/exec` writes. ${where}
+
 <!-- section: tool.export_file -->
 Hand a file from the sandbox to the person as a result (e.g. a chart PNG, a CSV).
 

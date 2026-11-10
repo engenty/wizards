@@ -289,6 +289,11 @@ export const env = {
   sandboxUrl: str("SANDBOX_URL").replace(/\/$/, ""),
   /** What the runtime sends the sandbox container; the container has the same. */
   sandboxSecret: str("SANDBOX_SECRET"),
+  /**
+   * The runtime's address as a run's sandbox reaches it, for the wizard's database
+   * (sandbox/data.ts). Empty: `PUBLIC_URL` where it is HTTPS, else the sandbox reaches no database.
+   */
+  sandboxDataUrl: str("SANDBOX_DATA_URL").replace(/\/$/, ""),
 
   /** Assets and workspace files in an S3-compatible bucket (R2); empty = the data folder. */
   s3: {
