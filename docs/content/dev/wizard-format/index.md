@@ -16,8 +16,8 @@ so any tool may read, write and run wizards. [Licensing](../licensing.md) lists 
 
 ```json
 {
-  "$schema": "https://engenty.ai/schema/v2/wizard.json",
-  "version": 2,
+  "$schema": "https://engenty.ai/schema/v1/wizard.json",
+  "version": 1,
   "title": "Create an invoice",
   "description": "A finished invoice from a few details.",
   "avatar": "round",
@@ -28,7 +28,7 @@ so any tool may read, write and run wizards. [Licensing](../licensing.md) lists 
 
 | Key | What it holds |
 |---|---|
-| `version` | The version of the format, `2`. See [Version](#version) |
+| `version` | The version of the format, `1`. See [Version](#version) |
 | `title` | What people get, short. See [Title, description and intro](#title-description-and-intro) |
 | `description` | One sentence about the wizard |
 | `avatar` | The engenty shown to people. See [The avatar](#the-avatar) |
@@ -118,17 +118,14 @@ wizard, and each language can be edited line by line there.
 ## Version
 
 `version` is the version of the format the definition is written in, not of the wizard. It is
-`2` today. Write it: a definition without it is read as version 1.
+`1`. A definition without it is read as version 1.
 
-It changes only with a breaking change to the format. The schemas of each version stay online in
-their own folder (`/schema/v1/`, `/schema/v2/`, …). An app reads only the versions it knows: it
-refuses a wizard of a newer version instead of running it the wrong way. An older version it
-reads and saves in its own.
+The format is in beta until 1.0. Until then it can change without a new version. When a change
+affects your wizard, `wizards validate` and the studio name what no longer fits.
 
-| Version | What changed |
-|---|---|
-| 2 | The text model classes are `classifier`, `low`, `standard`, `high`. Version 1’s `standard`, `high` and `highest` are read as `low`, `standard` and `high`. See [Agent steps](./agent-steps.md#model-class-and-effort) |
-| 1 | The first version |
+From 1.0 on, the version changes only with a breaking change to the format. The schemas of each
+version stay online in their own folder (`/schema/v1/`, …). An app reads only the versions it
+knows: it refuses a wizard of a newer version instead of running it the wrong way.
 
 The versions of a wizard itself, its drafts and what is published, are kept in the studio, not
 in the definition.
@@ -148,7 +145,8 @@ stand together: “A”, “B”, “A” is an issue.
 | Type | What it does | Page |
 |---|---|---|
 | `page` | Asks the person, one to five fields | [Pages and fields](./pages-and-fields.md) |
-| `agent` | An AI step: researches, writes, decides, calls tools | [Agent steps](./agent-steps.md) |
+| `agent` | An AI step: researches, writes, calls tools | [Agent steps](./agent-steps.md) |
+| `decision` | Answers yes or no, a choice or a score about the run, in one cheap call | [Agent steps](./agent-steps.md#decisions) |
 | `generate` | Makes an image, a video, a voice-over, a document or a dashboard | [Images, video and documents](./generate-steps.md) |
 | `surface` | Shows a view built from the surface catalog | [Views and widgets](./views-and-widgets.md) |
 | `widget` | Shows an HTML app from the wizard’s workspace | [Views and widgets](./views-and-widgets.md) |
@@ -162,7 +160,7 @@ stand together: “A”, “B”, “A” is an issue.
 |---|---|---|
 | Research, write, read files, work in a service | An [agent step](./agent-steps.md) with `tools` | A model plans its own tool calls |
 | Fetch data a later step shows unchanged, or write as the space through a connection | An agent step with [`call`](./agent-steps.md#a-fixed-step-call-without-a-model) | No model: the same call every run, in about a second |
-| Choose a path: yes or no, one of a few options, a level | A [decision](./agent-steps.md#decisions), or an `ask` rule on [`next`](./branches.md) | One fast, cheap call |
+| Choose a path: yes or no, one of a few options, a level | A [`decision` step](./agent-steps.md#decisions), or an `ask` rule on [`next`](./branches.md) | One fast, cheap call |
 | An image, a video, a voice-over, a document or a dashboard | A [`generate` step](./generate-steps.md) | Made by the class for that kind of thing |
 
 Steps run from top to bottom unless a step’s `next` sends the run elsewhere. See
@@ -173,7 +171,7 @@ Steps run from top to bottom unless a step’s `next` sends the run elsewhere. S
 
 ```json
 {
-  "version": 2,
+  "version": 1,
   "title": "X post with an image",
   "description": "Turns a topic into a finished post with an image.",
   "avatar": "flame",

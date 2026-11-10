@@ -502,14 +502,17 @@ export const itemColumnSchema = z.object({
 });
 
 export const CONDITION_OPS = [
-  "equals",
-  "notEquals",
-  "in",
-  "notEmpty",
-  "empty",
+  "eq",
+  "ne",
   "gt",
+  "gte",
   "lt",
+  "lte",
+  "in",
+  "notIn",
   "contains",
+  "exists",
+  "notExists",
 ] as const;
 export type ConditionOp = (typeof CONDITION_OPS)[number];
 
@@ -524,10 +527,26 @@ export const conditionSchema = z.object({
 });
 export type Condition = z.infer<typeof conditionSchema>;
 
-/** One condition, or several that must all hold. */
+/** A condition, or one that must not hold. */
+const leafSchema = z.union([conditionSchema, z.object({ not: conditionSchema })]);
+export type ConditionLeaf = z.infer<typeof leafSchema>;
+
+/** Holds when one of its parts holds: a condition, or a list of conditions that all hold. */
+const anySchema = z.object({
+  any: z.array(z.union([leafSchema, z.array(leafSchema).min(1)])).min(1),
+});
+export type AnyTest = z.infer<typeof anySchema>;
+
+const testSchema = z.union([leafSchema, anySchema]);
+export type Test = z.infer<typeof testSchema>;
+
+/**
+ * A condition, `{ not }` or `{ any }`, or a list of them that must all hold. The depth is fixed,
+ * so the JSON Schema needs no reference to itself.
+ */
 export const whenSchema = z.union([
-  conditionSchema,
-  z.array(conditionSchema).min(1),
+  testSchema,
+  z.array(testSchema).min(1),
   /** A test conditions cannot write: `budget > demo * 2`, `size == "Groß" or count(items) > 50`. */
   calcSchema,
 ]);
@@ -708,26 +727,38 @@ const stepBase = {
   onFail: z.string().optional(),
 };
 
-export const outputFieldSchema = z
-  .object({
-    id,
-    kind: z.enum(["text", "number", "list", "table", "yesno", "choice", "score"]),
-    /** What the field holds; for `yesno`, `choice` and `score` the question it answers. */
-    description: z.string().optional(),
-    /** Table only: the exact column keys every row has — what a widget reads. */
-    columns: z.array(z.string().min(1)).optional(),
-    /** Choice: the options, one of which is the answer. Score: the levels, lowest first. */
-    options: z.array(z.string().min(1)).min(2).max(40).optional(),
-  })
-  .refine(
-    (field) =>
-      (field.kind !== "choice" && field.kind !== "score") || Boolean(field.options?.length),
-    { message: "A choice or score field lists its options.", path: ["options"] },
-  )
-  .refine((field) => field.kind !== "score" || (field.options?.length ?? 0) <= 10, {
-    message: "A score has at most ten levels.",
-    path: ["options"],
-  });
+const outputFieldShape = {
+  id,
+  kind: z.enum(["text", "number", "list", "table", "yesno", "choice", "score"]),
+  /** What the field holds; for `yesno`, `choice` and `score` the question it answers. */
+  description: z.string().optional(),
+  /** Table only: the exact column keys every row has — what a widget reads. */
+  columns: z.array(z.string().min(1)).optional(),
+  /** Choice: the options, one of which is the answer. Score: the levels, lowest first. */
+  options: z.array(z.string().min(1)).min(2).max(40).optional(),
+};
+
+/** A choice or a score names its options; a score has at most ten. */
+function withOptions<T extends z.ZodType<{ kind: string; options?: string[] }>>(schema: T) {
+  return schema
+    .refine(
+      (field) =>
+        (field.kind !== "choice" && field.kind !== "score") || Boolean(field.options?.length),
+      { message: "A choice or score field lists its options.", path: ["options"] },
+    )
+    .refine((field) => field.kind !== "score" || (field.options?.length ?? 0) <= 10, {
+      message: "A score has at most ten levels.",
+      path: ["options"],
+    });
+}
+
+export const outputFieldSchema = withOptions(z.object(outputFieldShape));
+
+/** A question of a decision: yes or no, one of its options, or a level of a score. */
+export const DECISION_KINDS = ["yesno", "choice", "score"] as const;
+export const decisionFieldSchema = withOptions(
+  z.object({ ...outputFieldShape, kind: z.enum(DECISION_KINDS) }).omit({ columns: true }),
+);
 
 /**
  * Who answers a page or a review: the run's own person (the default), the run's owner, or the people
@@ -857,6 +888,21 @@ export const agentStepSchema = z.object({
    * `browser` or `sandbox`, `each` or `call`.
    */
   durable: z.boolean().optional(),
+  working: z.string().optional(),
+});
+
+/**
+ * A decision: questions about the run, answered yes or no, by one of their options or by a level
+ * of a score, in one call to the `classifier` class. A model that only decides (no text) can take
+ * it and says how sure it is: `steps.<id>.<field>.p`.
+ */
+export const decisionStepSchema = z.object({
+  ...stepBase,
+  type: z.literal("decision"),
+  /** What the decision weighs, as a template: {{field}}, {{steps.id}}. */
+  instructions: z.string().min(1),
+  output: z.object({ fields: z.array(decisionFieldSchema).min(1).max(12) }),
+  /** Shown to the person while it works. */
   working: z.string().optional(),
 });
 
@@ -1185,6 +1231,7 @@ export function waitOutputRefs(step: WaitStep): string[] {
 export const stepSchema = z.discriminatedUnion("type", [
   pageStepSchema,
   agentStepSchema,
+  decisionStepSchema,
   generateStepSchema,
   widgetStepSchema,
   surfaceStepSchema,
@@ -1197,6 +1244,10 @@ export type Step = z.infer<typeof stepSchema>;
 export type PageStep = z.infer<typeof pageStepSchema>;
 export type SurfaceStep = z.infer<typeof surfaceStepSchema>;
 export type AgentStep = z.infer<typeof agentStepSchema>;
+export type DecisionStep = z.infer<typeof decisionStepSchema>;
+
+/** A step whose json output later steps read by field: an agent step or a decision. */
+export type ModelStep = AgentStep | DecisionStep;
 
 /** A fixed step: one `call` or the wizard's own `code`, run once with no model and no credits. */
 export function runsWithoutModel(step: AgentStep): boolean {
@@ -1209,30 +1260,32 @@ export function hasCodeStep(def: Pick<WizardDefinition, "steps">): boolean {
 }
 
 /**
- * A decision: a step on the classifier class that uses no tools and whose output is only
- * yes/no and choice fields. It is answered in one call, which a model that only decides
- * (no text) can take.
+ * A decision as the agent step it runs as: the `classifier` class, no tools, its questions as
+ * json fields. A decision with the person's uploads to look at runs that way; one without is
+ * answered in one call (engine/steps.ts).
  */
-export function isDecisionStep(step: AgentStep): boolean {
-  const fields = step.output.fields ?? [];
-  return (
-    !runsWithoutModel(step) &&
-    !step.output.schema &&
-    step.model === "classifier" &&
-    step.output.format === "json" &&
-    fields.length > 0 &&
-    fields.every((f) => f.kind === "yesno" || f.kind === "choice" || f.kind === "score") &&
-    !step.each &&
-    step.tools.length === 0 &&
-    !step.connections?.length
-  );
+export function decisionAsAgent(step: DecisionStep): AgentStep {
+  const { type: _, output, ...rest } = step;
+  return {
+    ...rest,
+    type: "agent",
+    tools: [],
+    model: "classifier",
+    output: { format: "json", fields: output.fields },
+  };
+}
+
+/** The agent step a model step runs as. */
+export function asAgent(step: ModelStep): AgentStep {
+  return step.type === "decision" ? decisionAsAgent(step) : step;
 }
 
 /**
  * What an agent step's json output holds: its schema, or its fields as one. Undefined when it
  * names neither (the model then returns one table).
  */
-export function declaredShape(step: AgentStep): ObjectShape | undefined {
+export function declaredShape(model: ModelStep): ObjectShape | undefined {
+  const step = asAgent(model);
   if (step.output.schema) {
     return step.output.schema;
   }
@@ -1240,7 +1293,7 @@ export function declaredShape(step: AgentStep): ObjectShape | undefined {
 }
 
 /** What an agent step's json output holds: its declared shape, or else one table. */
-export function stepShape(step: AgentStep): ObjectShape {
+export function stepShape(step: ModelStep): ObjectShape {
   return (
     declaredShape(step) ?? {
       kind: "object",
@@ -1250,7 +1303,7 @@ export function stepShape(step: AgentStep): ObjectShape {
 }
 
 /** The top-level keys of an agent step's output: what `steps.<id>.<key>` may name. */
-export function outputKeys(step: AgentStep): string[] {
+export function outputKeys(step: ModelStep): string[] {
   return Object.keys(declaredShape(step)?.fields ?? {});
 }
 export type GenerateStep = z.infer<typeof generateStepSchema>;
@@ -1299,48 +1352,14 @@ export const connectionSchema = z.object({
 });
 
 /**
- * The version of the definition this app writes; raised only by a breaking change. It reads the
- * earlier ones too (`upgradeDefinition`). Version 1 named the text classes one step lower: its
- * `standard`, `high` and `highest` are `low`, `standard` and `high` since version 2.
+ * The version of the definition this app writes and reads. The format is in beta until 1.0: it
+ * can change without a new version, and stored definitions are converted once when it does.
+ * A definition without a version is of this one.
  */
-export const DEFINITION_VERSION = 2 as const;
+export const DEFINITION_VERSION = 1 as const;
 
-const CLASSES_OF_VERSION_1: Record<string, TextClass> = {
-  standard: "low",
-  high: "standard",
-  highest: "high",
-};
-
-/**
- * A definition of an earlier version, brought to this one; anything else comes back as it is.
- * One without a version is of version 1, unless `unversioned` says which one its writer read:
- * a model that wrote it from today's authoring guide writes today's (`DEFINITION_VERSION`).
- */
-export function upgradeDefinition(raw: unknown, unversioned = 1): unknown {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return raw;
-  }
-  const def = raw as { version?: unknown; steps?: unknown };
-  const version = def.version ?? unversioned;
-  if (version === DEFINITION_VERSION) {
-    return def.version === undefined ? { ...def, version } : def;
-  }
-  if (version !== 1) {
-    return raw;
-  }
-  const steps = Array.isArray(def.steps)
-    ? def.steps.map((step) => {
-        const model = (step as { model?: unknown } | null)?.model;
-        return typeof model === "string" && CLASSES_OF_VERSION_1[model]
-          ? { ...step, model: CLASSES_OF_VERSION_1[model] }
-          : step;
-      })
-    : def.steps;
-  return { ...def, version: DEFINITION_VERSION, steps };
-}
-
-/** A definition of this version, as it is written: what the JSON Schema describes. */
-export const currentWizardSchema = z
+/** A definition as it is written: what the JSON Schema describes. */
+export const wizardSchema = z
   .object({
     version: z.literal(DEFINITION_VERSION).default(DEFINITION_VERSION),
     title: z.string().min(1),
@@ -1393,9 +1412,7 @@ export const currentWizardSchema = z
     });
   });
 
-/** A definition of any version this app reads, brought to this one. */
-export const wizardSchema = z.preprocess((raw) => upgradeDefinition(raw), currentWizardSchema);
-export type WizardDefinition = z.infer<typeof currentWizardSchema>;
+export type WizardDefinition = z.infer<typeof wizardSchema>;
 
 export const INTERACTIVE: ReadonlySet<StepType> = new Set(["page", "review", "result"]);
 
@@ -1424,10 +1441,11 @@ export function formatsFor(step: Step): Format[] {
   if (step.type === "surface") {
     return ["json"];
   }
-  if (step.type === "agent") {
-    if (step.output.format === "json") {
+  if (step.type === "agent" || step.type === "decision") {
+    const agent = asAgent(step);
+    if (agent.output.format === "json") {
       // Nested data reads as a document too.
-      return step.output.schema
+      return agent.output.schema
         ? ["json", "csv", "xlsx", "md", "pdf", "zip"]
         : ["json", "csv", "xlsx", "md", "zip"];
     }
@@ -1837,21 +1855,24 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     if (more.length > 0 && !probability) {
       return false;
     }
+    if (source?.type === "decision") {
+      return outputKeys(source).includes(key);
+    }
     return (
       source?.type === "agent" &&
-      (!probability || isDecisionStep(source)) &&
-      (outputKeys(source).includes(key) || (Boolean(source.each) && key === "rows" && !probability))
+      !probability &&
+      (outputKeys(source).includes(key) || (Boolean(source.each) && key === "rows"))
     );
   };
 
   const conditionIssues = (stepId: string, c: Condition): ValidationIssue[] => {
-    if ((c.op === "gt" || c.op === "lt") && typeof c.value !== "number") {
+    if (COMPARING.has(c.op) && typeof c.value !== "number") {
       return [{ stepId, message: `"${c.op}" on "${c.field}" compares with a number value.` }];
     }
-    if (c.op === "in" && !Array.isArray(c.value)) {
-      return [{ stepId, message: `"in" on "${c.field}" needs a list of values.` }];
+    if ((c.op === "in" || c.op === "notIn") && !Array.isArray(c.value)) {
+      return [{ stepId, message: `"${c.op}" on "${c.field}" needs a list of values.` }];
     }
-    if (c.op !== "empty" && c.op !== "notEmpty" && c.value === undefined) {
+    if (c.op !== "exists" && c.op !== "notExists" && c.value === undefined) {
       return [{ stepId, message: `"${c.op}" on "${c.field}" needs a value.` }];
     }
     return [];
@@ -1878,7 +1899,10 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       if (source?.type === "agent" && source.each && key === "rows") {
         return column ? null : `"optionsFrom": "${from}.rows" is a table; name one of its columns.`;
       }
-      const out = source?.type === "agent" ? declaredShape(source)?.fields[key] : undefined;
+      const out =
+        source?.type === "agent" || source?.type === "decision"
+          ? declaredShape(source)?.fields[key]
+          : undefined;
       if (!out) {
         return `"optionsFrom" names "${from}.${key}", which is not an output of an earlier agent step.`;
       }
@@ -2038,6 +2062,9 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         }
         break;
       }
+      case "decision":
+        checkTemplate(step, step.instructions);
+        break;
       case "agent":
         checkTemplate(step, step.instructions);
         if (step.call) {
@@ -2587,12 +2614,117 @@ function isEmptyValue(v: unknown): boolean {
   return v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
 }
 
-/** The conditions of a rule or a field, as a list: one, several, or none. */
-export function conditionsOf(when: When | undefined): Condition[] {
+/** The ops that compare numbers. */
+export const COMPARING: ReadonlySet<ConditionOp> = new Set(["gt", "gte", "lt", "lte"]);
+/** The ops that take no value. */
+export const VALUELESS: ReadonlySet<ConditionOp> = new Set(["exists", "notExists"]);
+
+/** The tests of a `when` that must all hold; none for a calculation or no `when`. */
+function testsOf(when: When | undefined): Test[] {
   if (when === undefined || whenCalc(when) !== null) {
     return [];
   }
-  return Array.isArray(when) ? when : [when as Condition];
+  return Array.isArray(when) ? when : [when as Test];
+}
+
+function leavesOf(test: Test | ConditionLeaf[]): Condition[] {
+  if (Array.isArray(test)) {
+    return test.flatMap(leavesOf);
+  }
+  if ("any" in test) {
+    return test.any.flatMap(leavesOf);
+  }
+  return "not" in test ? [test.not] : [test];
+}
+
+/** Every condition a rule or a field tests, wherever it sits in `any` or `not`. */
+export function conditionsOf(when: When | undefined): Condition[] {
+  return testsOf(when).flatMap(leavesOf);
+}
+
+/** A `when` the studio edits as a list of plain conditions: one, several, or none. */
+export function plainConditions(when: When | undefined): Condition[] | null {
+  const tests = testsOf(when);
+  if (whenCalc(when) !== null) {
+    return null;
+  }
+  return tests.every((t) => !("any" in t) && !("not" in t)) ? (tests as Condition[]) : null;
+}
+
+/**
+ * A `when` worked out from what `leaf` says of each condition: true, false, or null where that
+ * is not known. A calculation is the caller's; here it is null.
+ */
+export function whenValue(
+  when: When | undefined,
+  leaf: (c: Condition) => boolean | null,
+): boolean | null {
+  if (whenCalc(when) !== null) {
+    return null;
+  }
+  const all = (values: (boolean | null)[]) =>
+    values.includes(false) ? false : values.includes(null) ? null : true;
+  const value = (test: Test | ConditionLeaf[]): boolean | null => {
+    if (Array.isArray(test)) {
+      return all(test.map(value));
+    }
+    if ("any" in test) {
+      const parts = test.any.map(value);
+      return parts.includes(true) ? true : parts.includes(null) ? null : false;
+    }
+    if ("not" in test) {
+      const held = leaf(test.not);
+      return held === null ? null : !held;
+    }
+    return leaf(test);
+  };
+  return all(testsOf(when).map(value));
+}
+
+/** How `whenText` joins what it says: two parts with and, with or, and a part negated. */
+export interface WhenWords {
+  and: (first: string, second: string) => string;
+  or: (first: string, second: string) => string;
+  not: (part: string) => string;
+}
+
+/** A `when` as words: `leaf` says a condition, `words` join them. A calculation is its text. */
+export function whenText(
+  when: When | undefined,
+  leaf: (c: Condition) => string,
+  words: WhenWords,
+): string {
+  const calc = whenCalc(when);
+  if (calc !== null) {
+    return calc;
+  }
+  const join = (parts: string[], by: WhenWords["and"], nested: boolean) => {
+    const joined = parts.length ? parts.reduce((first, second) => by(first, second)) : "";
+    return nested && parts.length > 1 ? `(${joined})` : joined;
+  };
+  const text = (test: Test | ConditionLeaf[], nested: boolean): string => {
+    if (Array.isArray(test)) {
+      return join(
+        test.map((t) => text(t, true)),
+        words.and,
+        nested,
+      );
+    }
+    if ("any" in test) {
+      return join(
+        test.any.map((t) => text(t, true)),
+        words.or,
+        nested,
+      );
+    }
+    return "not" in test ? words.not(leaf(test.not)) : leaf(test);
+  };
+  const tests = testsOf(when);
+  return join(
+    tests.map((t) => text(t, tests.length > 1)),
+    words.and,
+    false,
+  );
 }
 
 /** The calculation a `when` tests, if it is one. */
@@ -2626,21 +2758,28 @@ function whenCalcIssues(
 export function conditionMatches(c: Condition, values: Record<string, unknown>): boolean {
   const v = values[c.field];
   switch (c.op) {
-    case "empty":
+    case "notExists":
       return isEmptyValue(v);
-    case "notEmpty":
+    case "exists":
       return !isEmptyValue(v);
-    case "equals":
+    case "eq":
       return String(v) === String(c.value);
-    case "notEquals":
+    case "ne":
       return String(v) !== String(c.value);
     case "in":
       return Array.isArray(c.value) && c.value.map(String).includes(String(v));
+    case "notIn":
+      return Array.isArray(c.value) && !c.value.map(String).includes(String(v));
     case "gt":
-    case "lt": {
+    case "gte":
+    case "lt":
+    case "lte": {
       const a = readNumber(v);
       const b = readNumber(c.value);
-      return a !== null && b !== null && (c.op === "gt" ? a > b : a < b);
+      if (a === null || b === null) {
+        return false;
+      }
+      return c.op === "gt" ? a > b : c.op === "gte" ? a >= b : c.op === "lt" ? a < b : a <= b;
     }
     case "contains":
       if (Array.isArray(v)) {
@@ -2654,13 +2793,13 @@ export function conditionMatches(c: Condition, values: Record<string, unknown>):
   }
 }
 
-/** Whether every condition holds; no conditions hold trivially. */
+/** Whether a `when` holds; none holds trivially. */
 export function whenHolds(when: When | undefined, values: Record<string, unknown>): boolean {
   const calc = whenCalc(when);
   if (calc !== null) {
     return calcTruthy(calcValue(calc, calcScope(values)));
   }
-  return conditionsOf(when).every((c) => conditionMatches(c, values));
+  return whenValue(when, (c) => conditionMatches(c, values)) === true;
 }
 
 /** Whether a `when` rule holds. An `ask` rule never holds here: a decision takes it (see decide). */
@@ -3006,7 +3145,6 @@ function keepsAll(given: unknown, read: unknown): boolean {
 
 /** True when this app's schema reads the definition without losing anything of it. */
 export function readable(definition: unknown): boolean {
-  const upgraded = upgradeDefinition(definition);
-  const parsed = currentWizardSchema.safeParse(upgraded);
-  return parsed.success && keepsAll(upgraded, parsed.data);
+  const parsed = wizardSchema.safeParse(definition);
+  return parsed.success && keepsAll(definition, parsed.data);
 }

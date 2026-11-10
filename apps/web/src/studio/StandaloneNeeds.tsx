@@ -57,7 +57,9 @@ export function needLines(def: WizardDefinition, fit: StandaloneFit): Line[] {
     }
   };
   // Text is always there: the one thing the site's provider does.
-  if (def.steps.some((s) => s.type === "agent" && !runsWithoutModel(s))) {
+  if (
+    def.steps.some((s) => (s.type === "agent" && !runsWithoutModel(s)) || s.type === "decision")
+  ) {
     add("text", { text: marketLabel("capability", "text", lang), tone: "ok" });
   }
   for (const c of fit.missing) {

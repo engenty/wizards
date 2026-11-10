@@ -56,7 +56,7 @@ const page = (id: string, more: Record<string, unknown> = {}) => ({
   ...more,
 });
 const flow = (...steps: object[]) => ({
-  version: 2,
+  version: 1,
   title: "Tippen",
   description: "",
   avatar: "round",

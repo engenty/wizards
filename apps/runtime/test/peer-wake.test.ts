@@ -41,7 +41,7 @@ const page = (id: string) => ({
   fields: [{ id: `${id}_f`, kind: "text", label: "T" }],
 });
 const def = {
-  version: 2,
+  version: 1,
   title: "Wecken",
   description: "",
   avatar: "round",

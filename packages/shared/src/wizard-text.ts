@@ -43,6 +43,7 @@ export interface ParsedWizardText {
 export const STEP_TAGS: Record<string, string> = {
   page: "Page",
   agent: "Agent",
+  decision: "Decision",
   generate: "Generate",
   widget: "Widget",
   surface: "Surface",
@@ -58,6 +59,7 @@ const TAG_STEPS: Record<string, string> = Object.fromEntries(
 /** The key a step's text goes to. */
 export const STEP_TEXT: Record<string, string> = {
   agent: "instructions",
+  decision: "instructions",
   result: "message",
   generate: "prompt",
   "motion-graphics": "brief",
@@ -84,7 +86,7 @@ const COMPONENTS: ReadonlySet<string> = new Set(SURFACE_COMPONENTS);
  * schema needs): the parser adds them, the printer leaves them out.
  */
 const DEFAULTS: Record<string, Record<string, unknown>> = {
-  wizard: { version: 2, description: "", avatar: "round" },
+  wizard: { version: 1, description: "", avatar: "round" },
   agent: { instructions: "", tools: [], output: { format: "markdown" } },
   widget: { data: {} },
   surface: { data: {} },
@@ -362,10 +364,12 @@ function json(text: string): { value: unknown } | null {
 }
 
 const COMPARED: Record<string, Condition["op"]> = {
-  "==": "equals",
-  "!=": "notEquals",
+  "==": "eq",
+  "!=": "ne",
   ">": "gt",
+  ">=": "gte",
   "<": "lt",
+  "<=": "lte",
 };
 
 function literalOf(node: CalcNode): string | number | boolean | undefined {
@@ -684,8 +688,13 @@ function compileStep(elem: Elem, cuts: TextCut[]): Json | null {
       }
       if (child.tag === "Next") {
         rules.push(compileRule(child, cuts));
-      } else if (child.tag === "Output" && type === "agent") {
-        step.output = compileOutput(child, cuts, id ?? "");
+      } else if (child.tag === "Output" && (type === "agent" || type === "decision")) {
+        const output = compileOutput(child, cuts, id ?? "");
+        // A decision's output is its questions: no format.
+        if (type === "decision") {
+          delete output.format;
+        }
+        step.output = output;
       } else {
         cuts.push({
           at: child.at,
@@ -782,10 +791,12 @@ function canonical(value: unknown): string {
 
 const CALC_NAME = /^[a-zA-Z_]\w*(\.[a-zA-Z0-9_]+)*$/;
 const OP_TEXT: Partial<Record<Condition["op"], string>> = {
-  equals: "==",
-  notEquals: "!=",
+  eq: "==",
+  ne: "!=",
   gt: ">",
+  gte: ">=",
   lt: "<",
+  lte: "<=",
 };
 
 function literalText(value: unknown): string | null {
@@ -1027,7 +1038,7 @@ function niceStep(step: Json): string {
     text = rest[textKey] as string;
     delete rest[textKey];
   }
-  if (type === "agent" && rest.output && typeof rest.output === "object") {
+  if ((type === "agent" || type === "decision") && rest.output && typeof rest.output === "object") {
     const { fields, ...output } = rest.output as Json;
     const kinds = Array.isArray(fields) ? fields : [];
     if (kinds.every((f) => OUTPUT_KINDS[(f as Json).kind as string])) {

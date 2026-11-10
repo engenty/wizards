@@ -777,8 +777,9 @@ function need(cfg: ModelConfig, name: LocalKey): string {
 }
 
 /**
- * Says the class names of this definition version: the gateway reads `wizards/<class>` and
- * answers `/v1/models` in them. A caller without it is a runtime from before version 2.
+ * Says the caller names the classes as today's definition does: the gateway reads
+ * `wizards/<class>` and answers `/v1/models` in them. A caller without it is a runtime from
+ * before 2026-10-21, when `low` was still called `standard`.
  */
 const DEFINITION_HEADER = { "x-wizards-definition": String(DEFINITION_VERSION) };
 

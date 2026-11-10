@@ -12,8 +12,9 @@ import {
   branchValues,
   type CardOption,
   cardsFromData,
-  conditionsOf,
+  conditionMatches,
   dataRef,
+  decisionAsAgent,
   type Format,
   followRules,
   formatsFor,
@@ -36,8 +37,9 @@ import {
   type WaitStep,
   type WizardDefinition,
   waitDurationMs,
-  whenHolds,
+  whenCalc,
   whenNames,
+  whenValue,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
 import type {
@@ -1229,10 +1231,10 @@ async function decidePageFields(
   const possible = page.fields.filter(
     (f) =>
       isDecidedField(f) &&
-      whenHolds(
-        conditionsOf(f.when).filter((c) => !own.has(c.field)),
-        values,
-      ),
+      // What this page answers is not known yet: a condition on it may still hold.
+      (whenCalc(f.when) !== null ||
+        whenValue(f.when, (c) => (own.has(c.field) ? null : conditionMatches(c, values))) !==
+          false),
   );
   const questions: Record<string, DecisionQuestion> = {};
   for (const f of possible.filter((f) => f.ask)) {
@@ -2639,7 +2641,8 @@ export function editedJson(
   output: StepOutput,
   data: Record<string, unknown>,
 ): StepOutput {
-  const step = stepOf(def, stepId);
+  const found = stepOf(def, stepId);
+  const step = found?.type === "decision" ? decisionAsAgent(found) : found;
   if (step?.type !== "agent" || step.output.format !== "json" || step.each || step.call) {
     throw new RunConflict("Not a json step");
   }

@@ -6,9 +6,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
   classIdOf,
   DEFINITION_VERSION,
-  parseWizard,
   readable,
-  upgradeDefinition,
   wizardSchema,
 } from "@engenty/wizards-shared/definition";
 import {
@@ -34,7 +32,7 @@ const step = (id: string, model?: string) => ({
 });
 const result = { id: "r", type: "result", title: "R", deliverables: [{ from: "a", formats: ["md"] }] };
 
-/** A definition of version 1: its classes one step lower than today's. */
+/** A definition with the class names from before 2026-10-21, one step lower than today's. */
 const version1 = (version?: number) => ({
   ...(version ? { version } : {}),
   title: "Old",
@@ -44,46 +42,32 @@ const version1 = (version?: number) => ({
 const modelsOf = (def: unknown) =>
   (def as { steps: { model?: string }[] }).steps.map((s) => s.model);
 
-describe("a definition of version 1", () => {
-  it("is read with its own class names and comes out in today's", () => {
-    for (const def of [version1(1), version1()]) {
-      const parsed = parseWizard(def);
-      expect(parsed.ok).toBe(true);
-      const wizard = parsed.ok ? parsed.wizard : null;
-      expect(wizard?.version).toBe(2);
-      expect(modelsOf(wizard)).toEqual(["low", "standard", "high", "classifier", undefined, undefined]);
+describe("the class names", () => {
+  it("are today's in a definition of version 1, with or without the version said", () => {
+    const def = { title: "New", steps: [step("a", "high"), step("b", "low"), step("c", "classifier"), result] };
+    for (const version of [1, undefined]) {
+      const parsed = wizardSchema.parse({ ...def, ...(version ? { version } : {}) });
+      expect(parsed.version).toBe(DEFINITION_VERSION);
+      expect(modelsOf(parsed)).toEqual(["high", "low", "classifier", undefined]);
       expect(readable(def)).toBe(true);
     }
   });
 
-  it("leaves a definition of today's version, and one of a later version, as it is", () => {
-    const today = { ...version1(), version: 2 };
-    expect(upgradeDefinition(today)).toBe(today);
-    // Version 2 has no class `highest`.
-    expect(wizardSchema.safeParse(today).success).toBe(false);
-    const valid = { version: 2, title: "New", steps: [step("a", "high"), step("b", "low"), result] };
-    expect(modelsOf(wizardSchema.parse(valid))).toEqual(["high", "low", undefined]);
-    const later = { ...version1(), version: 3 };
-    expect(upgradeDefinition(later)).toBe(later);
-    expect(wizardSchema.safeParse(later).success).toBe(false);
-  });
-
-  it("is of today's version where its writer read today's guide", () => {
-    const written = { title: "New", steps: [step("a", "high"), result] };
-    const upgraded = upgradeDefinition(written, DEFINITION_VERSION);
-    expect(upgraded).toMatchObject({ version: 2 });
-    expect(modelsOf(upgraded)).toEqual(["high", undefined]);
+  it("refuses another version", () => {
+    for (const version of [2, 3]) {
+      expect(wizardSchema.safeParse({ version, title: "x", steps: [step("a"), result] }).success).toBe(false);
+    }
   });
 
   it("keeps an effort as it is: effort is not a class", () => {
     const def = { version: 1, title: "x", steps: [{ ...step("a", "high"), effort: "high" }, result] };
-    expect(wizardSchema.parse(def).steps[0]).toMatchObject({ model: "standard", effort: "high" });
+    expect(wizardSchema.parse(def).steps[0]).toMatchObject({ model: "high", effort: "high" });
   });
 });
 
 describe("a step that names a maker", () => {
   const withMaker = (model?: string, maker?: string) => ({
-    version: 2,
+    version: 1,
     title: "Maker",
     steps: [{ ...step("a", model), ...(maker ? { maker } : {}) }, result],
   });
@@ -125,24 +109,16 @@ describe("a step that names a maker", () => {
   });
 
   it("leaves a definition without makers as it was", () => {
-    const old = { version: 2, title: "Old", steps: [step("a", "high"), step("b"), result] };
+    const old = { version: 1, title: "Old", steps: [step("a", "high"), step("b"), result] };
     expect(wizardSchema.parse(old).steps.map((s) => ("maker" in s ? s.maker : undefined))).toEqual([
       undefined,
-      undefined,
-      undefined,
-    ]);
-    expect(modelsOf(wizardSchema.parse(version1(1)))).toEqual([
-      "low",
-      "standard",
-      "high",
-      "classifier",
       undefined,
       undefined,
     ]);
   });
 });
 
-describe("the migrations to version 2", () => {
+describe("the migrations that renamed the classes on 2026-10-21", () => {
   const sql = (name: string) =>
     readFileSync(join(import.meta.dirname, "../src/db/migrations", name), "utf8").split(
       "--> statement-breakpoint",

@@ -157,6 +157,8 @@ export function outputKindOf(step: Step): OutputKind | null {
   switch (step.type) {
     case "agent":
       return step.output?.fields?.length || step.output?.schema ? "data" : "text";
+    case "decision":
+      return "data";
     case "generate":
       return step.asset;
     case "widget":
@@ -172,7 +174,12 @@ export function outputKindOf(step: Step): OutputKind | null {
 
 /** Steps that take minutes: a door that cannot wait must come back for them. */
 function takesMinutes(step: Step): boolean {
-  return step.type === "agent" || step.type === "generate" || step.type === "motion-graphics";
+  return (
+    step.type === "agent" ||
+    step.type === "decision" ||
+    step.type === "generate" ||
+    step.type === "motion-graphics"
+  );
 }
 
 /**

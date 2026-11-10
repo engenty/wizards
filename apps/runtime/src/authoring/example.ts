@@ -5,7 +5,7 @@ import type { WizardDefinition } from "@engenty/wizards-shared/definition";
  * the guide's own, not a marketplace entry, so the guide never depends on the marketplace.
  */
 export const EXAMPLE_WIZARD: WizardDefinition = {
-  version: 2,
+  version: 1,
   title: "X post with an image",
   description: "Turns a topic into a finished post with an image.",
   avatar: "flame",

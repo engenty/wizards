@@ -95,7 +95,7 @@ const agent = (id: string, more: object = {}) => ({
   ...more,
 });
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
-const base = { version: 2, title: "Signals", description: "", avatar: "round" };
+const base = { version: 1, title: "Signals", description: "", avatar: "round" };
 /** Every test its own key: all of them share one space. */
 let KEY = "anna@example.com";
 let tests = 0;
@@ -418,7 +418,7 @@ describe("a signal and a run that waits", () => {
 describe("what a sender can set", () => {
   it("not `came` or `timedOut`: they stay the run's, and its path too", async () => {
     const definition = [
-      listening({}, { next: [{ when: { field: "steps.reply.came", op: "equals", value: false }, goto: "missed" }] }),
+      listening({}, { next: [{ when: { field: "steps.reply.came", op: "eq", value: false }, goto: "missed" }] }),
       agent("answered", { next: [{ goto: "done" }] }),
       agent("missed"),
       end,

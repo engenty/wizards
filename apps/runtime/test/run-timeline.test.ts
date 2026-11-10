@@ -85,7 +85,7 @@ const page = {
     { id: "angebot", kind: "text", label: "Angebot", required: false },
   ],
 };
-const base = { version: 2, title: "Timeline", description: "", avatar: "round" };
+const base = { version: 1, title: "Timeline", description: "", avatar: "round" };
 
 let wizardId = "";
 const start = (steps: unknown[], more: object = {}) =>

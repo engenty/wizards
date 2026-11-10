@@ -80,7 +80,7 @@ ${space_tools}
 
 Models: a step names the KIND of model it needs, never a model. Pick the cheapest class that does the job:
 - "classifier": routing, yes/no, picking from options, pulling a few values out of text.
-  A DECISION is a "classifier" step with no tools whose json output has only "yesno", "choice" and "score" fields: it is answered in one fast, very cheap call. A branch can also read how sure it is: "steps.<id>.<field>.p" is the probability of its answer (a number 0–1; 1 or 0 where no decision model is set up), e.g. { field: "steps.check.urgent.p", op: "gt", value: 0.8 }. Write the question into each field's description, give the step everything it must judge in its instructions via {{templates}}, and branch on the answer with "next" (e.g. { when: { field: "steps.check.refund", op: "equals", value: true }, goto: "refund" }).
+  A yes/no, choice or score question about the run is a DECISION step (type "decision", below), not an agent step: it runs on "classifier" and is answered in one fast, very cheap call. A branch can also read how sure it is: "steps.<id>.<field>.p" is the probability of its answer (a number 0–1; 1 or 0 where no decision model is set up), e.g. { field: "steps.check.urgent.p", op: "gt", value: 0.8 }. Write the question into each field's description, give the step everything it must judge in its instructions via {{templates}}, and branch on the answer with "next" (e.g. { when: { field: "steps.check.refund", op: "eq", value: true }, goto: "refund" }).
 - "low": short copy, calling an API, reformatting, simple summaries.
 - "standard": research with tools, long documents, reasoning over many sources (the default).
 - "high": hard reasoning or writing code; rare in a run, several times the cost of "standard".
@@ -103,7 +103,7 @@ ${example}
 <!-- section: schema -->
 <!-- The wizard's format, as TypeScript-like types. -->
 type Wizard = {
-  version: 2                    // always write it: the class names below are those of version 2
+  version: 1                    // always write it
   title: string                 // short, what the end user gets ("Rechnung erstellen")
   description: string           // one sentence
   avatar: "round"|"drop"|"dome"|"flame"|"oval"|"bean"|"pebble"|"sprout"|"tower"|"wedge"  // the engenty mascot shown to end users
@@ -175,7 +175,7 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   section: the part of the wizard the step belongs to, at most 24 characters ("Budget"). The progress bar names each once, in the
 //   order of the steps, and stays the same on every branch. A step without one belongs to the part before it. For a wizard of 3 parts
 //   or more. The steps of a section stand together: "A", "B", "A" is an issue.
-// Branch = { when: Condition | Condition[] | { calc }, goto: stepId | "end", max? }
+// Branch = { when: When, goto: stepId | "end", max? }
 //        | { ask: "a statement about the run", goto: stepId | "end", max? }
 //        | { goto: stepId | "end" }   // otherwise: where the run goes when no other branch holds (one per step)
 //   ask: a decision reads the person's answers and what the steps made so far and takes the branch when the
@@ -185,12 +185,15 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   max: how often the branch may be taken in one run. A branch BACK to an earlier step is a loop ("improve until
 //   the check passes": a decision step branches back to the writing step) — give it max (at most 10 without);
 //   the step that runs again sees what it made last time.
-// Condition = { field, op: "equals"|"notEquals"|"in"|"notEmpty"|"empty"|"gt"|"lt"|"contains", value? }
+// When = Test | Test[] | { calc }   // a list of tests holds when every one holds
+// Test = Condition | { not: Condition } | { any: (Condition | { not: Condition } | Condition[])[] }
+//   any holds when one of its parts holds; a list inside any holds when all of it holds. Nothing nests deeper.
+// Condition = { field, op: "eq"|"ne"|"gt"|"gte"|"lt"|"lte"|"in"|"notIn"|"contains"|"exists"|"notExists", value? }
 // { calc: "budget > steps.estimate.total * 2" }: for a test conditions cannot write; names read as `field` does. The language is under the surface catalog. Anything a condition can say stays a condition.
 //   field is a page field id, an output field of this or an earlier agent step as "steps.<stepId>.<fieldId>",
 //   or how many rows a stored list has as "lists.<listId>.count"
-//   gt / lt compare numbers (value is a number); contains looks into a multiselect, a list output or a text;
-//   in takes a list of values. A list of conditions holds when every one holds.
+//   eq / ne: is, or is not, value. gt / gte / lt / lte compare numbers (value is a number). in / notIn take a list of
+//   values. contains looks into a multiselect, a list output or a text. exists / notExists: filled in or empty, no value.
 //   first matching branch wins, otherwise the step's "otherwise" branch, else the next step in the list.
 //   A step only some runs take sits right after the step that branches to it; that step's otherwise branch
 //   leads every other run past it, and the step itself goes on as the next in the list.
@@ -232,7 +235,7 @@ type Field = {
   list?: listId                 // kind "list": the page shows that stored list for the person to check, correct and extend
   prefill?: "steps.<id>.<key>"  // what the field starts with, from an earlier step. An "items" field takes a table whose
                                 //   columns are exactly its column ids — the step proposes the positions, the person corrects them
-  when?: Condition | Condition[] | { calc } // the field is shown only while this holds: it reads another field of the SAME page (decided as
+  when?: When                   // the field is shown only while this holds: it reads another field of the SAME page (decided as
                                 //   the person types) or anything known before the page (an earlier answer, steps.<id>.<field>).
                                 //   A hidden field is not required and not kept; its {{template}} is empty.
   optionsFrom?: "steps.<id>.<key>" | "steps.<id>.<key>.<column>" | "lists.<id>.<column>"
@@ -312,6 +315,16 @@ type AgentStep = {
 //   browser_download (keeps a file from a signed-in site).
 //   It clicks cookie banners away by itself with the least consent (only necessary / reject all) —
 //   no need to say so in the instructions.
+
+type DecisionStep = {
+  type: "decision"
+  instructions: string          // what it weighs, with {{templates}}: everything the questions are about
+  output: { fields: { id, kind: "yesno"|"choice"|"score", description, options?: string[] }[] }
+                                // 1–12 questions. description is the question; "yesno" answers true/false, "choice" one of its
+                                //   options, "score" a level of its options, lowest first. Later steps read steps.<id>.<field>,
+                                //   and steps.<id>.<field>.p, how sure it is. No tools, no model or maker: it runs on "classifier".
+  working?: string              // shown while it runs
+}
 
 type SurfaceStep = {
   type: "surface"
@@ -473,7 +486,7 @@ type WaitStep = { type: "wait", for?: Duration, until?: string, signal?: { name,
 //   "message.received": what the person writes on a channel while the run waits. key: "person".
 //   "run.done": another run ended. key: that run's id.
 // Example: { "id": "reply", "type": "wait", "title": "Wait for the reply", "signal": { "name": "mail.received", "key": "thread:{{steps.send.thread_id}}", "timeout": "3d" },
-//            "next": [{ "when": { "field": "steps.reply.timedOut", "op": "equals", "value": true }, "goto": "remind" }] }
+//            "next": [{ "when": { "field": "steps.reply.timedOut", "op": "eq", "value": true }, "goto": "remind" }] }
 
 On a page or a review:
   who?: "person"|"owner"|"team"  // who answers. person (default): whoever does the run. owner: the run's owner. team: the people the admin names in the share dialog. The validator can't see them: a wizard with a team step can't be published until someone is named. On a test run the member who tests answers.

@@ -1,6 +1,5 @@
 import {
   type AgentStep,
-  isDecisionStep,
   runsWithoutModel,
   validateWizard,
   type WizardDefinition,
@@ -50,7 +49,7 @@ describe("a code step in the format", () => {
       ]),
     );
     expect(runsWithoutModel(step)).toBe(true);
-    expect(isDecisionStep(step)).toBe(false);
+    expect(step.type).toBe("agent");
   });
 
   it("needs its entry in the workspace, as a .ts or .js file", () => {

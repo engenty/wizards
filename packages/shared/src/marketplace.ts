@@ -129,6 +129,8 @@ const MARKET_EN = {
   "plan.pro": "Pro",
   "outline.otherwise": "otherwise",
   "outline.and": "{first} and {second}",
+  "outline.or": "{first} or {second}",
+  "outline.not": "not {condition}",
   "outline.with": "with {name}",
   "outline.without": "without {name}",
   "outline.contains": "{name} contains {value}",
@@ -183,6 +185,8 @@ const MARKET_DE: Partial<Record<MarketKey, Line>> = {
   "plan.pro": "Pro",
   "outline.otherwise": "sonst",
   "outline.and": "{first} und {second}",
+  "outline.or": "{first} oder {second}",
+  "outline.not": "nicht {condition}",
   "outline.with": "mit {name}",
   "outline.without": "ohne {name}",
   "outline.contains": "{name} enthält {value}",
@@ -256,6 +260,8 @@ export function capabilitiesOf(def: WizardDefinition): Capability[] {
           found.add("listening");
         }
       }
+    } else if (step.type === "decision") {
+      found.add("text");
     } else if (step.type === "agent") {
       // A call runs no model: it needs nothing but its plugin. Code runs in the runtime itself.
       if (runsWithoutModel(step)) {
@@ -348,6 +354,8 @@ export function effortOf(def: WizardDefinition): Effort {
       seconds += 30;
     } else if (step.type === "agent" && runsWithoutModel(step)) {
       seconds += 1;
+    } else if (step.type === "decision") {
+      seconds += WORK_SECONDS.agent;
     } else if (step.type === "agent") {
       seconds += step.tools.includes("browser")
         ? WORK_SECONDS.browser

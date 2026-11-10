@@ -7,6 +7,7 @@ import {
   Eye,
   FileText,
   Flag,
+  GitFork,
   Hourglass,
   Image,
   LayoutDashboard,
@@ -51,6 +52,8 @@ export function stepIcon(step: Step) {
       return ListChecks;
     case "agent":
       return step.call ? Plug : step.code ? Braces : Bot;
+    case "decision":
+      return GitFork;
     case "generate":
       return step.asset === "image"
         ? Image
@@ -78,6 +81,7 @@ export function stepIcon(step: Step) {
 export const TYPE_TONE: Record<Step["type"], string> = {
   page: "bg-cobalt-tint text-cobalt",
   agent: "bg-ember-tint text-ember-strong",
+  decision: "bg-ember-tint text-ember-strong",
   generate: "bg-amber-tint text-ink-2",
   widget: "bg-ember-veil text-ember-strong",
   surface: "bg-ember-veil text-ember-strong",
@@ -153,6 +157,8 @@ export function stepSummary(step: Step): string {
       }
       return step.tools.map(toolLabel).join(" · ") || step.instructions.slice(0, 90);
     }
+    case "decision":
+      return step.output.fields.map((f) => f.description ?? f.id).join(" · ");
     case "generate": {
       const parts: string[] = [step.asset];
       if (step.options?.aspectRatio) {

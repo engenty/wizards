@@ -555,7 +555,7 @@ describe("a fixed step's call in a real run", () => {
   it("acts on every turn of a loop: a real repeat", async () => {
     const looping = wizard([
       page,
-      save([{ when: { field: "steps.save.again", op: "equals", value: false }, goto: "save", max: 2 }]),
+      save([{ when: { field: "steps.save.again", op: "eq", value: false }, goto: "save", max: 2 }]),
       result,
     ]);
     const runId = await submitted(looping);

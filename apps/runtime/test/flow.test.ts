@@ -1,6 +1,7 @@
 import {
   branchValues,
   conditionMatches,
+  conditionsOf,
   nextStepId,
   cardsFromData,
   optionsFromData,
@@ -11,6 +12,8 @@ import {
   slotDayText,
   slotText,
   type WizardDefinition,
+  whenHolds,
+  whenValue,
 } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
 import { readPageInput } from "../src/engine/input";
@@ -40,6 +43,50 @@ describe("conditions", () => {
     expect(conditionMatches({ field: "a", op: "lt", value: 3 }, { a: "" })).toBe(false);
   });
 
+  it("compare at least and at most, and take none of a list", () => {
+    expect(conditionMatches({ field: "a", op: "gte", value: 3 }, { a: 3 })).toBe(true);
+    expect(conditionMatches({ field: "a", op: "lte", value: 3 }, { a: 4 })).toBe(false);
+    expect(conditionMatches({ field: "a", op: "notIn", value: ["x", "y"] }, { a: "z" })).toBe(true);
+    expect(conditionMatches({ field: "a", op: "notIn", value: ["x", "y"] }, { a: "x" })).toBe(false);
+    expect(conditionMatches({ field: "a", op: "exists" }, { a: "" })).toBe(false);
+    expect(conditionMatches({ field: "a", op: "notExists" }, {})).toBe(true);
+  });
+
+  it("hold with any of their parts, and turn with not", () => {
+    const when = [
+      { field: "country", op: "eq" as const, value: "AT" },
+      {
+        any: [
+          { field: "budget", op: "gte" as const, value: 5000 },
+          [
+            { field: "urgent", op: "eq" as const, value: true },
+            { not: { field: "phone", op: "notExists" as const } },
+          ],
+        ],
+      },
+    ];
+    expect(whenHolds(when, { country: "AT", budget: 6000 })).toBe(true);
+    expect(whenHolds(when, { country: "AT", budget: 10, urgent: true, phone: "1" })).toBe(true);
+    expect(whenHolds(when, { country: "AT", budget: 10, urgent: true })).toBe(false);
+    expect(whenHolds(when, { country: "DE", budget: 6000 })).toBe(false);
+    expect(conditionsOf(when).map((c) => c.field)).toEqual(["country", "budget", "urgent", "phone"]);
+    // Unknown parts leave the answer open; a part known to hold settles an any.
+    expect(whenValue(when, (c) => (c.field === "budget" ? null : conditionMatches(c, { country: "AT" })))).toBe(null);
+    expect(whenValue(when, (c) => (c.field === "phone" ? null : conditionMatches(c, { country: "AT", budget: 9000 })))).toBe(true);
+  });
+
+  it("with any or not are valid on a branch, and a field they read must be known", () => {
+    const def = (when: unknown) => ({
+      title: "x",
+      steps: [
+        { id: "p", type: "page", title: "P", fields: [{ id: "a", label: "A", kind: "text" }], next: [{ when, goto: "r" }] },
+        result,
+      ],
+    });
+    valid(def({ any: [{ field: "a", op: "eq", value: "x" }, { not: { field: "a", op: "exists" } }] }));
+    expect(issuesOf(def({ not: { field: "nope", op: "exists" } }))).toContain('unknown field "nope"');
+  });
+
   it("look into multiselects, lists and texts", () => {
     const c = { field: "a", op: "contains" as const, value: "Nuts" };
     expect(conditionMatches(c, { a: ["Gluten", "Nuts"] })).toBe(true);
@@ -63,7 +110,7 @@ describe("conditions", () => {
           next: [
             {
               when: [
-                { field: "kind", op: "equals", value: "ship" },
+                { field: "kind", op: "eq", value: "ship" },
                 { field: "amount", op: "gt", value: 500 },
               ],
               goto: "approve",
@@ -132,7 +179,7 @@ describe("conditions", () => {
           type: "page",
           title: "P",
           fields: [{ id: "k", label: "K", kind: "toggle" }],
-          next: [{ when: { field: "k", op: "equals", value: true }, goto: "r" }],
+          next: [{ when: { field: "k", op: "eq", value: true }, goto: "r" }],
         },
         result,
       ],
@@ -152,13 +199,13 @@ describe("fields shown under a condition", () => {
         label: "Street",
         kind: "text",
         required: true,
-        when: { field: "delivery", op: "equals", value: "ship" },
+        when: { field: "delivery", op: "eq", value: "ship" },
       },
       {
         id: "door",
         label: "Door code",
         kind: "text",
-        when: { field: "street", op: "notEmpty" },
+        when: { field: "street", op: "exists" },
       },
     ],
   };
@@ -183,7 +230,7 @@ describe("fields shown under a condition", () => {
   it("read what is known before the page", () => {
     const later: PageStep = {
       ...page,
-      fields: [{ id: "note", label: "Note", kind: "text", required: true, when: { field: "steps.check.urgent", op: "equals", value: true } }],
+      fields: [{ id: "note", label: "Note", kind: "text", required: true, when: { field: "steps.check.urgent", op: "eq", value: true } }],
     };
     expect(pageNeeds(later.fields)).toEqual(["steps.check.urgent"]);
     expect(readPageInput(later, {}, { known: { "steps.check.urgent": false } }).errors).toEqual([]);
@@ -199,7 +246,7 @@ describe("fields shown under a condition", () => {
           type: "page",
           title: "P",
           fields: [
-            { id: "a", label: "A", kind: "text", when: { field: "later", op: "notEmpty" } },
+            { id: "a", label: "A", kind: "text", when: { field: "later", op: "exists" } },
           ],
         },
         { id: "q", type: "page", title: "Q", fields: [{ id: "later", label: "L", kind: "text" }] },
@@ -434,7 +481,7 @@ describe("requirements with condition lists", () => {
           next: [
             {
               when: [
-                { field: "a", op: "equals", value: true },
+                { field: "a", op: "eq", value: true },
                 { field: "n", op: "gt", value: 3 },
               ],
               goto: "r",
@@ -503,7 +550,7 @@ describe("an otherwise branch", () => {
             type: "page",
             title: "P",
             fields: [{ id: "n", label: "N", kind: "number" }],
-            next: [{ when: { field: "n", op: "notEmpty" }, ask: "Yes", goto: "r" }],
+            next: [{ when: { field: "n", op: "exists" }, ask: "Yes", goto: "r" }],
           },
           result,
         ],

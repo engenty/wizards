@@ -88,7 +88,7 @@ const agent = (id: string, more: object = {}) => ({
   ...more,
 });
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
-const base = { version: 2, title: "Retry", description: "", avatar: "round" };
+const base = { version: 1, title: "Retry", description: "", avatar: "round" };
 
 /** As the providers throw them; failures.test.ts has them from a real server. */
 const http = (statusCode: number, headers: Record<string, string> = {}) =>

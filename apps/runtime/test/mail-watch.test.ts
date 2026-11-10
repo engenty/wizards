@@ -64,7 +64,7 @@ const reads: string[] = [];
 let readAnswer: (message: string) => Promise<InboundMessage | null>;
 
 const T = "tenant-mail-watch";
-const base = { version: 2, title: "Mail", description: "", avatar: "round" };
+const base = { version: 1, title: "Mail", description: "", avatar: "round" };
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
 const agent = (id: string) => ({
   id,

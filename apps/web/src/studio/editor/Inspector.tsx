@@ -2,9 +2,11 @@ import { DataMenu, editableData, HtmlFrame, JsonSchemaDialog } from "@engenty/wi
 import type { StepWarning } from "@engenty/wizards-shared/connectors";
 import {
   ASPECT_RATIOS,
+  COMPARING,
   CONDITION_OPS,
   type Condition,
-  conditionsOf,
+  DECISION_KINDS,
+  type DecisionStep,
   declaredShape,
   ENGENTY_COSTUMES,
   ENGENTY_KINDS,
@@ -12,7 +14,6 @@ import {
   type Field,
   type Format,
   formatsFor,
-  isDecisionStep,
   isOtherwise,
   isRealLanguage,
   langName,
@@ -22,16 +23,19 @@ import {
   outputKeys,
   type PageStep,
   personStepRefs,
+  plainConditions,
   RUN_DONE_SIGNAL,
   type Step,
   stepShape,
   TOOL_IDS,
+  VALUELESS,
   VIDEO_RESOLUTIONS,
   type VideoResolution,
   WIZARD_LANGS,
   type WizardDefinition,
   waitOutputRefs,
   whenCalc,
+  whenText,
 } from "@engenty/wizards-shared/definition";
 import { readNumber } from "@engenty/wizards-shared/numbers";
 import type { BranchDecision, RunEstimate } from "@engenty/wizards-shared/run";
@@ -86,7 +90,7 @@ import {
   withEmptyStep,
 } from "./AddStep";
 import { ModelClassControl, StepCost, useEstimate } from "./estimate";
-import { conditionText, percent } from "./FlowDiagram";
+import { conditionText, percent, whenWords } from "./FlowDiagram";
 import { HoldToDelete } from "./HoldToDelete";
 import {
   isCodeStep,
@@ -240,7 +244,7 @@ function ConditionEditor({
   noneLabel?: string;
 }) {
   const calc = whenCalc(when);
-  const [first, ...rest] = conditionsOf(when);
+  const plain = plainConditions(when);
   if (calc !== null) {
     // A test conditions cannot write: its text, which empties back to no condition.
     return (
@@ -254,9 +258,21 @@ function ConditionEditor({
       </div>
     );
   }
+  if (plain === null) {
+    // `any` and `not` are written in the wizard's JSON; here they are shown.
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[0.8125rem] text-ink-2">{label}</span>
+        <span className="text-[0.8125rem] text-ink">
+          {whenText(when, conditionText, whenWords())}
+        </span>
+      </div>
+    );
+  }
+  const [first, ...rest] = plain;
   const set = (c: Condition | null) =>
     onChange(c ? (rest.length ? [c, ...rest] : c) : rest.length ? rest : undefined);
-  const needsValue = first && first.op !== "empty" && first.op !== "notEmpty";
+  const needsValue = first && !VALUELESS.has(first.op);
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-[0.8125rem] text-ink-2">{label}</span>
@@ -264,7 +280,7 @@ function ConditionEditor({
         value={first?.field ?? ""}
         placeholder={noneLabel}
         onChange={(v) =>
-          set(v ? { field: v, op: first?.op ?? "equals", value: first?.value ?? "" } : null)
+          set(v ? { field: v, op: first?.op ?? "eq", value: first?.value ?? "" } : null)
         }
         options={[
           { value: "", label: noneLabel },
@@ -277,19 +293,18 @@ function ConditionEditor({
             value={first.op}
             onChange={(v) => {
               const op = v as Condition["op"];
-              const value =
-                op === "empty" || op === "notEmpty"
-                  ? undefined
-                  : op === "in"
-                    ? String(first.value ?? "")
-                        .split(",")
-                        .map((x) => x.trim())
-                        .filter(Boolean)
-                    : op === "gt" || op === "lt"
-                      ? Number(first.value) || 0
-                      : Array.isArray(first.value)
-                        ? first.value.join(", ")
-                        : (first.value ?? "");
+              const value = VALUELESS.has(op)
+                ? undefined
+                : op === "in" || op === "notIn"
+                  ? String(first.value ?? "")
+                      .split(",")
+                      .map((x) => x.trim())
+                      .filter(Boolean)
+                  : COMPARING.has(op)
+                    ? Number(first.value) || 0
+                    : Array.isArray(first.value)
+                      ? first.value.join(", ")
+                      : (first.value ?? "");
               set({ field: first.field, op, ...(value === undefined ? {} : { value }) });
             }}
             options={CONDITION_OPS.map((op) => ({ value: op, label: t(`editor.op.${op}`) }))}
@@ -304,9 +319,9 @@ function ConditionEditor({
               onChange={(e) => {
                 const raw = e.target.value;
                 const value =
-                  first.op === "in"
+                  first.op === "in" || first.op === "notIn"
                     ? raw.split(",").map((x) => x.trim())
-                    : first.op === "gt" || first.op === "lt"
+                    : COMPARING.has(first.op)
                       ? (readNumber(raw) ?? 0)
                       : raw === "true" || raw === "false"
                         ? raw === "true"
@@ -877,6 +892,107 @@ function FixedStepBody({
   );
 }
 
+type DecisionField = DecisionStep["output"]["fields"][number];
+
+/** A decision: what it weighs, and its questions, each answered yes or no, by an option or a level. */
+function DecisionBody({
+  def,
+  step,
+  set,
+}: {
+  def: WizardDefinition;
+  step: DecisionStep;
+  set: (s: Step) => void;
+}) {
+  const readOnly = useContext(ReadOnly);
+  const fields = step.output.fields;
+  const setFields = (next: DecisionField[]) => set({ ...step, output: { fields: next } });
+  const setField = (i: number, field: DecisionField) =>
+    setFields(fields.map((f, j) => (j === i ? field : f)));
+  return (
+    <>
+      <Section title={t("inspector.task")}>
+        <Textarea
+          value={step.instructions}
+          minRows={4}
+          maxRows={16}
+          onChange={(e) => set({ ...step, instructions: e.target.value })}
+          className="text-[0.875rem]"
+        />
+        <p className="text-[0.75rem] text-ink-4">
+          {t("inspector.insertAnswers")}{" "}
+          <code className="font-mono">{`{{${t("inspector.insertField")}}}`}</code>
+          {t("inspector.insertResults")} <code className="font-mono">{"{{steps.id}}"}</code>.
+        </p>
+      </Section>
+      <Section title={t("inspector.questions")} loose>
+        <div className="flex flex-col gap-3">
+          {fields.map((f, i) => (
+            <div key={f.id} className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5">
+                <Input
+                  aria-label={t("inspector.decisionQuestion")}
+                  placeholder={t("inspector.decisionQuestion")}
+                  value={f.description ?? ""}
+                  onChange={(e) => setField(i, { ...f, description: e.target.value })}
+                />
+                <span className="font-mono text-[0.6875rem] text-ink-4">{f.id}</span>
+                {readOnly || fields.length < 2 ? null : (
+                  <IconButton
+                    label={t("common.remove")}
+                    onClick={() => setFields(fields.filter((_, j) => j !== i))}
+                    className="size-8"
+                  >
+                    <Trash2 className="size-4" />
+                  </IconButton>
+                )}
+              </div>
+              <Segmented
+                value={f.kind}
+                options={[...DECISION_KINDS]}
+                onChange={(kind: DecisionField["kind"]) =>
+                  setField(i, {
+                    ...f,
+                    kind,
+                    options: kind === "yesno" ? undefined : (f.options ?? ["", ""]),
+                  })
+                }
+              />
+              {f.kind === "yesno" ? null : (
+                <Input
+                  aria-label={t("inspector.options")}
+                  placeholder={t("inspector.options")}
+                  value={(f.options ?? []).join(", ")}
+                  onChange={(e) =>
+                    setField(i, {
+                      ...f,
+                      options: e.target.value.split(",").map((o) => o.trim()),
+                    })
+                  }
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        {readOnly ? null : (
+          <button
+            type="button"
+            onClick={() =>
+              setFields([
+                ...fields,
+                { id: uniqueId(def, "answer"), kind: "yesno", description: "" },
+              ])
+            }
+            className="inline-flex h-9 items-center gap-1.5 self-start rounded-full px-3 text-[0.8125rem] text-ink-2 hover:bg-accent"
+          >
+            <Plus className="size-4" /> {t("inspector.addQuestion")}
+          </button>
+        )}
+      </Section>
+    </>
+  );
+}
+
 /**
  * A code step: which file of the wizard it runs, with which inputs, and what it returns. It runs
  * with no model, so it has no task, no tools and no class. The code itself is changed in the chat
@@ -964,7 +1080,11 @@ function StepBody({
     .slice(0, index)
     .filter(
       (s) =>
-        s.type === "agent" || s.type === "generate" || s.type === "widget" || s.type === "surface",
+        s.type === "agent" ||
+        s.type === "decision" ||
+        s.type === "generate" ||
+        s.type === "widget" ||
+        s.type === "surface",
     );
   switch (step.type) {
     case "widget":
@@ -1033,6 +1153,8 @@ function StepBody({
           {durableRuns ? <AnswerSection step={step} set={set} /> : null}
         </>
       );
+    case "decision":
+      return <DecisionBody def={def} step={step} set={set} />;
     case "agent":
       if (isFixedStep(step)) {
         return <FixedStepBody def={def} step={step} set={set} />;
@@ -1772,6 +1894,7 @@ function StepInspector({
     return true;
   };
   const stepIssues = issues.filter((i) => i.stepId === step.id);
+  const dataStep = editableData(step);
   const estimate = useEstimate(wizardId, def);
   const readOnly = useContext(ReadOnly);
   return (
@@ -1790,7 +1913,7 @@ function StepInspector({
         </span>
         <span className="ml-auto font-mono text-[0.6875rem] text-ink-4">{step.id}</span>
         {/* For developers: the JSON Schema of the step's data, to read, copy or download. */}
-        {editableData(step) ? (
+        {dataStep ? (
           <>
             <DataMenu
               items={[
@@ -1802,7 +1925,7 @@ function StepInspector({
               ]}
             />
             <JsonSchemaDialog
-              shape={stepShape(step)}
+              shape={stepShape(dataStep)}
               title={step.title}
               open={schemaOpen}
               onClose={() => setSchemaOpen(false)}
@@ -1930,10 +2053,10 @@ function branchSources(def: WizardDefinition, step: Step): string[] {
   for (const s of def.steps.slice(0, index + 1)) {
     if (s.type === "page") {
       out.push(...s.fields.map((f) => f.id), ...personStepRefs(s));
-    } else if (s.type === "agent") {
+    } else if (s.type === "agent" || s.type === "decision") {
       for (const key of outputKeys(s)) {
         out.push(`steps.${s.id}.${key}`);
-        if (isDecisionStep(s)) {
+        if (s.type === "decision") {
           out.push(`steps.${s.id}.${key}.p`);
         }
       }
@@ -2576,7 +2699,7 @@ function NextSection({
         disabled={!sources.length}
         onClick={() =>
           add({
-            when: { field: sources[0] ?? "", op: "notEmpty" },
+            when: { field: sources[0] ?? "", op: "exists" },
             goto: after?.id ?? "end",
           })
         }
@@ -2611,9 +2734,7 @@ function NextSection({
                   <span className="min-w-0 flex-1 truncate text-[0.8125rem] text-ink">
                     {rule.ask ??
                       whenCalc(rule.when) ??
-                      conditionsOf(rule.when)
-                        .map(conditionText)
-                        .join(` ${t("editor.branch.and")} `)}
+                      whenText(rule.when, conditionText, whenWords())}
                   </span>
                 </>,
                 rule.goto,

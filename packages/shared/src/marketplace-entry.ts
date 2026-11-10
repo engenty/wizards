@@ -1,11 +1,11 @@
 import {
   allFields,
   type Condition,
-  conditionsOf,
   listRef,
   type NextRule,
   type WizardDefinition,
   whenCalc,
+  whenText,
 } from "./definition.js";
 import { type ItemFormat, type MarketplaceLang, marketLabel } from "./marketplace.js";
 
@@ -53,10 +53,11 @@ function condition(definition: WizardDefinition, rule: NextRule, lang: Marketpla
   if (calc !== null) {
     return calc;
   }
-  const parts = conditionsOf(rule.when).map((c) => conditionText(definition, c, lang));
-  return parts.length
-    ? parts.reduce((first, second) => marketLabel("outline", "and", lang, { first, second }))
-    : "";
+  return whenText(rule.when, (c) => conditionText(definition, c, lang), {
+    and: (first, second) => marketLabel("outline", "and", lang, { first, second }),
+    or: (first, second) => marketLabel("outline", "or", lang, { first, second }),
+    not: (condition) => marketLabel("outline", "not", lang, { condition }),
+  });
 }
 
 function conditionText(definition: WizardDefinition, c: Condition, lang: MarketplaceLang): string {
@@ -68,25 +69,29 @@ function conditionText(definition: WizardDefinition, c: Condition, lang: Marketp
   const without = marketLabel("outline", "without", lang, { name: bare });
   const withIt = marketLabel("outline", "with", lang, { name: bare });
   // A toggle reads better as with / without than as "= true".
-  if (typeof value === "boolean" && (op === "equals" || op === "notEquals")) {
-    return (op === "equals") === value ? withIt : without;
+  if (typeof value === "boolean" && (op === "eq" || op === "ne")) {
+    return (op === "eq") === value ? withIt : without;
   }
   const shown = Array.isArray(value) ? value.join(" / ") : String(value ?? "");
   switch (op) {
-    case "equals":
-      return `${name}: ${shown}`;
-    case "notEquals":
-      return `${name} ≠ ${shown}`;
+    case "eq":
     case "in":
       return `${name}: ${shown}`;
-    case "notEmpty":
+    case "ne":
+    case "notIn":
+      return `${name} ≠ ${shown}`;
+    case "exists":
       return withIt;
-    case "empty":
+    case "notExists":
       return without;
     case "gt":
       return `${name} > ${shown}`;
+    case "gte":
+      return `${name} ≥ ${shown}`;
     case "lt":
       return `${name} < ${shown}`;
+    case "lte":
+      return `${name} ≤ ${shown}`;
     case "contains":
       return marketLabel("outline", "contains", lang, { name, value: shown });
   }
@@ -124,7 +129,9 @@ function resultKind(definition: WizardDefinition, from: string): ItemFormat {
   if (step?.type === "motion-graphics") {
     return "video";
   }
-  return step?.type === "agent" && step.output.format === "json" ? "table" : "text";
+  return step?.type === "decision" || (step?.type === "agent" && step.output.format === "json")
+    ? "table"
+    : "text";
 }
 
 export function resultsOf(definition: WizardDefinition): EntryResult[] {

@@ -75,7 +75,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
     const res = await fetch(`${env.marketplace.url}/api/v1${path}`, {
       ...init,
-      // Wizards in this version of the definition; a caller without it gets version 1.
+      // The definition version this runtime reads.
       headers: { ...init?.headers, "x-wizards-definition": String(DEFINITION_VERSION) },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });

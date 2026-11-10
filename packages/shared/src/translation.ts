@@ -74,7 +74,7 @@ function visitTexts(def: WizardDefinition, visit: Visit, choices: Visit) {
       });
     }
     // What an AI step's output fields hold: the headings a review and the result show them under.
-    if (step.type === "agent") {
+    if (step.type === "agent" || step.type === "decision") {
       for (const field of step.output?.fields ?? []) {
         visit(field.description, (t) => {
           field.description = t;

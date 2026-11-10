@@ -143,7 +143,7 @@ export function resultBrief(run: RunRow): string {
       continue;
     }
     const title = d.label ?? step.title;
-    if (step.type === "agent" && step.output.format === "json") {
+    if (step.type === "decision" || (step.type === "agent" && step.output.format === "json")) {
       lines.push(`## ${title} (data)\n${JSON.stringify(output.json, null, 2).slice(0, 6000)}`);
     } else if (step.type === "agent") {
       lines.push(`## ${title} (text)\n${(output.text ?? "").slice(0, 12_000)}`);

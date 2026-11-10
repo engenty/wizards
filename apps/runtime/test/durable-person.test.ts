@@ -101,10 +101,10 @@ const check = (more: object = { timeout: "2d" }) => ({
   ...more,
 });
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
-const base = { version: 2, title: "Person", description: "", avatar: "round" };
+const base = { version: 1, title: "Person", description: "", avatar: "round" };
 /** A page with a deadline whose `next` reads `timedOut`. */
 const branching = [
-  ask({ timeout: "2d", next: [{ when: { field: "steps.ask.timedOut", op: "equals", value: true }, goto: "late" }] }),
+  ask({ timeout: "2d", next: [{ when: { field: "steps.ask.timedOut", op: "eq", value: true }, goto: "late" }] }),
   agent("onTime"),
   { ...end, id: "doneOnTime" },
   agent("late"),
@@ -629,7 +629,7 @@ describe("a started run", () => {
     const w = await wizardWithStart(true);
     const approve = check({
       approve: true,
-      next: [{ when: { field: "steps.check.approved", op: "equals", value: false }, goto: "end" }],
+      next: [{ when: { field: "steps.check.approved", op: "eq", value: false }, goto: "end" }],
     });
     const passed = await run(w, [agent("made"), check({}), end], {});
     expect(await hasStatus(passed, "done")).toBe(true);
@@ -643,7 +643,7 @@ describe("a review with approve", () => {
     agent("made"),
     check({
       approve: true,
-      next: [{ when: { field: "steps.check.approved", op: "equals", value: false }, goto: "stopped" }],
+      next: [{ when: { field: "steps.check.approved", op: "eq", value: false }, goto: "stopped" }],
       ...more,
     }),
     agent("sent"),

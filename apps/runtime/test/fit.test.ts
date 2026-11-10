@@ -67,7 +67,7 @@ const tour = {
       instructions: "x",
       tools: [],
       output: { format: "json", fields: [] },
-      next: [{ when: { field: "voiceOn", op: "notEquals", value: true }, goto: "staged" }],
+      next: [{ when: { field: "voiceOn", op: "ne", value: true }, goto: "staged" }],
     },
     { id: "voice", type: "generate", title: "Sprecher aufnehmen", asset: "voice", prompt: "x" },
     { id: "staged", type: "generate", title: "Fotos aufbereiten", asset: "image", prompt: "x" },
@@ -76,7 +76,7 @@ const tour = {
       type: "review",
       title: "Passen die Bilder?",
       show: ["staged"],
-      next: [{ when: { field: "motion", op: "equals", value: "Fotos" }, goto: "film" }],
+      next: [{ when: { field: "motion", op: "eq", value: "Fotos" }, goto: "film" }],
     },
     { id: "clips", type: "generate", title: "Rundgang drehen", asset: "video", prompt: "x" },
     { id: "film", type: "widget", title: "Rundgang schneiden", entry: "film.html", data: {} },
@@ -156,14 +156,14 @@ describe("what a step needs beyond a text model", () => {
 
   it("a wait needs a process that stays", () => {
     const wait = { id: "pause", type: "wait", title: "Pause", for: "2d" };
-    const def = { version: 2, title: "T", description: "", avatar: "round", steps: [wait] };
+    const def = { version: 1, title: "T", description: "", avatar: "round", steps: [wait] };
     expect(needs(wait as never, def as unknown as WizardDefinition)).toEqual([
       expect.objectContaining({ need: "wait", hard: true }),
     ]);
   });
 
   it("a person's step with a deadline needs a process that stays, and an approval too", () => {
-    const def = { version: 2, title: "T", description: "", avatar: "round", steps: [] };
+    const def = { version: 1, title: "T", description: "", avatar: "round", steps: [] };
     const page = { id: "a", type: "page", title: "A", fields: [], timeout: "1d" };
     const review = { id: "b", type: "review", title: "B", show: [], approve: true };
     const plain = { id: "c", type: "review", title: "C", show: [] };

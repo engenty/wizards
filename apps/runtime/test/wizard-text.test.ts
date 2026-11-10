@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { currentWizardSchema, type WizardDefinition } from "@engenty/wizards-shared/definition";
+import { wizardSchema, type WizardDefinition } from "@engenty/wizards-shared/definition";
 import { parseWizardText, printWizardText } from "@engenty/wizards-shared/wizard-text";
 import { strFromU8, unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
@@ -16,14 +16,14 @@ const examples = readdirSync(examplesDir, { recursive: true, encoding: "utf8" })
     return { file, definition: manifest.definition as WizardDefinition };
   });
 
-const normal = (def: unknown) => currentWizardSchema.parse(def);
+const normal = (def: unknown) => wizardSchema.parse(def);
 const stepIds = (def: WizardDefinition) => def.steps.map((s) => s.id);
 const page = (def: WizardDefinition, id: string) => def.steps.find((s) => s.id === id) as any;
 
 // Part 1's example 1g with its diff applied (docs/plans/fast-creation.md). Its component ids are
 // the compiler's (c1, c2, c3) instead of b, fit, n: rule 5.
 const configurator1g = {
-  version: 2,
+  version: 1,
   title: "Projektkonfigurator",
   lang: "de",
   steps: [
@@ -59,13 +59,13 @@ const configurator1g = {
             "Groß – mehr als 1.000 Produkte",
           ],
           look: "list",
-          when: { field: "type", op: "equals", value: "Shop" },
+          when: { field: "type", op: "eq", value: "Shop" },
         },
         {
           id: "pages",
           label: "Wie viele Seiten?",
           kind: "number",
-          when: { field: "type", op: "equals", value: "Website" },
+          when: { field: "type", op: "eq", value: "Website" },
         },
       ],
     },
@@ -168,7 +168,7 @@ Erstelle ein Projektkonzept für {{type}} mit einem Budget von {{budget}} Euro �
 
 // What durable runs add, and the rest of Part 1, in one wizard: all go through rule 1.
 const durable = {
-  version: 2,
+  version: 1,
   title: "Rechnung freigeben",
   description: "",
   avatar: "round",
@@ -193,7 +193,7 @@ const durable = {
         { id: "c4", component: "Field", name: "note" },
       ],
       next: [
-        { when: [{ field: "amount", op: "gt", value: -5 }, { field: "note", op: "notEmpty" }], goto: "check" },
+        { when: [{ field: "amount", op: "gt", value: -5 }, { field: "note", op: "exists" }], goto: "check" },
         { ask: "Die Rechnung ist doppelt", goto: "end" },
         { goto: "pay" },
       ],
@@ -252,7 +252,7 @@ describe("printWizardText and parseWizardText", () => {
     const text = printWizardText(durable as unknown as WizardDefinition);
     expect(text).toContain("## Neue Rechnung");
     // notEmpty has no expression: that `when` stays JSON.
-    expect(text).toContain('when={[{"field":"amount","op":"gt","value":-5},{"field":"note","op":"notEmpty"}]}');
+    expect(text).toContain('when={[{"field":"amount","op":"gt","value":-5},{"field":"note","op":"exists"}]}');
     expect(text).toContain('when={amount > 1000 or amount < 0}');
     expect(text).toContain('<Next ask="Die Rechnung ist doppelt" goto="end" />');
     expect(text).toContain('<YesNo id="paid" description="Bezahlt?" />');
@@ -279,7 +279,7 @@ describe("printWizardText and parseWizardText", () => {
       value: { calc: "demo / budget" },
       as: "percent",
     });
-    expect(currentWizardSchema.safeParse(parsed.definition).success).toBe(false);
+    expect(wizardSchema.safeParse(parsed.definition).success).toBe(false);
   });
 
   it("compiles expressions: conditions where they can say it, calc and paths otherwise", () => {
@@ -296,7 +296,7 @@ describe("printWizardText and parseWizardText", () => {
     const p = page(definition, "p");
     expect(p.fields.map((f: any) => f.when)).toEqual([
       [
-        { field: "x", op: "equals", value: "Shop" },
+        { field: "x", op: "eq", value: "Shop" },
         { field: "y", op: "gt", value: 2 },
       ],
       { calc: "budget > demo * 2" },

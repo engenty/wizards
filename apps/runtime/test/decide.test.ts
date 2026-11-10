@@ -198,13 +198,11 @@ describe("decided branches and loops", () => {
       },
       {
         id: "check",
-        type: "agent",
+        type: "decision",
         title: "Check",
-        model: "classifier",
         instructions: "Is {{steps.write}} polite?",
-        tools: [],
-        output: { format: "json", fields: [{ id: "ok", kind: "yesno", description: "Polite?" }] },
-        next: [{ when: { field: "steps.check.ok", op: "equals", value: false }, goto: "write", max: 2 }],
+        output: { fields: [{ id: "ok", kind: "yesno", description: "Polite?" }] },
+        next: [{ when: { field: "steps.check.ok", op: "eq", value: false }, goto: "write", max: 2 }],
       },
       { id: "refund", type: "page", title: "Refund", fields: [{ id: "iban", label: "IBAN", kind: "text" }] },
       { id: "exchange", type: "page", title: "Exchange", fields: [{ id: "size", label: "Size", kind: "text" }] },
@@ -230,7 +228,7 @@ describe("decided branches and loops", () => {
       title: "x",
       steps: [
         { id: "p", type: "page", title: "P", fields: [{ id: "a", label: "A", kind: "toggle" }] },
-        { id: "q", type: "page", title: "Q", fields: [{ id: "b", label: "B", kind: "toggle" }], next: [{ when: { field: "b", op: "equals", value: true }, goto: "p" }] },
+        { id: "q", type: "page", title: "Q", fields: [{ id: "b", label: "B", kind: "toggle" }], next: [{ when: { field: "b", op: "eq", value: true }, goto: "p" }] },
         { id: "r", type: "result", title: "R", deliverables: [] },
       ],
     });
@@ -251,7 +249,7 @@ describe("decided branches and loops", () => {
     const text = issuesOf({
       title: "x",
       steps: [
-        { id: "p", type: "page", title: "P", fields: [{ id: "a", label: "A", kind: "text" }], next: [{ goto: "r" }, { when: { field: "a", op: "notEmpty" }, ask: "both", goto: "r" }] },
+        { id: "p", type: "page", title: "P", fields: [{ id: "a", label: "A", kind: "text" }], next: [{ goto: "r" }, { when: { field: "a", op: "exists" }, ask: "both", goto: "r" }] },
         { id: "r", type: "result", title: "R", deliverables: [] },
       ],
     });
@@ -276,7 +274,7 @@ describe("score fields", () => {
       title: "x",
       steps: [
         { id: "p", type: "page", title: "P", fields: [{ id: "mail", label: "M", kind: "textarea" }] },
-        { id: "rate", type: "agent", title: "Rate", model: "classifier", instructions: "{{mail}}", tools: [], output: { format: "json", fields: [{ id: "urgency", kind: "score", description: "How urgent?", options: ["low", "medium", "high"] }] }, next: [{ when: { field: "steps.rate.urgency", op: "equals", value: "high" }, goto: "r" }] },
+        { id: "rate", type: "decision", title: "Rate", instructions: "{{mail}}", output: { fields: [{ id: "urgency", kind: "score", description: "How urgent?", options: ["low", "medium", "high"] }] }, next: [{ when: { field: "steps.rate.urgency", op: "eq", value: "high" }, goto: "r" }] },
         { id: "r", type: "result", title: "R", deliverables: [] },
       ],
     });

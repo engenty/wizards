@@ -1,4 +1,10 @@
-import { type Format, formatsFor, type Step, widgetSize } from "@engenty/wizards-shared/definition";
+import {
+  decisionAsAgent,
+  type Format,
+  formatsFor,
+  type Step,
+  widgetSize,
+} from "@engenty/wizards-shared/definition";
 import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
 import { listAsMarkdown } from "@engenty/wizards-shared/store";
@@ -87,14 +93,16 @@ export async function stepHtml(output: StepOutput): Promise<string | null> {
 
 /** One step's output in one format. Conversions happen on demand. */
 export async function renderDownload(
-  step: Step,
+  given: Step,
   output: StepOutput,
   format: Format,
   baseName: string,
 ): Promise<Download | null> {
-  if (!formatsFor(step).includes(format)) {
+  if (!formatsFor(given).includes(format)) {
     return null;
   }
+  // A decision's answers are data like an agent step's json.
+  const step = given.type === "decision" ? decisionAsAgent(given) : given;
   const name = slug(baseName);
   const file = (ext: string) => `${name}.${ext}`;
 

@@ -5,7 +5,7 @@ version: 0.16.2
 ---
 
 A run can wait for hours or days. Nothing runs meanwhile, it spends no credits, and it survives a
-restart of every process. The keys on this page are all optional, so the format stays at version 2.
+restart of every process. The keys on this page are all optional, so the format stays at version 1.
 
 They come with the switch `durableRuns`, which is off by default. With it off, a wizard with a
 `wait` step doesn’t start. On your computer you switch it on with a line in
@@ -21,7 +21,7 @@ durableRuns=on
 {
   "id": "reply", "type": "wait", "title": "Wait for the reply",
   "signal": { "name": "mail.received", "key": "thread:{{steps.send.thread_id}}", "timeout": "3d" },
-  "next": [{ "when": { "field": "steps.reply.timedOut", "op": "equals", "value": true }, "goto": "remind" }]
+  "next": [{ "when": { "field": "steps.reply.timedOut", "op": "eq", "value": true }, "goto": "remind" }]
 }
 ```
 
@@ -141,7 +141,7 @@ A review with `approve` asks to approve or decline instead of “Looks good”:
 {
   "id": "approveOffer", "type": "review", "title": "Approve the offer",
   "show": ["offer"], "who": "team", "approve": true, "timeout": "2d",
-  "next": [{ "when": { "field": "steps.approveOffer.approved", "op": "equals", "value": false }, "goto": "rewrite" }]
+  "next": [{ "when": { "field": "steps.approveOffer.approved", "op": "eq", "value": false }, "goto": "rewrite" }]
 }
 ```
 
