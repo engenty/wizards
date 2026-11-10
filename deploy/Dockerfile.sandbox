@@ -1,0 +1,35 @@
+# The cloud's sandbox (docs/plans/agentos-sandbox.md, "The cloud"): agentOS in a container of its
+# own, behind the small API of apps/sandbox. One VM per run. Nothing of the runtime is in it: no
+# secrets but the one it shares with the runner, no volumes, no way to the databases.
+# The build context is the repo root: docker build -f deploy/Dockerfile.sandbox .
+FROM node:26-bookworm-slim AS engines
+# `strip` only: agentOS's helper for Linux ships with its debug symbols.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends binutils \
+  && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+# The runtime's installer, as `pnpm sandbox:add agentos` runs it: the same version, the same
+# packed extra programs and the same helper wrapper as a local install.
+COPY apps/runtime/src/sandbox/install.ts apps/runtime/src/sandbox/agentos-package.ts ./apps/runtime/src/sandbox/
+COPY apps/runtime/src/cli/home.ts ./apps/runtime/src/cli/
+RUN echo '{ "type": "module" }' > package.json \
+  && SANDBOX_ENGINES_DIR=/opt/engines npx -y tsx@4.23.15 apps/runtime/src/sandbox/install.ts agentos \
+  && strip --strip-debug /opt/engines/agentos/node_modules/@rivet-dev/agentos-runtime-sidecar-linux-*/agentos-native-sidecar
+
+FROM node:26-bookworm-slim
+ENV NODE_ENV=production \
+    AGENTOS_DIR=/opt/engines/agentos \
+    SANDBOX_PORT=8892 \
+    HOME=/tmp
+COPY --from=engines /opt/engines/agentos /opt/engines/agentos
+WORKDIR /app
+# Node runs the TypeScript as it is (type stripping): no build, no dependencies.
+COPY apps/sandbox/package.json ./
+COPY apps/sandbox/src ./src
+# The image's `node` user (1000), never root. compose.cloud.yaml makes the root file system
+# read-only, with a tmpfs on /tmp.
+USER node
+EXPOSE 8892
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:8892/health',{signal:AbortSignal.timeout(4000)}).then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+CMD ["node", "src/main.ts"]

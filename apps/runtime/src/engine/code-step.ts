@@ -160,7 +160,7 @@ export async function runCode(
       }),
     );
   }
-  const ran = await quickJs().run({
+  const ran = await (await quickJs()).run({
     program: codeProgram(source, input),
     toolIds: [],
     dispatch: async () => {

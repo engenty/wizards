@@ -3,7 +3,8 @@
 # wizards' pages, their API, shared results) and the runner (executes the runs), plus a separate
 # Chromium container. The control database lives on Turso, files in an S3 bucket. The tenant
 # databases are files under /data while the Manage-App's TENANT_DB_PROVISIONER is `none`: the
-# three roles share that one volume, or each would see a tenant of its own.
+# three roles share that one volume, or each would see a tenant of its own. The sandbox (agentOS, the
+# shell and code tool) runs in a container of its own that only the runner reaches.
 # Put a TLS proxy (Coolify/Traefik) in front of port 8891 of `runtime` and `doors` (their label
 # names the proxy's network, `coolify`, Coolify's); on one host
 # the doors take `/w`, `/s`, `/api/public`, `/api/runs`, `/api/shares`, `/embed.js`, `/sw.js` and
@@ -11,8 +12,8 @@
 # `/.well-known/oauth-protected-resource`). Both answer under APP_URL; PUBLIC_URL is for doors on
 # an origin of their own.
 #
-# The server builds nothing: both images are built from apps/runtime/Dockerfile and
-# deploy/Dockerfile.browser on GitHub's runners for every release (.github/workflows/ci.yml, job
+# The server builds nothing: the images are built from apps/runtime/Dockerfile,
+# deploy/Dockerfile.browser and deploy/Dockerfile.sandbox on GitHub's runners for every release (.github/workflows/ci.yml, job
 # `images`) and pulled from GHCR. They serve the studio at an origin's root. IMAGE_TAG pins a
 # release (`v0.2.8`); without it the newest green release runs.
 services:
@@ -154,6 +155,13 @@ services:
       # An outside monitor's heartbeat address: it alerts when the runner stops pinging.
       HEARTBEAT_URL: ${HEARTBEAT_URL:-}
       SANDBOX: "off"
+      # The shell and code tool in the `sandbox` container (docs/plans/agentos-sandbox.md, "The
+      # cloud"). On: these four lines instead of SANDBOX "off" above, and the same SANDBOX_SECRET on
+      # the `sandbox` service. SANDBOX_GUESTS gives a guest's run (a visitor's, a channel's) one too.
+      # SANDBOX: agentos-remote
+      # SANDBOX_URL: http://172.30.6.13:8892
+      # SANDBOX_SECRET: ${SANDBOX_SECRET:?32 characters or more, the same on the sandbox}
+      # SANDBOX_GUESTS: agentos-remote
       BROWSER_CDP_URL: http://172.30.5.10:9222
     volumes:
       - runtime-cache:/data
@@ -161,6 +169,8 @@ services:
       default:
       browser:
         ipv4_address: 172.30.5.13
+      sandbox:
+        ipv4_address: 172.30.6.10
     depends_on:
       - browser
     healthcheck:
@@ -215,11 +225,49 @@ services:
       retries: 3
       start_period: 20s
 
+  # agentOS for the runner's runs (deploy/Dockerfile.sandbox, apps/sandbox): one VM per run, at
+  # most SANDBOX_MAX_VMS at once. On its own network with the runner and nothing else: no
+  # databases, no other container, no volume, no secret but the one it shares with the runner.
+  # Outbound it reaches the internet; the host's firewall keeps it off the host and the private
+  # networks (docs/plans/agentos-sandbox.md, "The cloud").
+  sandbox:
+    image: ghcr.io/engenty/engenty-wizards-sandbox:${IMAGE_TAG:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      # Until the runner's SANDBOX is switched on, a placeholder: the API answers nobody.
+      SANDBOX_SECRET: ${SANDBOX_SECRET:-}
+      SANDBOX_MAX_VMS: ${SANDBOX_MAX_VMS:-4}
+      SANDBOX_IDLE_MINUTES: ${SANDBOX_IDLE_MINUTES:-30}
+    user: "1000:1000"
+    read_only: true
+    # The VMs live in the helper's memory; /tmp is for what the helper and Node write.
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges]
+    # About 400 MB for agentOS's helper, up to 900 MB for a VM with pandas.
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2
+    pids_limit: 512
+    networks:
+      sandbox:
+        ipv4_address: 172.30.6.13
+
 networks:
   browser:
     ipam:
       config:
         - subnet: 172.30.5.0/24
+  # The runner and the sandbox. Its bridge has a fixed name, so the host's firewall can hold it to
+  # the internet (docs/plans/agentos-sandbox.md, "The cloud").
+  sandbox:
+    driver_opts:
+      com.docker.network.bridge.name: br-wz-sandbox
+    ipam:
+      config:
+        - subnet: 172.30.6.0/24
 
 volumes:
   runtime-cache:

@@ -41,7 +41,7 @@ ENV APP_BASE_PATH=$APP_BASE_PATH
 RUN pnpm build
 
 # Sandbox engines that aren't part of the runtime (docs/plans/agentos-sandbox.md), only those
-# named: `--build-arg SANDBOX_ENGINES=agentos` (about 340 MB). Its own stage, fed with just the
+# named: `--build-arg SANDBOX_ENGINES=agentos` (about 820 MB). Its own stage, fed with just the
 # installer, so a release that leaves the installer as it was reuses the layer instead of
 # downloading the engines again.
 FROM base AS engines
