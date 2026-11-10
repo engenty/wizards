@@ -1,0 +1,7 @@
+# deploy/Dockerfile.sandbox needs the sandbox's API and the runtime's installer, nothing else.
+*
+!apps/sandbox/package.json
+!apps/sandbox/src
+!apps/runtime/src/sandbox/install.ts
+!apps/runtime/src/sandbox/agentos-package.ts
+!apps/runtime/src/cli/home.ts

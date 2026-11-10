@@ -1,6 +1,7 @@
 import { env } from "../env.js";
 import { prompt } from "../prompts.js";
 import { agentOsEngine } from "./agentos.js";
+import { agentOsRemoteEngine } from "./agentos-remote.js";
 import { DOCKER_CAPABILITIES, dockerEngine } from "./docker.js";
 import type { Sandbox, SandboxCapabilities, SandboxEngine } from "./types.js";
 
@@ -20,7 +21,10 @@ export {
  * here: one of Mastra's sandboxes through MastraRunSandbox (mastra.ts), its package installed
  * with `wizards sandbox add <name>` when it isn't a dependency of the runtime (install.ts).
  */
-export const ENGINES: readonly SandboxEngine[] = [dockerEngine, agentOsEngine];
+export const ENGINES: readonly SandboxEngine[] = [dockerEngine, agentOsEngine, agentOsRemoteEngine];
+
+/** The engines a guest's run may get: agentOS, in the runtime or in the sandbox container. */
+const GUEST_ENGINES = ["agentos", "agentos-remote"];
 
 /**
  * `off`: none. An engine's name: that one, ready or not; it says what is missing when a run
@@ -46,9 +50,10 @@ export function pickEngine(
 }
 
 /**
- * The engine for a guest's run, from `SANDBOX_GUESTS`: `off` (the default): none. `agentos`: that
- * engine when it is ready here, else none. Never Docker: a guest's step there could install and
- * send anything (docs/plans/capabilities.md, A1). Anything else is said once and means off.
+ * The engine for a guest's run, from `SANDBOX_GUESTS`: `off` (the default): none. `agentos` or
+ * `agentos-remote`: that engine when it is ready here, else none. Never Docker: a guest's step
+ * there could install and send anything (docs/plans/capabilities.md, A1). Anything else is said
+ * once and means off.
  */
 export function pickGuestEngine(
   engines: readonly SandboxEngine[],
@@ -57,14 +62,18 @@ export function pickGuestEngine(
   if (!requested || requested === "off") {
     return null;
   }
-  if (requested !== "agentos") {
-    console.warn(`SANDBOX_GUESTS=${requested} is no engine for guests (agentos or off): off.`);
+  if (!GUEST_ENGINES.includes(requested)) {
+    console.warn(
+      `SANDBOX_GUESTS=${requested} is no engine for guests (${GUEST_ENGINES.join(", ")} or off): off.`,
+    );
     return null;
   }
   const engine = engines.find((e) => e.name === requested) ?? null;
   if (!engine?.ready()) {
     console.warn(
-      "SANDBOX_GUESTS=agentos, but agentOS is not installed here: guests get no sandbox.",
+      requested === "agentos"
+        ? "SANDBOX_GUESTS=agentos, but agentOS is not installed here: guests get no sandbox."
+        : `SANDBOX_GUESTS=${requested}, but SANDBOX_URL or SANDBOX_SECRET is missing: guests get no sandbox.`,
     );
     return null;
   }
