@@ -126,7 +126,7 @@ export interface RunHost {
   /** Does a step's or a decision's work, under the host's deadline for `kind` (a step type, or "decision"). */
   within<T>(kind: string, work: (signal: AbortSignal) => Promise<T>): Promise<T>;
   /** A step or a decision did its work: the host books what it cost, before its move is written. */
-  spent?(stepId: string): Promise<void>;
+  spent?(stepId: string, kind: "step" | "decision"): Promise<void>;
 
   /** Stops the run's work; nothing more is written once it is aborted. */
   signal: AbortSignal;

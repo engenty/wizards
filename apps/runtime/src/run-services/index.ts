@@ -1,3 +1,4 @@
+import { runAgentStep } from "@engenty/wizards-engine/steps/index";
 import type {
   AgentModel as EngineAgentModel,
   StepContext,
@@ -41,7 +42,6 @@ import {
   textModel,
   totalUsage,
 } from "../models.js";
-import type { RunAgentStep } from "../tools/agent.js";
 import { contextService } from "./context.js";
 import { dataService } from "./data.js";
 import { filesService, type InProcessFiles } from "./files.js";
@@ -115,14 +115,9 @@ async function streamed(
 
 /**
  * The services of one run. `ctx`: the step context they were made with, asked when a call needs
- * it; a call for another step works with the same context under that step's id. `runAgent`: the
- * engine's agent step, for the tools that hand a task to one of the wizard's agents.
+ * it; a call for another step works with the same context under that step's id.
  */
-export function inProcessServices(
-  run: RunRow,
-  ctx: () => InProcessContext,
-  runAgent: RunAgentStep,
-): InProcessServices {
+export function inProcessServices(run: RunRow, ctx: () => InProcessContext): InProcessServices {
   const at = (stepId: string): InProcessContext => {
     const c = ctx();
     return c.stepId === stepId ? c : { ...c, stepId, call: { ...c.call, stepId } };
@@ -262,7 +257,8 @@ export function inProcessServices(
       at,
       within,
       agentModel: models.agentModel,
-      runAgent,
+      // The engine's agent step, for the tools that hand a task to one of the wizard's agents.
+      runAgent: runAgentStep,
     }),
 
     context: contextService(run, at),
