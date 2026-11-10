@@ -29,7 +29,7 @@ const DURABLE_KEYS: ReadonlySet<string> = new Set([
 
 /** What each step is for, in one line. */
 const STEP_PURPOSE: Record<string, string> = {
-  page: "a page the person answers",
+  form: "a page the person answers",
   agent: "an AI step that writes, researches or calls tools",
   decision:
     "answers yes/no, choice or score questions about the run in one cheap call; branch on them",
@@ -133,7 +133,7 @@ export function wizardTextTags(opts: { durableRuns: boolean }): string {
     }
     const leaveOut = new Set(["type", "next", STEP_TEXT[name] ?? ""]);
     let children = "";
-    if (name === "page") {
+    if (name === "form") {
       leaveOut.add("fields");
       leaveOut.add("components");
       children = " Children: <Field>, components, Markdown.";

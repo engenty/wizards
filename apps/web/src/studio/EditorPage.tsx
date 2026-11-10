@@ -97,7 +97,7 @@ type Column = "flow" | "edit";
 type ColumnPick = "settings" | "flow" | "edit" | "result";
 const COLUMN_KEY = "wizards.editor.column";
 /** Steps a person sees: shown first; the others are edited first where there is no room for both. */
-const SHOWN_FIRST = new Set(["page", "review", "result"]);
+const SHOWN_FIRST = new Set(["form", "review", "result"]);
 
 /**
  * A column's width on wide screens, dragged at its inner edge; remembered per browser. `dir` is

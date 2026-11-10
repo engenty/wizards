@@ -36,7 +36,7 @@ let app: { fetch: (r: Request) => Promise<Response> };
 const T = "local";
 const page = (id: string) => ({
   id,
-  type: "page",
+  type: "form",
   title: id,
   fields: [{ id: `${id}_f`, kind: "text", label: "T" }],
 });

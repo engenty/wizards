@@ -42,7 +42,7 @@ const definition = {
   description: "",
   avatar: "round",
   steps: [
-    { id: "a", type: "page", title: "A", fields: [{ id: "aF", label: "F", kind: "text" }] },
+    { id: "a", type: "form", title: "A", fields: [{ id: "aF", label: "F", kind: "text" }] },
     { id: "done", type: "result", title: "Done", deliverables: [] },
   ],
 };

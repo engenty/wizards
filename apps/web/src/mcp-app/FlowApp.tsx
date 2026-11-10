@@ -100,7 +100,7 @@ interface RunReport {
   waitingFor?:
     | { answeredBy: "person" | "owner" | "team"; title: string }
     | { wait: string; title: string; until: string | null; pause?: RunPause }
-    | { page: string; title: string; fields: RunField[] }
+    | { form: string; title: string; fields: RunField[] }
     | { review: string; title: string; show: string[]; editable: boolean; approve?: boolean }
     | { ask: string; kind: "confirm"; reason: string; service: string; action: string }
     | { ask: string; kind: "login"; reason: string; site: string }
@@ -703,13 +703,13 @@ function RunPanel({
         <p className="text-[0.8125rem] text-ink-3">{t("run.leavePage")}</p>
       </div>
     );
-  } else if (waiting && "page" in waiting) {
+  } else if (waiting && "form" in waiting) {
     body = (
       <PageForm
-        key={`${report.runId}-${waiting.page}`}
+        key={`${report.runId}-${waiting.form}`}
         fields={waiting.fields}
         busy={busy}
-        onSubmit={(values) => act("answer_page", { stepId: waiting.page, values, waitSeconds: 3 })}
+        onSubmit={(values) => act("answer_form", { stepId: waiting.form, values, waitSeconds: 3 })}
         onBrowser={toRunPage}
       />
     );

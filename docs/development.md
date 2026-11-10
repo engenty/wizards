@@ -553,7 +553,7 @@ open editor.
 
 The same MCP server runs published wizards for the person, in the chat (`apps/runtime/src/mcp/tools.ts`,
 `apps/runtime/src/services/runs.ts`): `show_wizard` (the flow), `run_wizard` (a live run that is
-the caller's, no visitor, no Turnstile), then what `waitingFor` names — `answer_page`,
+the caller's, no visitor, no Turnstile), then what `waitingFor` names — `answer_form`,
 `review_step`, `answer_ask` (allow or skip a change in a connected account), `get_run` with
 `waitSeconds`, `control_run` (back, retry, cancel). Fields a chat cannot fill (files, recordings,
 signatures, line items) say `inChat: false`; the run page at `browserUrl` (`/w/<token>/<runId>`)

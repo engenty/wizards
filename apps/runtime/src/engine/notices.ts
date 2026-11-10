@@ -368,7 +368,7 @@ const later = (row: NoticeRow, at: Date) => mark(row.id, { dueAt: at, claimUntil
 /** The address a visitor left for this: the first `email` field with `notify` that has an answer. */
 export function visitorAddress(run: Pick<RunRow, "definition" | "state">): string | null {
   for (const step of run.definition.steps) {
-    if (step.type !== "page") {
+    if (step.type !== "form") {
       continue;
     }
     for (const field of step.fields) {

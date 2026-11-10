@@ -81,7 +81,7 @@ const definition = {
   description: "Leads into HubSpot",
   avatar: "dome",
   steps: [
-    { id: "start", type: "page", title: "You", fields: [{ id: "email", kind: "text", label: "Mail" }] },
+    { id: "start", type: "form", title: "You", fields: [{ id: "email", kind: "text", label: "Mail" }] },
     { id: "done", type: "result", title: "Done", deliverables: [] },
   ],
 };

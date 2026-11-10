@@ -10,7 +10,7 @@ import {
   branchValues,
   DEFAULT_LOOP_MAX,
   followRules,
-  type PageStep,
+  type FormStep,
   parseWizard,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
@@ -36,7 +36,7 @@ vi.mock("ai", () => ({
 }));
 
 const { decide } = await import("../src/engine/decide");
-const { readPageInput } = await import("../src/engine/input");
+const { readFormInput } = await import("../src/engine/input");
 const { stepClasses } = await import("../src/engine/requirements");
 
 const questions: Record<string, DecisionQuestion> = {
@@ -183,7 +183,7 @@ describe("decided branches and loops", () => {
   const def = valid({
     title: "x",
     steps: [
-      { id: "mail", type: "page", title: "Mail", fields: [{ id: "text", label: "Text", kind: "textarea" }, { id: "amount", label: "A", kind: "number" }] },
+      { id: "mail", type: "form", title: "Mail", fields: [{ id: "text", label: "Text", kind: "textarea" }, { id: "amount", label: "A", kind: "number" }] },
       {
         id: "write",
         type: "agent",
@@ -204,9 +204,9 @@ describe("decided branches and loops", () => {
         output: { fields: [{ id: "ok", kind: "yesno", description: "Polite?" }] },
         next: [{ when: { field: "steps.check.ok", op: "eq", value: false }, goto: "write", max: 2 }],
       },
-      { id: "refund", type: "page", title: "Refund", fields: [{ id: "iban", label: "IBAN", kind: "text" }] },
-      { id: "exchange", type: "page", title: "Exchange", fields: [{ id: "size", label: "Size", kind: "text" }] },
-      { id: "boss", type: "page", title: "Boss", fields: [{ id: "ok", label: "OK", kind: "toggle" }] },
+      { id: "refund", type: "form", title: "Refund", fields: [{ id: "iban", label: "IBAN", kind: "text" }] },
+      { id: "exchange", type: "form", title: "Exchange", fields: [{ id: "size", label: "Size", kind: "text" }] },
+      { id: "boss", type: "form", title: "Boss", fields: [{ id: "ok", label: "OK", kind: "toggle" }] },
       { id: "r", type: "result", title: "R", deliverables: [] },
     ],
   });
@@ -227,8 +227,8 @@ describe("decided branches and loops", () => {
     const loop = valid({
       title: "x",
       steps: [
-        { id: "p", type: "page", title: "P", fields: [{ id: "a", label: "A", kind: "toggle" }] },
-        { id: "q", type: "page", title: "Q", fields: [{ id: "b", label: "B", kind: "toggle" }], next: [{ when: { field: "b", op: "eq", value: true }, goto: "p" }] },
+        { id: "p", type: "form", title: "P", fields: [{ id: "a", label: "A", kind: "toggle" }] },
+        { id: "q", type: "form", title: "Q", fields: [{ id: "b", label: "B", kind: "toggle" }], next: [{ when: { field: "b", op: "eq", value: true }, goto: "p" }] },
         { id: "r", type: "result", title: "R", deliverables: [] },
       ],
     });
@@ -249,7 +249,7 @@ describe("decided branches and loops", () => {
     const text = issuesOf({
       title: "x",
       steps: [
-        { id: "p", type: "page", title: "P", fields: [{ id: "a", label: "A", kind: "text" }], next: [{ goto: "r" }, { when: { field: "a", op: "exists" }, ask: "both", goto: "r" }] },
+        { id: "p", type: "form", title: "P", fields: [{ id: "a", label: "A", kind: "text" }], next: [{ goto: "r" }, { when: { field: "a", op: "exists" }, ask: "both", goto: "r" }] },
         { id: "r", type: "result", title: "R", deliverables: [] },
       ],
     });
@@ -273,7 +273,7 @@ describe("score fields", () => {
     valid({
       title: "x",
       steps: [
-        { id: "p", type: "page", title: "P", fields: [{ id: "mail", label: "M", kind: "textarea" }] },
+        { id: "p", type: "form", title: "P", fields: [{ id: "mail", label: "M", kind: "textarea" }] },
         { id: "rate", type: "decision", title: "Rate", instructions: "{{mail}}", output: { fields: [{ id: "urgency", kind: "score", description: "How urgent?", options: ["low", "medium", "high"] }] }, next: [{ when: { field: "steps.rate.urgency", op: "eq", value: "high" }, goto: "r" }] },
         { id: "r", type: "result", title: "R", deliverables: [] },
       ],
@@ -304,7 +304,7 @@ describe("each on agent steps", () => {
       steps: [
         research,
         { id: "visit", type: "agent", title: "V", instructions: "Read {{item.url}} ({{index}} of {{count}})", tools: ["web_fetch"], each: "steps.research.suppliers", output: { format: "json", fields: [{ id: "price", kind: "number" }] } },
-        { id: "pick", type: "page", title: "P", fields: [{ id: "s", label: "S", kind: "select", optionsFrom: "steps.visit.rows.name" }] },
+        { id: "pick", type: "form", title: "P", fields: [{ id: "s", label: "S", kind: "select", optionsFrom: "steps.visit.rows.name" }] },
         { id: "r", type: "result", title: "R", deliverables: [] },
       ],
     });
@@ -322,9 +322,9 @@ describe("each on agent steps", () => {
 });
 
 describe("decided fields", () => {
-  const page: PageStep = {
+  const page: FormStep = {
     id: "details",
-    type: "page",
+    type: "form",
     title: "Details",
     groups: [{ id: "contact", instructions: "How should we reach the person?", optional: true }],
     fields: [
@@ -336,12 +336,12 @@ describe("decided fields", () => {
   };
 
   it("are asked only when a decision kept them", () => {
-    const kept = readPageInput(page, { name: "Ada", phone: "0664 123" }, { decided: ["phone"] });
+    const kept = readFormInput(page, { name: "Ada", phone: "0664 123" }, { decided: ["phone"] });
     expect(kept.errors).toEqual([]);
     expect(kept.values).toEqual({ name: "Ada", phone: "0664 123" });
     // E-mail was not kept: not required, not stored.
-    expect(readPageInput(page, { name: "Ada", mail: "a@b.c" }, { decided: ["phone"] }).values).toEqual({ name: "Ada" });
-    expect(readPageInput(page, { name: "Ada" }, { decided: ["phone"] }).errors.map((e) => e.field)).toEqual(["phone"]);
+    expect(readFormInput(page, { name: "Ada", mail: "a@b.c" }, { decided: ["phone"] }).values).toEqual({ name: "Ada" });
+    expect(readFormInput(page, { name: "Ada" }, { decided: ["phone"] }).errors.map((e) => e.field)).toEqual(["phone"]);
   });
 
   it("are checked by the validator", () => {

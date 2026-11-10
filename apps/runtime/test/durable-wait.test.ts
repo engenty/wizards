@@ -252,7 +252,7 @@ describe("wait 2 days", () => {
 
   it("a person cannot answer, go back or retry while it sleeps, and is offered neither", async () => {
     const id = await start([
-      { id: "ask", type: "page", title: "Ask", fields: [{ id: "x", kind: "text", label: "X" }] },
+      { id: "ask", type: "form", title: "Ask", fields: [{ id: "x", kind: "text", label: "X" }] },
       pause(),
       end,
     ]);
@@ -305,7 +305,7 @@ describe("wait until a date", () => {
   it("waits until an answer's date", async () => {
     const at = new Date(Date.now() + 5 * 86_400_000).toISOString();
     const id = await start([
-      { id: "ask", type: "page", title: "Ask", fields: [{ id: "due", kind: "text", label: "D" }] },
+      { id: "ask", type: "form", title: "Ask", fields: [{ id: "due", kind: "text", label: "D" }] },
       pause({ until: "{{due}}" }),
       end,
     ]);
@@ -323,7 +323,7 @@ describe("wait until a date", () => {
 
   it("an answer that is no date fails the run, and says so", async () => {
     const id = await start([
-      { id: "ask", type: "page", title: "Ask", fields: [{ id: "due", kind: "text", label: "D" }] },
+      { id: "ask", type: "form", title: "Ask", fields: [{ id: "due", kind: "text", label: "D" }] },
       pause({ until: "{{due}}" }),
       end,
     ]);

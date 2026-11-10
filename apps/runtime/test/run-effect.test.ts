@@ -88,7 +88,7 @@ const held = () =>
 
 const page = {
   id: "start",
-  type: "page",
+  type: "form",
   title: "You",
   fields: [{ id: "email", kind: "text", label: "Mail" }],
 };

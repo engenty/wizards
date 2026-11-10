@@ -900,7 +900,7 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
         out.push({ id: a.id, label: s.title });
       }
     }
-    if (s.type === "page") {
+    if (s.type === "form") {
       for (const f of s.fields) {
         const v = ctx.state.values[f.id];
         if (f.kind === "signature" && typeof v === "string" && v) {

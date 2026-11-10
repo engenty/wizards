@@ -29,7 +29,7 @@ const configurator1g = {
   steps: [
     {
       id: "type",
-      type: "page",
+      type: "form",
       title: "Was möchtest du bauen?",
       section: "Projekttyp",
       fields: [
@@ -44,7 +44,7 @@ const configurator1g = {
     },
     {
       id: "needs",
-      type: "page",
+      type: "form",
       title: "Wie groß ist dein Shop?",
       section: "Anforderungen",
       fields: [
@@ -71,7 +71,7 @@ const configurator1g = {
     },
     {
       id: "budget",
-      type: "page",
+      type: "form",
       title: "Wie hoch ist dein Budget?",
       section: "Budget",
       fields: [
@@ -175,7 +175,7 @@ const durable = {
   steps: [
     {
       id: "ask",
-      type: "page",
+      type: "form",
       title: "Rechnung",
       section: "Eingang",
       who: "owner",

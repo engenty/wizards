@@ -16,7 +16,7 @@ const fallback = atom({ plugin: "wizards", key: "fallback" } as const, null);
 const RUN_TOOLS = new Set([
   "run_wizard",
   "get_run",
-  "answer_page",
+  "answer_form",
   "answer_ask",
   "review_step",
   "control_run",

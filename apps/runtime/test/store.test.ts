@@ -72,7 +72,7 @@ const wizard = {
   steps: [
     {
       id: "start",
-      type: "page",
+      type: "form",
       title: "Start",
       fields: [
         { id: "mail", label: "Postfach", kind: "connection", connection: "mailbox", required: true },

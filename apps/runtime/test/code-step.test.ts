@@ -11,7 +11,7 @@ import { CODE_STEP_LIMITS, codeOutput, runCode } from "../src/engine/code-step.j
 const end = { id: "done", type: "result", title: "Done", deliverables: [] };
 const ask = {
   id: "ask",
-  type: "page",
+  type: "form",
   title: "Ask",
   fields: [
     { id: "budget", label: "Budget", kind: "number" },

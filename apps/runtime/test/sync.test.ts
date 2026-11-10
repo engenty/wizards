@@ -119,7 +119,7 @@ const definition = (title: string, steps: { id: string; title: string }[]) => ({
   steps: [
     ...steps.map((s) => ({
       id: s.id,
-      type: "page",
+      type: "form",
       title: s.title,
       fields: [{ id: `${s.id}F`, label: "F", kind: "text" }],
     })),

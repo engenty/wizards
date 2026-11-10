@@ -94,7 +94,7 @@ describe("wizards validate", () => {
   it("names where the shape is wrong, and answers with 1", () => {
     const path = write(
       "broken.json",
-      JSON.stringify({ title: "x", steps: [{ id: "ask", type: "page", title: 3 }] }),
+      JSON.stringify({ title: "x", steps: [{ id: "ask", type: "form", title: 3 }] }),
     );
     const r = validatePath(path);
     expect(r.ok).toBe(false);

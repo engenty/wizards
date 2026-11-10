@@ -144,7 +144,7 @@ stand together: “A”, “B”, “A” is an issue.
 
 | Type | What it does | Page |
 |---|---|---|
-| `page` | Asks the person, one to five fields | [Pages and fields](./pages-and-fields.md) |
+| `form` | Asks the person, one to five fields | [Forms and fields](./forms-and-fields.md) |
 | `agent` | An AI step: researches, writes, calls tools | [Agent steps](./agent-steps.md) |
 | `decision` | Answers yes or no, a choice or a score about the run, in one cheap call | [Agent steps](./agent-steps.md#decisions) |
 | `generate` | Makes an image, a video, a voice-over, a document or a dashboard | [Images, video and documents](./generate-steps.md) |
@@ -178,7 +178,7 @@ Steps run from top to bottom unless a step’s `next` sends the run elsewhere. S
   "lang": "en",
   "steps": [
     {
-      "id": "about", "type": "page", "title": "What is it about?",
+      "id": "about", "type": "form", "title": "What is it about?",
       "fields": [
         { "id": "topic", "label": "Topic or occasion", "kind": "textarea", "required": true },
         { "id": "tone", "label": "Tone", "kind": "select",

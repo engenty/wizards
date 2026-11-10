@@ -52,7 +52,7 @@ views can [ask for a value](#inputs-in-a-view) that changes the view.
 
 `candidates` replaces `components` when the view should change per run. Each candidate is a piece
 with a `description`, and a decision picks the pieces that fit: no chart when there is nothing to
-chart. `group` and `groups` work as on [pages](./pages-and-fields.md#fields-that-show-only-when-they-fit),
+chart. `group` and `groups` work as on [forms](./forms-and-fields.md#fields-that-show-only-when-they-fit),
 and `required` pieces always show.
 
 The MCP tool `get_authoring_guide` lists every component with its props.

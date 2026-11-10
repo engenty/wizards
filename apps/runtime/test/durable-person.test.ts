@@ -88,7 +88,7 @@ const agent = (id: string) => ({
 });
 const ask = (more: object = { timeout: "2d" }) => ({
   id: "ask",
-  type: "page",
+  type: "form",
   title: "Ask",
   fields: [{ id: "x", kind: "text", label: "X" }],
   ...more,
@@ -306,7 +306,7 @@ describe("a page with a timeout", () => {
       const view = await runner.runView(r as never, {} as never);
       expect(view.wakeAt).toBe(r?.wakeAt?.toISOString());
       const report = await reports.runReport("u", id);
-      expect(report.waitingFor).toMatchObject({ page: "ask", until: r?.wakeAt?.toISOString() });
+      expect(report.waitingFor).toMatchObject({ form: "ask", until: r?.wakeAt?.toISOString() });
     });
   });
 

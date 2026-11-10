@@ -169,7 +169,7 @@ export function placeholdersFor(def: WizardDefinition, step: ResultStep): Placeh
   const before = def.steps.slice(0, def.steps.indexOf(step));
   return [
     ...before.flatMap((s) =>
-      s.type === "page"
+      s.type === "form"
         ? s.fields
             .filter((f) => f.kind !== "image" && f.kind !== "file" && f.kind !== "signature")
             .map((f) => ({ ref: f.id, label: f.label }))

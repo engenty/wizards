@@ -129,7 +129,7 @@ export function runAddresses(run: {
 }): string[] {
   const own = new Set<string>();
   for (const step of run.definition.steps) {
-    if (step.type !== "page") {
+    if (step.type !== "form") {
       continue;
     }
     for (const field of step.fields ?? []) {

@@ -41,7 +41,7 @@ const T = "local";
 const SECRET_ANSWER = "the-answer-nobody-logs";
 const page = (id: string) => ({
   id,
-  type: "page",
+  type: "form",
   title: id,
   fields: [{ id: `${id}_f`, kind: "text", label: "F", required: false }],
 });

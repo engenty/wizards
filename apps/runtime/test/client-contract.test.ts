@@ -146,7 +146,7 @@ beforeAll(async () => {
         steps: [
           {
             id: "start",
-            type: "page",
+            type: "form",
             title: "Anfrage",
             fields: [{ id: "what", kind: "textarea", label: "Worum geht es?" }],
           },

@@ -149,7 +149,7 @@ beforeAll(async () => {
     description: "Anfragen",
     avatar: "dome",
     steps: [
-      { id: "start", type: "page", title: "Du", fields: [{ id: "email", kind: "text", label: "Mail" }] },
+      { id: "start", type: "form", title: "Du", fields: [{ id: "email", kind: "text", label: "Mail" }] },
       { id: "done", type: "result", title: "Fertig", deliverables: [] },
     ],
   };

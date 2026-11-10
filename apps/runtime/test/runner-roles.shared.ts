@@ -31,7 +31,7 @@ export function webRoleLeavesRunsToRunner(role: "web" | "studio" | "doors") {
     description: "",
     avatar: "round",
     steps: [
-      { id: "start", type: "page", title: "Start", fields: [{ id: "name", kind: "text", label: "Name" }] },
+      { id: "start", type: "form", title: "Start", fields: [{ id: "name", kind: "text", label: "Name" }] },
       { id: "done", type: "result", title: "Fertig", deliverables: [] },
     ],
   };

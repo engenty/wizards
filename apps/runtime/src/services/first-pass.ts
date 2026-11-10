@@ -87,7 +87,7 @@ export function fixDraft(
   });
   const fieldIds = new Set<string>();
   for (const step of steps) {
-    if (step.type !== "page" || !Array.isArray(step.fields)) {
+    if (step.type !== "form" || !Array.isArray(step.fields)) {
       continue;
     }
     // With components, the n-th field is placed by the n-th Field component (wizard-text.ts).

@@ -69,7 +69,7 @@ A decision’s answer has a probability: `steps.<id>.<field>.p`, from 0 to 1. A 
 for example `{ "field": "steps.check.urgent.p", "op": "gt", "value": 0.8 }`.
 
 The same conditions show or hide fields on a page. See
-[Pages and fields](./pages-and-fields.md#fields-that-show-only-when-they-fit).
+[Forms and fields](./forms-and-fields.md#fields-that-show-only-when-they-fit).
 
 ## A test conditions cannot write
 

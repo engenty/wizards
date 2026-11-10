@@ -48,7 +48,7 @@ export default definePlugin((wizards) => {
 | `channels.get()`, `request`, `withdraw`, `book` | The numbers the Manage-App gives the tenant | below |
 | `claims.take(key)`, `put`, `drop`, `holder`, `mine` | Keys held across tenants, one tenant each | below |
 | `registerRunner(runner)` | A door a wizard runs through, beside the page and the chat | [Runners](./runners.md) |
-| `runs.start(…)`, `report`, `answerPage`, … | Drives runs from the plugin’s own door | [Runners](./runners.md#drive-a-run) |
+| `runs.start(…)`, `report`, `answerForm`, … | Drives runs from the plugin’s own door | [Runners](./runners.md#drive-a-run) |
 | `speech.conversation()` | The tenant’s realtime speech model, for a call | [Runners](./runners.md#a-call) |
 | `registerMigrations(folder)` | `.sql` files with the plugin’s tables | [Tables](./tables.md) |
 | `on(event, listener)` | Called when a run ends or a space changes | [Events](./events.md) |

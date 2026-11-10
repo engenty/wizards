@@ -46,7 +46,7 @@ export function run(input: { budget: number; note: string; today: string }) {
 `;
 const ask = {
   id: "ask",
-  type: "page",
+  type: "form",
   title: "Ask",
   fields: [
     { id: "budget", label: "Budget", kind: "number" },

@@ -1066,7 +1066,7 @@ export type PluginRunWaiting =
       hint: string;
     }
   | {
-      page: string;
+      form: string;
       title: string;
       known: Record<string, unknown>;
       fields: PluginRunField[];
@@ -1194,12 +1194,12 @@ export interface PluginRuns {
   wizards(
     runner: string,
   ): Promise<{ wizardId: string; token: string; title: string; lang: "de" | "en" }[]>;
-  answerPage(runId: string, stepId: string, values: Record<string, unknown>): Promise<void>;
+  answerForm(runId: string, stepId: string, values: Record<string, unknown>): Promise<void>;
   review(runId: string, stepId: string, action: PluginReviewAction): Promise<void>;
   /**
    * What the person wrote while the run stands at a wait: a wait for `message.received` takes it
    * as its signal. Null: this wait does not; the message goes nowhere else. A person's step takes
-   * what they write as the answer (`answerPage`), never both.
+   * what they write as the answer (`answerForm`), never both.
    */
   message(
     runId: string,
@@ -1214,7 +1214,7 @@ export interface PluginRuns {
   subscribe(runId: string, listener: (signal: PluginRunSignal) => void): () => void;
   /** The run page with the run's ticket: the link to send the person for what the door cannot do. */
   handoffUrl(runId: string): Promise<string>;
-  /** A file of the person (a photo sent in the thread): the asset id goes into a field with `answerPage`. */
+  /** A file of the person (a photo sent in the thread): the asset id goes into a field with `answerForm`. */
   upload(
     runId: string,
     file: { data: Uint8Array | ArrayBuffer; mime: string; name: string },

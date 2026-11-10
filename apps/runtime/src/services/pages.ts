@@ -84,7 +84,7 @@ export function pageLangOf(def: WizardDefinition, fallback: PageLang): PageLang 
 
 /** Who acts in a step: the person on a page, in a review or a surface; the AI everywhere else. */
 const by = (step: Step): "you" | "ai" =>
-  step.type === "page" || step.type === "review" || step.type === "surface" ? "you" : "ai";
+  step.type === "form" || step.type === "review" || step.type === "surface" ? "you" : "ai";
 
 /** "A und B", "A, B und C". */
 function joinTitles(titles: string[], lang: PageLang): string {
@@ -236,7 +236,7 @@ export async function pageOrganization(): Promise<PageOrganization | null> {
     const wizardLanguage = pageLangOf(def, lang);
     const effort = effortOf(def);
     const uploads = def.steps.some(
-      (s) => s.type === "page" && s.fields.some((f) => UPLOAD_KINDS.has(f.kind)),
+      (s) => s.type === "form" && s.fields.some((f) => UPLOAD_KINDS.has(f.kind)),
     );
     const exampleToken = page.examples[w.id];
     const example = exampleToken

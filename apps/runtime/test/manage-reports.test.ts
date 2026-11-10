@@ -165,7 +165,7 @@ const definition = {
   steps: [
     {
       id: "note",
-      type: "page",
+      type: "form",
       title: "Notiz",
       fields: [{ id: "text", kind: "text", label: "Notiz", required: true }],
     },

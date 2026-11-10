@@ -88,7 +88,7 @@ const definition = {
   avatar: "dome",
   connections: [{ id: "hub", connector: "hubspot" }],
   steps: [
-    { id: "start", type: "page", title: "You", fields: [{ id: "email", kind: "email", label: "Mail" }] },
+    { id: "start", type: "form", title: "You", fields: [{ id: "email", kind: "email", label: "Mail" }] },
     {
       id: "sync",
       type: "agent",

@@ -24,7 +24,7 @@ const wizard = (id: string, title: string, published: boolean, shared = publishe
     description: `${title} macht etwas.`,
     avatar: "round",
     steps: [
-      { id: "first", type: "page", title: "Thema" },
+      { id: "first", type: "form", title: "Thema" },
       { id: "write", type: "result", title: "Fertig" },
     ],
   },
@@ -38,7 +38,7 @@ const waiting = {
   wizardId: "w2",
   mode: "live",
   status: "waiting_input",
-  waitingFor: { page: "first", title: "Thema", fields: [] },
+  waitingFor: { form: "first", title: "Thema", fields: [] },
   browserUrl: `${BASE}/w/t-w2/r1`,
 };
 

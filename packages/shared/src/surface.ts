@@ -20,7 +20,7 @@ import { type FieldShape, type ListShape, type ObjectShape, shapeAt } from "./sh
  * take `as` ("number", "percent") to write a number in the wizard's locale.
  *
  * A chat's view (Work, `show_view`) may also ask: a `Form` of `Field`s, a `Ref` to a thing of the
- * space, a Button that asks the AI. A wizard asks on its pages, so its views take none of them.
+ * space, a Button that asks the AI. A wizard asks in its forms, so its views take none of them.
  * A wizard's views have `Choice`, `Toggle` and `Slider`: what the person sets there is view state,
  * kept with the run under the `state` name, which paths and calc read like a data key.
  */
@@ -79,8 +79,8 @@ const CONTAINERS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Only a chat's view has these: a wizard asks on its pages, and its run has no space to open. A
- * page has `Field` too, as a place for one of its own fields (`name` only).
+ * Only a chat's view has these: a wizard asks in its forms, and its run has no space to open. A
+ * form has `Field` too, as a place for one of its own fields (`name` only).
  */
 const CHAT_ONLY: ReadonlySet<string> = new Set(["Form", "Ref"]);
 
@@ -473,12 +473,12 @@ function shapeIssues(byId: Map<string, SurfaceComponent>, root: ObjectShape): Su
  * What can be wrong with a surface: an unknown or missing component, no root, a child that is
  * not there, an id twice, a loop, a prop missing, and — given the data keys a run will provide,
  * or the step's schema — a path into data nothing provides. `chat`: a chat's view, which may ask
- * (one Form, its Fields, Refs, `ask`). `page`: a page's layout, with the ids of its fields.
+ * (one Form, its Fields, Refs, `ask`). `form`: a form's layout, with the ids of its fields.
  */
 export function validateSurface(
   raw: unknown,
   data?: string[] | ObjectShape,
-  options: { chat?: boolean; page?: string[] } = {},
+  options: { chat?: boolean; form?: string[] } = {},
 ): SurfaceIssue[] {
   const dataKeys = Array.isArray(data) ? data : undefined;
   const parsed = surfaceComponentsSchema.safeParse(raw);
@@ -591,13 +591,13 @@ const shapeKeys = (data: string[] | ObjectShape | undefined) =>
   data && !Array.isArray(data) ? Object.keys(data.fields) : [];
 
 /**
- * A view's inputs: never on a page, whose inputs are its fields and answers, nor in a chat's view.
+ * A view's inputs: never on a form, whose inputs are its fields and answers, nor in a chat's view.
  * A `state` name is one of its own, and what each needs has the right form.
  */
 function viewInputIssues(
   components: SurfaceComponent[],
   dataKeys: Set<string>,
-  { chat, page }: { chat?: boolean; page?: string[] },
+  { chat, form }: { chat?: boolean; form?: string[] },
 ): SurfaceIssue[] {
   const issues: SurfaceIssue[] = [];
   const seen = new Set<string>();
@@ -610,9 +610,9 @@ function viewInputIssues(
       continue;
     }
     const props = c as Record<string, unknown>;
-    if (page) {
+    if (form) {
       issues.push({
-        message: `${c.component} "${c.id}" is for a wizard's views; on a page, a field asks.`,
+        message: `${c.component} "${c.id}" is for a wizard's views; on a form, a field asks.`,
       });
     }
     if (chat) {
@@ -672,17 +672,17 @@ function viewInputIssues(
 function askIssues(
   components: SurfaceComponent[],
   byId: Map<string, SurfaceComponent>,
-  { chat, page }: { chat?: boolean; page?: string[] },
+  { chat, form }: { chat?: boolean; form?: string[] },
 ): SurfaceIssue[] {
   const issues: SurfaceIssue[] = [];
   if (!chat) {
-    if (page) {
-      issues.push(...pageFieldIssues(components, page));
+    if (form) {
+      issues.push(...formFieldIssues(components, form));
     }
     for (const c of components) {
-      if (CHAT_ONLY.has(c.component) || (c.component === "Field" && !page)) {
+      if (CHAT_ONLY.has(c.component) || (c.component === "Field" && !form)) {
         issues.push({
-          message: `${c.component} "${c.id}" is for a chat's view; a wizard asks on its pages.`,
+          message: `${c.component} "${c.id}" is for a chat's view; a wizard asks on its forms.`,
         });
       }
       if ((c as Record<string, unknown>).action === "ask") {
@@ -750,10 +750,10 @@ function askIssues(
 }
 
 /**
- * A page's layout places its fields: each by exactly one `Field`, which names it and says nothing
+ * A form's layout places its fields: each by exactly one `Field`, which names it and says nothing
  * else, since the field itself says how it asks.
  */
-function pageFieldIssues(components: SurfaceComponent[], fields: string[]): SurfaceIssue[] {
+function formFieldIssues(components: SurfaceComponent[], fields: string[]): SurfaceIssue[] {
   const issues: SurfaceIssue[] = [];
   const placed = new Map<string, number>();
   const repeated = repeatedIds(components);
@@ -765,11 +765,11 @@ function pageFieldIssues(components: SurfaceComponent[], fields: string[]): Surf
     const name = typeof f.name === "string" ? f.name : "";
     if (f.kind !== undefined || f.label !== undefined) {
       issues.push({
-        message: `Field "${c.id}" only places a field of this page: "name" and nothing else.`,
+        message: `Field "${c.id}" only places a field of this form: "name" and nothing else.`,
       });
     }
     if (name && !fields.includes(name)) {
-      issues.push({ message: `Field "${c.id}" names "${name}", which this page does not have.` });
+      issues.push({ message: `Field "${c.id}" names "${name}", which this form does not have.` });
     }
     if (repeated.has(c.id)) {
       issues.push({ message: `Field "${c.id}" stands in a repeat; a field is placed once.` });
@@ -784,7 +784,7 @@ function pageFieldIssues(components: SurfaceComponent[], fields: string[]): Surf
       issues.push({
         message:
           times === 0
-            ? `The field "${field}" has no place: each field of the page is placed by one Field.`
+            ? `The field "${field}" has no place: each field of the form is placed by one Field.`
             : `The field "${field}" is placed ${times} times; each is placed once.`,
       });
     }

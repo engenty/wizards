@@ -1,6 +1,6 @@
 import { calcNames, calcScope, calcValue, parseCalc } from "@engenty/wizards-shared/calc";
 import {
-  type PageStep,
+  type FormStep,
   ruleMatches,
   whenHolds,
   sectionOf,
@@ -12,7 +12,7 @@ import {
 import { needs } from "@engenty/wizards-shared/fit";
 import { bound, validateSurface, worded } from "@engenty/wizards-shared/surface";
 import { describe, expect, it } from "vitest";
-import { readPageInput } from "../src/engine/input";
+import { readFormInput } from "../src/engine/input";
 
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
 const wizard = (steps: unknown[]) =>
@@ -27,7 +27,7 @@ const withField = (field: object) =>
   wizard([
     {
       id: "ask",
-      type: "page",
+      type: "form",
       title: "Frage",
       fields: [{ id: "f", label: "F", kind: "number", ...field }],
     },
@@ -91,19 +91,19 @@ describe("1a: numbers with a range, and how a field looks", () => {
 
   it("the server refuses a number out of range, and takes one at its ends", () => {
     const def = withField({ min: 2, max: 8 });
-    const page = def.steps[0] as PageStep;
-    expect(readPageInput(page, { f: 1 }).errors).toHaveLength(1);
-    expect(readPageInput(page, { f: "9" }).errors).toHaveLength(1);
-    expect(readPageInput(page, { f: 2 }).errors).toEqual([]);
-    expect(readPageInput(page, { f: "8" }).values.f).toBe(8);
-    expect(readPageInput(page, { f: "" }).errors).toEqual([]);
+    const page = def.steps[0] as FormStep;
+    expect(readFormInput(page, { f: 1 }).errors).toHaveLength(1);
+    expect(readFormInput(page, { f: "9" }).errors).toHaveLength(1);
+    expect(readFormInput(page, { f: 2 }).errors).toEqual([]);
+    expect(readFormInput(page, { f: "8" }).values.f).toBe(8);
+    expect(readFormInput(page, { f: "" }).errors).toEqual([]);
   });
 });
 
 describe("1b: sections", () => {
   const page = (id: string, section?: string) => ({
     id,
-    type: "page",
+    type: "form",
     title: id,
     ...(section ? { section } : {}),
     fields: [{ id: `f${id}`, label: "F", kind: "text" }],
@@ -201,7 +201,7 @@ describe("1c: calculated values", () => {
 
   const page = (extra: object = {}) => ({
     id: "ask",
-    type: "page",
+    type: "form",
     title: "Frage",
     fields: [
       { id: "budget", label: "B", kind: "number" },
@@ -297,7 +297,7 @@ describe("1d: a page laid out with components", () => {
       estimate,
       {
         id: "ask",
-        type: "page",
+        type: "form",
         title: "Frage",
         fields,
         ...(components ? { components } : {}),
@@ -326,7 +326,7 @@ describe("1d: a page laid out with components", () => {
     expect(said(page(twice)).join()).toContain('"budget" is placed 2 times');
   });
 
-  it("a Field names a field of this page and says nothing else", () => {
+  it("a Field names a field of this form and says nothing else", () => {
     const other = layout([{ id: "x", component: "Field", name: "nope" }]);
     expect(said(page(other)).join()).toContain('names "nope"');
     const words = layout();
@@ -350,7 +350,7 @@ describe("1d: a page laid out with components", () => {
     const def = wizard([
       {
         id: "ask",
-        type: "page",
+        type: "form",
         title: "Frage",
         fields,
         components: layout(),
@@ -453,14 +453,14 @@ describe("1e: inputs in a wizard's views", () => {
     const page = wizard([
       {
         id: "ask",
-        type: "page",
+        type: "form",
         title: "Frage",
         fields: [{ id: "f", label: "F", kind: "text" }],
         components: view({ id: "b", component: "Field", name: "f" }, choice),
       },
       end,
     ]);
-    expect(said(page).join()).toContain("on a page, a field asks");
+    expect(said(page).join()).toContain("on a form, a field asks");
     expect(messages(view(choice), [], { chat: true }).join()).toContain("not a chat's");
   });
 

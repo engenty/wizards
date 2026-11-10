@@ -62,8 +62,8 @@ const def = {
   description: "",
   avatar: "round",
   steps: [
-    { id: "a", type: "page", title: "A", remind: "1d", fields: [{ id: "a_f", kind: "text", label: "T" }] },
-    { id: "b", type: "page", title: "B", fields: [{ id: "b_f", kind: "text", label: "T" }] },
+    { id: "a", type: "form", title: "A", remind: "1d", fields: [{ id: "a_f", kind: "text", label: "T" }] },
+    { id: "b", type: "form", title: "B", fields: [{ id: "b_f", kind: "text", label: "T" }] },
     { id: "work", type: "agent", title: "Arbeit", instructions: "Tu es.", tools: [], output: { format: "text" } },
     { id: "done", type: "result", title: "Fertig", deliverables: [] },
   ],

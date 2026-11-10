@@ -117,7 +117,7 @@ step again and follows branches.
 
 | Step | Runs on |
 |---|---|
-| `page`, `review`, `result` | The runner pages, with what the person entered |
+| `form`, `review`, `result` | The runner pages, with what the person entered |
 | `wait` | Nothing: a row until the clock or a signal wakes the run. See below |
 | `agent` | A Mastra agent with the step’s tools (`engine/steps.ts`, `tools/index.ts`): web search and fetch, the browser, the sandbox, HTTP, the space’s knowledge and data, connections, MCP, plugins’ tools |
 | `generate`, `widget`, `motion-graphics`, `surface` | The AI SDK’s media calls, the widget bundler and the renderers (`widgets/`, `motion-graphics/`, `render/`) |

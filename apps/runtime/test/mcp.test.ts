@@ -193,13 +193,13 @@ describe("MCP endpoint", () => {
         steps: [
           {
             id: "first",
-            type: "page",
+            type: "form",
             title: "Thema",
             fields: [{ id: "topic", label: "Thema", kind: "text", required: true }],
           },
           {
             id: "second",
-            type: "page",
+            type: "form",
             title: "Ton",
             fields: [
               { id: "tone", label: "Ton", kind: "select", options: ["locker", "förmlich"] },
@@ -261,7 +261,7 @@ describe("MCP endpoint", () => {
     expect((await fromWidget(runId, "1.forged")).status).toBe(404);
     expect((await fromWidget(`${runId}/back`, "1.forged", "POST")).status).toBe(403);
     const waiting = await call(client, "get_run", { runId, waitSeconds: 5 });
-    expect(waiting.body.waitingFor.page).toBe("second");
+    expect(waiting.body.waitingFor.form).toBe("second");
     expect(waiting.body.passed).toContain("first");
     const fields = waiting.body.waitingFor.fields;
     expect(fields.find((f: { id: string }) => f.id === "logo").inChat).toBe(false);
@@ -274,7 +274,7 @@ describe("MCP endpoint", () => {
     expect(waiting.body.waitingFor.known).toEqual({});
     expect(waiting.body.browserUrl).toMatch(new RegExp(`/w/[^/]+/${runId}$`));
 
-    const wrong = await call(client, "answer_page", {
+    const wrong = await call(client, "answer_form", {
       runId,
       stepId: "second",
       values: { tone: "laut" },
@@ -283,9 +283,9 @@ describe("MCP endpoint", () => {
     expect(wrong.body.code).toBe("invalid");
 
     const back = await call(client, "control_run", { runId, action: "back" });
-    expect(back.body.waitingFor.page).toBe("first");
-    await call(client, "answer_page", { runId, stepId: "first", values: { topic: "Brot" } });
-    const done = await call(client, "answer_page", {
+    expect(back.body.waitingFor.form).toBe("first");
+    await call(client, "answer_form", { runId, stepId: "first", values: { topic: "Brot" } });
+    const done = await call(client, "answer_form", {
       runId,
       stepId: "second",
       values: { tone: "locker" },
@@ -416,7 +416,7 @@ describe("a draft's warnings", () => {
       avatar: "dome",
       connections: [{ id: "mail", spaceConnection: row.id }],
       steps: [
-        { id: "start", type: "page", title: "Du", fields: [{ id: "email", kind: "email", label: "E-Mail" }] },
+        { id: "start", type: "form", title: "Du", fields: [{ id: "email", kind: "email", label: "E-Mail" }] },
         {
           id: "send",
           type: "agent",

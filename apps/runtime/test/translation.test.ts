@@ -44,7 +44,7 @@ const definition = {
   steps: [
     {
       id: "start",
-      type: "page",
+      type: "form",
       title: "Welche Woche?",
       fields: [
         { id: "kind", kind: "select", label: "Kost", options: ["Fisch", "Fleisch"] },

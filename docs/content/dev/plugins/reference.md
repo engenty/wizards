@@ -31,7 +31,7 @@ The default export is a `WizardsPluginFactory`: `(wizards: WizardsPluginApi) => 
 |---|---|
 | `registerTool(tool: PluginTool)` | [Tools](./tools.md) |
 | `registerRunner(runner: PluginRunner)` | [Runners](./runners.md). A door a wizard runs through; `page` runners answer at `/w/<token>/<id>` |
-| `runs` | [Runners](./runners.md#drive-a-run). `start`, `report`, `wizards`, `answerPage`, `review`, `answerAsk`, `control`, `subscribe`, `handoffUrl`, `upload`, `transcribe`: the functions behind the MCP tools, for the plugin’s door |
+| `runs` | [Runners](./runners.md#drive-a-run). `start`, `report`, `wizards`, `answerForm`, `review`, `answerAsk`, `control`, `subscribe`, `handoffUrl`, `upload`, `transcribe`: the functions behind the MCP tools, for the plugin’s door |
 | `speech.conversation()` | [Runners](./runners.md#a-call). `{ provider: "openai", apiKey, model }`: the tenant’s realtime speech model, for a call a plugin drives itself. Throws `503` / `no_model` while none is set up |
 | `registerSpaceContext({ block, tools?, steps? })` | [The space](./space.md). `block(space): string \| null`; `steps`: `agent` (default), `html` (steps that write a document or a dashboard, without the tools) |
 | `spaces.brand(space)` | [The space](./space.md#the-spaces-brand). `{ name, colors, fonts }` of the space, or `null` |
@@ -139,7 +139,7 @@ interface PluginRuns {
   }): Promise<{ runId: string; ticket: string; refused: { field: string; message: string }[] | null }>;
   report(runId: string, options?: { waitSeconds?: number; draft?: Record<string, unknown> }): Promise<PluginRunReport>;
   wizards(runner: string): Promise<{ wizardId: string; token: string; title: string; lang: "de" | "en" }[]>;
-  answerPage(runId: string, stepId: string, values: Record<string, unknown>): Promise<void>;
+  answerForm(runId: string, stepId: string, values: Record<string, unknown>): Promise<void>;
   review(runId: string, stepId: string, action: PluginReviewAction): Promise<void>;
   answerAsk(runId: string, askId: string, answer: "allow" | "skip"): Promise<void>;
   control(runId: string, action: "back" | "retry" | "cancel"): Promise<void>;

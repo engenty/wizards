@@ -1356,7 +1356,7 @@
               },
               "type": {
                 "type": "string",
-                "const": "page"
+                "const": "form"
               },
               "who": {
                 "type": "string",

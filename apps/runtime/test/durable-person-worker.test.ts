@@ -30,7 +30,7 @@ const definition = {
   steps: [
     {
       id: "ask",
-      type: "page",
+      type: "form",
       title: "Ask",
       timeout: "2d",
       remind: "1d",

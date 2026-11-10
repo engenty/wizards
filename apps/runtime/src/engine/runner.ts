@@ -6,7 +6,7 @@ import {
   marginOf,
 } from "@engenty/wizards-shared/decision";
 import {
-  type AheadPage,
+  type AheadForm,
   type AheadRule,
   allFields,
   branchValues,
@@ -16,16 +16,16 @@ import {
   dataRef,
   decisionAsAgent,
   type Format,
+  type FormStep,
   followRules,
   formatsFor,
+  formNeeds,
   hasCodeStep,
   isDecidedField,
   LIST_FORMATS,
   listRef,
   MAX_SHOWN_FIELDS,
   optionsFromData,
-  type PageStep,
-  pageNeeds,
   type ReviewStep,
   RUN_DONE_SIGNAL,
   runsWithoutModel,
@@ -148,7 +148,7 @@ import { clearDeviceCalls } from "./device.js";
 import { newTurn, TurnAsks, turnOf } from "./durable-turn.js";
 import { emitEvent, recentEvents, saidInVisit, signalChanged, visitLeftOpen } from "./events.js";
 import { classifyFailure, type Failure } from "./failures.js";
-import { type InputError, type PageContext, readPageInput } from "./input.js";
+import { type FormContext, type InputError, readFormInput } from "./input.js";
 import { withMailText } from "./mail-watch.js";
 import {
   type Actor,
@@ -579,7 +579,7 @@ export async function createRun(input: {
   const id = nanoid(18);
   const first = input.definition.steps[0];
   // A started run fills its first page itself, in the drive loop.
-  const waits = first.type === "page" && !input.startedBy;
+  const waits = first.type === "form" && !input.startedBy;
   const state: RunState = { values: {}, outputs: {}, history: [], notes: {} };
   if (input.startedBy) {
     state.start = input.start;
@@ -1024,8 +1024,8 @@ async function flowValues(run: RunRow, state: RunState): Promise<Record<string, 
  * page (its own earlier answers left out, so a revisit decides on what is typed now) and the
  * choices its `optionsFrom` fields find in the run.
  */
-export async function pageContext(run: RunRow, step: PageStep): Promise<Required<PageContext>> {
-  const needs = pageNeeds(step.fields);
+export async function formContext(run: RunRow, step: FormStep): Promise<Required<FormContext>> {
+  const needs = formNeeds(step.fields);
   const sourced = step.fields.filter((f) => f.optionsFrom);
   const decided = step.fields.some(isDecidedField) ? (run.state.pages?.[step.id]?.shown ?? []) : [];
   if (!needs.length && !sourced.length) {
@@ -1054,7 +1054,7 @@ export async function pageContext(run: RunRow, step: PageStep): Promise<Required
 }
 
 function viewContext(
-  ctx: Required<PageContext>,
+  ctx: Required<FormContext>,
 ): Pick<RunView, "known" | "options" | "cards" | "decidedFields"> {
   return { known: ctx.known, options: ctx.options, cards: ctx.cards, decidedFields: ctx.decided };
 }
@@ -1220,9 +1220,9 @@ async function decideBranch(
  * the page. A field whose condition on earlier data already fails is not asked about. With the
  * fields always shown, at most MAX_SHOWN_FIELDS appear.
  */
-async function decidePageFields(
+async function decideFormFields(
   run: RunRow,
-  page: PageStep,
+  page: FormStep,
   state: RunState,
   signal: AbortSignal,
 ): Promise<string[]> {
@@ -1513,8 +1513,8 @@ async function wakeFromWait(run: RunRow): Promise<boolean> {
 // It waits as a `wait` does: a row with `wake_at`, no process, no slot, no credits. An answer and the
 // deadline each write on the `rev` they read, so one wins and the other finds the run moved on.
 
-const isPersonStep = (step: Step | undefined): step is PageStep | ReviewStep =>
-  step?.type === "page" || step?.type === "review";
+const isPersonStep = (step: Step | undefined): step is FormStep | ReviewStep =>
+  step?.type === "form" || step?.type === "review";
 
 /**
  * A step a run reaches with no runner: a page or review nothing has to decide or fill first. The
@@ -1525,7 +1525,7 @@ function needsNoRunner(
   step: Step | undefined,
   startedBy: StartedBy | null,
   state: RunState,
-): step is PageStep | ReviewStep {
+): step is FormStep | ReviewStep {
   return (
     isPersonStep(step) &&
     // A start's run is filled by `passStep`, with nobody there.
@@ -1536,7 +1536,7 @@ function needsNoRunner(
     !step.remind &&
     // Whoever answered is not the one asked next.
     whoOf(step) === "person" &&
-    !(step.type === "page" && step.fields.some(isDecidedField))
+    !(step.type === "form" && step.fields.some(isDecidedField))
   );
 }
 
@@ -1553,20 +1553,20 @@ const AHEAD_MAX = 20;
 async function aheadOf(
   run: RunRow,
   def: WizardDefinition,
-  from: PageStep,
-): Promise<Record<string, AheadPage & { progress: RunView["progress"] }>> {
+  from: FormStep,
+): Promise<Record<string, AheadForm & { progress: RunView["progress"] }>> {
   const answers = new Set(allFields(def).map((f) => f.id));
   const readsAnswers = (when: Parameters<typeof whenNames>[0]) =>
     whenNames(when).every((name) => answers.has(name));
   const sections = sectionsOf(def);
-  const progressOf = (step: PageStep): RunView["progress"] => ({
+  const progressOf = (step: FormStep): RunView["progress"] => ({
     done: def.steps.indexOf(step),
     total: def.steps.length,
     ...(sections.length
       ? { sections: { names: sections, current: sections.indexOf(sectionOf(def, step.id) ?? "") } }
       : {}),
   });
-  const rulesOf = (step: PageStep): AheadRule[] | null => {
+  const rulesOf = (step: FormStep): AheadRule[] | null => {
     const at = def.steps.indexOf(step);
     const rules = step.next ?? [];
     const out: AheadRule[] = [];
@@ -1588,7 +1588,7 @@ async function aheadOf(
     return out;
   };
   const plain = async (step: Step | undefined): Promise<boolean> =>
-    step?.type === "page" &&
+    step?.type === "form" &&
     needsNoRunner(step, run.startedBy, run.state) &&
     !step.data &&
     step.fields.every(
@@ -1602,10 +1602,10 @@ async function aheadOf(
         (f.when === undefined || readsAnswers(f.when)),
     ) &&
     Object.keys(await closedChoices(def, step, run.state.values)).length === 0;
-  const out: Record<string, AheadPage & { progress: RunView["progress"] }> = {};
-  const queue: PageStep[] = [from];
+  const out: Record<string, AheadForm & { progress: RunView["progress"] }> = {};
+  const queue: FormStep[] = [from];
   while (queue.length && Object.keys(out).length < AHEAD_MAX) {
-    const step = queue.shift() as PageStep;
+    const step = queue.shift() as FormStep;
     if (out[step.id]) {
       continue;
     }
@@ -1613,7 +1613,7 @@ async function aheadOf(
     out[step.id] = { step, next, progress: progressOf(step) };
     for (const rule of next ?? []) {
       const target = stepOf(def, rule.goto);
-      if (target?.type === "page" && !out[target.id] && (await plain(target))) {
+      if (target?.type === "form" && !out[target.id] && (await plain(target))) {
         queue.push(target);
       }
     }
@@ -1622,7 +1622,7 @@ async function aheadOf(
 }
 
 /** Whether the step may wait for long: it gives its hold back, and holds again as it goes on. */
-async function waitsLong(step: PageStep | ReviewStep): Promise<boolean> {
+async function waitsLong(step: FormStep | ReviewStep): Promise<boolean> {
   return Boolean(step.timeout || step.remind) && (await durableRunsOn());
 }
 
@@ -1666,7 +1666,7 @@ async function waitsForAnswer(runId: string, step: Step | undefined, wakeAt: Dat
  */
 async function answerGoesOn(
   run: RunRow,
-  step: PageStep | ReviewStep,
+  step: FormStep | ReviewStep,
   result: FlowResult,
   patch: Partial<typeof schema.run.$inferInsert> = {},
   by?: Actor,
@@ -2195,11 +2195,11 @@ async function drive(runId: string, signal: AbortSignal) {
     }
     const step = stepOf(def, run.cursor);
     // A page whose fields a decision picks: picked once, as the run reaches it.
-    if (step?.type === "page" && step.fields.some(isDecidedField) && !run.state.pages?.[step.id]) {
+    if (step?.type === "form" && step.fields.some(isDecidedField) && !run.state.pages?.[step.id]) {
       const state = structuredClone(run.state);
       try {
         const shown = await withDeadline("decision", signal, (limit) =>
-          decidePageFields(run, step, state, limit),
+          decideFormFields(run, step, state, limit),
         );
         if (signal.aborted) {
           return;
@@ -2245,7 +2245,7 @@ async function drive(runId: string, signal: AbortSignal) {
     }
     // What the team is asked waits for the team, also on a started run.
     if (
-      (step.type === "page" || step.type === "review") &&
+      (step.type === "form" || step.type === "review") &&
       run.startedBy &&
       !(whoOf(step) === "team" && (await durableRunsOn()))
     ) {
@@ -2255,7 +2255,7 @@ async function drive(runId: string, signal: AbortSignal) {
       }
       continue;
     }
-    if (step.type === "page" || step.type === "review") {
+    if (step.type === "form" || step.type === "review") {
       // Reached right from someone's answer: they know, they did it. After a step that worked it
       // is news again.
       const { lastBy, answered } = run.state;
@@ -2393,7 +2393,7 @@ async function drive(runId: string, signal: AbortSignal) {
  * required field has a value, a review passes when the start says so. True: it goes on. False: the
  * owner has to come, and the run waits for them.
  */
-async function passStep(run: RunRow, step: PageStep | ReviewStep): Promise<boolean> {
+async function passStep(run: RunRow, step: FormStep | ReviewStep): Promise<boolean> {
   const stood = await flow(run, { kind: "resume" });
   let event: FlowEvent | null = null;
   if (step.type === "review") {
@@ -2410,7 +2410,7 @@ async function passStep(run: RunRow, step: PageStep | ReviewStep): Promise<boole
         .filter((f) => (!shown || shown.includes(f.id)) && f.id in fill)
         .map((f) => [f.id, fill[f.id]]),
     );
-    const { values, errors } = readPageInput(step, input, await pageContext(run, step));
+    const { values, errors } = readFormInput(step, input, await formContext(run, step));
     if (!errors.length) {
       event = { kind: "answered", stepId: step.id, values };
     }
@@ -2502,7 +2502,7 @@ function unsentWithout(run: RunRow, stepId: string): { unsent?: RunRow["unsent"]
  */
 export async function keepUnsent(run: RunRow, stepId: string, values: Record<string, unknown>) {
   const step = stepOf(run.definition, stepId);
-  if (step?.type !== "page") {
+  if (step?.type !== "form") {
     throw new RunConflict("Not a page");
   }
   await db
@@ -2535,10 +2535,10 @@ export async function submitPage(
   }
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
-  if (step?.type !== "page") {
+  if (step?.type !== "form") {
     throw new RunConflict("Not a page");
   }
-  const { values, errors } = readPageInput(step, input, await pageContext(run, step));
+  const { values, errors } = readFormInput(step, input, await formContext(run, step));
   // An answer that leads to a step without a model here would stop the run there, later.
   const closed = await closedChoices(run.definition, step, run.state.values);
   for (const [id, choice] of Object.entries(closed)) {
@@ -2904,7 +2904,7 @@ export async function availableFormats(step: Step, run: RunRow, wanted?: Format[
  * choice whose default leads to a step without a model here, the first value that does not.
  */
 /** What a page's `components` read besides its answers. A step that stays in the space stays there. */
-async function pageDataOf(
+async function formDataOf(
   refs: Record<string, string>,
   run: RunRow,
   def: WizardDefinition,
@@ -2925,7 +2925,7 @@ async function pageDataOf(
 }
 
 function prefillOf(
-  step: PageStep,
+  step: FormStep,
   run: RunRow,
   closed: Record<string, ClosedChoice>,
 ): Record<string, unknown> {
@@ -2983,7 +2983,7 @@ export async function runView(
   const def = translated?.def ?? run.definition;
   const step = stepOf(def, run.cursor) ?? null;
   const closed =
-    step?.type === "page" && run.status === "waiting_input"
+    step?.type === "form" && run.status === "waiting_input"
       ? await closedChoices(def, step, run.state.values)
       : {};
   const index = step ? def.steps.indexOf(step) : def.steps.length;
@@ -2997,7 +2997,7 @@ export async function runView(
   const shownIds = refs.filter((ref) => !listRef(ref));
   const listIds = [
     ...refs.map(listRef),
-    ...(step?.type === "page" ? step.fields.map((f) => (f.kind === "list" ? f.list : null)) : []),
+    ...(step?.type === "form" ? step.fields.map((f) => (f.kind === "list" ? f.list : null)) : []),
   ].filter((id): id is string => Boolean(id));
   const stored = listIds.length ? await storedLists(run) : {};
   const lists: ShownList[] = [...new Set(listIds)]
@@ -3079,20 +3079,20 @@ export async function runView(
     rev: run.rev,
     // What the browser may do alone, and what was typed and not sent: `viewFor` keeps both from a
     // viewer who may not answer.
-    ...(run.status === "waiting_input" && step?.type === "page" && !run.startedBy
+    ...(run.status === "waiting_input" && step?.type === "form" && !run.startedBy
       ? {
           ahead: await aheadOf(run, def, step),
           pagesSent: run.state.pagesSent?.n ?? 0,
         }
       : {}),
-    ...(run.status === "waiting_input" && step?.type === "page" && run.unsent?.[step.id]
+    ...(run.status === "waiting_input" && step?.type === "form" && run.unsent?.[step.id]
       ? { unsent: run.unsent[step.id] }
       : {}),
-    prefill: step?.type === "page" ? prefillOf(step, run, closed) : {},
-    ...(step?.type === "page" && step.data
-      ? { pageData: await pageDataOf(step.data, run, def, brand.name, hide) }
+    prefill: step?.type === "form" ? prefillOf(step, run, closed) : {},
+    ...(step?.type === "form" && step.data
+      ? { pageData: await formDataOf(step.data, run, def, brand.name, hide) }
       : {}),
-    ...(step?.type === "page" ? viewContext(await pageContext(run, step)) : {}),
+    ...(step?.type === "form" ? viewContext(await formContext(run, step)) : {}),
     ...(run.mode === "test" && run.state.decisions
       ? {
           decisions: Object.fromEntries(
@@ -3137,7 +3137,7 @@ export async function runView(
     question: run.status === "waiting_input" ? (run.state.turn?.question ?? null) : null,
     lists,
     connections:
-      step?.type === "page" && step.fields.some((f) => f.kind === "connection")
+      step?.type === "form" && step.fields.some((f) => f.kind === "connection")
         ? await connectionViews(
             def.connections ?? [],
             scopeOf(run),

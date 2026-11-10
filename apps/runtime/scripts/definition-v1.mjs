@@ -23,6 +23,8 @@
 //   instructions, its fields and `working`.
 // - Condition operators take their new names in every `when`: equals → eq, notEquals → ne,
 //   empty → notExists, notEmpty → exists. The others keep theirs.
+// - A step of `type: "page"` becomes `type: "form"`. Nothing else stores the step type: a run's
+//   state keys its pages by step id.
 //
 // `toVersion1` is exported for the marketplace's entries (the Manage repo), which are files.
 //
@@ -119,7 +121,7 @@ function renamedInWhen(when, counts) {
 
 /**
  * A definition of version 2 at version 1 as the format is now, with what changed counted
- * (`decisions`, `ops`). Anything else comes back with `kind` saying why it stays.
+ * (`decisions`, `ops`, `forms`). Anything else comes back with `kind` saying why it stays.
  */
 export function toVersion1(def) {
   if (!def || typeof def !== "object" || Array.isArray(def) || !Array.isArray(def.steps)) {
@@ -128,11 +130,15 @@ export function toVersion1(def) {
   if (def.version !== 2) {
     return { kind: def.version === 1 || def.version === undefined ? "current" : "skipped" };
   }
-  const counts = { decisions: 0, ops: 0 };
+  const counts = { decisions: 0, ops: 0, forms: 0 };
   const steps = def.steps.map((step) => {
     if (step && typeof step === "object" && isDecision(step)) {
       counts.decisions++;
       return asDecision(step);
+    }
+    if (step && typeof step === "object" && step.type === "page") {
+      counts.forms++;
+      return { ...step, type: "form" };
     }
     return step;
   });
@@ -196,7 +202,7 @@ function setAt(obj, path, value) {
 }
 
 async function convertTenant(db) {
-  const counts = { v2: 0, current: 0, skipped: 0, decisions: 0, ops: 0 };
+  const counts = { v2: 0, current: 0, skipped: 0, decisions: 0, ops: 0, forms: 0 };
   if (!(await hasTable(db, "wizard"))) {
     return { counts, missing: "no wizard table" };
   }
@@ -228,6 +234,7 @@ async function convertTenant(db) {
         counts[out.kind]++;
         counts.decisions += out.decisions ?? 0;
         counts.ops += out.ops ?? 0;
+        counts.forms += out.forms ?? 0;
         if (out.def) {
           doc = setAt(doc, path, out.def);
           changed = true;
@@ -279,8 +286,10 @@ async function main() {
   }
   const token = process.env.TENANT_DB_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN;
   console.log(`${write ? "Converting" : "Dry run, nothing written:"} ${tenants.length} tenants`);
-  console.log("tenant\tversion 2 → 1\tdecisions\toperators\talready 1\tnot a definition\trows");
-  const total = { v2: 0, decisions: 0, ops: 0, current: 0, skipped: 0, rows: 0 };
+  console.log(
+    "tenant\tversion 2 → 1\tdecisions\toperators\tforms\talready 1\tnot a definition\trows",
+  );
+  const total = { v2: 0, decisions: 0, ops: 0, forms: 0, current: 0, skipped: 0, rows: 0 };
   const failed = [];
   for (const t of tenants) {
     const url = tenantUrl(t.id, t.dbUrl);
@@ -300,9 +309,9 @@ async function main() {
       }
       const c = out.counts;
       console.log(
-        `${t.id}\t${c.v2}\t${c.decisions}\t${c.ops}\t${c.current}\t${c.skipped}\t${out.rows}`,
+        `${t.id}\t${c.v2}\t${c.decisions}\t${c.ops}\t${c.forms}\t${c.current}\t${c.skipped}\t${out.rows}`,
       );
-      for (const k of ["v2", "decisions", "ops", "current", "skipped"]) {
+      for (const k of ["v2", "decisions", "ops", "forms", "current", "skipped"]) {
         total[k] += c[k];
       }
       total.rows += out.rows;
@@ -314,7 +323,7 @@ async function main() {
     }
   }
   console.log(
-    `total\t${total.v2}\t${total.decisions}\t${total.ops}\t${total.current}\t${total.skipped}\t${total.rows}${write ? "" : " (not written)"}`,
+    `total\t${total.v2}\t${total.decisions}\t${total.ops}\t${total.forms}\t${total.current}\t${total.skipped}\t${total.rows}${write ? "" : " (not written)"}`,
   );
   if (failed.length) {
     console.log(`not converted: ${failed.join(", ")}`);

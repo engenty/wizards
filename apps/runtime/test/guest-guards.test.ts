@@ -42,7 +42,7 @@ const definition = {
   description: "An offer for your company",
   avatar: "dome",
   steps: [
-    { id: "start", type: "page", title: "You", fields: [{ id: "company", kind: "text", label: "Company" }] },
+    { id: "start", type: "form", title: "You", fields: [{ id: "company", kind: "text", label: "Company" }] },
     { id: "write", type: "widget", title: "Write it", entry: "w.html", data: {} },
     { id: "done", type: "result", title: "Done", deliverables: [] },
   ],

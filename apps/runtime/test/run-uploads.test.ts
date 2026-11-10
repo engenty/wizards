@@ -20,7 +20,7 @@ const definition = {
   steps: [
     {
       id: "start",
-      type: "page",
+      type: "form",
       title: "Unterlagen",
       fields: [{ id: "doc", kind: "file", label: "Datei" }],
     },

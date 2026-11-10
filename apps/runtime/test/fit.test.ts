@@ -14,7 +14,7 @@ const quote = {
   steps: [
     {
       id: "contact",
-      type: "page",
+      type: "form",
       title: "Kontakt",
       fields: [
         { id: "name", kind: "text", label: "Name", required: true },
@@ -23,7 +23,7 @@ const quote = {
     },
     {
       id: "wish",
-      type: "page",
+      type: "form",
       title: "Was soll gebaut werden?",
       fields: [
         { id: "piece", kind: "select", label: "Möbelstück", options: ["Tisch", "Schrank"] },
@@ -53,7 +53,7 @@ const tour = {
   steps: [
     {
       id: "object",
-      type: "page",
+      type: "form",
       title: "Welches Objekt?",
       fields: [
         { id: "motion", kind: "select", label: "Bewegung", options: ["Kamerafahrt", "Fotos"] },
@@ -92,7 +92,7 @@ describe("what a step needs beyond a text model", () => {
       steps: [
         {
           id: "ask",
-          type: "page",
+          type: "form",
           title: "Ask",
           fields: [
             { id: "note", kind: "audio", label: "Note" },
@@ -164,7 +164,7 @@ describe("what a step needs beyond a text model", () => {
 
   it("a person's step with a deadline needs a process that stays, and an approval too", () => {
     const def = { version: 1, title: "T", description: "", avatar: "round", steps: [] };
-    const page = { id: "a", type: "page", title: "A", fields: [], timeout: "1d" };
+    const page = { id: "a", type: "form", title: "A", fields: [], timeout: "1d" };
     const review = { id: "b", type: "review", title: "B", show: [], approve: true };
     const plain = { id: "c", type: "review", title: "C", show: [] };
     expect(needs(page as never, def as unknown as WizardDefinition)).toEqual([
@@ -182,7 +182,7 @@ describe("what a step needs beyond a text model", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "p",
           fields: [{ id: "doc", kind: "file", label: "Doc" }],
         },
@@ -246,7 +246,7 @@ describe("whether a wizard runs on its own", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "p",
           fields: [{ id: "name", kind: "text", label: "Name" }],
         },

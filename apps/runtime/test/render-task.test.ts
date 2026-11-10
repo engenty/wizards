@@ -7,7 +7,7 @@ const def = {
   steps: [
     {
       id: "ask",
-      type: "page",
+      type: "form",
       title: "Your request",
       fields: [
         { id: "company", kind: "text", label: "Company" },

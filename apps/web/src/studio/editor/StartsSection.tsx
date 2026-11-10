@@ -195,9 +195,9 @@ function lateText(minutes: number) {
   return t("starts.late.minutes", { n: minutes });
 }
 
-function firstPageFields(wizard: WizardDetail): Field[] {
+function firstFormFields(wizard: WizardDetail): Field[] {
   const first = wizard.draft.steps[0];
-  return first?.type === "page" ? first.fields : [];
+  return first?.type === "form" ? first.fields : [];
 }
 
 function defaultSchedule(): Schedule {
@@ -249,7 +249,7 @@ export function StartsView({
       api.post<{ runId: string }>(`/api/studio/wizards/${wizard.id}/starts/${startId}/run`),
     onSuccess: () => setTried(t("starts.triedNote")),
   });
-  const fields = firstPageFields(wizard);
+  const fields = firstFormFields(wizard);
   const writes = (wizard.draft.connections?.length ?? 0) > 0;
   const reviews = wizard.draft.steps.some((s) => s.type === "review");
   const schedule = start.schedule ?? defaultSchedule();

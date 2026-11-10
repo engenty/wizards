@@ -256,14 +256,14 @@ const NO_WORDS = new Set(["nein", "no", "n", "nö", "nope", "false"]);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-type PageWaiting = Extract<PluginRunWaiting, { page: string }>;
+type FormWaiting = Extract<PluginRunWaiting, { form: string }>;
 type ReviewWaiting = Extract<PluginRunWaiting, { review: string }>;
 type AskWaiting = Extract<PluginRunWaiting, { ask: string }>;
 type QuestionWaiting = Extract<PluginRunWaiting, { question: string }>;
 
 type Taken = { kind: "value"; value: unknown } | { kind: "again"; hint: string } | { kind: "wait" };
 
-const shownOf = (w: PageWaiting) => w.fields.filter((f) => f.shown !== false);
+const shownOf = (w: FormWaiting) => w.fields.filter((f) => f.shown !== false);
 
 /** `24.12.2026`, `24/12/26` or an ISO date, as the page's date input gives it. */
 export function toIso(text: string): string | null {
@@ -565,8 +565,8 @@ export class ThreadDoor {
       this.o.watch(thread);
       return;
     }
-    if ("page" in w) {
-      await this.page(thread, w, msg);
+    if ("form" in w) {
+      await this.form(thread, w, msg);
     } else if ("review" in w) {
       await this.review(thread, report, w, msg);
     } else if ("question" in w) {
@@ -586,17 +586,17 @@ export class ThreadDoor {
 
   // ── A page ─────────────────────────────────────────────────────────────────
 
-  private async page(thread: Thread, waiting: PageWaiting, msg: ThreadInbound | null) {
+  private async form(thread: Thread, waiting: FormWaiting, msg: ThreadInbound | null) {
     const s = thread.state;
     let w = waiting;
-    if (!s.page || s.page.step !== w.page) {
-      s.page = { step: w.page, values: {}, asking: null, picks: [], files: [] };
+    if (!s.page || s.page.step !== w.form) {
+      s.page = { step: w.form, values: {}, asking: null, picks: [], files: [] };
     }
     const page = s.page;
     let fields = shownOf(w);
     // A field only the screen can take (a signature, a sign-in): the whole page goes there.
     if (fields.some((f) => !this.asks.has(f.kind))) {
-      const key = `screen:${w.page}`;
+      const key = `screen:${w.form}`;
       if (s.said !== key || msg) {
         s.said = key;
         await this.handoff(thread);
@@ -627,8 +627,8 @@ export class ThreadDoor {
         }
         if (
           !again.waitingFor ||
-          !("page" in again.waitingFor) ||
-          again.waitingFor.page !== w.page
+          !("form" in again.waitingFor) ||
+          again.waitingFor.form !== w.form
         ) {
           await this.step(thread, again, null);
           return;
@@ -645,7 +645,7 @@ export class ThreadDoor {
     }
     // Every field has its answer: the page is sent.
     try {
-      await this.o.runs.answerPage(thread.runId!, w.page, page.values);
+      await this.o.runs.answerForm(thread.runId!, w.form, page.values);
     } catch (err) {
       const wrong = (
         (err as { data?: { fields?: { field: string; message: string }[] } }).data?.fields ?? []

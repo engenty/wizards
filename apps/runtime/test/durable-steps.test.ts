@@ -508,7 +508,7 @@ describe("a turn that asks a person", () => {
     script = asksThenSends;
     const id = await startRun(
       definitionOf(
-        { id: "start", type: "page", title: "Start", fields: [{ id: "name", kind: "text", label: "Name" }] },
+        { id: "start", type: "form", title: "Start", fields: [{ id: "name", kind: "text", label: "Name" }] },
         agentStep(),
       ),
     );

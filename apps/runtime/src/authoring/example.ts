@@ -14,7 +14,7 @@ export const EXAMPLE_WIZARD: WizardDefinition = {
   steps: [
     {
       id: "about",
-      type: "page",
+      type: "form",
       title: "What is it about?",
       fields: [
         {

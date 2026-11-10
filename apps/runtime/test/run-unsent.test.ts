@@ -47,7 +47,7 @@ const VISITOR = "v-typing";
 
 const page = (id: string, more: Record<string, unknown> = {}) => ({
   id,
-  type: "page",
+  type: "form",
   title: `Seite ${id}`,
   fields: [
     { id: `${id}_name`, kind: "text", label: "Name" },

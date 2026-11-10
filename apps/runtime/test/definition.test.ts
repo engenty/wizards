@@ -28,7 +28,7 @@ describe("validator", () => {
       title: "x",
       steps: [
         { id: "a", type: "agent", title: "A", instructions: "use {{topic}}", tools: [] },
-        { id: "p", type: "page", title: "P", fields: [{ id: "topic", label: "T", kind: "text" }] },
+        { id: "p", type: "form", title: "P", fields: [{ id: "topic", label: "T", kind: "text" }] },
         { id: "r", type: "result", title: "R", deliverables: [{ from: "a", formats: ["md"] }] },
       ],
     });
@@ -39,8 +39,8 @@ describe("validator", () => {
     const parsed = parseWizard({
       title: "x",
       steps: [
-        { id: "p", type: "page", title: "P", fields: [{ id: "kind", label: "K", kind: "select", options: ["a", "b"] }], next: [{ when: { field: "kind", op: "eq", value: "b" }, goto: "r" }] },
-        { id: "q", type: "page", title: "Q", fields: [{ id: "x", label: "X", kind: "text" }] },
+        { id: "p", type: "form", title: "P", fields: [{ id: "kind", label: "K", kind: "select", options: ["a", "b"] }], next: [{ when: { field: "kind", op: "eq", value: "b" }, goto: "r" }] },
+        { id: "q", type: "form", title: "Q", fields: [{ id: "x", label: "X", kind: "text" }] },
         { id: "r", type: "result", title: "R", deliverables: [] },
       ],
     });
@@ -90,7 +90,7 @@ describe("a wait step", () => {
     description: "",
     avatar: "round",
     steps: [
-      { id: "ask", type: "page", title: "Ask", fields: [{ id: "due", kind: "text", label: "D" }] },
+      { id: "ask", type: "form", title: "Ask", fields: [{ id: "due", kind: "text", label: "D" }] },
       { id: "pause", type: "wait", title: "Pause", ...wait },
       ...more,
       { id: "done", type: "result", title: "Fertig", deliverables: [] },
@@ -220,7 +220,7 @@ describe("decisions", () => {
   const wizard = (step: Record<string, unknown> = {}) => ({
     title: "x",
     steps: [
-      { id: "p", type: "page", title: "P", fields: [{ id: "mail", label: "M", kind: "textarea" }] },
+      { id: "p", type: "form", title: "P", fields: [{ id: "mail", label: "M", kind: "textarea" }] },
       {
         id: "check",
         type: "decision",
@@ -383,7 +383,7 @@ describe("one result per entry, prefilled fields, lists gone through row by row"
 
   it("refuses a prefill that names no earlier step", () => {
     const parsed = wizard([
-      { id: "p", type: "page", title: "P", fields: [{ id: "items", label: "I", kind: "items", columns: [{ id: "d", label: "D", kind: "text" }], prefill: "steps.later.rows" }] },
+      { id: "p", type: "form", title: "P", fields: [{ id: "items", label: "I", kind: "items", columns: [{ id: "d", label: "D", kind: "text" }], prefill: "steps.later.rows" }] },
     ]);
     expect(parsed.issues).toHaveLength(1);
   });
@@ -407,7 +407,7 @@ describe("how many files a field takes", () => {
       steps: [
         {
           id: "p",
-          type: "page",
+          type: "form",
           title: "P",
           fields: [{ id: "photos", label: "Photos", kind: "image", ...extra }],
         },
@@ -427,7 +427,7 @@ describe("how many files a field takes", () => {
 
 describe("a wizard's themes", () => {
   const steps = [
-    { id: "p", type: "page", title: "P", fields: [{ id: "topic", label: "T", kind: "text" }] },
+    { id: "p", type: "form", title: "P", fields: [{ id: "topic", label: "T", kind: "text" }] },
     { id: "r", type: "result", title: "R", deliverables: [] },
   ];
 
@@ -451,7 +451,7 @@ describe("a wizard's themes", () => {
 describe("a person's step: timeout, remind, approve", () => {
   const page = (more: object) => ({
     id: "ask",
-    type: "page",
+    type: "form",
     title: "A",
     fields: [{ id: "x", kind: "text", label: "X" }],
     ...more,

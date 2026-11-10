@@ -76,7 +76,7 @@ const wizard = (step: Record<string, unknown> = cook) => ({
   steps: [
     {
       id: "photos",
-      type: "page",
+      type: "form",
       title: "Fotos",
       fields: [{ id: "fridge", kind: "image", label: "Dein Kühlschrank" }],
     },

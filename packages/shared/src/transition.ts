@@ -8,7 +8,7 @@
  * and comes back with the next event. Its rules are the engine's (apps/runtime/src/engine/runner.ts)
  * as of the durable runs: waits, signals, timeouts, retries, `onFail`, back and regenerate.
  *
- * Left to the host: what a page accepts (`readPageInput`), the fields a decision picks for a page,
+ * Left to the host: what a page accepts (`readFormInput`), the fields a decision picks for a page,
  * a start's `passStep`, credit holds, a durable AI step's turn, what happens once (`run_effect`),
  * who may answer, telling people, the label and the log.
  *
@@ -18,10 +18,10 @@
  */
 import {
   branchValues,
+  type FormStep,
   followRules,
   loopKey,
   otherwiseOf,
-  type PageStep,
   type ReviewStep,
   type Step,
   type WaitStep,
@@ -68,7 +68,7 @@ export type FlowEvent =
   | { kind: "stepFailed"; stepId: string; failure: FlowFailure; acted?: boolean }
   /** A model picked one of the step's `ask` rules, by its index in `next`; null: none of them. */
   | { kind: "decided"; stepId: string; rule: number | null }
-  /** A person answered a page: its values as `readPageInput` accepted them. */
+  /** A person answered a page: its values as `readFormInput` accepted them. */
   | { kind: "answered"; stepId: string; values: Record<string, unknown> }
   /**
    * A person accepted a review, or declined one with `approve`. `note`: why, on an approval.
@@ -102,7 +102,7 @@ export type FlowCommand =
   /** Ask a model which of these `ask` rules holds, then send `decided`. */
   | { kind: "decide"; stepId: string; rules: number[] }
   /** Show the step to `who`, remind at `remindAt`, then wait for `answered` or `reviewed`. */
-  | { kind: "ask"; step: PageStep | ReviewStep; who: Who; remindAt: number | null }
+  | { kind: "ask"; step: FormStep | ReviewStep; who: Who; remindAt: number | null }
   /** Nothing runs until `wakeAt`. `tell`: the run waits for a person, who hears of it now. */
   | { kind: "sleep"; tell?: Exclude<RunPause, { kind: "retry" }> }
   /** Watch for this signal; one stored since the run began counts, so look for it first. */
@@ -214,7 +214,7 @@ export function transition(
     case "answered": {
       expect(run, "waiting_input", event.stepId);
       const step = stepOf(def, event.stepId);
-      if (step?.type !== "page") {
+      if (step?.type !== "form") {
         throw new FlowRefused("notThisStep");
       }
       state.values = { ...state.values, ...event.values };
@@ -377,7 +377,7 @@ function woke(
       return stay;
     }
     // Its time is up: nobody's answer is invented. The fields stay empty, no approval is given.
-    if (step.type === "page") {
+    if (step.type === "form") {
       for (const field of step.fields) {
         delete state.values[field.id];
       }
@@ -521,7 +521,7 @@ function enter(
         ? enterSignalWait(def, step, state, host)
         : enterTimeWait(def, step, state, host);
 
-    case "page":
+    case "form":
     case "review": {
       const deadlines = host.durable !== false;
       const wakeAt = deadlines && step.timeout ? host.now + waitDurationMs(step.timeout) : null;
@@ -599,7 +599,7 @@ function cannotEnter(
 
 /** What a person's answer hands on, for `next` to read. */
 function handOn(
-  step: PageStep | ReviewStep,
+  step: FormStep | ReviewStep,
   state: RunState,
   at: string,
   decision?: { approved: boolean; note?: string },
@@ -633,8 +633,8 @@ function stepOf(def: WizardDefinition, id: string | null): Step | undefined {
   return id === null ? undefined : def.steps.find((s) => s.id === id);
 }
 
-function isPersonStep(step: Step | undefined): step is PageStep | ReviewStep {
-  return step?.type === "page" || step?.type === "review";
+function isPersonStep(step: Step | undefined): step is FormStep | ReviewStep {
+  return step?.type === "form" || step?.type === "review";
 }
 
 function expect(run: FlowRun, status: RunStatus, stepId: string) {

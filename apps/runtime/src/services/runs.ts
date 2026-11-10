@@ -30,9 +30,9 @@ import {
   answerTurn,
   cancel,
   createRun,
+  formContext,
   goBack,
   NoCreditsError,
-  pageContext,
   type ReviewAction,
   RunConflict,
   RunInputError,
@@ -117,7 +117,7 @@ function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boo
           continue;
         }
         const current = run.definition.steps.find((s) => s.id === run.cursor);
-        if (current?.type === "page") {
+        if (current?.type === "form") {
           const values = Object.fromEntries(
             current.fields.filter((f) => f.id in answers).map((f) => [f.id, answers[f.id]]),
           );
@@ -380,10 +380,10 @@ async function waitingFor(
       hint: prompt("mcp", "hint.question"),
     };
   }
-  if (current.type === "page") {
+  if (current.type === "form") {
     // What the page knows from before it, the choices its fields take from data, the fields a
     // decision kept: a field left out here is not asked, as the run page leaves it out.
-    const ctx = await pageContext(run, current);
+    const ctx = await formContext(run, current);
     const fields = current.fields
       .filter((f) => !isDecidedField(f) || ctx.decided.includes(f.id))
       .map((f) => (ctx.options[f.id]?.length ? { ...f, options: ctx.options[f.id] } : f));
@@ -395,7 +395,7 @@ async function waitingFor(
     };
     const shown = new Set(shownFields(fields, ctx.known, page).map((f) => f.id));
     return {
-      page: current.id,
+      form: current.id,
       title: current.title,
       ...(run.wakeAt ? { until: run.wakeAt.toISOString() } : {}),
       /** What the fields' conditions read from before the page, by reference. */
@@ -586,7 +586,7 @@ export async function startRun(
     throw err;
   });
   const first = version.definition.steps[0];
-  if (first?.type !== "page" || !Object.keys(answers).length) {
+  if (first?.type !== "form" || !Object.keys(answers).length) {
     return { runId, refused: null };
   }
   // A first page someone else answers isn't filled by whoever starts the run.
@@ -597,7 +597,7 @@ export async function startRun(
   const values = Object.fromEntries(
     first.fields.filter((f) => f.id in answers).map((f) => [f.id, answers[f.id]]),
   );
-  // The run is there either way; what did not fit is answered again with answer_page.
+  // The run is there either way; what did not fit is answered again with answer_form.
   try {
     await submitPage(runId, first.id, values, { userId });
     return { runId, refused: null };
@@ -609,7 +609,7 @@ export async function startRun(
   }
 }
 
-export async function answerRunPage(
+export async function answerRunForm(
   userId: string,
   runId: string,
   stepId: string,
@@ -701,7 +701,7 @@ export async function draftStepView(
     notes: {},
   };
   const status: RunRow["status"] =
-    step.type === "page" || step.type === "review"
+    step.type === "form" || step.type === "review"
       ? "waiting_input"
       : step.type === "result"
         ? "done"

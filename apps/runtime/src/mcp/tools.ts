@@ -19,7 +19,7 @@ import { requireStudio } from "../services/members-studio.js";
 import { markAgent, presentIn } from "../services/presence.js";
 import {
   answerRunAsk,
-  answerRunPage,
+  answerRunForm,
   answerRunQuestion,
   controlRun,
   reviewRun,
@@ -732,7 +732,7 @@ export function registerTools(server: McpServer, who: Principal) {
             id: s.id,
             type: s.type,
             title: s.title,
-            ...(s.type === "page"
+            ...(s.type === "form"
               ? { fields: s.fields.map((f) => ({ id: f.id, label: f.label, kind: f.kind })) }
               : {}),
           })),
@@ -786,21 +786,21 @@ export function registerTools(server: McpServer, who: Principal) {
   );
 
   tool(
-    "answer_page",
+    "answer_form",
     "runs:test",
     {
-      title: "Answer page",
-      description: prompt("mcp", "tool.answer_page"),
+      title: "Answer form",
+      description: prompt("mcp", "tool.answer_form"),
       input: z.object({
         runId: z.string(),
-        stepId: z.string().describe("waitingFor.page"),
+        stepId: z.string().describe("waitingFor.form"),
         values: z.record(z.string(), z.unknown()),
         waitSeconds,
       }),
       openWorld: true,
     },
     async ({ runId, stepId, values, waitSeconds }) => {
-      await answerRunPage(who.userId, runId, stepId, values);
+      await answerRunForm(who.userId, runId, stepId, values);
       return runReport(who.userId, runId, waitSeconds);
     },
   );

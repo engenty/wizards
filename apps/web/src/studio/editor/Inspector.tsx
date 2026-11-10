@@ -13,6 +13,7 @@ import {
   FIELD_KINDS,
   type Field,
   type Format,
+  type FormStep,
   formatsFor,
   isOtherwise,
   isRealLanguage,
@@ -21,7 +22,6 @@ import {
   MESSAGE_SIGNAL,
   type NextRule,
   outputKeys,
-  type PageStep,
   personStepRefs,
   plainConditions,
   RUN_DONE_SIGNAL,
@@ -176,11 +176,11 @@ function Section({
 }
 
 /** What a field's condition can read: the page's other fields and what is known before it. */
-function conditionSources(def: WizardDefinition, page: PageStep, field: Field): string[] {
+function conditionSources(def: WizardDefinition, page: FormStep, field: Field): string[] {
   const index = def.steps.indexOf(page);
   const out: string[] = [];
   for (const s of def.steps.slice(0, index)) {
-    if (s.type === "page") {
+    if (s.type === "form") {
       out.push(...s.fields.map((f) => f.id));
     } else if (s.type === "agent") {
       out.push(...outputKeys(s).map((k) => `steps.${s.id}.${k}`));
@@ -192,7 +192,7 @@ function conditionSources(def: WizardDefinition, page: PageStep, field: Field): 
 }
 
 /** Where a choice field's options can come from: lists and table columns made before the page. */
-function optionSources(def: WizardDefinition, page: PageStep): string[] {
+function optionSources(def: WizardDefinition, page: FormStep): string[] {
   const index = def.steps.indexOf(page);
   const out: string[] = [];
   for (const s of def.steps.slice(0, index)) {
@@ -222,7 +222,7 @@ function optionSources(def: WizardDefinition, page: PageStep): string[] {
 /** The label of a field id, or the reference itself. */
 function sourceLabel(def: WizardDefinition, ref: string): string {
   const field = def.steps
-    .flatMap((s) => (s.type === "page" ? s.fields : []))
+    .flatMap((s) => (s.type === "form" ? s.fields : []))
     .find((f) => f.id === ref);
   return field ? field.label : ref;
 }
@@ -350,7 +350,7 @@ function FieldEditor({
   onMove,
 }: {
   def: WizardDefinition;
-  page: PageStep;
+  page: FormStep;
   field: Field;
   onChange: (f: Field) => void;
   onRemove: () => void;
@@ -576,7 +576,7 @@ const WIDGET_SIZES = [
 function dataSources(def: WizardDefinition, index: number): string[] {
   const out: string[] = [];
   for (const s of def.steps.slice(0, index)) {
-    if (s.type === "page") {
+    if (s.type === "form") {
       out.push(...s.fields.map((f) => f.id));
     } else if (s.type === "agent") {
       out.push(`steps.${s.id}`, ...outputKeys(s).map((k) => `steps.${s.id}.${k}`));
@@ -1098,7 +1098,7 @@ function StepBody({
           section={(title, children) => <Section title={title}>{children}</Section>}
         />
       );
-    case "page":
+    case "form":
       return (
         <>
           <Section title={t("inspector.questions")} loose>
@@ -1779,7 +1779,7 @@ function WhoSection({
   step,
   set,
 }: {
-  step: Extract<Step, { type: "page" | "review" }>;
+  step: Extract<Step, { type: "form" | "review" }>;
   set: (step: Step) => void;
 }) {
   const durableRuns = useFeature("durableRuns");
@@ -1950,7 +1950,7 @@ function StepInspector({
           onChange={(e) => set({ ...step, title: e.target.value })}
           className="font-display font-semibold text-[1rem]"
         />
-        {step.type === "page" || step.type === "review" ? (
+        {step.type === "form" || step.type === "review" ? (
           <Textarea
             minRows={1}
             placeholder={t("inspector.stepDescription")}
@@ -1961,7 +1961,7 @@ function StepInspector({
         <StepCost estimate={estimate.data} stepId={step.id} />
       </Section>
       <StepBody def={def} step={step} set={set} files={files} wizardId={wizardId} />
-      {step.type === "page" || step.type === "review" ? <WhoSection step={step} set={set} /> : null}
+      {step.type === "form" || step.type === "review" ? <WhoSection step={step} set={set} /> : null}
       {step.type !== "result" ? (
         <NextSection
           def={def}
@@ -2051,7 +2051,7 @@ function branchSources(def: WizardDefinition, step: Step): string[] {
   const index = def.steps.indexOf(step);
   const out: string[] = [];
   for (const s of def.steps.slice(0, index + 1)) {
-    if (s.type === "page") {
+    if (s.type === "form") {
       out.push(...s.fields.map((f) => f.id), ...personStepRefs(s));
     } else if (s.type === "agent" || s.type === "decision") {
       for (const key of outputKeys(s)) {
@@ -2227,7 +2227,7 @@ function AnswerSection({
   step,
   set,
 }: {
-  step: Extract<Step, { type: "page" | "review" }>;
+  step: Extract<Step, { type: "form" | "review" }>;
   set: (next: Step) => void;
 }) {
   return (

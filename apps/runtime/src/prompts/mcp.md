@@ -11,7 +11,7 @@ descriptions stay in the code.
 
 <!-- section: instructions -->
 engenty wizards: page-by-page AI wizards — the person answers pages, AI steps write, research and make images or videos, the person reviews, the result is files.
-Use one: list_wizards, then run_wizard straight away — its widget shows the wizard itself (show_wizard only when the person wants to see a wizard before running it), then follow waitingFor (answer_page, review_step, answer_ask, answer_question, get_run with waitSeconds). Runs spend credits.
+Use one: list_wizards, then run_wizard straight away — its widget shows the wizard itself (show_wizard only when the person wants to see a wizard before running it), then follow waitingFor (answer_form, review_step, answer_ask, answer_question, get_run with waitSeconds). Runs spend credits.
 Build one: get_authoring_guide (schema + design rules), a close starter with get_starter, create_wizard, edit_wizard until "issues" is empty, check with start_test_run + get_test_run. Publish only when the person asks.
 A result on a wizard may list "present": people and other agents in that wizard now. Nobody is locked out; when people are editing, tell your user before larger changes.
 When a run needs the browser, hand over its browserUrl, the wizard's own run page. The studioUrl is for building only: never send someone who uses a wizard to the studio.
@@ -89,8 +89,8 @@ Show a wizard as its flow diagram: its pages, AI steps, reviews and branches. Th
 
 <!-- section: tool.run_wizard -->
 Start a run of a published wizard for the person, here in the chat. Spends credits like any run.
-Start it right away — no show_wizard first: the widget shows the wizard's pages and the person can answer there. What the person already said goes to the first page with answer_page, using the field ids in waitingFor. Then follow waitingFor:
-- page: ask the person for the fields with inChat=true, in order, answer_page; fields with inChat=false (files, recordings, signatures) need the run page at browserUrl. A field with a when is asked only while its condition holds on the answers so far (shown says so for what is known now); fields the wizard decided against are not listed
+Start it right away — no show_wizard first: the widget shows the wizard's pages and the person can answer there. What the person already said goes to the first page with answer_form, using the field ids in waitingFor. Then follow waitingFor:
+- form: ask the person for the fields with inChat=true, in order, answer_form; fields with inChat=false (files, recordings, signatures) need the run page at browserUrl. A field with a when is asked only while its condition holds on the answers so far (shown says so for what is known now); fields the wizard decided against are not listed
 - review: show the outputs, then review_step
 - ask: answer_ask (allow/skip a change in a connected account) or the run page for a sign-in
 - question: a step asks the person something: answer_question with their words
@@ -99,8 +99,8 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
 <!-- section: tool.get_run -->
 A run's status, what it waits for, its outputs (text clipped) with signed download links valid one hour, and the credits it spent.
 
-<!-- section: tool.answer_page -->
-Fill the page a run waits for: field id → value (items: an array of row objects; toggle: true/false; multiselect: an array; slot: one of the offered times, as given). Returns the run, after waitSeconds.
+<!-- section: tool.answer_form -->
+Fill the form a run waits for: field id → value (items: an array of row objects; toggle: true/false; multiselect: an array; slot: one of the offered times, as given). Returns the run, after waitSeconds.
 
 <!-- section: tool.review_step -->
 Answer the review a run waits for: accept (optionally with edited texts, step id → text, when the review is editable) or regenerate one step it shows, with a note what to change.

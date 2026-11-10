@@ -89,7 +89,7 @@ const definitionWith = (spaceConnection: string) => ({
   steps: [
     {
       id: "start",
-      type: "page",
+      type: "form",
       title: "Du",
       fields: [
         { id: "email", kind: "email", label: "E-Mail" },

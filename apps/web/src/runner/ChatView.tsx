@@ -23,9 +23,9 @@ import {
   type EngentyCostume,
   FIELD_WAYS,
   type Field,
+  type FormStep,
   isDecidedField,
   type LocationValue,
-  type PageStep,
   type ResultStep,
   type ReviewStep,
   shownFields,
@@ -695,7 +695,7 @@ function FieldAsk({ field }: { field: Field }) {
   );
 }
 
-function PageAsk({ step, only }: { step: PageStep; only?: Field }) {
+function FormAsk({ step, only }: { step: FormStep; only?: Field }) {
   return (
     <>
       <span className="font-medium">{step.title}</span>
@@ -804,14 +804,14 @@ function Answer({ field, value, runId }: { field: Field; value: unknown; runId: 
  * (`only`) the page's own title is the question.
  */
 function pageLines(
-  step: PageStep,
+  step: FormStep,
   key: string,
   values: Values,
   runId: string,
   asked: Field[],
   only?: Field,
 ): Line[] {
-  const lines: Line[] = [bot(key, <PageAsk step={step} only={only} />)];
+  const lines: Line[] = [bot(key, <FormAsk step={step} only={only} />)];
   for (const field of asked) {
     if (!only) {
       lines.push(bot(`${key}:${field.id}`, <FieldAsk field={field} />));
@@ -827,7 +827,7 @@ function pageLines(
  * The fields of a page answered before: a field under a condition, or one a decision picks, only
  * where it holds a value — hidden ones are not kept, so an empty one was not asked.
  */
-const answeredFields = (step: PageStep, values: Values) =>
+const answeredFields = (step: FormStep, values: Values) =>
   step.fields.filter(
     (f) => (!f.when && !isDecidedField(f)) || (values[f.id] !== undefined && values[f.id] !== null),
   );
@@ -843,7 +843,7 @@ function historyLines(view: RunView, back?: () => void): Line[] {
   }
   for (const [n, step] of view.answered.entries()) {
     const key = `${n}:${step.id}`;
-    if (step.type === "page") {
+    if (step.type === "form") {
       const only = step.fields.length === 1 ? step.fields[0] : undefined;
       lines.push(
         ...pageLines(step, key, view.values, view.id, answeredFields(step, view.values), only),
@@ -866,13 +866,13 @@ function historyLines(view: RunView, back?: () => void): Line[] {
  * The fields of the page the run is on that can be asked: those a decision kept, with choices
  * from earlier data in place of the fixed ones.
  */
-function pageFields(step: PageStep, view: RunView): Field[] {
+function formFields(step: FormStep, view: RunView): Field[] {
   return step.fields
     .filter((f) => !isDecidedField(f) || view.decidedFields?.includes(f.id))
     .map((f) => (view.options?.[f.id]?.length ? { ...f, options: view.options[f.id] } : f));
 }
 
-function PageTurn({
+function FormTurn({
   view,
   run,
   step,
@@ -880,10 +880,10 @@ function PageTurn({
 }: {
   view: RunView;
   run: Run;
-  step: PageStep;
+  step: FormStep;
   before: Line[];
 }) {
-  const fields = useMemo(() => pageFields(step, view), [step, view]);
+  const fields = useMemo(() => formFields(step, view), [step, view]);
   const known = view.known ?? {};
   // Keyed by the page at the call site, as `PageForm`: a page (or a page revisited) starts afresh.
   const [values, setValues] = useState<Values>(() => initialValues(step, view));
@@ -895,7 +895,7 @@ function PageTurn({
     if (!step.fields.some((f) => view.values[f.id] !== undefined)) {
       return [];
     }
-    const shown = shownFields(pageFields(step, view), view.known ?? {}, initialValues(step, view));
+    const shown = shownFields(formFields(step, view), view.known ?? {}, initialValues(step, view));
     return shown.slice(0, -1).map((f) => f.id);
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -1807,8 +1807,8 @@ export function ChatBody({
           ]}
         />
       );
-    } else if (step?.type === "page") {
-      body = <PageTurn key={step.id} view={view} run={run} step={step} before={before} />;
+    } else if (step?.type === "form") {
+      body = <FormTurn key={step.id} view={view} run={run} step={step} before={before} />;
     } else if (step?.type === "review") {
       const version = view.shown.map((x) => x.output?.at ?? "").join("|");
       body = (
