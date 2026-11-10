@@ -271,6 +271,8 @@ type Field = {
 
 type AgentStep = {
   type: "agent"
+  agent?: string                // an agent of the wizard runs the step (the workspace file agents/<name>.md, below): its file gives the
+                                //   model and the tools; the step names no model, and its tools may only leave some of the agent's out
   instructions: string          // the task, with {{templates}}
   tools: ("web_search"|"web_fetch"|"browser"|"sandbox"|"image"|"http"|"pages"|"code")[]
   connections?: string[]        // ids of wizard connections this step may read (mail → mail_search, mail_read, mail_save)
@@ -314,6 +316,19 @@ type AgentStep = {
 //   browser_download (keeps a file from a signed-in site).
 //   It clicks cookie banners away by itself with the least consent (only necessary / reject all) —
 //   no need to say so in the instructions.
+
+Agents of the wizard. When several steps need the same role (a researcher, a reviewer with fixed rules), or a step's model should hand a
+part of its work to a specialist, write the role once as the workspace file agents/<name>.md (name: lowercase letters, digits and _),
+written with the file tools:
+  ---
+  description: Finds offers for a product and checks them against the budget   # what a step's model reads where it is a tool
+  model: standard                                                                # a class, as a step's; default "standard"
+  tools: [web_search, web_fetch]                                                 # built-in, plugin and wizard.<name> tools; no agent
+  output: { type: object, properties: { offers: { type: array, items: { type: string } } }, required: [offers] }   # optional: its answer as a tool
+  ---
+  You research offers … (the instructions: the system part of every call)
+A step runs it with "agent": "<name>" and gives the task in "instructions". A step lists it as "agent.<name>" in tools: its model calls
+agent_<name> with a task and gets the answer, or the output as JSON. An agent called as a tool calls no other agent.
 
 type ToolStep = {
   type: "tool"
