@@ -9,6 +9,7 @@ import {
   PACKAGE_FORMAT,
   PACKAGE_MANIFEST,
 } from "@engenty/wizards-shared/wizard-package";
+import { WIZARD_SKILLS_DIR, wizardSkillIssues } from "@engenty/wizards-shared/wizard-skills";
 import { strFromU8, unzipSync } from "fflate";
 import { t } from "./i18n.js";
 
@@ -123,10 +124,21 @@ export function checkPackage(data: Uint8Array): CheckedPackage {
   if (!parsed.ok) {
     throw new PackageError(t("package.newer"), parsed.issues);
   }
+  const skillMds = Object.fromEntries(
+    files
+      .filter((f) => f.path.startsWith(WIZARD_SKILLS_DIR) && f.path.endsWith("/SKILL.md"))
+      .map((f) => [f.path, strFromU8(f.data)]),
+  );
   return {
     definition: parsed.wizard,
     files,
-    issues: parsed.issues,
+    issues: [
+      ...parsed.issues,
+      ...wizardSkillIssues(
+        files.map((f) => f.path),
+        skillMds,
+      ),
+    ],
     fit: standaloneEntry(parsed.wizard),
   };
 }
