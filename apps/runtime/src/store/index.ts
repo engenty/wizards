@@ -10,13 +10,14 @@ import {
   type StoreFile,
 } from "@engenty/wizards-shared/store";
 import { cleanPath, mimeForPath } from "@engenty/wizards-shared/workspace";
-import { and, asc, eq, inArray, like, lt, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, like, lt, notLike, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { getBlob, putBlob } from "../files/blobs.js";
 import { seal, unseal } from "../secrets/crypto.js";
+import { dropHolderData } from "./data.js";
 import { StoreError } from "./errors.js";
 import { deleteSharedRows, saveSharedRows, sharedRows } from "./shared-lists.js";
 
@@ -412,8 +413,12 @@ export async function listSecrets(scope: StoreScope) {
 
 // --- everything --------------------------------------------------------------
 
-/** Deletes everything the wizard keeps for this person. Blobs stay: other files may share them. */
+/**
+ * Deletes everything the wizard keeps for this person, their database too. Blobs stay: other
+ * files may share them.
+ */
 export async function clearStore(scope: StoreScope) {
+  await dropHolderData(scope);
   await db
     .delete(schema.storeRow)
     .where(
@@ -434,8 +439,12 @@ export async function clearStore(scope: StoreScope) {
 /** Stores nobody used for STORE_TTL_DAYS are deleted — a visitor's cookie is long gone by then. */
 export async function purgeUnusedStores() {
   const cutoff = new Date(Date.now() - env.limits.storeTtlDays * 24 * 60 * 60 * 1000);
+  // What every run shares (`shared:<space>`: the shelf beside a shared database) is the space's.
   const stale = await db.query.storeHolder.findMany({
-    where: lt(schema.storeHolder.usedAt, cutoff),
+    where: and(
+      lt(schema.storeHolder.usedAt, cutoff),
+      notLike(schema.storeHolder.holder, "shared:%"),
+    ),
   });
   for (const scope of stale) {
     await clearStore(scope);

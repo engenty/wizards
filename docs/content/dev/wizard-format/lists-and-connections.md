@@ -37,6 +37,9 @@ shows it with `lists.<id>` in `show`.
 A `shared` list is never shown to the person running the wizard, who would see what others gave.
 It shows in the studio under Space → Data.
 
+A list holds one table. For several tables, counts over time or what earlier runs have seen, a
+wizard keeps [a database of its own](./data.md).
+
 `check` has `file`, a text column holding the path of a kept file, which shows beside the row. It
 has `status`, a select column whose options are the answers. Its first option means “not looked
 at yet”.

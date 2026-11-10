@@ -21,8 +21,14 @@ import { lang, t } from "../../lib/i18n";
 
 type ToolStep = Extract<Step, { type: "tool" }>;
 
-/** What a tool step calls, in one line: the connection and its action, or the plugin's tool. */
-export function callSummary(call: ToolStep["call"]): string {
+/**
+ * What a tool step calls, in one line: the connection and its action, the plugin's tool, or the
+ * start of its statement on the wizard's data.
+ */
+export function callSummary(call: ToolStep["call"], data?: ToolStep["data"]): string {
+  if (!call) {
+    return data ? data.sql.replace(/\s+/g, " ").slice(0, 90) : "";
+  }
   return "connection" in call ? `${call.connection} · ${call.action}` : call.tool;
 }
 
@@ -133,7 +139,7 @@ export function stepSummary(step: Step): string {
     case "agent":
       return step.tools.map(toolLabel).join(" · ") || step.instructions.slice(0, 90);
     case "tool":
-      return callSummary(step.call);
+      return callSummary(step.call, step.data);
     case "code":
       return step.code.entry;
     case "decision":

@@ -36,6 +36,7 @@ package that carry the line "SPDX-License-Identifier: FSL-1.1-MIT OR MIT":
   src/theme.ts
   src/transition.ts
   src/translation.ts
+  src/wizard-data.ts
   src/wizard-package.ts
   src/engenty/data-tables/columns.ts
   src/engenty/data-tables/columns-format.ts

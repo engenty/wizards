@@ -26,6 +26,7 @@ import { hasStoreFiles } from "../store/index.js";
 import { browserTools } from "./browser.js";
 import { askOf, codeTool, toolCallIdOf } from "./code.js";
 import { connectorTools } from "./connector.js";
+import { dataTools } from "./data.js";
 import { mailTools } from "./mail.js";
 import { assertPublicUrl, safeFetch } from "./net-guard.js";
 import { pageTools } from "./pages.js";
@@ -230,9 +231,10 @@ export async function buildStepTools(
   const idle =
     isHarnessVendor(resolved.vendor) &&
     storeIdle(step, ctx.def.lists?.length ?? 0, uploads.length) &&
+    !ctx.def.data &&
     !(await hasStoreFiles(ctx.store));
   if (!idle) {
-    Object.assign(tools, storeTools(ctx, uploads, files));
+    Object.assign(tools, storeTools(ctx, uploads, files), await dataTools(ctx));
   }
   // The run's sandbox: a guest's run has none unless SANDBOX_GUESTS says so (engine/resources.ts).
   const sandbox = allowed.has("sandbox") ? await ctx.resources.runSandboxCapabilities() : null;

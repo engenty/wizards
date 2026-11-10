@@ -86,6 +86,7 @@ export const ALL_WORDS: Partial<Record<RwxResourceKind, Key>> = {
   wizard: "rights.what.all.wizard",
   skill: "rights.what.all.skill",
   mount: "rights.what.all.mount",
+  data: "rights.what.all.data",
 };
 
 /** One resource by its name. */
@@ -96,6 +97,7 @@ export const NAMED_WORDS: Partial<Record<RwxResourceKind, Key>> = {
   wizard: "rights.what.wizard",
   skill: "rights.what.skill",
   mount: "rights.what.mount",
+  data: "rights.what.data",
 };
 
 /** One resource that is no longer there. */
@@ -106,6 +108,7 @@ export const GONE_WORDS: Partial<Record<RwxResourceKind, Key>> = {
   wizard: "rights.what.gone.wizard",
   skill: "rights.what.gone.skill",
   mount: "rights.what.gone.mount",
+  data: "rights.what.gone.data",
 };
 
 /** The kinds without a name of their own: the space's one setup, and what no rule is asked about. */
@@ -182,6 +185,7 @@ function verbOf(
     wizard: { r: direct ? "see" : "seeAi", x: direct ? "start" : "startAi" },
     skill: { r: "use", x: "scripts" },
     mount: { r: "read", w: "change" },
+    data: { r: "read", w: "change" },
   };
   return verbs[kind]?.[perm];
 }
@@ -331,6 +335,8 @@ export const RIGHTS: { kind: RwxResourceKind; perm: RwxPerm; label: Key; client?
   { kind: "skill", perm: "r", label: "rights.can.skill.r" },
   { kind: "skill", perm: "x", label: "rights.can.skill.x" },
   { kind: "setup", perm: "w", label: "rights.can.setup.w" },
+  { kind: "data", perm: "r", label: "rights.can.data.r" },
+  { kind: "data", perm: "w", label: "rights.can.data.w" },
 ];
 
 /** The permissions by the word the page's forms offer: lesen, ändern, ausführen. */
@@ -348,4 +354,5 @@ export const KIND_WORDS: Partial<Record<RwxResourceKind, Key>> = {
   wizard: "rights.kind.wizard",
   skill: "rights.kind.skill",
   setup: "rights.kind.setup",
+  data: "rights.kind.data",
 };

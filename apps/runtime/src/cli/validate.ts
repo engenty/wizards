@@ -1,9 +1,14 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
-import { parseWizard, type ValidationIssue } from "@engenty/wizards-shared/definition";
+import {
+  parseWizard,
+  type ValidationIssue,
+  type WizardDefinition,
+} from "@engenty/wizards-shared/definition";
 import { requiresProblem } from "@engenty/wizards-shared/requires";
 import { inputSchemaOf, type JsonSchema, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
 import { wizardAgentUseIssues } from "@engenty/wizards-shared/wizard-agents";
+import { dataFiles, wizardDataIssues } from "@engenty/wizards-shared/wizard-data";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
 import { WIZARD_SKILLS_DIR, wizardSkillIssues } from "@engenty/wizards-shared/wizard-skills";
 import { wizardAgentFiles, wizardToolFileIssues } from "../engine/wizard-code.js";
@@ -17,7 +22,8 @@ import { bad, dim, ok } from "./ui.js";
  *
  * What a space holds — its connectors, MCP servers and plugins — is checked on import. The
  * wizard's function tools (`files/tools/`) are loaded in QuickJS, as a run loads them; its
- * agents (`files/agents/`) are read as a run reads them.
+ * agents (`files/agents/`) are read as a run reads them. The SQL of the wizard's own database is
+ * read too: its schema and migrations split into statements the runtime runs.
  */
 
 interface Checked {
@@ -80,6 +86,18 @@ function read(path: string): Given {
   };
 }
 
+/** The SQL files of the wizard's own database, read: each splits into statements the runtime runs. */
+async function dataIssues(def: WizardDefinition, given: Given): Promise<ValidationIssue[]> {
+  const files = dataFiles(def, given.files);
+  const texts = new Map<string, string | null>();
+  for (const file of files ? [files.schema, ...files.migrations] : []) {
+    texts.set(file, await given.read(file));
+  }
+  return wizardDataIssues(def, given.files, (p) => texts.get(p) ?? null).map((i) => ({
+    message: i.message,
+  }));
+}
+
 export async function validatePath(path: string): Promise<Checked> {
   let given: Given;
   try {
@@ -114,6 +132,7 @@ export async function validatePath(path: string): Promise<Checked> {
       .filter((message) => !said.has(message))
       .map((message) => ({ message })),
     ...wizardSkillIssues(given.files, skillMds),
+    ...(parsed.ok ? await dataIssues(parsed.wizard, given) : []),
   ];
   return {
     path,

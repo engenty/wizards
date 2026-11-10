@@ -150,7 +150,7 @@ export function pluginsOf(def: Pick<WizardDefinition, "steps">, agents: AgentNee
       const tools =
         step.type === "agent"
           ? toolsAt(step, agents)
-          : step.type === "tool" && "tool" in step.call
+          : step.type === "tool" && step.call && "tool" in step.call
             ? [step.call.tool]
             : [];
       return tools.flatMap((tool) => pluginToolOf(tool)?.plugin ?? []);
@@ -217,6 +217,7 @@ export function requiresOf(
     plugins: pluginsOf(def, needs),
     connections,
     features: [...features].sort(),
+    ...(def.data ? { data: def.data.scope } : {}),
     ...(optionalModels.size ? { optional: { models: sorted(optionalModels) } } : {}),
     ...(Object.keys(needs).length
       ? { agents: Object.fromEntries(Object.entries(needs).sort(([a], [b]) => a.localeCompare(b))) }

@@ -533,6 +533,7 @@ function itemsOf(choices: RwxChoices, kind: RwxResourceKind) {
     case "table":
       return choices.tables;
     case "wizard":
+    case "data":
       return choices.wizards;
     case "skill":
       return choices.skills;

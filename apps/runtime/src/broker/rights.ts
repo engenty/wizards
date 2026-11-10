@@ -87,6 +87,7 @@ export async function describeRules(
   const wizardIds = [
     ...new Set([
       ...of("wizard"),
+      ...of("data"),
       ...idsOf(rules, (r) => (r.subjectKind === "wizard" ? r.subjectId : null)),
     ]),
   ];
@@ -157,6 +158,7 @@ export async function describeRules(
     document: named(files),
     table: named(tables),
     wizard: named(wizards),
+    data: named(wizards),
     skill: named(skills),
     mount: named(mounts),
   };

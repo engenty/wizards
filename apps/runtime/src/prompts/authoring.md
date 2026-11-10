@@ -35,6 +35,7 @@ How good wizards look:
 - Sending the finished result on (mail it, file it in a cloud folder, post it on social media or a website, put it into an ads account): do not build a step for it. Put the targets into the result step's "share": the person sees the result first and sends it with one button. Build an agent step only when the wizard must write somewhere without being asked.
 ${sandbox}
 - Remembering between runs ("merke dir", "führe eine Liste"): declare a list and let an agent step save into it with list_write; a later run reads it as {{lists.id}} or list_read. Give it a key column so known rows are updated, not duplicated. Never make the person re-upload last time's result.
+- More than a list holds (several related tables, what was already seen, counts over time, a cache): the wizard's own database, "data" with a schema file "data/schema.sql". Agent steps get data_query and data_exec; a tool step with "data" runs one fixed statement. Sign-ups and anything every run collects go in a "shared" database, written by a tool step: in a guest's run an agent step reaches the person's own database only.
 - Collecting from everyone who runs the wizard (requests, leads, sign-ups, feedback): a list with "shared": true, saved with list_write. It is the admin's, under Space → Data; never show one person's rows to another. Longer text for every run (a running summary, a log): the "pages" tool.
 - The person's mail: one connection of kind "mail", a page field of kind "connection" early in the wizard, and the agent step lists it in "connections". Do not ask for the provider or the address in other fields — the connect field does that.
 - Working in a service for the person (read their Notion, create an issue, look up a customer): import the service as a connector, declare a connection with "connector", put a page field of kind "connection" before the step, and list the connection in the step's "connections". Prefer a connector over the browser whenever the service has one.
@@ -112,6 +113,11 @@ type Wizard = {
   lang?: string                 // two-letter code of the language the wizard's texts are in ("en", "de", "it", "fr") — ALWAYS set it to the language you write them in
   lists?: List[]                // tabular data the wizard KEEPS between runs — separately for each person who runs it, or for all with "shared"
   connections?: Connection[]    // accounts the PERSON connects during a run (their mailbox); kept for their next run
+  data?: { scope?: "person"|"shared", schema: "data/schema.sql" }
+                                // the wizard's OWN DATABASE (SQLite), kept by the runtime: one per person ("person", the default),
+                                //   and with "shared" one more that every run reads and writes. schema: a .sql file of the workspace,
+                                //   run when a database is made; a later version adds data/migrations/<NNN>_<name>.sql, run in the
+                                //   order of their names, never edit what ran. No ATTACH, PRAGMA or transactions of your own.
   themes?: string[]             // ids of the space's themes the wizard offers, in order (see Theme) — leave it out to look like the space's brand
   requires?: { … }              // what a run needs (models, tools, plugins, switches …): filled in from the steps on every save. Never write it
   steps: Step[]                 // run top to bottom; the LAST step is always a "result"
@@ -299,6 +305,8 @@ type AgentStep = {
   working?: string              // shown while it runs ("Recherchiert im Web …")
 }
 // Every agent step also has, without listing them: list_read / list_write (the wizard's lists), files_list,
+//   data_query / data_exec (where the wizard has "data": one SQL statement, values as params named :name,
+//   "scope" person or shared — shared not in a guest's run), files_keep (shared: true keeps a file for every run, with shared data),
 //   read_document (PDF, scans and photos, Word, Excel, CSV, saved mails) and scan_documents (invoice / receipt fields, many at once)
 //   — on an installed client only where there is something to read: tools or connections, uploads, lists or kept files;
 //   and where the space has Knowledge: space_search (a question, "where" on its typed categories, hits checked for relevance),
@@ -332,7 +340,7 @@ agent_<name> with a task and gets the answer, or the output as JSON. An agent ca
 
 type ToolStep = {
   type: "tool"
-  call: { tool: "<plugin>.<tool>", input: { … } }
+  call?: { tool: "<plugin>.<tool>", input: { … } }
       | { connection: connectionId, action: actionId, input: { … } }
                                 // NO MODEL: one plugin tool, or one action of a connection, called once with this input; its
                                 //   answer IS the step's json output. Use it where a model would only fetch and copy data (free
@@ -340,6 +348,11 @@ type ToolStep = {
                                 //   through a connection that signs in as the space. String inputs are templates ("{{email}}",
                                 //   "{{steps.read.summary}}"); a filled-in whole number or true/false is passed as one, an empty
                                 //   one is left out. On the person's own connection a write still asks them first.
+  data?: { scope?: "person"|"shared", sql: string, params?: { name: path | template } }
+                                // INSTEAD of call: one fixed statement on the wizard's own database. :name in sql takes params.name,
+                                //   bound, never spliced: a path alone gives the raw value ("email", "steps.find.total"), a template
+                                //   gives text. Its json is { rows, count, changes, lastId }: declare the keys later steps read in
+                                //   output.fields. It runs as the wizard: in a guest's run it may write the shared database (a sign-up).
   output?: { fields?: { id, kind, description, columns?, options? }[], surface?: SurfaceComponent[] }
                                 // fields, as on an agent step, name the keys of the answer later steps read; surface: a view written once
   retries?: 0|1|2|3|4|5
@@ -554,6 +567,7 @@ type CodeStep = {
                                 //   step's (steps.<id>.<key>).
                                 // input: a path alone gives the raw value: "budget", "steps.find.offers" (a table as rows), "lists.prices"
                                 //   (the list's rows), "today". Text with {{templates}} in it gives text. Only what was asked or ran EARLIER.
+  data?: { scope?, sql, params? } // as on a tool step, run first: run() gets what it gave as input.data ({ rows, count, … })
   output: { fields?: { id, kind, description, columns?, options? }[], schema?: Schema, surface?: SurfaceComponent[] }
                                 // fields (as on an agent step) or schema, one of them
   retries?: 0|1|2|3|4|5
