@@ -316,17 +316,18 @@ was asked or ran before the step.
 }
 ```
 
-The entries run one after another, not at the same time. `{{index}}` counts from 1. More than
-twenty entries are left out after the twentieth.
+The entries run one after another. `concurrency`, 1 to 5, runs that many at the same time. Use it
+where the entries don’t depend on each other. `{{index}}` counts from 1. More than twenty entries
+are left out after the twentieth.
 
 The output is one table, `steps.<id>.rows`: the entry’s columns plus the step’s output fields,
 one row per entry. Here every row holds `name`, `price`, `url` and `available`.
 
 ## Time limit, retries and failure
 
-An agent step stops after 8 hours. Short trouble at a provider is tried again by itself. `onFail`
-names the step the run goes to when this one fails for good. See
-[When a step fails](./runs-that-last.md#when-a-step-fails).
+An agent step stops after 8 hours. Short trouble at a provider is tried again by itself. `retries`,
+0 to 5, tries the step again when it fails for its own reason. `onFail` names the step the run goes
+to when this one fails for good. See [When a step fails](./runs-that-last.md#when-a-step-fails).
 
 `"durable": true` keeps the step’s conversation across a crash or a deploy, and lets it ask the
 person. See [AI steps that go on](./runs-that-last.md#ai-steps-that-go-on).

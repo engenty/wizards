@@ -298,6 +298,29 @@ describe("decisions", () => {
   });
 });
 
+describe("concurrency and retries", () => {
+  const wizard = (step: Record<string, unknown>) => ({
+    title: "x",
+    steps: [
+      { id: "find", type: "agent", title: "F", instructions: "x", output: { format: "json", fields: [{ id: "offers", kind: "table", columns: ["url"] }] } },
+      { id: "check", type: "agent", title: "C", instructions: "{{item.url}}", ...step },
+      { id: "r", type: "result", title: "R", deliverables: [] },
+    ],
+  });
+  const messages = (step: Record<string, unknown>) => parseWizard(wizard(step)).issues.map((i) => i.message);
+
+  it("takes concurrency with each only, from 1 to 5", () => {
+    expect(messages({ each: "steps.find.offers", concurrency: 3 })).toEqual([]);
+    expect(messages({ concurrency: 3 })).toContain('"concurrency" goes with "each".');
+    expect(parseWizard(wizard({ each: "steps.find.offers", concurrency: 6 })).ok).toBe(false);
+  });
+
+  it("takes retries from 0 to 5 on a step that runs without a person", () => {
+    expect(messages({ each: "steps.find.offers", retries: 5 })).toEqual([]);
+    expect(parseWizard(wizard({ each: "steps.find.offers", retries: 6 })).ok).toBe(false);
+  });
+});
+
 describe("line items", () => {
   it("computes net, VAT and total", () => {
     const field = {

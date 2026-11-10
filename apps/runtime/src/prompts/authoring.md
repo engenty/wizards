@@ -288,6 +288,10 @@ type AgentStep = {
                                 // ONE RUN PER ENTRY (at most 20): the rows of a table output, the entries of a list output, or the
                                 //   rows of a stored list; the instructions read {{item.<column>}}, {{index}}, {{count}}. The output is
                                 //   one table, steps.<id>.rows: the entry's columns plus the step's output fields, a row per entry.
+  concurrency?: 1|2|3|4|5       // with each: how many entries run at the same time; default 1, one after another. Higher only
+                                //   where the entries don't depend on each other and a site won't mind several calls at once.
+  retries?: 0|1|2|3|4|5         // how often the step is tried again when it fails for its own reason (not a provider's trouble),
+                                //   before onFail; default 0. Every step that runs without a person takes it.
                                 // a table with columns gives rows as objects with exactly those keys — what widgets read
                                 // "yesno" answers the question in its description with true/false; "choice" picks one of its options
   model?: "classifier"|"low"|"standard"|"high"|"highest"  // the kind of model, see "Models"; default "standard". "highest" only with a maker
@@ -497,7 +501,7 @@ On a review:
 On an agent step:
   durable?: true                 // after a crash or a deploy the step goes on at the call it was at, and it gets the tool ask_person: it stops and asks with nothing running, for days if it must. It needs a model an API serves. Not with browser or sandbox, each or call. Use it for a long step that acts in other systems or may have to ask.
 On any step:
-  onFail?: stepId                // where the run goes when this step fails for good, at most three times; without it the run fails. Short trouble at a provider is tried again by itself after 1, 5 and 30 minutes, out of credits or an expired sign-in waits until someone acts, so onFail is for what is really over. A step that already acted outside is not tried again by itself.
+  onFail?: stepId                // where the run goes when this step fails for good, at most three times; without it the run fails. Short trouble at a provider is tried again by itself after 1, 5 and 30 minutes, out of credits or an expired sign-in waits until someone acts, so onFail is for what is really over. A step that already acted outside is not tried again by itself. "retries" (0–5, on a step that runs without a person) tries it again first when it fails for its own reason.
 On the wizard:
   label?: string                 // what tells its runs apart in the runs panel, a template of answers: "{{customer}} · {{offer}}".
 

@@ -132,7 +132,14 @@ export interface RunState {
   /** The step whose visit is open; finishing it, or going back, closes it. */
   visiting?: string;
   /** The step that keeps failing, how often it was given another try, and since when. */
-  retries?: { step: string; count: number; since: string; told?: RunPause["kind"] };
+  retries?: {
+    step: string;
+    count: number;
+    since: string;
+    told?: RunPause["kind"];
+    /** Tries after the step's own failures, as its `retries` allows. */
+    failures?: number;
+  };
   /** Why a run that sleeps is not at a `wait` step; gone once it wakes. */
   pause?: RunPause;
   /** Who answered each page or review of someone in the organization, by step. */

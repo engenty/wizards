@@ -510,10 +510,18 @@ async function runAgentEach(step: AgentStep, ctx: StepContext): Promise<StepOutp
   const rows: Record<string, unknown>[] = [];
   const texts: string[] = [];
   const assets: AssetRef[] = [];
+  // `concurrency` entries at a time; the rows keep the entries' order.
+  const outs = await inParallel(
+    [...entries.entries()],
+    step.concurrency ?? 1,
+    async ([index, item]) => {
+      await ctx.emit("info", { code: "entry", params: { n: index + 1, total: entries.length } });
+      const scope: TemplateScope = { ...ctx.scope, entry: { item, index, count: entries.length } };
+      return runAgentStep(single, { ...ctx, scope });
+    },
+  );
   for (const [index, item] of entries.entries()) {
-    await ctx.emit("info", { code: "entry", params: { n: index + 1, total: entries.length } });
-    const scope: TemplateScope = { ...ctx.scope, entry: { item, index, count: entries.length } };
-    const out = await runAgentStep(single, { ...ctx, scope });
+    const out = outs[index];
     const own = item && typeof item === "object" ? (item as Record<string, unknown>) : { item };
     const json =
       out.json && typeof out.json === "object" ? (out.json as Record<string, unknown>) : {};

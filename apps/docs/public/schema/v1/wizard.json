@@ -3209,6 +3209,11 @@
               "onFail": {
                 "type": "string"
               },
+              "retries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
+              },
               "type": {
                 "type": "string",
                 "const": "agent"
@@ -4767,6 +4772,11 @@
               "each": {
                 "type": "string"
               },
+              "concurrency": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
               "durable": {
                 "type": "boolean"
               },
@@ -5552,6 +5562,11 @@
               },
               "onFail": {
                 "type": "string"
+              },
+              "retries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
               },
               "type": {
                 "type": "string",
@@ -6393,6 +6408,11 @@
               },
               "onFail": {
                 "type": "string"
+              },
+              "retries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
               },
               "type": {
                 "type": "string",
@@ -7271,6 +7291,11 @@
               "onFail": {
                 "type": "string"
               },
+              "retries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
+              },
               "type": {
                 "type": "string",
                 "const": "widget"
@@ -8105,6 +8130,11 @@
               },
               "onFail": {
                 "type": "string"
+              },
+              "retries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
               },
               "type": {
                 "type": "string",
@@ -9128,6 +9158,11 @@
               },
               "onFail": {
                 "type": "string"
+              },
+              "retries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
               },
               "type": {
                 "type": "string",
