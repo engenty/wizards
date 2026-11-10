@@ -144,6 +144,7 @@ Declared by two or more of the workspaces below:
 | [rfc6902](https://github.com/chbrown/rfc6902) | 5.4.0 | MIT |
 | [turndown](https://github.com/mixmark-io/turndown#readme) | 7.2.5 | MIT |
 | [word-extractor](https://github.com/morungos/node-word-extractor) | 1.0.4 | MIT |
+| [yaml](https://eemeli.org/yaml/) | 2.9.1 | ISC |
 
 ### studio (apps/web)
 

@@ -4,6 +4,44 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.19.0] - 2026-11-10
+- ADDED **[format]** Function tools and the sandbox reach the wizard's database (#608)
+- ADDED **[format]** A wizard brings its own sandbox tools, and its skill scripts run in the cloud's sandbox (#606)
+- ADDED **[studio]** Space → Data shows a wizard's shared data, read-only, with CSV export (#598)
+- ADDED **[format]** A wizard keeps its own data, per person or shared (#597)
+- ADDED **[format]** A wizard brings its own agents (#605)
+- ADDED **[format]** A wizard brings its own function tools (#594)
+- ADDED **[studio]** The share dialog shows what a wizard takes and gives (#589)
+- ADDED **[format]** A wizard says what it takes and gives, as JSON Schema (#585)
+- ADDED **[format]** A wizard brings its own skills (#591)
+- ADDED **[format]** A wizard's root requires says what a run needs, filled in from its steps (#593) **[breaking]**
+- ADDED **[format]** Retries on steps that run without a person, concurrency on each (#580)
+- ADDED **[sandbox]** AgentOS in a container of its own for the cloud, agentOS 0.4.7 (#596)
+- ADDED **[autostart]** The Mac login item shows as engenty wizards with its icon (#583)
+- ADDED **[wizard-format]** A code step runs a function from the wizard's files, with no model (#578)
+- ADDED **[install]** A minimal installation leaves out scans, Docker, code, Word and Excel until a wizard first needs them (#575)
+- ADDED **[durable-runs]** A run's flow as one pure function, transition(), in the shared package (#571)
+- ADDED **[studio]** Home's setup card starts from the organization's name or website, five steps beside it (#570)
+- ADDED **[studio]** Home opens on the dashboard, a new organization's setup waits there as a card (#569)
+- ADDED **[models]** An organization's own API keys run through the gateway, behind ownKeysGateway (#568)
+- ADDED **[studio]** Home, a paged wizard that sets up a new organization, then what waits, finished and runs (#567)
+- ADDED **[studio]** The Resources cards show an engenty with what each part holds (#566)
+- ADDED **[studio]** Resources shows each part as a card with a picture of what it holds (#565)
+- ADDED **[studio]** The path bar stands above the page, and the engenty menu says which organization and how it is connected (#564)
+- ADDED **[spaces]** Who sees a new space, brand and Info from the organization or a space's own, Local space (#563)
+- ADDED **[spaces]** Sharing, folders and the computer's space, behind orgSpaces (#562)
+- ADDED **[spaces]** The organization's root space, Mein Space and the space path, behind orgSpaces (#561)
+- ADDED **[cli]** Wizards <name> runs a command from the commands folder (#559)
+- CHANGED **[format]** Output.schema is written in a subset of JSON Schema (#590) **[breaking]**
+- CHANGED **[format]** Tool and code are step types, each becomes foreach, conditions take or, and, truthy and falsy, and every step may carry metadata (#587) **[breaking]**
+- CHANGED **[format]** The page step is called form (#579) **[breaking]**
+- CHANGED **[format]** The definition is version 1 again, in beta (#577) **[breaking]**
+- CHANGED **[durable-runs]** Every move of a run goes through transition(), the runner is its host (#572)
+- DOCS Documentation updates (#576, #581, #582, #584, #588, #592, #595)
+- FIXED **[install]** A code step loads QuickJS on demand, so a minimal installation starts again (#586)
+- FIXED **[install]** The banner's engenty has a round top that leans as it looks around (#573)
+- FIXED **[studio]** The start page drops the Studio line and keeps the sentence on what a wizard is (#560)
+
 ## [0.18.0] - 2026-11-08
 - ADDED **[durable-runs]** Runs that wait for days and pages without waiting, behind durableRuns and fastCreate (#556)
 - ADDED **[runtime]** A run's sandbox reaches only what the broker allows (#553)
