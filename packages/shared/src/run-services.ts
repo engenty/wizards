@@ -371,6 +371,13 @@ export interface ContextService {
   prepareInputs(stepId: string): Promise<void>;
 }
 
+/** A call that names only the step it is made for: `tools.list`, `context.prepareInputs`, `steps.run`. */
+export const stepRequestSchema = z.object({ stepId: z.string().min(1) });
+
+export const forStepRequestSchema = stepRequestSchema.extend({
+  options: z.object({ tools: z.boolean().optional(), sandbox: z.boolean().optional() }).optional(),
+});
+
 // --- files -------------------------------------------------------------------------------------
 
 /** A file a step saves: its bytes, or an address the service fetches them from. */
@@ -419,6 +426,30 @@ export const fileSaveByUrlSchema = z.object({
   mime: z.string().optional(),
 });
 
+/**
+ * A save of bytes, as it crosses HTTP: base64 in the JSON. Simple over fast; a file the size of a
+ * film goes by address.
+ */
+export const fileSaveByDataSchema = z.object({
+  stepId: z.string().nullable().optional(),
+  kind: z.string().min(1),
+  name: z.string().min(1),
+  ai: z.enum(["generated", "edited"]).optional(),
+  mime: z.string().min(1),
+  base64: z.string(),
+});
+
+export const fileSaveRequestSchema = z.union([fileSaveByUrlSchema, fileSaveByDataSchema]);
+
+/** `files.read` and `files.link`: a file of the run's tenant. */
+export const fileRefRequestSchema = z.object({ ref: z.string().min(1).max(200) });
+
+/** `files.workspace`: a file of the workspace the run started with. */
+export const workspaceRequestSchema = z.object({ path: z.string().min(1).max(1000) });
+
+/** The header `files.read` answers the file's `AssetRef` in, as JSON; the body is the bytes. */
+export const ASSET_REF_HEADER = "x-asset-ref";
+
 // --- data --------------------------------------------------------------------------------------
 
 /** One statement on the wizard's own database. */
@@ -458,6 +489,8 @@ export const dataStatementRequestSchema: z.ZodType<DataStatementRequest> = z.obj
   by: z.enum(["model", "wizard"]),
   effect: effectIdSchema.nullable().optional(),
 });
+
+export const listRowsRequestSchema = z.object({ listId: z.string().min(1) });
 
 export const dataAnswerSchema: z.ZodType<DataAnswer> = z.object({
   columns: z.array(z.string()),
@@ -512,6 +545,15 @@ export interface PeopleService {
 }
 
 // --- all of it ---------------------------------------------------------------------------------
+
+/**
+ * Where a host reaches the run's services over HTTP: `POST <runtime>/api/run-services/v1/<service>/<call>`
+ * with `Authorization: Bearer <run token>`, the request as JSON.
+ */
+export const RUN_SERVICES_PATH = "/api/run-services/v1";
+
+/** A call that takes nothing: `files.uploads`, `data.counts`. */
+export const emptyRequestSchema = z.object({});
 
 export interface RunServices {
   models: ModelsService;

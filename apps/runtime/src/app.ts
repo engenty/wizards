@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { RUN_SERVICES_PATH } from "@engenty/wizards-shared/run-services";
 import { BUILT_IN_RUNNERS, RUNNER_ID } from "@engenty/wizards-shared/runners";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { and, eq } from "drizzle-orm";
@@ -46,6 +47,7 @@ import { publicPluginRoutes } from "./routes/plugin-public.js";
 import { pluginRoutes } from "./routes/plugins.js";
 import { reportRoutes } from "./routes/reports.js";
 import { ruleRoutes } from "./routes/rules.js";
+import { runServiceRoutes } from "./routes/run-services.js";
 import { clientIp, connectCallback, publicRoutes, runRoutes, shareRoutes } from "./routes/runs.js";
 import { runtimeSettingsRoutes } from "./routes/runtime-settings.js";
 import { signalRoutes } from "./routes/signals.js";
@@ -163,8 +165,9 @@ app.get("/api/health/ready", async (c) => {
 });
 
 if (serves.runServices) {
-  // A run's services, asked for with the run's token: `/api/run-services/v1/:service/:call`
-  // mounts here (docs/plans/runs-on-their-own.md, package 3.5).
+  // A run's services, asked for with the run's token (docs/plans/runs-on-their-own.md). Its own
+  // body limit: the one of `/api/runs/*` comes after a broker's catch-all.
+  app.route(RUN_SERVICES_PATH, runServiceRoutes);
 }
 if (env.role === "broker") {
   // A broker serves the health checks above and a run's services, nothing people open.

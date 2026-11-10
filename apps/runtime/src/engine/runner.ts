@@ -1108,6 +1108,20 @@ export async function inProcessContext(
 }
 
 /**
+ * The run's context at one of its steps, as the runner makes it when the run works on that step
+ * (`runtimeHost`'s `context`): the run's services asked from outside (routes/run-services.ts)
+ * answer with it. `stepId` null: the step the run is at.
+ */
+export async function contextAt(
+  run: RunRow,
+  stepId: string | null,
+  signal: AbortSignal,
+): Promise<InProcessContext> {
+  const cursor = stepId ?? run.cursor;
+  return inProcessContext({ ...run, cursor }, await loadSpace(run), run.state, signal);
+}
+
+/**
  * A step's question to the person. An autopilot's test run asks nobody. A started run answers a
  * confirm itself when its start allows changes; otherwise nobody is there and the tool leaves
  * the change open. A sign-in it puts to the owner, who is told.

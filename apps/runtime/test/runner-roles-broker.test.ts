@@ -31,6 +31,22 @@ describe("RUNTIME_ROLE=broker", () => {
     expect((await get("/api/health/ready")).status).not.toBe(404);
   });
 
+  it("answers a run's services above its catch-all: a call without the run's token is refused", async () => {
+    const before = process.env.FEATURES;
+    process.env.FEATURES = "runServices=on";
+    try {
+      const res = await get("/api/run-services/v1/data/counts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      expect(res.status).toBe(401);
+      expect(await res.json()).toMatchObject({ error: { failure: { class: "final" } } });
+    } finally {
+      process.env.FEATURES = before;
+    }
+  });
+
   it("serves nothing people open, not even what both halves need", async () => {
     for (const path of [
       "/api/config",
