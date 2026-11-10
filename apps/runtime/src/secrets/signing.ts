@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { z } from "zod";
 import { env } from "../env.js";
 
 /** The query the signature covers: everything but exp/sig, sorted, so parameter order never matters. */
@@ -119,4 +120,73 @@ export function runWaitTicketValid(runId: string, ticket: string | undefined): b
 export function runViewTicketUntil(runId: string, until: Date): string {
   const exp = String(Math.floor(until.getTime() / 1000));
   return `${exp}.${sign(`run-view:${runId}|${exp}`)}`;
+}
+
+/**
+ * What a run's token says (docs/plans/runs-on-their-own.md, "Record, state, token"): the run, its
+ * tenant and where it reads and writes. The grant is not in it: it stays on the run.
+ */
+export const runClaimsSchema = z
+  .object({
+    /** The token's id, kept on the run (`run.token_id`). */
+    jti: z.string().min(1),
+    tenant: z.string().min(1),
+    run: z.string().min(1),
+    wizard: z.string().min(1),
+    /** The wizard's space. */
+    space: z.string().min(1),
+    /** Where the run's data is: the client space it was started in, else `space`. */
+    dataSpace: z.string().min(1),
+    mode: z.enum(["test", "live"]),
+    /** Whose the run is, as the store names them (`holderOf`): `u:`, `v:` or `r:` and an id. */
+    holder: z.string().min(1),
+    /** The kind of host the run lives on. */
+    host: z.enum(["runtime"]),
+    /** Seconds since the epoch. */
+    exp: z.number().int(),
+  })
+  .strict();
+
+export type RunClaims = z.infer<typeof runClaimsSchema>;
+
+const runTokenData = (body: string) => `run-token:${body}`;
+
+/**
+ * A run's token: its claims, readable, and their signature. The same claims sign the same token,
+ * so the runtime signs it again from the run instead of keeping it (broker/token.ts).
+ */
+export function runToken(claims: RunClaims): string {
+  const body = Buffer.from(JSON.stringify(runClaimsSchema.parse(claims))).toString("base64url");
+  return `${body}.${sign(runTokenData(body))}`;
+}
+
+/** Why a token is refused before its run is read. */
+export type RunTokenFault = "malformed" | "signature" | "expired";
+
+/**
+ * The claims of a token this runtime signed and that has not expired, else why not. It reads no
+ * run: `readRunToken` (broker/token.ts) does that as well.
+ */
+export function runTokenClaims(token: string): { claims: RunClaims } | { refused: RunTokenFault } {
+  const [body, sig, ...rest] = token.split(".");
+  if (!body || !sig || rest.length) {
+    return { refused: "malformed" };
+  }
+  if (!sameSignature(runTokenData(body), sig)) {
+    return { refused: "signature" };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+  } catch {
+    return { refused: "malformed" };
+  }
+  const claims = runClaimsSchema.safeParse(parsed);
+  if (!claims.success) {
+    return { refused: "malformed" };
+  }
+  if (claims.data.exp * 1000 < Date.now()) {
+    return { refused: "expired" };
+  }
+  return { claims: claims.data };
 }
