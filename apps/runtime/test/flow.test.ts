@@ -56,7 +56,7 @@ describe("conditions", () => {
     const when = [
       { field: "country", op: "eq" as const, value: "AT" },
       {
-        any: [
+        or: [
           { field: "budget", op: "gte" as const, value: 5000 },
           [
             { field: "urgent", op: "eq" as const, value: true },
@@ -70,7 +70,7 @@ describe("conditions", () => {
     expect(whenHolds(when, { country: "AT", budget: 10, urgent: true })).toBe(false);
     expect(whenHolds(when, { country: "DE", budget: 6000 })).toBe(false);
     expect(conditionsOf(when).map((c) => c.field)).toEqual(["country", "budget", "urgent", "phone"]);
-    // Unknown parts leave the answer open; a part known to hold settles an any.
+    // Unknown parts leave the answer open; a part known to hold settles an or.
     expect(whenValue(when, (c) => (c.field === "budget" ? null : conditionMatches(c, { country: "AT" })))).toBe(null);
     expect(whenValue(when, (c) => (c.field === "phone" ? null : conditionMatches(c, { country: "AT", budget: 9000 })))).toBe(true);
   });
@@ -83,7 +83,8 @@ describe("conditions", () => {
         result,
       ],
     });
-    valid(def({ any: [{ field: "a", op: "eq", value: "x" }, { not: { field: "a", op: "exists" } }] }));
+    valid(def({ or: [{ field: "a", op: "eq", value: "x" }, { not: { field: "a", op: "exists" } }] }));
+    valid(def({ and: [{ field: "a", op: "truthy" }, { or: [{ field: "a", op: "falsy" }] }] }));
     expect(issuesOf(def({ not: { field: "nope", op: "exists" } }))).toContain('unknown field "nope"');
   });
 

@@ -28,7 +28,7 @@ so any tool may read, write and run wizards. [Licensing](../licensing.md) lists 
 
 | Key | What it holds |
 |---|---|
-| `version` | The version of the format, `2`. See [Version](#version) |
+| `version` | The version of the format, `1`. See [Version](#version) |
 | `title` | What people get, short. See [Title, description and intro](#title-description-and-intro) |
 | `description` | One sentence about the wizard |
 | `avatar` | The engenty shown to people. See [The avatar](#the-avatar) |
@@ -134,7 +134,8 @@ in the definition.
 
 Every step has an `id`, a `title`, an optional `description` and an optional `next`. Ids are
 letters, digits and `_`, start with a letter and are unique in the wizard. The last step is
-always a `result` step.
+always a `result` step. `metadata` is an object for editors: it is kept as it is, and the run
+never reads it.
 
 A step can also name its `section`, the part of the wizard it belongs to (“Budget”, at most 24
 characters). The progress bar then shows each section once, in the order of the steps, with the
@@ -147,6 +148,8 @@ stand together: “A”, “B”, “A” is an issue.
 | `form` | Asks the person, one to five fields | [Forms and fields](./forms-and-fields.md) |
 | `agent` | An AI step: researches, writes, calls tools | [Agent steps](./agent-steps.md) |
 | `decision` | Answers yes or no, a choice or a score about the run, in one cheap call | [Agent steps](./agent-steps.md#decisions) |
+| `tool` | Calls one tool of a plugin or one action of a connection, with no model | [Agent steps](./agent-steps.md#tool-steps) |
+| `code` | Runs a function from the wizard’s files, with no model | [Agent steps](./agent-steps.md#code-steps) |
 | `generate` | Makes an image, a video, a voice-over, a document or a dashboard | [Images, video and documents](./generate-steps.md) |
 | `surface` | Shows a view built from the surface catalog | [Views and widgets](./views-and-widgets.md) |
 | `widget` | Shows an HTML app from the wizard’s workspace | [Views and widgets](./views-and-widgets.md) |
@@ -159,7 +162,7 @@ stand together: “A”, “B”, “A” is an issue.
 | The task | The step | Why |
 |---|---|---|
 | Research, write, read files, work in a service | An [agent step](./agent-steps.md) with `tools` | A model plans its own tool calls |
-| Fetch data a later step shows unchanged, or write as the space through a connection | An agent step with [`call`](./agent-steps.md#a-fixed-step-call-without-a-model) | No model: the same call every run, in about a second |
+| Fetch data a later step shows unchanged, or write as the space through a connection | A [`tool` step](./agent-steps.md#tool-steps) | No model: the same call every run, in about a second |
 | Choose a path: yes or no, one of a few options, a level | A [`decision` step](./agent-steps.md#decisions), or an `ask` rule on [`next`](./branches.md) | One fast, cheap call |
 | An image, a video, a voice-over, a document or a dashboard | A [`generate` step](./generate-steps.md) | Made by the class for that kind of thing |
 

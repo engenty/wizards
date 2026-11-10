@@ -65,7 +65,7 @@ export async function enterVisit(
   step: { id: string; type: string; call?: object },
   state: RunState,
 ): Promise<boolean> {
-  if (step.type !== "agent" || !step.call || !("connection" in step.call)) {
+  if (step.type !== "tool" || !step.call || !("connection" in step.call)) {
     return false;
   }
   if (state.visiting === step.id || !(await effectsOn())) {

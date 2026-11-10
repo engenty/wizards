@@ -67,16 +67,13 @@ const member: Holder = { kind: "person", id: "local", role: "member" };
 /** A fixed step that posts to the team's Slack, its channel as given. */
 const post = (id: string, channel: string) => ({
   id,
-  type: "agent",
+  type: "tool",
   title: "Team informieren",
-  instructions: "",
-  tools: [],
   call: {
     connection: "team",
     action: "post_message",
     input: { channel, text: "Neue Anfrage von {{email}}" },
   },
-  output: { format: "json" },
 });
 
 /** The wizard: a page, a post to a fixed channel, a post to a channel the page asks for. */
@@ -156,7 +153,7 @@ function contextOf(runId: string, stepId: string, holder: Holder) {
 /** The step, run as the engine runs it: its input filled from the run's values, then the broker. */
 const run = (runId: string, stepId: "tell" | "tell_any", holder: Holder) =>
   inTenant(() =>
-    steps.runAgentStep(
+    steps.runAutomaticStep(
       definition.steps.find((s) => s.id === stepId) as never,
       contextOf(runId, stepId, holder),
     ),

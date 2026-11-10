@@ -1,7 +1,7 @@
 ---
 title: Tools
 description: A tool an AI step can call – how to register it, how a wizard lists it, and what the model sees.
-version: 0.5.0
+version: 0.18.0
 ---
 
 A tool is a function an AI step may call while it works. The model decides when, from the
@@ -96,14 +96,13 @@ picks the tool, and no model copies its answer.
 ```json
 {
   "id": "known",
-  "type": "agent",
+  "type": "tool",
   "title": "Known contact",
   "call": {
     "tool": "contacts.lookup",
     "input": { "email": "{{steps.ask.email}}" }
   },
   "output": {
-    "format": "json",
     "fields": [
       { "id": "known", "kind": "yesno" },
       { "id": "name", "kind": "text" }

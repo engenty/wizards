@@ -19,30 +19,10 @@ import {
 } from "lucide-react";
 import { lang, t } from "../../lib/i18n";
 
-type AgentStep = Extract<Step, { type: "agent" }>;
+type ToolStep = Extract<Step, { type: "tool" }>;
 
-/**
- * A fixed step: an agent step with a `call`. It runs one action of a connection or one tool of
- * a plugin, once and with no model, so the editor never shows it as an AI step.
- */
-export function isFixedStep(
-  step: Step,
-): step is AgentStep & { call: NonNullable<AgentStep["call"]> } {
-  return step.type === "agent" && Boolean(step.call);
-}
-
-/**
- * A code step: an agent step with `code`. It runs a function from the wizard's files, once and
- * with no model, so the editor never shows it as an AI step either.
- */
-export function isCodeStep(
-  step: Step,
-): step is AgentStep & { code: NonNullable<AgentStep["code"]> } {
-  return step.type === "agent" && !step.call && Boolean(step.code);
-}
-
-/** What a fixed step calls, in one line: the connection and its action, or the plugin's tool. */
-export function callSummary(call: NonNullable<AgentStep["call"]>): string {
+/** What a tool step calls, in one line: the connection and its action, or the plugin's tool. */
+export function callSummary(call: ToolStep["call"]): string {
   return "connection" in call ? `${call.connection} · ${call.action}` : call.tool;
 }
 
@@ -51,7 +31,11 @@ export function stepIcon(step: Step) {
     case "form":
       return ListChecks;
     case "agent":
-      return step.call ? Plug : step.code ? Braces : Bot;
+      return Bot;
+    case "tool":
+      return Plug;
+    case "code":
+      return Braces;
     case "decision":
       return GitFork;
     case "generate":
@@ -82,6 +66,8 @@ export const TYPE_TONE: Record<Step["type"], string> = {
   form: "bg-cobalt-tint text-cobalt",
   agent: "bg-ember-tint text-ember-strong",
   decision: "bg-ember-tint text-ember-strong",
+  tool: "bg-ember-tint text-ember-strong",
+  code: "bg-ember-tint text-ember-strong",
   generate: "bg-amber-tint text-ink-2",
   widget: "bg-ember-veil text-ember-strong",
   surface: "bg-ember-veil text-ember-strong",
@@ -130,11 +116,7 @@ export function waitSummary(step: Extract<Step, { type: "wait" }>): string {
 }
 
 export function typeLabel(step: Step): string {
-  return isFixedStep(step)
-    ? t("type.fixed")
-    : isCodeStep(step)
-      ? t("type.code")
-      : t(`type.${step.type}` as "type.form");
+  return t(`type.${step.type}` as "type.form");
 }
 
 const TOOLS = ["web_search", "web_fetch", "browser", "sandbox", "image", "http", "pages", "code"];
@@ -148,15 +130,12 @@ export function stepSummary(step: Step): string {
   switch (step.type) {
     case "form":
       return step.fields.map((f) => f.label).join(" · ");
-    case "agent": {
-      if (step.call) {
-        return callSummary(step.call);
-      }
-      if (step.code) {
-        return step.code.entry;
-      }
+    case "agent":
       return step.tools.map(toolLabel).join(" · ") || step.instructions.slice(0, 90);
-    }
+    case "tool":
+      return callSummary(step.call);
+    case "code":
+      return step.code.entry;
     case "decision":
       return step.output.fields.map((f) => f.description ?? f.id).join(" · ");
     case "generate": {

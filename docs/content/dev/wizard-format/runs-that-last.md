@@ -1,7 +1,7 @@
 ---
 title: Runs that last days
 description: Wait steps and signals, who answers a page or review, timeouts and approvals, durable AI steps, onFail and a run's label.
-version: 0.16.2
+version: 0.18.0
 ---
 
 A run can wait for hours or days. Nothing runs meanwhile, it spends no credits, and it survives a
@@ -157,7 +157,7 @@ An [AI step](./agent-steps.md) with `"durable": true` keeps its conversation:
 - It gets the tool `ask_person`. It stops and asks with nothing running, for days if it must.
 
 It needs a model an API serves. `browser` and `sandbox` can’t be used, because what they have open
-is gone after an interruption. It does nothing on a step with `each` or `call`.
+is gone after an interruption. It does nothing on a step with `foreach`.
 
 ### What happens once
 

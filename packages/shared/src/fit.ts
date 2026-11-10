@@ -10,7 +10,6 @@ import {
   type ModelClass,
   pluginToolOf,
   ruleMatches,
-  runsWithoutModel,
   type Step,
   type ToolId,
   templateRefs,
@@ -96,13 +95,13 @@ const MEMORY_RE = /\{\{\s*memory\b/;
 function templatesOf(step: Step): string[] {
   switch (step.type) {
     case "agent":
-      return [
-        step.instructions,
-        step.call ? JSON.stringify(step.call.input) : "",
-        ...Object.values(step.code?.input ?? {}).map((v) =>
-          v.includes("{{") ? v : `{{${dataRef(v)}}}`,
-        ),
-      ];
+      return [step.instructions];
+    case "tool":
+      return [JSON.stringify(step.call.input)];
+    case "code":
+      return Object.values(step.code.input).map((v) =>
+        v.includes("{{") ? v : `{{${dataRef(v)}}}`,
+      );
     case "decision":
       return [step.instructions];
     case "generate":
@@ -125,7 +124,7 @@ function readsFilesLater(def: WizardDefinition, index: number): boolean {
     .slice(index + 1)
     .some(
       (s) =>
-        (s.type === "agent" && !runsWithoutModel(s)) ||
+        s.type === "agent" ||
         s.type === "decision" ||
         s.type === "generate" ||
         s.type === "motion-graphics",
@@ -199,9 +198,16 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
         }
       }
       break;
+    case "tool": {
+      // A connection's action needs the wizard's connections, which the wizard notes once.
+      const plugin = "tool" in step.call ? pluginToolOf(step.call.tool) : null;
+      if (plugin) {
+        add(`plugin:${plugin.plugin}`, true);
+      }
+      break;
+    }
     case "agent": {
-      const tools = step.call && "tool" in step.call ? [...step.tools, step.call.tool] : step.tools;
-      for (const tool of tools) {
+      for (const tool of step.tools) {
         const plugin = pluginToolOf(tool);
         if (plugin) {
           add(`plugin:${plugin.plugin}`, true);
@@ -216,8 +222,8 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
       if (step.connections?.length) {
         add("connections", true);
       }
-      if (step.each) {
-        if (listRef(dataRef(step.each))) {
+      if (step.foreach) {
+        if (listRef(dataRef(step.foreach))) {
           add("lists", true);
         } else {
           add("each", false);

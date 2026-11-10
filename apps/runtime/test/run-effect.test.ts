@@ -94,12 +94,9 @@ const page = {
 };
 const save = (next?: unknown) => ({
   id: "save",
-  type: "agent",
+  type: "tool",
   title: "Save",
-  instructions: "",
-  tools: [],
   call: { connection: "hub", action: "create_contact", input: { email: "{{email}}" } },
-  output: { format: "json" },
   ...(next ? { next } : {}),
 });
 const result = { id: "done", type: "result", title: "Done", deliverables: [] };

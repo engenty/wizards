@@ -1,7 +1,7 @@
 ---
 title: Templates
 description: How instructions, prompts and briefs read answers, earlier results, the space and stored lists.
-version: 0.7.10
+version: 0.18.0
 ---
 
 Instructions, prompts and briefs are templates. `{{…}}` is filled in when the step runs:
@@ -44,7 +44,7 @@ Every AI step already knows the brand and the facts. Name one only where the tex
 
 Documents take `{{itemsField}}` as it is. The runner computes the totals, never a model.
 
-## Inside a step with `each`
+## Inside a step with `foreach`
 
 | Template | What it gives |
 |---|---|
@@ -54,6 +54,6 @@ Documents take `{{itemsField}}` as it is. The runner computes the totals, never 
 
 ## References outside templates
 
-Other keys name the same things without braces: `prefill`, `optionsFrom`, `each`, a widget’s or
+Other keys name the same things without braces: `prefill`, `optionsFrom`, `foreach`, a widget’s or
 surface’s `data` and a condition’s `field`. They take `fieldId`, `steps.<id>`, `steps.<id>.<key>`
 and `lists.<id>`, as each key’s page says.

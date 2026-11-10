@@ -1,7 +1,7 @@
 ---
 title: Images, video and documents
 description: A generate step makes an image, a video, a voice-over, a document or a dashboard.
-version: 0.7.10
+version: 0.18.0
 ---
 
 A `generate` step makes one thing, named by `asset`. Its `prompt` is a template. See
@@ -35,10 +35,10 @@ or an earlier step that made images.
 
 ## One result per entry
 
-`each` makes one image or video per entry, at most eight. It names an `image` field with several
+`foreach` makes one image or video per entry, at most eight. It names an `image` field with several
 uploads, an earlier step that made several images, or a table of an agent step
 (`steps.<id>.<key>`). The prompt reads the entry as `{{item.<column>}}`, `{{index}}` and
-`{{count}}`. With `each` the prompt goes to the model as written, so let the agent step that makes
+`{{count}}`. With `foreach` the prompt goes to the model as written, so let the agent step that makes
 the table write complete descriptions.
 
 With `referenceImage` naming as many images, entry 3 starts from the third image. In a review the

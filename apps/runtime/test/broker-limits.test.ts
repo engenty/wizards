@@ -99,10 +99,9 @@ const definitionWith = (connection: string) => ({
     { id: "read", type: "agent", title: "Read", instructions: "Read.", connections: ["crm"] },
     {
       id: "save",
-      type: "agent",
+      type: "tool",
       title: "Save",
       call: { connection: "crm", action: "create_contact", input: { email: "{{email}}" } },
-      output: { format: "json" },
     },
     { id: "done", type: "result", title: "Done", deliverables: [] },
   ],
@@ -637,13 +636,13 @@ describe("what a caller reads of a limit", () => {
     expect(refused.error).not.toMatch(/mail|message/i);
 
     const save = () =>
-      inTenant(() => steps.runAgentStep(def.steps[2] as never, contextOf("run-words", "save")));
+      inTenant(() => steps.runAutomaticStep(def.steps[2] as never, contextOf("run-words", "save")));
     await expect(save()).rejects.toMatchObject({
       note: { code: "stepCallsPerRun", params: { service: "HubSpot" } },
     });
     // Another run takes the day's last place; after it the day's limit speaks, to a step and a model.
     const other = () =>
-      inTenant(() => steps.runAgentStep(def.steps[2] as never, contextOf("run-words-2", "save")));
+      inTenant(() => steps.runAutomaticStep(def.steps[2] as never, contextOf("run-words-2", "save")));
     expect((await other()).json).toMatchObject({ done: "create_contact" });
     await setLimits(id, { callsPerRun: null });
     await expect(other()).rejects.toMatchObject({

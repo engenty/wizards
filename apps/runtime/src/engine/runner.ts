@@ -21,14 +21,15 @@ import {
   formatsFor,
   formNeeds,
   hasCodeStep,
+  isDataStep,
   isDecidedField,
   LIST_FORMATS,
   listRef,
   MAX_SHOWN_FIELDS,
   optionsFromData,
+  outputOf,
   type ReviewStep,
   RUN_DONE_SIGNAL,
-  runsWithoutModel,
   type Step,
   sectionOf,
   sectionsOf,
@@ -2315,8 +2316,7 @@ async function drive(runId: string, signal: AbortSignal) {
       if (
         step.type === "agent" &&
         step.durable &&
-        !runsWithoutModel(step) &&
-        !step.each &&
+        !step.foreach &&
         state.turn?.stepId !== step.id &&
         (await effectsOn())
       ) {
@@ -2647,9 +2647,14 @@ export function editedJson(
   output: StepOutput,
   data: Record<string, unknown>,
 ): StepOutput {
-  const found = stepOf(def, stepId);
-  const step = found?.type === "decision" ? decisionAsAgent(found) : found;
-  if (step?.type !== "agent" || step.output.format !== "json" || step.each || step.call) {
+  const step = stepOf(def, stepId);
+  // A tool's answer is kept as it came; an agent step with `foreach` hands on its rows.
+  if (
+    !isDataStep(step) ||
+    step.type === "tool" ||
+    (step.type === "agent" && step.foreach) ||
+    outputOf(step).format !== "json"
+  ) {
     throw new RunConflict("Not a json step");
   }
   if (JSON.stringify(data).length > MAX_EDITED_JSON) {
