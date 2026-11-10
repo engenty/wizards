@@ -18,6 +18,12 @@ const ONLY_READS = new Set([
   "skill_read",
 ]);
 
+/** Whether a tool only looks: a tool not named here, of any origin, counts as acting. */
+export function onlyReads(name: string): boolean {
+  const reach = outsideReaches().get(name);
+  return reach ? reach.every((r) => r.kind === "read") : ONLY_READS.has(name);
+}
+
 /**
  * Notes when a step's model uses a tool that may have done something. A retry starts the step from
  * the top, and such a step would do it again: a mail twice, an order twice. Nothing else tells: tool
@@ -31,8 +37,7 @@ export function watchActions(
   before?: () => Promise<void>,
 ) {
   for (const [name, tool] of Object.entries(tools)) {
-    const reach = outsideReaches().get(name);
-    if (reach ? reach.every((r) => r.kind === "read") : ONLY_READS.has(name)) {
+    if (onlyReads(name)) {
       continue;
     }
     const t = tool as { execute?: (...args: unknown[]) => unknown };

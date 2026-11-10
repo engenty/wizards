@@ -21,7 +21,7 @@ vi.mock("../src/engine/steps/index.js", async (original) => ({
 /** How sure the check is of a yes, by question; what is not named is a clear no. */
 let yes: Record<string, number> = {};
 const asked: string[][] = [];
-vi.mock("../src/engine/decide.js", () => ({
+vi.mock("../src/decide.js", () => ({
   decide: async (input: { questions: Record<string, unknown> }) => {
     const names = Object.keys(input.questions);
     asked.push(names);

@@ -1,5 +1,5 @@
 import type { DecisionQuestion } from "@engenty/wizards-shared/decision";
-import { decide } from "../engine/decide.js";
+import { decide } from "../decide.js";
 import { systemOneAccess } from "../models.js";
 import { prompt } from "../prompts.js";
 

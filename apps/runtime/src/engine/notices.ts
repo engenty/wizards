@@ -13,6 +13,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { answerersOf, teamToAsk, whoOf } from "./answerers.js";
 import { emitEvent } from "./events.js";
 import { pushToRunDevice } from "./push.js";
+import { runStore } from "./run-store.js";
 import type { RunRow } from "./types.js";
 
 /**
@@ -179,7 +180,7 @@ export async function durableOn(): Promise<boolean> {
  */
 export function noticeWrites(notice: NoticeValues | NoticeValues[], guard: SQL) {
   const notices = Array.isArray(notice) ? notice : [notice];
-  const exists = sql`EXISTS (SELECT 1 FROM ${schema.run} WHERE ${guard})`;
+  const exists = runStore.exists(guard);
   // The same word twice about one run says nothing new: a run that waits again replaces it. Once per
   // kind, or the second person told would take the first one's row with it.
   const replaces = [...new Set(notices.map((n) => n.kind))].map((kind) =>
@@ -291,10 +292,7 @@ export async function listNotices(userId: string, limit = 50) {
     : [];
   const waitingOn = rows.filter((r) => speaksOfWait(r.kind) && r.runId && !r.readAt);
   const runs = waitingOn.length
-    ? await db.query.run.findMany({
-        where: inArray(schema.run.id, waitingOn.map((r) => r.runId) as string[]),
-        columns: { id: true, status: true, cursor: true, ask: true },
-      })
+    ? await runStore.waitsOf(waitingOn.map((r) => r.runId) as string[])
     : [];
   return rows.map((r) => {
     const w = wizards.find((x) => x.id === r.wizardId);
@@ -485,9 +483,7 @@ async function pushOf(row: NoticeRow, run: RunRow): Promise<Delivery> {
 }
 
 async function deliver(row: NoticeRow, now: Date) {
-  const run = row.runId
-    ? await db.query.run.findFirst({ where: eq(schema.run.id, row.runId) })
-    : null;
+  const run = row.runId ? await runStore.get(row.runId) : null;
   if (!run) {
     await finish(row);
     return;
