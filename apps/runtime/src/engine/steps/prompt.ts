@@ -2,7 +2,6 @@ import { langNameEn } from "@engenty/wizards-shared/definition";
 import type { RunBrand } from "@engenty/wizards-shared/run-services";
 import { ruleLines } from "@engenty/wizards-shared/spaces";
 import { prompt } from "../../prompts.js";
-import { contentPolicy } from "../../safety.js";
 import {
   answersAsText,
   colorLine,
@@ -86,7 +85,7 @@ export async function revisionBlock(ctx: StepContext, stepId: string): Promise<s
 export function groundRules(ctx: StepContext): string {
   return [
     prompt("step", "ground_rules"),
-    contentPolicy(),
+    prompt("safety", "policy"),
     ctx.lang
       ? prompt("step", "language.viewer", { language: langNameEn(ctx.lang) })
       : prompt("step", "language.answers"),

@@ -28,7 +28,6 @@ import { Agent } from "@mastra/core/agent";
 import { parsePartialJson } from "ai";
 import type { z } from "zod";
 import { prompt } from "../../prompts.js";
-import type { UploadRef } from "../../run-services/files.js";
 import { durableTurn, turnOf } from "../durable-turn.js";
 import { renderTask } from "../template.js";
 import { type StepContext, StepError } from "../types.js";
@@ -36,6 +35,9 @@ import { decideStep } from "./decision.js";
 import { runAgentEach } from "./foreach.js";
 import { answersBlock, brandBlock, groundRules, revisionBlock } from "./prompt.js";
 import { turnObject, turnText } from "./turn.js";
+
+/** A file the person gave on an earlier page, as the files service lists it. */
+type UploadRef = Awaited<ReturnType<StepContext["services"]["files"]["uploads"]>>[number];
 
 // --- agent -------------------------------------------------------------------
 
