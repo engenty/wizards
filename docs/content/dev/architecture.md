@@ -128,8 +128,8 @@ It has no process, no timer and no slot. `waiting_input` waits for a person, `sl
 `run_index.wake_at`. A signal is written to `run_signal` first, then the rows in `run_wait` with its
 name and key are woken. Any runner then claims the run with a higher generation and goes on from
 `run.cursor`. A runner that lost its claim can’t write. An outside action writes `run_effect` before
-it acts, and a `durable` agent step keeps its conversation in Mastra’s `DurableAgent`
-(`engine/durable-turn.ts`).
+it acts. An agent step’s conversation is saved in `run_turn` after every model call and every tool
+call (`packages/engine/src/steps/agent-turn.ts`), and a `durable` one may stop there to ask the person.
 
 ### Where a run goes
 

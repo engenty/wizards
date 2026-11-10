@@ -614,6 +614,8 @@ describe("a run, pinned end to end", () => {
       notes: {},
       retries: { step: "draft", count: 0, since: expect.any(String), failures: 1 },
       pause: { kind: "retry" },
+      // The step's turn stays on the run; its conversation starts over on the retry.
+      turn: { stepId: "draft", id: expect.any(String) },
     });
     expect(movesOf(title)).toEqual([
       "start ⇒ run draft → running",

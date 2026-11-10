@@ -48,7 +48,13 @@ export async function runAgentEach(
     async ([index, item]) => {
       await ctx.emit("info", { code: "entry", params: { n: index + 1, total: entries.length } });
       const scope: TemplateScope = { ...ctx.scope, entry: { item, index, count: entries.length } };
-      return runAgentStep(single, { ...ctx, scope }, false, agentPart);
+      // Each entry is a turn of its own, under the step's.
+      return runAgentStep(
+        single,
+        { ...ctx, scope, turn: `${ctx.turn}.${index}` },
+        false,
+        agentPart,
+      );
     },
   );
   for (const [index, item] of entries.entries()) {

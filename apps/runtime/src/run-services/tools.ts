@@ -1,3 +1,4 @@
+import { turnOf } from "@engenty/wizards-engine/steps/turn";
 import type {
   StepToolsOptions as EngineStepToolsOptions,
   StepContext,
@@ -32,7 +33,7 @@ export interface StepToolsOptions extends EngineStepToolsOptions {
   model: AgentModel;
 }
 
-/** `ToolsService`, and the calls an agent step makes while its loop runs in Mastra's `Agent`. */
+/** `ToolsService`, and the calls an agent step makes while its tools are built in the runtime. */
 export interface InProcessTools extends ToolsService {
   /**
    * The tools of an agent step: `ctx` is its own (a foreach entry's, a wizard's agent's), which a
@@ -70,7 +71,7 @@ export function inProcessTools(options: {
     const ctx = options.within(own);
     const { tools, assets, instructions } = await buildStepTools(
       step,
-      turn ? turnContext(ctx, turn) : ctx,
+      turnContext(ctx, turn),
       model.resolved,
       uploads,
     );
@@ -90,7 +91,7 @@ export function inProcessTools(options: {
         }
         const output = await found.execute(
           request.input,
-          context ?? contextOf(request.effect, turn?.id),
+          context ?? contextOf(request.effect, turn),
         );
         return { output };
       },
@@ -113,13 +114,18 @@ export function inProcessTools(options: {
           return null;
         }
         const c = options.at(stepId);
+        // The step is at work: the engine wrote its turn on the run before it listed its tools.
+        const turn = turnOf(c.state, stepId);
+        if (!turn) {
+          throw new ServiceError({ class: "final" }, `The step ${stepId} has no turn.`);
+        }
         const model = await options.agentModel({
           stepId,
           class: textClassOf(step.model ?? "standard"),
           effort: step.effort,
           maker: step.maker ? classIdOf(step, "standard") : undefined,
         });
-        return forStep(step, c, { model, uploads: await personUploads(c) });
+        return forStep(step, c, { model, uploads: await personUploads(c), turn: turn.id });
       })();
       built.set(stepId, found);
     }
@@ -159,11 +165,10 @@ export function inProcessTools(options: {
   };
 }
 
-/** What a tool reads of its call when no loop hands it one: the tool call id, in a turn. */
-function contextOf(effect: string | null, turn: string | undefined) {
+/** What a tool reads of its call: the tool call id of the turn's call. */
+function contextOf(effect: string | null, turn: string) {
   // An agent turn's call keeps its id: `<turn>:<toolCallId>` (broker/effect.ts).
-  const toolCallId =
-    turn && effect?.startsWith(`${turn}:`) ? effect.slice(turn.length + 1) : undefined;
+  const toolCallId = effect?.startsWith(`${turn}:`) ? effect.slice(turn.length + 1) : undefined;
   return toolCallId ? { agent: { toolCallId } } : {};
 }
 

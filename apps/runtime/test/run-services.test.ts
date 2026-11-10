@@ -127,10 +127,12 @@ const contextOfNewRun = () =>
       userId: USER,
     });
     const run = await client.db.query.run.findFirst({ where: eq(client.schema.run.id, id) });
+    // The agent step is at work: its turn is on the run, as the step writes it before it lists its tools.
+    const state = { ...run!.state, turn: { stepId: "write", id: `${id}.turn` } };
     const ctx = await runner.makeContext(
       run!,
       await runner.loadSpace(run!),
-      run!.state,
+      state,
       new AbortController().signal,
       { stepId: "write" },
     );
@@ -169,7 +171,6 @@ describe("the run's services in the runtime", () => {
       expect(await services.models.embed(["otters"])).toBeNull();
       const agent = await services.models.agentModel({ stepId: "write", class: "standard" });
       expect(agent.resolved.ref).toBe("test/scripted");
-      expect(agent.model).toBe(agent.resolved.model);
 
       // tools: the step's tools as descriptors, one called.
       const tools = await services.tools.list("write");

@@ -9,8 +9,6 @@ import type {
   TurnPart,
   TurnRequest,
 } from "@engenty/wizards-shared/run-services";
-import { Agent } from "@mastra/core/agent";
-import type { MastraModelConfig } from "@mastra/core/llm";
 import {
   type AssistantModelMessage,
   embedMany,
@@ -19,6 +17,7 @@ import {
   type ModelMessage,
   Output,
   streamText,
+  type ToolSet,
   tool,
   type UserModelMessage,
 } from "ai";
@@ -26,11 +25,9 @@ import { eq } from "drizzle-orm";
 import { addLocalCost } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { decide } from "../decide.js";
-import { durableTurn } from "../engine/durable-turn.js";
 import { noticesFor, noticeWrites } from "../engine/notices.js";
 import type { RunRow } from "../engine/types.js";
 import {
-  agentModel,
   attachTools,
   costOf,
   embeddingModel,
@@ -39,7 +36,6 @@ import {
   type ResolvedModel,
   takesTools,
   textModel,
-  totalUsage,
 } from "../models.js";
 import type { RunAgentStep } from "../tools/agent.js";
 import { contextService } from "./context.js";
@@ -55,8 +51,8 @@ import { type InProcessTools, inProcessTools } from "./tools.js";
  * filled in. Nothing here acts differently from those functions.
  *
  * They are the engine's `StepServices`: `models.agentModel`, `tools.forStep` and `tools.ofAgent`
- * are the calls beyond `RunServices`, since an agent step's loop still runs in Mastra's `Agent`,
- * which takes the model and its tools itself, until the engine keeps its own loop (package 2.4).
+ * are the calls beyond `RunServices`: an agent step's tools are built here with their code, and a
+ * model that runs its tools itself (an installed client, the run's device) has them attached.
  * `files` has calls beyond them (./files.ts) for the runtime's own code; `steps` answers with the
  * output, never `pending`.
  */
@@ -71,46 +67,10 @@ export interface InProcessServices extends StepServices {
   steps: InProcessSteps;
 }
 
-/**
- * The model of an agent step whose loop runs in Mastra's `Agent`, as the runtime has it: the
- * engine's, with what the `Agent` takes and what the step's tools are built for.
- */
+/** The model of an agent step as the runtime has it: the engine's, with what its tools are built for. */
 export interface AgentModel extends EngineAgentModel {
-  /** What the `Agent` takes. */
-  model: MastraModelConfig;
   /** The class's model as resolved: the step's tools are built for it. */
   resolved: ResolvedModel<LanguageModel>;
-}
-
-/**
- * Runs an `Agent` as a stream, its text handed to `onText` as it comes. Returns what `generate`
- * would: the text, the steps and the usage.
- */
-async function streamed(
-  agent: Agent,
-  message: unknown,
-  options: { maxSteps: number; abortSignal: AbortSignal },
-  onText: (delta: string) => Promise<void>,
-): Promise<{ text: string; steps?: { text?: string }[]; usage?: unknown; totalUsage?: unknown }> {
-  let written = "";
-  const stream = await agent.stream(message as Parameters<Agent["stream"]>[0], options);
-  for await (const chunk of stream.fullStream as AsyncIterable<any>) {
-    const payload = chunk.payload ?? chunk;
-    if (chunk.type === "text-delta") {
-      const delta = payload.text ?? payload.delta ?? "";
-      written += delta;
-      await onText(delta);
-    } else if (chunk.type === "error") {
-      throw payload.error ?? new Error("step stream error");
-    }
-  }
-  const s = stream as any;
-  return {
-    text: (await s.text) ?? written,
-    steps: await s.steps,
-    usage: await s.usage,
-    totalUsage: await s.totalUsage,
-  };
 }
 
 /**
@@ -144,58 +104,76 @@ export function inProcessServices(
       makerClass: r.maker,
     });
 
+  const files = filesService(run, ctx);
+  /**
+   * One model call with a resolved model. `provider`: the provider's own tools a step's model was
+   * given (a web search), by name; the provider runs them within the call.
+   */
+  async function* turnWith(
+    resolved: ResolvedModel<LanguageModel>,
+    request: TurnRequest,
+    signal: AbortSignal | undefined,
+    provider: Record<string, unknown> = {},
+  ): AsyncIterable<TurnPart> {
+    const tools: ToolSet = {};
+    for (const d of request.tools ?? []) {
+      if (!d.provider) {
+        tools[d.name] = tool({
+          description: d.description,
+          inputSchema: jsonSchema(d.inputSchema),
+        });
+      } else if (provider[d.name]) {
+        tools[d.name] = provider[d.name] as ToolSet[string];
+      }
+    }
+    const out = streamText({
+      model: resolved.model,
+      system: request.system,
+      messages: await modelMessages(request.messages, async (id) => {
+        const found = await files.read(id);
+        return found?.data ?? null;
+      }),
+      tools,
+      ...(request.output ? { output: Output.object({ schema: jsonSchema(request.output) }) } : {}),
+      ...(request.maxOutputTokens ? { maxOutputTokens: request.maxOutputTokens } : {}),
+      abortSignal: signal,
+    });
+    for await (const part of out.fullStream) {
+      if (part.type === "text-delta") {
+        yield { type: "text", text: part.text };
+      } else if (part.type === "reasoning-delta") {
+        yield { type: "reasoning", text: part.text };
+      } else if (part.type === "tool-call" && !part.providerExecuted) {
+        yield {
+          type: "tool-call",
+          toolCallId: part.toolCallId,
+          name: part.toolName,
+          input: part.input,
+        };
+      } else if (part.type === "error") {
+        throw part.error;
+      } else if (part.type === "finish") {
+        // Whoever spends books: a model the runtime resolves itself costs the run here.
+        const usd = costOf(resolved, part.totalUsage);
+        if (usd > 0) {
+          await addLocalCost(run.id, request.stepId, usd);
+        }
+        yield {
+          type: "finish",
+          reason: part.finishReason,
+          usage: {
+            inputTokens: part.totalUsage.inputTokens ?? 0,
+            outputTokens: part.totalUsage.outputTokens ?? 0,
+          },
+          model: resolved.ref,
+        } satisfies TurnPart;
+      }
+    }
+  }
+
   const models: InProcessServices["models"] = {
     async *turn(request, signal) {
-      const resolved = await resolve(request);
-      const out = streamText({
-        model: resolved.model,
-        system: request.system,
-        messages: request.messages.map(modelMessage),
-        tools: Object.fromEntries(
-          (request.tools ?? [])
-            .filter((d) => !d.provider)
-            .map((d) => [
-              d.name,
-              tool({ description: d.description, inputSchema: jsonSchema(d.inputSchema) }),
-            ]),
-        ),
-        ...(request.output
-          ? { output: Output.object({ schema: jsonSchema(request.output) }) }
-          : {}),
-        ...(request.maxOutputTokens ? { maxOutputTokens: request.maxOutputTokens } : {}),
-        abortSignal: signal,
-      });
-      for await (const part of out.fullStream) {
-        if (part.type === "text-delta") {
-          yield { type: "text", text: part.text };
-        } else if (part.type === "reasoning-delta") {
-          yield { type: "reasoning", text: part.text };
-        } else if (part.type === "tool-call") {
-          yield {
-            type: "tool-call",
-            toolCallId: part.toolCallId,
-            name: part.toolName,
-            input: part.input,
-          };
-        } else if (part.type === "error") {
-          throw part.error;
-        } else if (part.type === "finish") {
-          // Whoever spends books: a model the runtime resolves itself costs the run here.
-          const usd = costOf(resolved, part.totalUsage);
-          if (usd > 0) {
-            await addLocalCost(run.id, request.stepId, usd);
-          }
-          yield {
-            type: "finish",
-            reason: part.finishReason,
-            usage: {
-              inputTokens: part.totalUsage.inputTokens ?? 0,
-              outputTokens: part.totalUsage.outputTokens ?? 0,
-            },
-            model: resolved.ref,
-          } satisfies TurnPart;
-        }
-      }
+      yield* turnWith(await resolve(request), request, signal);
     },
     decide: (request, signal) =>
       decide({
@@ -220,15 +198,8 @@ export function inProcessServices(
     },
     async agentModel(request) {
       const resolved = await resolve(request);
-      const charge = async (usage: unknown) => {
-        const usd = costOf(resolved, usage);
-        if (usd > 0) {
-          await addLocalCost(run.id, request.stepId, usd);
-        }
-      };
-      const model = agentModel(resolved);
+      const provider: Record<string, unknown> = {};
       return {
-        model,
         resolved,
         get ownLoop() {
           return keepsOwnLoop(resolved);
@@ -241,16 +212,16 @@ export function inProcessServices(
             isHarnessVendor(resolved.vendor) || /^(anthropic|openai|google)$/.test(resolved.vendor)
           );
         },
-        attach: (tools, ignorable) => attachTools(resolved, tools, ignorable),
-        charge,
-        chargeTotal: async (result) => charge(await totalUsage(result)),
-        generate: ({ id, name, instructions, tools, message, maxSteps, signal, onText }) => {
-          const agent = new Agent({ id, name, instructions, model, tools: tools as any });
-          return onText
-            ? streamed(agent, message, { maxSteps, abortSignal: signal }, onText)
-            : agent.generate(message as any, { maxSteps, abortSignal: signal });
+        attach: (tools, ignorable) => {
+          for (const [name, t] of Object.entries(tools)) {
+            const type = (t as { type?: string }).type;
+            if (type === "provider" || type === "provider-defined") {
+              provider[name] = t;
+            }
+          }
+          attachTools(resolved, tools, ignorable);
         },
-        durableTurn: (turn, c, input) => durableTurn(turn, c, { ...input, model }),
+        turn: (turnRequest, signal) => turnWith(resolved, turnRequest, signal, provider),
       };
     },
   };
@@ -267,7 +238,7 @@ export function inProcessServices(
 
     context: contextService(run, at),
 
-    files: filesService(run, ctx),
+    files,
 
     data: dataService(run, ctx, at),
 
@@ -289,8 +260,27 @@ export function inProcessServices(
   };
 }
 
+/**
+ * The messages as the AI SDK takes them. A file part's `upload:<id>` is a file of the run:
+ * `read` gives its bytes.
+ */
+async function modelMessages(
+  messages: TurnMessage[],
+  read: (id: string) => Promise<Uint8Array | null>,
+): Promise<ModelMessage[]> {
+  const bytes = new Map<string, Uint8Array | null>();
+  for (const m of messages) {
+    for (const p of typeof m.content === "string" ? [] : m.content) {
+      if (p.type === "file" && p.url.startsWith("upload:") && !bytes.has(p.url)) {
+        bytes.set(p.url, await read(p.url.slice("upload:".length)));
+      }
+    }
+  }
+  return messages.map((m) => modelMessage(m, bytes));
+}
+
 /** A message as the AI SDK takes it. */
-function modelMessage(m: TurnMessage): ModelMessage {
+function modelMessage(m: TurnMessage, bytes: Map<string, Uint8Array | null>): ModelMessage {
   const parts =
     typeof m.content === "string" ? [{ type: "text" as const, text: m.content }] : m.content;
   if (m.role === "tool") {
@@ -338,10 +328,14 @@ function modelMessage(m: TurnMessage): ModelMessage {
         return [{ type: "text" as const, text: p.text }];
       }
       if (p.type === "file") {
+        const data = p.url.startsWith("upload:") ? bytes.get(p.url) : new URL(p.url);
+        if (!data) {
+          return [];
+        }
         return [
           {
             type: "file" as const,
-            data: new URL(p.url),
+            data,
             mediaType: p.mediaType,
             ...(p.name ? { filename: p.name } : {}),
           },

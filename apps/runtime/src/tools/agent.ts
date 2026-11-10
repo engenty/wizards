@@ -112,7 +112,7 @@ function agentTool(
     inputSchema: z.object({
       task: z.string().min(1).describe("What the agent is to do, with everything it needs to know"),
     }),
-    execute: async ({ task }) => {
+    execute: async ({ task }, context) => {
       await ctx.emit("tool", { code: "asksAgent", params: { name: id } });
       // An agent step of its own, the agent's tools and nothing more: no connections, the
       // step's hosts. Its id is the step's and the agent's, so nothing of the step's own turn
@@ -146,7 +146,11 @@ function agentTool(
           resultSize: answer === undefined ? null : (JSON.stringify(answer)?.length ?? 0),
         });
       try {
-        const out = await run(sub, ctx);
+        // A turn of its own under the step's, by the call that hands the task over.
+        const callId =
+          (context as { agent?: { toolCallId?: string } } | undefined)?.agent?.toolCallId ??
+          String(started);
+        const out = await run(sub, { ...ctx, turn: `${ctx.turn}:${callId}` });
         const answer = agent.output
           ? (out.json ?? {})
           : { answer: clip(out.text ?? "", ANSWER_CHARS) };

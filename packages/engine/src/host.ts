@@ -17,7 +17,7 @@ import type {
 import type { RunEventType, RunState, Said, StepOutput } from "@engenty/wizards-shared/run";
 import type { FlowCommand, FlowFailure, FlowRun } from "@engenty/wizards-shared/transition";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
-import type { StepContext, StepServices } from "./types.js";
+import type { StepContext, StepServices, TurnStore } from "./types.js";
 
 /** A write of the run, as the engine hands it to its host's store. */
 export interface Move {
@@ -80,6 +80,12 @@ export interface RunHost {
     save(move: Move, rev: number): Promise<number>;
   };
 
+  /**
+   * The run's agent turns, saved after every model call and every tool call. The steps' contexts
+   * (`context`) carry the same store.
+   */
+  turns: TurnStore;
+
   /** The clock: now, and the wake. */
   clock: {
     now(): number;
@@ -134,7 +140,7 @@ export interface RunHost {
   switches: {
     /** Durable runs: deadlines on a person's step, retries and `onFail` (`FlowHost.durable`). */
     durable: boolean;
-    /** Acting calls carry effect ids: a fixed step's visits, a durable turn's id. */
+    /** Acting calls are recorded by their effect ids: a fixed step's visits, an agent turn's calls. */
     effects: boolean;
     /** How often a run that waits for a person looks whether they acted. */
     lookAgainMs: number;

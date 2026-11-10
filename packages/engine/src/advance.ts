@@ -183,17 +183,8 @@ class Advance {
     );
     const state = structuredClone(this.run.state);
     // What lets a call repeated after a restart find its row is on the run before the step acts.
-    let changed = host.switches.effects && enterVisit(step, state);
-    if (
-      host.switches.effects &&
-      step.type === "agent" &&
-      step.durable &&
-      !step.foreach &&
-      state.turn?.stepId !== step.id
-    ) {
-      state.turn = { stepId: step.id, id: `${host.runId}.${randomId()}` };
-      changed = true;
-    }
+    // An agent step's turn is on the run before its first model call: the step writes it.
+    const changed = host.switches.effects && enterVisit(step, state);
     if (changed) {
       await this.save({ ...this.run, state: structuredClone(state) });
     }
@@ -487,6 +478,8 @@ class Advance {
       this.failing = null;
     }
     if (this.finished) {
+      // The output is saved: the step's turns are done with.
+      await host.turns.drop(this.finished.id);
       await host.event(this.finished.id, "step_done", this.finished.title);
       this.finished = null;
     }
@@ -551,14 +544,3 @@ function enterVisit(step: Step, state: RunState): boolean {
 }
 
 const at = (ms: number) => ({ at: new Date(ms).toISOString() });
-
-const ID_ALPHABET = "useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
-
-/** A short random id, as a turn's. */
-function randomId(size = 12): string {
-  let id = "";
-  for (const byte of crypto.getRandomValues(new Uint8Array(size))) {
-    id += ID_ALPHABET[byte & 63];
-  }
-  return id;
-}

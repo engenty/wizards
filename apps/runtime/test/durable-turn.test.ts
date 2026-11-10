@@ -83,19 +83,6 @@ describe("a durable agent step across processes", () => {
     expect(count(l, "EFFECT mail 2")).toBe(1);
   });
 
-  it("kill -9 the moment Mastra drops the snapshot: the end is on the row", { timeout: 200_000 }, () => {
-    const dir = mkdtempSync(join(tmpdir(), "wizards-turn-drop-"));
-    phase(dir, "start", { TURN_CRASH_AT_DROP: "1" });
-    phase(dir, "recover");
-    const l = lines(dir);
-    console.log(l.map((x) => x.split(" ").slice(1).join(" ")).join("\n"));
-    expect(l.join("\n")).toContain("kill -9 as Mastra drops the snapshot");
-    expect(l.at(-1)).toContain("status=done");
-    expect(l.at(-1)).toContain('text="sent 3 mails"');
-    expect(count(l, "EFFECT mail 0")).toBe(1);
-    expect(count(l, "LLM sees mails=0")).toBe(1);
-  });
-
   it("kill -9 after an answer, in a call: goes on there, and the person is not asked again", { timeout: 300_000 }, () => {
     const dir = mkdtempSync(join(tmpdir(), "wizards-turn-answered-"));
     phase(dir, "start", { TURN_ASK: "1" });

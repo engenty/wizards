@@ -13,7 +13,7 @@ import {
   scopeLists,
 } from "@engenty/wizards-engine/template";
 import type { AskResult, StepContext } from "@engenty/wizards-engine/types";
-import { StepError } from "@engenty/wizards-engine/types";
+import { StepError, TurnAsks } from "@engenty/wizards-engine/types";
 import {
   type ChoiceAnswer,
   type DecisionQuestion,
@@ -163,7 +163,6 @@ import { currentTenant, currentTenantOrNull } from "../tenants/tenant.js";
 import { hasOwnAccount } from "../upstreams.js";
 import { askPerson, clearStaleAsk } from "./asks.js";
 import { clearDeviceCalls } from "./device.js";
-import { newTurn, TurnAsks } from "./durable-turn.js";
 import { emitEvent, recentEvents, saidInVisit, signalChanged, visitLeftOpen } from "./events.js";
 import { classifyFailure } from "./failures.js";
 import { withMailText } from "./mail-watch.js";
@@ -196,6 +195,7 @@ import {
   sendSignal,
 } from "./signals.js";
 import { startedRunEnded, startOf } from "./starts.js";
+import { runTurns } from "./turns.js";
 import type { RunRow } from "./types.js";
 import { SignInNeeded } from "./types.js";
 import { wizardAgentFiles } from "./wizard-code.js";
@@ -1150,6 +1150,8 @@ export async function inProcessContext(
     call: { runId: run.id, stepId },
     ...(own.share ? { share: true } : {}),
     saveState: () => updateRun(run.id, { state }),
+    turns: runTurns(run.id),
+    durable: await effectsOn(),
     chargeUsd: (usd) => addLocalCost(run.id, stepId, usd),
     saveAsset: (input) =>
       saveAsset({
@@ -2230,18 +2232,8 @@ async function drive(runId: string, signal: AbortSignal) {
     const state = structuredClone(run.state);
     resourcesFor(runId).acted = false;
     try {
-      let changed = await enterVisit(step, state);
-      // A durable turn's id is on the row before it starts, so whoever goes on finds it.
-      if (
-        step.type === "agent" &&
-        step.durable &&
-        !step.foreach &&
-        state.turn?.stepId !== step.id &&
-        (await effectsOn())
-      ) {
-        state.turn = newTurn(runId, step.id);
-        changed = true;
-      }
+      // An agent step's turn is on the run before its first model call: the step writes it.
+      const changed = await enterVisit(step, state);
       if (changed) {
         await updateRun(runId, { state });
       }
@@ -2283,6 +2275,8 @@ async function drive(runId: string, signal: AbortSignal) {
       );
       await apply(run, run.state, done, {
         after: async () => {
+          // The output is saved: the step's turns are done with.
+          await runTurns(runId).drop(step.id);
           const masked = takeMasked(runId, step.id);
           if (masked) {
             await emitEvent(runId, step.id, "info", maskedNote(masked));

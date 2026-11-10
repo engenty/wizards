@@ -1,3 +1,4 @@
+import type { AgentTurn } from "@engenty/wizards-engine/types";
 import {
   BUNDLE_FORMATS,
   type BundleLeftOut,
@@ -2012,6 +2013,27 @@ export const syncMerge = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index("sync_merge_item").on(t.kind, t.item, t.createdAt)],
+);
+
+/**
+ * An agent step's turn under way (packages/engine/src/steps/agent-turn.ts): its conversation,
+ * saved after every model call and every tool call, so another process goes on where it stopped.
+ * Goes with its run.
+ */
+export const runTurn = sqliteTable(
+  "run_turn",
+  {
+    /** `<run>.<random>`; a foreach entry's and a wizard's agent's add to the step's. */
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    stepId: text("step_id").notNull(),
+    /** The turn as the engine keeps it (`AgentTurn`). */
+    data: text("data", { mode: "json" }).$type<AgentTurn>().notNull(),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("run_turn_run").on(t.runId)],
 );
 
 /**
