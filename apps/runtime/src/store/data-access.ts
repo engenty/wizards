@@ -7,8 +7,8 @@ import type { StoreScope } from "./index.js";
 
 /**
  * The one way to a wizard's own database (docs/plans/wizard-data.md): every caller (an agent
- * step's `data_query` and `data_exec`, a fixed step's statement, and later a function tool's `db`
- * and the sandbox's API) hands its statement here with the caller the broker knows. The broker
+ * step's `data_query` and `data_exec`, a fixed step's statement, a function tool's `db` and the
+ * sandbox's endpoint (sandbox/data.ts)) hands its statement here with the caller the broker knows. The broker
  * decides `r` or `w` on the wizard's data, and each call is one line of its log, allowed or not.
  *
  * The guest rule (decision 4): in a guest's run a statement the model wrote reaches only that
@@ -16,7 +16,11 @@ import type { StoreScope } from "./index.js";
  * (`by: "wizard"`): a sign-up can be saved, and no guest's data reaches another guest's model.
  */
 
-/** Whose SQL it is: the model's, or the wizard's own (a fixed step, a function of its files). */
+/**
+ * Who drives the statement. `model`: SQL the model wrote, or the wizard's code the model calls (a
+ * function tool's `db`, a script in the sandbox); in a guest's run it reaches the person's
+ * database alone. `wizard`: SQL a fixed step runs, the same in every run.
+ */
 export type DataAuthor = "model" | "wizard";
 
 export interface DataCall {

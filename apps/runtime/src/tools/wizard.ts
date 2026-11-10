@@ -2,9 +2,10 @@ import type { AgentStep } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
 import { wizardCodeOf, wizardToolCallName } from "@engenty/wizards-shared/wizard-code";
 import { createTool } from "@mastra/core/tools";
-import type { z } from "zod";
+import { z } from "zod";
 import { brokerHost, whereOf } from "../broker/index.js";
 import { summarizeInput, writeLog } from "../broker/log.js";
+import { stepCaller } from "../elements/caller.js";
 import { quickJs } from "../engine/quickjs.js";
 import { type StepContext, StepError } from "../engine/types.js";
 import {
@@ -15,6 +16,8 @@ import {
 } from "../engine/wizard-code.js";
 import { prompt } from "../prompts.js";
 import { snapshotFile } from "../services/files.js";
+import type { DataResult } from "../store/data.js";
+import { runData } from "../store/data-access.js";
 import { askOf, PAID_TOOLS, toolCallIdOf, wizardToolScope } from "./code.js";
 import { assertPublicUrl, safeFetch } from "./net-guard.js";
 import { holderWho } from "./plugin.js";
@@ -23,22 +26,37 @@ import { clip } from "./shared.js";
 /**
  * A wizard's function tools (docs/plans/wizard-code.md): `tools/<name>.ts` in its workspace, named
  * `wizard.<name>` in a step's `tools`. The file exports `description`, `input` (JSON Schema), an
- * optional `output` and `run(input, { fetch, tools })`. The step's model calls it like any tool.
+ * optional `output` and `run(input, { fetch, tools, db })`. The step's model calls it like any tool.
  *
  * The code is untrusted (marketplace, imports, guests): it runs in QuickJS like a code step
  * (../engine/quickjs.ts), with no modules, files or timers. Its way out is what `run` gets:
- * `fetch` through the broker, to the step's `hosts` only, and the step's other tools. Each call is
- * a line of the broker's log, and so is each request it makes.
+ * `fetch` through the broker, to the step's `hosts` only, the step's other tools, and where the
+ * wizard keeps data, `db` to its database (store/data-access.ts). Each call is a line of the
+ * broker's log, and so is each request and statement it makes.
  */
 
 const METHODS = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]);
 const FETCH_ID = "__fetch";
+const DB_ID = "__db";
+
+/** What `db.query` and `db.exec` hand the runtime. */
+const dbCall = z.object({
+  mode: z.enum(["read", "write"]),
+  sql: z.string().min(1).max(20_000),
+  params: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .optional(),
+  scope: z.enum(["person", "shared"]).default("person"),
+});
 
 /** The external function QuickJS defines for a tool id (@mastra/quickjs). */
 const externalOf = (id: string) => `external_${id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
-/** The program of one call: the tool's code, the step's tools and `fetch`, and the call of `run`. */
-function callProgram(body: string, input: unknown, toolKeys: string[]): string {
+/**
+ * The program of one call: the tool's code, the step's tools, `fetch` and `db` (where the wizard
+ * keeps data), and the call of `run`.
+ */
+function callProgram(body: string, input: unknown, toolKeys: string[], data: boolean): string {
   const tools = toolKeys
     .map(
       (key) =>
@@ -65,8 +83,20 @@ const __fetch = async (url, init = {}) => {
     json: async () => JSON.parse(r.body),
   };
 };
+${
+    data
+      ? `const __dbCall = (mode) => (sql, params, options) =>
+  globalThis[${JSON.stringify(externalOf(DB_ID))}]({
+    mode,
+    sql: String(sql),
+    ...(params === undefined || params === null ? {} : { params }),
+    scope: options?.scope ?? "person",
+  });
+const __db = Object.freeze({ query: __dbCall("read"), exec: __dbCall("write") });`
+      : "const __db = undefined;"
+  }
 if (typeof run !== "function") throw new Error("The tool defines no function run(input).");
-return await run(${JSON.stringify(input)}, { fetch: __fetch, tools: __tools });`;
+return await run(${JSON.stringify(input)}, { fetch: __fetch, tools: __tools, db: __db });`;
 }
 
 /** What a response of `fetch` hands the function: its status, a few headers and the body as text. */
@@ -148,6 +178,9 @@ function functionTool(
   const output = declared.output ? schemaZod(declared.output) : null;
   const limits = WIZARD_TOOL_LIMITS;
   const toolKeys = Object.keys(callable);
+  const data = Boolean(ctx.def.data);
+  const caller = data ? stepCaller(ctx) : null;
+  const target = { def: ctx.def, files: ctx.files, store: ctx.store };
   return createTool({
     id: callName,
     description: declared.description,
@@ -236,6 +269,26 @@ function functionTool(
               : prompt("tools", "note.wizard_tool_host", { host, tool: id }),
         );
       };
+      // The wizard's code, called by the model: the guest rule of a model's SQL holds for it.
+      const dbFor = async (args: unknown): Promise<DataResult> => {
+        counted();
+        const parsed = dbCall.safeParse(args);
+        if (!parsed.success) {
+          const issue = parsed.error.issues[0];
+          throw new Error(
+            `db: ${issue?.path.join(".") || "the call"}: ${issue?.message ?? "invalid"}`,
+          );
+        }
+        const { mode, sql, params, scope } = parsed.data;
+        return runData(caller!, target, {
+          action: `${id}:db.${mode === "read" ? "query" : "exec"}`,
+          by: "model",
+          scope,
+          sql,
+          params,
+          mode,
+        });
+      };
       const callTool = async (key: string, args: unknown) => {
         counted();
         const tool = callable[key];
@@ -286,13 +339,15 @@ function functionTool(
       }
       const ran = await inScope(() =>
         quickJs().run({
-          program: callProgram(body, input, toolKeys),
-          toolIds: [FETCH_ID, ...toolKeys],
+          program: callProgram(body, input, toolKeys, data),
+          toolIds: [FETCH_ID, ...(data ? [DB_ID] : []), ...toolKeys],
           dispatch: (key, args) =>
             inScope(() =>
               key === FETCH_ID
                 ? fetchFor(args as Parameters<typeof fetchFor>[0])
-                : callTool(key, args),
+                : key === DB_ID
+                  ? dbFor(args)
+                  : callTool(key, args),
             ),
           timeout: limits.timeoutMs,
           abortSignal: ctx.signal,
