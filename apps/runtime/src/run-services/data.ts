@@ -1,15 +1,19 @@
 import { StepError } from "@engenty/wizards-engine/types";
+import { note } from "@engenty/wizards-shared/run";
 import {
+  type DataAnswer,
   type DataService,
   type DataStatementRequest,
   ServiceError,
 } from "@engenty/wizards-shared/run-services";
+import { actOnce, effectOn } from "../broker/effect.js";
 import { subjectsOf } from "../broker/rwx.js";
 import { stepCaller } from "../elements/caller.js";
 import type { RunRow } from "../engine/types.js";
 import { NotedError } from "../model-errors.js";
 import { runData } from "../store/data-access.js";
 import { listRows } from "../store/index.js";
+import { askOf } from "../tools/code.js";
 import type { InProcessContext } from "./in-process.js";
 
 /**
@@ -46,17 +50,39 @@ export function dataService(
 
 /**
  * One statement on the wizard's own database, as the data tools and the data step run it. A
- * write marks the step as having acted: what it did, a later try of the step would do again. A
- * refusal with a note fails the step with that note.
+ * write under an effect id happens once: a repeat answers with what it wrote. Any other write
+ * marks the step as having acted: what it did, a later try of the step would do again. A refusal
+ * with a note fails the step with that note.
  */
 async function statement(
   c: InProcessContext,
   request: DataStatementRequest,
   mode: "read" | "write",
-) {
-  if (mode === "write") {
-    c.resources.acted = true;
+): Promise<DataAnswer> {
+  const id = mode === "write" ? await effectOn(request.effect) : null;
+  if (!id) {
+    if (mode === "write") {
+      c.resources.acted = true;
+    }
+    return run(c, request, mode);
   }
+  const what = c.def.steps.find((s) => s.id === request.stepId)?.title ?? request.stepId;
+  const wrote = await actOnce(
+    { id, runId: c.runId, stepId: request.stepId, tool: "data:exec" },
+    () => run(c, request, mode),
+    { ask: askOf(c), summary: what, service: c.def.title, input: { sql: request.sql } },
+  );
+  if ("unsure" in wrote) {
+    throw new StepError(note("stepMayHaveHappened", { what }));
+  }
+  return wrote.done;
+}
+
+async function run(
+  c: InProcessContext,
+  request: DataStatementRequest,
+  mode: "read" | "write",
+): Promise<DataAnswer> {
   try {
     return await runData(
       stepCaller(c),

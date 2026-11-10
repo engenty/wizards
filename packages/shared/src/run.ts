@@ -522,6 +522,8 @@ const NOTES_EN = {
     "{service} takes only so many calls a day, and today’s are made, so this step stopped. Try again tomorrow.",
   stepCallMayHaveHappened:
     "“{action}” in {service} was interrupted and may have happened already. It wasn’t repeated, so this step stopped. Check in {service} whether it’s there.",
+  stepMayHaveHappened:
+    "“{what}” was interrupted and may have happened already. It wasn’t repeated, so this step stopped.",
   clientNotSignedIn: "{name} isn’t signed in on this computer. Sign in under Settings → Models.",
   clientNotInstalled:
     "{name} isn’t installed on this computer. Install it under Settings → Models.",
@@ -1057,6 +1059,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "{service} nimmt am Tag nur eine bestimmte Zahl von Aufrufen an, und die für heute sind gemacht. Darum hat dieser Schritt aufgehört. Versuch es morgen wieder.",
   stepCallMayHaveHappened:
     "„{action}“ in {service} wurde unterbrochen und ist vielleicht schon passiert. Es wurde nicht wiederholt, darum hat dieser Schritt aufgehört. Schau in {service} nach, ob es da ist.",
+  stepMayHaveHappened:
+    "„{what}“ wurde unterbrochen und ist vielleicht schon passiert. Es wurde nicht wiederholt, darum hat dieser Schritt aufgehört.",
   clientNotSignedIn:
     "{name} ist auf diesem Computer nicht angemeldet. Melde dich unter Einstellungen → Modelle an.",
   clientNotInstalled:

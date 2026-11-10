@@ -2,6 +2,7 @@ import type { StepData } from "@engenty/wizards-shared/definition";
 import type { DataStatementRequest } from "@engenty/wizards-shared/run-services";
 import { isReadSql } from "@engenty/wizards-shared/wizard-data";
 import { codeInput } from "./code-step.js";
+import { visitEffect } from "./ids.js";
 import type { StepContext } from "./types.js";
 
 /**
@@ -28,9 +29,10 @@ export async function runStepData(
     // A path binds the run's raw value as it is.
     params: codeInput(data.params, ctx) as DataStatementRequest["params"],
   };
+  // A write happens once per visit of the step: a restart finds what it wrote.
   const r = isReadSql(data.sql)
     ? await ctx.services.data.query(request)
-    : await ctx.services.data.exec(request);
+    : await ctx.services.data.exec({ ...request, effect: visitEffect(ctx) });
   return {
     rows: r.rows,
     count: r.rows.length,

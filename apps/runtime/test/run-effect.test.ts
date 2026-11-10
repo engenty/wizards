@@ -61,6 +61,64 @@ vi.mock("../src/engine/requirements", async (importOriginal) => ({
   stepsWithoutModel: async () => new Set<string>(),
 }));
 
+/** What the run's own services did: downloads the browser made, films the film step made. */
+const made = { downloads: 0, films: 0 };
+
+// The browser's download, without a browser: the file is kept as the real tool keeps it.
+vi.mock("../src/tools/browser", async (importOriginal) => {
+  const { createTool } = await import("@mastra/core/tools");
+  return {
+    ...(await importOriginal<typeof import("../src/tools/browser")>()),
+    browserTools: async (
+      _ctx: unknown,
+      _assets: unknown,
+      files: { keep(path: string, data: Uint8Array, meta: { mime?: string }): Promise<unknown> },
+    ) => ({
+      browser_download: createTool({
+        id: "browser_download",
+        description: "Downloads a file.",
+        inputSchema: z.object({ url: z.string(), path: z.string() }),
+        execute: async ({ path }) => {
+          made.downloads++;
+          const kept = (await files.keep(path, new TextEncoder().encode("%PDF-1.7"), {
+            mime: "application/pdf",
+          })) as { path: string };
+          return { saved: kept.path, n: made.downloads };
+        },
+      }),
+    }),
+  };
+});
+
+// The film, without the film tools: it answers with the file it made, by reference.
+let filming: (() => Promise<void>) | null = null;
+vi.mock("../src/motion-graphics/step", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/motion-graphics/step")>()),
+  runMotionGraphicsStep: async () => {
+    made.films++;
+    await filming?.();
+    return {
+      assets: [{ id: `film-${made.films}`, kind: "video", mime: "video/mp4", name: "film.mp4" }],
+      at: new Date().toISOString(),
+    };
+  },
+}));
+
+// An agent step's model, for building its tools; nothing here calls it.
+vi.mock("../src/models", async (importOriginal) => {
+  const { MockLanguageModelV3 } = await import("ai/test");
+  return {
+    ...(await importOriginal<typeof import("../src/models")>()),
+    textModel: async () => ({
+      model: new MockLanguageModelV3({}),
+      ref: "test/scripted",
+      vendor: "test",
+      gateway: false,
+      metered: true,
+    }),
+  };
+});
+
 let client: typeof import("../src/db/client");
 let broker: typeof import("../src/broker/index");
 let effects: typeof import("../src/broker/effect");
@@ -179,11 +237,11 @@ async function submitted(definition: unknown, unattended = false) {
  * The run as a crash leaves it: `state`, on the step it was working on. It was running, and the
  * next take goes on from there; here that take is a retry.
  */
-async function restart(runId: string, state: unknown) {
+async function restart(runId: string, state: unknown, cursor = "save") {
   await inTenant(async () => {
     await client.db
       .update(client.schema.run)
-      .set({ state: state as never, cursor: "save", status: "failed", error: "gone", owner: null })
+      .set({ state: state as never, cursor, status: "failed", error: "gone", owner: null })
       .where(eq(client.schema.run.id, runId));
     await runner.retry(runId);
   });
@@ -266,6 +324,9 @@ beforeEach(() => {
   acted.length = 0;
   during = null;
   throwing = null;
+  made.downloads = 0;
+  made.films = 0;
+  filming = null;
   process.env.FEATURES = "durableRuns=on";
 });
 
@@ -817,5 +878,356 @@ describe("services that take a key of their own", () => {
     const declared = request([{ name: "Idempotency-Key", location: "header" }]);
     expect(declared.headers.get("idempotency-key")).toBe("turn:call");
     expect(request([]).headers.get("idempotency-key")).toBeNull();
+  });
+});
+
+// --- the run's services: what acts there, beyond the broker ----------------------------------
+
+/**
+ * The run's services as a process that takes the run up has them: built anew, as after a restart.
+ * `turn`: the agent step is at work in it. Nobody is there to ask.
+ */
+const servicesOf = (runId: string, stepId: string, turn?: string) =>
+  inTenant(async () => {
+    const run = await rowOf(runId);
+    const state = turn ? { ...run.state, turn: { stepId, id: turn } } : run.state;
+    const ctx = await runner.makeContext(
+      run,
+      await runner.loadSpace(run),
+      state,
+      new AbortController().signal,
+      { stepId, ask: async () => null },
+    );
+    return ctx.services as import("../src/run-services/index").InProcessServices;
+  });
+
+const eventsOf = (runId: string, type: string) =>
+  inTenant(async () =>
+    (
+      await client.db.query.runEvent.findMany({ where: (t, { eq }) => eq(t.runId, runId) })
+    ).filter((e) => e.type === type),
+  );
+
+describe("a step's own tool in a turn: the browser's download", () => {
+  const downloading = wizard([
+    page,
+    {
+      id: "fetch",
+      type: "agent",
+      title: "Fetch",
+      instructions: "Fetch the invoice.",
+      tools: ["browser"],
+      output: { format: "markdown" },
+    },
+    result,
+  ]);
+  const download = async (runId: string, toolCallId = "call-d") => {
+    const services = await servicesOf(runId, "fetch", `${runId}.turn`);
+    return inTenant(
+      () =>
+        services.tools.call({
+          stepId: "fetch",
+          name: "browser_download",
+          input: { url: "https://example.com/inv.pdf", path: "invoices/inv.pdf" },
+          effect: `${runId}.turn:${toolCallId}`,
+        }) as Promise<import("@engenty/wizards-shared/run-services").ToolResult>,
+    );
+  };
+  const waiting = async (definition: unknown, unattended = false) => {
+    const runId = await startRun(definition, unattended);
+    await settled(runId, "waiting_input");
+    return runId;
+  };
+
+  it("downloads once when the call comes again after a restart, with the file it kept", async () => {
+    const runId = await waiting(downloading);
+    const first = await download(runId);
+    const again = await download(runId);
+    expect(made.downloads).toBe(1);
+    expect(first.assets).toHaveLength(1);
+    // The model reads what it read the first time, and the step has the file.
+    expect(again).toEqual(first);
+    const rows = await effectsOf(runId);
+    expect(rows).toEqual([
+      expect.objectContaining({
+        id: `${runId}.turn:call-d`,
+        stepId: "fetch",
+        tool: "tool:browser_download",
+        state: "done",
+      }),
+    ]);
+    // The file goes by reference, never its bytes.
+    expect(rows[0].output).toEqual({ output: first.output, assets: first.assets });
+  });
+
+  it("downloads again on another call: a repeat the model means", async () => {
+    const runId = await waiting(downloading);
+    await download(runId, "call-1");
+    await download(runId, "call-2");
+    expect(made.downloads).toBe(2);
+    expect(await effectsOf(runId)).toHaveLength(2);
+  });
+
+  it("does not act on a found `started`: the model and the run's log are told", async () => {
+    const runId = await waiting(downloading, true);
+    await inTenant(() =>
+      effects.startEffect({
+        id: `${runId}.turn:call-d`,
+        runId,
+        stepId: "fetch",
+        tool: "tool:browser_download",
+      }),
+    );
+    const out = await download(runId);
+    expect(made.downloads).toBe(0);
+    expect(out.output).toEqual({ error: expect.stringContaining("may have happened") });
+    expect(await eventsOf(runId, "effect_unsure")).toHaveLength(1);
+  });
+
+  it("keeps no second row for a connection's action: the broker keeps it", async () => {
+    const runId = await waiting(reaching);
+    const create = async () => {
+      const services = await servicesOf(runId, "sync", `${runId}.turn`);
+      return inTenant(() =>
+        services.tools.call({
+          stepId: "sync",
+          name: "hubspot_create_contact",
+          input: { email: "a@b.at" },
+          effect: `${runId}.turn:call-c`,
+        }),
+      );
+    };
+    await create();
+    await create();
+    expect(acted).toHaveLength(1);
+    expect(await effectsOf(runId)).toEqual([
+      expect.objectContaining({ id: `${runId}.turn:call-c`, tool: "hub:create_contact" }),
+    ]);
+  });
+
+  it("keeps one row for an unmarked tool that goes through the broker: the services'", async () => {
+    const runId = await startRun(plain);
+    const id = `turn-${runId}:call-1`;
+    const row = { id, runId, stepId: "save", tool: "tool:own_send" };
+    const ask = { summary: "own_send", service: "Leads" };
+    const first = await inTenant(() => effects.actOnce(row, () => write(runId), ask));
+    const again = await inTenant(() => effects.actOnce(row, () => write(runId), ask));
+    expect(acted).toHaveLength(1);
+    expect(first).toMatchObject({ done: { ok: true, result: { made: 1 } } });
+    expect(again).toMatchObject({ done: { ok: true, result: { made: 1 } } });
+    expect(await effectsOf(runId)).toEqual([
+      expect.objectContaining({ id, tool: "tool:own_send", state: "done" }),
+    ]);
+  });
+
+  it("with the switch off downloads every time and keeps no row", async () => {
+    process.env.FEATURES = "durableRuns=false";
+    const runId = await waiting(downloading);
+    await download(runId);
+    await download(runId);
+    expect(made.downloads).toBe(2);
+    expect(await effectsOf(runId)).toHaveLength(0);
+  });
+});
+
+describe("a file saved under an id", () => {
+  const save = async (runId: string, effect: string | null) => {
+    const services = await servicesOf(runId, "save");
+    return inTenant(() =>
+      services.files.save({
+        stepId: "save",
+        kind: "file",
+        name: "lead.txt",
+        mime: "text/plain",
+        data: "lead@b.at",
+        effect,
+      }),
+    );
+  };
+  const filesOf = (runId: string) =>
+    inTenant(() =>
+      client.db.query.asset.findMany({ where: eq(client.schema.asset.runId, runId) }),
+    );
+
+  it("is written once, and a repeat gets the same file", async () => {
+    const runId = await startRun(plain);
+    await settled(runId, "waiting_input");
+    const first = await save(runId, `${runId}:save:1`);
+    const again = await save(runId, `${runId}:save:1`);
+    expect(again).toEqual(first);
+    expect(await filesOf(runId)).toHaveLength(1);
+    expect(await effectsOf(runId)).toEqual([
+      expect.objectContaining({
+        id: `${runId}:save:1`,
+        tool: "files:save",
+        state: "done",
+        output: first,
+      }),
+    ]);
+  });
+
+  it("is written each time without an id", async () => {
+    const runId = await startRun(plain);
+    await settled(runId, "waiting_input");
+    await save(runId, null);
+    await save(runId, null);
+    expect(await filesOf(runId)).toHaveLength(2);
+    expect(await effectsOf(runId)).toHaveLength(0);
+  });
+
+  it("is refused with another run's id", async () => {
+    const other = await startRun(plain);
+    const runId = await startRun(plain);
+    await settled(other, "waiting_input");
+    await settled(runId, "waiting_input");
+    await save(other, `${other}:save:1`);
+    await expect(save(runId, `${other}:save:1`)).rejects.toThrow("another run");
+  });
+});
+
+describe("a write to the wizard's database in a fixed step", () => {
+  it("writes once per visit, and a repeat answers with what it wrote", async () => {
+    const { putBlob } = await import("../src/files/blobs");
+    const schema = new TextEncoder().encode("CREATE TABLE leads (email TEXT);");
+    const files = [
+      {
+        path: "data/schema.sql",
+        hash: await inTenant(() => putBlob(schema)),
+        mime: "application/sql",
+        size: schema.length,
+      },
+    ];
+    const definition = {
+      ...plain,
+      data: { scope: "person", schema: "data/schema.sql" },
+    };
+    const runId = await inTenant(() =>
+      runner.createRun({
+        wizardId,
+        definition: definition as never,
+        files,
+        version: null,
+        mode: "test",
+        userId: USER,
+      }),
+    );
+    await settled(runId, "waiting_input");
+    const insert = async () => {
+      const services = await servicesOf(runId, "save");
+      return inTenant(() =>
+        services.data.exec({
+          stepId: "save",
+          by: "wizard",
+          scope: "person",
+          sql: "INSERT INTO leads (email) VALUES ('lead@b.at')",
+          effect: `${runId}:save:1`,
+        }),
+      );
+    };
+    const first = await insert();
+    const again = await insert();
+    expect(again).toEqual(first);
+    const services = await servicesOf(runId, "save");
+    const rows = await inTenant(() =>
+      services.data.query({
+        stepId: "save",
+        by: "wizard",
+        scope: "person",
+        sql: "SELECT email FROM leads",
+      }),
+    );
+    expect(rows.rows).toEqual([{ email: "lead@b.at" }]);
+    expect(await effectsOf(runId)).toEqual([
+      expect.objectContaining({ id: `${runId}:save:1`, tool: "data:exec", state: "done" }),
+    ]);
+  });
+});
+
+describe("a step a service does whole: a film", () => {
+  const filmed = wizard([
+    page,
+    { id: "film", type: "motion-graphics", title: "Film", brief: "A film of {{email}}." },
+    result,
+  ]);
+
+  /** Runs the film step and keeps the state on the row while it was made. */
+  async function filmingOnce() {
+    let state: unknown;
+    let runId = "";
+    filming = async () => {
+      state = (await rowOf(runId)).state;
+      filming = null;
+    };
+    runId = await submitted(filmed);
+    const row = await settled(runId, "done", "failed");
+    return { runId, state, row };
+  }
+
+  it("has its visit on the run before the film is made", async () => {
+    const { state, row } = await filmingOnce();
+    expect(row.status).toBe("done");
+    expect(state).toMatchObject({ visits: { film: 1 }, visiting: "film" });
+  });
+
+  it("is made once when the run starts again after it, and the step has the film made", async () => {
+    const { runId, state, row } = await filmingOnce();
+    expect(row.state.outputs.film?.assets).toEqual([expect.objectContaining({ id: "film-1" })]);
+    await restart(runId, state, "film");
+    const after = await settled(runId, "done", "failed");
+    expect(after.status).toBe("done");
+    expect(made.films).toBe(1);
+    expect(after.state.outputs.film?.assets).toEqual([expect.objectContaining({ id: "film-1" })]);
+    expect(await effectsOf(runId)).toEqual([
+      expect.objectContaining({ id: `${runId}:film:1`, tool: "step:motion-graphics", state: "done" }),
+    ]);
+  });
+
+  it("goes on after a crash in the middle: its own work, nobody is asked", async () => {
+    const { runId, state } = await filmingOnce();
+    await inTenant(() =>
+      client.db
+        .update(client.schema.runEffect)
+        .set({ state: "started", output: null })
+        .where(eq(client.schema.runEffect.runId, runId)),
+    );
+    await restart(runId, state, "film");
+    const after = await settled(runId, "done", "failed");
+    expect(after.status).toBe("done");
+    expect(made.films).toBe(2);
+    expect(after.state.outputs.film?.assets).toEqual([expect.objectContaining({ id: "film-2" })]);
+  });
+
+  it("as a job the run sleeps on, keeps the finished film in its row, never the `pending`", async () => {
+    process.env.FEATURES = "durableRuns=on,runServices=on";
+    const runId = await submitted(filmed);
+    const row = await settled(runId, "done", "failed");
+    expect(row.status).toBe("done");
+    expect(made.films).toBe(1);
+    const [effect] = await effectsOf(runId);
+    expect(effect).toMatchObject({ id: `${runId}:film:1`, state: "done" });
+    expect(effect.output).toMatchObject({ assets: [{ id: "film-1" }] });
+    expect(effect.output).not.toHaveProperty("pending");
+  });
+
+  it("is made again on a regenerate: a new visit", async () => {
+    const reviewed = wizard([
+      page,
+      { id: "film", type: "motion-graphics", title: "Film", brief: "A film." },
+      { id: "check", type: "review", title: "Check", show: ["film"] },
+      result,
+    ]);
+    const runId = await submitted(reviewed);
+    await vi.waitFor(async () => expect((await rowOf(runId)).cursor).toBe("check"), {
+      timeout: 15_000,
+      interval: 25,
+    });
+    await inTenant(() =>
+      runner.reviewStep(runId, "check", { type: "regenerate", target: "film", note: "Again." }),
+    );
+    await vi.waitFor(() => expect(made.films).toBe(2), { timeout: 15_000, interval: 25 });
+    expect((await effectsOf(runId)).map((e) => e.id).sort()).toEqual([
+      `${runId}:film:1`,
+      `${runId}:film:2`,
+    ]);
   });
 });

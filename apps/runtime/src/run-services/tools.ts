@@ -1,9 +1,10 @@
 import { turnOf } from "@engenty/wizards-engine/steps/turn";
-import type {
-  StepToolsOptions as EngineStepToolsOptions,
-  StepContext,
-  StepToolDescriptor,
-  StepToolSet,
+import {
+  type StepToolsOptions as EngineStepToolsOptions,
+  type StepContext,
+  StepError,
+  type StepToolDescriptor,
+  type StepToolSet,
 } from "@engenty/wizards-engine/types";
 import {
   type AgentStep,
@@ -11,15 +12,19 @@ import {
   textClassOf,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
-import type { StepOutput } from "@engenty/wizards-shared/run";
+import { type AssetRef, note, type StepOutput } from "@engenty/wizards-shared/run";
 import {
   type JsonSchema,
   ServiceError,
   type ToolsService,
 } from "@engenty/wizards-shared/run-services";
 import { z } from "zod";
+import { whereOf } from "../broker/call.js";
+import { actOnce, effectIdOf, effectOn, hasOwnRows } from "../broker/effect.js";
+import { prompt } from "../prompts.js";
 import { logCalls, onlyReads, watchActions } from "../tools/acted.js";
 import { agentTools, stepOfAgent } from "../tools/agent.js";
+import { askOf, toolCallIdOf } from "../tools/code.js";
 import { callConnection } from "../tools/connector.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool } from "../tools/plugin.js";
@@ -69,14 +74,17 @@ export function inProcessTools(options: {
     { model, uploads, turn }: StepToolsOptions,
   ): Promise<StepToolSet> {
     const ctx = options.within(own);
+    const inTurn = turnContext(ctx, turn);
     const { tools, assets, instructions } = await buildStepTools(
       step,
-      turnContext(ctx, turn),
+      inTurn,
       model.resolved,
       uploads,
     );
     // The wizard's agents the step lists, each a tool that runs an agent step of its own.
     Object.assign(tools, await agentTools(step, ctx, options.runAgent));
+    // A call that acts happens once in the turn: a repeat after a restart finds what it did.
+    actOnceInTurn(tools, inTurn, turn, assets);
     // A call that may have done something is noted on the run: a retry would do it again.
     watchActions(tools, ctx.resources);
     // Each call is a line of the broker's log, where no other path writes one.
@@ -148,12 +156,27 @@ export function inProcessTools(options: {
       // A tool step's one call: a plugin's tool or a connection's action, as the step names it.
       if (step?.type === "tool" && step.call) {
         const c = options.at(request.stepId);
-        if ("tool" in step.call) {
+        // A connection's action: the broker keeps its row under the same visit.
+        if (!("tool" in step.call)) {
+          return { output: await callConnection(step.call, request.input, c) };
+        }
+        const { tool } = step.call;
+        const id = await effectOn(request.effect);
+        if (!id) {
           // What a plugin's tool does nobody knows here, so a later try of the step does not repeat it.
           c.resources.acted = true;
-          return { output: await callPluginTool(step.call.tool, request.input, c) };
+          return { output: await callPluginTool(tool, request.input, c) };
         }
-        return { output: await callConnection(step.call, request.input, c) };
+        // Once per visit: a later try finds what it answered, or that it may have happened.
+        const called = await actOnce(
+          { id, runId: c.runId, stepId: request.stepId, tool: `plugin:${tool}` },
+          () => callPluginTool(tool, request.input, c),
+          { ask: askOf(c), summary: step.title, service: c.def.title, input: request.input },
+        );
+        if ("unsure" in called) {
+          throw new StepError(note("stepMayHaveHappened", { what: step.title }));
+        }
+        return { output: called.done };
       }
       const set = await setOf(request.stepId);
       if (!set) {
@@ -202,6 +225,56 @@ function turnContext<C extends StepContext>(ctx: C, turn: string): C {
       return answer;
     },
   };
+}
+
+/**
+ * Each tool of the turn that acts runs once per call (broker/effect.ts): its row is written before
+ * it acts, and a repeat after a restart answers with what it answered then and the files it made.
+ * The id is the call's, `<turn>:<toolCallId>`, or for a program's call the one `toolCallIdOf`
+ * gives. A read, and a tool whose acts keep rows of their own (`hasOwnRows`), go on as they are.
+ */
+function actOnceInTurn(
+  tools: Record<string, unknown>,
+  ctx: InProcessContext,
+  turn: string,
+  assets: AssetRef[],
+) {
+  for (const [name, tool] of Object.entries(tools)) {
+    const t = tool as { execute?: (input: unknown, context?: unknown) => Promise<unknown> };
+    const execute = t.execute;
+    if (onlyReads(name) || hasOwnRows(tool) || typeof execute !== "function") {
+      continue;
+    }
+    t.execute = async (input, context) => {
+      const id = await effectIdOf(whereOf(ctx), {
+        turn,
+        toolCallId: toolCallIdOf(context as { agent?: { toolCallId?: string } }, name, input),
+      });
+      if (!id) {
+        return execute.call(t, input, context);
+      }
+      const before = assets.length;
+      const made = await actOnce(
+        { id, runId: ctx.runId, stepId: ctx.stepId, tool: `tool:${name}` },
+        async () => {
+          const output = await execute.call(t, input, context);
+          // The files it made go by reference, never their bytes.
+          return { output, assets: assets.slice(before) };
+        },
+        { ask: askOf(ctx), summary: name, service: ctx.def.title, input },
+      );
+      if ("unsure" in made) {
+        return { error: prompt("tools", "note.tool_may_have_happened", { tool: name }) };
+      }
+      // Found done: the step gets the files the call made then.
+      for (const ref of made.done.assets) {
+        if (!assets.some((a) => a.id === ref.id)) {
+          assets.push(ref);
+        }
+      }
+      return made.done.output;
+    };
+  }
 }
 
 /** What a tool reads of its call: the tool call id of the turn's call. */
