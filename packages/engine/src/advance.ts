@@ -20,6 +20,7 @@ import {
   type Said,
   saidText,
 } from "@engenty/wizards-shared/run";
+import { isPending, isServiceStep, type Pending } from "@engenty/wizards-shared/run-services";
 import { whoOf } from "@engenty/wizards-shared/run-view";
 import {
   type FlowCommand,
@@ -28,6 +29,7 @@ import {
   type FlowRun,
   transition,
 } from "@engenty/wizards-shared/transition";
+import { isReadSql } from "@engenty/wizards-shared/wizard-data";
 import { decideBranch, decideFields, formContextOf, listCounts } from "./decisions.js";
 import type { Move, RunHost, RunStart } from "./host.js";
 import { readFormInput } from "./input.js";
@@ -197,9 +199,14 @@ class Advance {
 
   // --- the commands ------------------------------------------------------------------------------
 
-  /** Runs an automatic step; its output, or its failure, is the next event. */
+  /**
+   * Runs an automatic step; its output, or its failure, is the next event. A service that works on
+   * a whole step for long (a film, a video) answers `pending`: the run sleeps until it is done.
+   */
   private async runStep(step: Step): Promise<FlowEvent | null> {
     const { host } = this;
+    // A service works on this step already: the run woke to ask it again, and the step goes on.
+    const onJob = this.run.state.job?.stepId === step.id;
     if (this.run.state.holdLater) {
       // An answer moved the run on without holding again: it holds before it spends. Whoever holds
       // credits out of reach stops no run: `canSpend` still guards the step.
@@ -212,11 +219,13 @@ class Advance {
     if (!(await host.credits.canSpend())) {
       return this.outOfCredits(this.run);
     }
-    await host.event(
-      step.id,
-      "step_started",
-      ("working" in step ? step.working : undefined) ?? step.title,
-    );
+    if (!onJob) {
+      await host.event(
+        step.id,
+        "step_started",
+        ("working" in step ? step.working : undefined) ?? step.title,
+      );
+    }
     const state = structuredClone(this.run.state);
     // What lets a call repeated after a restart find its row is on the run before the step acts.
     // An agent step's turn is on the run before its first model call: the step writes it.
@@ -224,12 +233,13 @@ class Advance {
     if (changed) {
       await this.save({ ...this.run, state: structuredClone(state) });
     }
+    let pending: Pending;
     try {
-      const output = await host.within(step.type, async (signal) => {
+      const made = await host.within(step.type, async (signal) => {
         const ctx = await host.context(step, state, signal);
         await host.guard?.before(ctx);
         const made = await runAutomaticStep(step, ctx);
-        if (!signal.aborted) {
+        if (!(signal.aborted || isPending(made))) {
           await host.guard?.after(ctx, made);
         }
         return made;
@@ -237,13 +247,38 @@ class Advance {
       if (host.signal.aborted) {
         return null;
       }
-      await host.spent?.(step.id, "step");
-      this.run = { ...this.run, state };
-      this.finished = step;
-      return { kind: "stepDone", stepId: step.id, output };
+      if (isPending(made)) {
+        pending = made;
+      } else {
+        await host.spent?.(step.id, "step");
+        this.run = { ...this.run, state };
+        this.finished = step;
+        return { kind: "stepDone", stepId: step.id, output: made };
+      }
     } catch (err) {
       return host.signal.aborted ? null : this.failed(step.id, err, state);
     }
+    await this.sleepOnJob(step, state, pending);
+    return null;
+  }
+
+  /**
+   * A service works on the step: the run sleeps with the job until the service wakes it, or until
+   * the job's own time to look again. Nothing is said: the step is at work, as it was.
+   */
+  private async sleepOnJob(step: Step, state: RunState, pending: Pending) {
+    state.job = { stepId: step.id, id: pending.id };
+    if (pending.wakeAt === null) {
+      await this.host.clock.wakeAt(null);
+    }
+    const run: FlowRun = {
+      ...this.run,
+      cursor: step.id,
+      status: "sleeping",
+      wakeAt: pending.wakeAt,
+      state,
+    };
+    await this.write({ run, command: { kind: "sleep" } });
   }
 
   /** A model picks which of the step's `ask` rules holds. */
@@ -415,6 +450,11 @@ class Advance {
   private async failed(stepId: string, err: unknown, working: RunState): Promise<FlowEvent | null> {
     const { host } = this;
     this.load(await host.store.load());
+    if (this.run.state.job?.stepId === stepId) {
+      // The service's job failed, or the step around it: a new try starts a new one.
+      const { job: _, ...state } = this.run.state;
+      this.run = { ...this.run, state };
+    }
     // A turn starts over after a failure: the state knows what an earlier try of it did.
     const sorted = await host.failure(err, stepId, Boolean(turnOf(this.run.state, stepId)?.acted));
     if (sorted.kind === "asked") {
@@ -572,9 +612,16 @@ function passed(before: RunState, after: RunState, stepId: string): boolean {
   return output !== undefined && output.at !== before.outputs[stepId]?.at;
 }
 
-/** A visit of a step that acts through a connection, counted on the run before it acts. */
+/**
+ * A visit of a fixed step that acts, counted on the run before it acts: a tool step's call, a
+ * write to the wizard's database, a step a service does whole. Its effect id (`visitEffect`)
+ * names the visit.
+ */
 function enterVisit(step: Step, state: RunState): boolean {
-  if (step.type !== "tool" || !step.call || !("connection" in step.call)) {
+  const writes =
+    (step.type === "tool" || step.type === "code") && step.data && !isReadSql(step.data.sql);
+  const acts = (step.type === "tool" && step.call) || writes || isServiceStep(step);
+  if (!acts) {
     return false;
   }
   if (state.visiting === step.id) {

@@ -102,7 +102,9 @@ vi.mock("../src/tools/index.js", async (original) => ({
   buildStepTools: async (_step: unknown, ctx: any) => {
     const { brokerHost } = await import("../src/broker/host.js");
     const { codeTool, toolCallIdOf } = await import("../src/tools/code.js");
-    const send = createTool({
+    // Its acts go through the broker, which keeps their rows, as a connection's tool does.
+    const { keepsOwnRows } = await import("../src/broker/effect.js");
+    const send = keepsOwnRows(createTool({
       id: "send",
       description: "Sends something.",
       inputSchema: z.object({ to: z.string() }),
@@ -121,7 +123,7 @@ vi.mock("../src/tools/index.js", async (original) => ({
         });
         return out.ok ? out.result : { uncertain: true };
       },
-    });
+    }));
     const program = codeTool({ send }, ctx);
     return {
       assets: [],

@@ -2,6 +2,7 @@ import type { ToolStep } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { isPending } from "@engenty/wizards-shared/run-services";
 import { runStepData } from "../data-step.js";
+import { visitEffect } from "../ids.js";
 import { renderTemplate } from "../template.js";
 import { type StepContext, StepError } from "../types.js";
 
@@ -52,7 +53,8 @@ export async function runToolStep(step: ToolStep, ctx: StepContext): Promise<Ste
       stepId: step.id,
       name: "tool" in step.call ? step.call.tool : `${step.call.connection}.${step.call.action}`,
       input,
-      effect: null,
+      // One call per visit: a restart finds what it answered.
+      effect: visitEffect(ctx),
     },
     ctx.signal,
   );

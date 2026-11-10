@@ -4,7 +4,7 @@ import { note } from "@engenty/wizards-shared/run";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { effectIdOf } from "../broker/effect.js";
+import { effectIdOf, keepsOwnRows } from "../broker/effect.js";
 import {
   type BrokerConnection,
   brokerCall,
@@ -366,20 +366,23 @@ export async function toolsOf(connection: ConnectionDef, ctx: InProcessContext, 
     return Object.fromEntries(
       usable.map((action) => [
         `${prefix}_${action.id}`,
-        createTool({
-          id: `${prefix}_${action.id}`,
-          description: [
-            sentence(`${service}: ${action.description || action.summary}`),
-            asks(held, action, ctx) ? prompt("tools", "connector.asks") : "",
-            fileNote,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .slice(0, 1100),
-          inputSchema: action.inputSchema as z.ZodType<any>,
-          execute: (input, context) =>
-            call(action, input, toolCallIdOf(context, `${prefix}_${action.id}`, input)),
-        }),
+        // Its call goes through the broker under the call's id: the broker keeps the row.
+        keepsOwnRows(
+          createTool({
+            id: `${prefix}_${action.id}`,
+            description: [
+              sentence(`${service}: ${action.description || action.summary}`),
+              asks(held, action, ctx) ? prompt("tools", "connector.asks") : "",
+              fileNote,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .slice(0, 1100),
+            inputSchema: action.inputSchema as z.ZodType<any>,
+            execute: (input, context) =>
+              call(action, input, toolCallIdOf(context, `${prefix}_${action.id}`, input)),
+          }),
+        ),
       ]),
     );
   }
@@ -416,19 +419,21 @@ export async function toolsOf(connection: ConnectionDef, ctx: InProcessContext, 
           };
         }),
     }),
-    [`${prefix}_call`]: createTool({
-      id: `${prefix}_call`,
-      description: `${prompt("tools", "connector.call", { service, prefix })} ${fileNote}`,
-      inputSchema: z.object({
-        action: z.string(),
-        input: z.record(z.string(), z.unknown()).optional(),
+    [`${prefix}_call`]: keepsOwnRows(
+      createTool({
+        id: `${prefix}_call`,
+        description: `${prompt("tools", "connector.call", { service, prefix })} ${fileNote}`,
+        inputSchema: z.object({
+          action: z.string(),
+          input: z.record(z.string(), z.unknown()).optional(),
+        }),
+        execute: ({ action: id, input }, context) => {
+          const action = usable.find((a) => a.id === id);
+          return action
+            ? call(action, input, toolCallIdOf(context, `${prefix}_${action.id}`, input))
+            : Promise.resolve({ error: `No action "${id}". Use ${prefix}_actions to find one.` });
+        },
       }),
-      execute: ({ action: id, input }, context) => {
-        const action = usable.find((a) => a.id === id);
-        return action
-          ? call(action, input, toolCallIdOf(context, `${prefix}_${action.id}`, input))
-          : Promise.resolve({ error: `No action "${id}". Use ${prefix}_actions to find one.` });
-      },
-    }),
+    ),
   };
 }

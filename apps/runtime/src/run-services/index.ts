@@ -53,8 +53,8 @@ import { type InProcessTools, inProcessTools } from "./tools.js";
  * They are the engine's `StepServices`: `models.agentModel`, `tools.forStep` and `tools.ofAgent`
  * are the calls beyond `RunServices`: an agent step's tools are built here with their code, and a
  * model that runs its tools itself (an installed client, the run's device) has them attached.
- * `files` has calls beyond them (./files.ts) for the runtime's own code; `steps` answers with the
- * output, never `pending`.
+ * `files` has calls beyond them (./files.ts) for the runtime's own code; `steps` answers a film or
+ * a video with `pending` when `runServices` is on (./jobs.ts).
  */
 export interface InProcessServices extends StepServices {
   files: InProcessFiles;

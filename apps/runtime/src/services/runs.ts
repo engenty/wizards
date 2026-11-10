@@ -1,6 +1,13 @@
 import { fieldErrorsIn } from "@engenty/wizards-engine/input";
 import { waitDurationMs, wizardLang } from "@engenty/wizards-shared/definition";
-import { note, type RunState, type RunTimeline, type RunView } from "@engenty/wizards-shared/run";
+import {
+  note,
+  type RunState,
+  type RunTimeline,
+  type RunView,
+  shownStatus,
+  waitsOnJob,
+} from "@engenty/wizards-shared/run";
 import { type RunReport, reportNeeds, reportOf, whoOf } from "@engenty/wizards-shared/run-view";
 import { and, count, desc, eq, gte, inArray, isNull, max, or, sql } from "drizzle-orm";
 import { canSpend, MICROS_PER_CREDIT } from "../credits/credits.js";
@@ -582,9 +589,9 @@ export async function listRuns(userId: string, wizardId: string, q?: string) {
   return rows.map((r) => ({
     id: r.id,
     mode: r.mode,
-    status: r.status,
+    status: shownStatus(r),
     label: r.label,
-    wakeAt: r.wakeAt?.toISOString() ?? null,
+    wakeAt: waitsOnJob(r) ? null : (r.wakeAt?.toISOString() ?? null),
     pause: r.state.pause?.kind ?? null,
     version: r.version,
     createdAt: r.createdAt.toISOString(),
@@ -618,18 +625,20 @@ export async function runTimeline(run: RunRow, canAct: boolean): Promise<RunTime
       ? await db.query.runWait.findFirst({ where: eq(schema.runWait.runId, run.id) })
       : null;
   const step = run.definition.steps.find((s) => s.id === run.cursor);
+  // Asleep on a service's job, the run is at work there.
+  const status = shownStatus(run);
   return {
     id: run.id,
     mode: run.mode,
-    status: run.status,
+    status,
     label: run.label,
     version: run.version,
     createdAt: run.createdAt.toISOString(),
     wakeAt:
-      run.status === "sleeping" || run.status === "waiting_signal" || run.status === "waiting_input"
+      status === "sleeping" || status === "waiting_signal" || status === "waiting_input"
         ? (run.wakeAt?.toISOString() ?? null)
         : null,
-    pause: run.status === "sleeping" ? (run.state.pause?.kind ?? null) : null,
+    pause: status === "sleeping" ? (run.state.pause?.kind ?? null) : null,
     credits: Math.ceil(run.costMicros / MICROS_PER_CREDIT),
     stepTitle: step?.title ?? null,
     startedBy: typeof name === "string" ? name : null,

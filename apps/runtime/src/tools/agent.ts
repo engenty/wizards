@@ -9,6 +9,7 @@ import {
 } from "@engenty/wizards-shared/wizard-code";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import { keepsOwnRows } from "../broker/effect.js";
 import { summarizeInput, writeLog } from "../broker/log.js";
 import { loadWizardAgent } from "../engine/wizard-code.js";
 import type { InProcessContext } from "../run-services/in-process.js";
@@ -93,7 +94,8 @@ export async function agentTools(
   for (const name of stepAgents(step).tools) {
     const agent = await wizardAgentOf(name, ctx);
     const callName = wizardAgentCallName(name);
-    tools[callName] = agentTool(agent, callName, step, ctx, run);
+    // A turn of its own, whose calls each keep their row: a crash goes on with that turn.
+    tools[callName] = keepsOwnRows(agentTool(agent, callName, step, ctx, run));
   }
   return tools;
 }

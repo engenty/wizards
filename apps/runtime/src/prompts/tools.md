@@ -57,6 +57,9 @@ ${tool} wrote an output.json over 1 MB. The tool is broken; say so in your resul
 <!-- section: note.host_may_have_happened -->
 This request to ${host} was interrupted before and may have arrived already. It was not repeated. Do not try it again; say in your result that it may have happened.
 
+<!-- section: note.tool_may_have_happened -->
+This call of ${tool} was interrupted before and may have happened already. It was not repeated. Do not try it again; say in your result that it may have happened.
+
 <!-- section: note.net_scheme -->
 Only http and https URLs are allowed.
 

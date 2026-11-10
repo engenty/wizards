@@ -5,12 +5,21 @@
  */
 import { type Decision, readObject } from "@engenty/wizards-shared/decision";
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
-import type { AssetRef, RunEventType, RunState, Said } from "@engenty/wizards-shared/run";
 import type {
-  FileRead,
-  Notice,
-  ToolDescriptor,
-  TurnPart,
+  AssetRef,
+  RunEventType,
+  RunState,
+  Said,
+  StepOutput,
+} from "@engenty/wizards-shared/run";
+import {
+  type FileRead,
+  type Notice,
+  type Pending,
+  ServiceError,
+  type ServiceStep,
+  type ToolDescriptor,
+  type TurnPart,
 } from "@engenty/wizards-shared/run-services";
 import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
 import type {
@@ -61,6 +70,14 @@ export interface MemoryOptions {
   lists?: Record<string, { def: ListDef; rows: ListRow[] }>;
   durable?: boolean;
   effects?: boolean;
+  /**
+   * The whole steps a service does (generate, widget, motion-graphics): their output, or `pending`.
+   * `state`: the run as stored, with the job it sleeps on.
+   */
+  steps?: (
+    step: ServiceStep,
+    state: RunState,
+  ) => StepOutput | Pending | Promise<StepOutput | Pending>;
 }
 
 /** A line of the run's log: [step, type, what it said]; a note by its code and params, else its text. */
@@ -296,7 +313,10 @@ export function memoryHost(def: WizardDefinition, o: MemoryOptions = {}): Memory
     },
     steps: {
       run: async (step) => {
-        throw new StepError(`A ${step.type} step is not done in memory.`);
+        if (!o.steps) {
+          throw new StepError(`A ${step.type} step is not done in memory.`);
+        }
+        return o.steps(step, structuredClone(row.run.state));
       },
     },
     people: {
@@ -415,7 +435,9 @@ export function memoryHost(def: WizardDefinition, o: MemoryOptions = {}): Memory
       }
       const note = err instanceof StepError ? err.note : null;
       const said: Said = note ?? (err instanceof Error ? err.message : String(err));
-      return { kind: "failed", failure: failureOf(note?.code), acted, said };
+      // A service's failure says its class itself.
+      const failure = err instanceof ServiceError ? err.failure : failureOf(note?.code);
+      return { kind: "failed", failure, acted, said };
     },
     within: (_kind, work) => work(abort.signal),
     signal: abort.signal,

@@ -29,6 +29,7 @@ import {
   type StepToolsAnswer,
   type StepToolsAt,
   stepRequestSchema,
+  stepRunRequestSchema,
   stepToolCallSchema,
   stepToolsAtSchema,
   type TurnPart,
@@ -444,6 +445,7 @@ const CALLS: Record<string, Record<string, Call>> = {
                 mime: file.mime,
                 data: new Uint8Array(Buffer.from(file.base64, "base64")),
                 ...(file.ai ? { ai: file.ai } : {}),
+                effect: file.effect,
               }
             : file,
         ),
@@ -466,12 +468,12 @@ const CALLS: Record<string, Record<string, Call>> = {
   },
   steps: {
     // The step is the run's own, by its id: a host does not send what a step is.
-    run: call(stepRequestSchema, async ({ stepId }, s, _signal, run) => {
+    run: call(stepRunRequestSchema, async ({ stepId, effect }, s, signal, run) => {
       const step = run.definition.steps.find((x) => x.id === stepId);
       if (!(step && isServiceStep(step))) {
         return refused(`Step ${stepId} is not one a service does whole.`, 400);
       }
-      return json(await s.steps.run(step));
+      return json(await s.steps.run(step, signal, effect));
     }),
   },
   people: {

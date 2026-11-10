@@ -37,6 +37,7 @@ import {
   type ShownList,
   type ShownStep,
   type StepOutput,
+  waitsOnJob,
 } from "./run.js";
 import type { ShareJobView } from "./sharing.js";
 import type { StartedBy } from "./starts.js";
@@ -68,6 +69,14 @@ export interface ViewedRun {
   /** ISO times. */
   wakeAt: string | null;
   expiresAt: string | null;
+}
+
+/**
+ * The run as people see it: one that sleeps while a service works on its step (a film, a video)
+ * is at work there, as when the step ran in the process itself, with no time to wait for.
+ */
+function asShown(run: ViewedRun): ViewedRun {
+  return waitsOnJob(run) ? { ...run, status: "running", wakeAt: null } : run;
 }
 
 /** What a page knows besides the person's input (the runtime's `formContext`). */
@@ -356,7 +365,8 @@ function prefillOf(
  * The run as the viewer sees it, from the definition it started on (`own`). `extras.hide`: steps whose output stays in the space: shown with
  * no output and `kept`, left out of `outputs`; empty for a member, or a member's run.
  */
-export function viewOf(own: WizardDefinition, run: ViewedRun, extras: ViewExtras): RunView {
+export function viewOf(own: WizardDefinition, row: ViewedRun, extras: ViewExtras): RunView {
+  const run = asShown(row);
   const hide = extras.hide ?? new Set<string>();
   const missing = new Set(extras.missing);
   // In the viewer's language every text of the view is the translation; ids and values stay.
@@ -746,7 +756,8 @@ function shownData(
 }
 
 /** What a run did so far, for a client without the run page: outputs, links, cost, errors. */
-export function reportOf(def: WizardDefinition, run: ViewedRun, extras: ReportExtras) {
+export function reportOf(def: WizardDefinition, row: ViewedRun, extras: ReportExtras) {
+  const run = asShown(row);
   const current = def.steps.find((s) => s.id === run.cursor) ?? null;
   const base = `/api/runs/${run.id}`;
   const { hidden, link } = extras;

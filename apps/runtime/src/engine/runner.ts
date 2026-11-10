@@ -84,6 +84,7 @@ import { runEnded } from "../plugins/events.js";
 import { pluginsOf as loadedPlugins } from "../plugins/registry.js";
 import type { InProcessContext, SpaceRow } from "../run-services/in-process.js";
 import { inProcessServices } from "../run-services/index.js";
+import { JobFailed, stopJobs } from "../run-services/jobs.js";
 import { ContentBlockedError, checkGuestText, guestChecksOn, guestRun } from "../safety.js";
 import { sandboxDataHost } from "../sandbox/data.js";
 import { peerTicket } from "../secrets/signing.js";
@@ -967,6 +968,8 @@ export async function stopRunner() {
     // A stop, not a cancel: a durable turn stays where it is for the next runner.
     abort.abort("stop");
   }
+  // The jobs too: whichever runner a run asks next starts them again.
+  stopJobs();
   await disownRuns().catch(() => undefined);
 }
 
@@ -1507,6 +1510,10 @@ export const lookAgainMs = () => (managed ? 5 : 30) * 60_000;
 
 /** What a failed step says: its own note, a tier's refusal, or the error in plain words. */
 export async function failSaid(err: unknown): Promise<Said> {
+  if (err instanceof JobFailed) {
+    // Said when the job failed, as it would have been in the step.
+    return err.said;
+  }
   return noteOf(err) ?? (await tierRefusalSaid(err)) ?? friendly(err);
 }
 

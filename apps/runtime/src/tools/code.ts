@@ -10,6 +10,7 @@ import {
   type ToolObserve,
 } from "@mastra/core/tools";
 import type { z } from "zod";
+import { keepsOwnRows } from "../broker/effect.js";
 import { prompt } from "../prompts.js";
 import { clip } from "./shared.js";
 
@@ -294,7 +295,8 @@ export function codeTool(
     },
   });
   return {
-    tool,
+    // A program: each of its calls keeps its own row, and a crash repeats the whole program.
+    tool: keepsOwnRows(tool),
     instructions: `${instructions}\n\n${prompt("tools", "tool.execute_typescript.limits", {
       maxCalls: limits.maxCalls,
       maxParallel: limits.maxParallel,

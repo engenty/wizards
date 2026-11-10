@@ -286,8 +286,9 @@ export function httpServices(options: HttpServicesOptions): StepServices {
       counts: () => call("data/counts", {}),
     },
     steps: {
-      // The runtime reads the step from the run's definition: only its id goes.
-      run: (step, signal) => call("steps/run", { stepId: step.id }, signal),
+      // The runtime reads the step from the run's definition: only its id goes, and its visit.
+      run: (step, signal, effect) =>
+        call("steps/run", { stepId: step.id, ...(effect ? { effect } : {}) }, signal),
     },
     people: {
       tell: (notice) => done("people/tell", notice),

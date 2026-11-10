@@ -91,10 +91,12 @@ vi.mock("../src/tools/index.js", async (original) => ({
   ...(await original<typeof import("../src/tools/index.js")>()),
   buildStepTools: async (_step: unknown, ctx: any) => {
     const assets: any[] = [];
+    // Its acts go through the broker, which keeps their rows, as a connection's tool does.
+    const { keepsOwnRows } = await import("../src/broker/effect.js");
     return {
       assets,
       tools: {
-        send_mail: createTool({
+        send_mail: keepsOwnRows(createTool({
           id: "send_mail",
           description: "Sends a mail.",
           inputSchema: z.object({ n: z.number() }),
@@ -145,7 +147,7 @@ vi.mock("../src/tools/index.js", async (original) => ({
                     "This mail was interrupted before and may have gone out. It was not sent again. Do not send it again.",
                 };
           },
-        }),
+        })),
       },
     };
   },

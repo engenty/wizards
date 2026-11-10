@@ -82,6 +82,8 @@ function runOf(run: pinned.PinnedRun, n: number): MemoryRun {
     runId: `run-pinned-${n}`,
     script: run.script,
     tools: pluginTools("pinned", stampPlugin),
+    // As the runner's, with `durableRuns`: a fixed step's visit is counted before it acts.
+    effects: true,
   });
 }
 

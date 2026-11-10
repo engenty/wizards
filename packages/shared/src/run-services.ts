@@ -388,6 +388,8 @@ export type FileSave = {
   name: string;
   /** Media a model made or changed; travels with the reference. */
   ai?: AssetRef["ai"];
+  /** The call that saves it, when a tool or a step saves it as what it does: saved once. */
+  effect?: EffectId | null;
 } & ({ mime: string; data: Uint8Array | string } | { url: string; mime?: string });
 
 export interface FileRead {
@@ -424,6 +426,7 @@ export const fileSaveByUrlSchema = z.object({
   ai: z.enum(["generated", "edited"]).optional(),
   url: z.string().url(),
   mime: z.string().optional(),
+  effect: effectIdSchema.nullable().optional(),
 });
 
 /**
@@ -437,6 +440,7 @@ export const fileSaveByDataSchema = z.object({
   ai: z.enum(["generated", "edited"]).optional(),
   mime: z.string().min(1),
   base64: z.string(),
+  effect: effectIdSchema.nullable().optional(),
 });
 
 export const fileSaveRequestSchema = z.union([fileSaveByUrlSchema, fileSaveByDataSchema]);
@@ -512,8 +516,19 @@ export function isServiceStep(step: { type: string }): step is ServiceStep {
 }
 
 export interface StepsService {
-  run(step: ServiceStep, signal?: AbortSignal): Promise<StepOutput | Pending>;
+  /** `effect`: the step's visit, `<run>:<step>:<visit>`; a repeat answers with the output made. */
+  run(
+    step: ServiceStep,
+    signal?: AbortSignal,
+    effect?: EffectId | null,
+  ): Promise<StepOutput | Pending>;
 }
+
+/** `steps.run` as it crosses HTTP: the run's own step by its id, and the visit it is made in. */
+export const stepRunRequestSchema = z.object({
+  stepId: z.string().min(1),
+  effect: effectIdSchema.nullable().optional(),
+});
 
 // --- people ------------------------------------------------------------------------------------
 
