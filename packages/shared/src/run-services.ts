@@ -15,7 +15,6 @@ import {
   EFFORTS,
   type Effort,
   type GenerateStep,
-  type Lang,
   type MotionGraphicsStep,
   TEXT_CLASSES,
   type TextClass,
@@ -333,7 +332,8 @@ export interface RunBrand {
 export interface StepSetting {
   /** Today's date as the wizard's people write it. */
   date: string;
-  lang: Lang;
+  /** The wizard's language code. */
+  lang: string;
   brand: RunBrand;
   /** What the space's Knowledge holds for the run, and how to read it; empty: nothing. */
   knowledge: string;
