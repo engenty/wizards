@@ -8,7 +8,6 @@ import {
 import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
 import { mainLogo, runTheme } from "@engenty/wizards-shared/spaces";
-import { generateText } from "ai";
 import { extFor, loadAsset } from "../../files/storage.js";
 import { snapshotHtmlImages } from "../../files/web-images.js";
 import {
@@ -19,7 +18,6 @@ import {
   type MediaReference,
 } from "../../media/generate.js";
 import { type AiOrigin, markMedia } from "../../media/marking.js";
-import { costOf, textModel } from "../../models.js";
 import { prompt } from "../../prompts.js";
 import { contentPolicy } from "../../safety.js";
 import { spaceContextOf } from "../../tools/plugin.js";
@@ -34,6 +32,7 @@ import {
 import { type StepContext, StepError } from "../types.js";
 import { inParallel } from "./foreach.js";
 import { answersBlock, brandBlock, groundRules, revisionBlock, today } from "./prompt.js";
+import { turnText } from "./turn.js";
 
 // --- generate ----------------------------------------------------------------
 
@@ -214,20 +213,15 @@ async function writeHtml(
   const request = [`# BRIEF\n${brief}`, answersBlock(ctx), await revisionBlock(ctx, step.id)]
     .filter(Boolean)
     .join("\n\n");
-  const writer = await textModel(textClassOf(step.model ?? "standard"), {
-    ...ctx.call,
+  const written = await turnText(ctx, {
+    class: textClassOf(step.model ?? "standard"),
     effort: step.effort,
-    makerClass: step.maker ? classIdOf(step, "standard") : undefined,
-  });
-  const result = await generateText({
-    model: writer.model,
+    maker: step.maker ? classIdOf(step, "standard") : undefined,
     system,
-    prompt: request,
-    abortSignal: ctx.signal,
+    messages: [{ role: "user", content: request }],
     maxOutputTokens: 32_000,
   });
-  await ctx.chargeUsd(costOf(writer, result.usage));
-  const html = result.text
+  const html = written
     .replace(/^```(?:html)?\s*/i, "")
     .replace(/```\s*$/, "")
     .trim();
@@ -248,15 +242,13 @@ async function visualPrompt(step: GenerateStep, ctx: StepContext, entry: Entry):
   const scope: TemplateScope = { ...ctx.scope, entry };
   const brief = renderTemplate(step.prompt, scope);
   const note = ctx.state.notes[step.id];
-  const prompter = await textModel("low", ctx.call);
   const from = entry.reference
     ? step.asset === "video"
       ? prompt("step", "visual.from_image")
       : prompt("step", "visual.reference")
     : "";
-  const result = await generateText({
-    model: prompter.model,
-    abortSignal: ctx.signal,
+  const written = await turnText(ctx, {
+    class: "low",
     system: [
       [
         step.asset === "video" ? prompt("step", "visual.video") : prompt("step", "visual.image"),
@@ -266,16 +258,20 @@ async function visualPrompt(step: GenerateStep, ctx: StepContext, entry: Entry):
         .join(" "),
       contentPolicy(),
     ].join("\n\n"),
-    prompt: [
-      `Brief:\n${brief}`,
-      step.options?.style ? `Style: ${step.options.style}` : "",
-      note ? `Change requested by the person after seeing the last version: ${note}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
+    messages: [
+      {
+        role: "user",
+        content: [
+          `Brief:\n${brief}`,
+          step.options?.style ? `Style: ${step.options.style}` : "",
+          note ? `Change requested by the person after seeing the last version: ${note}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+      },
+    ],
   });
-  await ctx.chargeUsd(costOf(prompter, result.usage));
-  return result.text.trim() || brief;
+  return written.trim() || brief;
 }
 
 /** Images and video clips: one per entry. A revision can name the entries to make again. */

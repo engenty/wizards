@@ -7,8 +7,8 @@ import {
   readSystemOne,
 } from "@engenty/wizards-shared/decision";
 import { generateText, Output } from "ai";
-import { type CallMeta, costOf, systemOneAccess, textModel } from "../models.js";
-import { prompt } from "../prompts.js";
+import { type CallMeta, costOf, systemOneAccess, textModel } from "./models.js";
+import { prompt } from "./prompts.js";
 
 /**
  * Every decision a run makes goes through here, on the classifier class. A decision model

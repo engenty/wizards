@@ -158,6 +158,8 @@ export interface TurnRequest {
   tools?: ToolDescriptor[];
   /** A structured answer in this shape instead of text. */
   output?: JsonSchema;
+  /** At most this many tokens in the answer; left out, the model's own limit. */
+  maxOutputTokens?: number;
 }
 
 /** What a turn streams. The last part is `finish`. */
@@ -495,4 +497,5 @@ export const turnRequestSchema: z.ZodType<TurnRequest> = z.object({
   messages: z.array(turnMessageSchema),
   tools: z.array(toolDescriptorSchema).optional(),
   output: jsonSchema.optional(),
+  maxOutputTokens: z.number().int().positive().optional(),
 });

@@ -29,13 +29,24 @@ import { z } from "zod";
 import { subjectsOf } from "../broker/rwx.js";
 import { addLocalCost } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
+import { decide } from "../decide.js";
 import { stepCaller } from "../elements/caller.js";
-import { decide } from "../engine/decide.js";
 import { noticesFor, noticeWrites } from "../engine/notices.js";
 import { runGenerateStep } from "../engine/steps/generate.js";
 import { type RunRow, type StepContext, StepError } from "../engine/types.js";
 import { loadAsset, saveAsset } from "../files/storage.js";
-import { agentModel, costOf, embeddingModel, type ResolvedModel, textModel } from "../models.js";
+import {
+  agentModel,
+  attachTools,
+  costOf,
+  embeddingModel,
+  isHarnessVendor,
+  keepsOwnLoop,
+  type ResolvedModel,
+  takesTools,
+  textModel,
+  totalUsage,
+} from "../models.js";
 import { runMotionGraphicsStep } from "../motion-graphics/step.js";
 import { signedUrl } from "../secrets/signing.js";
 import { knowledgeBlock } from "../services/knowledge.js";
@@ -59,8 +70,28 @@ export interface InProcessServices extends RunServices {
   models: ModelsService & {
     agentModel(
       request: Pick<TurnRequest, "stepId" | "class" | "effort" | "maker">,
-    ): Promise<{ resolved: ResolvedModel<LanguageModel>; model: MastraModelConfig }>;
+    ): Promise<AgentModel>;
   };
+}
+
+/** The model of an agent step whose loop runs in Mastra's `Agent`, and what the step asks of it. */
+export interface AgentModel {
+  /** What the `Agent` takes. */
+  model: MastraModelConfig;
+  /** The class's model as resolved: the step's tools are built for it. */
+  resolved: ResolvedModel<LanguageModel>;
+  /** Its tool loop runs in a process of its own: an installed client, the run's device. */
+  readonly ownLoop: boolean;
+  /** It can call tools: an installed client that runs none cannot. */
+  readonly takesTools: boolean;
+  /** It takes pictures in a message: the installed clients and the large vendors' models. */
+  readonly seesImages: boolean;
+  /** Hands the step's tools to a model that runs them itself; `ignorable`: the device may answer alone. */
+  attach(tools: Record<string, unknown>, ignorable: boolean): void;
+  /** Books what one model step used. */
+  charge(usage: unknown): Promise<void>;
+  /** Books what an `Agent` call used over all its steps. */
+  chargeTotal(result: object): Promise<void>;
 }
 
 /**
@@ -124,6 +155,7 @@ export function inProcessServices(run: RunRow, ctx: () => StepContext): InProces
           ...(request.output
             ? { output: Output.object({ schema: jsonSchema(request.output) }) }
             : {}),
+          ...(request.maxOutputTokens ? { maxOutputTokens: request.maxOutputTokens } : {}),
           abortSignal: signal,
         });
         for await (const part of out.fullStream) {
@@ -181,7 +213,31 @@ export function inProcessServices(run: RunRow, ctx: () => StepContext): InProces
       },
       async agentModel(request) {
         const resolved = await resolve(request);
-        return { resolved, model: agentModel(resolved) };
+        const charge = async (usage: unknown) => {
+          const usd = costOf(resolved, usage);
+          if (usd > 0) {
+            await addLocalCost(run.id, request.stepId, usd);
+          }
+        };
+        return {
+          model: agentModel(resolved),
+          resolved,
+          get ownLoop() {
+            return keepsOwnLoop(resolved);
+          },
+          get takesTools() {
+            return takesTools(resolved);
+          },
+          get seesImages() {
+            return (
+              isHarnessVendor(resolved.vendor) ||
+              /^(anthropic|openai|google)$/.test(resolved.vendor)
+            );
+          },
+          attach: (tools, ignorable) => attachTools(resolved, tools, ignorable),
+          charge,
+          chargeTotal: async (result) => charge(await totalUsage(result)),
+        };
       },
     },
 

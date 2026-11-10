@@ -8,7 +8,6 @@ import {
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
 import { type SurfaceComponent, validateSurface } from "@engenty/wizards-shared/surface";
-import { decide } from "./decide.js";
 import { answersAsText, resolveRef } from "./template.js";
 import { type StepContext, StepError } from "./types.js";
 
@@ -86,13 +85,10 @@ async function decidedComponents(step: SurfaceStep, ctx: StepContext): Promise<S
         .filter(([, text]) => text)
         .map(([title, text]) => [title, text.slice(0, 6000)]),
     );
-    const decision = await decide({
-      state: { answers: answersAsText(ctx.scope), results },
-      questions,
-      call: ctx.call,
-      signal: ctx.signal,
-      charge: ctx.chargeUsd,
-    });
+    const decision = await ctx.services.models.decide(
+      { stepId: ctx.stepId, state: { answers: answersAsText(ctx.scope), results }, questions },
+      ctx.signal,
+    );
     for (const [name, answer] of Object.entries(decision.answers)) {
       if (answer.type === "noul" && answer.noul >= 0.5) {
         kept.add(name.slice(2));
