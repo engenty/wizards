@@ -4,17 +4,17 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
-  rmSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import type { EnginePackage } from "./install.js";
 
 /**
- * What `wizards sandbox add agentos` installs (install.ts): agentOS's core, about 340 MB, which
- * only the computers and servers that run the sandbox with it need.
+ * What `wizards sandbox add agentos` installs (install.ts): agentOS's core, about 480 MB on a Mac and 820 MB on Linux, which
+ * only the computers and servers that run the sandbox with it need. The cloud's sandbox container
+ * installs the same (deploy/Dockerfile.sandbox).
  */
-export const AGENTOS_VERSION = "0.4.1";
+export const AGENTOS_VERSION = "0.4.7";
 
 export const AGENTOS_CORE = "@rivet-dev/agentos-core";
 /** The helper agentOS ships for each platform, beside the core: `<package>/agentos-native-sidecar`. */
@@ -27,9 +27,6 @@ const COMMANDS = join("node_modules", "@rivet-dev", "agentos-runtime-core", "com
  * The ones from the `@agentos-software` registry are in a format 0.4 no longer reads.
  */
 export const AGENTOS_EXTRA_COMMANDS = ["curl", "git", "jq", "sqlite3", "unzip", "zip"] as const;
-
-/** Dependencies of the core that its code never imports: Google and AWS clients, about 140 MB. */
-const UNUSED = ["googleapis", "googleapis-common", "@aws-sdk", "@smithy", "better-sqlite3"];
 
 /** agentOS ships its helper for macOS and glibc Linux, on arm64 and x64. */
 export function agentOsSupported(
@@ -89,15 +86,12 @@ export const AGENTOS_PACKAGE: EnginePackage = {
   label: "agentOS",
   version: AGENTOS_VERSION,
   packages: [`${AGENTOS_CORE}@${AGENTOS_VERSION}`],
-  size: "about 340 MB",
+  size: process.platform === "linux" ? "about 820 MB" : "about 480 MB",
   unsupported: () =>
     agentOsSupported()
       ? null
       : `agentOS runs on macOS and Linux (arm64, x64), not on ${process.platform} ${process.arch}.`,
   prepare(dir) {
-    for (const name of UNUSED) {
-      rmSync(join(dir, "node_modules", name), { recursive: true, force: true });
-    }
     packExtras(dir);
     writeSidecarWrapper(dir);
   },
