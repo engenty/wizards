@@ -28,10 +28,42 @@ export interface SpacePageInfo {
   updatedAt: string;
 }
 
+/**
+ * A wizard's database shared by every run of the space (docs/plans/wizard-data.md): Space → Data
+ * shows it read-only. `people`: how many people keep a database of their own, which it doesn't show.
+ */
+export interface SpaceDatabaseInfo {
+  id: string;
+  wizardId: string;
+  people: number;
+  updatedAt: string;
+}
+
+/** A shared database's tables and how many rows each holds. */
+export interface WizardDatabase {
+  id: string;
+  wizardId: string;
+  /** The wizard's title. */
+  title: string;
+  tables: { name: string; rows: number }[];
+  updatedAt: string;
+}
+
+/** A page of one table's rows. */
+export interface WizardDatabaseRows {
+  table: string;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  offset: number;
+  total: number;
+}
+
 /** The space's tables and pages, and its wizards to name whose they are. */
 export interface SpaceData {
   tables: SpaceTableInfo[];
   pages: SpacePageInfo[];
+  /** The wizards' shared databases. */
+  databases: SpaceDatabaseInfo[];
   wizards: { id: string; title: string }[];
 }
 

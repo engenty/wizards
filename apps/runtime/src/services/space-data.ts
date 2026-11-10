@@ -28,6 +28,7 @@ import { filePaths, freeSlug, knowledgePage, pageTree, tablePaths } from "./know
 import { itemCategoriesOf, setItemCategories, syncTableRowCategories } from "./space-categories.js";
 import { queueIndex } from "./space-index.js";
 import { ownedSpace } from "./spaces.js";
+import { spaceDatabases } from "./wizard-data.js";
 
 /**
  * The tables and pages a space keeps: its own — Knowledge, written by people and by plugins — or
@@ -102,9 +103,10 @@ export async function listSpaceData(
       columns: { id: true, title: true },
     }),
   ]);
-  const [okTables, okPages] = await Promise.all([
+  const [okTables, okPages, databases] = await Promise.all([
     readable(space.id, who, await tableResources(tables.map((t) => t.id))),
     readable(space.id, who, await pageResources(pages.map((p) => p.id))),
+    spaceDatabases(space.id, who),
   ]);
   return {
     tables: tables
@@ -117,6 +119,7 @@ export async function listSpaceData(
     pages: pages
       .filter((p) => okPages.has(p.id))
       .map((p) => ({ ...p, updatedAt: p.updatedAt.toISOString() })),
+    databases,
     wizards,
   };
 }
