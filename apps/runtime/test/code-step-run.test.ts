@@ -57,14 +57,13 @@ const steps = [
   ask,
   {
     id: "sum",
-    type: "agent",
+    type: "code",
     title: "Sum",
     code: {
       entry: "code/sum.ts",
       input: { budget: "budget", note: "{{name}} pays {{budget}}", today: "today" },
     },
     output: {
-      format: "json",
       fields: [
         { id: "total", kind: "number" },
         { id: "note", kind: "text" },

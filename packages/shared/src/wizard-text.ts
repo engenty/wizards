@@ -44,6 +44,8 @@ export const STEP_TAGS: Record<string, string> = {
   form: "Page",
   agent: "Agent",
   decision: "Decision",
+  tool: "Tool",
+  code: "Code",
   generate: "Generate",
   widget: "Widget",
   surface: "Surface",
@@ -55,6 +57,9 @@ export const STEP_TAGS: Record<string, string> = {
 const TAG_STEPS: Record<string, string> = Object.fromEntries(
   Object.entries(STEP_TAGS).map(([type, tag]) => [tag, type]),
 );
+
+/** The steps whose output is written as `<Output>` with its fields inside. */
+const OUTPUT_STEPS: ReadonlySet<string> = new Set(["agent", "decision", "tool", "code"]);
 
 /** The key a step's text goes to. */
 export const STEP_TEXT: Record<string, string> = {
@@ -88,6 +93,7 @@ const COMPONENTS: ReadonlySet<string> = new Set(SURFACE_COMPONENTS);
 const DEFAULTS: Record<string, Record<string, unknown>> = {
   wizard: { version: 1, description: "", avatar: "round" },
   agent: { instructions: "", tools: [], output: { format: "markdown" } },
+  tool: { output: {} },
   widget: { data: {} },
   surface: { data: {} },
   "motion-graphics": { skills: ["hyperframes"], inputs: {}, format: "16:9" },
@@ -688,10 +694,10 @@ function compileStep(elem: Elem, cuts: TextCut[]): Json | null {
       }
       if (child.tag === "Next") {
         rules.push(compileRule(child, cuts));
-      } else if (child.tag === "Output" && (type === "agent" || type === "decision")) {
+      } else if (child.tag === "Output" && OUTPUT_STEPS.has(type)) {
         const output = compileOutput(child, cuts, id ?? "");
-        // A decision's output is its questions: no format.
-        if (type === "decision") {
+        // Only an agent step chooses a format: the others return their fields as json.
+        if (type !== "agent") {
           delete output.format;
         }
         step.output = output;
@@ -1038,7 +1044,7 @@ function niceStep(step: Json): string {
     text = rest[textKey] as string;
     delete rest[textKey];
   }
-  if ((type === "agent" || type === "decision") && rest.output && typeof rest.output === "object") {
+  if (OUTPUT_STEPS.has(type) && rest.output && typeof rest.output === "object") {
     const { fields, ...output } = rest.output as Json;
     const kinds = Array.isArray(fields) ? fields : [];
     if (kinds.every((f) => OUTPUT_KINDS[(f as Json).kind as string])) {

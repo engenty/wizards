@@ -513,6 +513,8 @@ export const CONDITION_OPS = [
   "contains",
   "exists",
   "notExists",
+  "truthy",
+  "falsy",
 ] as const;
 export type ConditionOp = (typeof CONDITION_OPS)[number];
 
@@ -531,18 +533,28 @@ export type Condition = z.infer<typeof conditionSchema>;
 const leafSchema = z.union([conditionSchema, z.object({ not: conditionSchema })]);
 export type ConditionLeaf = z.infer<typeof leafSchema>;
 
-/** Holds when one of its parts holds: a condition, or a list of conditions that all hold. */
-const anySchema = z.object({
-  any: z.array(z.union([leafSchema, z.array(leafSchema).min(1)])).min(1),
-});
-export type AnyTest = z.infer<typeof anySchema>;
+/** A part of `or` or `and`: a condition, a list of them that all hold, or `or` / `and` of them. */
+const partSchema = z.union([
+  leafSchema,
+  z.array(leafSchema).min(1),
+  z.object({ or: z.array(leafSchema).min(1) }),
+  z.object({ and: z.array(leafSchema).min(1) }),
+]);
+export type TestPart = z.infer<typeof partSchema>;
 
-const testSchema = z.union([leafSchema, anySchema]);
+/** `or` holds when one of its parts holds, `and` when all of them hold. */
+const groupSchema = z.union([
+  z.object({ or: z.array(partSchema).min(1) }),
+  z.object({ and: z.array(partSchema).min(1) }),
+]);
+export type GroupTest = z.infer<typeof groupSchema>;
+
+const testSchema = z.union([leafSchema, groupSchema]);
 export type Test = z.infer<typeof testSchema>;
 
 /**
- * A condition, `{ not }` or `{ any }`, or a list of them that must all hold. The depth is fixed,
- * so the JSON Schema needs no reference to itself.
+ * A condition, `{ not }`, `{ or }` or `{ and }`, or a list of them that must all hold. The depth
+ * is fixed, so the JSON Schema needs no reference to itself.
  */
 export const whenSchema = z.union([
   testSchema,
@@ -725,6 +737,8 @@ const stepBase = {
   next: z.array(nextRuleSchema).optional(),
   /** Where the run goes when this step fails for good; without it the run fails. */
   onFail: z.string().optional(),
+  /** For editors: kept as it is, never read by the runner. */
+  metadata: z.record(z.string(), z.unknown()).optional(),
 };
 
 const outputFieldShape = {
@@ -815,48 +829,8 @@ export const agentStepSchema = z.object({
   ...stepBase,
   ...automaticStep,
   type: z.literal("agent"),
-  /** What the agent does. A template: {{field}}, {{steps.id}}, {{brand.name}}. Empty with `call`. */
+  /** What the agent does. A template: {{field}}, {{steps.id}}, {{brand.name}}. */
   instructions: z.string().default(""),
-  /**
-   * A fixed step: one tool of a plugin, or one action of a connection of the wizard, called once
-   * with these inputs and no model; its answer is the step's json output, as it is. For data a
-   * later page shows unchanged (free appointment times), where a model would only copy it, and
-   * for every write through a connection that signs in as the space: the fields are the wizard's,
-   * so nothing a person typed can steer the call. String inputs are templates; a filled-in whole
-   * number or true/false is passed as one, an empty one is left out.
-   */
-  call: z
-    .union([
-      z.object({
-        tool: pluginToolIdSchema,
-        input: z.record(z.string(), z.unknown()).default({}),
-      }),
-      z.object({
-        /** A connection of the wizard, by id. */
-        connection: id,
-        /** The connector's action to run. */
-        action: z.string().min(1).max(120),
-        input: z.record(z.string(), z.unknown()).default({}),
-      }),
-    ])
-    .optional(),
-  /**
-   * A fixed step: a function of the wizard, run once with these inputs and no model
-   * (docs/plans/code-step.md). `entry` is a workspace file (.ts or .js) that defines
-   * `function run(input)`; what it returns is the step's json output, fitted to `output.fields`
-   * or `output.schema`. For maths, reshaping and scoring that `calc` cannot say in one line.
-   */
-  code: z
-    .object({
-      /** Workspace path of the code, like a widget's `entry`. */
-      entry: z.string().min(1),
-      /**
-       * What `run` gets: key → a path ("budget", "steps.find.offers", "lists.prices", "today")
-       * for the raw value, or a template ("{{name}} in {{city}}") for text.
-       */
-      input: z.record(z.string(), z.string()).default({}),
-    })
-    .optional(),
   tools: z.array(z.union([z.enum(TOOL_IDS), pluginToolIdSchema])).default([]),
   /** Ids of wizard connections (the person's accounts) this step may use. */
   connections: z.array(z.string()).optional(),
@@ -889,22 +863,87 @@ export const agentStepSchema = z.object({
   /** The maker whose model runs the class; without one the organization's tier picks it. */
   maker: z.enum(MAKERS).optional(),
   effort: z.enum(EFFORTS).optional(),
-  /** Shown to the person while it works. */
   /**
    * One run of the step per entry, at most twenty: the rows of a table output
    * ("steps.<id>.<key>"), the entries of a list output, or the rows of a stored list
    * ("lists.<id>"). The instructions read the entry as {{item.<column>}}, {{index}}, {{count}}.
    * The output is a table: the entry's columns and the step's output fields, one row per entry.
    */
-  each: z.string().optional(),
-  /** With `each`: how many entries run at the same time, 1–5. Default 1, one after another. */
+  foreach: z.string().optional(),
+  /** With `foreach`: how many entries run at the same time, 1–5. Default 1, one after another. */
   concurrency: z.number().int().min(1).max(5).optional(),
   /**
    * The step keeps its conversation: after a crash or a deploy it goes on at the call it was at,
    * and it can stop to ask a person with no process waiting. Needs a model an API serves; not with
-   * `browser` or `sandbox`, `each` or `call`.
+   * `browser` or `sandbox`, or `foreach`.
    */
   durable: z.boolean().optional(),
+  /** Shown to the person while it works. */
+  working: z.string().optional(),
+});
+
+/**
+ * The output of a step that runs no model: the keys later steps read, and a view of them from
+ * the surface catalog, written once (no model composes one).
+ */
+const fixedOutput = {
+  fields: z.array(outputFieldSchema).optional(),
+  surface: surfaceComponentsSchema.optional(),
+};
+
+/**
+ * A tool step: one tool of a plugin, or one action of a connection of the wizard, called once
+ * with these inputs and no model; its answer is the step's json output, as it is. For data a
+ * later form shows unchanged (free appointment times), where a model would only copy it, and
+ * for every write through a connection that signs in as the space: the inputs are the wizard's,
+ * so nothing a person typed can steer the call. String inputs are templates; a filled-in whole
+ * number or true/false is passed as one, an empty one is left out.
+ */
+export const toolStepSchema = z.object({
+  ...stepBase,
+  ...automaticStep,
+  type: z.literal("tool"),
+  call: z.union([
+    z.object({
+      tool: pluginToolIdSchema,
+      input: z.record(z.string(), z.unknown()).default({}),
+    }),
+    z.object({
+      /** A connection of the wizard, by id. */
+      connection: id,
+      /** The connector's action to run. */
+      action: z.string().min(1).max(120),
+      input: z.record(z.string(), z.unknown()).default({}),
+    }),
+  ]),
+  /** The keys of the answer later steps read by name. */
+  output: z.object(fixedOutput).default({}),
+  /** Shown to the person while it works. */
+  working: z.string().optional(),
+});
+
+/**
+ * A code step: a function of the wizard, run once with these inputs and no model
+ * (docs/plans/code-step.md). `entry` is a workspace file (.ts or .js) that defines
+ * `function run(input)`; what it returns is the step's json output, fitted to `output.fields`
+ * or `output.schema`. For maths, reshaping and scoring that `calc` cannot say in one line.
+ */
+export const codeStepSchema = z.object({
+  ...stepBase,
+  ...automaticStep,
+  type: z.literal("code"),
+  code: z.object({
+    /** Workspace path of the code, like a widget's `entry`. */
+    entry: z.string().min(1),
+    /**
+     * What `run` gets: key → a path ("budget", "steps.find.offers", "lists.prices", "today")
+     * for the raw value, or a template ("{{name}} in {{city}}") for text.
+     */
+    input: z.record(z.string(), z.string()).default({}),
+  }),
+  /** What `run` returns: `fields`, or nested data as `schema`. */
+  output: z.object({ ...fixedOutput, schema: outputShapeSchema.optional() }),
+  /** Shown to the person while it works. */
   working: z.string().optional(),
 });
 
@@ -954,7 +993,7 @@ export const generateStepSchema = z.object({
    * ("steps.<id>.<key>"). The prompt reads the entry as {{item.<column>}}, {{index}}, {{count}};
    * `referenceImage` gives each entry its own image when it holds as many.
    */
-  each: z.string().optional(),
+  foreach: z.string().optional(),
   /** For document/dashboard: the model class that writes it; default `standard`. */
   model: z.enum(STEP_CLASSES).optional(),
   /** The maker whose model runs the class; without one the organization's tier picks it. */
@@ -1254,6 +1293,8 @@ export const stepSchema = z.discriminatedUnion("type", [
   formStepSchema,
   agentStepSchema,
   decisionStepSchema,
+  toolStepSchema,
+  codeStepSchema,
   generateStepSchema,
   widgetStepSchema,
   surfaceStepSchema,
@@ -1267,18 +1308,36 @@ export type FormStep = z.infer<typeof formStepSchema>;
 export type SurfaceStep = z.infer<typeof surfaceStepSchema>;
 export type AgentStep = z.infer<typeof agentStepSchema>;
 export type DecisionStep = z.infer<typeof decisionStepSchema>;
+export type ToolStep = z.infer<typeof toolStepSchema>;
+export type CodeStep = z.infer<typeof codeStepSchema>;
 
-/** A step whose json output later steps read by field: an agent step or a decision. */
+/** A step that runs a model and returns fields: an agent step or a decision. */
 export type ModelStep = AgentStep | DecisionStep;
 
 /** A fixed step: one `call` or the wizard's own `code`, run once with no model and no credits. */
-export function runsWithoutModel(step: AgentStep): boolean {
-  return Boolean(step.call || step.code);
+export type FixedStep = ToolStep | CodeStep;
+
+/** A step whose output later steps read by key: an agent step, a decision, a tool or a code step. */
+export type DataStep = ModelStep | FixedStep;
+
+export const DATA_STEP_TYPES: ReadonlySet<StepType> = new Set([
+  "agent",
+  "decision",
+  "tool",
+  "code",
+]);
+
+export function isDataStep(step: Step | undefined): step is DataStep {
+  return step !== undefined && DATA_STEP_TYPES.has(step.type);
+}
+
+export function isFixedStep(step: Step | undefined): step is FixedStep {
+  return step?.type === "tool" || step?.type === "code";
 }
 
 /** Whether a wizard has a code step: it runs only where the `codeSteps` switch is on. */
 export function hasCodeStep(def: Pick<WizardDefinition, "steps">): boolean {
-  return def.steps.some((s) => s.type === "agent" && Boolean(s.code));
+  return def.steps.some((s) => s.type === "code");
 }
 
 /**
@@ -1297,25 +1356,63 @@ export function decisionAsAgent(step: DecisionStep): AgentStep {
   };
 }
 
-/** The agent step a model step runs as. */
-export function asAgent(step: ModelStep): AgentStep {
-  return step.type === "decision" ? decisionAsAgent(step) : step;
+/** The output of a step whose output later steps read, as an agent step's: format, keys, view. */
+export function outputOf(step: DataStep): AgentStep["output"] {
+  switch (step.type) {
+    case "agent":
+      return step.output;
+    case "decision":
+      return { format: "json", fields: step.output.fields };
+    default:
+      return { format: "json", ...step.output };
+  }
 }
 
 /**
- * What an agent step's json output holds: its schema, or its fields as one. Undefined when it
- * names neither (the model then returns one table).
+ * A step whose output later steps read, as an agent step with that output: what a model step
+ * runs as, and how downloads and views read a tool's or a code step's json.
  */
-export function declaredShape(model: ModelStep): ObjectShape | undefined {
-  const step = asAgent(model);
-  if (step.output.schema) {
-    return step.output.schema;
+export function asAgent(step: DataStep): AgentStep {
+  switch (step.type) {
+    case "agent":
+      return step;
+    case "decision":
+      return decisionAsAgent(step);
+    default: {
+      const { id, title, description, section, next, onFail, metadata, retries, working } = step;
+      return {
+        id,
+        title,
+        description,
+        section,
+        next,
+        onFail,
+        metadata,
+        retries,
+        working,
+        type: "agent",
+        instructions: "",
+        tools: [],
+        output: outputOf(step),
+      };
+    }
   }
-  return step.output.fields?.length ? shapeOfFields(step.output.fields) : undefined;
 }
 
-/** What an agent step's json output holds: its declared shape, or else one table. */
-export function stepShape(step: ModelStep): ObjectShape {
+/**
+ * What a step's json output holds: its schema, or its fields as one. Undefined when it names
+ * neither (an agent step's model then returns one table; a tool's answer is kept as it is).
+ */
+export function declaredShape(step: DataStep): ObjectShape | undefined {
+  const output = outputOf(step);
+  if (output.schema) {
+    return output.schema;
+  }
+  return output.fields?.length ? shapeOfFields(output.fields) : undefined;
+}
+
+/** What a step's json output holds: its declared shape, or else one table. */
+export function stepShape(step: DataStep): ObjectShape {
   return (
     declaredShape(step) ?? {
       kind: "object",
@@ -1324,8 +1421,8 @@ export function stepShape(step: ModelStep): ObjectShape {
   );
 }
 
-/** The top-level keys of an agent step's output: what `steps.<id>.<key>` may name. */
-export function outputKeys(step: ModelStep): string[] {
+/** The top-level keys of a step's output: what `steps.<id>.<key>` may name. */
+export function outputKeys(step: DataStep): string[] {
   return Object.keys(declaredShape(step)?.fields ?? {});
 }
 export type GenerateStep = z.infer<typeof generateStepSchema>;
@@ -1443,9 +1540,9 @@ export function formatsFor(step: Step): Format[] {
   if (step.type === "generate") {
     switch (step.asset) {
       case "image":
-        return step.each ? ["png", "zip"] : ["png"];
+        return step.foreach ? ["png", "zip"] : ["png"];
       case "video":
-        return step.each ? ["mp4", "zip"] : ["mp4"];
+        return step.foreach ? ["mp4", "zip"] : ["mp4"];
       case "voice":
         return ["mp3"];
       case "document":
@@ -1463,11 +1560,11 @@ export function formatsFor(step: Step): Format[] {
   if (step.type === "surface") {
     return ["json"];
   }
-  if (step.type === "agent" || step.type === "decision") {
-    const agent = asAgent(step);
-    if (agent.output.format === "json") {
+  if (isDataStep(step)) {
+    const output = outputOf(step);
+    if (output.format === "json") {
       // Nested data reads as a document too.
-      return agent.output.schema
+      return output.schema
         ? ["json", "csv", "xlsx", "md", "pdf", "zip"]
         : ["json", "csv", "xlsx", "md", "zip"];
     }
@@ -1572,39 +1669,18 @@ export function sectionOf(def: Pick<WizardDefinition, "steps">, stepId: string):
   return null;
 }
 
-/**
- * What a code step may not have: it runs the wizard's function once, with no model, so nothing
- * of an AI step applies, and its output is json of a declared shape. Its inputs are checked with
- * the step's templates.
- */
-function codeStepIssues(
-  step: AgentStep,
-  code: NonNullable<AgentStep["code"]>,
-  files: string[] | undefined,
-): ValidationIssue[] {
+/** What a code step needs: a .ts or .js entry in the workspace, and the keys it returns. */
+function codeStepIssues(step: CodeStep, files: string[] | undefined): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const say = (message: string) => issues.push({ stepId: step.id, message });
-  if (!/\.(ts|js)$/.test(code.entry)) {
-    say(`Code entry "${code.entry}" is a .ts or .js file.`);
-  } else if (files && !files.includes(code.entry)) {
-    say(`Code entry "${code.entry}" is not in the workspace.`);
+  const { entry } = step.code;
+  if (!/\.(ts|js)$/.test(entry)) {
+    say(`Code entry "${entry}" is a .ts or .js file.`);
+  } else if (files && !files.includes(entry)) {
+    say(`Code entry "${entry}" is not in the workspace.`);
   }
-  const extra = [
-    step.each && "each",
-    step.durable && "durable",
-    step.tools.length && "tools",
-    step.connections?.length && "connections",
-  ].filter(Boolean);
-  if (extra.length) {
-    say(`A step with "code" runs no model: no ${extra.map((k) => `"${k}"`).join(", ")}.`);
-  }
-  if (step.output.format !== "json") {
-    say('A step with "code" returns json: output format "json".');
-  } else if (!step.output.fields?.length && !step.output.schema) {
-    say('A step with "code" declares what it returns: output "fields" or "schema".');
-  }
-  if (step.output.surface === true) {
-    say('A step with "code" runs no model to compose a view: give "surface" its components.');
+  if (!step.output.fields?.length && !step.output.schema) {
+    say('A code step declares what it returns: output "fields" or "schema".');
   }
   return issues;
 }
@@ -1823,10 +1899,10 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       } else if (head === "brand" || head === "facts" || head === "today" || head === "notes") {
         // provided by the runner
       } else if (head === "item" || head === "index" || head === "count") {
-        if ((step.type !== "generate" && step.type !== "agent") || !step.each) {
+        if ((step.type !== "generate" && step.type !== "agent") || !step.foreach) {
           issues.push({
             stepId: step.id,
-            message: `"{{${ref}}}" only exists in a generate or agent step with "each".`,
+            message: `"{{${ref}}}" only exists in a generate or agent step with "foreach".`,
           });
         }
       } else if (head === "lists") {
@@ -1881,9 +1957,10 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       return outputKeys(source).includes(key);
     }
     return (
-      source?.type === "agent" &&
+      isDataStep(source) &&
       !probability &&
-      (outputKeys(source).includes(key) || (Boolean(source.each) && key === "rows"))
+      (outputKeys(source).includes(key) ||
+        (source.type === "agent" && Boolean(source.foreach) && key === "rows"))
     );
   };
 
@@ -1894,7 +1971,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     if ((c.op === "in" || c.op === "notIn") && !Array.isArray(c.value)) {
       return [{ stepId, message: `"${c.op}" on "${c.field}" needs a list of values.` }];
     }
-    if (c.op !== "exists" && c.op !== "notExists" && c.value === undefined) {
+    if (!VALUELESS.has(c.op) && c.value === undefined) {
       return [{ stepId, message: `"${c.op}" on "${c.field}" needs a value.` }];
     }
     return [];
@@ -1917,16 +1994,13 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     }
     if (head === "steps" && from && key && more.length === 0) {
       const source = seenSteps.has(from) ? def.steps.find((s) => s.id === from) : undefined;
-      // An agent step with `each` hands on one table, `rows`: the entry's columns and its fields.
-      if (source?.type === "agent" && source.each && key === "rows") {
+      // An agent step with `foreach` hands on one table, `rows`: the entry's columns and its fields.
+      if (source?.type === "agent" && source.foreach && key === "rows") {
         return column ? null : `"optionsFrom": "${from}.rows" is a table; name one of its columns.`;
       }
-      const out =
-        source?.type === "agent" || source?.type === "decision"
-          ? declaredShape(source)?.fields[key]
-          : undefined;
+      const out = isDataStep(source) ? declaredShape(source)?.fields[key] : undefined;
       if (!out) {
-        return `"optionsFrom" names "${from}.${key}", which is not an output of an earlier agent step.`;
+        return `"optionsFrom" names "${from}.${key}", which is not an output of an earlier step.`;
       }
       // The keys of a table's rows, or of a list's entries; undefined: any (free columns).
       const columns =
@@ -1983,6 +2057,18 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
           checkTemplate(step, `{{${dataRef(ref)}}}`);
         }
       }
+    };
+    /** A view written as components reads the step's own keys; with `foreach`, its `rows`. */
+    const viewIssues = (data: AgentStep | FixedStep): ValidationIssue[] => {
+      const surface = data.output?.surface;
+      if (!Array.isArray(surface)) {
+        return [];
+      }
+      const keys = data.type === "agent" && data.foreach ? ["rows"] : declaredShape(data);
+      return validateSurface(surface, keys).map((issue) => ({
+        stepId: data.id,
+        message: `View: ${issue.message}`,
+      }));
     };
     switch (step.type) {
       case "form": {
@@ -2087,34 +2173,42 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       case "decision":
         checkTemplate(step, step.instructions);
         break;
-      case "agent":
-        checkTemplate(step, step.instructions);
-        if (step.call) {
-          checkTemplate(step, JSON.stringify(step.call.input));
-          if (step.each) {
-            issues.push({ stepId: step.id, message: 'A step with "call" runs once: no "each".' });
-          }
-          if (step.output.format !== "json") {
+      case "tool": {
+        checkTemplate(step, JSON.stringify(step.call.input));
+        if ("connection" in step.call) {
+          const called = step.call.connection;
+          const named = (def.connections ?? []).find((c) => c.id === called);
+          if (!named) {
+            issues.push({ stepId: step.id, message: `Step calls unknown connection "${called}".` });
+          } else if (named.kind) {
             issues.push({
               stepId: step.id,
-              message: 'A step with "call" keeps the tool\'s answer: output format "json".',
+              message: `A "call" names an action of a connector: connection "${called}" is of kind "${named.kind}".`,
             });
           }
-          if (step.code) {
-            issues.push({ stepId: step.id, message: 'A step has "call" or "code", not both.' });
+        }
+        issues.push(...viewIssues(step));
+        break;
+      }
+      case "code":
+        issues.push(...codeStepIssues(step, files));
+        for (const [key, value] of Object.entries(step.code.input)) {
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+            issues.push({
+              stepId: step.id,
+              message: `Code input "${key}" is not an identifier.`,
+            });
           }
-        } else if (step.code) {
-          issues.push(...codeStepIssues(step, step.code, files));
-          for (const [key, value] of Object.entries(step.code.input)) {
-            if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
-              issues.push({
-                stepId: step.id,
-                message: `Code input "${key}" is not an identifier.`,
-              });
-            }
-            checkTemplate(step, value.includes("{{") ? value : `{{${dataRef(value)}}}`);
-          }
-        } else if (!step.instructions.trim()) {
+          checkTemplate(step, value.includes("{{") ? value : `{{${dataRef(value)}}}`);
+        }
+        if (step.output.schema && step.output.fields?.length) {
+          issues.push({ stepId: step.id, message: 'Output has "fields" or "schema", not both.' });
+        }
+        issues.push(...viewIssues(step));
+        break;
+      case "agent":
+        checkTemplate(step, step.instructions);
+        if (!step.instructions.trim()) {
           issues.push({ stepId: step.id, message: "An AI step needs instructions." });
         }
         if (step.durable) {
@@ -2127,28 +2221,17 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
               });
             }
           }
-          if (step.each || step.call) {
+          if (step.foreach) {
             issues.push({
               stepId: step.id,
-              message: `"durable" does nothing on a step with "${step.each ? "each" : "call"}": it has no conversation to keep.`,
+              message:
+                '"durable" does nothing on a step with "foreach": it has no conversation to keep.',
             });
           }
         }
         for (const c of step.connections ?? []) {
           if (!connectionIds.has(c)) {
             issues.push({ stepId: step.id, message: `Step uses unknown connection "${c}".` });
-          }
-        }
-        if (step.call && "connection" in step.call) {
-          const called = step.call.connection;
-          const named = (def.connections ?? []).find((c) => c.id === called);
-          if (!named) {
-            issues.push({ stepId: step.id, message: `Step calls unknown connection "${called}".` });
-          } else if (named.kind) {
-            issues.push({
-              stepId: step.id,
-              message: `A "call" names an action of a connector: connection "${called}" is of kind "${named.kind}".`,
-            });
           }
         }
         if (step.output.surface && step.output.format !== "json") {
@@ -2164,40 +2247,30 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
               message: 'Output has "fields" or "schema", not both.',
             });
           }
-          if (step.output.format !== "json" || step.call) {
+          if (step.output.format !== "json") {
             issues.push({
               stepId: step.id,
-              message: step.call
-                ? 'A step with "call" keeps the tool\'s answer as it is: no "schema".'
-                : 'A "schema" describes json output: output format "json".',
+              message: 'A "schema" describes json output: output format "json".',
             });
           }
         }
-        if (Array.isArray(step.output.surface)) {
-          // A step with `each` hands over its entries as `rows`.
-          for (const issue of validateSurface(
-            step.output.surface,
-            step.each ? ["rows"] : declaredShape(step),
-          )) {
-            issues.push({ stepId: step.id, message: `View: ${issue.message}` });
-          }
+        issues.push(...viewIssues(step));
+        if (step.concurrency !== undefined && !step.foreach) {
+          issues.push({ stepId: step.id, message: '"concurrency" goes with "foreach".' });
         }
-        if (step.concurrency !== undefined && !step.each) {
-          issues.push({ stepId: step.id, message: '"concurrency" goes with "each".' });
-        }
-        if (step.each) {
-          const ref = dataRef(step.each);
+        if (step.foreach) {
+          const ref = dataRef(step.foreach);
           const list = ref.match(/^lists\.([a-zA-Z][a-zA-Z0-9_]*)$/)?.[1];
           if (list) {
             if (!listIds.has(list)) {
-              issues.push({ stepId: step.id, message: `each names an unknown list "${list}".` });
+              issues.push({ stepId: step.id, message: `foreach names an unknown list "${list}".` });
             }
           } else if (ref.startsWith("steps.") && ref.split(".").length === 3) {
             checkTemplate(step, `{{${ref}}}`);
           } else {
             issues.push({
               stepId: step.id,
-              message: `each "${step.each}" is "steps.<id>.<key>" (a table or list output) or "lists.<id>".`,
+              message: `foreach "${step.foreach}" is "steps.<id>.<key>" (a table or list output) or "lists.<id>".`,
             });
           }
         }
@@ -2215,16 +2288,16 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
             message: `referenceImage "${step.referenceImage}" is not an earlier field or step.`,
           });
         }
-        if (step.each) {
-          const ref = dataRef(step.each);
+        if (step.foreach) {
+          const ref = dataRef(step.foreach);
           if (step.asset !== "image" && step.asset !== "video") {
-            issues.push({ stepId: step.id, message: `"each" is for image and video steps.` });
+            issues.push({ stepId: step.id, message: `"foreach" is for image and video steps.` });
           } else if (ref.startsWith("steps.")) {
             checkTemplate(step, `{{${ref}}}`);
           } else if (!seenFields.has(ref) && !seenSteps.has(ref)) {
             issues.push({
               stepId: step.id,
-              message: `each "${step.each}" is not an earlier field, step or "steps.<id>.<key>".`,
+              message: `foreach "${step.foreach}" is not an earlier field, step or "steps.<id>.<key>".`,
             });
           }
         }
@@ -2642,7 +2715,12 @@ function isEmptyValue(v: unknown): boolean {
 /** The ops that compare numbers. */
 export const COMPARING: ReadonlySet<ConditionOp> = new Set(["gt", "gte", "lt", "lte"]);
 /** The ops that take no value. */
-export const VALUELESS: ReadonlySet<ConditionOp> = new Set(["exists", "notExists"]);
+export const VALUELESS: ReadonlySet<ConditionOp> = new Set([
+  "exists",
+  "notExists",
+  "truthy",
+  "falsy",
+]);
 
 /** The tests of a `when` that must all hold; none for a calculation or no `when`. */
 function testsOf(when: When | undefined): Test[] {
@@ -2652,17 +2730,33 @@ function testsOf(when: When | undefined): Test[] {
   return Array.isArray(when) ? when : [when as Test];
 }
 
-function leavesOf(test: Test | ConditionLeaf[]): Condition[] {
+/** A test or a part of one: a leaf, a list that must all hold, or `or` / `and`. */
+type TestNode = Test | TestPart;
+
+/** The parts of an `or` or `and`, with whether all of them must hold; null for a leaf. */
+function groupOf(test: TestNode): { all: boolean; parts: TestNode[] } | null {
   if (Array.isArray(test)) {
-    return test.flatMap(leavesOf);
+    return { all: true, parts: test };
   }
-  if ("any" in test) {
-    return test.any.flatMap(leavesOf);
+  if ("or" in test) {
+    return { all: false, parts: test.or };
   }
-  return "not" in test ? [test.not] : [test];
+  if ("and" in test) {
+    return { all: true, parts: test.and };
+  }
+  return null;
 }
 
-/** Every condition a rule or a field tests, wherever it sits in `any` or `not`. */
+function leavesOf(test: TestNode): Condition[] {
+  const group = groupOf(test);
+  if (group) {
+    return group.parts.flatMap(leavesOf);
+  }
+  const leaf = test as ConditionLeaf;
+  return "not" in leaf ? [leaf.not] : [leaf];
+}
+
+/** Every condition a rule or a field tests, wherever it sits in `or`, `and` or `not`. */
 export function conditionsOf(when: When | undefined): Condition[] {
   return testsOf(when).flatMap(leavesOf);
 }
@@ -2673,7 +2767,7 @@ export function plainConditions(when: When | undefined): Condition[] | null {
   if (whenCalc(when) !== null) {
     return null;
   }
-  return tests.every((t) => !("any" in t) && !("not" in t)) ? (tests as Condition[]) : null;
+  return tests.every((t) => !groupOf(t) && !("not" in t)) ? (tests as Condition[]) : null;
 }
 
 /**
@@ -2689,19 +2783,24 @@ export function whenValue(
   }
   const all = (values: (boolean | null)[]) =>
     values.includes(false) ? false : values.includes(null) ? null : true;
-  const value = (test: Test | ConditionLeaf[]): boolean | null => {
-    if (Array.isArray(test)) {
-      return all(test.map(value));
+  const value = (test: TestNode): boolean | null => {
+    const group = groupOf(test);
+    if (group) {
+      const parts = group.parts.map(value);
+      return group.all
+        ? all(parts)
+        : parts.includes(true)
+          ? true
+          : parts.includes(null)
+            ? null
+            : false;
     }
-    if ("any" in test) {
-      const parts = test.any.map(value);
-      return parts.includes(true) ? true : parts.includes(null) ? null : false;
-    }
-    if ("not" in test) {
-      const held = leaf(test.not);
+    const one = test as ConditionLeaf;
+    if ("not" in one) {
+      const held = leaf(one.not);
       return held === null ? null : !held;
     }
-    return leaf(test);
+    return leaf(one);
   };
   return all(testsOf(when).map(value));
 }
@@ -2727,22 +2826,17 @@ export function whenText(
     const joined = parts.length ? parts.reduce((first, second) => by(first, second)) : "";
     return nested && parts.length > 1 ? `(${joined})` : joined;
   };
-  const text = (test: Test | ConditionLeaf[], nested: boolean): string => {
-    if (Array.isArray(test)) {
+  const text = (test: TestNode, nested: boolean): string => {
+    const group = groupOf(test);
+    if (group) {
       return join(
-        test.map((t) => text(t, true)),
-        words.and,
+        group.parts.map((t) => text(t, true)),
+        group.all ? words.and : words.or,
         nested,
       );
     }
-    if ("any" in test) {
-      return join(
-        test.any.map((t) => text(t, true)),
-        words.or,
-        nested,
-      );
-    }
-    return "not" in test ? words.not(leaf(test.not)) : leaf(test);
+    const one = test as ConditionLeaf;
+    return "not" in one ? words.not(leaf(one.not)) : leaf(one);
   };
   const tests = testsOf(when);
   return join(
@@ -2787,6 +2881,10 @@ export function conditionMatches(c: Condition, values: Record<string, unknown>):
       return isEmptyValue(v);
     case "exists":
       return !isEmptyValue(v);
+    case "truthy":
+      return calcTruthy(v);
+    case "falsy":
+      return !calcTruthy(v);
     case "eq":
       return String(v) === String(c.value);
     case "ne":

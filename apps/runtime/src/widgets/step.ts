@@ -104,7 +104,7 @@ async function widgetData(step: WidgetStep, ctx: StepContext) {
       const kind = MEDIA_KINDS[source.asset as keyof typeof MEDIA_KINDS];
       const assets = (ctx.state.outputs[source.id]?.assets ?? []).filter((a) => a.kind === kind);
       const urls = (await Promise.all(assets.map((a) => urlOf(a.id)))).filter(Boolean);
-      out[key] = source.each ? urls : (urls[0] ?? null);
+      out[key] = source.foreach ? urls : (urls[0] ?? null);
       continue;
     }
     out[key] = resolveRef(ref, ctx.scope) ?? null;

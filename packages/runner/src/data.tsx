@@ -1,6 +1,7 @@
 import {
   type AgentStep,
-  decisionAsAgent,
+  asAgent,
+  isDataStep,
   type Step,
   stepShape,
 } from "@engenty/wizards-shared/definition";
@@ -817,8 +818,11 @@ export function JsonSchemaDialog({
  * run per entry, not a tool's answer. Null for any other step.
  */
 export function editableData(step: Step): AgentStep | null {
-  const s = step.type === "decision" ? decisionAsAgent(step) : step;
-  return s.type === "agent" && s.output.format === "json" && !s.each && !s.call ? s : null;
+  if (!isDataStep(step) || step.type === "tool") {
+    return null;
+  }
+  const s = asAgent(step);
+  return s.output.format === "json" && !s.foreach ? s : null;
 }
 
 /**

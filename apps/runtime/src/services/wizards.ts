@@ -1,11 +1,11 @@
 import { versionChanges } from "@engenty/wizards-shared/changes";
 import type { StepWarning } from "@engenty/wizards-shared/connectors";
 import {
-  type AgentStep,
   DEFINITION_VERSION,
   type Lang,
   pluginToolOf,
   shapeIssues,
+  type ToolStep,
   type ValidationIssue,
   validateWizard,
   type WizardDefinition,
@@ -215,8 +215,8 @@ async function pluginIssues(draft: WizardDefinition) {
 async function spaceConnectionIssues(spaceId: string, draft: WizardDefinition) {
   const connections = draft.connections ?? [];
   const fixed = draft.steps.filter(
-    (s) => s.type === "agent" && s.call && "connection" in s.call,
-  ) as (AgentStep & { call: { connection: string; action: string } })[];
+    (s) => s.type === "tool" && "connection" in s.call,
+  ) as (ToolStep & { call: { connection: string; action: string } })[];
   if (!connections.some((c) => c.spaceConnection) && !fixed.length) {
     return [];
   }
@@ -250,13 +250,13 @@ async function spaceConnectionIssues(spaceId: string, draft: WizardDefinition) {
         return action && action.group !== "read";
       });
       for (const step of draft.steps) {
-        if (step.type !== "agent" || step.call || !step.connections?.includes(connection.id)) {
+        if (step.type !== "agent" || !step.connections?.includes(connection.id)) {
           continue;
         }
         for (const id of writes) {
           issues.push({
             stepId: step.id,
-            message: `Step "${step.id}": "${id}" writes in ${name}, which signs in as the space. An AI step only reads there; put the write in a step with "call".`,
+            message: `Step "${step.id}": "${id}" writes in ${name}, which signs in as the space. An AI step only reads there; put the write in a tool step.`,
           });
         }
       }
@@ -292,8 +292,8 @@ export async function stepWarnings(
   draft: WizardDefinition,
 ): Promise<StepWarning[]> {
   const fixed = draft.steps.filter(
-    (s) => s.type === "agent" && s.call && "connection" in s.call,
-  ) as (AgentStep & { call: { connection: string; action: string } })[];
+    (s) => s.type === "tool" && "connection" in s.call,
+  ) as (ToolStep & { call: { connection: string; action: string } })[];
   const ofSpace = new Map(
     (draft.connections ?? []).flatMap((c) =>
       c.spaceConnection ? [[c.id, c.spaceConnection]] : [],

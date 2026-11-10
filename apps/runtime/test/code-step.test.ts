@@ -1,6 +1,7 @@
 import {
-  type AgentStep,
-  runsWithoutModel,
+  type CodeStep,
+  isFixedStep,
+  parseWizard,
   validateWizard,
   type WizardDefinition,
   wizardSchema,
@@ -20,17 +21,17 @@ const ask = {
 };
 const score = (more: object = {}) => ({
   id: "score",
-  type: "agent",
+  type: "code",
   title: "Score",
   code: { entry: "code/score.ts", input: { budget: "budget", note: "{{name}} pays {{budget}}" } },
-  output: { format: "json", fields: [{ id: "total", kind: "number" }] },
+  output: { fields: [{ id: "total", kind: "number" }] },
   ...more,
 });
 const wizard = (steps: unknown[]) =>
   wizardSchema.parse({ title: "Test", description: "", avatar: "round", steps }) as WizardDefinition;
 const said = (def: WizardDefinition, files = ["code/score.ts"]) =>
   validateWizard(def, files).map((i) => i.message);
-const stepOf = (def: WizardDefinition) => def.steps.find((s) => s.id === "score") as AgentStep;
+const stepOf = (def: WizardDefinition) => def.steps.find((s) => s.id === "score") as CodeStep;
 
 describe("a code step in the format", () => {
   it("is valid with an entry in the workspace and inputs asked before", () => {
@@ -43,13 +44,14 @@ describe("a code step in the format", () => {
         ask,
         score({
           model: "classifier",
-          output: { format: "json", fields: [{ id: "ok", kind: "yesno" }] },
+          output: { fields: [{ id: "ok", kind: "yesno" }] },
         }),
         end,
       ]),
     );
-    expect(runsWithoutModel(step)).toBe(true);
-    expect(step.type).toBe("agent");
+    expect(isFixedStep(step)).toBe(true);
+    expect(step.type).toBe("code");
+    expect("model" in step).toBe(false);
   });
 
   it("needs its entry in the workspace, as a .ts or .js file", () => {
@@ -75,36 +77,36 @@ describe("a code step in the format", () => {
   });
 
   it("returns json of a declared shape and takes nothing of an AI step", () => {
-    expect(
-      said(
-        wizard([
-          ask,
-          score({
-            tools: ["web_search"],
-            each: "lists.x",
-            output: { format: "markdown" },
-          }),
-          end,
-        ]),
-      ),
-    ).toEqual(
-      expect.arrayContaining([
-        'A step with "code" runs no model: no "each", "tools".',
-        'A step with "code" returns json: output format "json".',
-      ]),
-    );
-    expect(said(wizard([ask, score({ output: { format: "json" } }), end]))).toEqual([
-      'A step with "code" declares what it returns: output "fields" or "schema".',
+    const parsed = parseWizard({
+      title: "Test",
+      description: "",
+      avatar: "round",
+      steps: [
+        ask,
+        score({
+          tools: ["web_search"],
+          foreach: "lists.x",
+          output: { format: "markdown", fields: [{ id: "total", kind: "number" }] },
+        }),
+        end,
+      ],
+    });
+    expect(parsed.ok).toBe(true);
+    const step = parsed.ok ? (parsed.wizard.steps[1] as CodeStep) : undefined;
+    expect(step && "tools" in step).toBe(false);
+    expect(step && "foreach" in step).toBe(false);
+    expect(step && "format" in step.output).toBe(false);
+    expect(said(wizard([ask, score({ output: {} }), end]))).toEqual([
+      'A code step declares what it returns: output "fields" or "schema".',
     ]);
     expect(
-      said(
-        wizard([
-          ask,
-          score({ call: { tool: "appointments.availability", input: {} } }),
-          end,
-        ]),
-      ),
-    ).toContain('A step has "call" or "code", not both.');
+      parseWizard({
+        title: "Test",
+        description: "",
+        avatar: "round",
+        steps: [ask, score({ code: undefined }), end],
+      }).ok,
+    ).toBe(false);
   });
 });
 
@@ -163,7 +165,6 @@ describe("running a code step", () => {
         ask,
         score({
           output: {
-            format: "json",
             fields: [
               { id: "total", kind: "number" },
               { id: "rows", kind: "table" },

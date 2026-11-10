@@ -57,13 +57,26 @@ export function grantOf(definition: WizardDefinition): Grant {
   const hosts = new Set<string>();
   const defs = new Map((definition.connections ?? []).map((c) => [c.id, c]));
   for (const step of definition.steps) {
-    if (step.type !== "agent") {
-      continue;
+    if (step.type === "agent") {
+      for (const tool of step.tools) {
+        tools.add(tool);
+      }
+      for (const host of step.hosts ?? []) {
+        hosts.add(host.trim().toLowerCase());
+      }
+      for (const id of step.connections ?? []) {
+        const def = defs.get(id);
+        if (!def) {
+          continue;
+        }
+        const have = new Set(connections[id] ?? []);
+        for (const action of def.actions ?? ["read"]) {
+          have.add(action);
+        }
+        connections[id] = [...have].sort();
+      }
     }
-    for (const tool of step.tools) {
-      tools.add(tool);
-    }
-    if (step.call && "connection" in step.call && defs.has(step.call.connection)) {
+    if (step.type === "tool" && "connection" in step.call && defs.has(step.call.connection)) {
       const have = new Set(connections[step.call.connection] ?? []);
       have.add(step.call.action);
       connections[step.call.connection] = [...have].sort();
@@ -75,20 +88,6 @@ export function grantOf(definition: WizardDefinition): Grant {
           channel,
         };
       }
-    }
-    for (const host of step.hosts ?? []) {
-      hosts.add(host.trim().toLowerCase());
-    }
-    for (const id of step.connections ?? []) {
-      const def = defs.get(id);
-      if (!def) {
-        continue;
-      }
-      const have = new Set(connections[id] ?? []);
-      for (const action of def.actions ?? ["read"]) {
-        have.add(action);
-      }
-      connections[id] = [...have].sort();
     }
   }
   return { connections, hosts: [...hosts].sort(), tools: [...tools].sort(), channels };

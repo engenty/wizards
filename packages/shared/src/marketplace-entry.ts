@@ -83,7 +83,10 @@ function conditionText(definition: WizardDefinition, c: Condition, lang: Marketp
     case "exists":
       return withIt;
     case "notExists":
+    case "falsy":
       return without;
+    case "truthy":
+      return withIt;
     case "gt":
       return `${name} > ${shown}`;
     case "gte":
