@@ -718,7 +718,6 @@ describe("fixed steps write, AI steps on space connections read", () => {
     ctx.services = runServices.inProcessServices(
       { id: runId, definition: def } as never,
       () => ctx,
-      (s, c) => import("@engenty/wizards-engine/steps/index").then((m) => m.runAgentStep(s, c)),
     );
     return ctx;
   }
