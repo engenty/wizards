@@ -385,6 +385,7 @@ const NOTES_EN = {
   codeOutputUnfit: "The code returned something other than this step declares: {detail}",
   wizardToolMissing: "The tool “{name}” isn’t in the wizard’s files.",
   wizardToolBroken: "The tool “{name}” can’t be used: {detail}",
+  wizardToolNoSandbox: "The tool “{name}” runs in a sandbox, and this run has none here.",
   wizardAgentMissing: "The agent “{name}” isn’t in the wizard’s files.",
   wizardAgentBroken: "The agent “{name}” can’t be used: {detail}",
   agentNeedsChanged:
@@ -912,6 +913,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   codeOutputUnfit: "Der Code hat etwas anderes zurückgegeben, als dieser Schritt angibt: {detail}",
   wizardToolMissing: "Das Werkzeug „{name}“ fehlt in den Dateien des Wizards.",
   wizardToolBroken: "Das Werkzeug „{name}“ lässt sich nicht nutzen: {detail}",
+  wizardToolNoSandbox:
+    "Das Werkzeug „{name}“ läuft in einer Sandbox, und dieser Lauf hat hier keine.",
   wizardAgentMissing: "Der Agent „{name}“ fehlt in den Dateien des Wizards.",
   wizardAgentBroken: "Der Agent „{name}“ lässt sich nicht nutzen: {detail}",
   agentNeedsChanged:

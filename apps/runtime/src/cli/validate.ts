@@ -11,7 +11,11 @@ import { wizardAgentUseIssues } from "@engenty/wizards-shared/wizard-agents";
 import { dataFiles, wizardDataIssues } from "@engenty/wizards-shared/wizard-data";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
 import { WIZARD_SKILLS_DIR, wizardSkillIssues } from "@engenty/wizards-shared/wizard-skills";
-import { wizardAgentFiles, wizardToolFileIssues } from "../engine/wizard-code.js";
+import {
+  sandboxToolHostIssues,
+  wizardAgentFiles,
+  wizardToolFileIssues,
+} from "../engine/wizard-code.js";
 import { json, readManifest, readPackage } from "../services/package-file.js";
 import { bad, dim, ok } from "./ui.js";
 
@@ -21,9 +25,10 @@ import { bad, dim, ok } from "./ui.js";
  * its wizard.json, with the workspace beside it under files/), or a definition on its own.
  *
  * What a space holds — its connectors, MCP servers and plugins — is checked on import. The
- * wizard's function tools (`files/tools/`) are loaded in QuickJS, as a run loads them; its
- * agents (`files/agents/`) are read as a run reads them. The SQL of the wizard's own database is
- * read too: its schema and migrations split into statements the runtime runs.
+ * wizard's tools (`files/tools/`) are read as a run reads them: a function tool's file in
+ * QuickJS, a sandbox tool's `TOOL.md` with its front matter. Its agents (`files/agents/`) are
+ * read as a run reads them. The SQL of the wizard's own database is read too: its schema and
+ * migrations split into statements the runtime runs.
  */
 
 interface Checked {
@@ -114,7 +119,9 @@ export async function validatePath(path: string): Promise<Checked> {
   // `requires` says what the steps and the agents' files need: a file that says otherwise is out
   // of date. Where an agent's file is broken, that is said first.
   const requires =
-    parsed.ok && !agents.issues.length ? requiresProblem(parsed.wizard, agents.agents) : null;
+    parsed.ok && !agents.issues.length
+      ? requiresProblem(parsed.wizard, agents.agents, given.files)
+      : null;
   const checked = [
     ...parsed.issues,
     ...(parsed.ok ? wizardAgentUseIssues(parsed.wizard, agents.agents) : []),
@@ -132,6 +139,7 @@ export async function validatePath(path: string): Promise<Checked> {
       .filter((message) => !said.has(message))
       .map((message) => ({ message })),
     ...wizardSkillIssues(given.files, skillMds),
+    ...(parsed.ok ? await sandboxToolHostIssues(parsed.wizard.steps, given.files, given.read) : []),
     ...(parsed.ok ? await dataIssues(parsed.wizard, given) : []),
   ];
   return {

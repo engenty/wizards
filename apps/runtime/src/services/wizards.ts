@@ -517,8 +517,8 @@ export function parseDraft(
       },
     );
   }
-  // Every writer saves `requires` as the steps say.
-  const draft = withRequires(parsed.data, agents);
+  // Every writer saves `requires` as the steps, the agents' files and the workspace say.
+  const draft = withRequires(parsed.data, agents, files);
   return { draft, issues: validateWizard(draft, files) };
 }
 

@@ -1555,9 +1555,9 @@ export const requiresSchema = z.object({
    * agents (`agent.<name>`).
    */
   tools: z.array(z.string().min(1)).optional(),
-  /** `code`: a code step or a function tool runs the wizard's own code. */
+  /** `code`: a code step or a tool of the wizard runs the wizard's own code. */
   run: z.array(z.literal("code")).optional(),
-  /** `shell`: a step works in a sandbox. */
+  /** `shell`: a step works in a sandbox, or calls a sandbox tool of the wizard. */
   sandbox: z.literal("shell").optional(),
   /** The plugins whose tools steps call, by id. */
   plugins: z.array(z.string().regex(PLUGIN_ID)).optional(),
@@ -1817,7 +1817,9 @@ function wizardCodeIssues(step: AgentStep, files: string[] | undefined): Validat
         say(`Tool "${id}" has no file: ${wizardAgentPath(code.name)}.`);
       }
     } else if (tools && !tools.has(code.name)) {
-      say(`Tool "${id}" has no file: tools/${code.name}.ts or tools/${code.name}.js.`);
+      say(
+        `Tool "${id}" has no file: tools/${code.name}.ts, tools/${code.name}.js or tools/${code.name}/TOOL.md.`,
+      );
     } else if ((tools?.get(code.name)?.length ?? 0) > 1) {
       const both = [...(tools?.get(code.name) ?? [])].sort().join(", ");
       say(`Tool "${id}" has two files: keep one of ${both}.`);
