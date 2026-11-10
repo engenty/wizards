@@ -38,8 +38,9 @@ What the runtime tells it, in this order:
   colours, and the rules the brand sets for them.
 - **Knowledge.** What the space holds, its categories and how to search them. Also what the
   space’s plugins keep for its wizards, such as a wiki.
-- **Skills.** The space’s skills that are always on, each whole. The skills on demand by name and
-  description, which the model loads with `skill_load` when one fits.
+- **Skills.** The wizard’s own skills and the space’s that are always on, each whole. The skills
+  on demand by name and description, which the model loads with `skill_load` when one fits. See
+  [Tools, skills and agents in the wizard](./tools-skills-agents.md).
 - **How to answer.** The finished result in Markdown or plain text. For `json`, the shape of its
   fields.
 
@@ -107,7 +108,7 @@ Every agent step also has these tools without listing them:
 | `files_list`, `files_keep`, `read_document`, `scan_documents` | Uploads, scans and the files the wizard keeps |
 | `read_workspace_file` | Where the wizard’s workspace holds files, such as a price list |
 | `space_search`, `space_list`, `page_read`, `table_read`, `space_document` | Where the space has Knowledge |
-| `skill_list`, `skill_load`, `skill_read` | Where the space has skills |
+| `skill_list`, `skill_load`, `skill_read` | Where the wizard or the space has skills |
 | `mail_search`, `mail_read`, `mail_save` | For a `mail` connection in `connections` |
 | `<prefix>_<action>` | For a connector’s connection in `connections`, one tool per action |
 | `ask_person` | On a [durable step](./runs-that-last.md#ai-steps-that-go-on) |

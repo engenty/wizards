@@ -101,6 +101,8 @@ export interface RunState {
   decisions?: Record<string, BranchDecision>;
   /** The signals this run took, by id: each only once. */
   signals?: string[];
+  /** What the result step's `data` names, filled as the run reaches it: the data the run gives back. */
+  data?: Record<string, unknown>;
   /** Pages whose fields a decision chose: the field ids kept, by page. */
   pages?: Record<string, { shown: string[] }>;
   /** How often each branch was taken, by "<step>→<goto>": loops stop at the rule's max. */

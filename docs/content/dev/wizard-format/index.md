@@ -28,7 +28,7 @@ so any tool may read, write and run wizards. [Licensing](../licensing.md) lists 
 
 | Key | What it holds |
 |---|---|
-| `version` | The version of the format, `2`. See [Version](#version) |
+| `version` | The version of the format, `1`. See [Version](#version) |
 | `title` | What people get, short. See [Title, description and intro](#title-description-and-intro) |
 | `description` | One sentence about the wizard |
 | `avatar` | The engenty shown to people. See [The avatar](#the-avatar) |

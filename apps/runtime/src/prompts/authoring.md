@@ -473,7 +473,12 @@ type ReviewStep = { type: "review", show: (stepId | "lists.<listId>")[], edit?: 
 // a shown list is edited in place by the person
 
 type ResultStep = { type: "result", message?: string, deliverables: { from: stepId | "lists.<listId>", label?, formats: Format[] }[],
-                    share?: { target: string, label?: string, values?: { [fieldId]: string } }[] }
+                    share?: { target: string, label?: string, values?: { [fieldId]: string } }[],
+                    data?: { [key]: fieldId | "steps.<id>" | "steps.<id>.<key>" | "lists.<id>" | "brand.name" | "today" } }
+// data: what a finished run gives back besides its files, for an app, an MCP client or another workflow that starts it:
+//   { reply: "steps.reply", urgent: "steps.check.urgent" }. It reads only steps before the result. Give it when the wizard
+//   is meant to be run by a program; a run for a person needs none. What a run takes (the person's form fields) and gives
+//   (files + data) is worked out as JSON Schema from the definition: never describe it by hand.
 // formats per source: image→png · video→mp4 (several results: zip) · voice→mp3 · document→pdf docx html md png · dashboard→html pdf png
 //                     video widget (video: true)→mp4 png · video→mp4
 //                     widget→html png pdf mp4 json (mp4 only when the widget registers a timeline)
@@ -603,6 +608,18 @@ one-off pages stay "generate" steps. A widget is code in the wizard's WORKSPACE 
   there, a tip), background for the ground, display for headings, body for text (system fonts behind them); dark: a dark
   ground. Cards for things, generous spacing, legible labels; no table of things.
 - After writing, ALWAYS run check_widget, read its errors and look at the screenshot; fix until clean.
+
+Skills of the wizard — when to use: open work where the model decides what to read and run (a house style, how to
+fill a supplier's forms, a few scripts it combines as the case needs). A fixed task with known inputs and output is
+no skill: a code step does it with no model, and a tool with typed arguments that runs in the sandbox comes later.
+- Files: "skills/<name>/SKILL.md" in the workspace, written with the file tools, plus the files it points to (references,
+  scripts). Front matter: name (the folder's name: lower-case letters, digits, hyphens), description (when a step
+  should use it), and mode: always to put it whole into every AI step; without mode, a step loads it when it fits.
+- Every AI step of this wizard sees it, before a space skill of the same name: always on in the instructions, on demand
+  by name and description, read with skill_load and skill_read. Other wizards don't see it.
+- Scripts: a step with "sandbox" gets the folder at skills/<name>/ when it loads the skill and runs them with run_command.
+  Without the sandbox the text still counts and the scripts don't run. Link every file the SKILL.md names
+  ([fill.py](scripts/fill.py)): validate checks that each exists.
 
 <!-- section: surfaces -->
 <!-- The surface catalog: what a model needs to compose a view (also used by engine/steps.ts). -->

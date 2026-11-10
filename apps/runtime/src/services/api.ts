@@ -25,7 +25,7 @@ import { closedToMe, requireStudio } from "./members-studio.js";
 import { runReport } from "./runs.js";
 import { shareUrlFor } from "./shares.js";
 import { listSpaces, ownedSpace, spaceIs } from "./spaces.js";
-import { shareUrl, studioUrl } from "./wizards.js";
+import { runSchemas, shareUrl, studioUrl } from "./wizards.js";
 
 /*
  * What `/api/v1` shows a client that is no studio: the WordPress plugin lists the wizards it
@@ -158,6 +158,8 @@ export async function apiWizards(userId: string, spaceId?: string | null) {
         plugins: pluginsOf(def),
         /** Whether it runs on a website by itself, in the gallery's words (packages/shared/src/fit.ts). */
         standalone: standaloneEntry(def),
+        /** What a run takes and gives, as JSON Schema: of the published version, else of the draft. */
+        ...runSchemas(def),
         studioUrl: studioUrl(w.id),
         updatedAt: w.updatedAt.toISOString(),
       };
