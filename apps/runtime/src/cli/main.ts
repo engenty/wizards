@@ -44,6 +44,8 @@ const COMMANDS = [
   "features",
   "move-files",
   "move-folder-sources",
+  // Once after 2.5 of docs/plans/runs-on-their-own.md; not in the help.
+  "drop-turn-snapshots",
   "validate",
   "uninstall",
 ];
@@ -280,6 +282,8 @@ async function main(argv: string[]): Promise<number> {
       return (await import("./move-files.js")).moveFiles();
     case "move-folder-sources":
       return (await import("./move-folder-sources.js")).moveFolderSources();
+    case "drop-turn-snapshots":
+      return (await import("./drop-turn-snapshots.js")).dropTurnSnapshots();
     case "validate":
       // The paths are the person's, from where they typed the command (install-env.ts).
       process.chdir(startedIn);

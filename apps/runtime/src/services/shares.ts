@@ -4,7 +4,6 @@ import { and, eq, isNotNull, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { keptStepIds } from "../broker/index.js";
 import { db, schema } from "../db/client.js";
-import { sweepTurnSnapshots } from "../engine/durable-turn.js";
 import { availableFormats } from "../engine/runner.js";
 import { purgeOldSignals } from "../engine/signals.js";
 import { env } from "../env.js";
@@ -174,6 +173,5 @@ export async function purgeExpiredRuns() {
   await dropLinks(expired.map((r) => r.shareToken).filter((t): t is string => Boolean(t)));
   await dropRuns(expired.map((r) => r.id));
   await purgeOldSignals();
-  await sweepTurnSnapshots().catch((err) => console.error("[runs] turn snapshots:", err));
   return expired.length;
 }

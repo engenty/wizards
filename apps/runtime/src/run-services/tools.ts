@@ -18,7 +18,6 @@ import {
   type ToolsService,
 } from "@engenty/wizards-shared/run-services";
 import { z } from "zod";
-import { turnContext } from "../engine/durable-turn.js";
 import { onlyReads, watchActions } from "../tools/acted.js";
 import { agentTools, stepOfAgent } from "../tools/agent.js";
 import { callConnection } from "../tools/connector.js";
@@ -161,6 +160,43 @@ export function inProcessTools(options: {
       const { output } = await set.call(request);
       const assets = set.assets.slice(before);
       return assets.length ? { output, assets } : { output };
+    },
+  };
+}
+
+/** Aborts when `signal` does, except for a deploy's stop (`abort("stop")` in `stopRunner`). */
+function turnSignal(signal: AbortSignal): AbortSignal {
+  const own = new AbortController();
+  const pass = () => {
+    if (signal.reason !== "stop") {
+      own.abort(signal.reason);
+    }
+  };
+  if (signal.aborted) {
+    pass();
+  } else {
+    signal.addEventListener("abort", pass, { once: true });
+  }
+  return own.signal;
+}
+
+/**
+ * What a turn's tools work with. A cancel reaches them. A deploy's stop does not: what a tool would
+ * make of it (an error, a person's "no") would stay in the conversation for the next runner, which
+ * goes on at that call as if nothing had stopped.
+ */
+function turnContext<C extends StepContext>(ctx: C, turn: string): C {
+  return {
+    ...ctx,
+    turn,
+    signal: turnSignal(ctx.signal),
+    ask: async (ask) => {
+      const answer = await ctx.ask(ask);
+      // The wait ended because this process stops: nobody said no, the next runner asks again.
+      if (ctx.signal.aborted && ctx.signal.reason === "stop") {
+        await new Promise(() => undefined);
+      }
+      return answer;
     },
   };
 }
