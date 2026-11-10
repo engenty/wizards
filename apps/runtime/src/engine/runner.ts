@@ -20,9 +20,6 @@ import {
   marginOf,
 } from "@engenty/wizards-shared/decision";
 import {
-  type AheadForm,
-  type AheadRule,
-  allFields,
   branchValues,
   type CardOption,
   cardsFromData,
@@ -31,11 +28,9 @@ import {
   type Format,
   type FormStep,
   followRules,
-  formatsFor,
   formNeeds,
   isDataStep,
   isDecidedField,
-  LIST_FORMATS,
   listRef,
   MAX_SHOWN_FIELDS,
   optionsFromData,
@@ -43,15 +38,12 @@ import {
   type ReviewStep,
   RUN_DONE_SIGNAL,
   type Step,
-  sectionOf,
-  sectionsOf,
   signalMissing,
   textLang,
   type WaitStep,
   type WizardDefinition,
   waitDurationMs,
   whenCalc,
-  whenNames,
   whenValue,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
@@ -65,15 +57,22 @@ import type {
   StepOutput,
 } from "@engenty/wizards-shared/run";
 import {
-  CAN_GO_BACK,
-  type ClosedChoice,
   isNoteTime,
   note,
   type RunState,
   type RunView,
-  type ShownList,
   saidText,
 } from "@engenty/wizards-shared/run";
+import {
+  formatsOf,
+  needsNoRunner,
+  rendersOnDemand,
+  type ViewedRun,
+  viewDefinition,
+  viewNeeds,
+  viewOf,
+  whoOf,
+} from "@engenty/wizards-shared/run-view";
 import { CONVERSATION_RUNNERS, DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
 import { fitData } from "@engenty/wizards-shared/shape";
 import type { StartEvent, StartedBy } from "@engenty/wizards-shared/starts";
@@ -87,7 +86,6 @@ import {
   type FlowRun,
   transition,
 } from "@engenty/wizards-shared/transition";
-import { machineTranslated, translateDefinition } from "@engenty/wizards-shared/translation";
 import { wizardAgentsUsed } from "@engenty/wizards-shared/wizard-code";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { eq } from "drizzle-orm";
@@ -163,7 +161,6 @@ import {
 } from "../tenants/control.js";
 import { currentTenant, currentTenantOrNull } from "../tenants/tenant.js";
 import { hasOwnAccount } from "../upstreams.js";
-import { whoOf } from "./answerers.js";
 import { askPerson, clearStaleAsk } from "./asks.js";
 import { clearDeviceCalls } from "./device.js";
 import { newTurn, TurnAsks } from "./durable-turn.js";
@@ -183,8 +180,8 @@ import {
   blockingMessage,
   closedChoices,
   maskedNote,
+  missingClasses,
   missingModelsSaid,
-  openValue,
   stepsWithoutModel,
   tierRefusalSaid,
 } from "./requirements.js";
@@ -1073,12 +1070,6 @@ export async function formContext(run: RunRow, step: FormStep): Promise<Required
   return { known, options, cards, decided };
 }
 
-function viewContext(
-  ctx: Required<FormContext>,
-): Pick<RunView, "known" | "options" | "cards" | "decidedFields"> {
-  return { known: ctx.known, options: ctx.options, cards: ctx.cards, decidedFields: ctx.decided };
-}
-
 /** The wizard's lists with the person's rows, by list id; a shared list's as its holder may read them. */
 async function storedLists(
   run: RunRow,
@@ -1560,111 +1551,6 @@ async function wakeFromWait(run: RunRow): Promise<boolean> {
 
 const isPersonStep = (step: Step | undefined): step is FormStep | ReviewStep =>
   step?.type === "form" || step?.type === "review";
-
-/**
- * A step a run reaches with no runner: a page or review nothing has to decide or fill first. The
- * step's keys only, so with `durableRuns` off it says the same. `state` is the state after
- * `advance`: an `ask` rule set `deciding` there and left the cursor on the answered step.
- */
-function needsNoRunner(
-  step: Step | undefined,
-  startedBy: StartedBy | null,
-  state: RunState,
-): step is FormStep | ReviewStep {
-  return (
-    isPersonStep(step) &&
-    // A start's run is filled by `passStep`, with nobody there.
-    !startedBy &&
-    !state.deciding &&
-    // A deadline's `wait` would land in the timeline before the answered step's `step_done`.
-    !step.timeout &&
-    !step.remind &&
-    // Whoever answered is not the one asked next.
-    whoOf(step) === "person" &&
-    !(step.type === "form" && step.fields.some(isDecidedField))
-  );
-}
-
-/** How many pages `ahead` holds at most. */
-const AHEAD_MAX = 20;
-
-/**
- * The plain pages a run can reach from the page it waits on, with no server: the current page and
- * every page its rules lead to that the shortcut covers (`needsNoRunner`) and that needs nothing
- * only the server has. A page's `next` is null where the server decides: an `ask`, a `max`, a rule
- * back (its loops are counted), a name the browser has no value for. In the definition `def` it
- * is shown in (a translation's words).
- */
-async function aheadOf(
-  run: RunRow,
-  def: WizardDefinition,
-  from: FormStep,
-): Promise<Record<string, AheadForm & { progress: RunView["progress"] }>> {
-  const answers = new Set(allFields(def).map((f) => f.id));
-  const readsAnswers = (when: Parameters<typeof whenNames>[0]) =>
-    whenNames(when).every((name) => answers.has(name));
-  const sections = sectionsOf(def);
-  const progressOf = (step: FormStep): RunView["progress"] => ({
-    done: def.steps.indexOf(step),
-    total: def.steps.length,
-    ...(sections.length
-      ? { sections: { names: sections, current: sections.indexOf(sectionOf(def, step.id) ?? "") } }
-      : {}),
-  });
-  const rulesOf = (step: FormStep): AheadRule[] | null => {
-    const at = def.steps.indexOf(step);
-    const rules = step.next ?? [];
-    const out: AheadRule[] = [];
-    for (const rule of rules) {
-      const to =
-        rule.goto === "end" ? def.steps.length : def.steps.findIndex((s) => s.id === rule.goto);
-      if (rule.ask !== undefined || rule.max !== undefined || (to >= 0 && to <= at)) {
-        return null;
-      }
-      if (rule.when !== undefined) {
-        if (!readsAnswers(rule.when)) {
-          return null;
-        }
-        out.push({ when: rule.when, goto: rule.goto });
-      }
-    }
-    const otherwise = rules.find((r) => r.when === undefined && r.ask === undefined);
-    out.push({ goto: otherwise?.goto ?? def.steps[at + 1]?.id ?? "end" });
-    return out;
-  };
-  const plain = async (step: Step | undefined): Promise<boolean> =>
-    step?.type === "form" &&
-    needsNoRunner(step, run.startedBy, run.state) &&
-    !step.data &&
-    step.fields.every(
-      (f) =>
-        !f.optionsFrom &&
-        !f.cards &&
-        !f.prefill &&
-        f.kind !== "connection" &&
-        f.kind !== "list" &&
-        f.kind !== "slot" &&
-        (f.when === undefined || readsAnswers(f.when)),
-    ) &&
-    Object.keys(await closedChoices(def, step, run.state.values)).length === 0;
-  const out: Record<string, AheadForm & { progress: RunView["progress"] }> = {};
-  const queue: FormStep[] = [from];
-  while (queue.length && Object.keys(out).length < AHEAD_MAX) {
-    const step = queue.shift() as FormStep;
-    if (out[step.id]) {
-      continue;
-    }
-    const next = rulesOf(step);
-    out[step.id] = { step, next, progress: progressOf(step) };
-    for (const rule of next ?? []) {
-      const target = stepOf(def, rule.goto);
-      if (target?.type === "form" && !out[target.id] && (await plain(target))) {
-        queue.push(target);
-      }
-    }
-  }
-  return out;
-}
 
 /** Whether the step may wait for long: it gives its hold back, and holds again as it goes on. */
 async function waitsLong(step: FormStep | ReviewStep): Promise<boolean> {
@@ -2913,35 +2799,10 @@ export async function stopRun(runId: string, by: string) {
 
 /** The formats a deliverable can really be downloaded in: a still widget has no video. */
 export async function availableFormats(step: Step, run: RunRow, wanted?: Format[]) {
-  const possible = formatsFor(step);
-  let formats = wanted ? wanted.filter((f) => possible.includes(f)) : possible;
   const output = run.state.outputs[step.id];
-  if (step.type === "widget" && formats.includes("mp4")) {
-    // A video is rendered when its step runs; any other widget on demand.
-    const has = step.video
-      ? output?.assets?.some((a) => a.kind === "video")
-      : output?.widget?.duration && (await hasFfmpeg());
-    if (!has) {
-      formats = formats.filter((f) => f !== "mp4");
-    }
-  }
-  // A zip holds the files a step collected, or its several results; with one there is nothing to zip.
-  if (formats.includes("zip")) {
-    const has =
-      step.type === "generate"
-        ? (output?.assets?.length ?? 0) > 1
-        : output?.assets?.some((a) => a.kind === "file");
-    if (!has) {
-      formats = formats.filter((f) => f !== "zip");
-    }
-  }
-  return formats;
+  return formatsOf(step, output, wanted, rendersOnDemand(step, output) && (await hasFfmpeg()));
 }
 
-/**
- * What the page's fields start with: an earlier step's result where they name one, and for a
- * choice whose default leads to a step without a model here, the first value that does not.
- */
 /** What a page's `components` read besides its answers. A step that stays in the space stays there. */
 async function formDataOf(
   refs: Record<string, string>,
@@ -2982,11 +2843,8 @@ async function resultDataOf(
   return surfaceData(refs, { def, state, scope });
 }
 
-function prefillOf(
-  step: FormStep,
-  run: RunRow,
-  closed: Record<string, ClosedChoice>,
-): Record<string, unknown> {
+/** What a page's `prefill` refs read from the run; empty values are left out. */
+function prefilled(step: FormStep, run: RunRow): Record<string, unknown> {
   const scope = { def: run.definition, state: run.state, brand: {} };
   const out: Record<string, unknown> = {};
   for (const field of step.fields) {
@@ -2996,13 +2854,6 @@ function prefillOf(
     const value = resolveRef(dataRef(field.prefill), scope);
     if (value !== undefined && value !== null && value !== "") {
       out[field.id] = value;
-    }
-  }
-  for (const [id, choice] of Object.entries(closed)) {
-    const field = step.fields.find((f) => f.id === id);
-    const start = out[id] ?? field?.default ?? (field?.kind === "toggle" ? false : undefined);
-    if (field && start !== undefined && choice.values.some((v) => String(v) === String(start))) {
-      out[id] = openValue(step, id, choice);
     }
   }
   return out;
@@ -3026,191 +2877,55 @@ export async function talkAllowed(run: RunRow): Promise<boolean> {
   return enabled.some((id) => CONVERSATION_RUNNERS.includes(id) && !off.has(id));
 }
 
+/** The run as `viewOf` and `reportOf` read it. */
+export function viewedRun(run: RunRow): ViewedRun {
+  return {
+    ...run,
+    wakeAt: run.wakeAt?.toISOString() ?? null,
+    expiresAt: run.expiresAt?.toISOString() ?? null,
+  };
+}
+
 /**
- * The run as the viewer sees it. `hide`: steps whose output stays in the space (broker/kept.ts):
- * shown with no output and `kept`, left out of `outputs`; empty for a member, or a member's run.
+ * The run as the viewer sees it (`viewOf`), with what it reads from this runtime. `hide`: steps
+ * whose output stays in the space (broker/kept.ts); empty for a member, or a member's run.
  */
 export async function runView(
   run: RunRow,
   brand: RunView["brand"],
   hide: ReadonlySet<string> = new Set(),
 ): Promise<RunView> {
-  // In the viewer's language every text of the view is the translation; ids and values stay.
-  const memory = run.lang ? await storedTranslation(run.wizardId, run.lang) : null;
-  const translated = memory ? translateDefinition(run.definition, memory) : null;
-  const def = translated?.def ?? run.definition;
-  const step = stepOf(def, run.cursor) ?? null;
-  const closed =
-    step?.type === "form" && run.status === "waiting_input"
-      ? await closedChoices(def, step, run.state.values)
-      : {};
-  const index = step ? def.steps.indexOf(step) : def.steps.length;
-  const sections = sectionsOf(def);
-  const refs =
-    step?.type === "review"
-      ? step.show
-      : step?.type === "result"
-        ? [...new Set(step.deliverables.map((d) => d.from))]
-        : [];
-  const shownIds = refs.filter((ref) => !listRef(ref));
-  const listIds = [
-    ...refs.map(listRef),
-    ...(step?.type === "form" ? step.fields.map((f) => (f.kind === "list" ? f.list : null)) : []),
-  ].filter((id): id is string => Boolean(id));
-  const stored = listIds.length ? await storedLists(run) : {};
-  const lists: ShownList[] = [...new Set(listIds)]
-    .filter((id) => stored[id])
-    .map((id) => {
-      const deliverable =
-        step?.type === "result" ? step.deliverables.find((d) => listRef(d.from) === id) : undefined;
-      return {
-        ...stored[id],
-        formats: deliverable
-          ? deliverable.formats.filter(
-              (f) => LIST_FORMATS.includes(f) && (f !== "zip" || stored[id].def.check?.file),
-            )
-          : [],
-        label: deliverable?.label ?? null,
-      };
-    });
-  const shown = await Promise.all(
-    shownIds
-      .map((id) => stepOf(def, id))
-      .filter((s): s is Step => Boolean(s))
-      .map(async (s) => {
-        const deliverable =
-          step?.type === "result" ? step.deliverables.find((d) => d.from === s.id) : undefined;
-        if (hide.has(s.id) && run.state.outputs[s.id]) {
-          return {
-            step: s,
-            output: null,
-            formats: [],
-            label: deliverable?.label ?? null,
-            kept: true,
-          };
-        }
-        return {
-          step: s,
-          output: run.state.outputs[s.id] ?? null,
-          formats: await availableFormats(s, run, deliverable?.formats),
-          label: deliverable?.label ?? null,
-        };
-      }),
-  );
-  return {
-    id: run.id,
-    status: run.status,
-    wakeAt:
-      run.status === "sleeping" || run.status === "waiting_signal" || run.status === "waiting_input"
-        ? (run.wakeAt?.toISOString() ?? null)
-        : null,
-    pause: run.status === "sleeping" ? (run.state.pause ?? null) : null,
-    waitsFor:
-      run.status === "waiting_signal" && step?.type === "wait"
-        ? waitKeyText(run, step) || null
-        : null,
-    // Who the viewer is: the door says (`viewFor`, engine/answerers.ts).
-    answeredBy: null,
-    mode: run.mode,
-    wizard: {
-      title: def.title,
-      description: def.description,
-      avatar: def.avatar,
-      costume: def.costume,
-      intro: def.intro,
-    },
-    lang: wizardLang(run.definition),
-    translation:
-      run.lang && memory && translated
-        ? {
-            lang: run.lang,
-            labels: translated.labels,
-            machine: machineTranslated(memory, run.definition),
-            results: run.state.translated?.[run.lang] ?? {},
-          }
-        : null,
-    // Nobody to talk to while it waits, and nothing to say.
-    talk: run.status !== "sleeping" && run.status !== "waiting_signal" && (await talkAllowed(run)),
-    step,
-    answered: run.state.history.map((id) => stepOf(def, id)).filter((s): s is Step => Boolean(s)),
-    values: run.state.values,
-    rev: run.rev,
-    // What the browser may do alone, and what was typed and not sent: `viewFor` keeps both from a
-    // viewer who may not answer.
-    ...(run.status === "waiting_input" && step?.type === "form" && !run.startedBy
-      ? {
-          ahead: await aheadOf(run, def, step),
-          pagesSent: run.state.pagesSent?.n ?? 0,
-        }
-      : {}),
-    ...(run.status === "waiting_input" && step?.type === "form" && run.unsent?.[step.id]
-      ? { unsent: run.unsent[step.id] }
-      : {}),
-    prefill: step?.type === "form" ? prefillOf(step, run, closed) : {},
-    ...(step?.type === "form" && step.data
-      ? { pageData: await formDataOf(step.data, run, def, brand.name, hide) }
-      : {}),
-    ...(step?.type === "form" ? viewContext(await formContext(run, step)) : {}),
-    ...(run.mode === "test" && run.state.decisions
-      ? {
-          decisions: Object.fromEntries(
-            Object.entries(run.state.decisions).map(([id, d]) => [
-              id,
-              { ...d, over: def.steps.find((s) => s.id === id)?.next ?? [] },
-            ]),
-          ),
-        }
-      : {}),
-    closed,
-    outputs: Object.fromEntries(
-      shownIds
-        .filter((id) => !hide.has(id))
-        .map((id) => [id, run.state.outputs[id]])
-        .filter(([, o]) => o),
-    ),
-    shown,
-    progress: {
-      done: run.status === "done" ? def.steps.length : index,
-      total: def.steps.length,
-      ...(sections.length
-        ? {
-            sections: {
-              names: sections,
-              current:
-                run.status === "done"
-                  ? sections.length
-                  : sections.indexOf(sectionOf(def, run.cursor ?? "") ?? ""),
-            },
-          }
-        : {}),
-    },
-    canBack: run.state.history.length > 0 && CAN_GO_BACK.has(run.status),
-    error: run.error,
-    // A step's own words as it starts ("working") are the wizard's: in its translation too.
-    events: (await recentEvents(run.id, 0, 30)).map((ev) =>
-      memory?.[ev.message] && !ev.note ? { ...ev, message: memory[ev.message].text } : ev,
-    ),
+  const viewed = viewedRun(run);
+  const needs = viewNeeds(run.definition, viewed);
+  const translation = run.lang ? await storedTranslation(run.wizardId, run.lang) : null;
+  const def = viewDefinition(run.definition, translation)?.def ?? run.definition;
+  const step = stepOf(def, run.cursor);
+  const page = step?.type === "form" ? step : null;
+  return viewOf(run.definition, viewed, {
     brand,
-    ask: run.status === "running" ? run.ask : null,
-    question: run.status === "waiting_input" ? (run.state.turn?.question ?? null) : null,
-    lists,
-    connections:
-      step?.type === "form" && step.fields.some((f) => f.kind === "connection")
-        ? await connectionViews(
-            def.connections ?? [],
-            scopeOf(run),
-            await spaceIdOf(run),
-            textLang(wizardLang(def)),
-          )
-        : [],
-    keeps:
-      Boolean(def.lists?.length || def.connections?.length) ||
-      // An account connected for sharing is kept too, and can be deleted the same way.
-      (run.status === "done" && (await listSecrets(scopeOf(run))).length > 0),
-    shareUrl: run.shareToken ? `${env.publicUrl}/s/${run.shareToken}` : null,
-    expiresAt: run.expiresAt?.toISOString() ?? null,
-    shareJob: run.status === "done" ? await latestShareJob(run.id) : null,
-  };
+    hide,
+    translation,
+    missing: needs.missing ? [...(await missingClasses())] : [],
+    lists: needs.lists ? await storedLists(run) : {},
+    ffmpeg: needs.ffmpeg && (await hasFfmpeg()),
+    page: page ? await formContext(run, page) : null,
+    prefill: page ? prefilled(page, run) : {},
+    ...(page?.data ? { pageData: await formDataOf(page.data, run, def, brand.name, hide) } : {}),
+    waitKey: step?.type === "wait" && run.status === "waiting_signal" ? waitKeyText(run, step) : "",
+    talk: needs.talk && (await talkAllowed(run)),
+    events: await recentEvents(run.id, 0, 30),
+    connections: needs.connections
+      ? await connectionViews(
+          def.connections ?? [],
+          scopeOf(run),
+          await spaceIdOf(run),
+          textLang(wizardLang(def)),
+        )
+      : [],
+    secrets: needs.secrets && (await listSecrets(scopeOf(run))).length > 0,
+    publicUrl: env.publicUrl,
+    shareJob: needs.shareJob ? await latestShareJob(run.id) : null,
+  });
 }
 
 /**

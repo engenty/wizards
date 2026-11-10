@@ -1,17 +1,7 @@
 import { fieldErrorsIn } from "@engenty/wizards-engine/input";
-import {
-  dataRef,
-  FIELD_WAYS,
-  type Field,
-  formatsFor,
-  isDecidedField,
-  type Step,
-  shownFields,
-  slotText,
-  waitDurationMs,
-  wizardLang,
-} from "@engenty/wizards-shared/definition";
+import { waitDurationMs, wizardLang } from "@engenty/wizards-shared/definition";
 import { note, type RunState, type RunTimeline, type RunView } from "@engenty/wizards-shared/run";
+import { type RunReport, reportNeeds, reportOf, whoOf } from "@engenty/wizards-shared/run-view";
 import { and, count, desc, eq, gte, inArray, isNull, max, or, sql } from "drizzle-orm";
 import { canSpend, MICROS_PER_CREDIT } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
@@ -23,7 +13,6 @@ import {
   hiddenWhileAsked,
   mayAct,
   mayGoBackFrom,
-  whoOf,
 } from "../engine/answerers.js";
 import { answerAsk } from "../engine/asks.js";
 import { emitEvent, recentEvents, watchRun } from "../engine/events.js";
@@ -41,6 +30,7 @@ import {
   reviewStep,
   runView,
   submitPage,
+  viewedRun,
 } from "../engine/runner.js";
 import { managed } from "../manage.js";
 import { ModelUnavailableError, saidOf } from "../model-errors.js";
@@ -261,37 +251,6 @@ async function waitWhileMoving(
   return run;
 }
 
-function clip(text: string, max: number): string {
-  return text.length > max
-    ? `${text.slice(0, max)} … [${text.length - max} more characters]`
-    : text;
-}
-
-function deliverableFormats(run: RunRow, step: Step) {
-  const possible = formatsFor(step);
-  const listed = run.definition.steps
-    .flatMap((s) => (s.type === "result" ? s.deliverables : []))
-    .find((d) => d.from === step.id);
-  return listed ? listed.formats.filter((f) => possible.includes(f)) : [];
-}
-
-/**
- * What a client needs besides the plain field: a slot's times as the person reads them, and the
- * one value of them to send back.
- */
-function slotHints(run: RunRow, field: Field, options: string[] | undefined) {
-  if (field.kind !== "slot") {
-    return {};
-  }
-  const lang = wizardLang(run.definition);
-  const value = run.state.values[field.id];
-  return {
-    times: (options ?? []).map((o) => ({ value: o, label: slotText(o, lang) })),
-    ...(typeof value === "string" ? { valueText: slotText(value, lang) } : {}),
-    hint: options?.length ? prompt("mcp", "hint.slot") : prompt("mcp", "hint.slot_none"),
-  };
-}
-
 /** Where the person can go on in a browser: the run page of a live run, the studio for a test. */
 /** The live run's page — the wizard itself, never the studio. A test run has none. */
 async function browserUrl(run: RunRow): Promise<string | null> {
@@ -300,141 +259,6 @@ async function browserUrl(run: RunRow): Promise<string | null> {
   }
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
   return w ? `${shareUrl(w.shareToken)}/${run.id}` : null;
-}
-
-/**
- * What a run waits for. `draft`: what a door that asks one field at a time has so far, so a
- * field's `shown` follows those answers as it follows the form on the screen.
- */
-async function waitingFor(
-  run: RunRow,
-  current: Step | null,
-  draft?: Record<string, unknown>,
-  viewer?: Caller,
-) {
-  // What someone else is asked is theirs: the door hears that, and nothing of what it asks.
-  if (viewer && !(await mayAct(run, viewer))) {
-    return run.status === "waiting_input" && current
-      ? {
-          answeredBy: whoOf(current),
-          title: current.title,
-          hint: prompt("mcp", "hint.answered_by"),
-        }
-      : undefined;
-  }
-  if (run.status === "running" && run.ask) {
-    const ask = run.ask;
-    return ask.kind === "confirm"
-      ? {
-          ask: ask.id,
-          kind: ask.kind,
-          reason: ask.again
-            ? prompt("mcp", "reason.confirm_again", { service: ask.service })
-            : ask.reason,
-          service: ask.service,
-          action: ask.action.summary,
-          input: clip(ask.input, 1500),
-          hint: ask.again ? prompt("mcp", "hint.confirm_again") : prompt("mcp", "hint.confirm"),
-        }
-      : {
-          ask: ask.id,
-          kind: ask.kind,
-          reason: ask.reason,
-          site: ask.site.host,
-          hint: prompt("mcp", "hint.sign_in"),
-        };
-  }
-  if (run.status === "sleeping" && current) {
-    const pause = run.state.pause;
-    // Waiting for a person has no time: the next look says nothing about when they act.
-    return {
-      wait: current.id,
-      title: current.title,
-      until: pause && pause.kind !== "retry" ? null : (run.wakeAt?.toISOString() ?? null),
-      ...(pause ? { pause } : {}),
-      hint:
-        pause?.kind === "retry"
-          ? prompt("mcp", "hint.pause_retry")
-          : pause?.kind === "credits"
-            ? prompt("mcp", "hint.pause_credits")
-            : pause?.kind === "sign_in"
-              ? prompt("mcp", "hint.pause_sign_in")
-              : prompt("mcp", "hint.sleeping"),
-    };
-  }
-  if (run.status === "waiting_signal" && current?.type === "wait") {
-    return {
-      wait: current.id,
-      title: current.title,
-      until: run.wakeAt?.toISOString() ?? null,
-      signal: current.signal?.name ?? null,
-      hint: prompt("mcp", "hint.waiting_signal"),
-    };
-  }
-  if (run.status !== "waiting_input" || !current) {
-    return undefined;
-  }
-  if (run.state.turn?.question && run.state.turn.stepId === current.id) {
-    return {
-      question: run.state.turn.question,
-      title: current.title,
-      hint: prompt("mcp", "hint.question"),
-    };
-  }
-  if (current.type === "form") {
-    // What the page knows from before it, the choices its fields take from data, the fields a
-    // decision kept: a field left out here is not asked, as the run page leaves it out.
-    const ctx = await formContext(run, current);
-    const fields = current.fields
-      .filter((f) => !isDecidedField(f) || ctx.decided.includes(f.id))
-      .map((f) => (ctx.options[f.id]?.length ? { ...f, options: ctx.options[f.id] } : f));
-    const page = {
-      ...Object.fromEntries(
-        fields.filter((f) => f.id in run.state.values).map((f) => [f.id, run.state.values[f.id]]),
-      ),
-      ...draft,
-    };
-    const shown = new Set(shownFields(fields, ctx.known, page).map((f) => f.id));
-    return {
-      form: current.id,
-      title: current.title,
-      ...(run.wakeAt ? { until: run.wakeAt.toISOString() } : {}),
-      /** What the fields' conditions read from before the page, by reference. */
-      known: ctx.known,
-      fields: fields.map((f) => ({
-        id: f.id,
-        label: f.label,
-        kind: f.kind,
-        required: Boolean(f.required),
-        options: f.options,
-        placeholder: f.placeholder,
-        help: f.help,
-        default: f.default,
-        value: run.state.values[f.id],
-        columns: f.columns,
-        ...slotHints(run, f, f.options),
-        ...(f.multiple ? { multiple: true } : {}),
-        // A file, a recording or a signature comes from the person's device: the run page.
-        inChat: FIELD_WAYS[f.kind] !== "device",
-        // A field with a condition is asked only while it holds; one on another field of this
-        // page holds or not as the person answers. `shown` says so for what is known now.
-        ...(f.when ? { when: f.when, shown: shown.has(f.id) } : {}),
-      })),
-      hint: prompt("mcp", "hint.page"),
-    };
-  }
-  if (current.type === "review") {
-    return {
-      review: current.id,
-      title: current.title,
-      show: current.show,
-      editable: Boolean(current.edit),
-      ...(run.wakeAt ? { until: run.wakeAt.toISOString() } : {}),
-      ...(current.approve ? { approve: true } : {}),
-      hint: current.approve ? prompt("mcp", "hint.review_approve") : prompt("mcp", "hint.review"),
-    };
-  }
-  return undefined;
 }
 
 /** What a run did so far, for a client without the run page: outputs, links, cost, errors. */
@@ -451,89 +275,35 @@ export async function runReport(
   );
 }
 
-/** The report of a run as it stands; `draft` as for `waitingFor`. */
-export async function runReportOf(run: RunRow, draft?: Record<string, unknown>, viewer?: Caller) {
-  const current = run.definition.steps.find((s) => s.id === run.cursor) ?? null;
-  const base = `/api/runs/${run.id}`;
-  const hidden = viewer ? await hiddenWhileAsked(run, viewer) : [];
-  const outputs = run.definition.steps.flatMap((step) => {
-    const output = run.state.outputs[step.id];
-    if (!output || hidden.includes(step.id)) {
-      return [];
-    }
-    // A document, a dashboard or a widget drawn as one picture: for a door that shows pictures
-    // with a link. A generated image is a picture already.
-    const picture =
-      formatsFor(step).includes("png") && !(step.type === "generate" && step.asset === "image")
-        ? signedUrl(`${base}/steps/${step.id}/download?format=png`)
-        : null;
-    return [
-      {
-        stepId: step.id,
-        title: step.title,
-        text: output.text ? clip(output.text, 1500) : undefined,
-        json: output.json === undefined ? undefined : clip(JSON.stringify(output.json), 1500),
-        assets: (output.assets ?? []).map((a) => ({
-          name: a.name,
-          mime: a.mime,
-          url: signedUrl(`${base}/assets/${a.id}`),
-        })),
-        downloads: Object.fromEntries(
-          deliverableFormats(run, step).map((f) => [
-            f,
-            signedUrl(`${base}/steps/${step.id}/download?format=${f}`),
-          ]),
-        ),
-        picture,
-      },
-    ];
-  });
-  return {
-    runId: run.id,
-    wizardId: run.wizardId,
-    mode: run.mode,
-    lang: wizardLang(run.definition),
-    status: moving(run) ? "running" : run.status,
-    step: current ? { id: current.id, type: current.type, title: current.title } : null,
-    /** Steps behind the run: answered pages and reviews, every step with a result, the end. */
-    passed: run.definition.steps
-      .filter(
-        (s) =>
-          run.state.history.includes(s.id) ||
-          run.state.outputs[s.id] ||
-          (run.status === "done" && s.id === run.cursor),
-      )
-      .map((s) => s.id),
-    waitingFor: await waitingFor(run, current, draft, viewer),
-    error: run.error,
+/**
+ * The report of a run as it stands (`reportOf`), with what it reads from this runtime. `draft`:
+ * what a door that asks one field at a time has so far.
+ */
+export async function runReportOf(
+  run: RunRow,
+  draft?: Record<string, unknown>,
+  viewer?: Caller,
+): Promise<RunReport> {
+  const def = run.definition;
+  const viewed = viewedRun(run);
+  const may = viewer ? await mayAct(run, viewer) : true;
+  const current = def.steps.find((s) => s.id === run.cursor);
+  return reportOf(def, viewed, {
+    hidden: viewer ? await hiddenWhileAsked(run, viewer) : [],
+    mayAct: may,
+    draft,
+    page:
+      reportNeeds(def, viewed, may).page && current?.type === "form"
+        ? await formContext(run, current)
+        : null,
+    autopilot: autopilots.has(run.id),
     credits: Math.ceil(run.costMicros / MICROS_PER_CREDIT),
-    events: (await recentEvents(run.id, 0, 15)).map((e) => ({
-      step: e.stepId,
-      type: e.type,
-      message: e.message,
-    })),
-    outputs,
-    /** What the result names as the run's data, once it is done; a step kept from the viewer stays out. */
-    ...(run.status === "done" && run.state.data
-      ? { data: shownData(run, run.state.data, hidden) }
-      : {}),
+    events: await recentEvents(run.id, 0, 15),
     browserUrl: await browserUrl(run),
-    ...(run.mode === "test" ? { studioUrl: studioUrl(run.wizardId) } : {}),
-  };
-}
-
-export type RunReport = Awaited<ReturnType<typeof runReportOf>>;
-
-/** The run's data without the keys that read a step kept from the viewer. */
-function shownData(run: RunRow, data: Record<string, unknown>, hidden: string[]) {
-  const result = run.definition.steps.find((s) => s.id === run.cursor);
-  const refs = result?.type === "result" ? (result.data ?? {}) : {};
-  return Object.fromEntries(
-    Object.entries(data).filter(([key]) => {
-      const [head, id] = dataRef(refs[key] ?? "").split(".");
-      return !(head === "steps" && hidden.includes(id));
-    }),
-  );
+    studioUrl: run.mode === "test" ? studioUrl(run.wizardId) : null,
+    text: (key, vars) => prompt("mcp", key, vars),
+    link: (path) => signedUrl(path),
+  });
 }
 
 export const testRunReport = (userId: string, runId: string, waitSeconds = 0) =>

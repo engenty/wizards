@@ -14,6 +14,7 @@ import {
 import { withRequires } from "@engenty/wizards-shared/requires";
 import { note } from "@engenty/wizards-shared/run";
 import { inputSchemaOf, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
+import { whoOf } from "@engenty/wizards-shared/run-view";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import type { WizardAgent } from "@engenty/wizards-shared/wizard-agents";
 import { DATA_MIGRATIONS, wizardDataIssues } from "@engenty/wizards-shared/wizard-data";
@@ -26,7 +27,7 @@ import { listConnectors, resolveConnector } from "../connectors/external.js";
 import { listSpaceConnections } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
-import { answeringNarrowed, whoOf } from "../engine/answerers.js";
+import { answeringNarrowed } from "../engine/answerers.js";
 import { wizardAgentFiles } from "../engine/wizard-code.js";
 import { env } from "../env.js";
 import { getBlob } from "../files/blobs.js";

@@ -1,7 +1,8 @@
+import { whoOf } from "@engenty/wizards-shared/run-view";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { SessionUser } from "../auth/index.js";
 import { db, schema } from "../db/client.js";
-import { answeringNarrowed, whoOf } from "../engine/answerers.js";
+import { answeringNarrowed } from "../engine/answerers.js";
 import { visitorAddress } from "../engine/notices.js";
 import type { RunRow } from "../engine/types.js";
 import { isAdminRole } from "./access.js";

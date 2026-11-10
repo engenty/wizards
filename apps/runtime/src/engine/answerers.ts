@@ -1,5 +1,6 @@
-import type { Step, Who } from "@engenty/wizards-shared/definition";
+import type { Step } from "@engenty/wizards-shared/definition";
 import type { RunView } from "@engenty/wizards-shared/run";
+import { whoOf } from "@engenty/wizards-shared/run-view";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { currentFeatures } from "../features.js";
@@ -43,10 +44,6 @@ export type Answerers = string[] | "admins";
 export async function answeringNarrowed(): Promise<boolean> {
   return (await currentFeatures().catch(() => ({ durableRuns: false }))).durableRuns === true;
 }
-
-/** The role a step asks for. */
-export const whoOf = (step: Step | null | undefined): Who =>
-  step?.type === "form" || step?.type === "review" ? (step.who ?? "person") : "person";
 
 export const stepOfRun = (run: Pick<RunRow, "cursor" | "definition">, stepId = run.cursor) =>
   run.definition.steps.find((s) => s.id === stepId) ?? null;

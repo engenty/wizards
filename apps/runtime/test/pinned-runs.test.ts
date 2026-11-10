@@ -150,6 +150,7 @@ vi.mock("../src/credits/credits.js", async (original) => ({
 let client: typeof import("../src/db/client");
 let runner: typeof import("../src/engine/runner");
 let wizards: typeof import("../src/services/wizards");
+let reports: typeof import("../src/services/runs");
 
 const T = "tenant-pinned-runs";
 const USER = "user-pinned";
@@ -214,7 +215,32 @@ async function rests(id: string, status: string, ms = 30_000) {
     status,
     error: null,
   });
+  expect(await seen(r!)).toMatchSnapshot();
   return r!;
+}
+
+const brand = { name: "Pinned", accent: null, logoUrl: null, theme: null } as never;
+
+/**
+ * What a person and a door see of the run where it rests, as the bytes they get: the run view, the
+ * same with every step's output kept in the space, and the report. Run and wizard ids, times and
+ * link signatures are placeholders; everything else is pinned.
+ */
+async function seen(r: NonNullable<Awaited<ReturnType<typeof row>>>) {
+  const json = await client.withTenant(T, async () =>
+    JSON.stringify({
+      view: await runner.runView(r, brand),
+      kept: await runner.runView(r, brand, new Set(r.definition.steps.map((s) => s.id))),
+      report: await reports.runReportOf(r),
+    }),
+  );
+  return json
+    .replaceAll(r.id, "<run>")
+    .replaceAll(r.wizardId, "<wizard>")
+    .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z/g, "<time>")
+    .replace(/"(at|createdAt|time)":\d{10,}/g, '"$1":"<ms>"')
+    .replace(/exp=\d+&sig=[\w-]+/g, "exp=<exp>&sig=<sig>")
+    .replace(/sig_\w+/g, "<signal>");
 }
 
 /** The run's log as [step, type, what it said]: a note by its code and params, else its text. */
@@ -257,6 +283,7 @@ beforeAll(async () => {
   await (await import("../src/plugins/loader")).loadPlugins();
   runner = await import("../src/engine/runner");
   wizards = await import("../src/services/wizards");
+  reports = await import("../src/services/runs");
   runner.startRunner();
 }, 60_000);
 

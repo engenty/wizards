@@ -19,7 +19,6 @@ import {
 } from "@engenty/wizards-shared/definition";
 import {
   type Capability,
-  closedChoicesFor,
   openValue,
   otherwiseIndex,
   unavoidableFrom,
@@ -36,6 +35,7 @@ import type {
   Said,
 } from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
+import { closedChoicesOf } from "@engenty/wizards-shared/run-view";
 import {
   MAKER_COMPANIES,
   MAKER_FAMILIES,
@@ -538,15 +538,5 @@ export async function closedChoices(
   step: FormStep,
   values: Record<string, unknown>,
 ): Promise<Record<string, ClosedChoice>> {
-  const missing = await missingClasses();
-  if (!missing.size) {
-    return {};
-  }
-  return closedChoicesFor(
-    def,
-    step,
-    values,
-    (s) => stepClasses(s, def.requires?.agents).filter((cls) => missing.has(cls)),
-    (field) => (missing.has("audio") && field.kind === "audio" ? ["audio"] : null),
-  );
+  return closedChoicesOf(def, step, values, await missingClasses());
 }
