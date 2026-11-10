@@ -299,6 +299,34 @@ export function servicesContract(name: string, setup: () => Promise<ContractRun>
       expect(answer).toMatchObject({ output });
     });
 
+    it("acts once for a tool call made again under its effect id, each time with a set built anew", async () => {
+      const { stepId, scope, table, column } = run.data;
+      const ctx = await run.context(stepId);
+      const turn = `${ctx.runId}.again`;
+      const insert = {
+        name: "data_exec",
+        input: { scope, sql: `INSERT INTO ${table} (${column}) VALUES ('again')` },
+        effect: `${turn}:call-1`,
+      };
+      const again = await run.host(async () => {
+        const answers = [];
+        for (let i = 0; i < 2; i++) {
+          const model = await s.models.agentModel({ stepId, class: "standard" });
+          const set = await s.tools.forStep(stepOf(ctx, stepId), ctx, { model, uploads: [], turn });
+          answers.push(await set.call(insert));
+        }
+        return answers;
+      });
+      expect(again[1]).toEqual(again[0]);
+      const { rows } = await s.data.query({
+        stepId,
+        scope,
+        by: "wizard",
+        sql: `SELECT ${column} FROM ${table} WHERE ${column} = 'again'`,
+      });
+      expect(rows).toHaveLength(1);
+    });
+
     it("runs an agent step whose model calls a tool", async () => {
       const { stepId, tool, text } = run.agent.acting;
       const ctx = await run.context(stepId);
