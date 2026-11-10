@@ -68,6 +68,9 @@ describe("wizards validate", () => {
   it("checks a definition on its own", () => {
     const r = validatePath(write("example.json", JSON.stringify(EXAMPLE_WIZARD)));
     expect(r).toMatchObject({ ok: true, steps: EXAMPLE_WIZARD.steps.length, issues: [] });
+    // What a run takes and gives, for `--json`.
+    expect(r.inputSchema).toMatchObject({ type: "object", required: ["topic"] });
+    expect(r.outputSchema).toMatchObject({ properties: { files: { type: "object" } } });
   });
 
   it("checks a package against its workspace", () => {
@@ -99,6 +102,7 @@ describe("wizards validate", () => {
     const r = validatePath(path);
     expect(r.ok).toBe(false);
     expect(r.issues[0].message).toMatch(/^steps\[0\] "ask"/);
+    expect(r.inputSchema).toBeUndefined();
     expect(validatePath(join(dir, "missing.wizard")).issues[0].message).toBe(
       "No such file or folder.",
     );
