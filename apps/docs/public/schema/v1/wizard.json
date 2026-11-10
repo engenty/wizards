@@ -665,6 +665,45 @@
             }
           },
           "additionalProperties": false
+        },
+        "agents": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,39}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "models": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "classifier",
+                    "low",
+                    "standard",
+                    "high",
+                    "image",
+                    "video",
+                    "audio",
+                    "speech"
+                  ]
+                }
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": [
+              "models"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false
@@ -7933,6 +7972,10 @@
               "type": {
                 "type": "string",
                 "const": "agent"
+              },
+              "agent": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,39}$"
               },
               "instructions": {
                 "default": "",

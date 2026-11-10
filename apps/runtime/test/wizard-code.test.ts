@@ -70,7 +70,7 @@ describe("the wizard's own tool ids", () => {
 });
 
 describe("checks of a wizard's function tools", () => {
-  it("name a tool without a file, with two files, and agents that aren't there yet", () => {
+  it("name a tool without a file, with two files, and an agent without a file", () => {
     const messages = (tools: string[], files: string[]) =>
       validateWizard(definition(tools), files).map((i) => i.message);
     expect(messages(["wizard.score"], ["tools/score.ts"])).toEqual([]);
@@ -80,7 +80,9 @@ describe("checks of a wizard's function tools", () => {
     expect(messages(["wizard.score"], ["tools/score.ts", "tools/score.js"])).toEqual([
       'Tool "wizard.score" has two files: keep one of tools/score.js, tools/score.ts.',
     ]);
-    expect(messages(["agent.researcher"], [])[0]).toContain("aren't supported yet");
+    expect(messages(["agent.researcher"], [])).toEqual([
+      'Tool "agent.researcher" has no file: agents/researcher.md.',
+    ]);
     const toolStep = wizardSchema.parse({
       title: "T",
       steps: [

@@ -154,13 +154,14 @@ written by hand: the studio, the architect and the AI clients’ tools write it 
 |---|---|
 | `models` | The model classes the steps call, decisions and `ask` rules included |
 | `makers` | The makers steps name |
-| `tools` | The built-in tools agent steps list, and the wizard’s own [function tools](./tools-skills-agents.md) (`wizard.<name>`) |
+| `tools` | The built-in tools agent steps list, and the wizard’s own [function tools](./tools-skills-agents.md) (`wizard.<name>`) and [agents](./tools-skills-agents.md#agents) (`agent.<name>`) |
 | `run` | `code` when the wizard has a code step or a function tool |
 | `sandbox` | `shell` when a step works in a sandbox |
 | `plugins` | The plugins whose tools a step lists or a tool step calls |
 | `connections` | The kinds of the wizard’s connections |
 | `features` | The switches that must be on: `durableRuns` for a wait step, `codeSteps` for a code step or a function tool |
 | `optional` | Classes only steps on some branches call: a run can go around them |
+| `agents` | Each [agent](./tools-skills-agents.md#agents) the steps use, with the classes it calls and the tools it lists, as its file says |
 
 A runtime that lacks something the wizard needs doesn’t start a run, and says what is missing.
 An import names the plugins the space still needs, and the marketplace doesn’t add a wizard
