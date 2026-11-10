@@ -31,13 +31,10 @@ import { subjectsOf } from "../../broker/rwx.js";
 import { loadAsset } from "../../files/storage.js";
 import { prompt } from "../../prompts.js";
 import { knowledgeBlock } from "../../services/knowledge.js";
-import { watchActions } from "../../tools/acted.js";
-import { agentTools, stepOfAgent } from "../../tools/agent.js";
-import { buildStepTools } from "../../tools/index.js";
 import { spaceContextOf } from "../../tools/plugin.js";
 import { skillsBlock, skillsOf } from "../../tools/skills.js";
 import { personUploads, type UploadRef } from "../../tools/store.js";
-import { durableTurn, turnContext, turnOf } from "../durable-turn.js";
+import { durableTurn, turnOf } from "../durable-turn.js";
 import { renderTask } from "../template.js";
 import { type StepContext, StepError } from "../types.js";
 import { decideStep } from "./decision.js";
@@ -303,7 +300,7 @@ export async function runAgentStep(
 ): Promise<StepOutput> {
   if (step.agent) {
     // An agent of the wizard runs the step: its file gives the model and the tools.
-    const ran = await stepOfAgent({ ...step, agent: step.agent }, ctx);
+    const ran = await ctx.services.tools.ofAgent({ ...step, agent: step.agent }, ctx);
     return runAgentStep(ran.step, ctx, decision, ran.instructions);
   }
   if (step.foreach) {
@@ -320,31 +317,38 @@ export async function runAgentStep(
   // of it could go on elsewhere, so such a step runs as a step without `durable`.
   const going = turnOf(ctx.state, step.id);
   const turn = going && !model.ownLoop ? going : undefined;
-  const { tools, assets, instructions } = await buildStepTools(
-    step,
-    turn ? turnContext(ctx, turn) : ctx,
-    model.resolved,
-    uploads,
-  );
-  // The wizard's agents the step lists, each a tool that runs an agent step of its own.
-  Object.assign(tools, await agentTools(step, ctx, (sub, c) => runAgentStep(sub, c)));
+  const stepTools = await ctx.services.tools.forStep(step, ctx, { model, uploads, turn });
+  const { assets, instructions } = stepTools;
+  // The model's tools, from what the service lists: a call goes to the service, which runs it.
+  const tools: Record<string, any> = {};
+  for (const tool of stepTools.list()) {
+    tools[tool.name] = tool.provider
+      ? tool.mastra
+      : {
+          ...tool.mastra,
+          execute: async (input: unknown, context: unknown) => {
+            // A turn notes on its row that a tool may have done something: a later process has
+            // nothing else to tell it by.
+            if (turn && !tool.onlyReads && !turn.acted) {
+              turn.acted = true;
+              await ctx.saveState();
+            }
+            const id = (context as { agent?: { toolCallId?: string } } | undefined)?.agent
+              ?.toolCallId;
+            const { output } = await stepTools.call(
+              { name: tool.name, input, effect: turn && id ? `${turn.id}:${id}` : null },
+              context,
+            );
+            return output;
+          },
+        };
+  }
   // A step written for the sandbox on a run without one works on in text: said in the run's log.
   if (step.tools.includes("sandbox") && !ctx.resources.sandboxCapabilities()) {
     await ctx.emit("info", { code: "noSandbox" });
   }
   // A step without tools of its own and without uploads: the run's device may answer it alone.
   model.attach(tools, step.tools.length === 0 && uploads.length === 0);
-  watchActions(
-    tools,
-    ctx.resources,
-    turn &&
-      (async () => {
-        if (!turn.acted) {
-          turn.acted = true;
-          await ctx.saveState();
-        }
-      }),
-  );
   const photos = await seenPhotos(step, ctx, model.seesImages, uploads);
   const others = uploads.filter((u) => !photos.some((p) => p.upload === u));
   const formatHint =

@@ -256,6 +256,8 @@ export interface ToolDescriptor {
    * `tools.call` never sees it.
    */
   provider?: boolean;
+  /** The tool only looks: a step whose model called only such tools may be tried again. */
+  onlyReads?: boolean;
 }
 
 export const toolDescriptorSchema: z.ZodType<ToolDescriptor> = z.object({
@@ -263,6 +265,7 @@ export const toolDescriptorSchema: z.ZodType<ToolDescriptor> = z.object({
   description: z.string(),
   inputSchema: jsonSchema,
   provider: z.boolean().optional(),
+  onlyReads: z.boolean().optional(),
 });
 
 export interface ToolCallRequest {

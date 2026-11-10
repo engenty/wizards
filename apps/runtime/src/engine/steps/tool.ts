@@ -1,7 +1,6 @@
 import type { ToolStep } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
-import { callConnection } from "../../tools/connector.js";
-import { callPluginTool } from "../../tools/plugin.js";
+import { isPending } from "@engenty/wizards-shared/run-services";
 import { runStepData } from "../data-step.js";
 import { renderTemplate } from "../template.js";
 import { type StepContext, StepError } from "../types.js";
@@ -48,10 +47,19 @@ export async function runToolStep(step: ToolStep, ctx: StepContext): Promise<Ste
   }
   // What it is doing is the step's `working` line, shown as it starts, and what the tool says.
   const input = callInput(step.call.input, ctx);
-  const answer =
-    "tool" in step.call
-      ? await callPluginToolOnce(step.call.tool, input, ctx)
-      : await callConnection(step.call, input, ctx);
+  const called = await ctx.services.tools.call(
+    {
+      stepId: step.id,
+      name: "tool" in step.call ? step.call.tool : `${step.call.connection}.${step.call.action}`,
+      input,
+      effect: null,
+    },
+    ctx.signal,
+  );
+  if (isPending(called)) {
+    throw new StepError(`${step.id}: the call did not answer.`);
+  }
+  const answer = called.output;
   if (
     answer &&
     typeof answer === "object" &&
@@ -63,10 +71,4 @@ export async function runToolStep(step: ToolStep, ctx: StepContext): Promise<Ste
   const json =
     answer && typeof answer === "object" && !Array.isArray(answer) ? answer : { result: answer };
   return { json, at: new Date().toISOString() };
-}
-
-/** What a plugin's tool does nobody knows here, so a later try of the step does not repeat it. */
-function callPluginToolOnce(tool: string, input: unknown, ctx: StepContext) {
-  ctx.resources.acted = true;
-  return callPluginTool(tool, input, ctx);
 }
