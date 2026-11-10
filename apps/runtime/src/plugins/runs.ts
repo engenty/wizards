@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { PluginRunReport, PluginRunSignal, PluginRuns } from "@engenty/wizards/plugin";
+import { fieldErrorsIn } from "@engenty/wizards-engine/input";
 import {
   LANGS,
   type Lang,
@@ -19,7 +20,6 @@ import {
 } from "../engine/answerers.js";
 import { answerAsk } from "../engine/asks.js";
 import { emitEvent, watchRun } from "../engine/events.js";
-import { fieldErrorsIn } from "../engine/input.js";
 import {
   answerTurn,
   cancel,

@@ -1,58 +1,35 @@
+import type {
+  StepToolsOptions as EngineStepToolsOptions,
+  StepContext,
+  StepToolDescriptor,
+  StepToolSet,
+} from "@engenty/wizards-engine/types";
 import {
   type AgentStep,
   classIdOf,
   textClassOf,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
-import type { AssetRef, RunTurn, StepOutput } from "@engenty/wizards-shared/run";
+import type { StepOutput } from "@engenty/wizards-shared/run";
 import {
   type JsonSchema,
   ServiceError,
-  type ToolCallRequest,
-  type ToolDescriptor,
-  type ToolResult,
   type ToolsService,
 } from "@engenty/wizards-shared/run-services";
 import { z } from "zod";
 import { turnContext } from "../engine/durable-turn.js";
-import type { StepContext } from "../engine/types.js";
 import { onlyReads, watchActions } from "../tools/acted.js";
 import { agentTools, stepOfAgent } from "../tools/agent.js";
 import { callConnection } from "../tools/connector.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool } from "../tools/plugin.js";
-import { personUploads, type UploadRef } from "../tools/store.js";
+import { personUploads } from "../tools/store.js";
 import type { InProcessContext } from "./in-process.js";
 import type { AgentModel, InProcessServices } from "./index.js";
 
-/** A tool of an agent step, as the step's model is told of it inside the runtime. */
-export interface StepToolDescriptor extends ToolDescriptor {
-  /**
-   * The tool as Mastra's `Agent` takes it, without its code: its id, its schema as built, how its
-   * result reaches the model; a provider's own tool whole. The step's model is told of each tool
-   * as before, until the engine keeps its own loop (phase 2) and builds it from the descriptor.
-   */
-  mastra: Record<string, unknown>;
-}
-
-/** The tools of one agent step as it runs: built once, over the step's own context. */
-export interface StepToolSet {
-  list(): StepToolDescriptor[];
-  /** `context`: what Mastra's loop hands the tool, passed on to it as it is. */
-  call(request: Omit<ToolCallRequest, "stepId">, context?: unknown): Promise<ToolResult>;
-  /** The array the tools add the files they make to (screenshots, images, exported files). */
-  assets: AssetRef[];
-  /** How to write a program over the tools, with the `code` tool. */
-  instructions?: string;
-  /** The run has a sandbox for a step that lists the sandbox tool. */
-  readonly sandbox: boolean;
-}
-
-export interface StepToolsOptions {
+/** What the runtime builds an agent step's tools with: its model as the runtime has it. */
+export interface StepToolsOptions extends EngineStepToolsOptions {
   model: AgentModel;
-  uploads: UploadRef[];
-  /** The durable turn the step runs in: its tools work in the turn's context. */
-  turn?: RunTurn;
 }
 
 /** `ToolsService`, and the calls an agent step makes while its loop runs in Mastra's `Agent`. */

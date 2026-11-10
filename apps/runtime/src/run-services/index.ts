@@ -1,10 +1,15 @@
 import type {
+  AgentModel as EngineAgentModel,
+  StepContext,
+  StepServices,
+} from "@engenty/wizards-engine/types";
+import type {
   ModelsService,
-  RunServices,
   TurnMessage,
   TurnPart,
   TurnRequest,
 } from "@engenty/wizards-shared/run-services";
+import { Agent } from "@mastra/core/agent";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import {
   type AssistantModelMessage,
@@ -21,8 +26,9 @@ import { eq } from "drizzle-orm";
 import { addLocalCost } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { decide } from "../decide.js";
+import { durableTurn } from "../engine/durable-turn.js";
 import { noticesFor, noticeWrites } from "../engine/notices.js";
-import type { RunRow, StepContext } from "../engine/types.js";
+import type { RunRow } from "../engine/types.js";
 import {
   agentModel,
   attachTools,
@@ -48,12 +54,13 @@ import { type InProcessTools, inProcessTools } from "./tools.js";
  * each call is one of the functions step code calls today, with the run and its step context
  * filled in. Nothing here acts differently from those functions.
  *
- * `models.agentModel`, `tools.forStep` and `tools.ofAgent` are the calls beyond `RunServices`: an
- * agent step's loop still runs in Mastra's `Agent`, which takes the model and its tools itself,
- * until the engine keeps its own loop (phase 2).
- * `files` has calls beyond it too (./files.ts); `steps` answers with the output, never `pending`.
+ * They are the engine's `StepServices`: `models.agentModel`, `tools.forStep` and `tools.ofAgent`
+ * are the calls beyond `RunServices`, since an agent step's loop still runs in Mastra's `Agent`,
+ * which takes the model and its tools itself, until the engine keeps its own loop (package 2.4).
+ * `files` has calls beyond them (./files.ts) for the runtime's own code; `steps` answers with the
+ * output, never `pending`.
  */
-export interface InProcessServices extends RunServices {
+export interface InProcessServices extends StepServices {
   files: InProcessFiles;
   models: ModelsService & {
     agentModel(
@@ -64,24 +71,46 @@ export interface InProcessServices extends RunServices {
   steps: InProcessSteps;
 }
 
-/** The model of an agent step whose loop runs in Mastra's `Agent`, and what the step asks of it. */
-export interface AgentModel {
+/**
+ * The model of an agent step whose loop runs in Mastra's `Agent`, as the runtime has it: the
+ * engine's, with what the `Agent` takes and what the step's tools are built for.
+ */
+export interface AgentModel extends EngineAgentModel {
   /** What the `Agent` takes. */
   model: MastraModelConfig;
   /** The class's model as resolved: the step's tools are built for it. */
   resolved: ResolvedModel<LanguageModel>;
-  /** Its tool loop runs in a process of its own: an installed client, the run's device. */
-  readonly ownLoop: boolean;
-  /** It can call tools: an installed client that runs none cannot. */
-  readonly takesTools: boolean;
-  /** It takes pictures in a message: the installed clients and the large vendors' models. */
-  readonly seesImages: boolean;
-  /** Hands the step's tools to a model that runs them itself; `ignorable`: the device may answer alone. */
-  attach(tools: Record<string, unknown>, ignorable: boolean): void;
-  /** Books what one model step used. */
-  charge(usage: unknown): Promise<void>;
-  /** Books what an `Agent` call used over all its steps. */
-  chargeTotal(result: object): Promise<void>;
+}
+
+/**
+ * Runs an `Agent` as a stream, its text handed to `onText` as it comes. Returns what `generate`
+ * would: the text, the steps and the usage.
+ */
+async function streamed(
+  agent: Agent,
+  message: unknown,
+  options: { maxSteps: number; abortSignal: AbortSignal },
+  onText: (delta: string) => Promise<void>,
+): Promise<{ text: string; steps?: { text?: string }[]; usage?: unknown; totalUsage?: unknown }> {
+  let written = "";
+  const stream = await agent.stream(message as Parameters<Agent["stream"]>[0], options);
+  for await (const chunk of stream.fullStream as AsyncIterable<any>) {
+    const payload = chunk.payload ?? chunk;
+    if (chunk.type === "text-delta") {
+      const delta = payload.text ?? payload.delta ?? "";
+      written += delta;
+      await onText(delta);
+    } else if (chunk.type === "error") {
+      throw payload.error ?? new Error("step stream error");
+    }
+  }
+  const s = stream as any;
+  return {
+    text: (await s.text) ?? written,
+    steps: await s.steps,
+    usage: await s.usage,
+    totalUsage: await s.totalUsage,
+  };
 }
 
 /**
@@ -99,11 +128,12 @@ export function inProcessServices(
     return c.stepId === stepId ? c : { ...c, stepId, call: { ...c.call, stepId } };
   };
   // A step context the engine made of its own (a foreach entry's, a turn's, a wizard's agent's),
-  // with this process's rows and functions.
+  // with this process's rows and functions. Its services are the ones the runtime gave it.
   const within = (c: StepContext): InProcessContext => ({
     ...ctx(),
     call: { ...ctx().call, stepId: c.stepId },
     ...c,
+    services: c.services as InProcessServices,
   });
   const stepOf = (stepId: string) => run.definition.steps.find((s) => s.id === stepId) ?? null;
   const resolve = (r: Pick<TurnRequest, "stepId" | "class" | "effort" | "maker">) =>
@@ -196,8 +226,9 @@ export function inProcessServices(
           await addLocalCost(run.id, request.stepId, usd);
         }
       };
+      const model = agentModel(resolved);
       return {
-        model: agentModel(resolved),
+        model,
         resolved,
         get ownLoop() {
           return keepsOwnLoop(resolved);
@@ -213,6 +244,13 @@ export function inProcessServices(
         attach: (tools, ignorable) => attachTools(resolved, tools, ignorable),
         charge,
         chargeTotal: async (result) => charge(await totalUsage(result)),
+        generate: ({ id, name, instructions, tools, message, maxSteps, signal, onText }) => {
+          const agent = new Agent({ id, name, instructions, model, tools: tools as any });
+          return onText
+            ? streamed(agent, message, { maxSteps, abortSignal: signal }, onText)
+            : agent.generate(message as any, { maxSteps, abortSignal: signal });
+        },
+        durableTurn: (turn, c, input) => durableTurn(turn, c, { ...input, model }),
       };
     },
   };

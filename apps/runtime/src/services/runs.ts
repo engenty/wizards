@@ -1,3 +1,4 @@
+import { fieldErrorsIn } from "@engenty/wizards-engine/input";
 import {
   dataRef,
   FIELD_WAYS,
@@ -26,7 +27,6 @@ import {
 } from "../engine/answerers.js";
 import { answerAsk } from "../engine/asks.js";
 import { emitEvent, recentEvents, watchRun } from "../engine/events.js";
-import { fieldErrorsIn } from "../engine/input.js";
 import {
   answerTurn,
   cancel,

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { wizardSchema } from "@engenty/wizards-shared/definition";
 import { beforeAll, describe, expect, it } from "vitest";
-import type { StepContext } from "../src/engine/types";
+import type { StepContext } from "@engenty/wizards-engine/types";
 
 const dir = mkdtempSync(join(tmpdir(), "wizards-plugins-"));
 const pluginsDir = join(dir, "plugins");
@@ -437,7 +437,7 @@ describe("a plugin's tools", () => {
   });
 
   it("answer a step that calls one, with no model", async () => {
-    const { runAgentStep, runAutomaticStep } = await import("../src/engine/steps/index.js");
+    const { runAgentStep, runAutomaticStep } = await import("@engenty/wizards-engine/steps/index");
     const { inProcessServices } = await import("../src/run-services/index.js");
     // The step's context, with the run's services for a run whose wizard has this step.
     const ctxFor = (emitted: string[], s: unknown) => {

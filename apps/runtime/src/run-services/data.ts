@@ -1,3 +1,4 @@
+import { StepError } from "@engenty/wizards-engine/types";
 import {
   type DataService,
   type DataStatementRequest,
@@ -5,7 +6,7 @@ import {
 } from "@engenty/wizards-shared/run-services";
 import { subjectsOf } from "../broker/rwx.js";
 import { stepCaller } from "../elements/caller.js";
-import { type RunRow, StepError } from "../engine/types.js";
+import type { RunRow } from "../engine/types.js";
 import { NotedError } from "../model-errors.js";
 import { runData } from "../store/data-access.js";
 import { listRows } from "../store/index.js";
@@ -71,7 +72,7 @@ async function statement(
       },
     );
   } catch (err) {
-    if (err instanceof NotedError && !(err instanceof StepError)) {
+    if (err instanceof NotedError) {
       throw new StepError(err.note ?? err.message);
     }
     throw err;

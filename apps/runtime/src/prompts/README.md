@@ -43,6 +43,9 @@ is engineering's. Everything changes through pull requests.
 - Say what to do. Naming an unwanted output tends to invite it.
 - Replies vary between runs: judge a change on several. From source (`pnpm dev`) a saved file is
   read again on the next call, without a restart.
+- A run's steps read `step.md`, `safety.md`'s `policy` and `authoring.md`'s `surfaces` from the
+  engine (packages/engine/src/step-prompts.ts), which reads no files: after editing them, run
+  `pnpm prompts:engine` and restart. A test fails while the engine's copy is behind.
 - A system prompt is cached by its prefix. A change near the top of a long prompt makes every
   conversation read it again once; that is fine, but do not put anything that changes per call
   into a system prompt.

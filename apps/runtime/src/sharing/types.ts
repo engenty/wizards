@@ -1,3 +1,4 @@
+import type { AskResult } from "@engenty/wizards-engine/types";
 import type { AskInput } from "@engenty/wizards-shared/run";
 import type {
   ShareChoice,
@@ -9,7 +10,6 @@ import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import type { Gap } from "@engenty/wizards-shared/texts";
 import type { Account, ActionKind } from "../broker/index.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
-import type { AskResult } from "../engine/asks.js";
 import type { RunRow } from "../engine/types.js";
 import { NotedError, type ServerLine } from "../model-errors.js";
 import type { InProcessContext } from "../run-services/in-process.js";

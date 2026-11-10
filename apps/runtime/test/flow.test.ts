@@ -16,7 +16,7 @@ import {
   whenValue,
 } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
-import { readFormInput } from "../src/engine/input";
+import { readFormInput } from "@engenty/wizards-engine/input";
 import { unavoidableSteps } from "../src/engine/requirements";
 
 function valid(input: unknown): WizardDefinition {

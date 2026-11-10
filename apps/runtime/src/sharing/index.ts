@@ -1,3 +1,4 @@
+import { renderTemplate, type TemplateScope } from "@engenty/wizards-engine/template";
 import type {
   ShareJobView,
   ShareLang,
@@ -15,7 +16,6 @@ import {
   registerConnectionSource,
 } from "../connectors/index.js";
 import { db, schema } from "../db/client.js";
-import { renderTemplate, type TemplateScope } from "../engine/template.js";
 import type { RunRow } from "../engine/types.js";
 import type { WizardRow } from "../services/wizards.js";
 import { scopeOf } from "../store/index.js";

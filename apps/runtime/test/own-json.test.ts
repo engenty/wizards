@@ -1,6 +1,6 @@
 import type { AgentStep } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
-import { outputSchema, ownJson } from "../src/engine/steps/index.js";
+import { outputSchema, ownJson } from "@engenty/wizards-engine/steps/index";
 
 const step = {
   id: "search",

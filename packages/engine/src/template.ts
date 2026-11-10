@@ -30,7 +30,7 @@ import {
   type VoiceBlock,
 } from "@engenty/wizards-shared/spaces";
 import { type ListDef, type ListRow, listAsMarkdown } from "@engenty/wizards-shared/store";
-import { prompt } from "../prompts.js";
+import { prompt } from "./prompts.js";
 
 export interface TemplateScope {
   def: WizardDefinition;

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import type { StepContext } from "../src/engine/types";
+import type { StepContext } from "@engenty/wizards-engine/types";
 
 // The hooks a plugin uses to reach the space: the steps' instructions and tools, the search
 // index, the assistant, jobs, public routes, events, the web and documents.

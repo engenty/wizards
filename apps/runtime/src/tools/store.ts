@@ -1,5 +1,6 @@
 import { allFields } from "@engenty/wizards-shared/definition";
 import { TableColumnValueError } from "@engenty/wizards-shared/engenty/data-tables";
+import type { UploadRef } from "@engenty/wizards-shared/run-services";
 import type { ListDef } from "@engenty/wizards-shared/store";
 import { createTool } from "@mastra/core/tools";
 import { eq } from "drizzle-orm";
@@ -13,14 +14,6 @@ import type { InProcessContext } from "../run-services/in-process.js";
 import { parseResultRef, resultFile } from "../sharing/files.js";
 import { deleteRows, listRows, readStoreFile, saveRows, storeFiles } from "../store/index.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
-
-/** One upload of the person, as agents name it. */
-export interface UploadRef {
-  ref: string;
-  name: string;
-  mime: string;
-  field: string;
-}
 
 /** Files the person gave on earlier pages: `upload:<id>` is how tools address them. */
 export async function personUploads(ctx: InProcessContext): Promise<UploadRef[]> {

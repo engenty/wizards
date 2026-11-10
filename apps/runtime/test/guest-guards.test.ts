@@ -10,8 +10,8 @@ process.env.DATA_DIR = dir;
 process.env.APP_URL = "http://localhost:5181";
 
 let stepsRun = 0;
-vi.mock("../src/engine/steps/index.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps/index.js")>()),
+vi.mock("@engenty/wizards-engine/steps/index", async (original) => ({
+  ...(await original<typeof import("@engenty/wizards-engine/steps/index")>()),
   runAutomaticStep: async () => {
     stepsRun++;
     return { text: "Here is your offer.", at: new Date().toISOString() };

@@ -25,8 +25,8 @@ const script = vi.hoisted(() => ({
   worked: [] as { run: string; step: string }[],
   decide: [] as (() => unknown)[],
 }));
-vi.mock("../src/engine/steps/index.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps/index.js")>()),
+vi.mock("@engenty/wizards-engine/steps/index", async (original) => ({
+  ...(await original<typeof import("@engenty/wizards-engine/steps/index")>()),
   runAutomaticStep: async (step: { id: string }, ctx: { runId: string }) => {
     script.worked.push({ run: ctx.runId, step: step.id });
     const next = script.steps[step.id]?.shift();

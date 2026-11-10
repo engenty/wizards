@@ -1,14 +1,11 @@
+import { useQuickJs, WIZARD_CODE_MEMORY_MB } from "@engenty/wizards-engine/quickjs";
 import type { QuickJsCodeModeTransport } from "@mastra/quickjs";
 import { onDemand } from "../on-demand.js";
 
 /**
- * Where a wizard's own code runs: a code step (code-step.ts) and its function tools
- * (wizard-code.ts, ../tools/wizard.ts). QuickJS compiled to WebAssembly, a fresh runtime with its
- * own heap for every run, no files, network, timers or modules.
+ * The QuickJS a wizard's own code runs on in the runtime: a code step (the engine's code-step.ts)
+ * and its function tools (wizard-code.ts, ../tools/wizard.ts). The engine gets it here.
  */
-
-/** Heap of one run's QuickJS runtime. */
-export const WIZARD_CODE_MEMORY_MB = 32;
 
 /**
  * One transport for the process; it loads QuickJS (on demand: ../on-demand.ts) and its
@@ -30,13 +27,4 @@ export function quickJs(): Pick<QuickJsCodeModeTransport, "run"> {
   };
 }
 
-/**
- * The wizard's code as the body of a function: `export function run` reads as it would in a
- * module, and the body of a function takes no export. Null when it imports: there are no modules.
- */
-export function moduleBody(source: string): string | null {
-  if (/^\s*import\s/m.test(source)) {
-    return null;
-  }
-  return source.replace(/^([ \t]*)export\s+(default\s+)?/gm, "$1");
-}
+useQuickJs(quickJs());

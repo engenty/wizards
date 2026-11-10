@@ -1,6 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import type { AgentStep } from "@engenty/wizards-shared/definition";
 import type { AssetRef } from "@engenty/wizards-shared/run";
+import type { UploadRef } from "@engenty/wizards-shared/run-services";
 import { isTextMime } from "@engenty/wizards-shared/workspace";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
@@ -34,7 +35,7 @@ import { pageTools } from "./pages.js";
 import { pluginTools, spaceContextOf } from "./plugin.js";
 import { clip, FileKeeper } from "./shared.js";
 import { skillsOf } from "./skills.js";
-import { storeTools, type UploadRef } from "./store.js";
+import { storeTools } from "./store.js";
 import { gatewayWebSearch } from "./web-search.js";
 import { wizardTools } from "./wizard.js";
 

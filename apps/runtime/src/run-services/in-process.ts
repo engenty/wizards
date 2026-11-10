@@ -1,10 +1,11 @@
+import type { StepContext } from "@engenty/wizards-engine/types";
 import type { AssetRef } from "@engenty/wizards-shared/run";
 import type { schema } from "../db/client.js";
 import type { RunResources } from "../engine/resources.js";
-import type { StepContext } from "../engine/types.js";
 import type { SaveAssetInput } from "../files/storage.js";
 import type { CallMeta } from "../models.js";
 import type { StoreScope } from "../store/index.js";
+import type { InProcessServices } from "./index.js";
 
 export type SpaceRow = typeof schema.space.$inferSelect;
 export type SpaceFileRow = typeof schema.spaceFile.$inferSelect;
@@ -15,6 +16,7 @@ export type SpaceFileRow = typeof schema.spaceFile.$inferSelect;
  * jobs) works with. Step code sees only the step context.
  */
 export interface InProcessContext extends StepContext {
+  services: InProcessServices;
   /** What the wizard keeps for the person running it. */
   store: StoreScope;
   /** The wizard's space: its setup (connections, skills, plugins, brand) is what the run uses. */

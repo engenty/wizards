@@ -49,7 +49,7 @@ vi.mock("../src/engenty/connections-slack/connector", async (importOriginal) => 
 let client: typeof import("../src/db/client");
 let broker: typeof import("../src/broker/index");
 let connections: typeof import("../src/connectors/space-connections");
-let steps: typeof import("../src/engine/steps/index.js");
+let steps: typeof import("@engenty/wizards-engine/steps/index");
 let runServices: typeof import("../src/run-services/index.js");
 let app: typeof import("../src/app").default;
 let space = "";
@@ -148,7 +148,7 @@ function contextOf(runId: string, stepId: string, holder: Holder) {
     emit: async () => {},
     ask: async () => null,
     call: {},
-  } as unknown as import("../src/engine/types").StepContext;
+  } as unknown as import("@engenty/wizards-engine/types").StepContext;
   ctx.services = runServices.inProcessServices(
     { id: runId, definition } as never,
     () => ctx,
@@ -190,7 +190,7 @@ beforeAll(async () => {
   await client.openTenantDb(TENANT);
   broker = await import("../src/broker/index");
   connections = await import("../src/connectors/space-connections");
-  steps = await import("../src/engine/steps/index.js");
+  steps = await import("@engenty/wizards-engine/steps/index");
   runServices = await import("../src/run-services/index.js");
   app = (await import("../src/app")).default;
   const spaces = await import("../src/services/spaces");

@@ -1,3 +1,4 @@
+import type { RunState, RunTurn } from "@engenty/wizards-shared/run";
 import type { TurnRequest } from "@engenty/wizards-shared/run-services";
 import type { z } from "zod";
 import type { StepContext } from "../types.js";
@@ -40,4 +41,9 @@ export async function turnObject<T>(
     throw new Error("No object generated: response did not match schema.");
   }
   return parsed.data;
+}
+
+/** The durable turn on a run's state, when it belongs to this step. */
+export function turnOf(state: RunState, stepId: string): RunTurn | undefined {
+  return state.turn?.stepId === stepId ? state.turn : undefined;
 }

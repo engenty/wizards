@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, normalize } from "node:path";
+import { StepError } from "@engenty/wizards-engine/types";
 import {
   MOTION_SIZES,
   type MotionGraphicsStep,
@@ -9,7 +10,6 @@ import {
 } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
-import { StepError } from "../engine/types.js";
 import { CLAUDE_BIN, claudeEnv } from "../harness/claude.js";
 import { failureOf } from "../harness/model.js";
 import { type BridgeTool, openBridge } from "../mcp/bridge.js";

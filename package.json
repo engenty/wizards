@@ -26,6 +26,7 @@
     "db:generate": "pnpm --filter @engenty/wizards-runtime db:generate",
     "about:data": "node scripts/write-about-data.mjs",
     "schema": "tsx packages/shared/scripts/write-schema.ts",
+    "prompts:engine": "tsx --conditions=wizards-source apps/runtime/scripts/write-step-prompts.ts",
     "release": "node scripts/release.mjs",
     "release:changelog": "node scripts/release.mjs --changelog",
     "release:tag": "node scripts/release.mjs --tag",

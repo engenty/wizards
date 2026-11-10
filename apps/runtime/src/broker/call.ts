@@ -1,3 +1,4 @@
+import type { AskResult } from "@engenty/wizards-engine/types";
 import type { BrokerRefusal, ConnectionActionKind } from "@engenty/wizards-shared/connectors";
 import type { AskInput } from "@engenty/wizards-shared/run";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
@@ -9,7 +10,6 @@ import type {
   InboundMessage,
   StreamPullResult,
 } from "../engenty/connections-sdk/types.js";
-import type { AskResult } from "../engine/asks.js";
 import { effectUnsure } from "../engine/events.js";
 import type { Role } from "../manage.js";
 import type { InProcessContext } from "../run-services/in-process.js";

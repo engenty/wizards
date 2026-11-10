@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
+import type { StepContext } from "@engenty/wizards-engine/types";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import type { StepContext } from "../../engine/types.js";
 import { env } from "../../env.js";
 import { browserTools } from "../../tools/browser.js";
 import { runShareAgent } from "../agent.js";

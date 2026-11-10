@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { placeLabel } from "../src/geocode";
-import { fieldErrorsIn, readFormInput } from "../src/engine/input";
+import { fieldErrorsIn, readFormInput } from "@engenty/wizards-engine/input";
 import { prepareInputs } from "../src/engine/prepare";
-import { renderTemplate, type TemplateScope } from "../src/engine/template";
-import type { StepContext } from "../src/engine/types";
+import { renderTemplate, type TemplateScope } from "@engenty/wizards-engine/template";
+import type { StepContext } from "@engenty/wizards-engine/types";
 import {
   bareMime,
   byteRange,

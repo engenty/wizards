@@ -3,7 +3,7 @@ import { note, noteText, saidText } from "@engenty/wizards-shared/run";
 import { textOf, type Texts } from "@engenty/wizards-shared/texts";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import { fieldErrorsIn, readFormInput } from "../src/engine/input";
+import { fieldErrorsIn, readFormInput } from "@engenty/wizards-engine/input";
 import { errorText, NotedError, saidOf } from "../src/model-errors";
 import { requestLang, say } from "../src/routes/lang";
 import { ServiceError } from "../src/services/errors";

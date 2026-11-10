@@ -44,6 +44,7 @@ A pnpm workspace:
 | `bin/` | the entry of the `wizards` command, and the launcher `npx wizards` runs |
 | `scripts/` | `npm-package.mjs` (the npm packages: the runtime, the launcher, `@engenty/wizards` and the MIT libraries) |
 | `packages/shared/` | types and schemas the server and the SPA both use |
+| `packages/engine/` | `@engenty/wizards-engine`, the step code of a run: no Node modules, no database; what lies outside the run it asks the run's services for |
 | `packages/wizards/` | `@engenty/wizards`, the one package code outside this repo imports: `/plugin` (a plugin’s server half), `/plugin/studio`, `/plugin/thread`, `/openui` (wizards in OpenUI chats), `/openui/server` |
 | `packages/decision-model/`, `search-index/`, `search-libsql/`, `goose/` | the MIT libraries of the engenty framework, each on npm under its own name (below) |
 | `modules/` | plugins that ship with the runtime |
@@ -620,7 +621,7 @@ reach only servers on the internet: for them a wizard runs on engenty.ai, not on
 |---|---|
 | Wizard definition (zod) + validator | `packages/shared/src/definition.ts` |
 | Step runner (cursor over the definition, pages / back / regenerate / branches) | `apps/runtime/src/engine/runner.ts` |
-| Agent + generate steps (Mastra Agent, AI SDK media) | `apps/runtime/src/engine/steps.ts` |
+| Agent, decision, tool, code and surface steps | `packages/engine/src/steps/`; the run's services they call: `apps/runtime/src/run-services/` |
 | Agent tools: web search/fetch, sandbox, HTTP, image, MCP | `apps/runtime/src/tools/index.ts` |
 | Sandbox engines (Docker, agentOS, agentOS in the sandbox container), what each runs, the installer of the engines outside the package | `apps/runtime/src/sandbox/` |
 | The cloud's sandbox container: agentOS behind a small HTTP API, one VM per run | `apps/sandbox/`, `deploy/Dockerfile.sandbox` |

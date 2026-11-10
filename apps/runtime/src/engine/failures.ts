@@ -1,3 +1,5 @@
+import { type Failure, NOTE_CLASS } from "@engenty/wizards-engine/failures";
+import { StepError } from "@engenty/wizards-engine/types";
 import { NotedError, noteOf } from "../model-errors.js";
 import { SignInNeeded } from "./types.js";
 
@@ -13,44 +15,6 @@ import { SignInNeeded } from "./types.js";
  *   in `cause` counts first.
  * - The SDK's own retries end in a `RetryError`; what happened is in its `lastError`.
  */
-
-export type FailureClass =
-  /** Short trouble at a provider: the step tries again later. */
-  | "retry"
-  /** Out of credits: it waits until someone tops up. */
-  | "credits"
-  /** A sign-in ran out: it waits until someone signs in. */
-  | "sign_in"
-  /** Nothing to wait for: `onFail`, or the run fails. */
-  | "final";
-
-export interface Failure {
-  class: FailureClass;
-  /** What the service asked for in `Retry-After`; null when it did not. */
-  retryAfterMs: number | null;
-  /** For wording and the log. */
-  why:
-    | "rate_limit"
-    | "server"
-    | "timeout"
-    | "network"
-    | "credits"
-    | "provider_credits"
-    | "sign_in"
-    | "other";
-}
-
-const NOTE_CLASS: Record<string, FailureClass> = {
-  wizardRunOutCredits: "credits",
-  guestBudget: "credits",
-  providerCreditLow: "credits",
-  clientNoCredit: "credits",
-  chatgptAccountCodexSigned: "credits",
-  anthropicAccountClaudeCode: "credits",
-  clientNotSignedIn: "sign_in",
-  accountNoLongerSigned: "sign_in",
-  creditsNotSignedIn: "sign_in",
-};
 
 /** An answer that came and is wrong: asking again is the step's own job, not the clock's. */
 const INVALID_OUTPUT = new Set([
@@ -168,7 +132,7 @@ export function classifyFailure(
     return { class: "sign_in", retryAfterMs: null, why: "sign_in" };
   }
   // What the runtime itself says, it means: a step's own failure is never a provider's trouble.
-  if (err instanceof NotedError) {
+  if (err instanceof NotedError || err instanceof StepError) {
     const cls = NOTE_CLASS[noteOf(err)?.code ?? ""] ?? "final";
     return {
       class: cls,

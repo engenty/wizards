@@ -1,3 +1,4 @@
+import { moduleBody } from "@engenty/wizards-engine/quickjs";
 import { parseWizardAgent, type WizardAgent } from "@engenty/wizards-shared/wizard-agents";
 import {
   isSandboxToolPath,
@@ -16,7 +17,7 @@ import {
 } from "@engenty/wizards-shared/wizard-code";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { moduleBody, quickJs } from "./quickjs.js";
+import { quickJs } from "./quickjs.js";
 
 /**
  * A wizard's own code read from its workspace (docs/plans/wizard-code.md): what the run and

@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
+import type { StepContext } from "@engenty/wizards-engine/types";
 import {
   type CodeModeTransport,
   createCodeMode,
@@ -9,7 +10,6 @@ import {
 } from "@mastra/core/tools";
 import type { QuickJsCodeModeTransport } from "@mastra/quickjs";
 import type { z } from "zod";
-import type { StepContext } from "../engine/types.js";
 import { onDemand } from "../on-demand.js";
 import { prompt } from "../prompts.js";
 import { clip } from "./shared.js";

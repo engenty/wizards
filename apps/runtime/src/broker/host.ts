@@ -1,5 +1,5 @@
+import type { AskResult } from "@engenty/wizards-engine/types";
 import type { AskInput } from "@engenty/wizards-shared/run";
-import type { AskResult } from "../engine/asks.js";
 import { PACKAGE_REGISTRIES } from "../sandbox/types.js";
 import type { Where, Who } from "./call.js";
 import {

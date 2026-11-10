@@ -1,3 +1,19 @@
+import { inParallel } from "@engenty/wizards-engine/steps/foreach";
+import {
+  answersBlock,
+  brandBlock,
+  groundRules,
+  revisionBlock,
+} from "@engenty/wizards-engine/steps/prompt";
+import { turnText } from "@engenty/wizards-engine/steps/turn";
+import {
+  assetSectionLine,
+  logoSectionLine,
+  renderTemplate,
+  resolveRef,
+  type TemplateScope,
+} from "@engenty/wizards-engine/template";
+import { StepError } from "@engenty/wizards-engine/types";
 import {
   allFields,
   classIdOf,
@@ -9,17 +25,6 @@ import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
 import type { StepSetting } from "@engenty/wizards-shared/run-services";
 import { mainLogo, runTheme } from "@engenty/wizards-shared/spaces";
-import { inParallel } from "../engine/steps/foreach.js";
-import { answersBlock, brandBlock, groundRules, revisionBlock } from "../engine/steps/prompt.js";
-import { turnText } from "../engine/steps/turn.js";
-import {
-  assetSectionLine,
-  logoSectionLine,
-  renderTemplate,
-  resolveRef,
-  type TemplateScope,
-} from "../engine/template.js";
-import { StepError } from "../engine/types.js";
 import { prompt } from "../prompts.js";
 import { extFor } from "../run-services/files.js";
 import type { InProcessContext } from "../run-services/in-process.js";

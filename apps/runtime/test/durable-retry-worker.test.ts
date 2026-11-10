@@ -12,8 +12,8 @@ const say = (what: string) => appendFileSync(join(DIR, "log"), `${process.pid} $
 
 /** Fails once in the first process, once in the second, and then works. */
 let failing = 1;
-vi.mock("../src/engine/steps/index.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps/index.js")>()),
+vi.mock("@engenty/wizards-engine/steps/index", async (original) => ({
+  ...(await original<typeof import("@engenty/wizards-engine/steps/index")>()),
   runAutomaticStep: async (step: { id: string }) => {
     say(`STEP ${step.id}`);
     if (step.id === "flaky" && failing > 0) {

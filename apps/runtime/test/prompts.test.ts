@@ -5,6 +5,8 @@ import { authoringGuide } from "../src/authoring/guide.js";
 import { type PromptFile, prompt, promptSections } from "../src/prompts.js";
 
 const SRC = join(import.meta.dirname, "../src");
+/** The engine's step code reads the step prompts too (packages/engine/src/prompts.ts). */
+const ENGINE = join(import.meta.dirname, "../../../packages/engine/src");
 
 function sources(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -27,7 +29,7 @@ const FILES = readdirSync(join(SRC, "prompts"))
 function calls(): { file: string; section: string; prefix: boolean }[] {
   const found: { file: string; section: string; prefix: boolean }[] = [];
   const CALL = /\bprompt\(\s*"(\w+)",\s*(?:"([\w.-]+)"|`([\w.-]*)\$\{)/g;
-  for (const path of sources(SRC)) {
+  for (const path of [...sources(SRC), ...sources(ENGINE)]) {
     for (const m of readFileSync(path, "utf8").matchAll(CALL)) {
       found.push(
         m[2] !== undefined

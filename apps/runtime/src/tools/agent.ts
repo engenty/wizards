@@ -1,3 +1,4 @@
+import { type StepContext, StepError } from "@engenty/wizards-engine/types";
 import { type AgentStep, agentStepSchema } from "@engenty/wizards-shared/definition";
 import { note, type StepOutput } from "@engenty/wizards-shared/run";
 import type { WizardAgent } from "@engenty/wizards-shared/wizard-agents";
@@ -9,7 +10,6 @@ import {
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { summarizeInput, writeLog } from "../broker/log.js";
-import { type StepContext, StepError } from "../engine/types.js";
 import { loadWizardAgent } from "../engine/wizard-code.js";
 import type { InProcessContext } from "../run-services/in-process.js";
 import { snapshotFile } from "../services/files.js";
@@ -18,7 +18,7 @@ import { whoWhere } from "./wizard.js";
 
 /**
  * A wizard's agents (docs/plans/wizard-code.md): `agents/<name>.md` in its workspace. A step runs
- * one as its own (`"agent": "<name>"`, engine/steps/agent.ts) or lists it as a tool (`agent.<name>`,
+ * one as its own (`"agent": "<name>"`, packages/engine/src/steps/agent.ts) or lists it as a tool (`agent.<name>`,
  * here). As a tool, the step's model hands a task over and gets the agent's answer, or its
  * `output` as JSON. It runs as an agent step of its own, with the step's caller, grant and hosts;
  * its model calls are charged to the run. One level: an agent's file lists no other agent.
@@ -27,7 +27,7 @@ import { whoWhere } from "./wizard.js";
 /** Characters of an agent's written answer the step's model reads. */
 const ANSWER_CHARS = 20_000;
 
-/** Runs an agent step: engine/steps/agent.ts hands its `runAgentStep` in. */
+/** Runs an agent step: packages/engine/src/steps/agent.ts hands its `runAgentStep` in. */
 export type RunAgentStep = (step: AgentStep, ctx: StepContext) => Promise<StepOutput>;
 
 /**
