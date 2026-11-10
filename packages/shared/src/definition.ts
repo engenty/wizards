@@ -7,6 +7,13 @@ import { type ObjectShape, outputSchemaSchema, shapeOfFields, shapeOfSchema } fr
 import { isShareTargetId } from "./sharing.js";
 import { CONNECTION_KINDS } from "./store.js";
 import { type SurfaceComponent, surfaceComponentsSchema, validateSurface } from "./surface.js";
+import {
+  hasWizardCodePrefix,
+  WIZARD_CODE_PREFIXES,
+  wizardCodeOf,
+  wizardToolsIn,
+  wizardToolsUsed,
+} from "./wizard-code.js";
 
 /** The engenty avatars a wizard can wear. Same cast as engenty's ui-core. */
 export const ENGENTY_KINDS = [
@@ -385,7 +392,8 @@ export const TOOL_IDS = [
 
 /**
  * A tool a plugin of the runtime adds: `<plugin id>.<tool name>`. A wizard that names one runs
- * only where that plugin is installed.
+ * only where that plugin is installed. `wizard.<name>` and `agent.<name>` are the wizard's own
+ * code (wizard-code.ts), no plugin's.
  */
 export const PLUGIN_ID = /^[a-z][a-z0-9-]{0,39}$/;
 export const PLUGIN_TOOL_NAME = /^[a-z][a-z0-9_]{0,39}$/;
@@ -396,6 +404,7 @@ export function pluginToolOf(id: string): { plugin: string; tool: string } | nul
   const [plugin, tool, ...rest] = id.split(".");
   return tool !== undefined &&
     rest.length === 0 &&
+    !(WIZARD_CODE_PREFIXES as readonly string[]).includes(plugin) &&
     PLUGIN_ID.test(plugin) &&
     PLUGIN_TOOL_NAME.test(tool)
     ? { plugin, tool }
@@ -1341,9 +1350,12 @@ export function isFixedStep(step: Step | undefined): step is FixedStep {
   return step?.type === "tool" || step?.type === "code";
 }
 
-/** Whether a wizard has a code step: it runs only where the `codeSteps` switch is on. */
+/**
+ * Whether a wizard runs code of its own, a code step or a function tool (wizard-code.ts): it runs
+ * only where the `codeSteps` switch is on.
+ */
 export function hasCodeStep(def: Pick<WizardDefinition, "steps">): boolean {
-  return def.steps.some((s) => s.type === "code");
+  return def.steps.some((s) => s.type === "code") || wizardToolsUsed(def).length > 0;
 }
 
 /**
@@ -1494,9 +1506,9 @@ export const requiresSchema = z.object({
   ...requiredLists,
   /** The makers steps name. */
   makers: z.array(z.enum(MAKERS)).optional(),
-  /** The built-in tools steps list. */
+  /** The built-in tools steps list, and the wizard's own function tools (`wizard.<name>`). */
   tools: z.array(z.string().min(1)).optional(),
-  /** `code`: a code step runs the wizard's own function. */
+  /** `code`: a code step or a function tool runs the wizard's own code. */
   run: z.array(z.literal("code")).optional(),
   /** `shell`: a step works in a sandbox. */
   sandbox: z.literal("shell").optional(),
@@ -1708,6 +1720,31 @@ export function sectionOf(def: Pick<WizardDefinition, "steps">, stepId: string):
     }
   }
   return null;
+}
+
+/**
+ * The wizard's own code a step names in `tools` (wizard-code.ts): a function tool's file is in the
+ * workspace, once. Agents in the wizard come later. What the file exports is read where its code
+ * can run: `wizards validate` and the run.
+ */
+function wizardCodeIssues(step: AgentStep, files: string[] | undefined): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const tools = files ? wizardToolsIn(files) : null;
+  for (const id of step.tools.filter(hasWizardCodePrefix)) {
+    const code = wizardCodeOf(id);
+    const say = (message: string) => issues.push({ stepId: step.id, message });
+    if (!code) {
+      say(`Tool "${id}": a name of lowercase letters, digits and _, starting with a letter.`);
+    } else if (code.kind === "agent") {
+      say(`Tool "${id}": agents in the wizard aren't supported yet.`);
+    } else if (tools && !tools.has(code.name)) {
+      say(`Tool "${id}" has no file: tools/${code.name}.ts or tools/${code.name}.js.`);
+    } else if ((tools?.get(code.name)?.length ?? 0) > 1) {
+      const both = [...(tools?.get(code.name) ?? [])].sort().join(", ");
+      say(`Tool "${id}" has two files: keep one of ${both}.`);
+    }
+  }
+  return issues;
 }
 
 /** What a code step needs: a .ts or .js entry in the workspace, and the keys it returns. */
@@ -2216,6 +2253,12 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         break;
       case "tool": {
         checkTemplate(step, JSON.stringify(step.call.input));
+        if ("tool" in step.call && hasWizardCodePrefix(step.call.tool)) {
+          issues.push({
+            stepId: step.id,
+            message: `A tool step calls a plugin's tool. The wizard's own "${step.call.tool}" is called by an AI step that lists it in tools.`,
+          });
+        }
         if ("connection" in step.call) {
           const called = step.call.connection;
           const named = (def.connections ?? []).find((c) => c.id === called);
@@ -2252,6 +2295,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         if (!step.instructions.trim()) {
           issues.push({ stepId: step.id, message: "An AI step needs instructions." });
         }
+        issues.push(...wizardCodeIssues(step, files));
         if (step.durable) {
           // What a turn had open is gone when it goes on: a browser's page, a sandbox's files.
           for (const tool of ["browser", "sandbox"] as const) {

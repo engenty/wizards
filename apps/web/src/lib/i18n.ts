@@ -1974,6 +1974,8 @@ const de: Record<Key, Line> = {
   "files.explain":
     "Diese Dateien nutzt dein Wizard bei jedem Lauf, etwa Widget-Code, Bibliotheken oder Preislisten. Der Assistent legt sie im Chat an. Du kannst auch eigene hochladen.",
   "files.upload": "Hochladen",
+  "files.tool":
+    "Ein Werkzeug des Wizards: KI-Schritte nutzen es, wenn sie es unter Werkzeuge haben.",
   "files.drop": "Zum Hochladen loslassen",
   "files.count": { one: "{n} Datei · {size}", other: "{n} Dateien · {size}" },
   "files.empty":
@@ -2805,6 +2807,7 @@ const de: Record<Key, Line> = {
   "inspector.codeNoInput": "Die Funktion bekommt keine Eingaben.",
   "inspector.codeReturns": "Gibt zurück",
   "inspector.tools": "Werkzeuge",
+  "inspector.wizardTool": "eigenes Werkzeug des Wizards",
   "inspector.personAccounts": "Konten der Person",
   "inspector.personAccountsHint":
     "Konten, die die Person im Lauf verbindet. Lesen darf der Schritt frei, Änderungen erst nach ihrem Ja.",
@@ -6973,6 +6976,7 @@ const en = {
   "files.explain":
     "Your wizard uses these files on every run, like widget code, libraries or price lists. The assistant creates them in the chat, or you can upload your own.",
   "files.upload": "Upload",
+  "files.tool": "A tool of the wizard: AI steps use it when they list it under Tools.",
   "files.drop": "Drop to upload",
   "files.count": { one: "{n} file · {size}", other: "{n} files · {size}" },
   "files.empty": "No files yet. Drop files here or ask the assistant to build a widget.",
@@ -7787,6 +7791,7 @@ const en = {
   "inspector.codeNoInput": "The function gets no input.",
   "inspector.codeReturns": "Returns",
   "inspector.tools": "Tools",
+  "inspector.wizardTool": "the wizard’s own tool",
   "inspector.personAccounts": "The person’s accounts",
   "inspector.personAccountsHint":
     "Accounts the person connects during the run. The step reads from them freely; anything it changes waits for the person’s yes.",

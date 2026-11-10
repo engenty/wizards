@@ -274,7 +274,7 @@ type AgentStep = {
   instructions: string          // the task, with {{templates}}
   tools: ("web_search"|"web_fetch"|"browser"|"sandbox"|"image"|"http"|"pages"|"code")[]
   connections?: string[]        // ids of wizard connections this step may read (mail → mail_search, mail_read, mail_save)
-  hosts?: string[]              // the hosts the "http" tool (http_request) may call, at most 20: "api.example.com", or "*.example.org"
+  hosts?: string[]              // the hosts the "http" tool (http_request) and the wizard's own tools may call, at most 20: "api.example.com", or "*.example.org"
                                 //   for every host below it. A guest's run calls no other host; part of what the run may reach.
   output: { format: "text"|"markdown"|"json", fields?: { id, kind: "text"|"number"|"list"|"table"|"yesno"|"choice"|"score", description, columns?: string[], options?: string[] }[], schema?: Schema, surface?: SurfaceComponent[] | true }
                                 // "score" answers its description on the scale in options, lowest first ("low", "medium", "high")
@@ -528,7 +528,7 @@ An automatic step has a time limit of 8 hours, 12 for motion graphics. What a st
 Tell the admin what only they can do, in the share dialog: under "Events" they make the address another service sends to, or switch on a mailbox; under "Answered by" they name who answers team steps. To them, a signal is an "event".
 
 <!-- section: code -->
-<!-- Only while the switch codeSteps is on: authoringGuide() and the architect's system prompt leave it out otherwise. -->
+<!-- Only while the switch codeSteps is on: authoringGuide() and the architect's system prompt leave it out otherwise. It covers code steps and the wizard's function tools. -->
 Code steps. Hard logic goes into a code step, never into a longer calc or a chain of conditions: maths over a table (totals, discounts, a price from many inputs), reshaping data (grouping, sorting, joining two tables, picking the top three), scoring and ranking by fixed rules. calc stays for one line that a page or a view shows; anything longer, or anything a later step reads, is a code step. An AI step stays for what needs judgement or language.
 
 type CodeStep = {
@@ -549,6 +549,14 @@ The file is TypeScript or JavaScript in the workspace, written with the file too
   export function run(input: { … }): { … } { … }
 It runs sealed off: no imports, no fetch, no files, no tools, at most 10 seconds, and the same answer every run. Math.random is seeded; new Date() and Date.now() throw, so pass "today" as an input and use new Date(input.today). Keep it one file: helpers are functions in it, fixed reference data (a price list) a constant in it or a list. A table field with columns gets rows with exactly those keys; return numbers as numbers.
 Example: { "id": "quote", "type": "code", "title": "Price", "code": { "entry": "code/quote.ts", "input": { "rooms": "steps.measure.rooms", "rate": "rate" } }, "output": { "fields": [{ "id": "total", "kind": "number" }, { "id": "lines", "kind": "table", "columns": ["room", "m2", "price"] }] } }
+
+Function tools. When an AI step's model should be able to call a fixed computation or one API call with typed arguments, write it as a tool of the wizard: the model decides when and with what, the code does the same thing every time. Open work (research, writing, judging) stays with the model; a computation that runs once at a fixed point, with no model deciding, is a code step.
+A tool is the workspace file tools/<name>.ts (name: lowercase letters, digits and _), written with the file tools. The step lists it as "wizard.<name>" in tools, next to the built-in ones:
+  export const description = "Scores an offer against the budget";   // what the model reads to decide when to call it
+  export const input = { "type": "object", "properties": { "price": { "type": "number" }, "budget": { "type": "number" } }, "required": ["price", "budget"] };   // JSON Schema of its arguments
+  export const output = { "type": "object", "properties": { "score": { "type": "number" } } };   // optional: what run returns is checked against it
+  export async function run({ price, budget }, { fetch, tools }) { return { score: Math.max(0, 1 - price / budget) }; }
+It runs sealed off like a code step: no imports, at most 10 seconds a call, no credits, in a guest's run too. fetch(url, { method, headers, body }) reaches only the hosts the step lists in "hosts"; tools.<name>(args) calls the step's other tools by the names the model sees (web_fetch, http_request, …). A change that needs the person's yes is refused inside a tool: the model calls that tool itself. Example step: { "id": "rank", "type": "agent", "title": "Rank offers", "instructions": "Score each offer in {{steps.find.offers}} against {{budget}} and list the best three.", "tools": ["wizard.score"], "output": { "format": "markdown" } }
 
 <!-- section: widgets -->
 Widgets — when to use: the result must look the same every run, animate, or be explored (a map with

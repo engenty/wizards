@@ -36,6 +36,12 @@ Private addresses are not reachable from a wizard.
 <!-- section: note.host_not_in_grant -->
 This run may not call ${host}: the wizard does not list it. Do not try another address; say in your result that the call was not made.
 
+<!-- section: note.wizard_tool_host -->
+${tool} may not call ${host}: the step does not list it in its hosts. Do not try another address; say in your result that the call was not made.
+
+<!-- section: note.wizard_tool_output -->
+${tool} returned something its output schema does not allow, at ${where}: ${problem}. The tool is broken; say so in your result instead of guessing its answer.
+
 <!-- section: note.host_may_have_happened -->
 This request to ${host} was interrupted before and may have arrived already. It was not repeated. Do not try it again; say in your result that it may have happened.
 

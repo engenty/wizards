@@ -17,6 +17,7 @@ import {
   whenNames,
 } from "./definition.js";
 import type { ClosedChoice } from "./run.js";
+import { wizardCodeOf } from "./wizard-code.js";
 
 /**
  * What the models and tools behind a wizard must be able to do. `motion-graphics`: an AI client
@@ -53,6 +54,8 @@ export type Need =
   | "motion-graphics"
   /** A wait outlives the page: the standalone runner has no process that wakes it. */
   | "wait"
+  /** The wizard's own function tools (wizard-code.ts) run in the runtime's QuickJS. */
+  | "wizard-code"
   /** A widget runs in the runtime's widget host; the standalone runner has none yet. */
   | "widget"
   | "widget:video"
@@ -211,6 +214,8 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
         const plugin = pluginToolOf(tool);
         if (plugin) {
           add(`plugin:${plugin.plugin}`, true);
+        } else if (wizardCodeOf(tool)) {
+          add("wizard-code", true);
         } else if (RUNNER_TOOLS.has(tool as ToolId) || OPTIONAL_TOOLS.has(tool as ToolId)) {
           // The site runs it, or the step does without.
         } else if (HARD_TOOLS.has(tool as ToolId)) {
@@ -324,6 +329,7 @@ export function capabilityOf(need: Need): Capability | null {
     case "tool:browser":
       return "browser";
     case "tool:sandbox":
+    case "wizard-code":
       return "code";
     case "tool:image":
     case "asset:image":
