@@ -39,6 +39,8 @@ import {
   listWizards,
   ownedWizard,
   parseDraft,
+  runSchemas,
+  runSchemasOf,
   shareUrl,
   studioUrl,
   updateWizardSettings,
@@ -431,6 +433,7 @@ export function registerTools(server: McpServer, who: Principal) {
     },
     async ({ spaceId }) => {
       const spaces = new Map((await listSpaces(who.userId)).map((p) => [p.id, p]));
+      const schemas = await runSchemasOf(spaceId);
       return (await listWizards(who.userId, spaceId)).map((w) => {
         const space = spaces.get(w.spaceId);
         return {
@@ -443,6 +446,8 @@ export function registerTools(server: McpServer, who: Principal) {
           published: w.published,
           updatedAt: w.updatedAt,
           studioUrl: studioUrl(w.id),
+          // What a run takes and gives: of the published version, else of the draft.
+          ...schemas.get(w.id),
         };
       });
     },
@@ -736,6 +741,7 @@ export function registerTools(server: McpServer, who: Principal) {
               ? { fields: s.fields.map((f) => ({ id: f.id, label: f.label, kind: f.kind })) }
               : {}),
           })),
+          ...runSchemas(view.definition),
         },
         view,
       };

@@ -1,4 +1,5 @@
 import {
+  dataRef,
   FIELD_WAYS,
   type Field,
   formatsFor,
@@ -512,12 +513,28 @@ export async function runReportOf(run: RunRow, draft?: Record<string, unknown>, 
       message: e.message,
     })),
     outputs,
+    /** What the result names as the run's data, once it is done; a step kept from the viewer stays out. */
+    ...(run.status === "done" && run.state.data
+      ? { data: shownData(run, run.state.data, hidden) }
+      : {}),
     browserUrl: await browserUrl(run),
     ...(run.mode === "test" ? { studioUrl: studioUrl(run.wizardId) } : {}),
   };
 }
 
 export type RunReport = Awaited<ReturnType<typeof runReportOf>>;
+
+/** The run's data without the keys that read a step kept from the viewer. */
+function shownData(run: RunRow, data: Record<string, unknown>, hidden: string[]) {
+  const result = run.definition.steps.find((s) => s.id === run.cursor);
+  const refs = result?.type === "result" ? (result.data ?? {}) : {};
+  return Object.fromEntries(
+    Object.entries(data).filter(([key]) => {
+      const [head, id] = dataRef(refs[key] ?? "").split(".");
+      return !(head === "steps" && hidden.includes(id));
+    }),
+  );
+}
 
 export const testRunReport = (userId: string, runId: string, waitSeconds = 0) =>
   runReport(userId, runId, waitSeconds, "test");

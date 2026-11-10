@@ -2,7 +2,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { parseWizard, type ValidationIssue } from "@engenty/wizards-shared/definition";
 import { requiresProblem } from "@engenty/wizards-shared/requires";
+import { inputSchemaOf, type JsonSchema, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
+import { WIZARD_SKILLS_DIR, wizardSkillIssues } from "@engenty/wizards-shared/wizard-skills";
 import { wizardToolFileIssues } from "../engine/wizard-code.js";
 import { json, readManifest, readPackage } from "../services/package-file.js";
 import { bad, dim, ok } from "./ui.js";
@@ -22,6 +24,9 @@ interface Checked {
   steps?: number;
   files?: number;
   issues: ValidationIssue[];
+  /** What a run takes and gives, as JSON Schema; only for a definition that parses. */
+  inputSchema?: JsonSchema;
+  outputSchema?: JsonSchema;
 }
 
 function workspace(folder: string): string[] {
@@ -34,6 +39,9 @@ function workspace(folder: string): string[] {
     return [];
   }
 }
+
+const isSkillMd = (path: string) =>
+  path.startsWith(WIZARD_SKILLS_DIR) && path.endsWith("/SKILL.md");
 
 interface Given {
   definition: unknown;
@@ -87,11 +95,16 @@ export async function validatePath(path: string): Promise<Checked> {
   const checked = requires ? [...parsed.issues, { message: requires }] : parsed.issues;
   // A tool a step names is checked by the definition too: each message once.
   const said = new Set(checked.map((issue) => issue.message));
+  const skillMds: Record<string, string> = {};
+  for (const file of given.files.filter(isSkillMd)) {
+    skillMds[file] = (await given.read(file)) ?? "";
+  }
   const issues = [
     ...checked,
     ...(await wizardToolFileIssues(given.files, given.read))
       .filter((message) => !said.has(message))
       .map((message) => ({ message })),
+    ...wizardSkillIssues(given.files, skillMds),
   ];
   return {
     path,
@@ -99,6 +112,12 @@ export async function validatePath(path: string): Promise<Checked> {
     steps: parsed.ok ? parsed.wizard.steps.length : undefined,
     files: given.files.length,
     issues,
+    ...(parsed.ok
+      ? {
+          inputSchema: inputSchemaOf(parsed.wizard),
+          outputSchema: outputSchemaOf(parsed.wizard),
+        }
+      : {}),
   };
 }
 

@@ -1,4 +1,5 @@
 import type { MailboxView } from "@engenty/wizards-shared/connectors";
+import { inputSchemaOf, type JsonSchema, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
 import type { RunnerFit, RunnerInfo, RunnerSettings } from "@engenty/wizards-shared/runners";
 import type { WizardStart } from "@engenty/wizards-shared/starts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -267,6 +268,70 @@ function PageSection({ wizard }: { wizard: WizardDetail }) {
       {change.error ? (
         <p className="text-[0.8125rem] text-rose">{(change.error as Error).message}</p>
       ) : null}
+    </section>
+  );
+}
+
+/**
+ * What a run takes and gives, for a program that starts it without a person (an app, an AI
+ * client, the API): the fields it fills, the files and the data it gets back, and both as JSON
+ * Schema to copy. Worked out from the definition, as the server does.
+ */
+function SchemaSection({ wizard }: { wizard: WizardDetail }) {
+  const id = useId();
+  const { copied, copy } = useCopy();
+  const schemas = useMemo(
+    () => ({ input: inputSchemaOf(wizard.draft), output: outputSchemaOf(wizard.draft) }),
+    [wizard.draft],
+  );
+  const fields = Object.entries(schemas.input.properties as Record<string, JsonSchema>);
+  const required = new Set((schemas.input.required as string[] | undefined) ?? []);
+  const outputs = schemas.output.properties as Record<string, JsonSchema>;
+  const files = Object.entries((outputs.files.properties ?? {}) as Record<string, JsonSchema>);
+  const data = Object.keys((outputs.data?.properties ?? {}) as Record<string, JsonSchema>);
+  const takes = fields.map(
+    ([key, s]) => `${(s.title as string) ?? key}${required.has(key) ? " *" : ""}`,
+  );
+  const gives = [
+    ...files.map(([from, s]) => {
+      const formats = Object.keys((s.properties ?? {}) as object).join(", ");
+      return `${(s.title as string) ?? from} (${formats})`;
+    }),
+    ...data,
+  ];
+  const row = (label: string, items: string[]) => (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[0.8125rem] text-ink-3">{label}</span>
+      <span className="text-[0.8125rem]">
+        {items.length ? items.join(" · ") : t("share.schemaNone")}
+      </span>
+    </div>
+  );
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-2.5">
+      <div>
+        <h3 id={id} className={heading}>
+          {t("share.schema")}
+        </h3>
+        <p className="text-[0.8125rem] text-ink-3">{t("share.schemaHint")}</p>
+      </div>
+      {row(t("share.schemaTakes"), takes)}
+      {row(t("share.schemaGives"), gives)}
+      <div>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() =>
+            copy(
+              "schema",
+              JSON.stringify({ inputSchema: schemas.input, outputSchema: schemas.output }, null, 2),
+            )
+          }
+        >
+          {copied === "schema" ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+          {copied === "schema" ? t("share.copied") : t("share.schemaCopy")}
+        </Button>
+      </div>
     </section>
   );
 }
@@ -1968,6 +2033,7 @@ function SharePanel({
                 }}
               />
             ) : null}
+            {wizard.published ? <SchemaSection wizard={wizard} /> : null}
           </Body>
           <Footer>
             <Button

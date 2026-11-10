@@ -13,8 +13,10 @@ import {
 } from "@engenty/wizards-shared/definition";
 import { withRequires } from "@engenty/wizards-shared/requires";
 import { note } from "@engenty/wizards-shared/run";
+import { inputSchemaOf, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
-import { and, desc, eq, sql } from "drizzle-orm";
+import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { applyOps, OpError, type WizardOp } from "../authoring/ops.js";
 import { decide, kindOf } from "../broker/index.js";
@@ -42,6 +44,7 @@ import { pushPages } from "./pages.js";
 import { checkRunnerSettings } from "./runners.js";
 import { defaultSpace, ownedSpace } from "./spaces.js";
 import { saveTheme } from "./themes.js";
+import { workspaceSkillIssues } from "./wizard-skills.js";
 
 export type WizardRow = typeof schema.wizard.$inferSelect;
 
@@ -134,6 +137,41 @@ export async function listWizards(_userId: string, spaceId?: string) {
     orderBy: [desc(schema.wizard.updatedAt)],
   });
   return rows.map(wizardSummary);
+}
+
+/** What a run of the wizard takes and gives, as JSON Schema, worked out from its definition. */
+export function runSchemas(def: WizardDefinition) {
+  return { inputSchema: inputSchemaOf(def), outputSchema: outputSchemaOf(def) };
+}
+
+/**
+ * What runs of the space's wizards take and give, by wizard: of the published version where there
+ * is one, else of the draft.
+ */
+export async function runSchemasOf(spaceId?: string) {
+  const rows = await db.query.wizard.findMany({
+    where: and(
+      eq(schema.wizard.tenantId, currentTenant()),
+      spaceId ? eq(schema.wizard.spaceId, spaceId) : undefined,
+    ),
+    columns: { id: true, draft: true, publishedVersion: true },
+  });
+  const published = rows.filter((w) => w.publishedVersion !== null);
+  const versions = published.length
+    ? await db.query.wizardVersion.findMany({
+        where: or(
+          ...published.map((w) =>
+            and(
+              eq(schema.wizardVersion.wizardId, w.id),
+              eq(schema.wizardVersion.version, w.publishedVersion as number),
+            ),
+          ),
+        ),
+        columns: { wizardId: true, definition: true },
+      })
+    : [];
+  const live = new Map(versions.map((v) => [v.wizardId, v.definition]));
+  return new Map(rows.map((w) => [w.id, runSchemas(live.get(w.id) ?? w.draft)]));
 }
 
 /** The organization has made a wizard: the studio offers itself as an app from then on. */
@@ -339,10 +377,21 @@ export async function stepWarnings(
   return warnings;
 }
 
-/** Everything wrong with a draft: its structure, its workspace files, its space's connectors and plugins. */
-export async function checkDraft(spaceId: string, draft: WizardDefinition, files?: string[]) {
+/**
+ * Everything wrong with a draft: its structure, its workspace files and the skills among them,
+ * its space's connectors and plugins.
+ */
+export async function checkDraft(
+  spaceId: string,
+  draft: WizardDefinition,
+  files?: WorkspaceFile[],
+) {
   return [
-    ...validateWizard(draft, files),
+    ...validateWizard(
+      draft,
+      files?.map((f) => f.path),
+    ),
+    ...(files ? await workspaceSkillIssues(files) : []),
     ...(await connectorIssues(spaceId, draft)),
     ...(await spaceConnectionIssues(spaceId, draft)),
     ...(await pluginIssues(draft)),
@@ -351,12 +400,7 @@ export async function checkDraft(spaceId: string, draft: WizardDefinition, files
 
 /** Validator issues of the draft, checked against its workspace and the space's connectors. */
 export async function draftIssues(w: WizardRow) {
-  const files = await draftFiles(w.id);
-  return checkDraft(
-    w.spaceId,
-    w.draft,
-    files.map((f) => f.path),
-  );
+  return checkDraft(w.spaceId, w.draft, await draftFiles(w.id));
 }
 
 /** The draft with its validator issues and whether it differs from the published version. */
@@ -367,11 +411,7 @@ export async function wizardState(w: WizardRow) {
     ...wizardSummary(w),
     draft: w.draft,
     files,
-    issues: await checkDraft(
-      w.spaceId,
-      w.draft,
-      files.map((f) => f.path),
-    ),
+    issues: await checkDraft(w.spaceId, w.draft, files),
     /** Steps that save and publish and fail in a run as the space's rules are now. */
     warnings: await stepWarnings(w.spaceId, w.draft),
     dirty:
@@ -538,7 +578,7 @@ export async function writeDraft(
   const files = await draftFiles(w.id);
   const paths = files.map((f) => f.path);
   const { draft } = parseDraft(input.definition, paths);
-  const issues = await checkDraft(w.spaceId, draft, paths);
+  const issues = await checkDraft(w.spaceId, draft, files);
   const [row] = await db
     .update(schema.wizard)
     .set({
@@ -737,11 +777,7 @@ async function unlistWizard(spaceId: string, wizardId: string) {
 /** A wizard with validator issues is never published — same rule for studio and MCP. */
 export async function requireClean(w: WizardRow) {
   const files = await draftFiles(w.id);
-  const issues = await checkDraft(
-    w.spaceId,
-    w.draft,
-    files.map((f) => f.path),
-  );
+  const issues = await checkDraft(w.spaceId, w.draft, files);
   if (issues.length) {
     throw new ServiceError("has_issues", note("wizardStillErrors"), { issues });
   }

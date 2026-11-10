@@ -1184,6 +1184,12 @@ export const resultStepSchema = z.object({
    * out: the targets that need no model. An empty list: none.
    */
   share: z.array(shareOptionSchema).max(12).optional(),
+  /**
+   * The data a finished run gives back besides its files: key → a field id, steps.id,
+   * steps.id.key, lists.id, brand.name or today, read from steps that run before the result.
+   * What an MCP client, the API or another workflow gets as the run's `data`.
+   */
+  data: z.record(z.string(), z.string()).optional(),
 });
 
 /** What a duration lasts, in milliseconds. */
@@ -2516,6 +2522,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         }
         break;
       case "result":
+        checkDataRefs(step.data ?? {}, "Result");
         for (const d of step.deliverables) {
           const list = listRef(d.from);
           if (list ? !listIds.has(list) : !seenSteps.has(d.from)) {

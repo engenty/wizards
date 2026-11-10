@@ -1,8 +1,19 @@
 import { formatBytes } from "@engenty/wizards-shared/numbers";
+import { skillScript } from "@engenty/wizards-shared/skills";
 import { wizardToolId, wizardToolOfPath } from "@engenty/wizards-shared/wizard-code";
+import { wizardSkillFolders } from "@engenty/wizards-shared/wizard-skills";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, FileCode2, FileJson, FileText, Image, Trash2, Upload } from "lucide-react";
+import {
+  Download,
+  FileCode2,
+  FileJson,
+  FileText,
+  Image,
+  Sparkles,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
@@ -20,6 +31,37 @@ function fileIcon(f: WorkspaceFile) {
     return FileCode2;
   }
   return FileText;
+}
+
+/**
+ * The wizard's own skills, from its `skills/<name>/SKILL.md` folders (docs/plans/wizard-code.md):
+ * by name, with their files and whether they bring scripts.
+ */
+function WizardSkills({ files }: { files: WorkspaceFile[] }) {
+  const skills = [...wizardSkillFolders(files.map((f) => f.path))].filter(([, paths]) =>
+    paths.includes("SKILL.md"),
+  );
+  if (!skills.length) {
+    return null;
+  }
+  return (
+    <section className="mt-4">
+      <h3 className="px-2 font-medium text-[0.75rem] text-ink-3">{t("files.skills")}</h3>
+      <ul className="mt-1 flex flex-col">
+        {skills.map(([name, paths]) => (
+          <li key={name} className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+            <Sparkles className="size-4 shrink-0 text-ink-3" />
+            <span className="min-w-0 flex-1 truncate font-mono text-[0.75rem]">{name}</span>
+            <span className="text-[0.75rem] text-ink-4">
+              {t(paths.some(skillScript) ? "files.skillScripts" : "files.skillFiles", {
+                n: paths.length,
+              })}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 /**
@@ -155,6 +197,7 @@ export function FilesPanel({
           {error}
         </div>
       ) : null}
+      <WizardSkills files={files} />
       <ul className="mt-4 flex flex-col">
         {files.map((f) => {
           const Icon = fileIcon(f);
