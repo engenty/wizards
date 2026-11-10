@@ -76,6 +76,7 @@ let wizards: typeof import("../src/services/wizards");
 let reports: typeof import("../src/services/runs");
 let events: typeof import("../src/engine/events");
 let types: typeof import("../src/engine/types");
+let resources: typeof import("../src/engine/resources");
 
 const T = "tenant-durable-retry";
 const agent = (id: string, more: object = {}) => ({
@@ -176,6 +177,7 @@ beforeAll(async () => {
   reports = await import("../src/services/runs");
   events = await import("../src/engine/events");
   types = await import("../src/engine/types");
+  resources = await import("../src/engine/resources");
   runner.startRunner();
 });
 afterAll(() => runner.stopRunner());
@@ -415,10 +417,14 @@ describe("what time doesn't change", () => {
 });
 
 describe("a step that may have done something out there", () => {
+  /** What a tool that did something leaves on the run: the run's resources say it acted. */
+  const act = (ctx: { runId: string }) => {
+    resources.resourcesFor(ctx.runId).acted = true;
+  };
   const acts =
     (err: unknown) =>
-    (ctx: { resources: { acted: boolean } }): never => {
-      ctx.resources.acted = true;
+    (ctx: { runId: string }): never => {
+      act(ctx);
       throw err;
     };
 
@@ -475,7 +481,7 @@ describe("a step that may have done something out there", () => {
   });
 
   it("what acted before does not count for the next step", async () => {
-    script.steps.sends = [(ctx: { resources: { acted: boolean } }) => { ctx.resources.acted = true; }] as never;
+    script.steps.sends = [act] as never;
     script.steps.flaky = fails(http(503));
     const id = await start([agent("sends"), agent("flaky"), end]);
     expect(await rests(id)).toBe(true);
@@ -485,8 +491,8 @@ describe("a step that may have done something out there", () => {
 
   it("a refused sign-in did nothing, so it waits like any other", async () => {
     script.steps.sends = [
-      ((ctx: { resources: { acted: boolean } }) => {
-        ctx.resources.acted = true;
+      ((ctx: { runId: string }) => {
+        act(ctx);
         throw new types.SignInNeeded("Gmail", { code: "stepCallRefused" } as never);
       }) as never,
     ];
