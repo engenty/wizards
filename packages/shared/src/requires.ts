@@ -11,7 +11,7 @@ import {
   type WizardDefinition,
 } from "./definition.js";
 import { unavoidableSteps } from "./fit.js";
-import { wizardCodeOf, wizardToolsUsed } from "./wizard-code.js";
+import { sandboxToolsUsed, wizardCodeOf, wizardToolsUsed } from "./wizard-code.js";
 
 /**
  * What a wizard needs before a run starts, worked out from its steps: the root `requires` of a
@@ -97,10 +97,23 @@ export function pluginsOf(def: Pick<WizardDefinition, "steps">): string[] {
 }
 
 /**
- * What a definition needs, from its steps. Lists are sorted and empty ones left out. A class
- * only steps behind a branch call is `optional`: a run can go around it.
+ * Whether the wizard's own tools need a sandbox that runs a shell: one its steps name is a
+ * sandbox tool (`tools/<name>/TOOL.md`). That is in its files: with `paths` they are read, without
+ * them what the definition says already is kept, as long as its steps name a tool of the wizard.
  */
-export function requiresOf(def: WizardDefinition): Requires {
+function ownToolsNeedShell(def: WizardDefinition, paths?: readonly string[]): boolean {
+  if (paths) {
+    return sandboxToolsUsed(def, paths).length > 0;
+  }
+  return def.requires?.sandbox === "shell" && wizardToolsUsed(def).length > 0;
+}
+
+/**
+ * What a definition needs, from its steps, and from its workspace's `paths` where given. Lists are
+ * sorted and empty ones left out. A class only steps behind a branch call is `optional`: a run
+ * can go around it.
+ */
+export function requiresOf(def: WizardDefinition, paths?: readonly string[]): Requires {
   const unavoidable = unavoidableSteps(def);
   const models = new Set<ModelClass>();
   const optionalModels = new Set<ModelClass>();
@@ -142,7 +155,7 @@ export function requiresOf(def: WizardDefinition): Requires {
     makers: sorted(makers),
     tools: sorted(tools),
     run: code ? ["code"] : [],
-    ...(tools.has("sandbox") ? { sandbox: "shell" as const } : {}),
+    ...(tools.has("sandbox") || ownToolsNeedShell(def, paths) ? { sandbox: "shell" as const } : {}),
     plugins: pluginsOf(def),
     connections,
     features: [...features].sort(),
@@ -153,9 +166,9 @@ export function requiresOf(def: WizardDefinition): Requires {
   ) as Requires;
 }
 
-/** The definition with its `requires` as its steps say: what every writer saves. */
-export function withRequires<T extends WizardDefinition>(def: T): T {
-  const requires = requiresOf(def);
+/** The definition with its `requires` as its steps and files say: what every writer saves. */
+export function withRequires<T extends WizardDefinition>(def: T, paths?: readonly string[]): T {
+  const requires = requiresOf(def, paths);
   const { requires: _, steps, ...rest } = def;
   // `requires` stands before the steps, where people read it.
   return {
@@ -165,9 +178,9 @@ export function withRequires<T extends WizardDefinition>(def: T): T {
   } as T;
 }
 
-/** Why a definition's `requires` is not what its steps need, or null when it is. */
-export function requiresProblem(def: WizardDefinition): string | null {
-  const want = requiresOf(def);
+/** Why a definition's `requires` is not what its steps and files need, or null when it is. */
+export function requiresProblem(def: WizardDefinition, paths?: readonly string[]): string | null {
+  const want = requiresOf(def, paths);
   const have = def.requires ?? {};
   if (JSON.stringify(normal(have)) === JSON.stringify(normal(want))) {
     return null;

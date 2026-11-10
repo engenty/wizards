@@ -454,8 +454,8 @@ export function parseDraft(
       },
     );
   }
-  // Every writer saves `requires` as the steps say.
-  const draft = withRequires(parsed.data);
+  // Every writer saves `requires` as the steps and the files say.
+  const draft = withRequires(parsed.data, files);
   return { draft, issues: validateWizard(draft, files) };
 }
 

@@ -382,6 +382,7 @@ const NOTES_EN = {
   codeOutputUnfit: "The code returned something other than this step declares: {detail}",
   wizardToolMissing: "The tool “{name}” isn’t in the wizard’s files.",
   wizardToolBroken: "The tool “{name}” can’t be used: {detail}",
+  wizardToolNoSandbox: "The tool “{name}” runs in a sandbox, and this run has none here.",
   waitDateUnreadable: "“{date}” isn’t a date this step can wait for.",
   runStarted: "Run started",
   runStartedBy: "Run started by {name}",
@@ -903,6 +904,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   codeOutputUnfit: "Der Code hat etwas anderes zurückgegeben, als dieser Schritt angibt: {detail}",
   wizardToolMissing: "Das Werkzeug „{name}“ fehlt in den Dateien des Wizards.",
   wizardToolBroken: "Das Werkzeug „{name}“ lässt sich nicht nutzen: {detail}",
+  wizardToolNoSandbox:
+    "Das Werkzeug „{name}“ läuft in einer Sandbox, und dieser Lauf hat hier keine.",
   waitDateUnreadable: "„{date}“ ist kein Datum, auf das dieser Schritt warten kann.",
   runStarted: "Lauf gestartet",
   runStartedBy: "Lauf gestartet von {name}",

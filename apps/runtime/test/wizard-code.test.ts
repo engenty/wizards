@@ -17,7 +17,7 @@ import {
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { validatePath } from "../src/cli/validate";
-import { declareWizardTool } from "../src/engine/wizard-code";
+import { declareSandboxTool, declareWizardTool } from "../src/engine/wizard-code";
 
 const SCORE = `
 export const description = "Scores an offer";
@@ -58,7 +58,9 @@ describe("the wizard's own tool ids", () => {
   it("are read from tools/ in the workspace, directly and by .ts or .js", () => {
     expect(wizardToolOfPath("tools/score.ts")).toBe("score");
     expect(wizardToolOfPath("tools/rate.js")).toBe("rate");
-    expect(wizardToolOfPath("tools/convert/TOOL.md")).toBeNull();
+    expect(wizardToolOfPath("tools/convert/TOOL.md")).toBe("convert");
+    expect(wizardToolOfPath("tools/convert/convert.py")).toBeNull();
+    expect(wizardToolOfPath("tools/a/b/TOOL.md")).toBeNull();
     expect(wizardToolOfPath("code/score.ts")).toBeNull();
     expect(wizardToolsIn(["tools/a.ts", "tools/a.js", "tools/b.ts"])).toEqual(
       new Map([
@@ -75,7 +77,7 @@ describe("checks of a wizard's function tools", () => {
       validateWizard(definition(tools), files).map((i) => i.message);
     expect(messages(["wizard.score"], ["tools/score.ts"])).toEqual([]);
     expect(messages(["wizard.score"], [])).toEqual([
-      'Tool "wizard.score" has no file: tools/score.ts or tools/score.js.',
+      'Tool "wizard.score" has no file: tools/score.ts, tools/score.js or tools/score/TOOL.md.',
     ]);
     expect(messages(["wizard.score"], ["tools/score.ts", "tools/score.js"])).toEqual([
       'Tool "wizard.score" has two files: keep one of tools/score.js, tools/score.ts.',
@@ -164,8 +166,140 @@ describe("checks of a wizard's function tools", () => {
     );
     expect(broken.ok).toBe(false);
     const said = broken.issues.map((i) => i.message);
-    expect(said).toContain('Tool "wizard.gone" has no file: tools/gone.ts or tools/gone.js.');
+    expect(said).toContain('Tool "wizard.gone" has no file: tools/gone.ts, tools/gone.js or tools/gone/TOOL.md.');
     expect(said).toContain('Tool "wizard.score" exports no "description": a sentence of what it does.');
     expect(said).toContain('Tool "wizard.other" has two files: keep one of tools/other.js, tools/other.ts.');
+  });
+});
+
+const CONVERT = [
+  "---",
+  "description: Converts a supplier's price list into our item table",
+  "input:  { type: object, properties: { file: { type: string } }, required: [file] }",
+  "output:",
+  "  type: object",
+  "  properties:",
+  "    items: { type: array }",
+  "run: python3 convert.py",
+  "hosts: [api.exchangerate.host]",
+  "---",
+  "Reads the file, maps the supplier's columns.",
+].join("\n");
+
+const withHosts = (tools: string[], hosts?: string[]) =>
+  wizardSchema.parse({
+    title: "T",
+    description: "",
+    avatar: "round",
+    steps: [
+      {
+        id: "work",
+        type: "agent",
+        title: "Work",
+        instructions: "Do it.",
+        tools,
+        ...(hosts ? { hosts } : {}),
+        output: { format: "text" },
+      },
+      { id: "done", type: "result", title: "Done", deliverables: [] },
+    ],
+  }) as WizardDefinition;
+
+describe("a wizard's sandbox tools", () => {
+  it("are read from TOOL.md, its schemas in YAML or JSON", () => {
+    expect(declareSandboxTool("convert", CONVERT)).toEqual({
+      ok: true,
+      tool: {
+        description: "Converts a supplier's price list into our item table",
+        input: { type: "object", properties: { file: { type: "string" } }, required: ["file"] },
+        output: { type: "object", properties: { items: { type: "array" } } },
+        run: "python3 convert.py",
+        hosts: ["api.exchangerate.host"],
+        body: "Reads the file, maps the supplier's columns.",
+      },
+    });
+    const json = declareSandboxTool(
+      "sum",
+      '---\ndescription: Sums\ninput: {"type": "object", "properties": {"n": {"type": "number"}}}\nrun: node sum.js\n---\n',
+    );
+    expect(json).toMatchObject({ ok: true, tool: { run: "node sum.js", hosts: [] } });
+  });
+
+  it("say what their TOOL.md lacks", () => {
+    const issues = (text: string) => {
+      const read = declareSandboxTool("convert", text);
+      return read.ok ? [] : read.issues;
+    };
+    expect(issues("no front matter")).toEqual([
+      'Tool "wizard.convert": its TOOL.md has no front matter between --- lines.',
+    ]);
+    expect(issues("---\ninput: [unclosed\n---\n")[0]).toContain("is no YAML");
+    expect(issues("---\ndescription: Converts\ninput: { type: string }\nhosts: [localhost, 'a b']\n---\n")).toEqual([
+      'Tool "wizard.convert": "input" describes an object ("type": "object").',
+      'Tool "wizard.convert" has no "run": the command that runs it, such as python3 convert.py.',
+      'Tool "wizard.convert": "localhost" is no host name, such as api.example.com.',
+      'Tool "wizard.convert": "a b" is no host name, such as api.example.com.',
+    ]);
+  });
+
+  it("need a sandbox that runs a shell, which requires says where the files are known", () => {
+    const def = withHosts(["wizard.convert"], ["api.exchangerate.host"]);
+    const paths = ["tools/convert/TOOL.md", "tools/convert/convert.py"];
+    expect(requiresOf(def, paths)).toMatchObject({
+      tools: ["wizard.convert"],
+      run: ["code"],
+      sandbox: "shell",
+      features: ["codeSteps"],
+    });
+    expect(requiresOf(def, ["tools/convert.ts"]).sandbox).toBeUndefined();
+    // A writer that doesn't see the files keeps what the definition says.
+    const saved = withRequires(def, paths);
+    expect(withRequires(saved).requires?.sandbox).toBe("shell");
+    expect(requiresOf(withHosts(["web_fetch"]), paths).sandbox).toBeUndefined();
+  });
+
+  it("are part of wizards validate: TOOL.md, its folder and the step's hosts", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wizards-validate-sandbox-tools-"));
+    const write = (name: string, files: Record<string, string>, def: WizardDefinition) => {
+      const path = join(dir, name);
+      const paths = Object.keys(files);
+      writeFileSync(
+        path,
+        zipSync({
+          "wizard.json": strToU8(
+            JSON.stringify({ format: "engenty-wizard", version: 1, definition: withRequires(def, paths) }),
+          ),
+          ...Object.fromEntries(Object.entries(files).map(([k, v]) => [`files/${k}`, strToU8(v)])),
+        }),
+      );
+      return path;
+    };
+    const files = { "tools/convert/TOOL.md": CONVERT, "tools/convert/convert.py": "print('ok')" };
+    expect(
+      await validatePath(
+        write("ok.wizard", files, withHosts(["wizard.convert"], ["*.exchangerate.host"])),
+      ),
+    ).toMatchObject({ ok: true, files: 2 });
+
+    const noHost = await validatePath(write("hosts.wizard", files, withHosts(["wizard.convert"])));
+    expect(noHost.issues).toEqual([
+      {
+        stepId: "work",
+        message:
+          'Tool "wizard.convert" reaches api.exchangerate.host: list it in the step\'s "hosts" too.',
+      },
+    ]);
+
+    const both = await validatePath(
+      write("both.wizard", { ...files, "tools/convert.ts": SCORE }, withHosts(["web_fetch"])),
+    );
+    expect(both.issues.map((i) => i.message)).toContain(
+      'Tool "wizard.convert" has two files: keep one of tools/convert.ts, tools/convert/TOOL.md.',
+    );
+
+    const stale = await validatePath(
+      write("stale.wizard", { "tools/convert/TOOL.md": CONVERT }, withHosts(["wizard.convert"], ["api.exchangerate.host"])),
+    );
+    expect(stale.ok).toBe(true);
   });
 });

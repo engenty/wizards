@@ -523,7 +523,7 @@ An automatic step has a time limit of 8 hours, 12 for motion graphics. What a st
 Tell the admin what only they can do, in the share dialog: under "Events" they make the address another service sends to, or switch on a mailbox; under "Answered by" they name who answers team steps. To them, a signal is an "event".
 
 <!-- section: code -->
-<!-- Only while the switch codeSteps is on: authoringGuide() and the architect's system prompt leave it out otherwise. It covers code steps and the wizard's function tools. -->
+<!-- Only while the switch codeSteps is on: authoringGuide() and the architect's system prompt leave it out otherwise. It covers code steps and the wizard's function and sandbox tools. -->
 Code steps. Hard logic goes into a code step, never into a longer calc or a chain of conditions: maths over a table (totals, discounts, a price from many inputs), reshaping data (grouping, sorting, joining two tables, picking the top three), scoring and ranking by fixed rules. calc stays for one line that a page or a view shows; anything longer, or anything a later step reads, is a code step. An AI step stays for what needs judgement or language.
 
 type CodeStep = {
@@ -552,6 +552,16 @@ A tool is the workspace file tools/<name>.ts (name: lowercase letters, digits an
   export const output = { "type": "object", "properties": { "score": { "type": "number" } } };   // optional: what run returns is checked against it
   export async function run({ price, budget }, { fetch, tools }) { return { score: Math.max(0, 1 - price / budget) }; }
 It runs sealed off like a code step: no imports, at most 10 seconds a call, no credits, in a guest's run too. fetch(url, { method, headers, body }) reaches only the hosts the step lists in "hosts"; tools.<name>(args) calls the step's other tools by the names the model sees (web_fetch, http_request, …). A change that needs the person's yes is refused inside a tool: the model calls that tool itself. Example step: { "id": "rank", "type": "agent", "title": "Rank offers", "instructions": "Score each offer in {{steps.find.offers}} against {{budget}} and list the best three.", "tools": ["wizard.score"], "output": { "format": "markdown" } }
+
+Sandbox tools. When the fixed task needs a program, packages or files (convert a spreadsheet, read a PDF with a Python library), write it as a sandbox tool: the folder tools/<name>/ with TOOL.md and the scripts beside it. The step lists it as "wizard.<name>" too; it does not need "sandbox" for it.
+  ---
+  description: Converts a supplier's price list (CSV or XLSX) into our item table
+  input: { type: object, properties: { file: { type: string } }, required: [file] }
+  output: { type: object, properties: { items: { type: array } }, required: [items] }
+  run: python3 convert.py
+  hosts: [api.exchangerate.host]
+  ---
+The script runs in its folder in the run's sandbox: it reads input.json, writes output.json (checked against output), and files it writes to out/ become files of the step. A file the person gave reaches it when the model passes upload:<id>; the script finds it at the path input.json then holds (in/<name>). At most 5 minutes a call; what it installs stays for the run. The step lists every host of "hosts" in its own "hosts". The sandbox is agentOS where Docker isn't the engine: Python is Pyodide (numpy, pandas; pure-Python packages with micropip), Node runs JavaScript, no native programs.
 
 <!-- section: widgets -->
 Widgets — when to use: the result must look the same every run, animate, or be explored (a map with
@@ -591,7 +601,7 @@ one-off pages stay "generate" steps. A widget is code in the wizard's WORKSPACE 
 
 Skills of the wizard — when to use: open work where the model decides what to read and run (a house style, how to
 fill a supplier's forms, a few scripts it combines as the case needs). A fixed task with known inputs and output is
-no skill: a code step does it with no model, and a tool with typed arguments that runs in the sandbox comes later.
+no skill: a code step does it with no model, and a sandbox tool runs it with typed arguments.
 - Files: "skills/<name>/SKILL.md" in the workspace, written with the file tools, plus the files it points to (references,
   scripts). Front matter: name (the folder's name: lower-case letters, digits, hyphens), description (when a step
   should use it), and mode: always to put it whole into every AI step; without mode, a step loads it when it fits.

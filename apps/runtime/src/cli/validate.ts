@@ -4,7 +4,7 @@ import { parseWizard, type ValidationIssue } from "@engenty/wizards-shared/defin
 import { requiresProblem } from "@engenty/wizards-shared/requires";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
 import { WIZARD_SKILLS_DIR, wizardSkillIssues } from "@engenty/wizards-shared/wizard-skills";
-import { wizardToolFileIssues } from "../engine/wizard-code.js";
+import { sandboxToolHostIssues, wizardToolFileIssues } from "../engine/wizard-code.js";
 import { json, readManifest, readPackage } from "../services/package-file.js";
 import { bad, dim, ok } from "./ui.js";
 
@@ -14,7 +14,8 @@ import { bad, dim, ok } from "./ui.js";
  * its wizard.json, with the workspace beside it under files/), or a definition on its own.
  *
  * What a space holds — its connectors, MCP servers and plugins — is checked on import. The
- * wizard's function tools (`files/tools/`) are loaded in QuickJS, as a run loads them.
+ * wizard's tools (`files/tools/`) are read as a run reads them: a function tool's file in
+ * QuickJS, a sandbox tool's `TOOL.md` with its front matter.
  */
 
 interface Checked {
@@ -87,7 +88,7 @@ export async function validatePath(path: string): Promise<Checked> {
   }
   const parsed = parseWizard(given.definition, given.files);
   // `requires` says what the steps need: a file that says otherwise is out of date.
-  const requires = parsed.ok ? requiresProblem(parsed.wizard) : null;
+  const requires = parsed.ok ? requiresProblem(parsed.wizard, given.files) : null;
   const checked = requires ? [...parsed.issues, { message: requires }] : parsed.issues;
   // A tool a step names is checked by the definition too: each message once.
   const said = new Set(checked.map((issue) => issue.message));
@@ -101,6 +102,7 @@ export async function validatePath(path: string): Promise<Checked> {
     ...(await wizardToolFileIssues(given.files, given.read))
       .filter((message) => !said.has(message))
       .map((message) => ({ message })),
+    ...(parsed.ok ? await sandboxToolHostIssues(parsed.wizard.steps, given.files, given.read) : []),
   ];
   return {
     path,

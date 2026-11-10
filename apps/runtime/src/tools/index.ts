@@ -355,8 +355,9 @@ export async function buildStepTools(
     });
   }
 
-  // The wizard's own function tools, over the step's other tools (wizard.ts).
-  Object.assign(tools, await wizardTools(step, ctx, tools, browser));
+  // The wizard's own tools, function tools over the step's other tools, sandbox tools in the
+  // run's sandbox (wizard.ts).
+  Object.assign(tools, await wizardTools(step, ctx, tools, browser, { assets, uploads }));
 
   // An installed client writes and runs code of its own.
   let instructions: string | undefined;

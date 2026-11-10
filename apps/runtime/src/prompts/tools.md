@@ -42,6 +42,18 @@ ${tool} may not call ${host}: the step does not list it in its hosts. Do not try
 <!-- section: note.wizard_tool_output -->
 ${tool} returned something its output schema does not allow, at ${where}: ${problem}. The tool is broken; say so in your result instead of guessing its answer.
 
+<!-- section: note.sandbox_tool_files -->
+Files the person gave: ${uploads}. To hand one to this tool, pass its reference (upload:<id>) as the argument's value.
+
+<!-- section: note.sandbox_tool_failed -->
+${tool} stopped with exit code ${code}. Its output is below. Do not run it again with the same arguments; say in your result that it failed.
+
+<!-- section: note.sandbox_tool_output_json -->
+${tool} wrote an output.json that is no JSON. The tool is broken; say so in your result instead of guessing its answer.
+
+<!-- section: note.sandbox_tool_output_size -->
+${tool} wrote an output.json over 1 MB. The tool is broken; say so in your result instead of guessing its answer.
+
 <!-- section: note.host_may_have_happened -->
 This request to ${host} was interrupted before and may have arrived already. It was not repeated. Do not try it again; say in your result that it may have happened.
 
