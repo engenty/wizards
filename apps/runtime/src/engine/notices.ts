@@ -1,5 +1,6 @@
 import { type Step, textLang, wizardLang } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
+import { whoOf } from "@engenty/wizards-shared/run-view";
 import { and, desc, eq, inArray, isNotNull, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { accountRunMail } from "../auth/account.js";
@@ -10,7 +11,7 @@ import { ManageError, managed, runMail } from "../manage.js";
 import { runViewTicketUntil, runWaitTicket } from "../secrets/signing.js";
 import { shareUrl, studioUrl } from "../services/wizards.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { answerersOf, teamToAsk, whoOf } from "./answerers.js";
+import { answerersOf, teamToAsk } from "./answerers.js";
 import { emitEvent } from "./events.js";
 import { pushToRunDevice } from "./push.js";
 import { runStore } from "./run-store.js";

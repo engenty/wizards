@@ -1,11 +1,12 @@
 import { featureOn } from "@engenty/wizards-shared/features";
+import { whoOf } from "@engenty/wizards-shared/run-view";
 import { and, desc, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
 import type { SessionUser } from "../auth/index.js";
 import { decide, readableIds, subjectsOfPerson } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { personCaller } from "../elements/caller.js";
 import { elementCall } from "../elements/gate.js";
-import { answeringNarrowed, stepOfRun, whoOf } from "../engine/answerers.js";
+import { answeringNarrowed, stepOfRun } from "../engine/answerers.js";
 import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
 import { tenantInfo } from "../manage.js";
