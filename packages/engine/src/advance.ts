@@ -20,7 +20,7 @@ import {
   type Said,
   saidText,
 } from "@engenty/wizards-shared/run";
-import { isPending, type Pending } from "@engenty/wizards-shared/run-services";
+import { isPending, isServiceStep, type Pending } from "@engenty/wizards-shared/run-services";
 import { whoOf } from "@engenty/wizards-shared/run-view";
 import {
   type FlowCommand,
@@ -29,6 +29,7 @@ import {
   type FlowRun,
   transition,
 } from "@engenty/wizards-shared/transition";
+import { isReadSql } from "@engenty/wizards-shared/wizard-data";
 import { decideBranch, decideFields, formContextOf, listCounts } from "./decisions.js";
 import type { Move, RunHost, RunStart } from "./host.js";
 import { readFormInput } from "./input.js";
@@ -611,9 +612,16 @@ function passed(before: RunState, after: RunState, stepId: string): boolean {
   return output !== undefined && output.at !== before.outputs[stepId]?.at;
 }
 
-/** A visit of a step that acts through a connection, counted on the run before it acts. */
+/**
+ * A visit of a fixed step that acts, counted on the run before it acts: a tool step's call, a
+ * write to the wizard's database, a step a service does whole. Its effect id (`visitEffect`)
+ * names the visit.
+ */
 function enterVisit(step: Step, state: RunState): boolean {
-  if (step.type !== "tool" || !step.call || !("connection" in step.call)) {
+  const writes =
+    (step.type === "tool" || step.type === "code") && step.data && !isReadSql(step.data.sql);
+  const acts = (step.type === "tool" && step.call) || writes || isServiceStep(step);
+  if (!acts) {
     return false;
   }
   if (state.visiting === step.id) {

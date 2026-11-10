@@ -1,7 +1,10 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { AskResult } from "@engenty/wizards-engine/types";
-import type { AskInput, RunState } from "@engenty/wizards-shared/run";
+import type { AskInput } from "@engenty/wizards-shared/run";
+import { ServiceError } from "@engenty/wizards-shared/run-services";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
+import { effectUnsure } from "../engine/events.js";
 import { feature, remoteFeatures } from "../features.js";
 import type { Where } from "./call.js";
 
@@ -18,12 +21,22 @@ import type { Where } from "./call.js";
  * - An agent step's call: `<turn>:<toolCallId>`. A durable turn keeps its tool call ids across a
  *   recovery. An agent step without a turn has new ones after a restart, so nothing can match
  *   them: it gets no row and repeats as it always did.
- * - A fixed `call` step: `<run>:<step>:<visit>`. It makes one call per visit, and the visit is
- *   counted on the run before it acts (`enterVisit`).
+ * - A fixed step: `<run>:<step>:<visit>`. It makes one call per visit, and the visit is counted
+ *   on the run before it acts (`enterVisit` in packages/engine/src/advance.ts): a restart finds
+ *   `visiting` and keeps the number, a loop, a regenerate or going back has cleared it and gets a
+ *   new one. A step a service does whole (a film) counts its visits the same way.
  *
  * - A program's call in a durable turn: the program's tool call id, what it calls with what input,
  *   and how often it did so before (`toolCallIdOf`). A crash repeats the whole program, and each of
  *   its writes finds its row. A program that changes its input, say with the time, acts again.
+ *
+ * Who keeps the row: a connection's action and a request to a host keep theirs in the broker
+ * (`brokerCall`, `brokerHost`). The run's services keep one for everything else that acts
+ * (`actOnce`): a step's tool that is no read, a write to the wizard's database, a file saved under
+ * an id, a step a service does whole (a film), a plugin's tool in a fixed step. A tool whose acts
+ * go through the broker, or a program whose calls each have their own, keeps no second row. A
+ * step a service does whole is the run's own work, which nobody outside sees until it is done: its
+ * row `started` is a crash's, and the step goes on without asking.
  *
  * No other call has an identity: a plugin's own calls.
  */
@@ -37,6 +50,9 @@ export interface EffectCall {
   visit?: number;
 }
 
+/** The row `actOnce` keeps while its action runs. */
+const keeping = new AsyncLocalStorage<string>();
+
 /** A row's id; null where this call is not recorded. */
 export async function effectIdOf(where: Where, call?: EffectCall): Promise<string | null> {
   if (!(call && where.runId && where.stepId)) {
@@ -48,6 +64,10 @@ export async function effectIdOf(where: Where, call?: EffectCall): Promise<strin
   } else if (call.visit) {
     id = `${where.runId}:${where.stepId}:${call.visit}`;
   }
+  // Inside the action the services keep a row for, under the same id: that row is the one.
+  if (id && keeping.getStore() === id) {
+    return null;
+  }
   return id && (await effectsOn()) ? id : null;
 }
 
@@ -56,24 +76,27 @@ export async function effectsOn(): Promise<boolean> {
   return feature("durableRuns", await remoteFeatures().catch(() => null));
 }
 
+/** The tools that keep their rows themselves (see above): the run's tools service adds none. */
+const ownRows = new WeakSet<object>();
+
 /**
- * A fixed step that calls a connection counts its visit on the run before it acts: a restart finds
- * `visiting` and keeps the number, a loop, a regenerate or going back has cleared it and gets a new
- * one. True when `state` changed and has to be written.
+ * Marks a tool whose acts keep rows of their own: its calls go through the broker under the
+ * call's id, or it is a program whose calls each have theirs. Its call then keeps no row of the
+ * services. A tool that goes through the broker unmarked keeps the services' row, and the broker
+ * none under that id (`effectIdOf`): never two rows for one call.
  */
-export async function enterVisit(
-  step: { id: string; type: string; call?: object },
-  state: RunState,
-): Promise<boolean> {
-  if (step.type !== "tool" || !step.call || !("connection" in step.call)) {
-    return false;
-  }
-  if (state.visiting === step.id || !(await effectsOn())) {
-    return false;
-  }
-  state.visiting = step.id;
-  state.visits = { ...state.visits, [step.id]: (state.visits?.[step.id] ?? 0) + 1 };
-  return true;
+export function keepsOwnRows<T extends object>(tool: T): T {
+  ownRows.add(tool);
+  return tool;
+}
+
+export function hasOwnRows(tool: unknown): boolean {
+  return typeof tool === "object" && tool !== null && ownRows.has(tool);
+}
+
+/** A service's call under the id its caller gives: null where nothing is recorded. */
+export async function effectOn(id: string | null | undefined): Promise<string | null> {
+  return id && (await effectsOn()) ? id : null;
 }
 
 export function findEffect(id: string) {
@@ -138,6 +161,11 @@ export async function effectThrew(id: string, err: unknown): Promise<void> {
   ) {
     return;
   }
+  await effectFailed(id);
+}
+
+/** The action did not happen: it may be tried again. */
+async function effectFailed(id: string): Promise<void> {
   try {
     await db
       .update(schema.runEffect)
@@ -175,4 +203,70 @@ export async function askAgain(
     return "nobody";
   }
   return answer.type === "done" ? "again" : "not_again";
+}
+
+/** What `actOnce` answers: what the action gave, or that it may have happened and did not run. */
+export type ActedOnce<T> = { done: T } | { unsure: true };
+
+/**
+ * Runs `act` under the row `row.id`, the rule above for a call of the run's services. Found `done`:
+ * what the row kept, no action. Found `started`, or held by another process: only a person's yes
+ * runs it again (the run's own work goes on); else `unsure`, said in the run's log. The row is
+ * written before `act` runs.
+ */
+export async function actOnce<T>(
+  row: { id: string; runId: string; stepId: string; tool: string },
+  act: () => Promise<T>,
+  options: {
+    ask?: (ask: AskInput) => Promise<AskResult | null>;
+    /** What a person is asked about and the run's log names, and where it happened. */
+    summary: string;
+    service: string;
+    input?: unknown;
+    /**
+     * The run's own work (a film): nothing outside the run sees it until it is done. Thrown, it
+     * did not happen; found `started`, a crash broke it off, and it goes on (a film from its saved
+     * session) without asking. Only `done` answers without acting.
+     */
+    own?: boolean;
+  },
+): Promise<ActedOnce<T>> {
+  const found = await findEffect(row.id);
+  // An id names one run's call: another run's row is none of this run's business.
+  if (found && found.runId !== row.runId) {
+    throw new ServiceError({ class: "final" }, "That effect id belongs to another run.");
+  }
+  if (found?.state === "done") {
+    return { done: found.output as T };
+  }
+  const unsure = async (): Promise<ActedOnce<T>> => {
+    await effectUnsure(row.runId, row.stepId, { tool: options.summary });
+    return { unsure: true };
+  };
+  if (found?.state === "started") {
+    // The run's own work goes on: one process holds a run at a time, so the row is a crash's.
+    const again = options.own
+      ? "again"
+      : await askAgain(options.ask, {
+          service: options.service,
+          actionId: row.tool,
+          summary: options.summary,
+          destructive: false,
+          input: JSON.stringify(options.input ?? {}, null, 2).slice(0, 2000),
+        });
+    if (again !== "again") {
+      return unsure();
+    }
+  } else if (!(await startEffect(row))) {
+    return unsure();
+  }
+  try {
+    // What it answers is kept as it is: references to files, never their bytes.
+    const result = await keeping.run(row.id, act);
+    await effectDone(row.id, result);
+    return { done: result };
+  } catch (err) {
+    await (options.own ? effectFailed(row.id) : effectThrew(row.id, err));
+    throw err;
+  }
 }

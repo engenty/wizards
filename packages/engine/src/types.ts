@@ -9,6 +9,7 @@ import {
   type StepOutput,
 } from "@engenty/wizards-shared/run";
 import type {
+  EffectId,
   ModelsService,
   Pending,
   RunServices,
@@ -115,7 +116,13 @@ export interface StepServices extends RunServices {
    * video) and the run sleeps until it is done. Asked again for the same step (`RunState.job`),
    * the service answers the job's output, `pending` while it works, or throws its failure.
    */
-  steps: { run(step: ServiceStep, signal?: AbortSignal): Promise<StepOutput | Pending> };
+  steps: {
+    run(
+      step: ServiceStep,
+      signal?: AbortSignal,
+      effect?: EffectId | null,
+    ): Promise<StepOutput | Pending>;
+  };
   tools: ToolsService & {
     /**
      * The tools of an agent step: `ctx` is its own (a foreach entry's, a wizard's agent's), which

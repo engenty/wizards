@@ -11,6 +11,7 @@ import {
 } from "@engenty/wizards-shared/wizard-code";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import { keepsOwnRows } from "../broker/effect.js";
 import { brokerHost, whereOf } from "../broker/index.js";
 import { summarizeInput, writeLog } from "../broker/log.js";
 import { stepCaller } from "../elements/caller.js";
@@ -173,7 +174,8 @@ export async function wizardTools(
     const callName = wizardToolCallName(name);
     const tool = loaded.tool;
     if (tool.kind === "function") {
-      tools[callName] = functionTool(id, callName, tool, step, ctx, callable);
+      // A program: each of its calls keeps its own row, and a crash repeats the whole program.
+      tools[callName] = keepsOwnRows(functionTool(id, callName, tool, step, ctx, callable));
       continue;
     }
     const missing = sandboxToolHostsMissing(tool.hosts, step.hosts ?? []);

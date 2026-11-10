@@ -1,10 +1,13 @@
 import { StepError } from "@engenty/wizards-engine/types";
+import { type AssetRef, note } from "@engenty/wizards-shared/run";
 import type { FileRead, FileSave, FilesService } from "@engenty/wizards-shared/run-services";
+import { actOnce, effectOn } from "../broker/effect.js";
 import type { RunRow } from "../engine/types.js";
 import { extFor, loadAsset, saveAsset } from "../files/storage.js";
 import { snapshotHtmlImages } from "../files/web-images.js";
 import { signedUrl } from "../secrets/signing.js";
 import { snapshotFile } from "../services/files.js";
+import { askOf } from "../tools/code.js";
 import { assertPublicUrl, safeFetch } from "../tools/net-guard.js";
 import { personUploads } from "../tools/store.js";
 import type { InProcessContext } from "./in-process.js";
@@ -24,7 +27,7 @@ export interface InProcessFiles extends FilesService {
 }
 
 export function filesService(run: RunRow, ctx: () => InProcessContext): InProcessFiles {
-  const save = async (file: FileSave) => {
+  const write = async (file: FileSave) => {
     const { mime, data } = "url" in file ? await fetched(file, ctx().signal) : file;
     return saveAsset({
       runId: run.id,
@@ -35,6 +38,23 @@ export function filesService(run: RunRow, ctx: () => InProcessContext): InProces
       data,
       ...(file.ai ? { ai: file.ai } : {}),
     });
+  };
+  // Saved as what a tool or a step does, under its id: once, and a repeat gets the same file.
+  const save = async (file: FileSave): Promise<AssetRef> => {
+    const id = await effectOn(file.effect);
+    if (!id) {
+      return write(file);
+    }
+    const c = ctx();
+    const saved = await actOnce(
+      { id, runId: run.id, stepId: file.stepId ?? c.stepId, tool: "files:save" },
+      () => write(file),
+      { ask: askOf(c), summary: file.name, service: c.def.title, input: { name: file.name } },
+    );
+    if ("unsure" in saved) {
+      throw new StepError(note("stepMayHaveHappened", { what: file.name }));
+    }
+    return saved.done;
   };
   return {
     async read(ref) {

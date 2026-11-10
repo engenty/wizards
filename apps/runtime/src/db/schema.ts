@@ -2087,7 +2087,10 @@ export const runEffect = sqliteTable(
       .notNull()
       .references(() => run.id, { onDelete: "cascade" }),
     stepId: text("step_id").notNull(),
-    /** What acted: `<connection>:<action>`, or `host:<name>`. */
+    /**
+     * What acted: `<connection>:<action>`, `host:<name>`, or a call of the run's services:
+     * `tool:<name>`, `plugin:<tool>`, `data:exec`, `files:save`, `step:<type>`.
+     */
     tool: text("tool").notNull(),
     state: text("state", { enum: ["started", "done", "failed"] }).notNull(),
     output: text("output", { mode: "json" }).$type<unknown>(),

@@ -5,6 +5,7 @@ import type { UploadRef } from "@engenty/wizards-shared/run-services";
 import { isTextMime } from "@engenty/wizards-shared/workspace";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import { keepsOwnRows } from "../broker/effect.js";
 import { brokerHost, reachesOutside, whereOf, whoOf } from "../broker/index.js";
 import { documentMime, parseDocument } from "../documents/parse.js";
 import { stepCaller } from "../elements/caller.js";
@@ -218,6 +219,11 @@ export async function buildStepTools(
         };
       },
     });
+  }
+
+  if (tools.http_request) {
+    // A request that is no GET goes through the broker under the call's id: it keeps the row.
+    keepsOwnRows(tools.http_request);
   }
 
   const files = new FileKeeper(ctx, assets);

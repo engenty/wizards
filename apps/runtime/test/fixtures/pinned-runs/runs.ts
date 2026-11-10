@@ -206,6 +206,8 @@ export const tool: PinnedRun = {
     history: [],
     notes: {},
     data: { stamped: "ABABAB", letters: 6 },
+    // The call is counted on the run before it acts: it happens once per visit.
+    visits: { stamp: 1 },
   },
 };
 
