@@ -2,7 +2,6 @@ import { localeOf, wizardLang } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import {
   type DataStatementRequest,
-  type FileSave,
   type ModelsService,
   type RunServices,
   ServiceError,
@@ -31,8 +30,7 @@ import { stepCaller } from "../elements/caller.js";
 import { noticesFor, noticeWrites } from "../engine/notices.js";
 import { runAgentStep } from "../engine/steps/agent.js";
 import { runGenerateStep } from "../engine/steps/generate.js";
-import { type RunRow, type StepContext, StepError } from "../engine/types.js";
-import { loadAsset, saveAsset } from "../files/storage.js";
+import type { RunRow, StepContext } from "../engine/types.js";
 import {
   agentModel,
   attachTools,
@@ -46,13 +44,12 @@ import {
   totalUsage,
 } from "../models.js";
 import { runMotionGraphicsStep } from "../motion-graphics/step.js";
-import { signedUrl } from "../secrets/signing.js";
 import { knowledgeBlock } from "../services/knowledge.js";
 import { runData } from "../store/data-access.js";
 import { listRows } from "../store/index.js";
-import { assertPublicUrl, safeFetch } from "../tools/net-guard.js";
 import { skillsBlock, skillsOf } from "../tools/skills.js";
 import { runWidgetStep } from "../widgets/step.js";
+import { filesService, type InProcessFiles } from "./files.js";
 import { type InProcessTools, inProcessTools } from "./tools.js";
 
 /**
@@ -63,8 +60,10 @@ import { type InProcessTools, inProcessTools } from "./tools.js";
  * `models.agentModel`, `tools.forStep` and `tools.ofAgent` are the calls beyond `RunServices`: an
  * agent step's loop still runs in Mastra's `Agent`, which takes the model and its tools itself,
  * until the engine keeps its own loop (phase 2).
+ * `files` has calls beyond it too (./files.ts).
  */
 export interface InProcessServices extends RunServices {
+  files: InProcessFiles;
   models: ModelsService & {
     agentModel(
       request: Pick<TurnRequest, "stepId" | "class" | "effort" | "maker">,
@@ -246,32 +245,7 @@ export function inProcessServices(run: RunRow, ctx: () => StepContext): InProces
       },
     },
 
-    files: {
-      async read(ref) {
-        const found = await loadAsset(ref);
-        if (!found) {
-          return null;
-        }
-        const { row, data } = found;
-        return {
-          ref: { id: row.id, kind: row.kind, mime: row.mime, name: row.name },
-          data: new Uint8Array(data),
-        };
-      },
-      async save(file) {
-        const { mime, data } = "url" in file ? await fetched(file, ctx().signal) : file;
-        return saveAsset({
-          runId: run.id,
-          stepId: file.stepId ?? ctx().stepId,
-          kind: file.kind,
-          mime,
-          name: file.name,
-          data,
-          ...(file.ai ? { ai: file.ai } : {}),
-        });
-      },
-      link: async (ref) => signedUrl(`/api/runs/${run.id}/assets/${ref}`),
-    },
+    files: filesService(run, ctx),
 
     data: {
       query: (request) => statement(at(request.stepId), request, "read"),
@@ -339,22 +313,6 @@ function statement(c: StepContext, request: DataStatementRequest, mode: "read" |
       mode,
     },
   );
-}
-
-/** A file saved by its address: fetched from the open web, never from this network. */
-async function fetched(file: Extract<FileSave, { url: string }>, signal: AbortSignal) {
-  const url = await assertPublicUrl(file.url);
-  const res = await safeFetch(url.toString(), {
-    signal: AbortSignal.any([signal, AbortSignal.timeout(60_000)]),
-  });
-  if (!res.ok) {
-    throw new StepError(`${url.hostname} answered ${res.status}.`);
-  }
-  const type = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
-  return {
-    mime: file.mime ?? (type || "application/octet-stream"),
-    data: new Uint8Array(await res.arrayBuffer()),
-  };
 }
 
 /** A message as the AI SDK takes it. */
