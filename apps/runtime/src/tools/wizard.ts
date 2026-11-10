@@ -1,3 +1,4 @@
+import { quickJs, WIZARD_CODE_MEMORY_MB } from "@engenty/wizards-engine/quickjs";
 import { StepError } from "@engenty/wizards-engine/types";
 import type { AgentStep } from "@engenty/wizards-shared/definition";
 import type { AssetRef } from "@engenty/wizards-shared/run";
@@ -13,7 +14,6 @@ import { z } from "zod";
 import { brokerHost, whereOf } from "../broker/index.js";
 import { summarizeInput, writeLog } from "../broker/log.js";
 import { stepCaller } from "../elements/caller.js";
-import { quickJs } from "../engine/quickjs.js";
 import {
   loadWizardTool,
   schemaZod,
@@ -39,7 +39,7 @@ import { sandboxTool } from "./wizard-sandbox.js";
  * calls it like any tool.
  *
  * The code is untrusted (marketplace, imports, guests): it runs in QuickJS like a code step
- * (../engine/quickjs.ts), with no modules, files or timers. Its way out is what `run` gets:
+ * (packages/engine/src/quickjs.ts), with no modules, files or timers. Its way out is what `run` gets:
  * `fetch` through the broker, to the step's `hosts` only, the step's other tools, and where the
  * wizard keeps data, `db` to its database (store/data-access.ts). Each call is a line of the
  * broker's log, and so is each request and statement it makes.
@@ -57,7 +57,7 @@ const dbCall = z.object({
   scope: z.enum(["person", "shared"]).default("person"),
 });
 
-/** The external function QuickJS defines for a tool id (@mastra/quickjs). */
+/** The external function QuickJS defines for a tool id (packages/engine/src/quickjs.ts). */
 const externalOf = (id: string) => `external_${id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
 /**
@@ -373,7 +373,7 @@ function functionTool(
         return { error: `The arguments are longer than ${limits.inputChars} characters.` };
       }
       const ran = await inScope(() =>
-        quickJs().run({
+        quickJs({ memoryLimitMb: WIZARD_CODE_MEMORY_MB }).run({
           program: callProgram(body, input, toolKeys, data),
           toolIds: [FETCH_ID, ...(data ? [DB_ID] : []), ...toolKeys],
           dispatch: (key, args) =>

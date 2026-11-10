@@ -7,8 +7,9 @@ import { describe, expect, it } from "vitest";
  * modules only, so it bundles without the runtime and runs on another host. This reads every
  * import of the package's sources, static and dynamic, type imports and `export … from`
  * included: a type from the runtime would break the package's type check as surely as a value
- * breaks its bundle. Allowed: `@engenty/wizards-shared/*`, `ai`, `zod`, and the package itself.
- * No `node:*` module, no database client, no `@mastra/*`.
+ * breaks its bundle. Allowed: `@engenty/wizards-shared/*`, `ai`, `zod`, QuickJS
+ * (`quickjs-emscripten-core` with its release-sync WebAssembly build) and `sucrase` for wizard
+ * code, and the package itself. No `node:*` module, no database client, no `@mastra/*`.
  */
 
 const SRC = resolve(__dirname, "../../../packages/engine/src");
@@ -25,7 +26,14 @@ const STEP_CODE = walk(SRC)
   .map((path) => relative(SRC, path))
   .sort();
 
-const PACKAGES = [/^@engenty\/wizards-shared\/[\w./-]+$/, /^ai$/, /^zod$/];
+const PACKAGES = [
+  /^@engenty\/wizards-shared\/[\w./-]+$/,
+  /^ai$/,
+  /^zod$/,
+  /^quickjs-emscripten-core$/,
+  /^@jitl\/quickjs-wasmfile-release-sync$/,
+  /^sucrase$/,
+];
 
 /**
  * The specifiers a file imports. Static imports and `export … from` start a line (Biome writes
@@ -82,7 +90,7 @@ describe("step code imports", () => {
     expect(steps.every((f) => importsOf(f.text).length > 0)).toBe(true);
   });
 
-  it("imports only shared modules, ai, zod and itself", () => {
+  it("imports only shared modules, ai, zod, QuickJS, sucrase and itself", () => {
     expect(found.map(key)).toEqual([]);
   });
 

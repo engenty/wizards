@@ -122,7 +122,6 @@ Declared by two or more of the workspaces below:
 | [@mastra/docker](https://mastra.ai) | 0.13.0 | Apache-2.0 |
 | [@mastra/libsql](https://mastra.ai) | 1.29.0 | Apache-2.0 |
 | [@mastra/memory](https://mastra.ai) | 1.41.0 | Apache-2.0 |
-| [@mastra/quickjs](https://mastra.ai) | 0.1.5 | Apache-2.0 |
 | [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.4.0 | Apache-2.0 |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 1.0.13 | MIT |
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.3 | MIT |
@@ -188,6 +187,14 @@ Declared by two or more of the workspaces below:
 | [tw-animate-css](https://github.com/Wombosvideo/tw-animate-css#readme) | 1.4.0 | MIT |
 | [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT |
 | [xlsx](https://sheetjs.com/) | 0.20.3 | Apache-2.0 |
+
+### engine (packages/engine)
+
+| Package | Version | Licence |
+|---|---|---|
+| [@jitl/quickjs-wasmfile-release-sync](https://github.com/justjake/quickjs-emscripten#readme) | 0.31.0 | MIT |
+| [quickjs-emscripten-core](https://github.com/justjake/quickjs-emscripten#readme) | 0.31.0 | MIT |
+| [sucrase](https://github.com/alangpierce/sucrase#readme) | 3.35.1 | MIT |
 
 ### Development only
 

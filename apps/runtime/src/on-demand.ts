@@ -15,7 +15,6 @@ import { packageEntry } from "./sandbox/install.js";
 export const ON_DEMAND = {
   "@llamaindex/liteparse": "reading scans",
   "@mastra/docker": "the Docker sandbox",
-  "@mastra/quickjs": "running code",
   "@turbodocx/html-to-docx": "Word files",
   exceljs: "Excel files",
 } as const;
