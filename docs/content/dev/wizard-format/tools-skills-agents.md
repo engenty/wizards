@@ -1,6 +1,6 @@
 ---
 title: Tools, skills and agents in the wizard
-description: Function tools, sandbox tools and skills a wizard brings in its own files, for its own steps.
+description: Function tools, sandbox tools, skills and agents a wizard brings in its own files, for its own steps.
 version: 0.18.0
 ---
 
@@ -8,7 +8,7 @@ A wizard can bring what its steps work with in its own workspace, under `files/`
 `.wizard` file. Its steps use it like the space’s own, and other wizards don’t see it. The
 wizard stays one file: whoever imports it gets its tools and skills with it, and needs no plugin.
 
-This page covers function tools first, then sandbox tools and skills. Agents in the wizard follow.
+This page covers function tools, sandbox tools, skills and agents.
 
 ## Function tools
 
@@ -299,3 +299,108 @@ known inputs and a known result is no skill. A code step does it without a model
 - `mode` is `always` or `demand`.
 - Every file the `SKILL.md` links to, as in `[fill.py](scripts/fill.py)`, is in the folder.
 - At most 5 skills are always on, with at most 20,000 characters of instructions together.
+
+## Agents
+
+An agent is a role you write once: its instructions, its model class and its tools. A step lets
+the agent do its work, or its model hands the agent a task, as it would call a tool.
+
+| You need | Use |
+|---|---|
+| The same role in several steps, such as a researcher or a reviewer with fixed rules | An agent that runs the steps |
+| A part of a step’s work done by a specialist, with its own model and tools | An agent as a tool of the step |
+| One task in one place | A step with its own instructions |
+
+### The file
+
+An agent is the file `agents/<name>.md` in the workspace. The name has lowercase letters, digits
+and `_`, and starts with a letter. The file is Markdown with front matter, in the shape of Claude
+Code’s agents:
+
+```markdown
+---
+description: Finds offers for a product and checks them against the budget
+model: standard
+tools: [web_search, web_fetch, wizard.score]
+output:
+  type: object
+  properties:
+    offers: { type: array, items: { type: string } }
+  required: [offers]
+---
+You research offers on the web. Check each one against the budget with the score tool.
+Name the shop and the price of every offer.
+```
+
+| Key | What it holds |
+|---|---|
+| `description` | What the agent does. A step’s model reads it to decide when to call the agent. Needed where a step lists the agent as a tool |
+| `model` | The [model class](./agent-steps.md) it runs on. Default `standard` |
+| `tools` | The tools it may use: built-in tools, plugin tools and the wizard’s function tools (`wizard.<name>`). No other agent |
+| `output` | Optional. The JSON Schema of its answer where it is a tool, as a step’s [`output.schema`](./agent-steps.md) takes it |
+
+The text below the front matter holds the agent’s instructions. Every call of the agent starts
+with them.
+
+### As a step’s agent
+
+The step names the agent in `agent` and gives the task in `instructions`:
+
+```json
+{
+  "id": "find", "type": "agent", "title": "Find offers",
+  "agent": "researcher",
+  "instructions": "Find offers for {{product}} under {{budget}}.",
+  "output": { "format": "markdown" }
+}
+```
+
+The file gives the model class and the tools, so the step names no `model`. Its `tools` may
+leave some of the agent’s tools out, never add one. Without `tools` the step has all of the
+agent’s tools. The step’s `output`, `hosts` and `connections` work as on any agent step.
+
+### As a tool
+
+A step lists the agent as `agent.<name>`:
+
+```json
+{
+  "id": "plan", "type": "agent", "title": "Plan the purchase",
+  "instructions": "Plan the purchase of {{product}}. Ask the researcher for offers.",
+  "tools": ["agent.researcher"],
+  "output": { "format": "markdown" }
+}
+```
+
+The model calls it as `agent_researcher` with a task. The agent works with its own model and
+tools and answers with text, or with JSON as its `output` says.
+
+- It runs as the step: with the run’s grant, the step’s `hosts` and no connections.
+- Its model calls are charged to the run.
+- An agent called as a tool calls no other agent, and a step that runs an agent lists no other one.
+- Every call is a line in the audit, under the agent’s name.
+
+### What `requires` holds
+
+The wizard’s `requires` lists the agents the steps use under `agents`, each with the classes it
+calls and the tools it lists, as its file says. Its classes and tools count in `models`, `tools`
+and `plugins` too, so a reader that skips `agents` still sees everything the wizard needs. An agent
+needs the switch `codeSteps` only when it lists a function tool.
+
+The studio fills it in when it saves the wizard or an agent’s file, and drops an agent no step
+uses any more. `wizards validate` names an agent whose entry differs from its file. A run
+doesn’t start until they match again.
+
+### Checks
+
+`wizards validate` reads every file under `agents/`. It reports:
+
+- an agent a step names that has no file
+- a file without front matter, with an unknown key or a model class that doesn’t exist
+- a tool the agent lists that doesn’t exist, or another agent
+- an `output` that is no output schema
+- a step that names a `model` next to its agent, or lists a tool its agent doesn’t
+- an agent a step lists as a tool that has no `description`
+- an entry of `requires.agents` that doesn’t match the agent’s file, or names an agent no step uses
+
+A run that names an agent its workspace lacks fails at that step.

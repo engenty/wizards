@@ -9,7 +9,10 @@ import { CONNECTION_KINDS } from "./store.js";
 import { type SurfaceComponent, surfaceComponentsSchema, validateSurface } from "./surface.js";
 import {
   hasWizardCodePrefix,
+  WIZARD_CODE_NAME,
   WIZARD_CODE_PREFIXES,
+  wizardAgentPath,
+  wizardAgentsIn,
   wizardCodeOf,
   wizardToolsIn,
   wizardToolsUsed,
@@ -838,6 +841,12 @@ export const agentStepSchema = z.object({
   ...stepBase,
   ...automaticStep,
   type: z.literal("agent"),
+  /**
+   * An agent of the wizard (`agents/<name>.md`) that runs the step: its file gives the system
+   * part, the model class and the tools; `instructions` are the task. `tools` may narrow the
+   * agent's tools, never widen them; left empty, the step has all of them.
+   */
+  agent: z.string().regex(WIZARD_CODE_NAME).optional(),
   /** What the agent does. A template: {{field}}, {{steps.id}}, {{brand.name}}. */
   instructions: z.string().default(""),
   tools: z.array(z.union([z.enum(TOOL_IDS), pluginToolIdSchema])).default([]),
@@ -1506,7 +1515,10 @@ export const requiresSchema = z.object({
   ...requiredLists,
   /** The makers steps name. */
   makers: z.array(z.enum(MAKERS)).optional(),
-  /** The built-in tools steps list, and the wizard's own function tools (`wizard.<name>`). */
+  /**
+   * The built-in tools steps list, and the wizard's own function tools (`wizard.<name>`) and
+   * agents (`agent.<name>`).
+   */
   tools: z.array(z.string().min(1)).optional(),
   /** `code`: a code step or a tool of the wizard runs the wizard's own code. */
   run: z.array(z.literal("code")).optional(),
@@ -1519,6 +1531,20 @@ export const requiresSchema = z.object({
   /** The switches that must be on. */
   features: z.array(z.enum(REQUIRED_FEATURES)).optional(),
   optional: z.object(requiredLists).optional(),
+  /**
+   * What each agent of the wizard the steps use needs, as its file (`agents/<name>.md`) says:
+   * the classes it calls and the tools it lists. Kept here so what only reads the definition
+   * knows it; `wizards validate` checks it against the files. Folded into the lists above.
+   */
+  agents: z
+    .record(
+      z.string().regex(WIZARD_CODE_NAME),
+      z.object({
+        models: z.array(z.enum(MODEL_CLASSES)),
+        tools: z.array(z.string().min(1)).optional(),
+      }),
+    )
+    .optional(),
 });
 export type Requires = z.infer<typeof requiresSchema>;
 
@@ -1723,20 +1749,34 @@ export function sectionOf(def: Pick<WizardDefinition, "steps">, stepId: string):
 }
 
 /**
- * The wizard's own code a step names in `tools` (wizard-code.ts): a function tool's file is in the
- * workspace, once. Agents in the wizard come later. What the file exports is read where its code
- * can run: `wizards validate` and the run.
+ * The wizard's own code a step names (wizard-code.ts): a function tool's file is in the
+ * workspace, once; an agent's file is there, the one the step runs (`agent`) as well as the
+ * ones it lists as tools. What the files say is read where they are: `wizards validate` and the
+ * run (wizard-agents.ts).
  */
 function wizardCodeIssues(step: AgentStep, files: string[] | undefined): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const tools = files ? wizardToolsIn(files) : null;
+  const agents = files ? wizardAgentsIn(files) : null;
+  const say = (message: string) => issues.push({ stepId: step.id, message });
+  if (step.agent) {
+    if (agents && !agents.has(step.agent)) {
+      say(`Agent "${step.agent}" has no file: ${wizardAgentPath(step.agent)}.`);
+    }
+    if (step.model || step.maker) {
+      say(`The step runs agent "${step.agent}": its file gives the model, the step names none.`);
+    }
+  }
   for (const id of step.tools.filter(hasWizardCodePrefix)) {
     const code = wizardCodeOf(id);
-    const say = (message: string) => issues.push({ stepId: step.id, message });
     if (!code) {
       say(`Tool "${id}": a name of lowercase letters, digits and _, starting with a letter.`);
     } else if (code.kind === "agent") {
-      say(`Tool "${id}": agents in the wizard aren't supported yet.`);
+      if (step.agent) {
+        say(`Tool "${id}": a step that runs an agent lists no other agent.`);
+      } else if (agents && !agents.has(code.name)) {
+        say(`Tool "${id}" has no file: ${wizardAgentPath(code.name)}.`);
+      }
     } else if (tools && !tools.has(code.name)) {
       say(
         `Tool "${id}" has no file: tools/${code.name}.ts, tools/${code.name}.js or tools/${code.name}/TOOL.md.`,

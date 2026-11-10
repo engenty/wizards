@@ -72,7 +72,7 @@ describe("the wizard's own tool ids", () => {
 });
 
 describe("checks of a wizard's function tools", () => {
-  it("name a tool without a file, with two files, and agents that aren't there yet", () => {
+  it("name a tool without a file, with two files, and an agent without a file", () => {
     const messages = (tools: string[], files: string[]) =>
       validateWizard(definition(tools), files).map((i) => i.message);
     expect(messages(["wizard.score"], ["tools/score.ts"])).toEqual([]);
@@ -82,7 +82,9 @@ describe("checks of a wizard's function tools", () => {
     expect(messages(["wizard.score"], ["tools/score.ts", "tools/score.js"])).toEqual([
       'Tool "wizard.score" has two files: keep one of tools/score.js, tools/score.ts.',
     ]);
-    expect(messages(["agent.researcher"], [])[0]).toContain("aren't supported yet");
+    expect(messages(["agent.researcher"], [])).toEqual([
+      'Tool "agent.researcher" has no file: agents/researcher.md.',
+    ]);
     const toolStep = wizardSchema.parse({
       title: "T",
       steps: [
@@ -245,17 +247,17 @@ describe("a wizard's sandbox tools", () => {
   it("need a sandbox that runs a shell, which requires says where the files are known", () => {
     const def = withHosts(["wizard.convert"], ["api.exchangerate.host"]);
     const paths = ["tools/convert/TOOL.md", "tools/convert/convert.py"];
-    expect(requiresOf(def, paths)).toMatchObject({
+    expect(requiresOf(def, undefined, paths)).toMatchObject({
       tools: ["wizard.convert"],
       run: ["code"],
       sandbox: "shell",
       features: ["codeSteps"],
     });
-    expect(requiresOf(def, ["tools/convert.ts"]).sandbox).toBeUndefined();
+    expect(requiresOf(def, undefined, ["tools/convert.ts"]).sandbox).toBeUndefined();
     // A writer that doesn't see the files keeps what the definition says.
-    const saved = withRequires(def, paths);
+    const saved = withRequires(def, undefined, paths);
     expect(withRequires(saved).requires?.sandbox).toBe("shell");
-    expect(requiresOf(withHosts(["web_fetch"]), paths).sandbox).toBeUndefined();
+    expect(requiresOf(withHosts(["web_fetch"]), undefined, paths).sandbox).toBeUndefined();
   });
 
   it("are part of wizards validate: TOOL.md, its folder and the step's hosts", async () => {
@@ -267,7 +269,7 @@ describe("a wizard's sandbox tools", () => {
         path,
         zipSync({
           "wizard.json": strToU8(
-            JSON.stringify({ format: "engenty-wizard", version: 1, definition: withRequires(def, paths) }),
+            JSON.stringify({ format: "engenty-wizard", version: 1, definition: withRequires(def, undefined, paths) }),
           ),
           ...Object.fromEntries(Object.entries(files).map(([k, v]) => [`files/${k}`, strToU8(v)])),
         }),

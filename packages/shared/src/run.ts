@@ -331,6 +331,7 @@ const NOTES_EN = {
   python: "Running Python",
   runsProgram: "Working through the data in one go",
   runsTool: "Running {name}",
+  asksAgent: "Asking {name}",
   drawing: "Drawing an image",
   writesPage: "Writing the page “{title}”",
   searchesDocuments: "Searching the documents: {query}",
@@ -385,6 +386,10 @@ const NOTES_EN = {
   wizardToolMissing: "The tool “{name}” isn’t in the wizard’s files.",
   wizardToolBroken: "The tool “{name}” can’t be used: {detail}",
   wizardToolNoSandbox: "The tool “{name}” runs in a sandbox, and this run has none here.",
+  wizardAgentMissing: "The agent “{name}” isn’t in the wizard’s files.",
+  wizardAgentBroken: "The agent “{name}” can’t be used: {detail}",
+  agentNeedsChanged:
+    "What the wizard says the agent “{name}” needs isn’t what its file says. Save the wizard again.",
   waitDateUnreadable: "“{date}” isn’t a date this step can wait for.",
   runStarted: "Run started",
   runStartedBy: "Run started by {name}",
@@ -848,6 +853,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   grantPlugin: "das Plugin {name} nutzen",
   runsProgram: "Arbeitet die Daten in einem Zug durch",
   runsTool: "Führt {name} aus",
+  asksAgent: "Fragt {name}",
   python: "Führt Python aus",
   drawing: "Zeichnet ein Bild",
   writesPage: "Schreibt die Seite „{title}“",
@@ -908,6 +914,10 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   wizardToolBroken: "Das Werkzeug „{name}“ lässt sich nicht nutzen: {detail}",
   wizardToolNoSandbox:
     "Das Werkzeug „{name}“ läuft in einer Sandbox, und dieser Lauf hat hier keine.",
+  wizardAgentMissing: "Der Agent „{name}“ fehlt in den Dateien des Wizards.",
+  wizardAgentBroken: "Der Agent „{name}“ lässt sich nicht nutzen: {detail}",
+  agentNeedsChanged:
+    "Was der Wizard für den Agenten „{name}“ angibt, passt nicht zu seiner Datei. Speicher den Wizard noch einmal.",
   waitDateUnreadable: "„{date}“ ist kein Datum, auf das dieser Schritt warten kann.",
   runStarted: "Lauf gestartet",
   runStartedBy: "Lauf gestartet von {name}",

@@ -41,7 +41,7 @@ import {
   whenValue,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import { requiresOf } from "@engenty/wizards-shared/requires";
+import { agentsMismatch, requiresOf, withRequires } from "@engenty/wizards-shared/requires";
 import type {
   AskInput,
   RunNote,
@@ -74,6 +74,7 @@ import {
   transition,
 } from "@engenty/wizards-shared/transition";
 import { machineTranslated, translateDefinition } from "@engenty/wizards-shared/translation";
+import { wizardAgentsUsed } from "@engenty/wizards-shared/wizard-code";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { and, eq, lt, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -118,6 +119,7 @@ import {
 } from "../safety.js";
 import { peerTicket } from "../secrets/signing.js";
 import { nameOf } from "../services/access.js";
+import { snapshotFile } from "../services/files.js";
 import { reportRun } from "../services/manage-reports.js";
 import { switchedOffRunners } from "../services/runners.js";
 import { spaceFiles } from "../services/space-files.js";
@@ -184,6 +186,7 @@ import { surfaceData } from "./surface.js";
 import { answersAsText, fillLabel, renderTemplate, resolveRef } from "./template.js";
 import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
 import { SignInNeeded, StepError } from "./types.js";
+import { wizardAgentFiles } from "./wizard-code.js";
 
 /** A command the run cannot take in its current state; a note where the person may read it. */
 export class RunConflict extends NotedError {}
@@ -585,6 +588,23 @@ export async function createRun(input: {
   if (input.startedBy) {
     state.start = input.start;
     state.fill = input.fill ?? {};
+  }
+  // What `requires` says of the wizard's agents is what their files say: the checks before the
+  // start read it. A definition that comes without `requires` gets it from the files. An agent
+  // without a file fails at its step.
+  if (wizardAgentsUsed(input.definition).length) {
+    const { agents } = await wizardAgentFiles(
+      input.files.map((f) => f.path),
+      async (path) => (await snapshotFile(input.files, path))?.data.toString("utf8") ?? null,
+    );
+    if (!input.definition.requires) {
+      input.definition = withRequires(input.definition, agents);
+    }
+    const [stale] = agentsMismatch(input.definition, agents);
+    if (stale) {
+      console.warn(`[run] ${stale.message}`);
+      throw new ModelUnavailableError(note("agentNeedsChanged", { name: stale.name }));
+    }
   }
   // What the wizard needs and this runtime lacks: nothing starts. Off, nothing starts that would
   // need the clock; a run that already waits goes on.

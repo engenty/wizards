@@ -240,7 +240,7 @@ export async function stepsWithoutModel(def: WizardDefinition): Promise<Set<stri
   return new Set(
     def.steps
       .filter((s) =>
-        stepClasses(s).some(
+        stepClasses(s, def.requires?.agents).some(
           (cls) => missing.has(cls) || (tier && tierProblem(tier, tierClassOf(s, cls))),
         ),
       )
@@ -394,7 +394,7 @@ export async function missingModelsSaid(def: WizardDefinition): Promise<MissingM
     outside.set(id, entry);
   };
   for (const step of def.steps) {
-    for (const cls of new Set(stepClasses(step))) {
+    for (const cls of new Set(stepClasses(step, def.requires?.agents))) {
       use(step, cls, true);
     }
     for (const cls of optionalStepClasses(step)) {
@@ -507,7 +507,7 @@ export function optionalCapabilities(def: WizardDefinition): Set<Capability> {
   const required = new Set<ModelClass>();
   const any = new Set<ModelClass>();
   for (const step of def.steps) {
-    for (const cls of stepClasses(step)) {
+    for (const cls of stepClasses(step, def.requires?.agents)) {
       any.add(cls);
       if (unavoidable.has(step.id)) {
         required.add(cls);
@@ -546,7 +546,7 @@ export async function closedChoices(
     def,
     step,
     values,
-    (s) => stepClasses(s).filter((cls) => missing.has(cls)),
+    (s) => stepClasses(s, def.requires?.agents).filter((cls) => missing.has(cls)),
     (field) => (missing.has("audio") && field.kind === "audio" ? ["audio"] : null),
   );
 }

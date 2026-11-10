@@ -1,10 +1,14 @@
+import { parseWizardAgent, type WizardAgent } from "@engenty/wizards-shared/wizard-agents";
 import {
   isSandboxToolPath,
   type SandboxToolDeclaration,
   sandboxToolFiles,
   sandboxToolHostsMissing,
   sandboxToolIssues,
+  WIZARD_AGENTS_DIR,
   type WizardToolDeclaration,
+  wizardAgentOfPath,
+  wizardAgentPath,
   wizardCodeOf,
   wizardToolIssues,
   wizardToolPath,
@@ -284,4 +288,49 @@ export async function sandboxToolHostIssues(
     }
   }
   return issues;
+}
+
+/**
+ * The agent `name` from a workspace (`agents/<name>.md`): the agent, or what is wrong with its
+ * file. Null where it has no file.
+ */
+export async function loadWizardAgent(
+  name: string,
+  paths: readonly string[],
+  read: (path: string) => Promise<string | null>,
+): Promise<{ ok: true; agent: WizardAgent } | { ok: false; issues: string[] } | null> {
+  const path = wizardAgentPath(name);
+  const text = paths.includes(path) ? await read(path) : null;
+  return text === null ? null : parseWizardAgent(name, text, paths);
+}
+
+/**
+ * Every agent of a workspace, whether a step names it or not: the ones that parse, by name, and
+ * what is wrong with the others, a file in `agents/` whose name is none among them.
+ */
+export async function wizardAgentFiles(
+  paths: readonly string[],
+  read: (path: string) => Promise<string | null>,
+): Promise<{ agents: Map<string, WizardAgent>; issues: string[] }> {
+  const agents = new Map<string, WizardAgent>();
+  const issues: string[] = [];
+  for (const path of paths) {
+    if (!path.startsWith(WIZARD_AGENTS_DIR) || !path.endsWith(".md")) {
+      continue;
+    }
+    const name = wizardAgentOfPath(path);
+    if (!name) {
+      issues.push(
+        `Agent "${path}": a file directly in agents/, named in lowercase letters, digits and _, starting with a letter.`,
+      );
+      continue;
+    }
+    const loaded = await loadWizardAgent(name, paths, read);
+    if (loaded?.ok) {
+      agents.set(name, loaded.agent);
+    } else if (loaded) {
+      issues.push(...loaded.issues);
+    }
+  }
+  return { agents, issues };
 }

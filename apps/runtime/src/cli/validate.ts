@@ -3,9 +3,14 @@ import { basename, dirname, join, relative } from "node:path";
 import { parseWizard, type ValidationIssue } from "@engenty/wizards-shared/definition";
 import { requiresProblem } from "@engenty/wizards-shared/requires";
 import { inputSchemaOf, type JsonSchema, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
+import { wizardAgentUseIssues } from "@engenty/wizards-shared/wizard-agents";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
 import { WIZARD_SKILLS_DIR, wizardSkillIssues } from "@engenty/wizards-shared/wizard-skills";
-import { sandboxToolHostIssues, wizardToolFileIssues } from "../engine/wizard-code.js";
+import {
+  sandboxToolHostIssues,
+  wizardAgentFiles,
+  wizardToolFileIssues,
+} from "../engine/wizard-code.js";
 import { json, readManifest, readPackage } from "../services/package-file.js";
 import { bad, dim, ok } from "./ui.js";
 
@@ -16,7 +21,8 @@ import { bad, dim, ok } from "./ui.js";
  *
  * What a space holds — its connectors, MCP servers and plugins — is checked on import. The
  * wizard's tools (`files/tools/`) are read as a run reads them: a function tool's file in
- * QuickJS, a sandbox tool's `TOOL.md` with its front matter.
+ * QuickJS, a sandbox tool's `TOOL.md` with its front matter. Its agents (`files/agents/`) are
+ * read as a run reads them.
  */
 
 interface Checked {
@@ -91,9 +97,18 @@ export async function validatePath(path: string): Promise<Checked> {
     return { path, ok: false, issues: [{ message }] };
   }
   const parsed = parseWizard(given.definition, given.files);
-  // `requires` says what the steps need: a file that says otherwise is out of date.
-  const requires = parsed.ok ? requiresProblem(parsed.wizard, given.files) : null;
-  const checked = requires ? [...parsed.issues, { message: requires }] : parsed.issues;
+  const agents = await wizardAgentFiles(given.files, given.read);
+  // `requires` says what the steps and the agents' files need: a file that says otherwise is out
+  // of date. Where an agent's file is broken, that is said first.
+  const requires =
+    parsed.ok && !agents.issues.length
+      ? requiresProblem(parsed.wizard, agents.agents, given.files)
+      : null;
+  const checked = [
+    ...parsed.issues,
+    ...(parsed.ok ? wizardAgentUseIssues(parsed.wizard, agents.agents) : []),
+    ...(requires ? [{ message: requires }] : []),
+  ];
   // A tool a step names is checked by the definition too: each message once.
   const said = new Set(checked.map((issue) => issue.message));
   const skillMds: Record<string, string> = {};
@@ -102,7 +117,7 @@ export async function validatePath(path: string): Promise<Checked> {
   }
   const issues = [
     ...checked,
-    ...(await wizardToolFileIssues(given.files, given.read))
+    ...[...(await wizardToolFileIssues(given.files, given.read)), ...agents.issues]
       .filter((message) => !said.has(message))
       .map((message) => ({ message })),
     ...wizardSkillIssues(given.files, skillMds),

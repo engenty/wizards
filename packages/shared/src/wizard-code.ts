@@ -1,7 +1,7 @@
 /**
  * Code a wizard brings in its own workspace (docs/plans/wizard-code.md): function tools under
- * `tools/<name>.ts`, sandbox tools under `tools/<name>/TOOL.md`, later agents under
- * `agents/<name>.md`. A step names them in `tools` with a prefix: `wizard.<name>`,
+ * `tools/<name>.ts`, sandbox tools under `tools/<name>/TOOL.md`, agents under `agents/<name>.md`
+ * (read in wizard-agents.ts). A step names them in `tools` with a prefix: `wizard.<name>`,
  * `agent.<name>`. The prefixes are no plugin ids.
  *
  * Shared by the definition's checks, the runtime, `wizards validate` and the studio, so the ids
@@ -99,18 +99,6 @@ export function sandboxToolFiles(name: string, paths: readonly string[]): string
   return paths.filter((path) => path.startsWith(folder)).sort();
 }
 
-/** The wizard's sandbox tools its steps name, by name: they need a sandbox that runs a shell. */
-export function sandboxToolsUsed(
-  def: { steps: readonly { type: string; tools?: string[] }[] },
-  paths: readonly string[],
-): string[] {
-  const tools = wizardToolsIn(paths);
-  return wizardToolsUsed(def).filter((name) => {
-    const files = tools.get(name);
-    return files?.length === 1 && isSandboxToolPath(files[0]);
-  });
-}
-
 /** The wizard's function tools its steps name, by name. */
 export function wizardToolsUsed(def: { steps: readonly { type: string; tools?: string[] }[] }) {
   const names = new Set<string>();
@@ -120,6 +108,58 @@ export function wizardToolsUsed(def: { steps: readonly { type: string; tools?: s
       if (code?.kind === "tool") {
         names.add(code.name);
       }
+    }
+  }
+  return [...names].sort();
+}
+
+/** The folder of the workspace that holds the wizard's agents. */
+export const WIZARD_AGENTS_DIR = "agents/";
+
+/** The step's tool id of the agent `name`. */
+export const wizardAgentId = (name: string) => `agent.${name}`;
+
+/** The agent's name as the model calls it: tool names take no dot. */
+export const wizardAgentCallName = (name: string) => `agent_${name}`;
+
+/** The workspace path of the agent `name`. */
+export const wizardAgentPath = (name: string) => `${WIZARD_AGENTS_DIR}${name}.md`;
+
+/** The agent a workspace path holds: `agents/<name>.md`, directly in `agents/`. */
+export function wizardAgentOfPath(path: string): string | null {
+  if (!path.startsWith(WIZARD_AGENTS_DIR) || !path.endsWith(".md")) {
+    return null;
+  }
+  const name = path.slice(WIZARD_AGENTS_DIR.length, -".md".length);
+  return WIZARD_CODE_NAME.test(name) ? name : null;
+}
+
+/** The agents in a workspace, by name. */
+export function wizardAgentsIn(paths: readonly string[]): Set<string> {
+  return new Set(paths.flatMap((path) => wizardAgentOfPath(path) ?? []));
+}
+
+type StepLike = { type: string; tools?: readonly string[]; agent?: string };
+
+/** The agents a step uses: its own (`agent`) and the ones it lists as tools (`agent.<name>`). */
+export function stepAgents(step: StepLike): { own?: string; tools: string[] } {
+  if (step.type !== "agent") {
+    return { tools: [] };
+  }
+  const tools = (step.tools ?? []).flatMap((id) => {
+    const code = wizardCodeOf(id);
+    return code?.kind === "agent" ? [code.name] : [];
+  });
+  return { ...(step.agent ? { own: step.agent } : {}), tools };
+}
+
+/** The wizard's agents its steps use, as their own or as tools, by name. */
+export function wizardAgentsUsed(def: { steps: readonly StepLike[] }): string[] {
+  const names = new Set<string>();
+  for (const step of def.steps) {
+    const used = stepAgents(step);
+    for (const name of [...(used.own ? [used.own] : []), ...used.tools]) {
+      names.add(name);
     }
   }
   return [...names].sort();
