@@ -1,9 +1,10 @@
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { eq } from "drizzle-orm";
-import { control, controlDb, db, schema } from "../db/client.js";
+import { control, controlDb } from "../db/client.js";
 import { currentFeatures } from "../features.js";
 import { managed, pushToDevice } from "../manage.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { runStore } from "./run-store.js";
 
 /**
  * Push for the mobile app: the app gives a run its device (`POST /api/runs/:id/notify`), and
@@ -84,7 +85,7 @@ export async function pushRun(runId: string, kind: PushKind) {
     if ((await currentFeatures()).durableRuns) {
       return;
     }
-    const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+    const run = await runStore.get(runId);
     if (run) {
       await pushToRunDevice(run, kind);
     }

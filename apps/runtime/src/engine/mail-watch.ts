@@ -1,6 +1,6 @@
 import type { MailboxError } from "@engenty/wizards-shared/connectors";
 import { MAIL_SIGNAL } from "@engenty/wizards-shared/definition";
-import { and, eq, inArray, isNotNull, isNull, lte, min, ne, notInArray, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, ne, or } from "drizzle-orm";
 import {
   type BrokerResult,
   brokerPullStream,
@@ -17,6 +17,7 @@ import type {
 import { feature, remoteFeatures } from "../features.js";
 import { twoWayActive } from "../sync/state.js";
 import { LOCAL_TENANT } from "../tenants/tenant.js";
+import { runStore } from "./run-store.js";
 import { SPACE_SCOPE, sendSignal, signalKey } from "./signals.js";
 
 /**
@@ -47,16 +48,11 @@ const LEASE_MS = 50_000;
 const MAX_RETRY_MS = 3_600_000;
 /** The connector's word for a cursor it no longer knows: `gmail_stream_cursor_expired`. */
 const CURSOR_EXPIRED = /_stream_cursor_expired/;
-const ENDED = ["done", "failed", "cancelled"] as const;
 
 /** The oldest mail any run can still care about: since it was switched on, and since the oldest open run began. */
 async function furthestBack(spaceId: string, since: Date, now: Date): Promise<Date> {
-  const [oldest] = await db
-    .select({ at: min(schema.run.createdAt) })
-    .from(schema.run)
-    .innerJoin(schema.wizard, eq(schema.run.wizardId, schema.wizard.id))
-    .where(and(eq(schema.wizard.spaceId, spaceId), notInArray(schema.run.status, [...ENDED])));
-  const times = [since.getTime(), oldest?.at?.getTime() ?? now.getTime()];
+  const oldest = await runStore.oldestOpen(spaceId);
+  const times = [since.getTime(), oldest?.getTime() ?? now.getTime()];
   return new Date(Math.max(...times, now.getTime() - FURTHEST_BACK_MS));
 }
 

@@ -14,7 +14,7 @@ import type { TemplateScope } from "./template.js";
 
 export type SpaceRow = typeof schema.space.$inferSelect;
 export type SpaceFileRow = typeof schema.spaceFile.$inferSelect;
-export type RunRow = typeof schema.run.$inferSelect;
+export type { RunRow } from "./run-store.js";
 
 /**
  * Who a run belongs to, as the broker asks it (broker/rwx.ts): a guest on a shared link (the

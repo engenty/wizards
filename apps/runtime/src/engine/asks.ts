@@ -1,10 +1,9 @@
 import type { AskAnswer, AskInput, RunAsk } from "@engenty/wizards-shared/run";
-import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { db, schema } from "../db/client.js";
 import { signalChanged } from "./events.js";
 import { noticeFor, noticeWrites } from "./notices.js";
 import { pushRun } from "./push.js";
+import { runStore } from "./run-store.js";
 
 /** How long a step waits for the person before it goes on without them. */
 const ASK_TIMEOUT_MS = 15 * 60_000;
@@ -18,16 +17,7 @@ async function setAsk(
   ask: RunAsk | null,
   notice?: Awaited<ReturnType<typeof noticeFor>>,
 ) {
-  const where = eq(schema.run.id, runId);
-  const write = db
-    .update(schema.run)
-    .set({ ask, answer: null, updatedAt: new Date() })
-    .where(where);
-  if (notice) {
-    await db.batch([...noticeWrites(notice, where), write] as never);
-  } else {
-    await write;
-  }
+  await runStore.setAsk(runId, ask, notice ? (where) => noticeWrites(notice, where) : undefined);
   signalChanged(runId);
 }
 
@@ -42,7 +32,7 @@ export async function askPerson(
   ask: AskInput & { stepId: string },
   signal: AbortSignal,
 ): Promise<AskResult> {
-  const open = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+  const open = await runStore.get(runId);
   if (open?.ask) {
     throw new Error("The wizard is already waiting for the person.");
   }
@@ -64,10 +54,7 @@ export async function askPerson(
       if (Date.now() >= until) {
         return { type: "timeout" };
       }
-      const row = await db.query.run.findFirst({
-        where: eq(schema.run.id, runId),
-        columns: { answer: true },
-      });
+      const row = await runStore.pick(runId, "answer");
       if (row?.answer?.askId === full.id) {
         return row.answer.answer;
       }
@@ -89,23 +76,16 @@ export async function askPerson(
 
 /** The question a run is waiting on, if any. */
 export async function pendingAsk(runId: string): Promise<RunAsk | null> {
-  const row = await db.query.run.findFirst({
-    where: eq(schema.run.id, runId),
-    columns: { ask: true },
-  });
+  const row = await runStore.pick(runId, "ask");
   return row?.ask ?? null;
 }
 
 /** Leaves the answer for the waiting step; false when that question is no longer open. */
 export async function answerAsk(runId: string, askId: string, answer: AskAnswer): Promise<boolean> {
-  const result = await db
-    .update(schema.run)
-    .set({ answer: { askId, answer } })
-    .where(sql`${schema.run.id} = ${runId} AND json_extract(${schema.run.ask}, '$.id') = ${askId}`);
-  return result.rowsAffected > 0;
+  return runStore.answerAsk(runId, askId, answer);
 }
 
 /** A run a runner takes starts its step afresh: a question left in the row has no one waiting. */
 export async function clearStaleAsk(runId: string) {
-  await db.update(schema.run).set({ ask: null, answer: null }).where(eq(schema.run.id, runId));
+  await runStore.clearAsk(runId);
 }
