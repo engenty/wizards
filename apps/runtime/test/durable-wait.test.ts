@@ -21,8 +21,8 @@ process.env.RUNNER_STEP_DEADLINES = "widget=0.005";
 
 const worked: { run: string; step: string; model?: string }[] = [];
 const abortReasons: unknown[] = [];
-vi.mock("../src/engine/steps/index.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps/index.js")>()),
+vi.mock("@engenty/wizards-engine/steps/index", async (original) => ({
+  ...(await original<typeof import("@engenty/wizards-engine/steps/index")>()),
   runAutomaticStep: async (
     step: { id: string; type: string; model?: string },
     ctx: { runId: string; signal: AbortSignal },

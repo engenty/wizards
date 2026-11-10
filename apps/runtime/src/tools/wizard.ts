@@ -1,6 +1,8 @@
+import { StepError } from "@engenty/wizards-engine/types";
 import type { AgentStep } from "@engenty/wizards-shared/definition";
 import type { AssetRef } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
+import type { UploadRef } from "@engenty/wizards-shared/run-services";
 import {
   sandboxToolHostsMissing,
   wizardCodeOf,
@@ -12,7 +14,6 @@ import { brokerHost, whereOf } from "../broker/index.js";
 import { summarizeInput, writeLog } from "../broker/log.js";
 import { stepCaller } from "../elements/caller.js";
 import { quickJs } from "../engine/quickjs.js";
-import { StepError } from "../engine/types.js";
 import {
   loadWizardTool,
   schemaZod,
@@ -28,7 +29,6 @@ import { askOf, PAID_TOOLS, toolCallIdOf, wizardToolScope } from "./code.js";
 import { assertPublicUrl, safeFetch } from "./net-guard.js";
 import { holderWho } from "./plugin.js";
 import { clip } from "./shared.js";
-import type { UploadRef } from "./store.js";
 import { sandboxTool } from "./wizard-sandbox.js";
 
 /**

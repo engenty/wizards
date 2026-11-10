@@ -12,7 +12,7 @@ import {
 import { needs } from "@engenty/wizards-shared/fit";
 import { bound, validateSurface, worded } from "@engenty/wizards-shared/surface";
 import { describe, expect, it } from "vitest";
-import { readFormInput } from "../src/engine/input";
+import { readFormInput } from "@engenty/wizards-engine/input";
 
 const end = { id: "done", type: "result", title: "Fertig", deliverables: [] };
 const wizard = (steps: unknown[]) =>

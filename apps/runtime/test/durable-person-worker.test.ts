@@ -9,8 +9,8 @@ const PHASE = process.env.PERSON_PHASE;
 const DIR = process.env.DATA_DIR ?? "";
 const say = (what: string) => appendFileSync(join(DIR, "log"), `${process.pid} ${what}\n`);
 
-vi.mock("../src/engine/steps/index.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps/index.js")>()),
+vi.mock("@engenty/wizards-engine/steps/index", async (original) => ({
+  ...(await original<typeof import("@engenty/wizards-engine/steps/index")>()),
   runAutomaticStep: async (step: { id: string }) => {
     say(`STEP ${step.id}`);
     return { text: `made ${step.id}`, at: new Date().toISOString() };

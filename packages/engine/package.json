@@ -1,0 +1,27 @@
+{
+  "name": "@engenty/wizards-engine",
+  "version": "0.1.0",
+  "license": "FSL-1.1-MIT",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": {
+      "wizards-source": "./src/*.ts",
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@engenty/wizards-shared": "workspace:*",
+    "ai": "7.0.163",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "typescript": "~7.0.2"
+  }
+}

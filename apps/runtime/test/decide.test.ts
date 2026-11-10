@@ -36,7 +36,7 @@ vi.mock("ai", () => ({
 }));
 
 const { decide } = await import("../src/decide");
-const { readFormInput } = await import("../src/engine/input");
+const { readFormInput } = await import("@engenty/wizards-engine/input");
 const { stepClasses } = await import("../src/engine/requirements");
 
 const questions: Record<string, DecisionQuestion> = {

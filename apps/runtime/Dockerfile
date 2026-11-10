@@ -18,6 +18,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/runtime/package.json apps/runtime/
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
+COPY packages/engine/package.json packages/engine/
 COPY packages/wizards/package.json packages/wizards/
 COPY packages/runner/package.json packages/runner/
 RUN sed -i 's/"version": *"[^"]*"/"version": "0.0.0"/' package.json
@@ -27,7 +28,7 @@ FROM base AS deps
 COPY --from=manifests /app ./
 RUN pnpm install --frozen-lockfile
 
-# Only what the runtime needs to run: its dependencies and the shared package's. Its own stage,
+# Only what the runtime needs to run: its dependencies and the shared and engine packages'. Its own stage,
 # so it does not run again for every change of the source.
 FROM base AS prod-deps
 COPY --from=manifests /app ./
@@ -73,6 +74,7 @@ COPY --from=engines /opt/engines /opt/engines
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/runtime/node_modules ./apps/runtime/node_modules
 COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=prod-deps /app/packages/engine/node_modules ./packages/engine/node_modules
 # The built-in terminal (apps/runtime/src/harness/terminal.ts) needs node-pty's binary for this
 # platform: an image whose terminal cannot start a command is not built.
 RUN cd apps/runtime && node -e "require('@lydell/node-pty').spawn('/bin/sh', ['-c', 'exit 0'], {}).onExit((e) => process.exit(e.exitCode))"
@@ -80,6 +82,8 @@ COPY --from=build /app/apps/runtime/package.json ./apps/runtime/
 COPY --from=build /app/apps/runtime/dist ./apps/runtime/dist
 COPY --from=build /app/packages/shared/package.json ./packages/shared/
 COPY --from=build /app/packages/shared/dist ./packages/shared/dist
+COPY --from=build /app/packages/engine/package.json ./packages/engine/
+COPY --from=build /app/packages/engine/dist ./packages/engine/dist
 COPY --from=build /app/packages/wizards/package.json ./packages/wizards/
 COPY --from=build /app/packages/wizards/dist ./packages/wizards/dist
 COPY --from=build /app/apps/web/dist ./apps/web/dist

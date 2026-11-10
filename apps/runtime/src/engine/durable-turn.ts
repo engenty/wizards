@@ -1,4 +1,5 @@
-import type { AssetRef, RunState, RunTurn } from "@engenty/wizards-shared/run";
+import { type StepContext, StepError } from "@engenty/wizards-engine/types";
+import type { AssetRef, RunTurn } from "@engenty/wizards-shared/run";
 import type { Client } from "@libsql/client";
 import { Mastra } from "@mastra/core";
 import { Agent } from "@mastra/core/agent";
@@ -12,7 +13,6 @@ import { z } from "zod";
 import { tenantClient } from "../db/client.js";
 import { prompt } from "../prompts.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { type StepContext, StepError } from "./types.js";
 
 /**
  * A durable agent step: the turn runs on Mastra's `DurableAgent`, so after a crash or a deploy it
@@ -469,9 +469,4 @@ export async function sweepTurnSnapshots(): Promise<void> {
       );
     }
   }
-}
-
-/** The turn on a run's state, when it belongs to this step. */
-export function turnOf(state: RunState, stepId: string): RunTurn | undefined {
-  return state.turn?.stepId === stepId ? state.turn : undefined;
 }

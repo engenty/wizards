@@ -1,3 +1,4 @@
+import { fieldErrorsIn } from "@engenty/wizards-engine/input";
 import { waitDurationMs, wizardLang } from "@engenty/wizards-shared/definition";
 import { note, type RunState, type RunTimeline, type RunView } from "@engenty/wizards-shared/run";
 import { type RunReport, reportNeeds, reportOf, whoOf } from "@engenty/wizards-shared/run-view";
@@ -15,7 +16,6 @@ import {
 } from "../engine/answerers.js";
 import { answerAsk } from "../engine/asks.js";
 import { emitEvent, recentEvents, watchRun } from "../engine/events.js";
-import { fieldErrorsIn } from "../engine/input.js";
 import {
   answerTurn,
   cancel,

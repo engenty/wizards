@@ -1,9 +1,9 @@
 import type { PluginSpace, PluginTool } from "@engenty/wizards/plugin";
+import { StepError } from "@engenty/wizards-engine/types";
 import { type AgentStep, pluginToolOf } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
 import { createTool } from "@mastra/core/tools";
 import { type Caller, type Who, whereOf, whoOf, withCaller } from "../broker/index.js";
-import { StepError } from "../engine/types.js";
 import { loadedPlugin, pluginIdsOf, pluginsOf } from "../plugins/registry.js";
 import type { InProcessContext } from "../run-services/in-process.js";
 import { attempt, clip } from "./shared.js";

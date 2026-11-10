@@ -77,6 +77,7 @@ const BUILT = [
   "apps/runtime/assets",
   "apps/web/dist",
   "packages/shared/dist",
+  "packages/engine/dist",
   "packages/wizards/dist",
   ...LIBRARIES.map((dir) => `packages/${dir}/dist`),
 ];

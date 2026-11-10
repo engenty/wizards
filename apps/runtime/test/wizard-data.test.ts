@@ -241,7 +241,7 @@ describe("a database per person, and one shared", () => {
   });
 
   it("lets a fixed step in a guest's run save into the shared database", async () => {
-    const { runStepData } = await import("../src/engine/data-step");
+    const { runStepData } = await import("@engenty/wizards-engine/data-step");
     const state = { values: { email: "cy@example.com", first: "Cy" }, outputs: {}, history: [], notes: {} };
     const ctx = {
       def,

@@ -1,3 +1,4 @@
+import { StepError } from "@engenty/wizards-engine/types";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { noteText, type RunNote } from "@engenty/wizards-shared/run";
 import type { Gap } from "@engenty/wizards-shared/texts";
@@ -36,7 +37,7 @@ export class ModelUnavailableError extends NotedError {}
 
 /** The note a failure carries, or null. */
 export function noteOf(err: unknown): RunNote | null {
-  return err instanceof NotedError ? err.note : null;
+  return err instanceof NotedError || err instanceof StepError ? err.note : null;
 }
 
 /** What a failure says, to pass on: its note where it has one, else its message. */

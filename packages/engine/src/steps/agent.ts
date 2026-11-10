@@ -9,6 +9,7 @@ import {
 } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
+import type { UploadRef } from "@engenty/wizards-shared/run-services";
 import {
   fitData,
   labelOf,
@@ -24,20 +25,15 @@ import {
   type SurfaceComponent,
   validateSurface,
 } from "@engenty/wizards-shared/surface";
-import { Agent } from "@mastra/core/agent";
 import { parsePartialJson } from "ai";
 import type { z } from "zod";
-import { prompt } from "../../prompts.js";
-import { durableTurn, turnOf } from "../durable-turn.js";
+import { prompt } from "../prompts.js";
 import { renderTask } from "../template.js";
 import { type StepContext, StepError } from "../types.js";
 import { decideStep } from "./decision.js";
 import { runAgentEach } from "./foreach.js";
 import { answersBlock, brandBlock, groundRules, revisionBlock } from "./prompt.js";
-import { turnObject, turnText } from "./turn.js";
-
-/** A file the person gave on an earlier page, as the files service lists it. */
-type UploadRef = Awaited<ReturnType<StepContext["services"]["files"]["uploads"]>>[number];
+import { turnObject, turnOf, turnText } from "./turn.js";
 
 // --- agent -------------------------------------------------------------------
 
@@ -140,7 +136,6 @@ function foundLines(step: AgentStep, ctx: StepContext) {
   // its entries come with the result.
   let whole = false;
   return {
-    written: () => written,
     text: async (delta: string) => {
       whole ||= delta.length > 2_000;
       written += delta;
@@ -150,33 +145,6 @@ function foundLines(step: AgentStep, ctx: StepContext) {
         await report();
       }
     },
-  };
-}
-
-/** Runs a json step's agent as a stream, with `foundLines`. Returns what `generate` would: the text, the steps and the usage. */
-async function streamWithProgress(
-  agent: Agent,
-  message: Parameters<Agent["stream"]>[0],
-  options: { maxSteps: number; abortSignal: AbortSignal },
-  step: AgentStep,
-  ctx: StepContext,
-): Promise<{ text: string; steps?: { text?: string }[]; usage?: unknown; totalUsage?: unknown }> {
-  const found = foundLines(step, ctx);
-  const stream = await agent.stream(message, options);
-  for await (const chunk of stream.fullStream as AsyncIterable<any>) {
-    const payload = chunk.payload ?? chunk;
-    if (chunk.type === "text-delta") {
-      await found.text(payload.text ?? payload.delta ?? "");
-    } else if (chunk.type === "error") {
-      throw payload.error ?? new Error("step stream error");
-    }
-  }
-  const s = stream as any;
-  return {
-    text: (await s.text) ?? found.written(),
-    steps: await s.steps,
-    usage: await s.usage,
-    totalUsage: await s.totalUsage,
   };
 }
 
@@ -430,9 +398,8 @@ export async function runAgentStep(
     : request;
   let result: { text?: string; steps?: unknown };
   if (turn) {
-    const end = await durableTurn(turn, ctx, {
+    const end = await model.durableTurn(turn, ctx, {
       instructions: system,
-      model: model.model,
       tools,
       assets,
       message,
@@ -444,18 +411,17 @@ export async function runAgentStep(
     assets.splice(0, assets.length, ...end.assets);
     result = { text: end.text, steps: [{ text: end.closing }] };
   } else {
-    const agent = new Agent({
+    result = await model.generate({
       id: `step-${step.id}`,
       name: step.title,
       instructions: system,
-      model: model.model,
       tools,
+      message,
+      maxSteps,
+      signal: ctx.signal,
+      // A json step streams, so the person sees its entries as they are written (`found`).
+      onText: step.output.format === "json" ? foundLines(step, ctx).text : undefined,
     });
-    // A json step streams, so the person sees its entries as they are written (`found`).
-    result =
-      step.output.format === "json"
-        ? await streamWithProgress(agent, message, { maxSteps, abortSignal: ctx.signal }, step, ctx)
-        : await agent.generate(message, { maxSteps, abortSignal: ctx.signal });
     await model.chargeTotal(result);
   }
   // `result.text` strings together what the model said between tool calls ("I open the page …").

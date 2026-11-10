@@ -17,7 +17,7 @@ vi.mock("ai", () => ({
   Output: { object: (o: unknown) => o },
 }));
 
-const { runSurfaceStep, surfaceData } = await import("../src/engine/surface");
+const { runSurfaceStep, surfaceData } = await import("@engenty/wizards-engine/surface");
 const { decide } = await import("../src/decide");
 
 const facts = [

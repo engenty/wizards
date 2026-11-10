@@ -30,8 +30,8 @@ vi.mock("../src/engine/requirements.js", async (original) => ({
   missingModelsSaid: async () => [],
 }));
 const ran = vi.fn();
-vi.mock("../src/engine/steps/index.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps/index.js")>()),
+vi.mock("@engenty/wizards-engine/steps/index", async (original) => ({
+  ...(await original<typeof import("@engenty/wizards-engine/steps/index")>()),
   runAutomaticStep: async () => {
     ran();
     return { text: "made", at: new Date().toISOString() };

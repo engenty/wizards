@@ -388,12 +388,25 @@ export interface FileRead {
   data: Uint8Array;
 }
 
+/** A file the person gave on an earlier page: `upload:<id>` is how tools address it. */
+export interface UploadRef {
+  ref: string;
+  name: string;
+  mime: string;
+  /** The label of the field it was given in. */
+  field: string;
+}
+
 export interface FilesService {
   /** Null: no such file in the run's tenant. */
   read(ref: string): Promise<FileRead | null>;
   save(file: FileSave): Promise<AssetRef>;
   /** A signed address that opens the file for a while, without a session. */
   link(ref: string): Promise<string>;
+  /** Files the person gave on earlier pages. */
+  uploads(): Promise<UploadRef[]>;
+  /** A file of the workspace the run started with, by path; null: no such file. */
+  workspace(path: string): Promise<Uint8Array | null>;
 }
 
 /** A save by address, as it crosses HTTP; bytes go to the service's own upload. */

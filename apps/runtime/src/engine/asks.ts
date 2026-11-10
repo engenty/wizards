@@ -1,3 +1,4 @@
+import type { AskResult } from "@engenty/wizards-engine/types";
 import type { AskAnswer, AskInput, RunAsk } from "@engenty/wizards-shared/run";
 import { nanoid } from "nanoid";
 import { signalChanged } from "./events.js";
@@ -9,8 +10,6 @@ import { runStore } from "./run-store.js";
 const ASK_TIMEOUT_MS = 15 * 60_000;
 /** How often the waiting step looks for the answer in the row. */
 const ASK_POLL_MS = 1000;
-
-export type AskResult = AskAnswer | { type: "timeout" };
 
 async function setAsk(
   runId: string,

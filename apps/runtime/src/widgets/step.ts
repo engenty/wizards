@@ -1,3 +1,5 @@
+import { resolveRef } from "@engenty/wizards-engine/template";
+import { StepError } from "@engenty/wizards-engine/types";
 import {
   allFields,
   dataRef,
@@ -8,8 +10,6 @@ import type { StepOutput } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
 import { runTheme } from "@engenty/wizards-shared/spaces";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
-import { resolveRef } from "../engine/template.js";
-import { StepError } from "../engine/types.js";
 import { extFor, inlineAssetRefs, loadAsset } from "../files/storage.js";
 import { snapshotDataImages } from "../files/web-images.js";
 import { type AiOrigin, markMedia } from "../media/marking.js";

@@ -18,8 +18,8 @@ process.env.RUNNER_CLOCK_MS = "100";
 process.env.FEATURES = "durableRuns=on";
 
 const worked = vi.hoisted(() => [] as { run: string; step: string }[]);
-vi.mock("../src/engine/steps/index.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps/index.js")>()),
+vi.mock("@engenty/wizards-engine/steps/index", async (original) => ({
+  ...(await original<typeof import("@engenty/wizards-engine/steps/index")>()),
   runAutomaticStep: async (step: { id: string }, ctx: { runId: string }) => {
     worked.push({ run: ctx.runId, step: step.id });
     return { text: `made ${step.id}`, at: new Date().toISOString() };
@@ -452,7 +452,7 @@ describe("what a sender can set", () => {
   });
 
   it("reaches an agent's task marked as data", async () => {
-    const { renderTask } = await import("../src/engine/template");
+    const { renderTask } = await import("@engenty/wizards-engine/template");
     const def = { ...base, steps: [listening(), end] } as never;
     const state = {
       values: {},

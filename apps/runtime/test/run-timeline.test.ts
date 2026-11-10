@@ -19,8 +19,8 @@ process.env.FEATURES = "durableRuns=on";
 process.env.RUNNER_CLOCK_MS = "100";
 
 const worked: { run: string; step: string }[] = [];
-vi.mock("../src/engine/steps/index.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps/index.js")>()),
+vi.mock("@engenty/wizards-engine/steps/index", async (original) => ({
+  ...(await original<typeof import("@engenty/wizards-engine/steps/index")>()),
   runAutomaticStep: async (step: { id: string }, ctx: { runId: string }) => {
     worked.push({ run: ctx.runId, step: step.id });
     return { text: `made ${step.id}`, at: new Date().toISOString() };
@@ -60,7 +60,7 @@ vi.mock("../src/auth/index.js", async (original) => ({
 let client: typeof import("../src/db/client");
 let runner: typeof import("../src/engine/runner");
 let events: typeof import("../src/engine/events");
-let template: typeof import("../src/engine/template");
+let template: typeof import("@engenty/wizards-engine/template");
 let wizards: typeof import("../src/services/wizards");
 let services: typeof import("../src/services/runs");
 let routes: typeof import("../src/routes/runs");
@@ -165,7 +165,7 @@ beforeAll(async () => {
   await client.migrateControlDb();
   runner = await import("../src/engine/runner");
   events = await import("../src/engine/events");
-  template = await import("../src/engine/template");
+  template = await import("@engenty/wizards-engine/template");
   wizards = await import("../src/services/wizards");
   services = await import("../src/services/runs");
   routes = await import("../src/routes/runs");

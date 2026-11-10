@@ -1,4 +1,5 @@
 import type { AssetRef } from "@engenty/wizards-shared/run";
+import type { UploadRef } from "@engenty/wizards-shared/run-services";
 import { mimeForPath } from "@engenty/wizards-shared/workspace";
 import { createTool } from "@mastra/core/tools";
 import type { z } from "zod";
@@ -10,7 +11,7 @@ import type { Sandbox } from "../sandbox/index.js";
 import { snapshotFile } from "../services/files.js";
 import { parseResultRef } from "../sharing/files.js";
 import { clip } from "./shared.js";
-import { resolveFile, type UploadRef } from "./store.js";
+import { resolveFile } from "./store.js";
 import { whoWhere } from "./wizard.js";
 
 /**

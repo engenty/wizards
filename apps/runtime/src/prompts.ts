@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fillPrompt } from "@engenty/wizards-engine/prompts";
 
 /**
  * Every text a model reads lives in `prompts/`, one Markdown file per agent or area; code only
@@ -29,7 +30,6 @@ const FROM_SOURCE = import.meta.url.endsWith(".ts");
 
 const SECTION = /^<!-- section: ([\w.-]+) -->[ \t]*$/m;
 const COMMENT = /<!--(?!\s*section:)[\s\S]*?-->\n?/g;
-const PLACEHOLDER = /\$\{(\w+)\}/g;
 
 const cache = new Map<string, { mtimeMs: number; sections: Map<string, string> }>();
 
@@ -63,14 +63,5 @@ export function prompt(
 ): string {
   const text = promptSections(file).get(section);
   if (text === undefined) throw new Error(`prompts/${file}.md: no section "${section}"`);
-  const used = new Set<string>();
-  const filled = text.replace(PLACEHOLDER, (_, name: string) => {
-    if (!(name in vars)) throw new Error(`prompts/${file}.md#${section}: \${${name}} not filled`);
-    used.add(name);
-    return String(vars[name]);
-  });
-  for (const name of Object.keys(vars)) {
-    if (!used.has(name)) throw new Error(`prompts/${file}.md#${section}: no \${${name}}`);
-  }
-  return filled;
+  return fillPrompt(`prompts/${file}.md#${section}`, text, vars);
 }

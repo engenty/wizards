@@ -11,6 +11,8 @@
       "apps/portal/server/**",
       "apps/portal/*.ts",
       "packages/shared/src/**",
+      "packages/engine/src/**",
+      "!packages/engine/src/step-prompts.ts",
       "packages/wizards/src/**",
       "packages/wizards/*.ts",
       "packages/wizards/scripts/**",

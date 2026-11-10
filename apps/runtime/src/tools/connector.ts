@@ -1,3 +1,4 @@
+import { StepError } from "@engenty/wizards-engine/types";
 import type { AgentStep } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
@@ -18,7 +19,7 @@ import {
 import { refreshConnector, resolveConnector } from "../connectors/external.js";
 import { spaceConnectionOf } from "../connectors/space-connections.js";
 import type { ConnectorAction } from "../engenty/connections-sdk/types.js";
-import { SignInNeeded, StepError } from "../engine/types.js";
+import { SignInNeeded } from "../engine/types.js";
 import { prompt } from "../prompts.js";
 import type { InProcessContext } from "../run-services/in-process.js";
 import { askOf, inProgram, toolCallIdOf } from "./code.js";

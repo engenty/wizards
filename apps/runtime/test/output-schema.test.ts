@@ -59,7 +59,7 @@ vi.mock("../src/services/skills.js", async (original) => ({
   activeSkills: async () => ({ always: [], demand: [] }),
 }));
 
-const { outputSchema, ownJson, runAgentStep } = await import("../src/engine/steps/index.js");
+const { outputSchema, ownJson, runAgentStep } = await import("@engenty/wizards-engine/steps/index");
 const { inProcessServices } = await import("../src/run-services/index.js");
 const { shapedCsvRows, shapedMarkdown, shapedTables } = await import("../src/render/shaped");
 

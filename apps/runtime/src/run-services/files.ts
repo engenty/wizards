@@ -1,30 +1,26 @@
+import { StepError } from "@engenty/wizards-engine/types";
 import type { FileRead, FileSave, FilesService } from "@engenty/wizards-shared/run-services";
-import { type RunRow, StepError } from "../engine/types.js";
+import type { RunRow } from "../engine/types.js";
 import { extFor, loadAsset, saveAsset } from "../files/storage.js";
 import { snapshotHtmlImages } from "../files/web-images.js";
 import { signedUrl } from "../secrets/signing.js";
 import { snapshotFile } from "../services/files.js";
 import { assertPublicUrl, safeFetch } from "../tools/net-guard.js";
-import { personUploads, type UploadRef } from "../tools/store.js";
+import { personUploads } from "../tools/store.js";
 import type { InProcessContext } from "./in-process.js";
 
-export type { UploadRef };
 export { extFor };
 
 /**
- * The run's files inside the runtime. Beyond `FilesService`, as step code needs them today:
- * a read says which run the file belongs to, the files the person gave on earlier pages, the
- * web pictures of a page kept as files of the run, and the files of the wizard's workspace.
+ * The run's files inside the runtime. Beyond `FilesService`, as the runtime's own code needs
+ * them: a read says which run the file belongs to, and the web pictures of a page are kept as
+ * files of the run.
  */
 export interface InProcessFiles extends FilesService {
   /** `runId`: the run the file belongs to; null: a file of no run. */
   read(ref: string): Promise<(FileRead & { runId: string | null }) | null>;
-  /** Files the person gave on earlier pages: `upload:<id>` is how tools address them. */
-  uploads(): Promise<UploadRef[]>;
   /** The page with each picture it loads from the web saved as a file of the step. */
   keepWebImages(html: string, stepId: string): Promise<string>;
-  /** A file of the workspace the run started with, by path; null: no such file. */
-  workspace(path: string): Promise<Uint8Array | null>;
 }
 
 export function filesService(run: RunRow, ctx: () => InProcessContext): InProcessFiles {

@@ -21,6 +21,7 @@
     "@ai-sdk/replicate": "3.0.76",
     "@clack/prompts": "^1.8.1",
     "@engenty/wizards": "workspace:*",
+    "@engenty/wizards-engine": "workspace:*",
     "@engenty/wizards-shared": "workspace:*",
     "@executor-js/plugin-openapi": "1.6.11",
     "@fontsource/bricolage-grotesque": "5.3.0",

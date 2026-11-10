@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import type { RunHolder } from "@engenty/wizards-engine/types";
 import { featureOn } from "@engenty/wizards-shared/features";
 import { note, type RunNoteCode } from "@engenty/wizards-shared/run";
 import {
@@ -22,7 +23,7 @@ import {
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
-import type { RunHolder, RunRow } from "../engine/types.js";
+import type { RunRow } from "../engine/types.js";
 import { currentFeatures } from "../features.js";
 import type { Role } from "../manage.js";
 import type { InProcessContext } from "../run-services/in-process.js";

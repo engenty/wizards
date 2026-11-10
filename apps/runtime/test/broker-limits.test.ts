@@ -612,11 +612,11 @@ describe("what a caller reads of a limit", () => {
       emit: async () => {},
       ask: async () => null,
       call: {},
-    } as unknown as import("../src/engine/types").StepContext;
+    } as unknown as import("@engenty/wizards-engine/types").StepContext;
     ctx.services = runServices.inProcessServices(
       { id: runId, definition: def } as never,
       () => ctx,
-      (s, c) => import("../src/engine/steps/index.js").then((m) => m.runAgentStep(s, c)),
+      (s, c) => import("@engenty/wizards-engine/steps/index").then((m) => m.runAgentStep(s, c)),
     );
     return ctx;
   }
@@ -630,7 +630,7 @@ describe("what a caller reads of a limit", () => {
 
   it("tells a model in its tool's answer, and fails a fixed step with a note of its own", async () => {
     const { toolsOf } = await import("../src/tools/connector");
-    const steps = await import("../src/engine/steps/index.js");
+    const steps = await import("@engenty/wizards-engine/steps/index");
     const tools = await inTenant(() =>
       toolsOf(def.connections[0] as never, contextOf("run-words", "read"), {} as never),
     );

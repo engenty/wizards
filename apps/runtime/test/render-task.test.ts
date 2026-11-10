@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderTask } from "../src/engine/template.js";
+import { renderTask } from "@engenty/wizards-engine/template";
 
 // What a person typed reaches a step's task marked as data (docs/plans/guest-content-guards.md).
 const def = {
