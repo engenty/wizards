@@ -18,12 +18,13 @@ import {
   type ToolsService,
 } from "@engenty/wizards-shared/run-services";
 import { z } from "zod";
-import { onlyReads, watchActions } from "../tools/acted.js";
+import { logCalls, onlyReads, watchActions } from "../tools/acted.js";
 import { agentTools, stepOfAgent } from "../tools/agent.js";
 import { callConnection } from "../tools/connector.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool } from "../tools/plugin.js";
 import { personUploads } from "../tools/store.js";
+import { whoWhere } from "../tools/wizard.js";
 import type { InProcessContext } from "./in-process.js";
 import type { AgentModel, InProcessServices } from "./index.js";
 
@@ -78,6 +79,8 @@ export function inProcessTools(options: {
     Object.assign(tools, await agentTools(step, ctx, options.runAgent));
     // A call that may have done something is noted on the run: a retry would do it again.
     watchActions(tools, ctx.resources);
+    // Each call is a line of the broker's log, where no other path writes one.
+    await logCalls(tools, whoWhere(ctx));
     const descriptors = Object.entries(tools).map(([name, t]) => describe(name, t));
     return {
       list: () => descriptors,
