@@ -7,7 +7,6 @@ import { type ObjectShape, outputSchemaSchema, shapeOfFields, shapeOfSchema } fr
 import { isShareTargetId } from "./sharing.js";
 import { CONNECTION_KINDS } from "./store.js";
 import { type SurfaceComponent, surfaceComponentsSchema, validateSurface } from "./surface.js";
-import { sqlParams, sqlRefusal } from "./wizard-data.js";
 import {
   hasWizardCodePrefix,
   WIZARD_CODE_PREFIXES,
@@ -15,6 +14,7 @@ import {
   wizardToolsIn,
   wizardToolsUsed,
 } from "./wizard-code.js";
+import { sqlParams, sqlRefusal } from "./wizard-data.js";
 
 /** The engenty avatars a wizard can wear. Same cast as engenty's ui-core. */
 export const ENGENTY_KINDS = [
