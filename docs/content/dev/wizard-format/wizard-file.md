@@ -23,7 +23,7 @@ create-an-invoice.wizard
     │   └── chart.min.js        libraries the widgets load
     ├── prices.csv              reference data AI steps read
     ├── kits/explainer.zip      a motion-graphics step's style kit
-    ├── skills/brand/SKILL.md   a skill package a motion-graphics step reads
+    ├── skills/brand/SKILL.md   a skill of the wizard, which its AI steps follow
     └── knowledge/              only in a website package
         └── services/pricing.md
 ```
