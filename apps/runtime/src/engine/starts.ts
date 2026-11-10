@@ -9,7 +9,7 @@ import {
   type StartKind,
   type WizardStart,
 } from "@engenty/wizards-shared/starts";
-import { and, eq, isNull, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { control, controlDb, db, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
@@ -17,6 +17,7 @@ import { wizardUnavailable } from "../limits.js";
 import { noteOf } from "../model-errors.js";
 import { publishedVersion, type WizardRow } from "../services/wizards.js";
 import { addNotice } from "./notices.js";
+import { runStore } from "./run-store.js";
 import { createRun, OccurrenceTaken } from "./runner.js";
 import type { RunRow } from "./types.js";
 
@@ -175,7 +176,7 @@ async function countFailure(
 /** Called as any run ends: a start's run is counted; its notice went in with the status. */
 export async function startedRunEnded(runId: string, status: "done" | "failed" | "cancelled") {
   try {
-    const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+    const run = await runStore.get(runId);
     if (!run?.startedBy) {
       return;
     }
@@ -191,22 +192,9 @@ export async function startedRunEnded(runId: string, status: "done" | "failed" |
 
 // --- the clock -----------------------------------------------------------------------------
 
-/** The statuses a run stays in once it is over; any other is still going, a wait included. */
-const ENDED = ["done", "failed", "cancelled"] as const;
-
 /** A run of the start, another time's or one begun by hand, is still going. */
 async function stillGoing(wizardId: string, startId: string, occurrence: string) {
-  const row = await db.query.run.findFirst({
-    columns: { id: true },
-    where: and(
-      eq(schema.run.wizardId, wizardId),
-      sql`json_extract(${schema.run.startedBy}, '$.startId') = ${startId}`,
-      notInArray(schema.run.status, [...ENDED]),
-      // This time's own run is not an overlap: the same look by another runner, or before a crash.
-      or(isNull(schema.run.occurrence), ne(schema.run.occurrence, occurrence)),
-    ),
-  });
-  return Boolean(row);
+  return runStore.startStillGoing(wizardId, startId, occurrence);
 }
 
 /** Deals with the time of a schedule that is due, if one is: starts a run or leaves it out. */

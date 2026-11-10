@@ -75,7 +75,6 @@ let service: typeof import("../src/connectors/space-connections");
 let plugins: typeof import("../src/connectors/plugin-connections");
 let access: typeof import("../src/services/access");
 let wizards: typeof import("../src/services/wizards");
-let runServices: typeof import("../src/run-services/index");
 let space: string;
 let wizardId: string;
 
@@ -232,14 +231,15 @@ const viewOf = async (app: App, id: string) => {
   return (await listed.json()).connections.find((c: { id: string }) => c.id === id);
 };
 
+let runServices: typeof import("../src/run-services/index.js");
 beforeAll(async () => {
+  runServices = await import("../src/run-services/index.js");
   client = await import("../src/db/client");
   await client.migrateControlDb();
   await client.openTenantDb(TENANT);
   broker = await import("../src/broker/index");
   service = await import("../src/connectors/space-connections");
   plugins = await import("../src/connectors/plugin-connections");
-  runServices = await import("../src/run-services/index");
   access = await import("../src/services/access");
   wizards = await import("../src/services/wizards");
   const spaces = await import("../src/services/spaces");

@@ -1,5 +1,5 @@
 import { note } from "@engenty/wizards-shared/run";
-import { decide } from "./engine/decide.js";
+import { decide } from "./decide.js";
 import { managed, tenantInfo } from "./manage.js";
 import { NotedError } from "./model-errors.js";
 import type { CallMeta } from "./models.js";

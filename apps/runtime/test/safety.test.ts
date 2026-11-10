@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 // A plain function, not vi.fn: vitest reports a rejection a mock records as unhandled.
 let decide: (input: unknown) => Promise<unknown>;
 const asked: { state?: unknown; questions?: Record<string, { instructions: string }> }[] = [];
-vi.mock("../src/engine/decide.js", () => ({
+vi.mock("../src/decide.js", () => ({
   decide: (input: unknown) => {
     asked.push(input as (typeof asked)[number]);
     return decide(input);

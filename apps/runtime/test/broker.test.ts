@@ -68,7 +68,6 @@ let client: typeof import("../src/db/client");
 let broker: typeof import("../src/broker/index");
 let connections: typeof import("../src/connectors/plugin-connections");
 let runner: typeof import("../src/engine/runner");
-let runServices: typeof import("../src/run-services/index");
 let space: string;
 let wizardId: string;
 
@@ -137,14 +136,15 @@ async function logOf(connectionId: string) {
   );
 }
 
+let runServices: typeof import("../src/run-services/index.js");
 beforeAll(async () => {
+  runServices = await import("../src/run-services/index.js");
   client = await import("../src/db/client");
   await client.migrateControlDb();
   await client.openTenantDb(TENANT);
   broker = await import("../src/broker/index");
   connections = await import("../src/connectors/plugin-connections");
   runner = await import("../src/engine/runner");
-  runServices = await import("../src/run-services/index");
   const spaces = await import("../src/services/spaces");
   const wizards = await import("../src/services/wizards");
   space = (await inTenant(() => spaces.createSpace("user-b", "Vertrieb"))).id;

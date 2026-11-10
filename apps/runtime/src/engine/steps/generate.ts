@@ -9,9 +9,6 @@ import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
 import type { StepSetting } from "@engenty/wizards-shared/run-services";
 import { mainLogo, runTheme } from "@engenty/wizards-shared/spaces";
-import { generateText } from "ai";
-import { extFor, loadAsset } from "../../files/storage.js";
-import { snapshotHtmlImages } from "../../files/web-images.js";
 import {
   type GeneratedMedia,
   generateImageMedia,
@@ -20,8 +17,8 @@ import {
   type MediaReference,
 } from "../../media/generate.js";
 import { type AiOrigin, markMedia } from "../../media/marking.js";
-import { costOf, textModel } from "../../models.js";
 import { prompt } from "../../prompts.js";
+import { extFor } from "../../run-services/files.js";
 import { contentPolicy } from "../../safety.js";
 import {
   assetSectionLine,
@@ -33,6 +30,7 @@ import {
 import { type StepContext, StepError } from "../types.js";
 import { inParallel } from "./foreach.js";
 import { answersBlock, brandBlock, groundRules, revisionBlock } from "./prompt.js";
+import { turnText } from "./turn.js";
 
 // --- generate ----------------------------------------------------------------
 
@@ -51,9 +49,9 @@ function imagesOf(name: string, ctx: StepContext): string[] {
 }
 
 async function loadReference(id: string | undefined, ctx: StepContext) {
-  const found = id ? await loadAsset(id) : null;
-  return found && found.row.runId === ctx.runId
-    ? ({ bytes: new Uint8Array(found.data), mediaType: found.row.mime } satisfies MediaReference)
+  const found = id ? await ctx.services.files.read(id) : null;
+  return found && found.runId === ctx.runId
+    ? ({ bytes: found.data, mediaType: found.ref.mime } satisfies MediaReference)
     : null;
 }
 
@@ -218,20 +216,15 @@ async function writeHtml(
   const request = [`# BRIEF\n${brief}`, answersBlock(ctx), await revisionBlock(ctx, step.id)]
     .filter(Boolean)
     .join("\n\n");
-  const writer = await textModel(textClassOf(step.model ?? "standard"), {
-    ...ctx.call,
+  const written = await turnText(ctx, {
+    class: textClassOf(step.model ?? "standard"),
     effort: step.effort,
-    makerClass: step.maker ? classIdOf(step, "standard") : undefined,
-  });
-  const result = await generateText({
-    model: writer.model,
+    maker: step.maker ? classIdOf(step, "standard") : undefined,
     system,
-    prompt: request,
-    abortSignal: ctx.signal,
+    messages: [{ role: "user", content: request }],
     maxOutputTokens: 32_000,
   });
-  await ctx.chargeUsd(costOf(writer, result.usage));
-  const html = result.text
+  const html = written
     .replace(/^```(?:html)?\s*/i, "")
     .replace(/```\s*$/, "")
     .trim();
@@ -252,15 +245,13 @@ async function visualPrompt(step: GenerateStep, ctx: StepContext, entry: Entry):
   const scope: TemplateScope = { ...ctx.scope, entry };
   const brief = renderTemplate(step.prompt, scope);
   const note = ctx.state.notes[step.id];
-  const prompter = await textModel("low", ctx.call);
   const from = entry.reference
     ? step.asset === "video"
       ? prompt("step", "visual.from_image")
       : prompt("step", "visual.reference")
     : "";
-  const result = await generateText({
-    model: prompter.model,
-    abortSignal: ctx.signal,
+  const written = await turnText(ctx, {
+    class: "low",
     system: [
       [
         step.asset === "video" ? prompt("step", "visual.video") : prompt("step", "visual.image"),
@@ -270,16 +261,20 @@ async function visualPrompt(step: GenerateStep, ctx: StepContext, entry: Entry):
         .join(" "),
       contentPolicy(),
     ].join("\n\n"),
-    prompt: [
-      `Brief:\n${brief}`,
-      step.options?.style ? `Style: ${step.options.style}` : "",
-      note ? `Change requested by the person after seeing the last version: ${note}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
+    messages: [
+      {
+        role: "user",
+        content: [
+          `Brief:\n${brief}`,
+          step.options?.style ? `Style: ${step.options.style}` : "",
+          note ? `Change requested by the person after seeing the last version: ${note}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+      },
+    ],
   });
-  await ctx.chargeUsd(costOf(prompter, result.usage));
-  return result.text.trim() || brief;
+  return written.trim() || brief;
 }
 
 /** Images and video clips: one per entry. A revision can name the entries to make again. */
@@ -362,7 +357,7 @@ async function runMediaStep(
     // A picture changed from one the person gave is "edited"; everything else a model made.
     const origin: AiOrigin =
       asset === "image" && entry.reference && given.has(entry.reference) ? "edited" : "generated";
-    const ref = await ctx.saveAsset({
+    const ref = await ctx.services.files.save({
       stepId: step.id,
       kind: asset,
       mime: media.mime,
@@ -414,7 +409,7 @@ export async function runGenerateStep(step: GenerateStep, ctx: StepContext): Pro
         abortSignal: ctx.signal,
       });
       await ctx.chargeUsd(media.costUsd);
-      const ref = await ctx.saveAsset({
+      const ref = await ctx.services.files.save({
         stepId: step.id,
         kind: "audio",
         mime: media.mime,
@@ -427,13 +422,11 @@ export async function runGenerateStep(step: GenerateStep, ctx: StepContext): Pro
     case "document":
     case "dashboard": {
       // Pictures the model took from the web stay: the page itself may load none.
-      const html = await snapshotHtmlImages(
+      const html = await ctx.services.files.keepWebImages(
         await writeHtml(step, ctx, step.asset),
-        ctx.saveAsset,
         step.id,
-        ctx.signal,
       );
-      const ref: AssetRef = await ctx.saveAsset({
+      const ref: AssetRef = await ctx.services.files.save({
         stepId: step.id,
         kind: "html",
         mime: "text/html",

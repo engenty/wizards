@@ -1,7 +1,6 @@
 import { langNameEn } from "@engenty/wizards-shared/definition";
 import type { RunBrand } from "@engenty/wizards-shared/run-services";
 import { ruleLines } from "@engenty/wizards-shared/spaces";
-import { loadAssetText } from "../../files/storage.js";
 import { prompt } from "../../prompts.js";
 import { contentPolicy } from "../../safety.js";
 import {
@@ -57,7 +56,8 @@ async function previousResult(ctx: StepContext, stepId: string): Promise<string>
     return JSON.stringify(out.json).slice(0, 12_000);
   }
   const html = out.assets?.find((a) => a.mime === "text/html");
-  return html ? (await loadAssetText(html.id)).slice(0, 12_000) : "";
+  const found = html ? await ctx.services.files.read(html.id) : null;
+  return found ? Buffer.from(found.data).toString("utf8").slice(0, 12_000) : "";
 }
 
 export async function revisionBlock(ctx: StepContext, stepId: string): Promise<string> {

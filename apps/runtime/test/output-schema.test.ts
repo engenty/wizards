@@ -198,31 +198,28 @@ describe("an agent step's output schema", () => {
 });
 
 describe("a step with a schema, run", () => {
-  // The step's context with the run's services, as the runner makes it.
-  const served = <T extends { def: unknown }>(c: T) =>
-    Object.assign(c, {
-      services: inProcessServices({ id: "r", definition: c.def } as never, () => c as never),
-    });
-  const ctx = () =>
-    served({
+  const ctx = () => {
+    const c: Record<string, unknown> = {
+    def: wizard(),
+    space: { id: "p" },
+    dataSpace: { id: "p", name: "" },
+    spaceFiles: [],
+    // Who holds the run, and its wizard: what a step reads Knowledge as.
+    holder: { kind: "guest", id: "v" },
+    store: { wizardId: "w", holder: "g:v" },
+    call: {},
+    signal: new AbortController().signal,
+    state: { values: {}, outputs: {}, notes: {} },
+    scope: {
       def: wizard(),
-      space: { id: "p" },
-      dataSpace: { id: "p", name: "" },
-      spaceFiles: [],
-      // Who holds the run, and its wizard: what a step reads Knowledge as.
-      holder: { kind: "guest", id: "v" },
-      store: { wizardId: "w", holder: "g:v" },
-      call: {},
-      signal: new AbortController().signal,
       state: { values: {}, outputs: {}, notes: {} },
-      scope: {
-        def: wizard(),
-        state: { values: {}, outputs: {}, notes: {} },
-        brand: {},
-      },
-      emit: async () => {},
-      chargeUsd: async () => {},
-    });
+      brand: {},
+    },
+    emit: async () => {},
+    };
+    c.services = inProcessServices({ id: "r", definition: wizard() } as never, () => c as never);
+    return c;
+  };
 
   it("stores the model's nested answer as it is, numbers fitted, lists not joined", async () => {
     // A number written as text, and a step's minutes as text: fitted, not refused.
