@@ -12,7 +12,14 @@ import {
 } from "./definition.js";
 import { unavoidableSteps } from "./fit.js";
 import type { WizardAgent } from "./wizard-agents.js";
-import { stepAgents, wizardAgentsUsed, wizardCodeOf, wizardToolsUsed } from "./wizard-code.js";
+import {
+  isSandboxToolPath,
+  stepAgents,
+  wizardAgentsUsed,
+  wizardCodeOf,
+  wizardToolsIn,
+  wizardToolsUsed,
+} from "./wizard-code.js";
 
 /** What an agent of the wizard needs, by name: `requires.agents`. */
 export type AgentNeeds = NonNullable<Requires["agents"]>;
@@ -159,13 +166,40 @@ export function pluginsOf(def: Pick<WizardDefinition, "steps">, agents: AgentNee
 }
 
 /**
+ * Whether the wizard's own tools need a sandbox that runs a shell: one of `tools`, what the
+ * steps and their agents work with, is a sandbox tool (`tools/<name>/TOOL.md`). That is in the
+ * workspace: with `paths` it is read, without them what the definition says already is kept, as
+ * long as a tool of the wizard is among them.
+ */
+function ownToolsNeedShell(
+  def: WizardDefinition,
+  tools: ReadonlySet<string>,
+  paths?: readonly string[],
+): boolean {
+  const own = [...tools].flatMap((id) => {
+    const code = wizardCodeOf(id);
+    return code?.kind === "tool" ? [code.name] : [];
+  });
+  if (!paths) {
+    return def.requires?.sandbox === "shell" && own.length > 0;
+  }
+  const files = wizardToolsIn(paths);
+  return own.some((name) => {
+    const found = files.get(name);
+    return found?.length === 1 && isSandboxToolPath(found[0]);
+  });
+}
+
+/**
  * What a definition needs, from its steps. Lists are sorted and empty ones left out. A class
  * only steps behind a branch call is `optional`: a run can go around it. `agents`: the wizard's
  * agents as their files say (wizard-agents.ts); left out, `requires.agents` stands for them.
+ * `paths`: the workspace's files, which say whether a tool of the wizard runs in the sandbox.
  */
 export function requiresOf(
   def: WizardDefinition,
   agents?: ReadonlyMap<string, WizardAgent>,
+  paths?: readonly string[],
 ): Requires {
   const needs = agentsNeeded(def, agents);
   const unavoidable = unavoidableSteps(def);
@@ -213,7 +247,9 @@ export function requiresOf(
     makers: sorted(makers),
     tools: sorted(tools),
     run: code ? ["code"] : [],
-    ...(tools.has("sandbox") ? { sandbox: "shell" as const } : {}),
+    ...(tools.has("sandbox") || ownToolsNeedShell(def, tools, paths)
+      ? { sandbox: "shell" as const }
+      : {}),
     plugins: pluginsOf(def, needs),
     connections,
     features: [...features].sort(),
@@ -230,13 +266,14 @@ export function requiresOf(
 
 /**
  * The definition with its `requires` as its steps say: what every writer saves. `agents`: the
- * wizard's agents as their files say, where the writer has them.
+ * wizard's agents as their files say, where the writer has them; `paths`, the workspace's files.
  */
 export function withRequires<T extends WizardDefinition>(
   def: T,
   agents?: ReadonlyMap<string, WizardAgent>,
+  paths?: readonly string[],
 ): T {
-  const requires = requiresOf(def, agents);
+  const requires = requiresOf(def, agents, paths);
   const { requires: _, steps, ...rest } = def;
   // `requires` stands before the steps, where people read it.
   return {
@@ -290,17 +327,18 @@ export function agentsMismatch(
 /**
  * Why a definition's `requires` is not what its steps need, or null when it is. `agents`: the
  * wizard's agents as their files say; where `requires.agents` differs from them, the message
- * names the agent.
+ * names the agent. `paths`: the workspace's files, as for `requiresOf`.
  */
 export function requiresProblem(
   def: WizardDefinition,
   agents?: ReadonlyMap<string, WizardAgent>,
+  paths?: readonly string[],
 ): string | null {
   const mismatch = agents ? agentsMismatch(def, agents) : [];
   if (mismatch.length) {
     return mismatch.map((m) => m.message).join(" ");
   }
-  const want = requiresOf(def, agents);
+  const want = requiresOf(def, agents, paths);
   const have = def.requires ?? {};
   if (JSON.stringify(normal(have)) === JSON.stringify(normal(want))) {
     return null;

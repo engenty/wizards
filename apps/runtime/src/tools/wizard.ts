@@ -1,6 +1,11 @@
 import type { AgentStep } from "@engenty/wizards-shared/definition";
+import type { AssetRef } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
-import { wizardCodeOf, wizardToolCallName } from "@engenty/wizards-shared/wizard-code";
+import {
+  sandboxToolHostsMissing,
+  wizardCodeOf,
+  wizardToolCallName,
+} from "@engenty/wizards-shared/wizard-code";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { brokerHost, whereOf } from "../broker/index.js";
@@ -22,11 +27,15 @@ import { askOf, PAID_TOOLS, toolCallIdOf, wizardToolScope } from "./code.js";
 import { assertPublicUrl, safeFetch } from "./net-guard.js";
 import { holderWho } from "./plugin.js";
 import { clip } from "./shared.js";
+import type { UploadRef } from "./store.js";
+import { sandboxTool } from "./wizard-sandbox.js";
 
 /**
  * A wizard's function tools (docs/plans/wizard-code.md): `tools/<name>.ts` in its workspace, named
- * `wizard.<name>` in a step's `tools`. The file exports `description`, `input` (JSON Schema), an
- * optional `output` and `run(input, { fetch, tools, db })`. The step's model calls it like any tool.
+ * `wizard.<name>` in a step's `tools`. A sandbox tool, `tools/<name>/TOOL.md`, is named the same
+ * way and runs in the run's sandbox (wizard-sandbox.ts). The file exports `description`, `input`
+ * (JSON Schema), an optional `output` and `run(input, { fetch, tools, db })`. The step's model
+ * calls it like any tool.
  *
  * The code is untrusted (marketplace, imports, guests): it runs in QuickJS like a code step
  * (../engine/quickjs.ts), with no modules, files or timers. Its way out is what `run` gets:
@@ -43,9 +52,7 @@ const DB_ID = "__db";
 const dbCall = z.object({
   mode: z.enum(["read", "write"]),
   sql: z.string().min(1).max(20_000),
-  params: z
-    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
-    .optional(),
+  params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
   scope: z.enum(["person", "shared"]).default("person"),
 });
 
@@ -84,8 +91,8 @@ const __fetch = async (url, init = {}) => {
   };
 };
 ${
-    data
-      ? `const __dbCall = (mode) => (sql, params, options) =>
+  data
+    ? `const __dbCall = (mode) => (sql, params, options) =>
   globalThis[${JSON.stringify(externalOf(DB_ID))}]({
     mode,
     sql: String(sql),
@@ -93,8 +100,8 @@ ${
     scope: options?.scope ?? "person",
   });
 const __db = Object.freeze({ query: __dbCall("read"), exec: __dbCall("write") });`
-      : "const __db = undefined;"
-  }
+    : "const __db = undefined;"
+}
 if (typeof run !== "function") throw new Error("The tool defines no function run(input).");
 return await run(${JSON.stringify(input)}, { fetch: __fetch, tools: __tools, db: __db });`;
 }
@@ -128,15 +135,17 @@ function callableBy(
 }
 
 /**
- * The wizard's function tools a step names (`wizard.<name>`), each over the step's other tools.
- * A step that names a tool its workspace lacks, or one that doesn't load, fails: the wizard is
- * broken, not the model.
+ * The wizard's tools a step names (`wizard.<name>`): function tools over the step's other tools,
+ * sandbox tools in the run's sandbox. A step that names a tool its workspace lacks, one that
+ * doesn't load, a sandbox tool whose hosts the step doesn't list or that this run has no sandbox
+ * for fails: the wizard or the server is the problem, not the model.
  */
 export async function wizardTools(
   step: AgentStep,
   ctx: StepContext,
   others: Record<string, any>,
   browser: Record<string, unknown>,
+  made: { assets: AssetRef[]; uploads: UploadRef[] },
 ): Promise<Record<string, any>> {
   const tools: Record<string, any> = {};
   const paths = ctx.files.map((f) => f.path);
@@ -161,7 +170,32 @@ export async function wizardTools(
       throw new StepError(note("wizardToolBroken", { name: id, detail: loaded.issues[0] }));
     }
     const callName = wizardToolCallName(name);
-    tools[callName] = functionTool(id, callName, loaded.tool, step, ctx, callable);
+    const tool = loaded.tool;
+    if (tool.kind === "function") {
+      tools[callName] = functionTool(id, callName, tool, step, ctx, callable);
+      continue;
+    }
+    const missing = sandboxToolHostsMissing(tool.hosts, step.hosts ?? []);
+    if (missing.length) {
+      throw new StepError(
+        note("wizardToolBroken", {
+          name: id,
+          detail: `it reaches ${missing.join(", ")}, which the step doesn't list in its hosts.`,
+        }),
+      );
+    }
+    // A guest's run has a sandbox only where SANDBOX_GUESTS gives it one (engine/resources.ts).
+    if (!(await ctx.resources.runSandboxCapabilities())) {
+      throw new StepError(note("wizardToolNoSandbox", { name: id }));
+    }
+    tools[callName] = sandboxTool(
+      id,
+      callName,
+      tool,
+      ctx,
+      () => ctx.resources.sandboxHandle(),
+      made,
+    );
   }
   return tools;
 }

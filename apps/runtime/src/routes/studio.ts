@@ -300,6 +300,7 @@ import {
   publishedDefinition,
 } from "../services/translations.js";
 import { draftWidgetPreview } from "../services/widgets.js";
+import { wizardDatabase, wizardDatabaseCsv, wizardDatabaseRows } from "../services/wizard-data.js";
 import {
   createWizard,
   deleteWizard,
@@ -1480,6 +1481,34 @@ export const studio = new Hono<Vars>()
   .get("/spaces/:id/data", async (c) =>
     c.json(await listSpaceData(c.get("user").id, c.req.param("id"), whoOf(c))),
   )
+  // A wizard's shared database (docs/plans/wizard-data.md): read-only, a page of rows, CSV.
+  .get("/databases/:id", async (c) =>
+    c.json(await wizardDatabase(c.get("user").id, c.req.param("id"), whoOf(c))),
+  )
+  .get("/databases/:id/tables/:table", async (c) =>
+    c.json(
+      await wizardDatabaseRows(
+        c.get("user").id,
+        c.req.param("id"),
+        c.req.param("table"),
+        Number(c.req.query("offset") ?? 0) || 0,
+        whoOf(c),
+      ),
+    ),
+  )
+  .get("/databases/:id/tables/:table/csv", async (c) => {
+    const { name, csv } = await wizardDatabaseCsv(
+      c.get("user").id,
+      c.req.param("id"),
+      c.req.param("table"),
+      whoOf(c),
+    );
+    return c.body(csv, 200, {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
+      "x-content-type-options": "nosniff",
+    });
+  })
   .post("/spaces/:id/tables", async (c) => {
     const body = z
       .object({

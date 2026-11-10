@@ -1,7 +1,7 @@
 ---
 title: Your data
 description: Where wizards, results, files and keys are kept, how to back them up and how to start over.
-version: 0.9.3
+version: 0.18.0
 ---
 
 ## Where it is
@@ -41,8 +41,8 @@ After an update, engenty wizards brings your data up to date the next time it st
 - **Connected services** get what a wizard’s actions send them.
 - **Your spaces**, with an account signed in: their wizards, drafts included, their knowledge,
   files and connectors sync with your organization at engenty.ai
-  ([Spaces in the cloud](./cloud-sync.md)). Runs, results, connected accounts and keys stay on
-  your computer.
+  ([Spaces in the cloud](./cloud-sync.md)). Runs, results, a wizard’s own data, connected
+  accounts and keys stay on your computer.
 - **Templates** come from the marketplace at engenty.ai. `MARKETPLACE_URL=off` in the settings file
   turns that off.
 - **The update check** asks GitHub for the newest release.
