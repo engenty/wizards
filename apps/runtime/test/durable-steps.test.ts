@@ -94,6 +94,8 @@ vi.mock("../src/engine/requirements.js", async (original) => ({
 
 /** What the step's outside tool did, in the order it did it. */
 let acted: string[] = [];
+/** Runs after each send, inside it: how many there were so far. */
+let afterSend: ((n: number) => Promise<void>) | null = null;
 let answerChars = 0;
 vi.mock("../src/tools/index.js", async (original) => ({
   ...(await original<typeof import("../src/tools/index.js")>()),
@@ -113,6 +115,7 @@ vi.mock("../src/tools/index.js", async (original) => ({
           effect: { turn: ctx.turn, toolCallId: toolCallIdOf(context, "send", input) },
           handler: async () => {
             acted.push(input.to);
+            await afterSend?.(acted.length);
             return { sent: input.to, filler: "x".repeat(answerChars) };
           },
         });
@@ -227,6 +230,7 @@ beforeEach(() => {
   switchOn = true;
   modelCalls = 0;
   acted = [];
+  afterSend = null;
   answerChars = 0;
   script = () => say("done");
 });
@@ -598,14 +602,17 @@ describe("a turn that asks a person", () => {
       const n = resultsOf(options, "send").length;
       return n >= 8 ? say("done") : call(`c-${n}`, "send", { to: `person-${n}` });
     };
-    const id = await startRun(definitionOf(agentStep({ tools: [] })));
-    await until(() => acted.length >= 2, 15_000);
-    await inTenant(() => runner.cancel(id));
+    let id = "";
+    // The person cancels while the second send is under way.
+    afterSend = async (n) => {
+      if (n === 2) {
+        await runner.cancel(id);
+      }
+    };
+    id = await startRun(definitionOf(agentStep({ tools: [] })));
+    await until(async () => (await row(id))?.status === "cancelled", 15_000);
     await new Promise((r) => setTimeout(r, 1500));
-    const after = acted.length;
-    await new Promise((r) => setTimeout(r, 500));
-    expect(acted.length).toBe(after);
-    expect(after).toBeLessThan(8);
+    expect(acted).toEqual(["person-0", "person-1"]);
     expect((await row(id))?.status).toBe("cancelled");
   });
 });
