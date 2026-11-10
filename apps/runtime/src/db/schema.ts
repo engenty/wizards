@@ -17,6 +17,7 @@ import {
   type AskAnswer,
   RUN_EVENT_TYPES,
   type RunAsk,
+  type RunHostRef,
   type RunNote,
   type RunState,
   type Said,
@@ -371,6 +372,11 @@ export const run = sqliteTable(
      * tokens, which no token opens.
      */
     tokenId: text("token_id"),
+    /**
+     * Where the run lives when it is not this runtime: the host's kind and address. Null: this
+     * runtime drives it, as every run did before other hosts.
+     */
+    host: text("host", { mode: "json" }).$type<RunHostRef | null>(),
     version: integer("version"),
     mode: text("mode", { enum: ["test", "live"] }).notNull(),
     /** The door the run came through: steps, chat, or a plugin's runner. Null: the page. */

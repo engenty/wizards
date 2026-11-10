@@ -515,6 +515,7 @@ export async function draftStepView(
       files: [],
       grant: null,
       tokenId: null,
+      host: null,
       version: null,
       mode: "test" as const,
       runner: null,

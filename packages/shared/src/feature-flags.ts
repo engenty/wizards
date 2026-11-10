@@ -239,6 +239,12 @@ export const FEATURES = {
     label: "Run services",
     hint: "A run's requests go through the broker with the run's token: every tool call is a line of the log.",
   },
+  runHosts: {
+    kind: "release",
+    default: false,
+    label: "Runs on other hosts",
+    hint: "A run can live on a host other than this runtime; its record keeps the host's address.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

@@ -25,7 +25,15 @@ export const RUN_TOKEN_DAYS = 30;
 
 type TokenRun = Pick<
   RunRow,
-  "id" | "tenantId" | "wizardId" | "mode" | "userId" | "visitorId" | "clientSpaceId" | "tokenId"
+  | "id"
+  | "tenantId"
+  | "wizardId"
+  | "mode"
+  | "userId"
+  | "visitorId"
+  | "clientSpaceId"
+  | "tokenId"
+  | "host"
 > & { expiresAt: Date | null };
 
 /**
@@ -58,7 +66,7 @@ async function claimsOf(run: TokenRun): Promise<RunClaims | null> {
     dataSpace: run.clientSpaceId ?? wizard.spaceId,
     mode: run.mode,
     holder: holderOf(run),
-    host: "runtime",
+    host: run.host?.kind ?? "runtime",
     exp: expiryOf(run),
   };
 }
@@ -121,6 +129,7 @@ export async function readRunToken(
         visitorId: true,
         clientSpaceId: true,
         tokenId: true,
+        host: true,
         expiresAt: true,
       },
       where: eq(schema.run.id, claims.run),

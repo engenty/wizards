@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { RUN_HOST_KINDS } from "@engenty/wizards-shared/run";
 import { z } from "zod";
 import { env } from "../env.js";
 
@@ -140,8 +141,8 @@ export const runClaimsSchema = z
     mode: z.enum(["test", "live"]),
     /** Whose the run is, as the store names them (`holderOf`): `u:`, `v:` or `r:` and an id. */
     holder: z.string().min(1),
-    /** The kind of host the run lives on. */
-    host: z.enum(["runtime"]),
+    /** The kind of host the run lives on: `runtime` for a run whose record names none. */
+    host: z.enum(RUN_HOST_KINDS),
     /** Seconds since the epoch. */
     exp: z.number().int(),
   })

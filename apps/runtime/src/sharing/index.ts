@@ -277,6 +277,7 @@ function standIn(wizard: WizardRow, userId: string): RunRow {
     files: [],
     grant: null,
     tokenId: null,
+    host: null,
     version: null,
     mode: "test",
     runner: null,

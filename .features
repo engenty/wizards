@@ -90,5 +90,8 @@
 # a run's requests through the broker with the run's token, every tool call a line of the log (off by default)
 # runServices=on|off
 #
+# a run can live on a host other than this runtime, its record keeps the host's address (off by default)
+# runHosts=on|off
+#
 # a plugin's switches carry its id; `wizards features` lists the ones installed here
 # contacts.leadScoring=on|off
