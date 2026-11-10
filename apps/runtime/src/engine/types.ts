@@ -6,6 +6,7 @@ import type { SaveAssetInput } from "../files/storage.js";
 import type { Role } from "../manage.js";
 import { NotedError } from "../model-errors.js";
 import type { CallMeta } from "../models.js";
+import type { InProcessServices } from "../run-services/index.js";
 import type { StoreScope } from "../store/index.js";
 import type { AskResult } from "./asks.js";
 import type { RunResources } from "./resources.js";
@@ -68,6 +69,11 @@ export interface StepContext {
   /** Adds provider cost to the run where the runtime resolves models itself; the gateway books the rest. */
   chargeUsd(usd: number): Promise<void>;
   saveAsset(input: Omit<SaveAssetInput, "runId">): Promise<AssetRef>;
+  /**
+   * Everything outside the run, as the run's services (docs/plans/runs-on-their-own.md): the
+   * runtime's own functions, called in this process.
+   */
+  services: InProcessServices;
 }
 
 /** A step failure the person can read. */
