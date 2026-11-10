@@ -64,6 +64,7 @@ import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
 import { knowledgeBlock } from "../services/knowledge.js";
 import { watchActions } from "../tools/acted.js";
+import { agentTools, stepOfAgent } from "../tools/agent.js";
 import { callConnection } from "../tools/connector.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool, spaceContextOf } from "../tools/plugin.js";
@@ -499,7 +500,11 @@ function agentEntries(step: AgentStep, ctx: StepContext): unknown[] {
  * entry as {{item}}. The results become one table — the entry's columns and the step's output
  * fields — and one text with a heading per entry.
  */
-async function runAgentEach(step: AgentStep, ctx: StepContext): Promise<StepOutput> {
+async function runAgentEach(
+  step: AgentStep,
+  ctx: StepContext,
+  agentPart?: string,
+): Promise<StepOutput> {
   const entries = agentEntries(step, ctx);
   if (!entries.length) {
     throw new StepError(runNote("noEntriesStepWork"));
@@ -520,7 +525,7 @@ async function runAgentEach(step: AgentStep, ctx: StepContext): Promise<StepOutp
     async ([index, item]) => {
       await ctx.emit("info", { code: "entry", params: { n: index + 1, total: entries.length } });
       const scope: TemplateScope = { ...ctx.scope, entry: { item, index, count: entries.length } };
-      return runAgentStep(single, { ...ctx, scope });
+      return runAgentStep(single, { ...ctx, scope }, false, agentPart);
     },
   );
   for (const [index, item] of entries.entries()) {
@@ -630,14 +635,23 @@ function callPluginToolOnce(tool: string, input: unknown, ctx: StepContext) {
   return callPluginTool(tool, input, ctx);
 }
 
-/** An agent step; `decision`: a decision step, answered in one call where it has no uploads. */
+/**
+ * An agent step; `decision`: a decision step, answered in one call where it has no uploads.
+ * `agentPart`: the instructions of the wizard's agent that runs it (tools/agent.ts).
+ */
 export async function runAgentStep(
   step: AgentStep,
   ctx: StepContext,
   decision = false,
+  agentPart?: string,
 ): Promise<StepOutput> {
+  if (step.agent) {
+    // An agent of the wizard runs the step: its file gives the model and the tools.
+    const ran = await stepOfAgent({ ...step, agent: step.agent }, ctx);
+    return runAgentStep(ran.step, ctx, decision, ran.instructions);
+  }
   if (step.foreach) {
-    return runAgentEach(step, ctx);
+    return runAgentEach(step, ctx, agentPart);
   }
   const resolved = await textModel(textClassOf(step.model ?? "standard"), {
     ...ctx.call,
@@ -655,6 +669,8 @@ export async function runAgentStep(
     resolved,
     uploads,
   );
+  // The wizard's agents the step lists, each a tool that runs an agent step of its own.
+  Object.assign(tools, await agentTools(step, ctx, (sub, c) => runAgentStep(sub, c)));
   // A step written for the sandbox on a run without one works on in text: said in the run's log.
   if (step.tools.includes("sandbox") && !ctx.resources.sandboxCapabilities()) {
     await ctx.emit("info", { code: "noSandbox" });
@@ -684,6 +700,7 @@ export async function runAgentStep(
           });
   const system = [
     groundRules(ctx),
+    agentPart ? `# AGENT\n${agentPart}` : "",
     step.tools.includes("browser") ? prompt("step", "browser_rules") : "",
     instructions ?? "",
     `Today is ${today(ctx)}.`,

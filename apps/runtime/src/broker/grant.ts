@@ -1,4 +1,5 @@
 import { pluginToolOf, type WizardDefinition } from "@engenty/wizards-shared/definition";
+import { toolsAt } from "@engenty/wizards-shared/requires";
 import { note, type RunNote } from "@engenty/wizards-shared/run";
 import { wizardCodeOf } from "@engenty/wizards-shared/wizard-code";
 import { eq } from "drizzle-orm";
@@ -59,8 +60,12 @@ export function grantOf(definition: WizardDefinition): Grant {
   const defs = new Map((definition.connections ?? []).map((c) => [c.id, c]));
   for (const step of definition.steps) {
     if (step.type === "agent") {
-      for (const tool of step.tools) {
+      // An agent of the wizard brings its tools (`requires.agents`, from its file).
+      for (const tool of [...step.tools, ...toolsAt(step, definition.requires?.agents ?? {})]) {
         tools.add(tool);
+      }
+      if (step.agent) {
+        tools.add(`agent.${step.agent}`);
       }
       for (const host of step.hosts ?? []) {
         hosts.add(host.trim().toLowerCase());
@@ -254,7 +259,7 @@ export function grantNote(
     }
   }
   // The wizard's own tools run code, and reach the hosts the steps list.
-  if (grant.tools.some((tool) => wizardCodeOf(tool))) {
+  if (grant.tools.some((tool) => wizardCodeOf(tool)?.kind === "tool")) {
     const runs = note("grantRunsCode");
     if (!what.some((w) => w.code === runs.code)) {
       what.push(runs);

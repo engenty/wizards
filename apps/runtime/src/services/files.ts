@@ -1,3 +1,5 @@
+import { withRequires } from "@engenty/wizards-shared/requires";
+import { WIZARD_AGENTS_DIR } from "@engenty/wizards-shared/wizard-code";
 import {
   cleanPath,
   isTextMime,
@@ -7,6 +9,7 @@ import {
 } from "@engenty/wizards-shared/workspace";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
+import { wizardAgentFiles } from "../engine/wizard-code.js";
 import { getBlob, putBlob } from "../files/blobs.js";
 import { emitDraftChanged, filesChanged } from "./draft-events.js";
 import { notFound, ServiceError } from "./errors.js";
@@ -94,6 +97,7 @@ export async function writeFile(
       set: { hash: file.hash, mime: file.mime, size: file.size, updatedAt: new Date() },
     });
   await touch(w.id);
+  await agentFileChanged(w.id, path);
   await emitDraftChanged(filesChanged(w, path));
   return file;
 }
@@ -162,7 +166,37 @@ export async function deleteFile(userId: string, wizardId: string, rawPath: stri
     throw notFound();
   }
   await touch(w.id);
+  await agentFileChanged(w.id, path);
   await emitDraftChanged(filesChanged(w, path));
+}
+
+/**
+ * An agent's file changed: the draft's `requires` says again what the agents need
+ * (`requires.agents`), as a draft write would. Its revision stays: nothing a person wrote changed.
+ */
+async function agentFileChanged(wizardId: string, path: string) {
+  if (!path.startsWith(WIZARD_AGENTS_DIR)) {
+    return;
+  }
+  const row = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, wizardId) });
+  if (!row) {
+    return;
+  }
+  const files = await draftFiles(wizardId);
+  const { agents } = await wizardAgentFiles(
+    files.map((f) => f.path),
+    async (p) => (await snapshotFile(files, p))?.data.toString("utf8") ?? null,
+  );
+  let draft: typeof row.draft;
+  try {
+    draft = withRequires(row.draft, agents);
+  } catch {
+    // A draft that is not whole yet is kept as it is.
+    return;
+  }
+  if (JSON.stringify(draft.requires ?? null) !== JSON.stringify(row.draft.requires ?? null)) {
+    await db.update(schema.wizard).set({ draft }).where(eq(schema.wizard.id, wizardId));
+  }
 }
 
 /** Copies a workspace onto another wizard (duplicate). Blobs are shared, only rows are new. */

@@ -330,7 +330,7 @@ function functionTool(
 }
 
 /** The log row's who and where for a call of the step. */
-function whoWhere(ctx: StepContext) {
+export function whoWhere(ctx: StepContext) {
   const who = holderWho(ctx);
   const where = whereOf(ctx);
   return {
