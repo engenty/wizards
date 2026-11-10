@@ -1,7 +1,265 @@
 [
   {
+    "version": "v0.19.0",
+    "timestamp": 1794298809,
+    "commits": [
+      {
+        "id": "092faa4",
+        "message": "function tools and the sandbox reach the wizard's database (#608)",
+        "group": "Added",
+        "scope": "format",
+        "breaking": false
+      },
+      {
+        "id": "ebbf524",
+        "message": "a wizard brings its own sandbox tools, and its skill scripts run in the cloud's sandbox (#606)",
+        "group": "Added",
+        "scope": "format",
+        "breaking": false
+      },
+      {
+        "id": "52bfe0e",
+        "message": "Space → Data shows a wizard's shared data, read-only, with CSV export (#598)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "dacd7bc",
+        "message": "a wizard keeps its own data, per person or shared (#597)",
+        "group": "Added",
+        "scope": "format",
+        "breaking": false
+      },
+      {
+        "id": "3aa6c15",
+        "message": "a wizard brings its own agents (#605)",
+        "group": "Added",
+        "scope": "format",
+        "breaking": false
+      },
+      {
+        "id": "93124dc",
+        "message": "a wizard brings its own function tools (#594)",
+        "group": "Added",
+        "scope": "format",
+        "breaking": false
+      },
+      {
+        "id": "391d32f",
+        "message": "the share dialog shows what a wizard takes and gives (#589)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "63cf45d",
+        "message": "a wizard says what it takes and gives, as JSON Schema (#585)",
+        "group": "Added",
+        "scope": "format",
+        "breaking": false
+      },
+      {
+        "id": "18673e0",
+        "message": "a wizard brings its own skills (#591)",
+        "group": "Added",
+        "scope": "format",
+        "breaking": false
+      },
+      {
+        "id": "a98048c",
+        "message": "a wizard's root requires says what a run needs, filled in from its steps (#593)",
+        "group": "Added",
+        "scope": "format",
+        "breaking": true
+      },
+      {
+        "id": "abe22bc",
+        "message": "output.schema is written in a subset of JSON Schema (#590)",
+        "group": "Changed",
+        "scope": "format",
+        "breaking": true
+      },
+      {
+        "id": "ffb5203",
+        "message": "tool and code are step types, each becomes foreach, conditions take or, and, truthy and falsy, and every step may carry metadata (#587)",
+        "group": "Changed",
+        "scope": "format",
+        "breaking": true
+      },
+      {
+        "id": "0f48e94",
+        "message": "retries on steps that run without a person, concurrency on each (#580)",
+        "group": "Added",
+        "scope": "format",
+        "breaking": false
+      },
+      {
+        "id": "9a12223",
+        "message": "the page step is called form (#579)",
+        "group": "Changed",
+        "scope": "format",
+        "breaking": true
+      },
+      {
+        "id": "1c59807",
+        "message": "the definition is version 1 again, in beta (#577)",
+        "group": "Changed",
+        "scope": "format",
+        "breaking": true
+      },
+      {
+        "id": "0b77d6a",
+        "message": "agentOS in a container of its own for the cloud, agentOS 0.4.7 (#596)",
+        "group": "Added",
+        "scope": "sandbox",
+        "breaking": false
+      },
+      {
+        "id": "2571116",
+        "message": "documentation updates (#576, #581, #582, #584, #588, #592, #595)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "b69609a",
+        "message": "a code step loads QuickJS on demand, so a minimal installation starts again (#586)",
+        "group": "Fixed",
+        "scope": "install",
+        "breaking": false
+      },
+      {
+        "id": "981f79a",
+        "message": "the Mac login item shows as engenty wizards with its icon (#583)",
+        "group": "Added",
+        "scope": "autostart",
+        "breaking": false
+      },
+      {
+        "id": "c8a7eaf",
+        "message": "a code step runs a function from the wizard's files, with no model (#578)",
+        "group": "Added",
+        "scope": "wizard-format",
+        "breaking": false
+      },
+      {
+        "id": "559140a",
+        "message": "a minimal installation leaves out scans, Docker, code, Word and Excel until a wizard first needs them (#575)",
+        "group": "Added",
+        "scope": "install",
+        "breaking": false
+      },
+      {
+        "id": "110a297",
+        "message": "the banner's engenty has a round top that leans as it looks around (#573)",
+        "group": "Fixed",
+        "scope": "install",
+        "breaking": false
+      },
+      {
+        "id": "17259aa",
+        "message": "every move of a run goes through transition(), the runner is its host (#572)",
+        "group": "Changed",
+        "scope": "durable-runs",
+        "breaking": false
+      },
+      {
+        "id": "d5af8c6",
+        "message": "a run's flow as one pure function, transition(), in the shared package (#571)",
+        "group": "Added",
+        "scope": "durable-runs",
+        "breaking": false
+      },
+      {
+        "id": "dc4dce3",
+        "message": "Home's setup card starts from the organization's name or website, five steps beside it (#570)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "44e6aab",
+        "message": "Home opens on the dashboard, a new organization's setup waits there as a card (#569)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "a241ab3",
+        "message": "an organization's own API keys run through the gateway, behind ownKeysGateway (#568)",
+        "group": "Added",
+        "scope": "models",
+        "breaking": false
+      },
+      {
+        "id": "c840740",
+        "message": "Home, a paged wizard that sets up a new organization, then what waits, finished and runs (#567)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "ecc1c61",
+        "message": "the Resources cards show an engenty with what each part holds (#566)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "9bd1f63",
+        "message": "Resources shows each part as a card with a picture of what it holds (#565)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "5ae7922",
+        "message": "the path bar stands above the page, and the engenty menu says which organization and how it is connected (#564)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "f925291",
+        "message": "who sees a new space, brand and Info from the organization or a space's own, Local space (#563)",
+        "group": "Added",
+        "scope": "spaces",
+        "breaking": false
+      },
+      {
+        "id": "3413f41",
+        "message": "sharing, folders and the computer's space, behind orgSpaces (#562)",
+        "group": "Added",
+        "scope": "spaces",
+        "breaking": false
+      },
+      {
+        "id": "e211534",
+        "message": "the organization's root space, Mein Space and the space path, behind orgSpaces (#561)",
+        "group": "Added",
+        "scope": "spaces",
+        "breaking": false
+      },
+      {
+        "id": "e2bc673",
+        "message": "the start page drops the Studio line and keeps the sentence on what a wizard is (#560)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "099574a",
+        "message": "wizards <name> runs a command from the commands folder (#559)",
+        "group": "Added",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.18.0",
-    "timestamp": 1794148523,
+    "timestamp": 1794148976,
     "commits": [
       {
         "id": "4e892ec",

@@ -396,6 +396,12 @@
           "version": "1.0.4",
           "license": "MIT",
           "homepage": "https://github.com/morungos/node-word-extractor"
+        },
+        {
+          "name": "yaml",
+          "version": "2.9.1",
+          "license": "ISC",
+          "homepage": "https://eemeli.org/yaml/"
         }
       ]
     },
