@@ -1,3 +1,4 @@
+import { waitsOnJob } from "@engenty/wizards-shared/run";
 import { whoOf } from "@engenty/wizards-shared/run-view";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { SessionUser } from "../auth/index.js";
@@ -133,7 +134,8 @@ export async function runsFor(
   const waits: WaitingRun[] = [];
   const seen = new Set<string>();
   for (const run of [...asked, ...own]) {
-    if (seen.has(run.id)) {
+    // Asleep on a service's job, it is at work: nothing waits for anyone.
+    if (seen.has(run.id) || waitsOnJob(run)) {
       continue;
     }
     seen.add(run.id);

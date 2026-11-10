@@ -10,6 +10,7 @@ import {
 } from "@engenty/wizards-shared/run";
 import type {
   ModelsService,
+  Pending,
   RunServices,
   ServiceStep,
   ToolCallRequest,
@@ -109,8 +110,12 @@ export interface StepServices extends RunServices {
       request: Pick<TurnRequest, "stepId" | "class" | "effort" | "maker">,
     ): Promise<AgentModel>;
   };
-  /** A whole step answers with its output inside the runtime, never `pending` (until package 3.7). */
-  steps: { run(step: ServiceStep, signal?: AbortSignal): Promise<StepOutput> };
+  /**
+   * A whole step answers with its output, or with `pending`: a service works on it (a film, a
+   * video) and the run sleeps until it is done. Asked again for the same step (`RunState.job`),
+   * the service answers the job's output, `pending` while it works, or throws its failure.
+   */
+  steps: { run(step: ServiceStep, signal?: AbortSignal): Promise<StepOutput | Pending> };
   tools: ToolsService & {
     /**
      * The tools of an agent step: `ctx` is its own (a foreach entry's, a wizard's agent's), which

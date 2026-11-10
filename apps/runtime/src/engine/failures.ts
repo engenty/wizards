@@ -1,5 +1,6 @@
 import { type Failure, NOTE_CLASS } from "@engenty/wizards-engine/failures";
 import { StepError } from "@engenty/wizards-engine/types";
+import { ServiceError } from "@engenty/wizards-shared/run-services";
 import { NotedError, noteOf } from "../model-errors.js";
 import { SignInNeeded } from "./types.js";
 
@@ -130,6 +131,16 @@ export function classifyFailure(
   });
   if (err instanceof SignInNeeded) {
     return { class: "sign_in", retryAfterMs: null, why: "sign_in" };
+  }
+  // A service sorted its failure already (run-services/jobs.ts): its class stands.
+  if (err instanceof ServiceError) {
+    const { failure } = err;
+    return {
+      class: failure.class,
+      retryAfterMs: failure.class === "retry" ? failure.retryAfterMs : null,
+      why:
+        failure.class === "credits" ? "credits" : failure.class === "sign_in" ? "sign_in" : "other",
+    };
   }
   // What the runtime itself says, it means: a step's own failure is never a provider's trouble.
   if (err instanceof NotedError || err instanceof StepError) {

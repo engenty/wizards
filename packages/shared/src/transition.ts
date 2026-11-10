@@ -186,6 +186,7 @@ export function transition(
       delete state.visiting;
       delete state.retries;
       delete state.turn;
+      delete state.job;
       return go(def, state, event.stepId, host);
 
     case "stepFailed":
@@ -289,6 +290,7 @@ export function transition(
       delete state.retries;
       delete state.pause;
       delete state.turn;
+      delete state.job;
       delete state.answeredBy?.[previous];
       delete state.lastBy;
       return enter(def, state, previous, host);
@@ -466,6 +468,7 @@ function failed(
   delete state.deciding;
   delete state.visiting;
   delete state.turn;
+  delete state.job;
   return enter(def, state, target.id, host);
 }
 

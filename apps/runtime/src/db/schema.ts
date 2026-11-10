@@ -19,6 +19,8 @@ import {
   type RunAsk,
   type RunNote,
   type RunState,
+  type Said,
+  type StepOutput,
 } from "@engenty/wizards-shared/run";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import { RWX_FLAGS, RWX_RESOURCE_KINDS, RWX_SUBJECT_KINDS } from "@engenty/wizards-shared/rwx";
@@ -47,6 +49,7 @@ import type {
 } from "@engenty/wizards-shared/spaces";
 import type { StartedBy, WizardStart } from "@engenty/wizards-shared/starts";
 import type { Theme } from "@engenty/wizards-shared/theme";
+import type { FlowFailure } from "@engenty/wizards-shared/transition";
 import type { TranslationMemory } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { sql } from "drizzle-orm";
@@ -2040,6 +2043,35 @@ export const runTurn = sqliteTable(
     at: integer("at", { mode: "timestamp_ms" }).notNull(),
   },
   (t) => [index("run_turn_run").on(t.runId)],
+);
+
+/**
+ * A whole step a service works on while its run sleeps (run-services/jobs.ts): a film, a video.
+ * The process that works on it keeps `seen` fresh; one silent past `RUNNER_STALE_MS` is gone, and
+ * whoever the run asks next starts the job again. Goes with its run.
+ */
+export const runJob = sqliteTable(
+  "run_job",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    stepId: text("step_id").notNull(),
+    /** What the service makes: `film` (motion graphics), `video` (a generated video). */
+    kind: text("kind", { enum: ["film", "video"] }).notNull(),
+    status: text("status", { enum: ["running", "done", "failed"] }).notNull(),
+    /** The step's output, once done. */
+    output: text("output", { mode: "json" }).$type<StepOutput>(),
+    /** Why it failed: the class `transition()` takes it as, and what the run's log says. */
+    error: text("error", { mode: "json" }).$type<{ failure: FlowFailure; said: Said }>(),
+    /** The runner (`env.runner.id`) that works on it, and when it last said so. */
+    owner: text("owner"),
+    seen: integer("seen", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("run_job_run").on(t.runId, t.stepId)],
 );
 
 /**

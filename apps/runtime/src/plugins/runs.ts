@@ -8,7 +8,7 @@ import {
   textLang,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import { note, noteText, type RunNote } from "@engenty/wizards-shared/run";
+import { note, noteText, type RunNote, waitsOnJob } from "@engenty/wizards-shared/run";
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, schema, withTenant } from "../db/client.js";
 import {
@@ -306,7 +306,7 @@ export function runsApiFor(pluginId: string): PluginRuns {
           noteText({ code: "runOver" }, wizardLang(run.definition)),
         );
       }
-      if (run.status === "sleeping" || run.status === "waiting_signal") {
+      if ((run.status === "sleeping" && !waitsOnJob(run)) || run.status === "waiting_signal") {
         throw new ServiceError(
           "refused",
           noteText({ code: "runSleeps" }, wizardLang(run.definition)),
