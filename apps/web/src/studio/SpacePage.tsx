@@ -48,6 +48,7 @@ import {
   ValueView,
 } from "./space/Categories";
 import { ClientSpaces, OpenToClients } from "./space/ClientSpaces";
+import { DatabaseView } from "./space/DatabaseView";
 import { DateienMenu, DateienPage } from "./space/Dateien";
 import { FileView } from "./space/Documents";
 import {
@@ -1154,6 +1155,14 @@ export function SpacePage({ place }: { place?: "skills" }) {
                     />
                   ) : picked?.startsWith("p:") ? (
                     <PageEditor key={picked} pageId={picked.slice(2)} onGone={() => pick("all")} />
+                  ) : picked?.startsWith("d:") ? (
+                    <DatabaseView
+                      key={picked}
+                      databaseId={picked.slice(2)}
+                      people={
+                        spaceData.data?.databases?.find((d) => `d:${d.id}` === picked)?.people ?? 0
+                      }
+                    />
                   ) : (
                     <>
                       {spaceData.data ? (

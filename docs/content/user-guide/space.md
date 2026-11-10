@@ -1,7 +1,7 @@
 ---
 title: Space
 description: What your wizards share and produce – who you are, what they look things up in, and the results of their runs.
-version: 0.9.3
+version: 0.18.0
 ---
 
 Your space holds what all your wizards share, and what they produce. Every AI step knows it, so a
@@ -93,6 +93,11 @@ Memory holds the tables and pages your wizards keep, each under the wizard’s n
 tables and pages are in Knowledge. A wizard fills its own: a shared list becomes one of its tables,
 and a step with the “Pages” tool writes its pages. The columns of a shared list come from the
 wizard. The buttons “Table” and “Page” add one to a wizard.
+
+A wizard with a database of its own shows “Shared data” under its name: what every run of it
+reads and writes. You see its tables here, a page of rows at a time, and download each as CSV.
+You can’t change it here. What a person keeps for themselves stays theirs: you see only how many
+people keep their own.
 
 - **Table**: columns of a type (text, number, date, duration, choice, yes/no) and a row per
   line. Type into a cell; it is saved when you leave it. A value that doesn’t fit the column is
