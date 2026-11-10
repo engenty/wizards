@@ -141,3 +141,18 @@ describe("step code imports", () => {
     );
   });
 });
+
+/** The runtime's part of a run: the runner, its host and the step context. */
+const RUNTIME_ENGINE = resolve(__dirname, "../src/engine");
+
+describe("the runtime's run code", () => {
+  it("imports nothing of Mastra: it stays with the Work chats and the assistants", () => {
+    const found = walk(RUNTIME_ENGINE).flatMap((path) =>
+      importsOf(readFileSync(path, "utf8"))
+        .filter((specifier) => specifier.startsWith("@mastra/"))
+        .map((specifier) => `${relative(RUNTIME_ENGINE, path)} → ${specifier}`),
+    );
+    expect(walk(RUNTIME_ENGINE).length).toBeGreaterThan(10);
+    expect(found).toEqual([]);
+  });
+});
