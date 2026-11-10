@@ -622,7 +622,7 @@ describe("what a caller reads of a limit", () => {
 
   it("tells a model in its tool's answer, and fails a fixed step with a note of its own", async () => {
     const { toolsOf } = await import("../src/tools/connector");
-    const steps = await import("../src/engine/steps");
+    const steps = await import("../src/engine/steps/index.js");
     const tools = await inTenant(() =>
       toolsOf(def.connections[0] as never, contextOf("run-words", "read"), {} as never),
     );

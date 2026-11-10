@@ -183,7 +183,7 @@ import {
   sendSignal,
 } from "./signals.js";
 import { startedRunEnded, startOf } from "./starts.js";
-import { outputSchema, runAutomaticStep } from "./steps.js";
+import { outputSchema, runAutomaticStep } from "./steps/index.js";
 import { surfaceData } from "./surface.js";
 import { answersAsText, fillLabel, renderTemplate, resolveRef } from "./template.js";
 import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";

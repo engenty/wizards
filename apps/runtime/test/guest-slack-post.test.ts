@@ -49,7 +49,7 @@ vi.mock("../src/engenty/connections-slack/connector", async (importOriginal) => 
 let client: typeof import("../src/db/client");
 let broker: typeof import("../src/broker/index");
 let connections: typeof import("../src/connectors/space-connections");
-let steps: typeof import("../src/engine/steps");
+let steps: typeof import("../src/engine/steps/index.js");
 let app: typeof import("../src/app").default;
 let space = "";
 let wizardId = "";
@@ -183,7 +183,7 @@ beforeAll(async () => {
   await client.openTenantDb(TENANT);
   broker = await import("../src/broker/index");
   connections = await import("../src/connectors/space-connections");
-  steps = await import("../src/engine/steps");
+  steps = await import("../src/engine/steps/index.js");
   app = (await import("../src/app")).default;
   const spaces = await import("../src/services/spaces");
   const wizards = await import("../src/services/wizards");

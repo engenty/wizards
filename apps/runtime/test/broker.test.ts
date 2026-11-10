@@ -739,7 +739,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
     calls.length = 0;
     const def = withFixed(viaSpace());
     const ask = vi.fn();
-    const steps = await import("../src/engine/steps");
+    const steps = await import("../src/engine/steps/index.js");
     const out = await inTenant(() =>
       steps.runAutomaticStep(
         def.steps[2] as never,
@@ -767,7 +767,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
   });
 
   it("says what a later try of the step may do: a change is not repeated, a read may be", async () => {
-    const steps = await import("../src/engine/steps");
+    const steps = await import("../src/engine/steps/index.js");
     const tryIt = async (action: string, ctxDef = withFixed(viaSpace(), fixed("crm", action))) => {
       const ctx = contextOf(ctxDef, "run-f", { kind: "guest", id: "visitor-9" }, vi.fn());
       await inTenant(() => steps.runAutomaticStep(ctxDef.steps[2] as never, ctx));
@@ -778,7 +778,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
   });
 
   it("a sign-in the service turns down is a SignInNeeded, other errors stay what they are", async () => {
-    const steps = await import("../src/engine/steps");
+    const steps = await import("../src/engine/steps/index.js");
     const { SignInNeeded } = await import("../src/engine/types");
     const def = withFixed(viaSpace());
     const run = () =>
@@ -798,7 +798,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
   });
 
   it("a connection with nothing connected is a SignInNeeded", async () => {
-    const steps = await import("../src/engine/steps");
+    const steps = await import("../src/engine/steps/index.js");
     const { SignInNeeded } = await import("../src/engine/types");
     const def = withFixed(hub());
     await runRow("run-n", def, broker.grantOf(def as never));
@@ -878,7 +878,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
     const def = withFixed(hub());
     await runRow("run-p", def, broker.grantOf(def as never));
     const ask = vi.fn(async () => ({ type: "done" as const }));
-    const steps = await import("../src/engine/steps");
+    const steps = await import("../src/engine/steps/index.js");
     const out = await inTenant(() =>
       steps.runAutomaticStep(
         def.steps[2] as never,

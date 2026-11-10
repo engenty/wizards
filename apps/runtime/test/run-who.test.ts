@@ -71,8 +71,8 @@ vi.mock("../src/credits/credits.js", async (original) => ({
   releaseRun: async () => undefined,
   canSpend: async () => true,
 }));
-vi.mock("../src/engine/steps.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps.js")>()),
+vi.mock("../src/engine/steps/index.js", async (original) => ({
+  ...(await original<typeof import("../src/engine/steps/index.js")>()),
   runAutomaticStep: async (step: { id: string }) => ({
     text: `made ${step.id}`,
     at: new Date().toISOString(),

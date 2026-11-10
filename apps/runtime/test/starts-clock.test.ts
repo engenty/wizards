@@ -19,8 +19,8 @@ process.env.FEATURES = "startTriggers=on";
 
 /** Steps that work until the test lets them finish. */
 const finish = new Map<string, () => void>();
-vi.mock("../src/engine/steps.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps.js")>()),
+vi.mock("../src/engine/steps/index.js", async (original) => ({
+  ...(await original<typeof import("../src/engine/steps/index.js")>()),
   runAutomaticStep: async (_step: unknown, ctx: { runId: string }) => {
     await new Promise<void>((res) => finish.set(ctx.runId, res));
     return { text: "made", at: new Date().toISOString() };

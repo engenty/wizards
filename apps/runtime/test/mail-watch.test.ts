@@ -16,8 +16,8 @@ process.env.RUNTIME_ROLE = "all";
 process.env.FEATURES = "durableRuns=on";
 
 const worked = vi.hoisted(() => [] as { run: string; step: string }[]);
-vi.mock("../src/engine/steps.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps.js")>()),
+vi.mock("../src/engine/steps/index.js", async (original) => ({
+  ...(await original<typeof import("../src/engine/steps/index.js")>()),
   runAutomaticStep: async (step: { id: string }, ctx: { runId: string }) => {
     worked.push({ run: ctx.runId, step: step.id });
     return step.id === "send"

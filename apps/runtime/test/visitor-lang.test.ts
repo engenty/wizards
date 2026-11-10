@@ -10,10 +10,10 @@ process.env.DATA_DIR = dir;
 process.env.APP_URL = "http://localhost:5181";
 
 // A step that runs fails as Apple Intelligence on this Mac fails: the text is too long for it.
-vi.mock("../src/engine/steps", async (original) => {
+vi.mock("../src/engine/steps/index.js", async (original) => {
   const { appleFailure } = await import("../src/harness/apple");
   return {
-    ...(await original<typeof import("../src/engine/steps")>()),
+    ...(await original<typeof import("../src/engine/steps/index.js")>()),
     runAutomaticStep: async () => {
       throw appleFailure({ kind: "contextWindow", message: "" });
     },

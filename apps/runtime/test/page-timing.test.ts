@@ -15,8 +15,8 @@ process.env.ANTHROPIC_API_KEY = "";
 process.env.RUNTIME_ROLE = "runner";
 process.env.RUNNER_CLOCK_MS = "100";
 
-vi.mock("../src/engine/steps.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps.js")>()),
+vi.mock("../src/engine/steps/index.js", async (original) => ({
+  ...(await original<typeof import("../src/engine/steps/index.js")>()),
   runAutomaticStep: async () => ({ text: "made", at: new Date().toISOString() }),
 }));
 vi.mock("../src/engine/requirements.js", async (original) => ({

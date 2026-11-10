@@ -437,7 +437,7 @@ describe("a plugin's tools", () => {
   });
 
   it("answer a step that calls one, with no model", async () => {
-    const { runAutomaticStep } = await import("../src/engine/steps");
+    const { runAutomaticStep } = await import("../src/engine/steps/index.js");
     const emitted: string[] = [];
     const step = {
       id: "count",

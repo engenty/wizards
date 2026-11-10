@@ -19,8 +19,8 @@ process.env.RUNNER_CLOCK_MS = "100";
 
 const worked: { run: string; step: string }[] = [];
 const failing = new Map<string, unknown[]>();
-vi.mock("../src/engine/steps.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps.js")>()),
+vi.mock("../src/engine/steps/index.js", async (original) => ({
+  ...(await original<typeof import("../src/engine/steps/index.js")>()),
   runAutomaticStep: async (step: { id: string }, ctx: { runId: string }) => {
     worked.push({ run: ctx.runId, step: step.id });
     const error = failing.get(step.id)?.shift();
