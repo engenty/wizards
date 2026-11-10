@@ -20,7 +20,7 @@ import { spaceConnectionOf } from "../connectors/space-connections.js";
 import type { ConnectorAction } from "../engenty/connections-sdk/types.js";
 import { SignInNeeded, type StepContext, StepError } from "../engine/types.js";
 import { prompt } from "../prompts.js";
-import { inProgram, toolCallIdOf } from "./code.js";
+import { askOf, inProgram, toolCallIdOf } from "./code.js";
 import { holderWho, stepWho } from "./plugin.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
 import { resolveFile } from "./store.js";
@@ -252,7 +252,7 @@ export async function callConnection(
     action: { id: action.id, kind: kindOf(action.group) },
     input: input ?? {},
     ctx: {
-      ask: ctx.ask,
+      ask: askOf(ctx),
       allowed: ctx.resources.allowed,
       effect,
     },
@@ -331,7 +331,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
         action: { id: action.id, kind: kindOf(action.group) },
         input: input ?? {},
         ctx: {
-          ask: ctx.ask,
+          ask: askOf(ctx),
           allowed: ctx.resources.allowed,
           effect: { turn: ctx.turn, toolCallId },
         },

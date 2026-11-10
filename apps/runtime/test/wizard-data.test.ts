@@ -208,7 +208,7 @@ describe("the SQL a wizard brings", () => {
     mkdirSync(join(folder, "files", "data"), { recursive: true });
     writeFileSync(join(folder, "wizard.json"), JSON.stringify(def));
     writeFileSync(join(folder, "files", "data", "schema.sql"), "CREATE TABLE a (x); ATTACH 'b' AS b;");
-    const checked = validatePath(folder);
+    const checked = await validatePath(folder);
     expect(checked.ok).toBe(false);
     expect(checked.issues.map((i) => i.message), JSON.stringify(checked.issues)).toContain(
       "data/schema.sql, statement 2: ATTACH reaches another database.",

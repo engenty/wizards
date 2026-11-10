@@ -1,5 +1,6 @@
-import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import { pluginToolOf, type WizardDefinition } from "@engenty/wizards-shared/definition";
 import { note, type RunNote } from "@engenty/wizards-shared/run";
+import { wizardCodeOf } from "@engenty/wizards-shared/wizard-code";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import type { ActionKind } from "./call.js";
@@ -121,11 +122,16 @@ export function channelInGrant(
  * (`*.example.org` takes `api.example.org`, not `example.org` itself).
  */
 export function hostInGrant(grant: Grant, hostname: string): boolean {
+  return hostListed(grant.hosts, hostname);
+}
+
+/** Whether a list of hosts (`api.example.com`, `*.example.org`) names the host. */
+export function hostListed(hosts: readonly string[], hostname: string): boolean {
   const host = hostname
     .replace(/^\[|\]$/g, "")
     .toLowerCase()
     .replace(/\.$/, "");
-  return grant.hosts.some((entry) =>
+  return hosts.some((entry) =>
     entry.startsWith("*.")
       ? host.endsWith(entry.slice(1)) && host.length > entry.length - 1
       : entry === host,
@@ -247,9 +253,17 @@ export function grantNote(
       );
     }
   }
-  const plugins = new Set(
-    grant.tools.filter((tool) => !TOOL_NOTES[tool]).map((tool) => tool.split(".")[0]),
-  );
+  // The wizard's own tools run code, and reach the hosts the steps list.
+  if (grant.tools.some((tool) => wizardCodeOf(tool))) {
+    const runs = note("grantRunsCode");
+    if (!what.some((w) => w.code === runs.code)) {
+      what.push(runs);
+    }
+    if (grant.hosts.length && !what.some((w) => w.code === "grantCallsHosts")) {
+      what.push(note("grantCallsHosts", { hosts: grant.hosts }));
+    }
+  }
+  const plugins = new Set(grant.tools.flatMap((tool) => pluginToolOf(tool)?.plugin ?? []));
   for (const plugin of plugins) {
     what.push(note("grantPlugin", { name: plugin }));
   }

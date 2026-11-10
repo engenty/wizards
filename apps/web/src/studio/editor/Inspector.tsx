@@ -39,6 +39,7 @@ import {
 } from "@engenty/wizards-shared/definition";
 import { readNumber } from "@engenty/wizards-shared/numbers";
 import type { BranchDecision, RunEstimate } from "@engenty/wizards-shared/run";
+import { wizardToolId, wizardToolsIn } from "@engenty/wizards-shared/wizard-code";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -1078,6 +1079,8 @@ function StepBody({
   const readOnly = useContext(ReadOnly);
   // Tools the runtime's plugins add, listed by their full id next to the built-in ones.
   const pluginTools = useStudioPlugins().plugins.flatMap((plugin) => plugin.tools);
+  // The wizard's own function tools, from tools/ in its files.
+  const wizardTools = [...wizardToolsIn(files.map((f) => f.path)).keys()].sort().map(wizardToolId);
   const durableRuns = useFeature("durableRuns");
   const earlierProducers = def.steps
     .slice(0, index)
@@ -1185,7 +1188,12 @@ function StepBody({
               value={step.tools}
               // A tool the step lists stays to be seen, and taken out, where its plugin is gone.
               options={[
-                ...new Set([...TOOL_IDS, ...pluginTools.map((tool) => tool.id), ...step.tools]),
+                ...new Set([
+                  ...TOOL_IDS,
+                  ...pluginTools.map((tool) => tool.id),
+                  ...wizardTools,
+                  ...step.tools,
+                ]),
               ]}
               onChange={(v: string[]) => set({ ...step, tools: v as typeof step.tools })}
             />
@@ -1198,6 +1206,11 @@ function StepBody({
               {pluginTools.map((tool) => (
                 <span key={tool.id}>
                   {tool.id} = {tool.title}
+                </span>
+              ))}
+              {wizardTools.map((id) => (
+                <span key={id}>
+                  {id} = {t("inspector.wizardTool")}
                 </span>
               ))}
             </div>

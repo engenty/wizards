@@ -8,10 +8,9 @@ import {
   recordsOf,
   shapeZod,
 } from "@engenty/wizards-shared/shape";
-import type { QuickJsCodeModeTransport } from "@mastra/quickjs";
-import { onDemand } from "../on-demand.js";
 import { snapshotFile } from "../services/files.js";
 import { runStepData } from "./data-step.js";
+import { moduleBody, quickJs, WIZARD_CODE_MEMORY_MB } from "./quickjs.js";
 import { surfaceData } from "./surface.js";
 import { renderTemplate } from "./template.js";
 import { type StepContext, StepError } from "./types.js";
@@ -25,7 +24,7 @@ export const CODE_STEP_LIMITS = {
   /** Wall time of one run of the function. */
   timeoutMs: 10_000,
   /** Heap of its QuickJS runtime. */
-  memoryMb: 32,
+  memoryMb: WIZARD_CODE_MEMORY_MB,
   /** Characters of the input as JSON. */
   inputChars: 1_000_000,
   /** Characters of the output as JSON. */
@@ -33,23 +32,6 @@ export const CODE_STEP_LIMITS = {
   /** Characters of `console.log` output kept with an error. */
   logChars: 2000,
 };
-
-/**
- * One transport for the process; it loads the WebAssembly module once, on the first run. QuickJS
- * is downloaded the first time a minimal installation needs it (on-demand.ts).
- */
-let transport: Promise<QuickJsCodeModeTransport> | null = null;
-function quickJs(): Promise<QuickJsCodeModeTransport> {
-  transport ??= onDemand<typeof import("@mastra/quickjs")>("@mastra/quickjs").then(
-    ({ QuickJsCodeModeTransport }) =>
-      new QuickJsCodeModeTransport({ memoryLimitMb: CODE_STEP_LIMITS.memoryMb }),
-  );
-  // A failed download is tried again on the next run.
-  transport.catch(() => {
-    transport = null;
-  });
-  return transport;
-}
 
 /**
  * Runs before the wizard's code: the same answer every run. `Math.random` starts from the same
@@ -78,13 +60,12 @@ globalThis.Date = new Proxy(Date, {
 
 /** The program QuickJS runs: the prelude, the wizard's code, and the call of its `run`. */
 export function codeProgram(source: string, input: Record<string, unknown>): string {
-  if (/^\s*import\s/m.test(source)) {
+  const code = moduleBody(source);
+  if (code === null) {
     throw new StepError(
       note("codeFailed", { detail: "a code step has no modules, so it can't import" }),
     );
   }
-  // `export function run` reads as it would in a module; the body of a function takes no export.
-  const code = source.replace(/^([ \t]*)export\s+(default\s+)?/gm, "$1");
   return [
     PRELUDE,
     code,
@@ -180,7 +161,7 @@ export async function runCode(
       }),
     );
   }
-  const ran = await (await quickJs()).run({
+  const ran = await quickJs().run({
     program: codeProgram(source, input),
     toolIds: [],
     dispatch: async () => {
