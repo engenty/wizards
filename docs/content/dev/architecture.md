@@ -175,6 +175,9 @@ after 1, 5 and 30 minutes, a `Retry-After` of at most 6 hours, 30 days for a per
 The function is MIT-licensed, like the format’s other files. A tool that checks or shows a wizard
 can follow the same flow as the runtime.
 
+The plan to move the runner’s code into a package of its own, so that a run can also live outside
+the runtime, is `docs/plans/runs-on-their-own.md`.
+
 A step names a **model class** (`classifier`, `low`, `standard`, `high`, plus `image`, `video`,
 `audio`, `speech`), never a model. Which model serves a class is a setting outside the wizard
 (`models.ts`).
