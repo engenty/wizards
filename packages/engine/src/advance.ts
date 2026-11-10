@@ -53,6 +53,8 @@ class Advance {
   private finished: Step | null = null;
   /** The run registered a wait for a signal. */
   private watching = false;
+  /** The next move stands the run where it arrives: a signal that came before its wait. */
+  private standNext = false;
 
   constructor(private readonly host: RunHost) {}
 
@@ -62,11 +64,37 @@ class Advance {
     let result: FlowResult = { run: this.run, command: { kind: "stay" } };
     while (event && !this.host.signal.aborted) {
       this.event = event;
+      if (event.kind === "resume" && this.run.status === "running") {
+        const work = await this.atWork();
+        if (work !== "flow") {
+          event = work;
+          continue;
+        }
+      }
       const from = this.run;
       result = await this.move(event, from);
       event = await this.carry(event, result, from);
     }
     return result;
+  }
+
+  /**
+   * The run is at work where it stands: that step's own work comes first, with no move. A decision
+   * over its rules, an automatic step, a page's fields. "flow": the flow stands the run there.
+   */
+  private async atWork(): Promise<FlowEvent | null | "flow"> {
+    const { state, cursor } = this.run;
+    if (state.deciding) {
+      return this.decide(state.deciding);
+    }
+    const step = this.stepOf(cursor);
+    if (step && !isPersonStep(step) && step.type !== "wait" && step.type !== "result") {
+      return this.runStep(step);
+    }
+    if (step?.type === "form" && step.fields.some(isDecidedField) && !state.pages?.[step.id]) {
+      return this.pickFields(step);
+    }
+    return "flow";
   }
 
   private load({ run, rev }: { run: FlowRun; rev: number }) {
@@ -133,6 +161,14 @@ class Advance {
     }
     if (event.kind === "stepFailed" && this.failing) {
       await this.failureLines(event.stepId, result);
+    }
+    const stand = event.kind === "resume" || this.standNext;
+    this.standNext = false;
+    if (!stand && arrives(result.run)) {
+      // The move is written at once; the run stands there with `resume`, where that step's own
+      // work comes first.
+      await this.write(result, { ...result.run, status: "running", wakeAt: null }, null);
+      return { kind: "resume" };
     }
     switch (command.kind) {
       case "run":
@@ -201,7 +237,7 @@ class Advance {
       if (host.signal.aborted) {
         return null;
       }
-      await host.spent?.(step.id);
+      await host.spent?.(step.id, "step");
       this.run = { ...this.run, state };
       this.finished = step;
       return { kind: "stepDone", stepId: step.id, output };
@@ -224,44 +260,18 @@ class Advance {
     if (host.signal.aborted) {
       return null;
     }
-    await host.spent?.(stepId);
+    await host.spent?.(stepId, "decision");
     this.run = { ...this.run, state };
     return { kind: "decided", stepId, rule };
   }
 
-  /**
-   * A person's step. The run works on it first where it must: a decision picks the page's fields,
-   * a start's answers fill the page or pass the review. Then it stands there.
-   */
+  /** A person's step: a start's answers fill the page or pass the review, or it stands there. */
   private async ask(
     result: FlowResult,
     command: Extract<FlowCommand, { kind: "ask" }>,
   ): Promise<FlowEvent | null> {
     const { host } = this;
     const { step } = command;
-    if (
-      step.type === "form" &&
-      step.fields.some(isDecidedField) &&
-      !result.run.state.pages?.[step.id]
-    ) {
-      // At the page, at work: picked once, as the run reaches it.
-      await this.write(result, { ...result.run, status: "running", wakeAt: null }, null);
-      const state = structuredClone(this.run.state);
-      let shown: string[];
-      try {
-        shown = await host.within("decision", (signal) => decideFields(host, step, state, signal));
-      } catch (err) {
-        return host.signal.aborted ? null : this.failed(step.id, err, state);
-      }
-      if (host.signal.aborted) {
-        return null;
-      }
-      await host.spent?.(step.id);
-      state.pages = { ...state.pages, [step.id]: { shown } };
-      delete state.retries;
-      await this.save({ ...this.run, state });
-      return { kind: "resume" };
-    }
     // What the team is asked waits for the team, also on a started run.
     const start = await host.start();
     if (start && !(whoOf(step) === "team" && host.switches.durable)) {
@@ -279,6 +289,26 @@ class Advance {
     }
     await host.ask(step, command.who, command.remindAt);
     return null;
+  }
+
+  /** A decision picks the decided fields of the page the run is at, once, as it reaches it. */
+  private async pickFields(step: FormStep): Promise<FlowEvent | null | "flow"> {
+    const { host } = this;
+    const state = structuredClone(this.run.state);
+    let shown: string[];
+    try {
+      shown = await host.within("decision", (signal) => decideFields(host, step, state, signal));
+    } catch (err) {
+      return host.signal.aborted ? null : this.failed(step.id, err, state);
+    }
+    if (host.signal.aborted) {
+      return null;
+    }
+    await host.spent?.(step.id, "decision");
+    state.pages = { ...state.pages, [step.id]: { shown } };
+    delete state.retries;
+    await this.save({ ...this.run, state });
+    return "flow";
   }
 
   /**
@@ -319,6 +349,7 @@ class Advance {
     const came = await host.signals.watch(step.id, command.name, command.key);
     if (came) {
       this.run = result.run;
+      this.standNext = true;
       return { kind: "signal", stepId: step.id, id: came.id, data: came.data };
     }
     await host.event(step.id, "step_started", step.title);
@@ -474,9 +505,7 @@ class Advance {
     this.rev = await host.store.save({ run, command, ...(failed ? { failed } : {}) }, this.rev);
     this.run = run;
     this.stored = run;
-    if (command) {
-      this.failing = null;
-    }
+    this.failing = null;
     if (this.finished) {
       // The output is saved: the step's turns are done with.
       await host.turns.drop(this.finished.id);
@@ -523,6 +552,19 @@ class Advance {
     return id === null ? undefined : this.host.def.steps.find((s) => s.id === id);
   }
 }
+
+/** The move stands the run at a wait, a person's step or the result. */
+function arrives(run: FlowRun): boolean {
+  return (
+    run.status === "waiting_input" ||
+    run.status === "waiting_signal" ||
+    (run.status === "sleeping" && !run.state.pause) ||
+    (run.status === "done" && run.cursor !== null)
+  );
+}
+
+const isPersonStep = (step: Step): step is FormStep | ReviewStep =>
+  step.type === "form" || step.type === "review";
 
 /** Whether the move wrote `stepId`'s output anew. */
 function passed(before: RunState, after: RunState, stepId: string): boolean {

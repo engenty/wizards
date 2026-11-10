@@ -205,7 +205,13 @@ describe("advance", () => {
     expect(host.ran).toEqual(["a", "b"]);
     expect(host.row.run).toMatchObject({ cursor: "done", status: "done" });
     expect(host.row.run.state.outputs.b?.text).toBe("made b");
-    expect(host.saves.map((m) => m.command?.kind)).toEqual(["run", "run", "end"]);
+    // At the result: written at work there, then stood with `resume`.
+    expect(host.saves.map((m) => [m.command?.kind ?? null, m.run.status])).toEqual([
+      ["run", "running"],
+      ["run", "running"],
+      [null, "running"],
+      ["end", "done"],
+    ]);
     expect(types(host.lines)).toEqual(["step_started a", "step_done a", "step_started b", "step_done b"]);
   });
 
@@ -220,7 +226,7 @@ describe("advance", () => {
     expect(host.decided).toEqual(["read"]);
     expect(host.ran).toEqual(["read", "refund"]);
     expect(host.row.run.state.decisions?.read).toMatchObject({ rule: 0, source: "llm" });
-    expect(host.saves.map((m) => m.command?.kind)).toEqual(["run", "decide", "run", "end"]);
+    expect(host.saves.map((m) => m.command?.kind ?? null)).toEqual(["run", "decide", "run", null, "end"]);
     expect(types(host.lines, "read")).toContain("info deciding");
   });
 
@@ -368,7 +374,7 @@ describe("advance", () => {
     const { host, runHost } = memoryHost(def, { stored: { id: "s0", data: null } });
     await advance(runHost, { kind: "start" });
     expect(host.row.run.status).toBe("done");
-    expect(host.saves.map((m) => m.run.status)).toEqual(["done"]);
+    expect(host.saves.map((m) => m.run.status)).toEqual(["running", "done"]);
     expect(host.dropped).toBe(1);
     expect(types(host.lines, "reply")).toEqual(["step_started Reply", "info signalCame", "step_done Reply"]);
   });
@@ -443,6 +449,8 @@ describe("advance", () => {
     };
     const held = memoryHost(def, { run });
     await advance(held.runHost, { kind: "resume" });
+    // At work at its step: the step runs with no move first.
+    expect(held.host.saves[0]).toMatchObject({ command: null, run: { cursor: "a", status: "running" } });
     expect(held.host.row.run.state.holdLater).toBeUndefined();
     expect(held.host.row.run.status).toBe("done");
 

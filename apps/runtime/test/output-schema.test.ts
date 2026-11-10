@@ -223,7 +223,6 @@ describe("a step with a schema, run", () => {
     c.services = inProcessServices(
       { id: "r", definition: wizard() } as never,
       () => c as never,
-      runAgentStep,
     );
     return c;
   };
@@ -315,7 +314,7 @@ describe("a step with a schema, run", () => {
   });
 
   it("takes the admin's edits only where they fit the schema", async () => {
-    const { editedJson } = await import("../src/engine/runner");
+    const { editedJson } = await import("../src/engine/edits");
     const parsed = parseWizard(wizard());
     const def = parsed.ok ? parsed.wizard : null;
     const output = { json: fridgePlan, surface: { components: fridgeView, data: fridgePlan } };
