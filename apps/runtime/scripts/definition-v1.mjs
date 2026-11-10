@@ -25,6 +25,11 @@
 //   empty → notExists, notEmpty → exists. The others keep theirs.
 // - A step of `type: "page"` becomes `type: "form"`. Nothing else stores the step type: a run's
 //   state keys its pages by step id.
+// - An agent step with `call` becomes `type: "tool"`, one with `code` `type: "code"`: each keeps
+//   its call or code, `output` without `format` (a tool's `fields` and view, a code step's
+//   `fields` or `schema` and view), `working`, `retries` and the keys every step has.
+// - `each` on an agent or generate step becomes `foreach`.
+// - `any` in a `when` becomes `or`.
 //
 // `toVersion1` is exported for the marketplace's entries (the Manage repo), which are files.
 //
@@ -44,6 +49,18 @@ const MODEL_CLASSES_MIGRATION = 1792568616734;
 const open = (url, authToken) => createClient({ url, ...(authToken ? { authToken } : {}) });
 
 const OPS = { equals: "eq", notEquals: "ne", empty: "notExists", notEmpty: "exists" };
+
+/** What `toVersion1` counts, as the columns of its table say it. */
+const COUNTED = ["decisions", "ops", "ors", "forms", "tools", "code", "foreach"];
+const HEADS = {
+  decisions: "decisions",
+  ops: "operators",
+  ors: "any → or",
+  forms: "forms",
+  tools: "tool steps",
+  code: "code steps",
+  foreach: "foreach",
+};
 const DECISION_KINDS = new Set(["yesno", "choice", "score"]);
 
 /** Whether an agent step of version 2 was a decision: the shape the app recognized it by. */
@@ -84,6 +101,34 @@ function asDecision(step) {
   );
 }
 
+/** Only the keys given, in their order, without the missing ones. */
+function picked(obj, keys) {
+  return Object.fromEntries(
+    keys.filter((k) => obj[k] !== undefined).map((k) => [k, obj[k]]),
+  );
+}
+
+/**
+ * An agent step with `call` or `code` as the step type of its own it is now: its call or code,
+ * its output without `format`, and what every step has.
+ */
+function asFixedStep(step, type) {
+  const { format: _, surface, ...output } = step.output ?? {};
+  if (type === "tool") {
+    delete output.schema;
+  }
+  // A view a model composes needs a model: a fixed step keeps only a written one.
+  if (Array.isArray(surface)) {
+    output.surface = surface;
+  }
+  return {
+    ...picked({ ...step, type }, ["id", "type", "title", "description", "section"]),
+    ...picked(step, [type === "tool" ? "call" : "code"]),
+    output: picked(output, ["fields", "schema", "surface"]),
+    ...picked(step, ["working", "retries", "next", "onFail", "metadata"]),
+  };
+}
+
 /** Every `when` in a value, with the operators renamed; counts each renamed one. */
 function renamedOps(value, counts) {
   if (Array.isArray(value)) {
@@ -111,7 +156,14 @@ function renamedInWhen(when, counts) {
     return { ...when, op: OPS[when.op] };
   }
   if (Array.isArray(when.any)) {
-    return { ...when, any: when.any.map((w) => renamedInWhen(w, counts)) };
+    counts.ors++;
+    const { any, ...rest } = when;
+    return { ...rest, or: any.map((w) => renamedInWhen(w, counts)) };
+  }
+  for (const key of ["or", "and"]) {
+    if (Array.isArray(when[key])) {
+      return { ...when, [key]: when[key].map((w) => renamedInWhen(w, counts)) };
+    }
   }
   if (when.not) {
     return { ...when, not: renamedInWhen(when.not, counts) };
@@ -120,8 +172,8 @@ function renamedInWhen(when, counts) {
 }
 
 /**
- * A definition of version 2 at version 1 as the format is now, with what changed counted
- * (`decisions`, `ops`, `forms`). Anything else comes back with `kind` saying why it stays.
+ * A definition of version 2 at version 1 as the format is now, with what changed counted (see
+ * COUNTED). Anything else comes back with `kind` saying why it stays.
  */
 export function toVersion1(def) {
   if (!def || typeof def !== "object" || Array.isArray(def) || !Array.isArray(def.steps)) {
@@ -130,15 +182,33 @@ export function toVersion1(def) {
   if (def.version !== 2) {
     return { kind: def.version === 1 || def.version === undefined ? "current" : "skipped" };
   }
-  const counts = { decisions: 0, ops: 0, forms: 0 };
+  const counts = Object.fromEntries(COUNTED.map((k) => [k, 0]));
   const steps = def.steps.map((step) => {
-    if (step && typeof step === "object" && isDecision(step)) {
+    if (!step || typeof step !== "object") {
+      return step;
+    }
+    if (isDecision(step)) {
       counts.decisions++;
       return asDecision(step);
     }
-    if (step && typeof step === "object" && step.type === "page") {
+    if (step.type === "page") {
       counts.forms++;
       return { ...step, type: "form" };
+    }
+    if (step.type === "agent" && step.call) {
+      counts.tools++;
+      return asFixedStep(step, "tool");
+    }
+    if (step.type === "agent" && step.code) {
+      counts.code++;
+      return asFixedStep(step, "code");
+    }
+    if ((step.type === "agent" || step.type === "generate") && step.each !== undefined) {
+      counts.foreach++;
+      // The key keeps its place.
+      return Object.fromEntries(
+        Object.entries(step).map(([k, v]) => [k === "each" ? "foreach" : k, v]),
+      );
     }
     return step;
   });
@@ -202,7 +272,7 @@ function setAt(obj, path, value) {
 }
 
 async function convertTenant(db) {
-  const counts = { v2: 0, current: 0, skipped: 0, decisions: 0, ops: 0, forms: 0 };
+  const counts = { v2: 0, current: 0, skipped: 0, ...Object.fromEntries(COUNTED.map((k) => [k, 0])) };
   if (!(await hasTable(db, "wizard"))) {
     return { counts, missing: "no wizard table" };
   }
@@ -232,9 +302,9 @@ async function convertTenant(db) {
         }
         const out = toVersion1(def);
         counts[out.kind]++;
-        counts.decisions += out.decisions ?? 0;
-        counts.ops += out.ops ?? 0;
-        counts.forms += out.forms ?? 0;
+        for (const k of COUNTED) {
+          counts[k] += out[k] ?? 0;
+        }
         if (out.def) {
           doc = setAt(doc, path, out.def);
           changed = true;
@@ -286,10 +356,10 @@ async function main() {
   }
   const token = process.env.TENANT_DB_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN;
   console.log(`${write ? "Converting" : "Dry run, nothing written:"} ${tenants.length} tenants`);
-  console.log(
-    "tenant\tversion 2 → 1\tdecisions\toperators\tforms\talready 1\tnot a definition\trows",
-  );
-  const total = { v2: 0, decisions: 0, ops: 0, forms: 0, current: 0, skipped: 0, rows: 0 };
+  const columns = ["v2", ...COUNTED, "current", "skipped"];
+  const heads = { ...HEADS, v2: "version 2 → 1", current: "already 1", skipped: "not a definition" };
+  console.log(["tenant", ...columns.map((k) => heads[k]), "rows"].join("\t"));
+  const total = Object.fromEntries([...columns, "rows"].map((k) => [k, 0]));
   const failed = [];
   for (const t of tenants) {
     const url = tenantUrl(t.id, t.dbUrl);
@@ -308,10 +378,8 @@ async function main() {
         continue;
       }
       const c = out.counts;
-      console.log(
-        `${t.id}\t${c.v2}\t${c.decisions}\t${c.ops}\t${c.forms}\t${c.current}\t${c.skipped}\t${out.rows}`,
-      );
-      for (const k of ["v2", "decisions", "ops", "forms", "current", "skipped"]) {
+      console.log([t.id, ...columns.map((k) => c[k]), out.rows].join("\t"));
+      for (const k of columns) {
         total[k] += c[k];
       }
       total.rows += out.rows;
@@ -323,7 +391,7 @@ async function main() {
     }
   }
   console.log(
-    `total\t${total.v2}\t${total.decisions}\t${total.ops}\t${total.forms}\t${total.current}\t${total.skipped}\t${total.rows}${write ? "" : " (not written)"}`,
+    `${["total", ...columns.map((k) => total[k]), total.rows].join("\t")}${write ? "" : " (not written)"}`,
   );
   if (failed.length) {
     console.log(`not converted: ${failed.join(", ")}`);

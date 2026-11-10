@@ -46,24 +46,27 @@ how many rows a stored list has as `lists.<id>.count`.
 | `in`, `notIn` | Is one of a list of values, or none of them |
 | `contains` | Holds `value`: a multiselect, a list output or a text |
 | `exists`, `notExists` | Is filled in, or is empty. These take no `value` |
+| `truthy`, `falsy` | Is true, a number other than 0, or a text or list that is not empty; or is none of these. These take no `value` |
 
 ### Several conditions
 
-A list of conditions holds when every one holds. `{ "any": [ … ] }` holds when one of its parts
-holds, and `{ "not": … }` holds when its condition does not:
+A list of conditions holds when every one holds, and so does `{ "and": [ … ] }`.
+`{ "or": [ … ] }` holds when one of its parts holds, and `{ "not": … }` holds when its condition
+does not:
 
 ```json
 "when": [
   { "field": "country", "op": "eq", "value": "AT" },
-  { "any": [
+  { "or": [
     { "field": "budget", "op": "gte", "value": 5000 },
-    [{ "field": "urgent", "op": "eq", "value": true }, { "not": { "field": "phone", "op": "notExists" } }]
+    { "and": [{ "field": "urgent", "op": "truthy" }, { "not": { "field": "phone", "op": "notExists" } }] }
   ] }
 ]
 ```
 
-A part of `any` is a condition, a `not`, or a list that holds when all of it holds. Nothing nests
-deeper than that. The studio edits a plain list of conditions and shows the others as text.
+A part of `or` or `and` is a condition, a `not`, a list that holds when all of it holds, or an
+`or` or `and` of conditions. Nothing nests deeper than that. The studio edits a plain list of
+conditions and shows the others as text.
 
 A decision’s answer has a probability: `steps.<id>.<field>.p`, from 0 to 1. A rule can test it,
 for example `{ "field": "steps.check.urgent.p", "op": "gt", "value": 0.8 }`.

@@ -1,6 +1,6 @@
 ---
 title: Agent steps
-description: What an AI step’s model gets, its tools, output, model class and maker, decisions, fixed calls, code steps and one run per entry.
+description: What an AI step’s model gets, its tools, output, model class and maker, decisions, tool steps, code steps and one run per entry.
 version: 0.18.0
 ---
 
@@ -201,21 +201,22 @@ them in one fast, cheap call to the `classifier` class:
 | `output.fields` | One to twelve questions: `yesno`, `choice` or `score`, the question in `description`, the options of a choice or a score in `options` |
 | `working` | Shown while it runs |
 
-A decision has no `tools`, `call`, `each`, `model` or `maker`. A branch reads its answer as
+A decision has no `tools`, `foreach`, `model` or `maker`. A branch reads its answer as
 `steps.<id>.<field>`, and `steps.<id>.<field>.p` is how sure it is, from 0 to 1. With the person’s
 uploads to look at, it runs as an agent step on the `classifier` class. See
 [Branches and loops](./branches.md).
 
-## A fixed step: `call` without a model
+## Tool steps
 
-`call` runs one tool of a plugin, or one action of a connection, once, with these inputs and no
-model. Its answer is the step’s `json` output, as it is. `instructions` stay empty.
+A `tool` step’s `call` runs one tool of a plugin, or one action of a connection, once, with these
+inputs and no model. Its answer is the step’s output, as it is: `output.fields` names the keys later
+steps read, and `output.surface` can show it as a view written once.
 
 ```json
 {
-  "id": "free", "type": "agent", "title": "Free times",
+  "id": "free", "type": "tool", "title": "Free times",
   "call": { "tool": "appointments.availability", "input": { "duration_minutes": 30, "days": 14 } },
-  "output": { "format": "json", "fields": [{ "id": "slots", "kind": "table", "columns": ["start", "end", "label"] }] }
+  "output": { "fields": [{ "id": "slots", "kind": "table", "columns": ["start", "end", "label"] }] }
 }
 ```
 
@@ -227,12 +228,11 @@ With a connection, `call` names it and the connector’s action:
 
 ```json
 {
-  "id": "save", "type": "agent", "title": "Save the lead",
+  "id": "save", "type": "tool", "title": "Save the lead",
   "call": {
     "connection": "crm", "action": "create_contact",
     "input": { "email": "{{email}}", "note": "{{steps.read.summary}}" }
-  },
-  "output": { "format": "json" }
+  }
 }
 ```
 
@@ -241,22 +241,23 @@ it to another action. This is how a wizard writes through a connection of the sp
 [Lists and connections](./lists-and-connections.md)): an AI step only reads there. On the person’s
 own connection the step asks them before it writes, as an AI step’s tool would.
 
-## A code step: `code` without a model
+A tool step has `call`, `output`, `working`, `retries` and the keys every step has.
 
-`code` runs a function from the wizard’s own files, once, with no model and no credits. Use it for
+## Code steps
+
+A `code` step runs a function from the wizard’s own files, once, with no model and no credits. Use it for
 maths, reshaping and scoring: totals over a table, grouping and sorting, a price from many
 inputs, a ranking by fixed rules. A `calc` stays one line on a page or in a view, and anything
 longer belongs here.
 
 ```json
 {
-  "id": "score", "type": "agent", "title": "Score the offers",
+  "id": "score", "type": "code", "title": "Score the offers",
   "code": {
     "entry": "code/score.ts",
     "input": { "budget": "budget", "offers": "steps.find.offers", "note": "{{name}} in {{city}}" }
   },
   "output": {
-    "format": "json",
     "fields": [
       { "id": "best", "kind": "text" },
       { "id": "ranked", "kind": "table", "columns": ["name", "price", "score"] }
@@ -284,7 +285,7 @@ export function run(input: { budget: number; offers: Offer[] }) {
 | `entry` | The file’s path in the workspace, ending in `.ts` or `.js` |
 | `input` | What `run` gets, key by key. A path alone gives the value as it is: `budget`, `steps.find.offers` (a table as rows), `lists.prices` (the list’s rows), `today`. Text with `{{…}}` in it gives text |
 
-The output needs `format: "json"` and `fields` or a `schema`. The result is checked against them,
+The output needs `fields` or a `schema`. The result is checked against them,
 and a result that doesn’t fit fails the step. Branches and later templates read it like any
 agent step’s output, as `steps.score.best`.
 
@@ -296,20 +297,20 @@ The function runs sealed off from everything else:
   without a date fails. Pass `today` as an input when the code needs the date.
 - It runs in a guest’s run too, and it costs nothing.
 
-A code step has no `instructions`, `tools`, `connections`, `each` or `durable`, and no `call`.
+A code step has `code`, `output`, `working`, `retries` and the keys every step has.
 `wizards validate` checks that the file is in the workspace and that the inputs read only what
 was asked or ran before the step.
 
 ## One run per entry
 
-`each` runs the step once per entry, at most twenty times. It names a table or list output
+`foreach` runs the step once per entry, at most twenty times. It names a table or list output
 (`steps.<id>.<key>`) or a stored list (`lists.<id>`). The instructions read the entry as
 `{{item.<column>}}`, and `{{index}}` and `{{count}}` say where the run is.
 
 ```json
 {
   "id": "check", "type": "agent", "title": "Check each offer", "model": "low",
-  "each": "steps.find.offers",
+  "foreach": "steps.find.offers",
   "instructions": "Open {{item.url}} and check whether {{item.name}} still costs {{item.price}}. Offer {{index}} of {{count}}.",
   "tools": ["web_fetch"],
   "output": { "format": "json", "fields": [{ "id": "available", "kind": "yesno", "description": "Is it still on sale at that price?" }] }

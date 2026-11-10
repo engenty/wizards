@@ -58,7 +58,7 @@ export interface TemplateScope {
   };
   /** The wizard's stored lists as they are when the step starts. */
   lists?: Record<string, { def: ListDef; rows: ListRow[] }>;
-  /** A generate step with `each`: the entry this result is made for. */
+  /** A generate step with `foreach`: the entry this result is made for. */
   entry?: { item: unknown; index: number; count: number };
 }
 

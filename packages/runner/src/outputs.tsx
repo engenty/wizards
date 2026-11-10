@@ -1,5 +1,5 @@
 import type { Format, Step } from "@engenty/wizards-shared/definition";
-import { decisionAsAgent, stepShape } from "@engenty/wizards-shared/definition";
+import { asAgent, isDataStep, outputOf, stepShape } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { labelOf } from "@engenty/wizards-shared/shape";
 import DOMPurify from "dompurify";
@@ -265,8 +265,7 @@ export function AiBadge({
 
 /** What people read for a key of a step's output: its label in the step's shape. */
 function labelFor(step: Step, key: string): string {
-  const f =
-    step.type === "agent" || step.type === "decision" ? stepShape(step).fields[key] : undefined;
+  const f = isDataStep(step) ? stepShape(step).fields[key] : undefined;
   return f ? labelOf(key, f) : key;
 }
 
@@ -319,8 +318,8 @@ export function OutputView({
   if (!output) {
     return null;
   }
-  // A decision's answers show as an agent step's json does.
-  const step = given.type === "decision" ? decisionAsAgent(given) : given;
+  // A decision's answers, a tool's and a code step's show as an agent step's json does.
+  const step = isDataStep(given) ? asAgent(given) : given;
   const assetUrl = (id: string) => withBase(`${base}/assets/${id}`);
   // A view from the catalog stands for the step's data.
   if (output.surface) {
@@ -691,14 +690,11 @@ export function DownloadButtons({
   const made = useRef<File | null>(null);
   // The server of a standalone host writes no PDF: a written output's PDF is made in the browser.
   const written: Written | null =
-    standalone() &&
-    (step?.type === "agent" || step?.type === "decision") &&
-    output &&
-    (output.text || output.json !== undefined)
+    standalone() && isDataStep(step) && output && (output.text || output.json !== undefined)
       ? {
           title: title ?? step.title,
           text: output.text,
-          json: step.type === "decision" || step.output.format === "json" ? output.json : undefined,
+          json: outputOf(step).format === "json" ? output.json : undefined,
           label: (key) => labelFor(step, key),
           foot,
         }

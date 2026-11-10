@@ -38,7 +38,7 @@ ${sandbox}
 - Collecting from everyone who runs the wizard (requests, leads, sign-ups, feedback): a list with "shared": true, saved with list_write. It is the admin's, under Space → Data; never show one person's rows to another. Longer text for every run (a running summary, a log): the "pages" tool.
 - The person's mail: one connection of kind "mail", a page field of kind "connection" early in the wizard, and the agent step lists it in "connections". Do not ask for the provider or the address in other fields — the connect field does that.
 - Working in a service for the person (read their Notion, create an issue, look up a customer): import the service as a connector, declare a connection with "connector", put a page field of kind "connection" before the step, and list the connection in the step's "connections". Prefer a connector over the browser whenever the service has one.
-- Working in the space's own account (its CRM, its calendar, its mailbox — set up by the admins, listed below as connections of the space): declare a connection with "spaceConnection", no connect field. AI steps READ there; every WRITE (create, update, send, delete) is a fixed step: "call" with the connection, the action and fixed input fields from the run's values — the AI never writes as the space, and the person running is never asked for it. Example: an agent step reads the request and extracts the fields; then { "type": "agent", "call": { "connection": "crm", "action": "create_contact", "input": { "email": "{{email}}", "note": "{{steps.read.summary}}" } }, "output": { "format": "json" } }.
+- Working in the space's own account (its CRM, its calendar, its mailbox — set up by the admins, listed below as connections of the space): declare a connection with "spaceConnection", no connect field. AI steps READ there; every WRITE (create, update, send, delete) is a tool step: "call" with the connection, the action and fixed input fields from the run's values — the AI never writes as the space, and the person running is never asked for it. Example: an agent step reads the request and extracts the fields; then { "type": "tool", "call": { "connection": "crm", "action": "create_contact", "input": { "email": "{{email}}", "note": "{{steps.read.summary}}" } } }.
 - Logins on websites: never ask for passwords in page fields. An agent step with the browser tool asks the person at the moment it meets the login (browser_request_credentials); write that into its instructions, and that it must go on without the site when the person skips.
 - Most people open a wizard on their phone. Keep pages short, and let the phone do the typing: photos with an "image" field (multiple) instead of descriptions, the place with a "location" field instead of an address form, what happened as an "audio" field instead of a long textarea (keep an optional textarea beside it), a sign-off as a "signature" field, a serial or ticket number as a "text" field with scan. Typical: damage report, handover protocol, site inspection, delivery note.
 - How it runs: the first message may name the channels ("Läuft als: …" / "Runs as: …"); they are set already, never ask about them. A call, an SMS or WhatsApp asks by voice or text only: where one of them is named, keep each answer to text, a choice, a number or a date, and leave photos, files, signatures and maps to pages that only the browser shows (a call hands over a link by SMS).
@@ -48,7 +48,7 @@ ${sandbox}
 - Papers and scans: a "file" field with multiple and camera. Agent steps read uploads with read_document; for invoices and receipts scan_documents returns the fields (vendor, number, date, totals, currency) exactly as printed.
 - Collecting documents (invoices from mail or portals): the step keeps each file with mail_save / browser_download under a dated path ("invoices/2026-09/2026-09-03_Notion_INV-123.pdf"); its deliverable offers "zip". Split a big job into steps (mail, then statements, then portals) — one step manages about 60 tool calls.
 - Going through documents one by one (receipts against payments): never one model step per document. One step reads them in batches (scan_documents takes 30 at once) and writes rows into a list with "check"; the review shows that list split-screen — the person answers each row beside its file, without any model call.
-- Video that convinces is built in stages, each with its own review: idea and script (agent, json with a table of shots) → one still per shot (generate image with "each", starting from the person's product photo) → one clip per still (generate video with "each" and referenceImage = the stills step) → a voice-over (generate voice) → a video widget (video: true) that cuts clips, captions, voice and a closing card with the call to action. The starters "facebook-video-ad" and "property-video" carry such a widget (video/video.js) to copy. Offer a cheaper path without clips: the video animates the stills.
+- Video that convinces is built in stages, each with its own review: idea and script (agent, json with a table of shots) → one still per shot (generate image with "foreach", starting from the person's product photo) → one clip per still (generate video with "foreach" and referenceImage = the stills step) → a voice-over (generate voice) → a video widget (video: true) that cuts clips, captions, voice and a closing card with the call to action. The starters "facebook-video-ad" and "property-video" carry such a widget (video/video.js) to copy. Offer a cheaper path without clips: the video animates the stills.
 - Motion-graphics videos (explainers, product spots, shorts) are a "motion-graphics" step after the preparation, each with a review:
   research and script (agent, standard) → the voice-over (one generate voice step for the whole script; the motion-graphics step finds the
   word timings itself) → video (inputs: the voice, pictures, the script). The look comes from a style kit in the workspace (kit), so the motion-graphics step stays on "low".
@@ -140,7 +140,7 @@ type Connection =
   | { id, spaceConnection: spaceConnectionId, actions?: actionId[], title?, description? }
       // a connection of the SPACE (listed below), set up by its admins, who chose how it signs in, who may use it and
       //   what each kind of action may do; the wizard holds no account and "policy" has no say. Where it signs in as
-      //   the space, an agent step that lists it gets its READ actions only: a write is a fixed step with "call"
+      //   the space, an agent step that lists it gets its READ actions only: a write is a tool step with "call"
       //   (connection + action + fixed input), never the model's. Where each person signs in, it works like "connector".
   | { id, connector: connectorId, actions?: actionId[], policy?: { [actionId]: "allow"|"ask" }, title?, description? }
       // connector = a service the wizard works in for the person: a built-in one (Gmail, Google Drive, Calendar and
@@ -171,7 +171,8 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   "Young Serif"|"Caveat"|"Creepster"|"Nosifer" — shipped with the runner. Creepster and Nosifer are spooky display fonts:
 //   headings only, never text. "brand" takes the space's brand font.
 
-// Every step: { id (camelCase, unique), title, description?, section?, next?: Branch[] }
+// Every step: { id (camelCase, unique), title, description?, section?, next?: Branch[], metadata? }
+//   metadata: an object for editors, kept as it is; the run never reads it. Leave it as you find it.
 //   section: the part of the wizard the step belongs to, at most 24 characters ("Budget"). The progress bar names each once, in the
 //   order of the steps, and stays the same on every branch. A step without one belongs to the part before it. For a wizard of 3 parts
 //   or more. The steps of a section stand together: "A", "B", "A" is an issue.
@@ -186,14 +187,16 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
 //   the check passes": a decision step branches back to the writing step) — give it max (at most 10 without);
 //   the step that runs again sees what it made last time.
 // When = Test | Test[] | { calc }   // a list of tests holds when every one holds
-// Test = Condition | { not: Condition } | { any: (Condition | { not: Condition } | Condition[])[] }
-//   any holds when one of its parts holds; a list inside any holds when all of it holds. Nothing nests deeper.
-// Condition = { field, op: "eq"|"ne"|"gt"|"gte"|"lt"|"lte"|"in"|"notIn"|"contains"|"exists"|"notExists", value? }
+// Test = Leaf | { or: Part[] } | { and: Part[] }   // or: one of its parts holds; and: all of them hold
+// Part = Leaf | Leaf[] | { or: Leaf[] } | { and: Leaf[] }   // a list holds when all of it holds. Nothing nests deeper.
+// Leaf = Condition | { not: Condition }
+// Condition = { field, op: "eq"|"ne"|"gt"|"gte"|"lt"|"lte"|"in"|"notIn"|"contains"|"exists"|"notExists"|"truthy"|"falsy", value? }
 // { calc: "budget > steps.estimate.total * 2" }: for a test conditions cannot write; names read as `field` does. The language is under the surface catalog. Anything a condition can say stays a condition.
 //   field is a page field id, an output field of this or an earlier agent step as "steps.<stepId>.<fieldId>",
 //   or how many rows a stored list has as "lists.<listId>.count"
 //   eq / ne: is, or is not, value. gt / gte / lt / lte compare numbers (value is a number). in / notIn take a list of
 //   values. contains looks into a multiselect, a list output or a text. exists / notExists: filled in or empty, no value.
+//   truthy / falsy, no value: true, a number other than 0, a text or a list that is not empty — or none of these.
 //   first matching branch wins, otherwise the step's "otherwise" branch, else the next step in the list.
 //   A step only some runs take sits right after the step that branches to it; that step's otherwise branch
 //   leads every other run past it, and the step itself goes on as the next in the list.
@@ -261,22 +264,13 @@ type Field = {
 //              {{field}} → asset://ID, used as <img src="asset://ID">.
 //   slot:      the person picks one appointment time, shown by day. Options are ISO 8601 date-times with their offset
 //              ("2026-10-12T09:00:00+02:00"), nearly always from optionsFrom; {{field}} is the chosen one, as offered.
-//              Booking: agent step "free" with call { tool: "appointments.availability", input: { duration_minutes: 30, days: 14 } }
-//              and output { format: "json", fields: [{ id: "slots", kind: "table", columns: ["start","end","label"] }] };
+//              Booking: tool step "free" with call { tool: "appointments.availability", input: { duration_minutes: 30, days: 14 } }
+//              and output { fields: [{ id: "slots", kind: "table", columns: ["start","end","label"] }] };
 //              then a page { kind: "slot", optionsFrom: "steps.free.slots.start" }; then an agent step with appointments.book.
 
 type AgentStep = {
   type: "agent"
-  instructions: string          // the task, with {{templates}} ("" with call)
-  call?: { tool: "<plugin>.<tool>", input: { … } }
-       | { connection: connectionId, action: actionId, input: { … } }
-                                // NO MODEL: one plugin tool, or one action of a connection, called once with this input; its
-                                //   answer IS the json output (fields name the keys later steps read). Use it where a model
-                                //   would only fetch and copy data (free appointment times) — it answers in a second instead
-                                //   of half a minute — and for EVERY write through a connection that signs in as the space.
-                                //   String inputs are templates ("{{email}}", "{{steps.read.summary}}"); a filled-in whole
-                                //   number or true/false is passed as one, an empty one is left out. On the person's own
-                                //   connection a write still asks them first.
+  instructions: string          // the task, with {{templates}}
   tools: ("web_search"|"web_fetch"|"browser"|"sandbox"|"image"|"http"|"pages"|"code")[]
   connections?: string[]        // ids of wizard connections this step may read (mail → mail_search, mail_read, mail_save)
   hosts?: string[]              // the hosts the "http" tool (http_request) may call, at most 20: "api.example.com", or "*.example.org"
@@ -284,11 +278,11 @@ type AgentStep = {
   output: { format: "text"|"markdown"|"json", fields?: { id, kind: "text"|"number"|"list"|"table"|"yesno"|"choice"|"score", description, columns?: string[], options?: string[] }[], schema?: Schema, surface?: SurfaceComponent[] | true }
                                 // "score" answers its description on the scale in options, lowest first ("low", "medium", "high")
                                 // fields: one level of keys (the short form). schema: nested data, below. One of the two, not both.
-  each?: "steps.<id>.<key>" | "lists.<id>"
+  foreach?: "steps.<id>.<key>" | "lists.<id>"
                                 // ONE RUN PER ENTRY (at most 20): the rows of a table output, the entries of a list output, or the
                                 //   rows of a stored list; the instructions read {{item.<column>}}, {{index}}, {{count}}. The output is
                                 //   one table, steps.<id>.rows: the entry's columns plus the step's output fields, a row per entry.
-  concurrency?: 1|2|3|4|5       // with each: how many entries run at the same time; default 1, one after another. Higher only
+  concurrency?: 1|2|3|4|5       // with foreach: how many entries run at the same time; default 1, one after another. Higher only
                                 //   where the entries don't depend on each other and a site won't mind several calls at once.
   retries?: 0|1|2|3|4|5         // how often the step is tried again when it fails for its own reason (not a provider's trouble),
                                 //   before onFail; default 0. Every step that runs without a person takes it.
@@ -319,6 +313,22 @@ type AgentStep = {
 //   browser_download (keeps a file from a signed-in site).
 //   It clicks cookie banners away by itself with the least consent (only necessary / reject all) —
 //   no need to say so in the instructions.
+
+type ToolStep = {
+  type: "tool"
+  call: { tool: "<plugin>.<tool>", input: { … } }
+      | { connection: connectionId, action: actionId, input: { … } }
+                                // NO MODEL: one plugin tool, or one action of a connection, called once with this input; its
+                                //   answer IS the step's json output. Use it where a model would only fetch and copy data (free
+                                //   appointment times) — it answers in a second instead of half a minute — and for EVERY write
+                                //   through a connection that signs in as the space. String inputs are templates ("{{email}}",
+                                //   "{{steps.read.summary}}"); a filled-in whole number or true/false is passed as one, an empty
+                                //   one is left out. On the person's own connection a write still asks them first.
+  output?: { fields?: { id, kind, description, columns?, options? }[], surface?: SurfaceComponent[] }
+                                // fields, as on an agent step, name the keys of the answer later steps read; surface: a view written once
+  retries?: 0|1|2|3|4|5
+  working?: string              // shown while it runs
+}
 
 type DecisionStep = {
   type: "decision"
@@ -356,7 +366,7 @@ type SurfaceStep = {
 //   view binds — nothing it does not show or a later step does not read. One step returns the whole tree.
 //   Paths: {"path": "/recipes"} from the data; inside a repeated entry "title" or "meals" reads the entry; a Link's
 //   view reads the entry it opens. The view is checked against the schema.
-//   Later steps read top-level keys ({{steps.id.key}}, optionsFrom, each, conditions); a list of entries is a table
+//   Later steps read top-level keys ({{steps.id.key}}, optionsFrom, foreach, conditions); a list of entries is a table
 //   there ("steps.id.recipes.title"). Downloads: xlsx one sheet per top-level list, csv the first list of flat
 //   entries, md and pdf the whole tree.
 //   Example (Kühlschrank-Koch): { kind: "object", label: "Menüplan", fields: {
@@ -376,7 +386,7 @@ type SurfaceStep = {
 // A SURFACE is a native view in the runner — facts, a list of results, key figures, a chart — themed, on phones, free per run.
 //   Prefer it to a widget for such views; a widget is for what the catalog cannot show (a map, an animation).
 //   An agent step with output.format "json" can also carry such a view of its own result: output.surface: [components],
-//   written once and bound to its fields or schema by path ({"path": "/<key>"}; a step with "each": "/rows"). Prefer it to
+//   written once and bound to its fields or schema by path ({"path": "/<key>"}; a step with "foreach": "/rows"). Prefer it to
 //   output.surface: true, which has a model compose a new view on every run.
 //   Reviews and the result show a step's view instead of its plain table.
 type GenerateStep = {
@@ -388,11 +398,11 @@ type GenerateStep = {
               style?: string,   // image/video: the look · voice: how to speak ("ruhig, warm"; may name a field: "{{voiceStyle}}")
               template?: "invoice"|"offer"|"briefing"|"letter"|"report"|"free" }   // template for documents
   referenceImage?: fieldId | stepId   // the image the image/video starts from: an image field, or an earlier step that made images
-  each?: fieldId | stepId | "steps.<id>.<key>"
+  foreach?: fieldId | stepId | "steps.<id>.<key>"
                                 // image/video: ONE RESULT PER ENTRY (at most 8) — per upload of an image field (multiple), per image
                                 //   of an earlier step, or per row of an agent step's table. The prompt reads the row as
                                 //   {{item.<column>}} (plus {{index}}, {{count}}); referenceImage gives entry n its n-th image.
-                                //   With each the prompt goes to the model AS WRITTEN (no rewriting step): let the agent step
+                                //   With foreach the prompt goes to the model AS WRITTEN (no rewriting step): let the agent step
                                 //   that makes the table write complete visual descriptions.
                                 //   In a review the person can make single results again.
   working?: string
@@ -409,7 +419,7 @@ type WidgetStep = {
   size?: { width, height }      // design size in px, default 1280×720 (9:16 → 1080×1920); exports render at it
   video?: boolean               // a VIDEO: the timeline is rendered to an MP4 WITH SOUND when the step runs; the person sees and
                                 //   downloads that video. data may then name generate steps: "steps.<id>" of an image / video / voice
-                                //   step arrives as a URL (a list of URLs for a step with "each").
+                                //   step arrives as a URL (a list of URLs for a step with "foreach").
                                 //   "steps.<agentStepId>.assets" gives the pictures an agent step kept (browser screenshots
                                 //   with save, export_file, generate_image) as { assetId: URL }; the step's JSON names them by id.
   working?: string
@@ -504,7 +514,7 @@ On a form or a review:
 On a review:
   approve?: true                 // approve or decline instead of "Looks good": steps.<id>.approved, steps.<id>.note. It needs a next rule on steps.<id>.approved, or a decline would go on like an approval. A timeout hands on approved: false with timedOut: true. A start's passReviews never approves. Use it before anything that can't be taken back.
 On an agent step:
-  durable?: true                 // after a crash or a deploy the step goes on at the call it was at, and it gets the tool ask_person: it stops and asks with nothing running, for days if it must. It needs a model an API serves. Not with browser or sandbox, each or call. Use it for a long step that acts in other systems or may have to ask.
+  durable?: true                 // after a crash or a deploy the step goes on at the call it was at, and it gets the tool ask_person: it stops and asks with nothing running, for days if it must. It needs a model an API serves. Not with browser or sandbox, or foreach. Use it for a long step that acts in other systems or may have to ask.
 On any step:
   onFail?: stepId                // where the run goes when this step fails for good, at most three times; without it the run fails. Short trouble at a provider is tried again by itself after 1, 5 and 30 minutes, out of credits or an expired sign-in waits until someone acts, so onFail is for what is really over. A step that already acted outside is not tried again by itself. "retries" (0–5, on a step that runs without a person) tries it again first when it fails for its own reason.
 On the wizard:
@@ -518,18 +528,24 @@ Tell the admin what only they can do, in the share dialog: under "Events" they m
 <!-- Only while the switch codeSteps is on: authoringGuide() and the architect's system prompt leave it out otherwise. -->
 Code steps. Hard logic goes into a code step, never into a longer calc or a chain of conditions: maths over a table (totals, discounts, a price from many inputs), reshaping data (grouping, sorting, joining two tables, picking the top three), scoring and ranking by fixed rules. calc stays for one line that a page or a view shows; anything longer, or anything a later step reads, is a code step. An AI step stays for what needs judgement or language.
 
-On an agent step, instead of instructions:
-  code?: { entry: "code/<name>.ts", input: { key: path | template } }
+type CodeStep = {
+  type: "code"
+  code: { entry: "code/<name>.ts", input: { key: path | template } }
                                 // NO MODEL, NO CREDITS: runs the function run(input) of this workspace file once; what it returns IS the
-                                //   step's json output. output.format "json" with fields or schema is required: the result is checked
-                                //   against it, and next rules and templates read it like any agent step's (steps.<id>.<key>).
+                                //   step's json output, checked against output; next rules and templates read it like any agent
+                                //   step's (steps.<id>.<key>).
                                 // input: a path alone gives the raw value: "budget", "steps.find.offers" (a table as rows), "lists.prices"
                                 //   (the list's rows), "today". Text with {{templates}} in it gives text. Only what was asked or ran EARLIER.
-                                // Not with call, each, durable, tools or connections. It runs in a guest's run too.
+  output: { fields?: { id, kind, description, columns?, options? }[], schema?: Schema, surface?: SurfaceComponent[] }
+                                // fields (as on an agent step) or schema, one of them
+  retries?: 0|1|2|3|4|5
+  working?: string
+}
+It runs in a guest's run too.
 The file is TypeScript or JavaScript in the workspace, written with the file tools, and defines
   export function run(input: { … }): { … } { … }
 It runs sealed off: no imports, no fetch, no files, no tools, at most 10 seconds, and the same answer every run. Math.random is seeded; new Date() and Date.now() throw, so pass "today" as an input and use new Date(input.today). Keep it one file: helpers are functions in it, fixed reference data (a price list) a constant in it or a list. A table field with columns gets rows with exactly those keys; return numbers as numbers.
-Example: { "id": "quote", "type": "agent", "title": "Price", "code": { "entry": "code/quote.ts", "input": { "rooms": "steps.measure.rooms", "rate": "rate" } }, "output": { "format": "json", "fields": [{ "id": "total", "kind": "number" }, { "id": "lines", "kind": "table", "columns": ["room", "m2", "price"] }] } }
+Example: { "id": "quote", "type": "code", "title": "Price", "code": { "entry": "code/quote.ts", "input": { "rooms": "steps.measure.rooms", "rate": "rate" } }, "output": { "fields": [{ "id": "total", "kind": "number" }, { "id": "lines", "kind": "table", "columns": ["room", "m2", "price"] }] } }
 
 <!-- section: widgets -->
 Widgets — when to use: the result must look the same every run, animate, or be explored (a map with
@@ -635,7 +651,7 @@ actions appear once an account is connected
 
 <!-- section: line.space_connections -->
 <!-- Only where the space has connections; connections: one "- id — name (connector), signs in as …, actions: …" line each. -->
-Connections of this space, set up by its admins (a wizard uses one with { "spaceConnection": id }; where it signs in as the space, agent steps read and a step with "call" writes):
+Connections of this space, set up by its admins (a wizard uses one with { "spaceConnection": id }; where it signs in as the space, agent steps read and a tool step writes):
 ${connections}
 
 <!-- section: line.plugin_tools -->

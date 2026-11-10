@@ -20,7 +20,7 @@ export interface EnginePackage {
   version: string;
   /** What npm installs into the folder, each at an exact version. */
   packages: string[];
-  /** For the messages: "about 340 MB". */
+  /** For the messages: "about 480 MB". */
   size: string;
   /** Why it can't run on this computer, or null. */
   unsupported?(): string | null;

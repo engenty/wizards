@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   agentStepSchema,
   CONDITION_OPS,
+  codeStepSchema,
   MAKER_CLASSES,
   MAKERS,
   outputFieldSchema,
@@ -10,6 +11,7 @@ import {
   stepSchema,
   TEXT_CLASSES,
   TOOL_IDS,
+  toolStepSchema,
 } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
 
@@ -58,19 +60,18 @@ function guideUnion(key: string, within = GUIDE): string[] {
   return sorted(quoted((line ?? "").split("//")[0]));
 }
 
-/**
- * The guide's `type AgentStep = { … }`, and the line on an agent step of each section a switch
- * adds: durable runs, code steps.
- */
+/** The guide's `type <name> = { … }`. */
+function guideType(name: string): string {
+  const start = GUIDE.indexOf(`type ${name} = {`);
+  expect(start, `type ${name} in authoring.md`).toBeGreaterThanOrEqual(0);
+  return GUIDE.slice(start, GUIDE.indexOf("\n}\n", start));
+}
+
+/** The guide's `type AgentStep = { … }`, and the line on an agent step that durable runs add. */
 function guideAgentStep(): string {
-  const start = GUIDE.indexOf("type AgentStep = {");
-  const end = GUIDE.indexOf("\n}\n", start);
   const lines = GUIDE.split("\n");
-  const added = ["On an agent step:", "On an agent step, instead of instructions:"].map(
-    (head) => lines[lines.findIndex((l) => l === head) + 1] ?? "",
-  );
-  expect(start).toBeGreaterThanOrEqual(0);
-  return [GUIDE.slice(start, end), ...added].join("\n");
+  const durable = lines[lines.findIndex((l) => l === "On an agent step:") + 1] ?? "";
+  return [guideType("AgentStep"), durable].join("\n");
 }
 
 /** The keys every step type has (id, title, next, onFail …): described once, not per step. */
@@ -103,6 +104,22 @@ describe("the format's reference lists", () => {
         true,
       );
       expect(page.includes(`\`${key}\``) || page.includes(`"${key}"`), `docs: ${key}`).toBe(true);
+    }
+  });
+
+  it("a tool step's and a code step's keys", () => {
+    const page = doc("agent-steps");
+    for (const [schema, name] of [
+      [toolStepSchema, "ToolStep"],
+      [codeStepSchema, "CodeStep"],
+    ] as const) {
+      const guide = guideType(name);
+      for (const key of Object.keys(schema.shape).filter((k) => !STEP_BASE.includes(k))) {
+        expect(new RegExp(`\\b${key}\\??:`).test(guide), `authoring.md: ${name}.${key}`).toBe(
+          true,
+        );
+        expect(page.includes(`\`${key}\``), `docs: ${name} ${key}`).toBe(true);
+      }
     }
   });
 

@@ -1,4 +1,4 @@
-import { type AgentStep, dataRef, stepShape } from "@engenty/wizards-shared/definition";
+import { type CodeStep, dataRef, stepShape } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
 import {
@@ -8,7 +8,8 @@ import {
   recordsOf,
   shapeZod,
 } from "@engenty/wizards-shared/shape";
-import { QuickJsCodeModeTransport } from "@mastra/quickjs";
+import type { QuickJsCodeModeTransport } from "@mastra/quickjs";
+import { onDemand } from "../on-demand.js";
 import { snapshotFile } from "../services/files.js";
 import { surfaceData } from "./surface.js";
 import { renderTemplate } from "./template.js";
@@ -32,10 +33,20 @@ export const CODE_STEP_LIMITS = {
   logChars: 2000,
 };
 
-/** One transport for the process; it loads the WebAssembly module once, on the first run. */
-let transport: QuickJsCodeModeTransport | null = null;
-function quickJs(): QuickJsCodeModeTransport {
-  transport ??= new QuickJsCodeModeTransport({ memoryLimitMb: CODE_STEP_LIMITS.memoryMb });
+/**
+ * One transport for the process; it loads the WebAssembly module once, on the first run. QuickJS
+ * is downloaded the first time a minimal installation needs it (on-demand.ts).
+ */
+let transport: Promise<QuickJsCodeModeTransport> | null = null;
+function quickJs(): Promise<QuickJsCodeModeTransport> {
+  transport ??= onDemand<typeof import("@mastra/quickjs")>("@mastra/quickjs").then(
+    ({ QuickJsCodeModeTransport }) =>
+      new QuickJsCodeModeTransport({ memoryLimitMb: CODE_STEP_LIMITS.memoryMb }),
+  );
+  // A failed download is tried again on the next run.
+  transport.catch(() => {
+    transport = null;
+  });
   return transport;
 }
 
@@ -143,7 +154,7 @@ function asColumns(shape: FieldShape | ListShape["of"], value: unknown): unknown
  * What the function returned, fitted to the step's declared output and checked against it:
  * the step's json, as an AI step's would be. Refused when it does not fit.
  */
-export function codeOutput(step: AgentStep, result: unknown): Record<string, unknown> {
+export function codeOutput(step: CodeStep, result: unknown): Record<string, unknown> {
   const shape = stepShape(step);
   const parsed = shapeZod(shape).safeParse(fitData(shape, asColumns(shape, result)));
   if (!parsed.success) {
@@ -168,7 +179,7 @@ export async function runCode(
       }),
     );
   }
-  const ran = await quickJs().run({
+  const ran = await (await quickJs()).run({
     program: codeProgram(source, input),
     toolIds: [],
     dispatch: async () => {
@@ -197,10 +208,7 @@ export async function runCode(
  * its input; what it returns is the step's json. It acts nowhere outside, so a later try may run
  * it again.
  */
-export async function runCodeStep(
-  step: AgentStep & { code: NonNullable<AgentStep["code"]> },
-  ctx: StepContext,
-): Promise<StepOutput> {
+export async function runCodeStep(step: CodeStep, ctx: StepContext): Promise<StepOutput> {
   const file = await snapshotFile(ctx.files, step.code.entry);
   if (!file) {
     throw new StepError(note("codeMissing", { entry: step.code.entry }));

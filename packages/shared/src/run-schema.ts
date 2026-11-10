@@ -5,8 +5,10 @@ import {
   declaredShape,
   type Field,
   type FormStep,
+  isDataStep,
   isDecidedField,
   listRef,
+  outputOf,
   type Step,
   stepShape,
   type WizardDefinition,
@@ -258,23 +260,24 @@ function refSchema(
     return { schema: ANY };
   }
   const at = { step: step.id };
+  const each = step.type === "agent" && Boolean(step.foreach);
   if (key === undefined) {
+    if (isDataStep(step)) {
+      if (outputOf(step).format !== "json") {
+        return { ...at, schema: { type: "string" } };
+      }
+      if (each) {
+        return { ...at, schema: { type: "object", properties: { rows: ROWS } } };
+      }
+      // A tool's answer without declared keys is kept as it is.
+      if (!declaredShape(step) && step.type === "tool") {
+        return { ...at, schema: ANY };
+      }
+      return { ...at, schema: dropDialect(shapeJsonSchema(stepShape(step))) };
+    }
     switch (step.type) {
-      case "agent":
-        if (step.output.format !== "json") {
-          return { ...at, schema: { type: "string" } };
-        }
-        if (step.each) {
-          return { ...at, schema: { type: "object", properties: { rows: ROWS } } };
-        }
-        if (step.call && !declaredShape(step)) {
-          return { ...at, schema: ANY };
-        }
-        return { ...at, schema: dropDialect(shapeJsonSchema(stepShape(step))) };
-      case "decision":
-        return { ...at, schema: dropDialect(shapeJsonSchema(stepShape(step))) };
       case "generate":
-        return { ...at, schema: step.each ? { type: "array", items: ASSET } : ASSET };
+        return { ...at, schema: step.foreach ? { type: "array", items: ASSET } : ASSET };
       case "widget":
         return { ...at, schema: ASSET };
       default:
@@ -284,8 +287,8 @@ function refSchema(
   if (more.length) {
     return { ...at, schema: ANY };
   }
-  if (step.type === "agent" || step.type === "decision") {
-    if (step.type === "agent" && step.each && key === "rows") {
+  if (isDataStep(step)) {
+    if (each && key === "rows") {
       return { ...at, schema: ROWS };
     }
     const shape = declaredShape(step)?.fields[key];

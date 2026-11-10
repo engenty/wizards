@@ -92,15 +92,7 @@ import {
 import { ModelClassControl, StepCost, useEstimate } from "./estimate";
 import { conditionText, percent, whenWords } from "./FlowDiagram";
 import { HoldToDelete } from "./HoldToDelete";
-import {
-  isCodeStep,
-  isFixedStep,
-  stepIcon,
-  stepSummary,
-  TYPE_TONE,
-  toolLabel,
-  typeLabel,
-} from "./meta";
+import { stepIcon, stepSummary, TYPE_TONE, toolLabel, typeLabel } from "./meta";
 import { ShareEditor } from "./ShareEditor";
 import { StepWarnings } from "./StepWarnings";
 import { SurfaceBody } from "./SurfaceEditor";
@@ -831,9 +823,7 @@ function FixedStepBody({
   set,
 }: {
   def: WizardDefinition;
-  step: Extract<Step, { type: "agent" }> & {
-    call: NonNullable<Extract<Step, { type: "agent" }>["call"]>;
-  };
+  step: Extract<Step, { type: "tool" }>;
   set: (s: Step) => void;
 }) {
   const { call } = step;
@@ -1003,9 +993,7 @@ function CodeStepBody({
   set,
   files,
 }: {
-  step: Extract<Step, { type: "agent" }> & {
-    code: NonNullable<Extract<Step, { type: "agent" }>["code"]>;
-  };
+  step: Extract<Step, { type: "code" }>;
   set: (s: Step) => void;
   files: WorkspaceFile[];
 }) {
@@ -1155,13 +1143,11 @@ function StepBody({
       );
     case "decision":
       return <DecisionBody def={def} step={step} set={set} />;
+    case "tool":
+      return <FixedStepBody def={def} step={step} set={set} />;
+    case "code":
+      return <CodeStepBody step={step} set={set} files={files} />;
     case "agent":
-      if (isFixedStep(step)) {
-        return <FixedStepBody def={def} step={step} set={set} />;
-      }
-      if (isCodeStep(step)) {
-        return <CodeStepBody step={step} set={set} files={files} />;
-      }
       return (
         <>
           <Section title={t("inspector.task")}>
@@ -1235,7 +1221,7 @@ function StepBody({
               value={step.working ?? ""}
               onChange={(e) => set({ ...step, working: e.target.value || undefined })}
             />
-            {durableRuns && !step.each && !step.call ? (
+            {durableRuns && !step.foreach ? (
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <span className="text-[0.8125rem] text-ink-2">{t("inspector.durable")}</span>

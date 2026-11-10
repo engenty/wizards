@@ -1,7 +1,7 @@
 ---
 title: Lists and connections
 description: Tables a wizard keeps between runs, and accounts the person connects.
-version: 0.13.0
+version: 0.18.0
 ---
 
 ## Lists
@@ -69,9 +69,8 @@ in `connections` and gets its actions as tools.
 
 A connection of the space that signs in as the space is the space’s account, not the person’s.
 An AI step that lists it gets its read actions only, whatever `actions` says; a write it tries is
-refused and logged. A write goes in a fixed step: an agent step with `call` naming the connection,
-the action and the input, with fields from the run’s values (see
-[Agent steps](./agent-steps.md)). The step runs as the wizard, so the person running is not asked,
+refused and logged. A write goes in a [tool step](./agent-steps.md#tool-steps): its `call` names the connection,
+the action and the input, with fields from the run’s values. The step runs as the wizard, so the person running is not asked,
 and the connection’s rules decide. The validator refuses a wizard whose AI step lists a write
 action on such a connection.
 

@@ -1,7 +1,8 @@
 import {
-  decisionAsAgent,
+  asAgent,
   type Format,
   formatsFor,
+  isDataStep,
   type Step,
   widgetSize,
 } from "@engenty/wizards-shared/definition";
@@ -101,8 +102,8 @@ export async function renderDownload(
   if (!formatsFor(given).includes(format)) {
     return null;
   }
-  // A decision's answers are data like an agent step's json.
-  const step = given.type === "decision" ? decisionAsAgent(given) : given;
+  // A decision's answers, a tool's and a code step's are data like an agent step's json.
+  const step = isDataStep(given) ? asAgent(given) : given;
   const name = slug(baseName);
   const file = (ext: string) => `${name}.${ext}`;
 

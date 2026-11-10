@@ -1,7 +1,11 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { validateWizard, type WizardDefinition } from "@engenty/wizards-shared/definition";
+import {
+  parseWizard,
+  validateWizard,
+  type WizardDefinition,
+} from "@engenty/wizards-shared/definition";
 import { createTool } from "@mastra/core/tools";
 import { APICallError } from "ai";
 import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
@@ -246,14 +250,20 @@ describe("the format", () => {
     expect(issuesOf({ durable: false, tools: ["browser"] })).toEqual([]);
   });
 
-  it("says durable does nothing with each and with call", () => {
-    expect(issuesOf({ each: "lists.x" }).join()).toContain('"each"');
-    expect(
-      issuesOf({
-        call: { tool: "x_y", input: {} },
-        output: { format: "json" },
-      }).join(),
-    ).toContain('"call"');
+  it("says durable does nothing with foreach and with call", () => {
+    expect(issuesOf({ foreach: "lists.x" }).join()).toContain('"foreach"');
+    // A tool step has no conversation at all: the format keeps no "durable" on it.
+    const parsed = parseWizard(
+      definitionOf({
+        id: "work",
+        type: "tool",
+        title: "Work",
+        call: { tool: "x.y", input: {} },
+        durable: true,
+      }),
+    );
+    expect(parsed.ok).toBe(true);
+    expect(parsed.ok && "durable" in parsed.wizard.steps[0]).toBe(false);
   });
 });
 

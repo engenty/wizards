@@ -33,6 +33,8 @@ const STEP_PURPOSE: Record<string, string> = {
   agent: "an AI step that writes, researches or calls tools",
   decision:
     "answers yes/no, choice or score questions about the run in one cheap call; branch on them",
+  tool: "calls one tool of a plugin or one action of a connection, with no model",
+  code: "runs a function from the wizard's files, with no model",
   generate: "makes an image, a video, a document or a dashboard",
   widget: "an interactive HTML view; leave its HTML to the architect",
   surface: "a view of data from the component catalog",
@@ -131,13 +133,13 @@ export function wizardTextTags(opts: { durableRuns: boolean }): string {
     if (name === "wait" && !durable) {
       continue;
     }
-    const leaveOut = new Set(["type", "next", STEP_TEXT[name] ?? ""]);
+    const leaveOut = new Set(["type", "next", "metadata", STEP_TEXT[name] ?? ""]);
     let children = "";
     if (name === "form") {
       leaveOut.add("fields");
       leaveOut.add("components");
       children = " Children: <Field>, components, Markdown.";
-    } else if (name === "agent" || name === "decision") {
+    } else if (name === "agent" || name === "decision" || name === "tool" || name === "code") {
       leaveOut.add("output");
       children = " Child: <Output>.";
     }
