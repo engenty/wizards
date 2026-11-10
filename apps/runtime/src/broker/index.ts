@@ -70,7 +70,14 @@ export {
   summarizeInput,
 } from "./log.js";
 export { type RunOver, runOver } from "./over.js";
-export { type OutsideReach, outsideReaches, reachesOutside } from "./registry.js";
+export {
+  descriptorOf,
+  type OutsideReach,
+  outsideReaches,
+  reachesOutside,
+  type ToolDescriptor,
+  toolDescriptors,
+} from "./registry.js";
 export {
   brokerSend,
   channelOf,

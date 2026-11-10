@@ -87,5 +87,8 @@
 # a step that runs a function from the wizard's files with no model (off by default)
 # codeSteps=on|off
 #
+# a run's requests through the broker with the run's token, every tool call a line of the log (off by default)
+# runServices=on|off
+#
 # a plugin's switches carry its id; `wizards features` lists the ones installed here
 # contacts.leadScoring=on|off

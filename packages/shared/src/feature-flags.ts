@@ -233,6 +233,12 @@ export const FEATURES = {
     label: "Code steps",
     hint: "A step that runs a function from the wizard's files with no model: maths, reshaping, scoring. With it, function tools in the wizard's files that a step's model calls (docs/plans/wizard-code.md). The architect knows both, and a run with them starts (docs/plans/code-step.md).",
   },
+  runServices: {
+    kind: "release",
+    default: false,
+    label: "Run services",
+    hint: "A run's requests go through the broker with the run's token: every tool call is a line of the log.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,
