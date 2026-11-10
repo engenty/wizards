@@ -3,7 +3,7 @@ import { z } from "zod";
 import { calcNames, calcSchema, calcScope, calcTruthy, calcValue, parsedCalc } from "./calc.js";
 import { tableColumnsSchema } from "./engenty/data-tables/columns.js";
 import { readNumber } from "./numbers.js";
-import { type ObjectShape, outputShapeSchema, shapeOfFields } from "./shape.js";
+import { type ObjectShape, outputSchemaSchema, shapeOfFields, shapeOfSchema } from "./shape.js";
 import { isShareTargetId } from "./sharing.js";
 import { CONNECTION_KINDS } from "./store.js";
 import { type SurfaceComponent, surfaceComponentsSchema, validateSurface } from "./surface.js";
@@ -846,10 +846,10 @@ export const agentStepSchema = z.object({
       /** The short form: one level of keys. A step has `fields` or `schema`, not both. */
       fields: z.array(outputFieldSchema).optional(),
       /**
-       * json only: nested data (lists of entries with lists of their own), in the kinds of
-       * `shape.ts`. Objects nest at most four deep, a hundred keys in all.
+       * json only: nested data (lists of entries with lists of their own), as the subset of JSON
+       * Schema `shape.ts` takes. Objects nest at most four deep, a hundred keys in all.
        */
-      schema: outputShapeSchema.optional(),
+      schema: outputSchemaSchema.optional(),
       /**
        * json only: a view of the result from the surface catalog, bound to the step's own fields;
        * reviews and the result show it instead of a plain table. Components: written once, the
@@ -942,7 +942,7 @@ export const codeStepSchema = z.object({
     input: z.record(z.string(), z.string()).default({}),
   }),
   /** What `run` returns: `fields`, or nested data as `schema`. */
-  output: z.object({ ...fixedOutput, schema: outputShapeSchema.optional() }),
+  output: z.object({ ...fixedOutput, schema: outputSchemaSchema.optional() }),
   /** Shown to the person while it works. */
   working: z.string().optional(),
 });
@@ -1406,7 +1406,7 @@ export function asAgent(step: DataStep): AgentStep {
 export function declaredShape(step: DataStep): ObjectShape | undefined {
   const output = outputOf(step);
   if (output.schema) {
-    return output.schema;
+    return shapeOfSchema(output.schema);
   }
   return output.fields?.length ? shapeOfFields(output.fields) : undefined;
 }

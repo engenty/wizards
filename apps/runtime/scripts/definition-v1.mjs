@@ -30,6 +30,10 @@
 //   `fields` or `schema` and view), `working`, `retries` and the keys every step has.
 // - `each` on an agent or generate step becomes `foreach`.
 // - `any` in a `when` becomes `or`.
+// - Every `output.schema` is written as the subset of JSON Schema the format takes now: text →
+//   string (`long` → x-long), number → number (`unit` → x-unit), yesno → boolean (`yes`/`no` →
+//   x-yes/x-no), choice → string with enum, ref → string with x-ref, list → array with items,
+//   object → object with properties and every key required; `label` → title.
 //
 // `toVersion1` is exported for the marketplace's entries (the Manage repo), which are files.
 //
@@ -51,7 +55,7 @@ const open = (url, authToken) => createClient({ url, ...(authToken ? { authToken
 const OPS = { equals: "eq", notEquals: "ne", empty: "notExists", notEmpty: "exists" };
 
 /** What `toVersion1` counts, as the columns of its table say it. */
-const COUNTED = ["decisions", "ops", "ors", "forms", "tools", "code", "foreach"];
+const COUNTED = ["decisions", "ops", "ors", "forms", "tools", "code", "foreach", "schemas"];
 const HEADS = {
   decisions: "decisions",
   ops: "operators",
@@ -60,7 +64,50 @@ const HEADS = {
   tools: "tool steps",
   code: "code steps",
   foreach: "foreach",
+  schemas: "schemas",
 };
+
+/** A shape in the kinds of before as the subset of JSON Schema `output.schema` takes now. */
+function asJsonSchema(shape) {
+  if (!shape || typeof shape !== "object" || typeof shape.kind !== "string") {
+    return shape;
+  }
+  const { kind, label, description } = shape;
+  const head = {
+    ...(label !== undefined ? { title: label } : {}),
+    ...(description !== undefined ? { description } : {}),
+  };
+  switch (kind) {
+    case "text":
+      return { type: "string", ...head, ...(shape.long ? { "x-long": true } : {}) };
+    case "number":
+      return { type: "number", ...head, ...(shape.unit ? { "x-unit": shape.unit } : {}) };
+    case "yesno":
+      return {
+        type: "boolean",
+        ...head,
+        ...(shape.yes ? { "x-yes": shape.yes } : {}),
+        ...(shape.no ? { "x-no": shape.no } : {}),
+      };
+    case "choice":
+      return { type: "string", ...head, enum: shape.options };
+    case "ref":
+      return { type: "string", ...head, "x-ref": shape.to };
+    case "list":
+      return { type: "array", ...head, items: asJsonSchema(shape.of) };
+    case "object": {
+      const fields = shape.fields ?? {};
+      return {
+        type: "object",
+        ...head,
+        properties: Object.fromEntries(Object.entries(fields).map(([k, f]) => [k, asJsonSchema(f)])),
+        required: Object.keys(fields),
+      };
+    }
+    default:
+      return shape;
+  }
+}
 const DECISION_KINDS = new Set(["yesno", "choice", "score"]);
 
 /** Whether an agent step of version 2 was a decision: the shape the app recognized it by. */
@@ -190,6 +237,10 @@ export function toVersion1(def) {
     if (isDecision(step)) {
       counts.decisions++;
       return asDecision(step);
+    }
+    if (step.output?.schema?.kind === "object") {
+      counts.schemas++;
+      step = { ...step, output: { ...step.output, schema: asJsonSchema(step.output.schema) } };
     }
     if (step.type === "page") {
       counts.forms++;

@@ -1,7 +1,7 @@
 ---
 title: Views and widgets
 description: Surfaces built from the catalog, a view of an agent step's result, nested output, and HTML widgets.
-version: 0.12.0
+version: 0.18.0
 ---
 
 A result can show as a view instead of a plain table. There are three ways:
@@ -131,22 +131,35 @@ An agent step with `output.format` `json` can carry its own view in `output.surf
 its keys by path. Reviews and the result show it in place of a table. `output.surface: true` has
 a model compose a view on every run instead, which costs a model call.
 
-For nested data, `output.schema` replaces `output.fields`. Its root is an object:
+For nested data, `output.schema` replaces `output.fields`. It is written in a subset of JSON
+Schema, and its root is an object:
 
 ```json
-"schema": { "kind": "object", "label": "Menu plan", "fields": {
-  "days": { "kind": "list", "label": "Days", "of": { "kind": "object", "label": "Day", "fields": {
-    "label": { "kind": "text", "label": "Day" },
-    "recipe": { "kind": "ref", "label": "Recipe", "to": "recipes" } } } },
-  "recipes": { "kind": "list", "label": "Recipes", "of": { "kind": "object", "label": "Recipe", "fields": {
-    "id": { "kind": "text", "label": "ID" },
-    "minutes": { "kind": "number", "label": "Time", "unit": "min" } } } } } }
+"schema": { "type": "object", "title": "Menu plan", "properties": {
+  "days": { "type": "array", "title": "Days", "items": { "type": "object", "title": "Day", "properties": {
+    "label": { "type": "string", "title": "Day" },
+    "recipe": { "type": "string", "title": "Recipe", "x-ref": "recipes" } } } },
+  "recipes": { "type": "array", "title": "Recipes", "items": { "type": "object", "title": "Recipe", "properties": {
+    "id": { "type": "string", "title": "ID" },
+    "minutes": { "type": "number", "title": "Time", "x-unit": "min" } } } } } }
 ```
 
-Kinds are `text` (with `long` for paragraphs), `number` (with `unit`), `yesno` (with `yes` and
-`no`, the words people read), `choice`, `ref` (the id of an entry of a top-level list) and `list`.
-Objects nest at most four deep, with a hundred keys in all. Labels are in the wizard’s language.
-The view is checked against the schema.
+| Property | Holds |
+|---|---|
+| `{ "type": "string" }` | Text. `x-long` makes it paragraphs |
+| `{ "type": "string", "enum": [ … ] }` | One of the values |
+| `{ "type": "string", "x-ref": "<key>" }` | The `id` of an entry of a top-level array of objects |
+| `{ "type": "number" }` | A number. `x-unit` is the unit people read |
+| `{ "type": "boolean" }` | `true` or `false`. `x-yes` and `x-no` are the words people read |
+| `{ "type": "array", "items": … }` | A list of one of the above, or of objects with properties of their own |
+
+`title` is what people read, in the wizard’s language, and `description` tells the model what to
+put there. An object’s `required` lists all its keys or is left out: the model fills every key.
+Objects nest at most four deep, with a hundred keys in all, and there is no `$ref`. The view is
+checked against the schema.
+
+`output.fields` is the short form of a schema of one level. Two kinds exist only there: `score`
+and `table`.
 
 ## Widgets
 
