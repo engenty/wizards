@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { parseWizard, type ValidationIssue } from "@engenty/wizards-shared/definition";
 import { requiresProblem } from "@engenty/wizards-shared/requires";
+import { inputSchemaOf, type JsonSchema, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
 import { WIZARD_SKILLS_DIR, wizardSkillIssues } from "@engenty/wizards-shared/wizard-skills";
 import { sandboxToolHostIssues, wizardToolFileIssues } from "../engine/wizard-code.js";
@@ -24,6 +25,9 @@ interface Checked {
   steps?: number;
   files?: number;
   issues: ValidationIssue[];
+  /** What a run takes and gives, as JSON Schema; only for a definition that parses. */
+  inputSchema?: JsonSchema;
+  outputSchema?: JsonSchema;
 }
 
 function workspace(folder: string): string[] {
@@ -98,10 +102,10 @@ export async function validatePath(path: string): Promise<Checked> {
   }
   const issues = [
     ...checked,
-    ...wizardSkillIssues(given.files, skillMds),
     ...(await wizardToolFileIssues(given.files, given.read))
       .filter((message) => !said.has(message))
       .map((message) => ({ message })),
+    ...wizardSkillIssues(given.files, skillMds),
     ...(parsed.ok ? await sandboxToolHostIssues(parsed.wizard.steps, given.files, given.read) : []),
   ];
   return {
@@ -110,6 +114,12 @@ export async function validatePath(path: string): Promise<Checked> {
     steps: parsed.ok ? parsed.wizard.steps.length : undefined,
     files: given.files.length,
     issues,
+    ...(parsed.ok
+      ? {
+          inputSchema: inputSchemaOf(parsed.wizard),
+          outputSchema: outputSchemaOf(parsed.wizard),
+        }
+      : {}),
   };
 }
 

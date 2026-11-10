@@ -1,24 +1,24 @@
 ---
 title: Tools, skills and agents in the wizard
-description: Code and instructions a wizard brings in its own files, for its own steps.
+description: Function tools, sandbox tools and skills a wizard brings in its own files, for its own steps.
 version: 0.18.0
 ---
 
-A wizard can bring code of its own in its workspace, the `files/` folder of a `.wizard` file.
-A step names it in `tools`, next to the built-in tools. The wizard stays one file: whoever imports
-it gets the code with it, and needs no plugin.
+A wizard can bring what its steps work with in its own workspace, under `files/` in the
+`.wizard` file. Its steps use it like the space’s own, and other wizards don’t see it. The
+wizard stays one file: whoever imports it gets its tools and skills with it, and needs no plugin.
 
-This page covers function tools, sandbox tools and skills. Agents in the wizard follow.
-
-Code in a wizard runs only where the switch `codeSteps` is on, the same switch as for
-[code steps](./agent-steps.md#code-steps). The wizard’s [`requires`](./index.md#what-a-wizard-needs)
-says so: its tools are in `tools`, `run` holds `code` and `features` holds `codeSteps`. A sandbox
-tool adds `sandbox: "shell"`.
+This page covers function tools first, then sandbox tools and skills. Agents in the wizard follow.
 
 ## Function tools
 
 A function tool is a fixed computation or one API call that the model calls when it needs it.
-The model decides when and with what arguments. The code does the same thing every time.
+The model decides when and with what arguments. The code does the same thing every time. A step
+names it in `tools`, next to the built-in tools.
+
+Code in a wizard runs only where the switch `codeSteps` is on, the same switch as for
+[code steps](./agent-steps.md#code-steps). The wizard’s [`requires`](./index.md#what-a-wizard-needs)
+says so: its tools are in `tools`, `run` holds `code` and `features` holds `codeSteps`.
 
 | You need | Use |
 |---|---|
@@ -116,6 +116,9 @@ A sandbox tool is a script with a fixed entry point, such as a Python program th
 file. It runs in the run’s sandbox, so it can use Python, Node, the shell and packages it
 installs. The model calls it with typed arguments and gets typed output back. It never sees the
 script.
+
+Like a function tool, it runs only where the switch `codeSteps` is on. Its wizard’s `requires`
+holds `sandbox: "shell"` too.
 
 | You need | Use |
 |---|---|
@@ -278,6 +281,9 @@ same as for [sandbox tools](#where-it-runs): on your computer, and in the cloud 
 sandbox is switched on.
 
 Without the sandbox, the skill’s text still counts and its scripts don’t run.
+
+A wizard with a `sandbox` step has `"sandbox": "shell"` in its `requires`. On a runtime
+without a sandbox the step works on in text, and the run’s log says so.
 
 ### When to write one
 
