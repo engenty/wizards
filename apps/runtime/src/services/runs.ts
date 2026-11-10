@@ -507,6 +507,7 @@ export async function draftStepView(
       tenantId: w.tenantId,
       files: [],
       grant: null,
+      tokenId: null,
       version: null,
       mode: "test" as const,
       runner: null,

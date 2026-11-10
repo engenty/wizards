@@ -1,0 +1,1 @@
+ALTER TABLE `run` ADD `token_id` text;

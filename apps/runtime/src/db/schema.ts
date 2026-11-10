@@ -362,6 +362,12 @@ export const run = sqliteTable(
      * on a run from before grants were kept, filled from its definition on first use.
      */
     grant: text("grant", { mode: "json" }).$type<Grant | null>(),
+    /**
+     * The id (`jti`) of the run's token (broker/token.ts), drawn once when the run starts. The
+     * token itself is never kept: it is signed again from the run. Null on a run from before
+     * tokens, which no token opens.
+     */
+    tokenId: text("token_id"),
     version: integer("version"),
     mode: text("mode", { enum: ["test", "live"] }).notNull(),
     /** The door the run came through: steps, chat, or a plugin's runner. Null: the page. */

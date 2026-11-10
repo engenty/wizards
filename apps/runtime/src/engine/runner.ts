@@ -603,6 +603,8 @@ export async function createRun(input: {
     definition: input.definition,
     files: input.files,
     grant,
+    // The run's token is signed from the run with this id whenever it is needed (broker/token.ts).
+    tokenId: nanoid(24),
     version: input.version,
     mode: input.mode,
     runner: input.runner ?? null,
