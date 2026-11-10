@@ -32,6 +32,7 @@ import type {
   ColorSection,
   LogoSection,
   SpaceFact,
+  SpaceFileView,
   TextStyle,
   VoiceBlock,
 } from "./spaces.js";
@@ -333,6 +334,9 @@ export interface RunBrand {
   facts?: SpaceFact[];
 }
 
+/** A file of the space that is ready to use: a logo, a pattern, an asset, a document. */
+export type RunSpaceFile = Pick<SpaceFileView, "id" | "kind" | "name" | "mime" | "description">;
+
 /** What the model is told beside a step's task. */
 export interface StepSetting {
   /** Today's date as the wizard's people write it. */
@@ -340,15 +344,31 @@ export interface StepSetting {
   /** The wizard's language code. */
   lang: string;
   brand: RunBrand;
+  /** The space's files, the logos and images a document may place among them. */
+  files: RunSpaceFile[];
   /** What the space's Knowledge holds for the run, and how to read it; empty: nothing. */
   knowledge: string;
   /** The skills that count in the step, as its instructions name them; empty: none. */
   skills: string;
+  /**
+   * What the space's plugins hold for its wizards: `blocks` for an agent step's instructions,
+   * `html` for a step that writes HTML.
+   */
+  plugins: { blocks: string[]; html: string[] };
 }
 
 export interface ContextService {
-  /** `tools`: the step's model can call tools; without, only the skills always on are named. */
-  forStep(stepId: string, options?: { tools?: boolean }): Promise<StepSetting>;
+  /**
+   * `tools`: the step's model can call tools; without, only the skills always on are named.
+   * `sandbox`: the step lists the sandbox tool; skills' scripts are named where the run has one.
+   */
+  forStep(stepId: string, options?: { tools?: boolean; sandbox?: boolean }): Promise<StepSetting>;
+  /**
+   * Gets the person's answers ready for a step that works on its own: a voice note is listened
+   * to once and kept as text with the answer, a recording or signature that is not the run's own
+   * upload is dropped. Changes the run's values; what is already done costs nothing.
+   */
+  prepareInputs(stepId: string): Promise<void>;
 }
 
 // --- files -------------------------------------------------------------------------------------

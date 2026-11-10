@@ -203,6 +203,7 @@ describe("a step with a schema, run", () => {
     def: wizard(),
     space: { id: "p" },
     dataSpace: { id: "p", name: "" },
+    spaceFiles: [],
     // Who holds the run, and its wizard: what a step reads Knowledge as.
     holder: { kind: "guest", id: "v" },
     store: { wizardId: "w", holder: "g:v" },

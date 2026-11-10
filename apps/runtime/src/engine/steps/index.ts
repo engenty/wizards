@@ -3,7 +3,6 @@ import type { StepOutput } from "@engenty/wizards-shared/run";
 import { runMotionGraphicsStep } from "../../motion-graphics/step.js";
 import { runWidgetStep } from "../../widgets/step.js";
 import { runCodeStep } from "../code-step.js";
-import { prepareInputs } from "../prepare.js";
 import { runSurfaceStep } from "../surface.js";
 import { type StepContext, StepError } from "../types.js";
 import { runAgentStep } from "./agent.js";
@@ -13,7 +12,7 @@ import { runToolStep } from "./tool.js";
 export { outputSchema, ownJson, runAgentStep } from "./agent.js";
 
 export async function runAutomaticStep(step: Step, ctx: StepContext): Promise<StepOutput> {
-  await prepareInputs(ctx);
+  await ctx.services.context.prepareInputs(step.id);
   if (step.type === "agent") {
     return runAgentStep(step, ctx);
   }

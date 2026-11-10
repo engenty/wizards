@@ -1,4 +1,5 @@
-import { langNameEn, localeOf, wizardLang } from "@engenty/wizards-shared/definition";
+import { langNameEn } from "@engenty/wizards-shared/definition";
+import type { RunBrand } from "@engenty/wizards-shared/run-services";
 import { ruleLines } from "@engenty/wizards-shared/spaces";
 import { prompt } from "../../prompts.js";
 import { contentPolicy } from "../../safety.js";
@@ -12,17 +13,8 @@ import {
 } from "../template.js";
 import type { StepContext } from "../types.js";
 
-/** Today's date as the wizard's people write it. */
-export function today(ctx: StepContext): string {
-  return new Date().toLocaleDateString(localeOf(wizardLang(ctx.def)), {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-export function brandBlock(ctx: StepContext): string {
-  const b = ctx.scope.brand;
+/** The space the wizard belongs to, as the model is told of it. */
+export function brandBlock(b: RunBrand): string {
   const parts = [
     b.name,
     b.brandName && b.brandName !== b.name ? `Brand name, written as it is: ${b.brandName}` : "",
