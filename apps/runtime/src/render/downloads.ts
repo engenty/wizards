@@ -7,6 +7,7 @@ import {
   widgetSize,
 } from "@engenty/wizards-shared/definition";
 import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
+import { shapeOfSchema } from "@engenty/wizards-shared/shape";
 import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
 import { listAsMarkdown } from "@engenty/wizards-shared/store";
 import { and, eq } from "drizzle-orm";
@@ -208,7 +209,7 @@ export async function renderDownload(
     const text = output.text ?? "";
     if (step.output.format === "json") {
       // A step with a schema: its lists by their labels, the tree as headings.
-      const shape = step.output.schema;
+      const shape = step.output.schema ? shapeOfSchema(step.output.schema) : undefined;
       const data = (output.json ?? {}) as Record<string, unknown>;
       const rows = shape ? shapedCsvRows(shape, data) : firstTable(output.json);
       const tables = shape ? shapedTables(shape, data) : allTables(output.json);

@@ -7,6 +7,7 @@ import {
   MAKER_CLASSES,
   MAKERS,
   outputFieldSchema,
+  requiresSchema,
   STEP_CLASSES,
   stepSchema,
   TEXT_CLASSES,
@@ -82,7 +83,10 @@ const STEP_BASE = stepSchema.options
 describe("the format's reference lists", () => {
   it("step types", () => {
     const types = sorted(stepSchema.options.map((o) => o.shape.type.value as string));
-    const guide = sorted([...GUIDE.matchAll(/\btype: "([\w-]+)"/g)].map((m) => m[1]));
+    // A step type's own line, or the first key of a one-line type; not a schema's "type".
+    const guide = sorted(
+      [...GUIDE.matchAll(/(?:^ *|Step = \{ )type: "([\w-]+)"/gm)].map((m) => m[1]),
+    );
     expect(guide).toEqual(types);
     // The index lists every type but `wait`, which comes with runs that last days.
     const docs = firstColumn(doc("index"), "Type");
@@ -121,6 +125,13 @@ describe("the format's reference lists", () => {
         expect(page.includes(`\`${key}\``), `docs: ${name} ${key}`).toBe(true);
       }
     }
+  });
+
+  it("what a wizard needs", () => {
+    expect(firstColumn(doc("index"), "`requires` key")).toEqual(
+      sorted(Object.keys(requiresSchema.shape)),
+    );
+    expect(GUIDE).toContain("requires?:");
   });
 
   it("tool ids", () => {

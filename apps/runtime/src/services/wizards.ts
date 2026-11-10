@@ -11,6 +11,7 @@ import {
   type WizardDefinition,
   wizardSchema,
 } from "@engenty/wizards-shared/definition";
+import { withRequires } from "@engenty/wizards-shared/requires";
 import { note } from "@engenty/wizards-shared/run";
 import { inputSchemaOf, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
@@ -226,7 +227,13 @@ async function pluginIssues(draft: WizardDefinition) {
   const issues: ValidationIssue[] = [];
   let known: Set<string> | null = null;
   for (const step of draft.steps) {
-    for (const id of step.type === "agent" ? step.tools : []) {
+    const tools =
+      step.type === "agent"
+        ? step.tools
+        : step.type === "tool" && "tool" in step.call
+          ? [step.call.tool]
+          : [];
+    for (const id of tools) {
       const named = pluginToolOf(id);
       if (!named) {
         continue;
@@ -479,7 +486,9 @@ export function parseDraft(
       },
     );
   }
-  return { draft: parsed.data, issues: validateWizard(parsed.data, files) };
+  // Every writer saves `requires` as the steps say.
+  const draft = withRequires(parsed.data);
+  return { draft, issues: validateWizard(draft, files) };
 }
 
 export async function createWizard(

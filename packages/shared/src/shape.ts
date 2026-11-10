@@ -2,10 +2,13 @@
 import { z } from "zod";
 
 /**
- * What an agent step's json output holds, in the kinds wizards already use: `output.schema`.
- * Text, numbers, yes/no, a choice, an entry of another list by its id (`ref`), and lists — of
- * these or of objects (entries) with lists of their own — every one with a label. The runtime builds the model's JSON Schema from
- * it, the admin shows and edits the data by it, downloads and views read it.
+ * What a step's json output holds. `output.schema` writes it as a subset of JSON Schema
+ * (`ObjectSchema`): strings, numbers, booleans, arrays and objects, with `title`, `description`,
+ * `enum`, and `x-` keys of wizards' own: `x-long`, `x-unit`, `x-yes`/`x-no`, `x-ref`. It reads as
+ * a shape (`ObjectShape`, `shapeOfSchema`) in kinds: text, a number, yes/no, a choice, an entry of
+ * another list by its id (`ref`), and lists — of these or of objects (entries) with lists of their
+ * own — every one with a label. The runtime builds the model's JSON Schema from the shape, the
+ * admin shows and edits the data by it, downloads and views read it.
  *
  * `output.fields`, the short form, compiles to the same shape (`shapeOfFields`); two kinds exist
  * only there: `score` (a decision's levels) and `table` (rows of text or numbers, columns named
@@ -42,88 +45,123 @@ export type ScoreShape = Named & { kind: "score"; options: string[] };
 export type TableShape = Named & { kind: "table"; columns?: string[] };
 export type FieldShape = LeafShape | ListShape | ScoreShape | TableShape;
 
+interface Titled {
+  /** What people read: a column's head, a part's title, "add …". Without one, the key. */
+  title?: string;
+  /** What the model is to put there. */
+  description?: string;
+}
+
+/** Text; with `enum` one of its values, with `x-ref` the id of an entry of a top-level array. */
+export type StringSchema = Titled & {
+  type: "string";
+  enum?: string[];
+  /** Paragraphs, not a line. */
+  "x-long"?: boolean;
+  /** The key of a top-level array of objects whose entries have an `id`. */
+  "x-ref"?: string;
+};
+export type NumberSchema = Titled & { type: "number" /** "min", "€" */; "x-unit"?: string };
+/** `x-yes` / `x-no`: the words people read for true and false. */
+export type BooleanSchema = Titled & { type: "boolean"; "x-yes"?: string; "x-no"?: string };
+export type LeafSchema = StringSchema | NumberSchema | BooleanSchema;
+export type ArraySchema = Titled & { type: "array"; items: LeafSchema | ObjectSchema };
+export interface ObjectSchema extends Titled {
+  type: "object";
+  properties: Record<string, LeafSchema | ArraySchema>;
+  /** Every key: a model fills each one. Left out, it means the same. */
+  required?: string[];
+  additionalProperties?: false;
+}
+
 const key = z
   .string()
   .regex(/^[a-zA-Z][a-zA-Z0-9_]{0,40}$/, "keys are letters, digits and _ and start with a letter");
 
-const named = {
-  label: z.string().min(1).optional(),
+const titled = {
+  title: z.string().min(1).optional(),
   description: z.string().optional(),
 };
 
 const leaves = [
-  z.object({ kind: z.literal("text"), ...named, long: z.boolean().optional() }),
-  z.object({ kind: z.literal("number"), ...named, unit: z.string().optional() }),
+  z
+    .object({
+      type: z.literal("string"),
+      ...titled,
+      enum: z.array(z.string().min(1)).min(2).max(40).optional(),
+      "x-long": z.boolean().optional(),
+      "x-ref": key.optional(),
+    })
+    .refine((s) => !(s.enum && s["x-ref"]), {
+      message: 'A string has "enum" or "x-ref", not both.',
+    }),
+  z.object({ type: z.literal("number"), ...titled, "x-unit": z.string().optional() }),
   z.object({
-    kind: z.literal("yesno"),
-    ...named,
-    yes: z.string().optional(),
-    no: z.string().optional(),
+    type: z.literal("boolean"),
+    ...titled,
+    "x-yes": z.string().optional(),
+    "x-no": z.string().optional(),
   }),
-  z.object({
-    kind: z.literal("choice"),
-    ...named,
-    options: z.array(z.string().min(1)).min(2).max(40),
-  }),
-  z.object({ kind: z.literal("ref"), ...named, to: key }),
 ] as const;
 
-const LEAF_KINDS = "text, number, yesno, choice, ref";
+const LEAF_TYPES = "string, number, boolean";
 
 /**
- * The shape of an object `depth` deep, built level by level instead of recursively: JSON Schema
- * of the definition takes no $ref, and the depth is part of the schema. Objects are the entries
- * of lists (and the step's own); a field holding one object would only add a level.
+ * The schema of an object `depth` deep, built level by level instead of recursively: JSON Schema
+ * of the definition takes no $ref, and the depth is part of the schema. Objects are the items of
+ * arrays (and the step's own); a property holding one object would only add a level.
  */
 function objectAt(depth: number): z.ZodObject {
   const deeper: z.ZodObject | undefined = depth < MAX_SHAPE_DEPTH ? objectAt(depth + 1) : undefined;
-  const of = deeper
-    ? z.discriminatedUnion("kind", [...leaves, deeper], {
-        error: `A list holds ${LEAF_KINDS} or object.`,
+  const items = deeper
+    ? z.discriminatedUnion("type", [...leaves, deeper], {
+        error: `An array holds ${LEAF_TYPES} or object.`,
       })
-    : z.discriminatedUnion("kind", [...leaves], {
-        error: `A list this deep holds ${LEAF_KINDS}: objects nest at most ${MAX_SHAPE_DEPTH} deep.`,
+    : z.discriminatedUnion("type", [...leaves], {
+        error: `An array this deep holds ${LEAF_TYPES}: objects nest at most ${MAX_SHAPE_DEPTH} deep.`,
       });
-  const list = z.object({ kind: z.literal("list"), ...named, of });
-  const field = z.discriminatedUnion("kind", [...leaves, list], {
-    error: `"kind" is one of ${LEAF_KINDS}, list.`,
+  const array = z.object({ type: z.literal("array"), ...titled, items });
+  const property = z.discriminatedUnion("type", [...leaves, array], {
+    error: `"type" is one of ${LEAF_TYPES}, array.`,
   });
   return z.object({
-    kind: z.literal("object"),
-    ...named,
-    fields: z
-      .record(key, field)
-      .refine((f) => Object.keys(f).length > 0, { message: "An object has fields." }),
+    type: z.literal("object"),
+    ...titled,
+    properties: z
+      .record(key, property)
+      .refine((p) => Object.keys(p).length > 0, { message: "An object has properties." }),
+    required: z.array(key).optional(),
+    additionalProperties: z.literal(false).optional(),
   });
 }
 
-/** Every object of a shape with where it sits, the shape's own first. */
-function objectsOf(shape: ObjectShape, at: (string | number)[] = []) {
-  const out: { shape: ObjectShape; at: (string | number)[] }[] = [{ shape, at }];
-  for (const [k, f] of Object.entries(shape.fields)) {
-    if (f.kind === "list" && f.of.kind === "object") {
-      out.push(...objectsOf(f.of, [...at, "fields", k, "of"]));
+/** Every object of a schema with where it sits, the schema's own first. */
+function objectsOf(schema: ObjectSchema, at: (string | number)[] = []) {
+  const out: { schema: ObjectSchema; at: (string | number)[] }[] = [{ schema, at }];
+  for (const [k, p] of Object.entries(schema.properties)) {
+    if (p.type === "array" && p.items.type === "object") {
+      out.push(...objectsOf(p.items, [...at, "properties", k, "items"]));
     }
   }
   return out;
 }
 
-/** The list a `ref` points into: a top-level list of objects with an `id`. Null when it is fine. */
-function refProblem(root: ObjectShape, to: string): string | null {
-  const target = root.fields[to];
-  if (target?.kind !== "list" || target.of.kind !== "object") {
-    return `"ref" to "${to}": that is no list of objects at the top of the schema.`;
+/** The array an `x-ref` points into: a top-level array of objects with an `id`. Null when fine. */
+function refProblem(root: ObjectSchema, to: string): string | null {
+  const target = root.properties[to];
+  if (target?.type !== "array" || target.items.type !== "object") {
+    return `"x-ref" to "${to}": that is no array of objects at the top of the schema.`;
   }
-  return target.of.fields.id?.kind === "text"
+  return target.items.properties.id?.type === "string"
     ? null
-    : `"ref" to "${to}": its entries need an "id" text field to be pointed at.`;
+    : `"x-ref" to "${to}": its items need an "id" string to be pointed at.`;
 }
 
-/** `output.schema`: what the step returns. */
-export const outputShapeSchema = (objectAt(1) as unknown as z.ZodType<ObjectShape>).superRefine(
-  (shape, ctx) => {
-    const objects = objectsOf(shape);
-    const keys = objects.reduce((n, o) => n + Object.keys(o.shape.fields).length, 0);
+/** `output.schema`: what the step returns, as the subset of JSON Schema it is written in. */
+export const outputSchemaSchema = (objectAt(1) as unknown as z.ZodType<ObjectSchema>).superRefine(
+  (schema, ctx) => {
+    const objects = objectsOf(schema);
+    const keys = objects.reduce((n, o) => n + Object.keys(o.schema.properties).length, 0);
     if (keys > MAX_SHAPE_KEYS) {
       ctx.addIssue({
         code: "custom",
@@ -131,16 +169,78 @@ export const outputShapeSchema = (objectAt(1) as unknown as z.ZodType<ObjectShap
       });
     }
     for (const o of objects) {
-      for (const [k, f] of Object.entries(o.shape.fields)) {
-        const ref = f.kind === "ref" ? f : f.kind === "list" && f.of.kind === "ref" ? f.of : null;
-        const problem = ref ? refProblem(shape, ref.to) : null;
+      const names = Object.keys(o.schema.properties);
+      const required = o.schema.required;
+      if (
+        required &&
+        (required.length !== names.length || names.some((n) => !required.includes(n)))
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: '"required" names every property: a model fills each one.',
+          path: [...o.at, "required"],
+        });
+      }
+      for (const [k, p] of Object.entries(o.schema.properties)) {
+        const leaf = p.type === "array" ? p.items : p;
+        const ref = leaf.type === "string" ? leaf["x-ref"] : undefined;
+        const problem = ref ? refProblem(schema, ref) : null;
         if (problem) {
-          ctx.addIssue({ code: "custom", message: problem, path: [...o.at, "fields", k] });
+          ctx.addIssue({ code: "custom", message: problem, path: [...o.at, "properties", k] });
         }
       }
     }
   },
 );
+
+const shapes = new WeakMap<ObjectSchema, ObjectShape>();
+
+/** A schema as written, read as a shape: what everything that reads a step's data goes by. */
+export function shapeOfSchema(schema: ObjectSchema): ObjectShape {
+  const known = shapes.get(schema);
+  if (known) {
+    return known;
+  }
+  const named = (s: Titled): Named => ({
+    ...(s.title ? { label: s.title } : {}),
+    ...(s.description !== undefined ? { description: s.description } : {}),
+  });
+  const leaf = (s: LeafSchema | ObjectSchema): LeafShape | ObjectShape => {
+    switch (s.type) {
+      case "string":
+        return s.enum
+          ? { kind: "choice", ...named(s), options: s.enum }
+          : s["x-ref"]
+            ? { kind: "ref", ...named(s), to: s["x-ref"] }
+            : { kind: "text", ...named(s), ...(s["x-long"] ? { long: true } : {}) };
+      case "number":
+        return { kind: "number", ...named(s), ...(s["x-unit"] ? { unit: s["x-unit"] } : {}) };
+      case "boolean":
+        return {
+          kind: "yesno",
+          ...named(s),
+          ...(s["x-yes"] ? { yes: s["x-yes"] } : {}),
+          ...(s["x-no"] ? { no: s["x-no"] } : {}),
+        };
+      case "object":
+        return {
+          kind: "object",
+          ...named(s),
+          fields: Object.fromEntries(
+            Object.entries(s.properties).map(([k, p]) => [
+              k,
+              p.type === "array"
+                ? { kind: "list", ...named(p), of: leaf(p.items) as ListShape["of"] }
+                : (leaf(p) as LeafShape),
+            ]),
+          ),
+        };
+    }
+  };
+  const shape = leaf(schema) as ObjectShape;
+  shapes.set(schema, shape);
+  return shape;
+}
 
 /** An output field as `output.fields` writes it. */
 interface ShortField {

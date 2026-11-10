@@ -1002,7 +1002,7 @@ function CodeStepBody({
   const hasEntry = scripts.some((f) => f.path === code.entry);
   const inputs = Object.entries(code.input);
   const returns = step.output.schema
-    ? Object.keys(step.output.schema.fields)
+    ? Object.keys(step.output.schema.properties)
     : (step.output.fields ?? []).map((f) => f.id);
   return (
     <>

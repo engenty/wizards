@@ -120,6 +120,7 @@ const reaching = wizard([
     tools: ["http"],
     connections: ["hub"],
     hosts: ["api.example.com"],
+    output: { format: "markdown" },
   },
   result,
 ]);

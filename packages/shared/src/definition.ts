@@ -3,7 +3,7 @@ import { z } from "zod";
 import { calcNames, calcSchema, calcScope, calcTruthy, calcValue, parsedCalc } from "./calc.js";
 import { tableColumnsSchema } from "./engenty/data-tables/columns.js";
 import { readNumber } from "./numbers.js";
-import { type ObjectShape, outputShapeSchema, shapeOfFields } from "./shape.js";
+import { type ObjectShape, outputSchemaSchema, shapeOfFields, shapeOfSchema } from "./shape.js";
 import { isShareTargetId } from "./sharing.js";
 import { CONNECTION_KINDS } from "./store.js";
 import { type SurfaceComponent, surfaceComponentsSchema, validateSurface } from "./surface.js";
@@ -846,10 +846,10 @@ export const agentStepSchema = z.object({
       /** The short form: one level of keys. A step has `fields` or `schema`, not both. */
       fields: z.array(outputFieldSchema).optional(),
       /**
-       * json only: nested data (lists of entries with lists of their own), in the kinds of
-       * `shape.ts`. Objects nest at most four deep, a hundred keys in all.
+       * json only: nested data (lists of entries with lists of their own), as the subset of JSON
+       * Schema `shape.ts` takes. Objects nest at most four deep, a hundred keys in all.
        */
-      schema: outputShapeSchema.optional(),
+      schema: outputSchemaSchema.optional(),
       /**
        * json only: a view of the result from the surface catalog, bound to the step's own fields;
        * reviews and the result show it instead of a plain table. Components: written once, the
@@ -942,7 +942,7 @@ export const codeStepSchema = z.object({
     input: z.record(z.string(), z.string()).default({}),
   }),
   /** What `run` returns: `fields`, or nested data as `schema`. */
-  output: z.object({ ...fixedOutput, schema: outputShapeSchema.optional() }),
+  output: z.object({ ...fixedOutput, schema: outputSchemaSchema.optional() }),
   /** Shown to the person while it works. */
   working: z.string().optional(),
 });
@@ -1412,7 +1412,7 @@ export function asAgent(step: DataStep): AgentStep {
 export function declaredShape(step: DataStep): ObjectShape | undefined {
   const output = outputOf(step);
   if (output.schema) {
-    return output.schema;
+    return shapeOfSchema(output.schema);
   }
   return output.fields?.length ? shapeOfFields(output.fields) : undefined;
 }
@@ -1476,6 +1476,40 @@ export const connectionSchema = z.object({
   description: z.string().optional(),
 });
 
+/** The switches a definition may need on before a run starts: see `requires.features`. */
+export const REQUIRED_FEATURES = ["durableRuns", "codeSteps"] as const;
+
+const requiredLists = {
+  /** The model classes its steps call, decisions and `ask` rules included. */
+  models: z.array(z.enum(MODEL_CLASSES)).optional(),
+};
+
+/**
+ * What a wizard needs before a run starts. Filled in from the steps (`requiresOf` in
+ * requires.ts), never written by hand: the studio, the architect and the MCP tools write it on
+ * save, and `wizards validate` says where it differs. `optional`: what only steps on branches
+ * some runs take need; a run can go around it.
+ */
+export const requiresSchema = z.object({
+  ...requiredLists,
+  /** The makers steps name. */
+  makers: z.array(z.enum(MAKERS)).optional(),
+  /** The built-in tools steps list. */
+  tools: z.array(z.string().min(1)).optional(),
+  /** `code`: a code step runs the wizard's own function. */
+  run: z.array(z.literal("code")).optional(),
+  /** `shell`: a step works in a sandbox. */
+  sandbox: z.literal("shell").optional(),
+  /** The plugins whose tools steps call, by id. */
+  plugins: z.array(z.string().regex(PLUGIN_ID)).optional(),
+  /** The kinds of the wizard's connections. */
+  connections: z.array(z.enum(CONNECTION_KINDS)).optional(),
+  /** The switches that must be on. */
+  features: z.array(z.enum(REQUIRED_FEATURES)).optional(),
+  optional: z.object(requiredLists).optional(),
+});
+export type Requires = z.infer<typeof requiresSchema>;
+
 /**
  * The version of the definition this app writes and reads. The format is in beta until 1.0: it
  * can change without a new version, and stored definitions are converted once when it does.
@@ -1520,6 +1554,7 @@ export const wizardSchema = z
      * space has. Without any: the space's brand.
      */
     themes: z.array(z.string().regex(THEME_ID)).max(8).optional(),
+    requires: requiresSchema.optional(),
     steps: z.array(stepSchema).min(1),
   })
   .superRefine((def, ctx) => {

@@ -11,6 +11,7 @@ import {
 } from "@engenty/wizards-shared/connectors";
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
+import { withRequires } from "@engenty/wizards-shared/requires";
 import {
   type AskAnswer,
   RUN_EVENT_TYPES,
@@ -51,6 +52,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnySQLiteColumn,
   blob,
+  customType,
   index,
   integer,
   primaryKey,
@@ -67,6 +69,25 @@ import type { DraftChange } from "../services/draft-events.js";
 const now = sql`(unixepoch() * 1000)`;
 const createdAt = () => integer("created_at", { mode: "timestamp_ms" }).notNull().default(now);
 const updatedAt = () => integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now);
+
+/**
+ * A wizard definition as a JSON column. Every write fills in its `requires` from its steps
+ * (requires.ts): drafts, published versions and run snapshots never say less than they need.
+ */
+const definitionColumn = customType<{ data: WizardDefinition; driverData: string }>({
+  dataType: () => "text",
+  toDriver: (value) => JSON.stringify(filledIn(value)),
+  fromDriver: (value) => JSON.parse(value) as WizardDefinition,
+});
+
+function filledIn(def: WizardDefinition): WizardDefinition {
+  try {
+    return withRequires(def);
+  } catch {
+    // A definition that is not whole yet (a draft mid-edit) is kept as it is.
+    return def;
+  }
+}
 
 // One database per tenant holds these tables; `tenant_id` stays in every row so a tenant's
 // rows can be moved or merged. Users and tenants themselves live outside (Manage-App).
@@ -213,7 +234,7 @@ export const wizard = sqliteTable(
       .references(() => space.id, { onDelete: "cascade" }),
     tenantId: text("tenant_id").notNull(),
     title: text("title").notNull(),
-    draft: text("draft", { mode: "json" }).$type<WizardDefinition>().notNull(),
+    draft: definitionColumn("draft").notNull(),
     publishedVersion: integer("published_version"),
     shareToken: text("share_token").notNull(),
     shareEnabled: integer("share_enabled", { mode: "boolean" }).notNull().default(true),
@@ -257,7 +278,7 @@ export const wizardVersion = sqliteTable(
       .notNull()
       .references(() => wizard.id, { onDelete: "cascade" }),
     version: integer("version").notNull(),
-    definition: text("definition", { mode: "json" }).$type<WizardDefinition>().notNull(),
+    definition: definitionColumn("definition").notNull(),
     /** The workspace as it was at publish time. */
     files: text("files", { mode: "json" }).$type<WorkspaceFile[]>().notNull().default([]),
     createdAt: createdAt(),
@@ -332,7 +353,7 @@ export const run = sqliteTable(
       .references(() => wizard.id, { onDelete: "cascade" }),
     tenantId: text("tenant_id").notNull(),
     /** The definition the run started on — edits never reach a running wizard. */
-    definition: text("definition", { mode: "json" }).$type<WizardDefinition>().notNull(),
+    definition: definitionColumn("definition").notNull(),
     /** The workspace the run started with. */
     files: text("files", { mode: "json" }).$type<WorkspaceFile[]>().notNull().default([]),
     /**
