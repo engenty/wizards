@@ -21,7 +21,7 @@ version: 0.18.0
 | `wizards stop` | Stops it, with any other copy of it still running in the background. Your data is kept. AI apps that use your wizards start it again when you use one there |
 | `wizards restart` | Stops it and starts it again; after an update, that is the new version. If it isn’t running, it starts in the background |
 | `wizards update` | Installs the latest version |
-| `wizards sandbox add` / `remove` | Adds the sandbox where AI steps run code, or removes it. It is agentOS, about 340 MB, needs no Docker and runs on macOS and Linux. Without a sandbox, steps can’t run code. It is used from the next start (`wizards restart`). `wizards sandbox` alone shows whether it is there |
+| `wizards sandbox add` / `remove` | Adds the sandbox where AI steps run code, or removes it. It is agentOS, about 480 MB on a Mac and 820 MB on Linux, needs no Docker and runs on macOS and Linux. Without a sandbox, steps can’t run code. It is used from the next start (`wizards restart`). `wizards sandbox` alone shows whether it is there |
 | `wizards autostart on` / `off` | Starts it when you log in, or stops doing so. It is a LaunchAgent on macOS, a systemd user service on Linux and a scheduled task on Windows |
 | `wizards autoupdate on` / `off` | Updates by itself or not. See [Update](./install.md#update) |
 | `wizards connect [app …]` | Adds your wizards to your [AI apps](./ai-apps.md): every app found, or the ones you name |

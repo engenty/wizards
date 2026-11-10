@@ -42,20 +42,6 @@ export function wizardSkillsWithScripts(paths: string[]): string[] {
     .map(([name]) => name);
 }
 
-/**
- * Whether the wizard's skills need a sandbox that runs a shell: one of them brings scripts, and
- * an AI step that sees it has `sandbox` among its tools. Every AI step sees every wizard skill.
- */
-export function wizardSkillsNeedShell(
-  steps: readonly { type: string; tools?: readonly string[] }[],
-  paths: string[],
-): boolean {
-  return (
-    wizardSkillsWithScripts(paths).length > 0 &&
-    steps.some((s) => s.type === "agent" && s.tools?.includes("sandbox"))
-  );
-}
-
 /** The relative files a `SKILL.md` links to: `[…](scripts/fill.py)`, without anchors or URLs. */
 function linkedFiles(body: string): string[] {
   const links = new Set<string>();

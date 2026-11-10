@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { parseWizard, type ValidationIssue } from "@engenty/wizards-shared/definition";
+import { requiresProblem } from "@engenty/wizards-shared/requires";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
 import { WIZARD_SKILLS_DIR, wizardSkillIssues } from "@engenty/wizards-shared/wizard-skills";
 import { json, readManifest, readPackage } from "../services/package-file.js";
@@ -77,7 +78,12 @@ export function validatePath(path: string): Checked {
     return { path, ok: false, issues: [{ message }] };
   }
   const parsed = parseWizard(given.definition, given.files);
-  const issues = [...parsed.issues, ...wizardSkillIssues(given.files, given.skillMds)];
+  // `requires` says what the steps need: a file that says otherwise is out of date.
+  const requires = parsed.ok ? requiresProblem(parsed.wizard) : null;
+  const issues = [
+    ...(requires ? [...parsed.issues, { message: requires }] : parsed.issues),
+    ...wizardSkillIssues(given.files, given.skillMds),
+  ];
   return {
     path,
     ok: parsed.ok && issues.length === 0,

@@ -77,7 +77,7 @@ ${line(`${command()} update`, "install the latest version")}
 ${line(`${command()} autoupdate`, "updates by themselves: add on or off (WIZARDS_DISABLE_AUTOUPDATE=1 is off too)")}
 ${more("(downloaded in the background, used from the next start; never during a run)")}
 ${line(`${command()} sandbox`, "the sandbox where AI steps run code, without Docker: add or remove")}
-${more("(agentOS unless you name another engine, about 340 MB; used from the next start)")}
+${more("(agentOS unless you name another engine, about 480 MB on a Mac, 820 MB on Linux; used from the next start)")}
 ${line(`${command()} autostart`, "start it when you log in to this computer: add on or off")}
 ${more("(macOS: a LaunchAgent; Linux: a systemd user service)")}
 ${line(`${command()} connect`, "add your wizards to your AI apps: every app found, or the ones you name:")}

@@ -64,6 +64,9 @@ your computer and where Docker is the engine. The cloud has no sandbox for wizar
 
 Without the sandbox, the skill’s text still counts and its scripts don’t run.
 
+A wizard with a `sandbox` step has `"sandbox": "shell"` in its `requires`. On a runtime
+without a sandbox the step works on in text, and the run’s log says so.
+
 ### When to write one
 
 A skill is for open work, where the model decides what to read and what to run: a house style,

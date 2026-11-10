@@ -1104,7 +1104,8 @@ function printStep(step: Json): string {
 
 /** A definition as text: how a model reads an existing wizard in the form it writes one. */
 export function printWizardText(def: WizardDefinition): string {
-  const { steps, ...top } = def as unknown as Json & { steps: Json[] };
+  // `requires` is worked out from the steps again when the text is saved.
+  const { steps, requires: _, ...top } = def as unknown as Json & { steps: Json[] };
   const head = openTag("Wizard", withoutDefaults("wizard", top), ["title", "description"]);
   return [`${head}>`, ...steps.map(printStep), "</Wizard>", ""].join("\n");
 }

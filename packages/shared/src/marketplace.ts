@@ -7,6 +7,7 @@ import {
   type WizardDefinition,
 } from "./definition.js";
 import { CAPABILITY_IDS, type Capability } from "./fit.js";
+import { pluginsOf } from "./requires.js";
 import { type Gap, type Line, type Texts, textOf } from "./texts.js";
 
 /**
@@ -299,25 +300,7 @@ export function capabilitiesOf(def: WizardDefinition): Capability[] {
   return CAPABILITY_IDS.filter((c) => found.has(c));
 }
 
-/** The plugins a definition's steps use, by id: a runtime without one of them cannot run it. */
-export function pluginsOf(def: WizardDefinition): string[] {
-  const found = new Set<string>();
-  for (const step of def.steps) {
-    if (step.type === "agent" || (step.type === "tool" && "tool" in step.call)) {
-      for (const tool of step.type === "tool" && "tool" in step.call
-        ? [step.call.tool]
-        : step.type === "agent"
-          ? step.tools
-          : []) {
-        const of = pluginToolOf(tool);
-        if (of) {
-          found.add(of.plugin);
-        }
-      }
-    }
-  }
-  return [...found].sort();
-}
+export { pluginsOf };
 
 /** The plan a wizard needs: Pro as soon as it uses a plugin. */
 export const planOf = (plugins: readonly string[]): MarketplacePlan =>

@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
-import { lstatSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { installedByScript, installedScript, type Layout } from "./home.js";
+import { installedByScript, installedScript, type Layout, packageRoot } from "./home.js";
 import { findOnPath } from "./machine.js";
 
 const run = promisify(execFile);
@@ -23,6 +23,79 @@ export const LOGIN_ITEM = join(homedir(), "Library", "LaunchAgents", `${LOGIN_LA
 
 const xml = (text: string) =>
   text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+/**
+ * The app the LaunchAgent starts on a Mac, `tools/engenty wizards.app`: it runs the install's
+ * command, and gives the login item its name and icon in System Settings › Login Items.
+ */
+export function loginApp(paths: Layout): string {
+  return join(paths.tools, "engenty wizards.app");
+}
+
+const LOGIN_APP_INFO = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.engenty.wizards.login</string>
+  <key>CFBundleName</key>
+  <string>engenty wizards</string>
+  <key>CFBundleExecutable</key>
+  <string>wizards</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>LSUIElement</key>
+  <true/>
+</dict>
+</plist>
+`;
+
+/** Writes a file only where it differs, so that a start finds nothing to change. */
+function keep(file: string, content: string | Buffer, mode?: number) {
+  try {
+    if (readFileSync(file).equals(Buffer.from(content))) {
+      return;
+    }
+  } catch {
+    mkdirSync(dirname(file), { recursive: true });
+  }
+  writeFileSync(file, content);
+  if (mode) {
+    chmodSync(file, mode);
+  }
+}
+
+/** The LaunchAgent and the app it starts, as this version writes them. */
+export function writeMacLoginItem(paths: Layout, item = LOGIN_ITEM) {
+  const app = join(loginApp(paths), "Contents");
+  const command = join(paths.home, "bin", "wizards");
+  keep(join(app, "Info.plist"), LOGIN_APP_INFO);
+  keep(
+    join(app, "Resources", "AppIcon.icns"),
+    readFileSync(join(packageRoot, "apps", "runtime", "assets", "mac", "AppIcon.icns")),
+  );
+  keep(
+    join(app, "MacOS", "wizards"),
+    `#!/bin/sh\nexec '${command.replaceAll("'", "'\\''")}' "$@"\n`,
+    0o755,
+  );
+  keep(
+    item,
+    loginItemText(join(app, "MacOS", "wizards"), join(paths.home, "logs", "autostart.log")),
+  );
+}
+
+/**
+ * A login item made by an earlier version, written as this one writes it: on a Mac the app with
+ * the icon. Takes effect at the next login; a login item that is off stays off.
+ */
+export function refreshLoginItem(paths: Layout) {
+  if (process.platform === "darwin" && installedByScript(paths) && present(LOGIN_ITEM)) {
+    writeMacLoginItem(paths);
+  }
+}
 
 /** The LaunchAgent: the command of this install, started again when it fails. */
 export function loginItemText(command: string, log: string): string {
@@ -280,16 +353,10 @@ export async function setAutostart(paths: Layout, on: boolean): Promise<Autostar
   if (process.platform === "darwin") {
     // Takes effect at the next login; nothing is started or stopped now.
     if (on) {
-      mkdirSync(dirname(LOGIN_ITEM), { recursive: true });
-      writeFileSync(
-        LOGIN_ITEM,
-        loginItemText(
-          join(paths.home, "bin", "wizards"),
-          join(paths.home, "logs", "autostart.log"),
-        ),
-      );
+      writeMacLoginItem(paths);
     } else {
       rmSync(LOGIN_ITEM, { force: true });
+      rmSync(loginApp(paths), { recursive: true, force: true });
     }
     return { on: present(LOGIN_ITEM), how: MAC_HOW };
   }

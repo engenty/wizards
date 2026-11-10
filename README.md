@@ -135,7 +135,7 @@ pnpm wizards
 pnpm may list “Ignored build scripts” – that’s expected, nothing to do.
 
 Code steps (shell, Node, Python) run in a sandbox. `wizards sandbox add` installs one (about
-340 MB, no Docker needed); a checkout also uses Docker when the sandbox image is on the machine.
+480 MB on a Mac, 820 MB on Linux, no Docker needed); a checkout also uses Docker when the sandbox image is on the machine.
 
 ## First start
 

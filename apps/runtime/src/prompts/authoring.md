@@ -113,6 +113,7 @@ type Wizard = {
   lists?: List[]                // tabular data the wizard KEEPS between runs — separately for each person who runs it, or for all with "shared"
   connections?: Connection[]    // accounts the PERSON connects during a run (their mailbox); kept for their next run
   themes?: string[]             // ids of the space's themes the wizard offers, in order (see Theme) — leave it out to look like the space's brand
+  requires?: { … }              // what a run needs (models, tools, plugins, switches …): filled in from the steps on every save. Never write it
   steps: Step[]                 // run top to bottom; the LAST step is always a "result"
 }
 
