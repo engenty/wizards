@@ -49,7 +49,8 @@ vi.mock("../src/tools/index.js", () => ({
   buildStepTools: async () => ({ tools: {}, assets: [] }),
 }));
 vi.mock("../src/tools/store.js", () => ({ personUploads: async () => [] }));
-vi.mock("../src/tools/plugin.js", () => ({
+vi.mock("../src/tools/plugin.js", async (original) => ({
+  ...(await original<typeof import("../src/tools/plugin.js")>()),
   callPluginTool: async () => null,
   spaceContextOf: async () => ({ blocks: [] }),
 }));
