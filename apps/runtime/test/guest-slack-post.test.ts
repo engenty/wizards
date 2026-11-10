@@ -152,7 +152,6 @@ function contextOf(runId: string, stepId: string, holder: Holder) {
   ctx.services = runServices.inProcessServices(
     { id: runId, definition } as never,
     () => ctx,
-    (s, c) => steps.runAgentStep(s, c),
   );
   return ctx;
 }
