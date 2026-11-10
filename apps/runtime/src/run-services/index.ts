@@ -1,12 +1,10 @@
 import type { StepOutput } from "@engenty/wizards-shared/run";
-import {
-  type DataStatementRequest,
-  type ModelsService,
-  type RunServices,
-  ServiceError,
-  type TurnMessage,
-  type TurnPart,
-  type TurnRequest,
+import type {
+  ModelsService,
+  RunServices,
+  TurnMessage,
+  TurnPart,
+  TurnRequest,
 } from "@engenty/wizards-shared/run-services";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import {
@@ -21,11 +19,9 @@ import {
   type UserModelMessage,
 } from "ai";
 import { eq } from "drizzle-orm";
-import { subjectsOf } from "../broker/rwx.js";
 import { addLocalCost } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { decide } from "../decide.js";
-import { stepCaller } from "../elements/caller.js";
 import { noticesFor, noticeWrites } from "../engine/notices.js";
 import { runAgentStep } from "../engine/steps/agent.js";
 import { runGenerateStep } from "../engine/steps/generate.js";
@@ -43,10 +39,9 @@ import {
   totalUsage,
 } from "../models.js";
 import { runMotionGraphicsStep } from "../motion-graphics/step.js";
-import { runData } from "../store/data-access.js";
-import { listRows } from "../store/index.js";
 import { runWidgetStep } from "../widgets/step.js";
 import { contextService } from "./context.js";
+import { dataService } from "./data.js";
 import { filesService, type InProcessFiles } from "./files.js";
 import { type InProcessTools, inProcessTools } from "./tools.js";
 
@@ -224,27 +219,7 @@ export function inProcessServices(run: RunRow, ctx: () => StepContext): InProces
 
     files: filesService(run, ctx),
 
-    data: {
-      query: (request) => statement(at(request.stepId), request, "read"),
-      exec: (request) => statement(at(request.stepId), request, "write"),
-      async rows(listId) {
-        const c = ctx();
-        const def = run.definition.lists?.find((l) => l.id === listId);
-        if (!def) {
-          throw new ServiceError({ class: "final" }, `No list ${listId} in this wizard.`);
-        }
-        return { def, rows: await listRows(c.store, def, subjectsOf(c)) };
-      },
-      async counts() {
-        const c = ctx();
-        const who = subjectsOf(c);
-        const counts: Record<string, number> = {};
-        for (const def of run.definition.lists ?? []) {
-          counts[def.id] = (await listRows(c.store, def, who)).length;
-        }
-        return counts;
-      },
-    },
+    data: dataService(run, ctx, at),
 
     steps: {
       run(step): Promise<StepOutput> {
@@ -274,22 +249,6 @@ export function inProcessServices(run: RunRow, ctx: () => StepContext): InProces
       },
     },
   };
-}
-
-/** One statement on the wizard's own database, as the data tools and the data step run it. */
-function statement(c: StepContext, request: DataStatementRequest, mode: "read" | "write") {
-  return runData(
-    stepCaller(c),
-    { def: c.def, files: c.files, store: c.store },
-    {
-      action: request.by === "wizard" ? "data_step" : mode === "read" ? "data_query" : "data_exec",
-      by: request.by,
-      scope: request.scope,
-      sql: request.sql,
-      params: request.params,
-      mode,
-    },
-  );
 }
 
 /** A message as the AI SDK takes it. */
