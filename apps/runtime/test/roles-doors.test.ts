@@ -36,6 +36,7 @@ describe("RUNTIME_ROLE=doors", () => {
       runner: false,
       api: false,
       vectors: false,
+      runServices: false,
     });
     expect(env.publicUrl).toBe(env.appUrl);
     expect((await get("/api/health")).status).toBe(200);

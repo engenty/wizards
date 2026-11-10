@@ -71,7 +71,7 @@ const port = num("API_PORT", 24368);
 const fromSource = import.meta.url.endsWith(".ts");
 const sandboxImage = str("SANDBOX_IMAGE", "engenty-sandbox:latest");
 
-const ROLES = ["studio", "doors", "api", "web", "runner", "all"] as const;
+const ROLES = ["studio", "doors", "api", "web", "runner", "broker", "all"] as const;
 type Role = (typeof ROLES)[number];
 
 function role(): Role {
@@ -101,8 +101,11 @@ export const env = {
    * plugins' public routes). `api`: outside clients alone, MCP and `/api/v1`, so they scale and
    * fail apart from the studio (docs/plans/modular.md); `studio` serves them too until the cloud
    * routes them to an `api` process. `web`: both halves. `runner`: takes the runs that wait and drives
-   * them (it serves the routes too, for what the web hands it). `all`: everything in one process
-   * (a runtime that runs alone). docs/plans/runner-process.md.
+   * them (it serves the routes too, for what the web hands it). `broker`: a run's services, what
+   * a run asks for with its token (docs/plans/broker.md, phase 3); no page, no other route, no
+   * run of its own, no sweep; `runner` and `all` serve them too until the cloud runs a broker
+   * apart. `all`: everything in one process (a runtime that runs alone).
+   * docs/plans/runner-process.md.
    */
   role: role(),
   /** Which parts this process serves, from its role. */
@@ -113,6 +116,8 @@ export const env = {
     api: ["api", "studio", "web", "runner", "all"].includes(role()),
     /** The index's sweeps, in one process of a runtime: a runner serves the studio's routes too. */
     vectors: ["studio", "web", "all"].includes(role()),
+    /** A run's services over HTTP, `/api/run-services/v1` (docs/plans/runs-on-their-own.md). */
+    runServices: ["broker", "runner", "all"].includes(role()),
   },
   runner: {
     /** This runner's name in the control database; a new one each start. */
