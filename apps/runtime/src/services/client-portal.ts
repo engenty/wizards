@@ -1,4 +1,5 @@
 import { featureOn } from "@engenty/wizards-shared/features";
+import { shownStatus } from "@engenty/wizards-shared/run";
 import { whoOf } from "@engenty/wizards-shared/run-view";
 import { and, desc, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
 import type { SessionUser } from "../auth/index.js";
@@ -251,7 +252,7 @@ const resultOf = (who: ClientWho, titles: Map<string, string>) => (r: RunRow) =>
   wizardId: r.wizardId,
   title: titles.get(r.wizardId) ?? r.definition.title,
   avatar: r.definition.avatar,
-  status: r.status,
+  status: shownStatus(r),
   mine: r.userId === who.id,
   sharedAt: r.clientSharedAt?.toISOString() ?? null,
   updatedAt: r.updatedAt.toISOString(),
@@ -474,7 +475,7 @@ export async function clientChatMessages(who: ClientWho, chatId: string) {
             wizardId: run.wizardId,
             title: titles.get(run.wizardId) ?? run.definition.title,
             avatar: run.definition.avatar,
-            status: run.status,
+            status: shownStatus(run),
           }
         : null;
     }

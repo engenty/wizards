@@ -81,6 +81,30 @@ export interface RunTurn {
   acted?: boolean;
 }
 
+/** The job a service works on for a step the run sleeps at (`RunState.job`). */
+export interface RunJob {
+  stepId: string;
+  /** What the service answered with: `Pending.id`. */
+  id: string;
+}
+
+/**
+ * The run sleeps while a service works on the step it stands at: whoever looks sees the step at
+ * work, as when the step ran in the process itself.
+ */
+export function waitsOnJob(run: {
+  status: RunStatus;
+  cursor: string | null;
+  state: Pick<RunState, "job">;
+}): boolean {
+  return run.status === "sleeping" && run.cursor !== null && run.state.job?.stepId === run.cursor;
+}
+
+/** The status people see: a run that sleeps on a job is at work. */
+export function shownStatus(run: Parameters<typeof waitsOnJob>[0]): RunStatus {
+  return waitsOnJob(run) ? "running" : run.status;
+}
+
 export interface RunState {
   values: Record<string, unknown>;
   outputs: Record<string, StepOutput>;
@@ -168,6 +192,11 @@ export interface RunState {
   answered?: { at: number; next: string | null };
   /** The agent step at work; gone when the step has finished. */
   turn?: RunTurn;
+  /**
+   * A service works on the step the run stands at (a film, a video), and the run sleeps until it
+   * is done: the service's job. Gone when the step has finished, failed, or was left.
+   */
+  job?: RunJob;
 }
 
 /**

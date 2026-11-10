@@ -10,6 +10,7 @@ import type { Move, RunHost, StepFailure } from "@engenty/wizards-engine/host";
 import { answersAsText } from "@engenty/wizards-engine/template";
 import { type StepServices, TurnAsks } from "@engenty/wizards-engine/types";
 import { isNoteTime, note, type RunEventType, type Said } from "@engenty/wizards-shared/run";
+import { ServiceError } from "@engenty/wizards-shared/run-services";
 import type { FlowFailure, FlowRun } from "@engenty/wizards-shared/transition";
 import { effectsOn } from "../broker/effect.js";
 import { runHolder, subjectsOf } from "../broker/rwx.js";
@@ -20,6 +21,7 @@ import { env } from "../env.js";
 import { NotedError } from "../model-errors.js";
 import { noteFreeTierRefusal, takeMasked } from "../models.js";
 import type { SpaceRow } from "../run-services/in-process.js";
+import { jobEnded } from "../run-services/jobs.js";
 import { checkGuestInput, checkGuestText, guestChecksOn, guestRun } from "../safety.js";
 import { listRows, scopeOf } from "../store/index.js";
 import { setWake } from "../tenants/control.js";
@@ -100,7 +102,11 @@ export async function withDeadline<T>(
  * something out there is not started again by itself, or the mail goes out twice: a person can still
  * choose "try again". A refused sign-in did nothing, so it waits for one whatever the step did.
  */
-function flowFailure(err: unknown, failure: Failure, acted: boolean): FlowFailure {
+export function flowFailure(err: unknown, failure: Failure, acted: boolean): FlowFailure {
+  // A service's failure says its class itself (run-services/jobs.ts).
+  if (err instanceof ServiceError) {
+    return err.failure;
+  }
   switch (failure.class) {
     case "retry":
       return { class: "retry", retryAfterMs: failure.retryAfterMs };
@@ -240,6 +246,10 @@ export async function runtimeHost(
         if (move.command === null && run.status === "waiting_input") {
           // A turn stopped for a person: a phone in a pocket hears it.
           void pushRun(runId, "asks");
+        }
+        if (run.status === "sleeping" && run.state.job) {
+          // Asleep on a service's job: one that ended before this write wakes the run now.
+          await jobEnded(runId, run.state.job.id);
         }
         return rev + 1;
       },
