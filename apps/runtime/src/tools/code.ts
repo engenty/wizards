@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
+import { quickJs } from "@engenty/wizards-engine/quickjs";
 import type { StepContext } from "@engenty/wizards-engine/types";
 import {
   type CodeModeTransport,
@@ -8,9 +9,7 @@ import {
   noopObserve,
   type ToolObserve,
 } from "@mastra/core/tools";
-import type { QuickJsCodeModeTransport } from "@mastra/quickjs";
 import type { z } from "zod";
-import { onDemand } from "../on-demand.js";
 import { prompt } from "../prompts.js";
 import { clip } from "./shared.js";
 
@@ -121,25 +120,8 @@ export function toolCallIdOf(
 /** Heap of one program's QuickJS runtime. */
 const MEMORY_LIMIT_MB = 64;
 
-/**
- * One transport for the process; it loads QuickJS (on demand: on-demand.ts) and its WebAssembly
- * module once, on the first program.
- */
-let transport: Promise<QuickJsCodeModeTransport> | null = null;
-const quickJsTransport: CodeModeTransport = {
-  requiresSandbox: false,
-  run: async (opts) => {
-    transport ??= onDemand<typeof import("@mastra/quickjs")>("@mastra/quickjs").then(
-      ({ QuickJsCodeModeTransport }) =>
-        new QuickJsCodeModeTransport({ memoryLimitMb: MEMORY_LIMIT_MB }),
-    );
-    transport.catch(() => {
-      transport = null;
-    });
-    return (await transport).run(opts);
-  },
-};
-const quickJs = () => quickJsTransport;
+/** The engine's QuickJS (packages/engine/src/quickjs.ts), as code mode's transport. */
+const quickJsTransport: CodeModeTransport = quickJs({ memoryLimitMb: MEMORY_LIMIT_MB });
 
 /** Runs at most `max` tasks at a time; the others wait their turn. */
 function limiter(max: number) {
@@ -251,7 +233,7 @@ export function codeTool(
   const config = { id: CODE_TOOL_ID, tools: reachable, timeout: limits.timeoutMs };
   const step: StepCount = { calls: 0 };
   // The instructions list the tools once; every program runs over fresh guards.
-  const { tool: base, instructions } = createCodeMode(config, quickJs());
+  const { tool: base, instructions } = createCodeMode(config, quickJsTransport);
   const tool = createTool({
     id: CODE_TOOL_ID,
     description: prompt("tools", "tool.execute_typescript"),
@@ -269,7 +251,7 @@ export function codeTool(
             (options as { agent?: { toolCallId?: string } })?.agent?.toolCallId,
           ),
         },
-        quickJs(),
+        quickJsTransport,
       ).tool;
       let result: {
         success: boolean;

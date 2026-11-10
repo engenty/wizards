@@ -1,4 +1,4 @@
-import { moduleBody } from "@engenty/wizards-engine/quickjs";
+import { moduleBody, quickJs, WIZARD_CODE_MEMORY_MB } from "@engenty/wizards-engine/quickjs";
 import { parseWizardAgent, type WizardAgent } from "@engenty/wizards-shared/wizard-agents";
 import {
   isSandboxToolPath,
@@ -17,7 +17,6 @@ import {
 } from "@engenty/wizards-shared/wizard-code";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { quickJs } from "./quickjs.js";
 
 /**
  * A wizard's own code read from its workspace (docs/plans/wizard-code.md): what the run and
@@ -99,7 +98,7 @@ export async function declareWizardTool(name: string, source: string): Promise<D
     return { ok: false, issues: [`${at} imports: a function tool has no modules.`] };
   }
   const read = (key: string) => `${key}: typeof ${key} === "undefined" ? undefined : ${key}`;
-  const ran = await quickJs().run({
+  const ran = await quickJs({ memoryLimitMb: WIZARD_CODE_MEMORY_MB }).run({
     program: `${body}\nreturn { ${["description", "input", "output"].map(read).join(", ")}, run: typeof run };`,
     toolIds: [],
     dispatch: async () => {

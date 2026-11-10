@@ -107,7 +107,7 @@ describe("onDemand", () => {
     }, { root, npm });
     expect(calls.map((args) => args.at(-1))).toEqual(["@mastra/docker@1.2.3", "exceljs@9.9.9"]);
     expect(seen.exceljs).toBe("ok");
-    expect(seen["@mastra/quickjs"]).toBe("@mastra/quickjs isn’t installed (for running code).");
+    expect(seen["@turbodocx/html-to-docx"]).toBe("@turbodocx/html-to-docx isn’t installed (for Word files).");
     expect(existsSync(join(extrasDir(root, "exceljs"), "node_modules", "exceljs"))).toBe(true);
     await installAll(undefined, { root, npm });
     expect(calls).toHaveLength(2);
@@ -134,8 +134,8 @@ describe("onDemand", () => {
 
   it("refuses a library the package doesn't name", async () => {
     const { onDemand } = await import("../src/on-demand");
-    await expect(onDemand("@mastra/quickjs", { root, npm: fakeNpm().npm })).rejects.toThrow(
-      "@mastra/quickjs isn’t installed (for running code).",
+    await expect(onDemand("@turbodocx/html-to-docx", { root, npm: fakeNpm().npm })).rejects.toThrow(
+      "@turbodocx/html-to-docx isn’t installed (for Word files).",
     );
   });
 });

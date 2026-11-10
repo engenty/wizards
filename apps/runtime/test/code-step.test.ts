@@ -8,8 +8,6 @@ import {
 } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
 import { CODE_STEP_LIMITS, codeOutput, runCode } from "@engenty/wizards-engine/code-step";
-// The runtime gives the engine its QuickJS.
-import "../src/engine/quickjs.js";
 
 const end = { id: "done", type: "result", title: "Done", deliverables: [] };
 const ask = {

@@ -46,7 +46,6 @@
     "@mastra/docker": "0.13.0",
     "@mastra/libsql": "1.29.0",
     "@mastra/memory": "1.41.0",
-    "@mastra/quickjs": "0.1.5",
     "@modelcontextprotocol/client": "2.4.0",
     "@modelcontextprotocol/ext-apps": "2.0.4",
     "@modelcontextprotocol/server": "2.4.0",
