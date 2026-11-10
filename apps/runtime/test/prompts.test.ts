@@ -7,6 +7,8 @@ import { type PromptFile, prompt, promptSections } from "../src/prompts.js";
 const SRC = join(import.meta.dirname, "../src");
 /** The engine's step code reads the step prompts too (packages/engine/src/prompts.ts). */
 const ENGINE = join(import.meta.dirname, "../../../packages/engine/src");
+/** The run's report asks the runtime for `prompts/mcp.md` sections as `text("…")` (services/runs.ts). */
+const RUN_VIEW = join(import.meta.dirname, "../../../packages/shared/src/run-view.ts");
 
 function sources(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -37,6 +39,9 @@ function calls(): { file: string; section: string; prefix: boolean }[] {
           : { file: m[1], section: m[3], prefix: true },
       );
     }
+  }
+  for (const m of readFileSync(RUN_VIEW, "utf8").matchAll(/\btext\(\s*"([\w.-]+)"/g)) {
+    found.push({ file: "mcp", section: m[1], prefix: false });
   }
   return found;
 }
