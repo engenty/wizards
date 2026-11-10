@@ -572,6 +572,9 @@ const NOTES_EN = {
   notDeleteLastSpace: "You can’t delete the last space.",
   connectorGone: "There is no connector “{id}” in this space.",
   connectorNoAction: "{name} has no action “{id}”.",
+  listWriteNoList: "The wizard has no list “{list}”.",
+  listWriteMayHaveHappened:
+    "The run stopped while it saved to “{title}”. The row may be there already. Check the list before you run the step again.",
   tooManyConnections: "This space has as many connections as it can hold.",
   connectionEachPersonSignsIn: "Each person signs in to this connection themselves.",
   connectionNoMailbox: "This connection has no mailbox that a run can wait on.",
@@ -1111,6 +1114,9 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   notDeleteLastSpace: "Der letzte Space lässt sich nicht löschen.",
   connectorGone: "In diesem Space gibt es keinen Connector „{id}“.",
   connectorNoAction: "{name} hat keine Aktion „{id}“.",
+  listWriteNoList: "Der Wizard hat keine Liste „{list}“.",
+  listWriteMayHaveHappened:
+    "Der Lauf hat beim Speichern in „{title}“ abgebrochen. Die Zeile ist vielleicht schon da. Sieh in der Liste nach, bevor du den Schritt noch einmal startest.",
   tooManyConnections: "Dieser Space hat so viele Verbindungen, wie er halten kann.",
   connectionEachPersonSignsIn: "Bei dieser Verbindung meldet sich jede Person selbst an.",
   connectionNoMailbox: "Diese Verbindung hat kein Postfach, auf das ein Lauf warten kann.",

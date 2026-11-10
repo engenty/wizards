@@ -57,15 +57,15 @@ export async function effectsOn(): Promise<boolean> {
 }
 
 /**
- * A fixed step that calls a connection counts its visit on the run before it acts: a restart finds
- * `visiting` and keeps the number, a loop, a regenerate or going back has cleared it and gets a new
- * one. True when `state` changed and has to be written.
+ * A fixed step that calls a connection or `list_write` counts its visit on the run before it acts:
+ * a restart finds `visiting` and keeps the number, a loop, a regenerate or going back has cleared
+ * it and gets a new one. True when `state` changed and has to be written.
  */
 export async function enterVisit(
-  step: { id: string; type: string; call?: object },
+  step: { id: string; type: string; call?: { connection?: string; tool?: string } },
   state: RunState,
 ): Promise<boolean> {
-  if (step.type !== "tool" || !step.call || !("connection" in step.call)) {
+  if (step.type !== "tool" || !(step.call?.connection || step.call?.tool === "list_write")) {
     return false;
   }
   if (state.visiting === step.id || !(await effectsOn())) {

@@ -938,11 +938,23 @@ const fixedOutput = {
 };
 
 /**
- * A tool step: one tool of a plugin, or one action of a connection of the wizard, called once
- * with these inputs and no model; its answer is the step's json output, as it is. For data a
- * later form shows unchanged (free appointment times), where a model would only copy it, and
- * for every write through a connection that signs in as the space: the inputs are the wizard's,
- * so nothing a person typed can steer the call. String inputs are templates; a filled-in whole
+ * A tool step's write to one of the wizard's lists (`list_write`), the same an AI step's tool
+ * does: `rows` as { columnId: value }, `delete` by key or id. Values are templates; one that is a
+ * single {{ref}} alone is that value as it is (a number, a choice of several), others are text.
+ */
+export const listWriteInputSchema = z.object({
+  list: id,
+  rows: z.array(z.record(z.string(), z.unknown())).max(200).optional(),
+  delete: z.array(z.string()).max(200).optional(),
+});
+
+/**
+ * A tool step: one tool of a plugin, one action of a connection of the wizard, or `list_write`
+ * on the wizard's lists, called once with these inputs and no model; its answer is the step's
+ * json output, as it is. For data a later form shows unchanged (free appointment times), where a
+ * model would only copy it, for a row of what people send in (a sign-up, a request), and for
+ * every write through a connection that signs in as the space: the inputs are the wizard's, so
+ * nothing a person typed can steer the call. String inputs are templates; a filled-in whole
  * number or true/false is passed as one, an empty one is left out.
  */
 export const toolStepSchema = z.object({
@@ -955,6 +967,10 @@ export const toolStepSchema = z.object({
       z.object({
         tool: pluginToolIdSchema,
         input: z.record(z.string(), z.unknown()).default({}),
+      }),
+      z.object({
+        tool: z.literal("list_write"),
+        input: listWriteInputSchema,
       }),
       z.object({
         /** A connection of the wizard, by id. */
@@ -1368,6 +1384,7 @@ export type SurfaceStep = z.infer<typeof surfaceStepSchema>;
 export type AgentStep = z.infer<typeof agentStepSchema>;
 export type DecisionStep = z.infer<typeof decisionStepSchema>;
 export type ToolStep = z.infer<typeof toolStepSchema>;
+export type ListWriteInput = z.infer<typeof listWriteInputSchema>;
 export type CodeStep = z.infer<typeof codeStepSchema>;
 
 /** A step that runs a model and returns fields: an agent step or a decision. */
@@ -1860,6 +1877,34 @@ function dataIssues(def: WizardDefinition, files: string[] | undefined): Validat
   } else if (files && !files.includes(schema)) {
     issues.push({ message: `data.schema "${schema}" is not in the wizard's files.` });
   }
+  return issues;
+}
+
+/** A tool step's `list_write`: the list is the wizard's, and each row's keys are its columns. */
+function listWriteIssues(
+  def: WizardDefinition,
+  stepId: string,
+  input: ListWriteInput,
+): ValidationIssue[] {
+  const list = (def.lists ?? []).find((l) => l.id === input.list);
+  if (!list) {
+    return [{ stepId, message: `list_write names unknown list "${input.list}".` }];
+  }
+  const issues: ValidationIssue[] = [];
+  if (!input.rows?.length && !input.delete?.length) {
+    issues.push({ stepId, message: 'list_write has "rows" to save or "delete", or both.' });
+  }
+  const columns = list.columns.map((c) => c.id);
+  (input.rows ?? []).forEach((row, i) => {
+    for (const key of Object.keys(row)) {
+      if (!columns.includes(key)) {
+        issues.push({
+          stepId,
+          message: `list_write row ${i + 1}: "${key}" is no column of list "${list.id}" (${columns.join(", ")}).`,
+        });
+      }
+    }
+  });
   return issues;
 }
 
@@ -2400,6 +2445,9 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         }
         if (step.call) {
           checkTemplate(step, JSON.stringify(step.call.input));
+        }
+        if (step.call && "tool" in step.call && step.call.tool === "list_write") {
+          issues.push(...listWriteIssues(def, step.id, step.call.input));
         }
         if (step.call && "tool" in step.call && hasWizardCodePrefix(step.call.tool)) {
           issues.push({

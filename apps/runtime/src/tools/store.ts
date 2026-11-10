@@ -104,6 +104,32 @@ function describeColumns(def: ListDef): string {
 }
 
 /**
+ * `list_write`, for an AI step's tool and a tool step's call alike: saves `rows`, deletes rows by
+ * key or id. A failure is the answer `{ error }`, as a tool's is.
+ */
+export function writeList(
+  ctx: StepContext,
+  def: ListDef,
+  { rows, delete: remove }: { rows?: Record<string, unknown>[]; delete?: string[] },
+) {
+  return attempt(async () => {
+    try {
+      const saved = rows?.length ? await saveRows(ctx.store, def, rows) : { added: 0, updated: 0 };
+      const deleted = remove?.length ? await deleteRows(ctx.store, def, remove) : 0;
+      await ctx.emit("tool", { code: "remembers", params: { title: def.title } });
+      return { ...saved, deleted };
+    } catch (err) {
+      if (err instanceof TableColumnValueError) {
+        return {
+          error: `Column "${err.columnId}": ${err.message}. Nothing after that row was saved.`,
+        };
+      }
+      throw err;
+    }
+  });
+}
+
+/**
  * What every agent step can do with the wizard's store and the person's files: read and write
  * the lists, read documents (PDF, scans, photos, Word, Excel, CSV, saved mails).
  */
@@ -154,24 +180,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
           .describe("Rows to remove: their key column's value, or their id."),
       }),
       execute: ({ list, rows, delete: remove }) =>
-        attempt(async () => {
-          const def = defOf(list);
-          try {
-            const saved = rows?.length
-              ? await saveRows(ctx.store, def, rows)
-              : { added: 0, updated: 0 };
-            const deleted = remove?.length ? await deleteRows(ctx.store, def, remove) : 0;
-            await ctx.emit("tool", { code: "remembers", params: { title: def.title } });
-            return { ...saved, deleted };
-          } catch (err) {
-            if (err instanceof TableColumnValueError) {
-              return {
-                error: `Column "${err.columnId}": ${err.message}. Nothing after that row was saved.`,
-              };
-            }
-            throw err;
-          }
-        }),
+        writeList(ctx, defOf(list), { rows, delete: remove }),
     });
   }
 
