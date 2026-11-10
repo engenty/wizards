@@ -9,28 +9,28 @@ import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
 import type { StepSetting } from "@engenty/wizards-shared/run-services";
 import { mainLogo, runTheme } from "@engenty/wizards-shared/spaces";
-import {
-  type GeneratedMedia,
-  generateImageMedia,
-  generateSpeechMedia,
-  generateVideoMedia,
-  type MediaReference,
-} from "../../media/generate.js";
-import { type AiOrigin, markMedia } from "../../media/marking.js";
-import { prompt } from "../../prompts.js";
-import { extFor } from "../../run-services/files.js";
-import { contentPolicy } from "../../safety.js";
+import { inParallel } from "../engine/steps/foreach.js";
+import { answersBlock, brandBlock, groundRules, revisionBlock } from "../engine/steps/prompt.js";
+import { turnText } from "../engine/steps/turn.js";
 import {
   assetSectionLine,
   logoSectionLine,
   renderTemplate,
   resolveRef,
   type TemplateScope,
-} from "../template.js";
-import { type StepContext, StepError } from "../types.js";
-import { inParallel } from "./foreach.js";
-import { answersBlock, brandBlock, groundRules, revisionBlock } from "./prompt.js";
-import { turnText } from "./turn.js";
+} from "../engine/template.js";
+import { type StepContext, StepError } from "../engine/types.js";
+import { prompt } from "../prompts.js";
+import { extFor } from "../run-services/files.js";
+import { contentPolicy } from "../safety.js";
+import {
+  type GeneratedMedia,
+  generateImageMedia,
+  generateSpeechMedia,
+  generateVideoMedia,
+  type MediaReference,
+} from "./generate.js";
+import { type AiOrigin, markMedia } from "./marking.js";
 
 // --- generate ----------------------------------------------------------------
 

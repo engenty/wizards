@@ -217,7 +217,11 @@ describe("a step with a schema, run", () => {
     },
     emit: async () => {},
     };
-    c.services = inProcessServices({ id: "r", definition: wizard() } as never, () => c as never);
+    c.services = inProcessServices(
+      { id: "r", definition: wizard() } as never,
+      () => c as never,
+      runAgentStep,
+    );
     return c;
   };
 

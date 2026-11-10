@@ -185,7 +185,7 @@ import {
   sendSignal,
 } from "./signals.js";
 import { startedRunEnded, startOf } from "./starts.js";
-import { outputSchema, runAutomaticStep } from "./steps/index.js";
+import { outputSchema, runAgentStep, runAutomaticStep } from "./steps/index.js";
 import { surfaceData } from "./surface.js";
 import { answersAsText, fillLabel, renderTemplate, resolveRef, scopeLists } from "./template.js";
 import type { RunRow, SpaceRow, StepContext } from "./types.js";
@@ -1131,7 +1131,7 @@ export async function makeContext(
         runId: run.id,
         stepId: input.stepId ?? own.stepId ?? run.cursor,
       }),
-    services: inProcessServices(run, () => ctx),
+    services: inProcessServices(run, () => ctx, runAgentStep),
   };
   ctx.scope.lists = await scopeLists(run.definition, ctx.services.data);
   return ctx;

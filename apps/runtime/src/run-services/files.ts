@@ -3,6 +3,7 @@ import { type RunRow, type StepContext, StepError } from "../engine/types.js";
 import { extFor, loadAsset, saveAsset } from "../files/storage.js";
 import { snapshotHtmlImages } from "../files/web-images.js";
 import { signedUrl } from "../secrets/signing.js";
+import { snapshotFile } from "../services/files.js";
 import { assertPublicUrl, safeFetch } from "../tools/net-guard.js";
 import { personUploads, type UploadRef } from "../tools/store.js";
 
@@ -11,8 +12,8 @@ export { extFor };
 
 /**
  * The run's files inside the runtime. Beyond `FilesService`, as step code needs them today:
- * a read says which run the file belongs to, the files the person gave on earlier pages, and the
- * web pictures of a page kept as files of the run.
+ * a read says which run the file belongs to, the files the person gave on earlier pages, the
+ * web pictures of a page kept as files of the run, and the files of the wizard's workspace.
  */
 export interface InProcessFiles extends FilesService {
   /** `runId`: the run the file belongs to; null: a file of no run. */
@@ -21,6 +22,8 @@ export interface InProcessFiles extends FilesService {
   uploads(): Promise<UploadRef[]>;
   /** The page with each picture it loads from the web saved as a file of the step. */
   keepWebImages(html: string, stepId: string): Promise<string>;
+  /** A file of the workspace the run started with, by path; null: no such file. */
+  workspace(path: string): Promise<Uint8Array | null>;
 }
 
 export function filesService(run: RunRow, ctx: () => StepContext): InProcessFiles {
@@ -53,6 +56,7 @@ export function filesService(run: RunRow, ctx: () => StepContext): InProcessFile
     link: async (ref) => signedUrl(`/api/runs/${run.id}/assets/${ref}`),
     uploads: () => personUploads(ctx()),
     keepWebImages: (html, stepId) => snapshotHtmlImages(html, save, stepId, ctx().signal),
+    workspace: async (path) => (await snapshotFile(ctx().files, path))?.data ?? null,
   };
 }
 

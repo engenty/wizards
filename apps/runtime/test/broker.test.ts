@@ -715,7 +715,11 @@ describe("fixed steps write, AI steps on space connections read", () => {
       ask,
       call: {},
     } as unknown as import("../src/engine/types").StepContext;
-    ctx.services = runServices.inProcessServices({ id: runId, definition: def } as never, () => ctx);
+    ctx.services = runServices.inProcessServices(
+      { id: runId, definition: def } as never,
+      () => ctx,
+      (s, c) => import("../src/engine/steps/index.js").then((m) => m.runAgentStep(s, c)),
+    );
     return ctx;
   }
 

@@ -1,4 +1,3 @@
-import type { StepOutput } from "@engenty/wizards-shared/run";
 import type {
   ModelsService,
   RunServices,
@@ -23,8 +22,6 @@ import { addLocalCost } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { decide } from "../decide.js";
 import { noticesFor, noticeWrites } from "../engine/notices.js";
-import { runAgentStep } from "../engine/steps/agent.js";
-import { runGenerateStep } from "../engine/steps/generate.js";
 import type { RunRow, StepContext } from "../engine/types.js";
 import {
   agentModel,
@@ -38,11 +35,11 @@ import {
   textModel,
   totalUsage,
 } from "../models.js";
-import { runMotionGraphicsStep } from "../motion-graphics/step.js";
-import { runWidgetStep } from "../widgets/step.js";
+import type { RunAgentStep } from "../tools/agent.js";
 import { contextService } from "./context.js";
 import { dataService } from "./data.js";
 import { filesService, type InProcessFiles } from "./files.js";
+import { type InProcessSteps, stepsService } from "./steps.js";
 import { type InProcessTools, inProcessTools } from "./tools.js";
 
 /**
@@ -53,7 +50,7 @@ import { type InProcessTools, inProcessTools } from "./tools.js";
  * `models.agentModel`, `tools.forStep` and `tools.ofAgent` are the calls beyond `RunServices`: an
  * agent step's loop still runs in Mastra's `Agent`, which takes the model and its tools itself,
  * until the engine keeps its own loop (phase 2).
- * `files` has calls beyond it too (./files.ts).
+ * `files` has calls beyond it too (./files.ts); `steps` answers with the output, never `pending`.
  */
 export interface InProcessServices extends RunServices {
   files: InProcessFiles;
@@ -63,6 +60,7 @@ export interface InProcessServices extends RunServices {
     ): Promise<AgentModel>;
   };
   tools: InProcessTools;
+  steps: InProcessSteps;
 }
 
 /** The model of an agent step whose loop runs in Mastra's `Agent`, and what the step asks of it. */
@@ -87,9 +85,14 @@ export interface AgentModel {
 
 /**
  * The services of one run. `ctx`: the step context they were made with, asked when a call needs
- * it; a call for another step works with the same context under that step's id.
+ * it; a call for another step works with the same context under that step's id. `runAgent`: the
+ * engine's agent step, for the tools that hand a task to one of the wizard's agents.
  */
-export function inProcessServices(run: RunRow, ctx: () => StepContext): InProcessServices {
+export function inProcessServices(
+  run: RunRow,
+  ctx: () => StepContext,
+  runAgent: RunAgentStep,
+): InProcessServices {
   const at = (stepId: string): StepContext => {
     const c = ctx();
     return c.stepId === stepId ? c : { ...c, stepId, call: { ...c.call, stepId } };
@@ -212,7 +215,7 @@ export function inProcessServices(run: RunRow, ctx: () => StepContext): InProces
       definition: run.definition,
       at,
       agentModel: models.agentModel,
-      runAgent: (step, c) => runAgentStep(step, c),
+      runAgent,
     }),
 
     context: contextService(run, at),
@@ -221,19 +224,7 @@ export function inProcessServices(run: RunRow, ctx: () => StepContext): InProces
 
     data: dataService(run, ctx, at),
 
-    steps: {
-      run(step): Promise<StepOutput> {
-        const c = at(step.id);
-        switch (step.type) {
-          case "generate":
-            return runGenerateStep(step, c);
-          case "widget":
-            return runWidgetStep(step, c);
-          case "motion-graphics":
-            return runMotionGraphicsStep(step, c);
-        }
-      },
-    },
+    steps: stepsService(at),
 
     people: {
       async tell(notice) {

@@ -8,7 +8,6 @@ import {
   recordsOf,
   shapeZod,
 } from "@engenty/wizards-shared/shape";
-import { snapshotFile } from "../services/files.js";
 import { runStepData } from "./data-step.js";
 import { moduleBody, quickJs, WIZARD_CODE_MEMORY_MB } from "./quickjs.js";
 import { surfaceData } from "./surface.js";
@@ -191,14 +190,14 @@ export async function runCode(
  * it again.
  */
 export async function runCodeStep(step: CodeStep, ctx: StepContext): Promise<StepOutput> {
-  const file = await snapshotFile(ctx.files, step.code.entry);
+  const file = await ctx.services.files.workspace(step.code.entry);
   if (!file) {
     throw new StepError(note("codeMissing", { entry: step.code.entry }));
   }
   // The step's statement runs first; the function gets what it gave as `data`.
   const data = step.data ? { data: await runStepData(step.data, ctx) } : {};
   const result = await runCode(
-    file.data.toString("utf8"),
+    new TextDecoder("utf-8", { ignoreBOM: true }).decode(file),
     { ...codeInput(step.code.input, ctx), ...data },
     ctx.signal,
   );
