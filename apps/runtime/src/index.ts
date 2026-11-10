@@ -2,7 +2,8 @@
 import "./no-webstorage.js";
 import { serve } from "@hono/node-server";
 import { localEntryUrl, purgeSessions } from "./auth/index.js";
-import { installedByScript, readInstallNote } from "./cli/home.js";
+import { refreshLoginItem } from "./cli/autostart.js";
+import { installedByScript, layout, readInstallNote } from "./cli/home.js";
 import { startClientChecks } from "./clients.js";
 import { adoptLegacyData } from "./db/adopt.js";
 import {
@@ -80,6 +81,12 @@ if (managed) {
   startProChecks();
   // A newer release is downloaded beside this one and used from the next start.
   startUpdateChecks();
+  // A login item an earlier version wrote gets this version's app and icon.
+  try {
+    refreshLoginItem(layout());
+  } catch (err) {
+    console.error(`[autostart] ${(err as Error).message}`);
+  }
   // A full installation keeps everything installed, also what an update brought in new versions.
   if (installedByScript() && readInstallNote().extras === "all") {
     void installAll((_name, err) => {
