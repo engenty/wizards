@@ -23,7 +23,8 @@ export async function dataTools(ctx: StepContext): Promise<Record<string, any>> 
     data.scope === "shared" && !guest ? (["person", "shared"] as const) : (["person"] as const);
   const schemaFile = ctx.files.find((f) => f.path === data.schema);
   const schema = schemaFile ? clip((await getBlob(schemaFile.hash)).toString("utf8"), 6000) : "";
-  const where = prompt("tools", scopes.length > 1 ? "note.data_scopes" : "note.data_person");
+  const where =
+    scopes.length > 1 ? prompt("tools", "note.data_scopes") : prompt("tools", "note.data_person");
   const input = z.object({
     scope: z.enum(scopes).default("person"),
     sql: z.string().min(1).max(20_000).describe("One SQL statement (SQLite)."),
