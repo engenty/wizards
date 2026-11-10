@@ -10,7 +10,7 @@ import {
   findEffect,
   startEffect,
 } from "./effect.js";
-import { hostInGrant, runGrant } from "./grant.js";
+import { hostInGrant, hostListed, runGrant } from "./grant.js";
 import { summarizeInput, writeLog } from "./log.js";
 import { runOver } from "./over.js";
 import { brokerOn } from "./rwx.js";
@@ -43,6 +43,13 @@ export async function brokerHost<T>(call: {
   method: string;
   /** Hosts reached whatever the grant says: the package registries, for a sandbox. */
   alwaysAllowed?: readonly string[];
+  /**
+   * The only hosts reached, whatever the grant or the `broker` switch says: a step's `hosts` for
+   * the wizard's own code (tools/wizard.ts), which is untrusted.
+   */
+  only?: readonly string[];
+  /** The log's action: `http_request`, or the wizard's tool that made the request. */
+  action?: string;
   /** Which call this is (effect.ts); a person to ask where it may have happened already. */
   effect?: EffectCall;
   ask?: (ask: AskInput) => Promise<AskResult | null>;
@@ -70,7 +77,7 @@ export async function brokerHost<T>(call: {
       wizardId: where.wizardId ?? null,
       spaceId: where.spaceId ?? null,
       connectionId: `host:${host}`,
-      actionId: "http_request",
+      actionId: call.action ?? "http_request",
       kind: "send",
       // The path without its query: a query may carry a key.
       inputSummary: summarizeInput({ method: call.method, host, path: url.pathname }),
@@ -86,8 +93,13 @@ export async function brokerHost<T>(call: {
     await line("deny", over.reason, "run_ended", over.rule);
     return { ok: false, refused: "run_ended", reason: over.reason };
   }
+  if (call.only && !hostListed(call.only, host)) {
+    const why = `The step does not list the host ${host} in its hosts.`;
+    await line("deny", why, "not_in_grant", "hosts");
+    return { ok: false, refused: "not_in_grant", reason: why };
+  }
   const bound = where.guest || (await brokerOn());
-  let reason = "Members reach every public host.";
+  let reason = call.only ? "The step lists the host." : "Members reach every public host.";
   if (call.alwaysAllowed?.includes(host)) {
     reason = "The host is a package registry.";
   } else if (bound) {

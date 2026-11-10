@@ -1974,6 +1974,8 @@ const de: Record<Key, Line> = {
   "files.explain":
     "Diese Dateien nutzt dein Wizard bei jedem Lauf, etwa Widget-Code, Bibliotheken oder Preislisten. Der Assistent legt sie im Chat an. Du kannst auch eigene hochladen.",
   "files.upload": "Hochladen",
+  "files.tool":
+    "Ein Werkzeug des Wizards: KI-Schritte nutzen es, wenn sie es unter Werkzeuge haben.",
   "files.drop": "Zum Hochladen loslassen",
   "files.count": { one: "{n} Datei · {size}", other: "{n} Dateien · {size}" },
   "files.empty":
@@ -2810,6 +2812,7 @@ const de: Record<Key, Line> = {
   "inspector.codeNoInput": "Die Funktion bekommt keine Eingaben.",
   "inspector.codeReturns": "Gibt zurück",
   "inspector.tools": "Werkzeuge",
+  "inspector.wizardTool": "eigenes Werkzeug des Wizards",
   "inspector.personAccounts": "Konten der Person",
   "inspector.personAccountsHint":
     "Konten, die die Person im Lauf verbindet. Lesen darf der Schritt frei, Änderungen erst nach ihrem Ja.",
@@ -4163,6 +4166,13 @@ const de: Record<Key, Line> = {
   "share.onPageNotShared": "Die Seite zeigt ihn, sobald jeder mit dem Link ihn öffnen darf.",
   "share.signals": "Ereignisse",
   "share.signalsHint": "Ein Ereignis weckt einen Lauf, der darauf wartet.",
+  "share.schema": "Für Apps und AI-Clients",
+  "share.schemaHint":
+    "Was ein Programm mitgibt, wenn es den Wizard ohne Person startet, und was es zurückbekommt.",
+  "share.schemaTakes": "Braucht",
+  "share.schemaGives": "Liefert",
+  "share.schemaNone": "Nichts",
+  "share.schemaCopy": "JSON Schema kopieren",
   "share.answerers": "Beantwortet von",
   "share.answerersHint":
     "Wer hier steht, bekommt Fragen und Prüfungen des Laufs unter „Braucht dich“.",
@@ -6977,6 +6987,7 @@ const en = {
   "files.explain":
     "Your wizard uses these files on every run, like widget code, libraries or price lists. The assistant creates them in the chat, or you can upload your own.",
   "files.upload": "Upload",
+  "files.tool": "A tool of the wizard: AI steps use it when they list it under Tools.",
   "files.drop": "Drop to upload",
   "files.count": { one: "{n} file · {size}", other: "{n} files · {size}" },
   "files.empty": "No files yet. Drop files here or ask the assistant to build a widget.",
@@ -7796,6 +7807,7 @@ const en = {
   "inspector.codeNoInput": "The function gets no input.",
   "inspector.codeReturns": "Returns",
   "inspector.tools": "Tools",
+  "inspector.wizardTool": "the wizard’s own tool",
   "inspector.personAccounts": "The person’s accounts",
   "inspector.personAccountsHint":
     "Accounts the person connects during the run. The step reads from them freely; anything it changes waits for the person’s yes.",
@@ -9107,6 +9119,13 @@ const en = {
   "share.onPageNotShared": "The page shows it once anyone with the link may open it.",
   "share.signals": "Events",
   "share.signalsHint": "An event wakes a run that waits for it.",
+  "share.schema": "For apps and AI clients",
+  "share.schemaHint":
+    "What a program gives when it starts the wizard without a person, and what it gets back.",
+  "share.schemaTakes": "Takes",
+  "share.schemaGives": "Gives",
+  "share.schemaNone": "Nothing",
+  "share.schemaCopy": "Copy JSON Schema",
   "share.answerers": "Answered by",
   "share.answerersHint": "The people here get the run’s questions and reviews under “Needs you”.",
   "share.answerersPeople": "People",

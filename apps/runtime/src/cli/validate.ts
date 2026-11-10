@@ -1,11 +1,16 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
-import { parseWizard, type ValidationIssue } from "@engenty/wizards-shared/definition";
+import {
+  parseWizard,
+  type ValidationIssue,
+  type WizardDefinition,
+} from "@engenty/wizards-shared/definition";
 import { requiresProblem } from "@engenty/wizards-shared/requires";
 import { inputSchemaOf, type JsonSchema, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
-import { wizardDataIssues } from "@engenty/wizards-shared/wizard-data";
+import { dataFiles, wizardDataIssues } from "@engenty/wizards-shared/wizard-data";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
 import { WIZARD_SKILLS_DIR, wizardSkillIssues } from "@engenty/wizards-shared/wizard-skills";
+import { wizardToolFileIssues } from "../engine/wizard-code.js";
 import { json, readManifest, readPackage } from "../services/package-file.js";
 import { bad, dim, ok } from "./ui.js";
 
@@ -14,8 +19,9 @@ import { bad, dim, ok } from "./ui.js";
  * running studio and no account. A path is a `.wizard` package, an unpacked one (its folder or
  * its wizard.json, with the workspace beside it under files/), or a definition on its own.
  *
- * What a space holds — its connectors, MCP servers and plugins — is checked on import. The SQL
- * of the wizard's own database is read too: its schema and migrations split into statements the
+ * What a space holds — its connectors, MCP servers and plugins — is checked on import. The
+ * wizard's function tools (`files/tools/`) are loaded in QuickJS, as a run loads them. The SQL of
+ * the wizard's own database is read too: its schema and migrations split into statements the
  * runtime runs.
  */
 
@@ -47,13 +53,11 @@ const isSkillMd = (path: string) =>
 interface Given {
   definition: unknown;
   files: string[];
-  /** The text of each skill's `SKILL.md`, by its path in the workspace. */
-  skillMds: Record<string, string>;
-  /** A workspace file's text, or null where it is not there. */
-  text: (path: string) => string | null;
+  /** A workspace file's text, or null where it isn't there. */
+  read: (path: string) => Promise<string | null>;
 }
 
-/** The definition and the workspace's paths, read the way the import reads them. */
+/** The definition and the workspace, read the way the import reads them. */
 function read(path: string): Given {
   const folder = statSync(path).isDirectory()
     ? path
@@ -63,33 +67,37 @@ function read(path: string): Given {
   if (folder) {
     const manifest = readManifest(json(readFileSync(join(folder, PACKAGE_MANIFEST))));
     const files = workspace(folder);
-    const skillMds = Object.fromEntries(
-      files.filter(isSkillMd).map((f) => [f, readFileSync(join(folder, PACKAGE_FILES, f), "utf8")]),
-    );
     return {
       definition: manifest.definition,
       files,
-      skillMds,
-      text: (p) =>
-        files.includes(p) ? readFileSync(join(folder, PACKAGE_FILES, p), "utf8") : null,
+      read: async (file) =>
+        files.includes(file) ? readFileSync(join(folder, PACKAGE_FILES, file), "utf8") : null,
     };
   }
   const { manifest, files } = readPackage(readFileSync(path));
-  const skillMds = Object.fromEntries(
-    files.filter((f) => isSkillMd(f.path)).map((f) => [f.path, new TextDecoder().decode(f.data)]),
-  );
   return {
     definition: manifest.definition,
     files: files.map((f) => f.path),
-    skillMds,
-    text: (p) => {
-      const file = files.find((f) => f.path === p);
-      return file ? new TextDecoder().decode(file.data) : null;
+    read: async (file) => {
+      const found = files.find((f) => f.path === file);
+      return found ? new TextDecoder().decode(found.data) : null;
     },
   };
 }
 
-export function validatePath(path: string): Checked {
+/** The SQL files of the wizard's own database, read: each splits into statements the runtime runs. */
+async function dataIssues(def: WizardDefinition, given: Given): Promise<ValidationIssue[]> {
+  const files = dataFiles(def, given.files);
+  const texts = new Map<string, string | null>();
+  for (const file of files ? [files.schema, ...files.migrations] : []) {
+    texts.set(file, await given.read(file));
+  }
+  return wizardDataIssues(def, given.files, (p) => texts.get(p) ?? null).map((i) => ({
+    message: i.message,
+  }));
+}
+
+export async function validatePath(path: string): Promise<Checked> {
   let given: Given;
   try {
     given = read(path);
@@ -104,14 +112,20 @@ export function validatePath(path: string): Checked {
   // `requires` says what the steps need: a file that says otherwise is out of date. The SQL of
   // the wizard's own database: each file splits into statements the runtime runs.
   const requires = parsed.ok ? requiresProblem(parsed.wizard) : null;
+  const checked = requires ? [...parsed.issues, { message: requires }] : parsed.issues;
+  // A tool a step names is checked by the definition too: each message once.
+  const said = new Set(checked.map((issue) => issue.message));
+  const skillMds: Record<string, string> = {};
+  for (const file of given.files.filter(isSkillMd)) {
+    skillMds[file] = (await given.read(file)) ?? "";
+  }
   const issues = [
-    ...(requires ? [...parsed.issues, { message: requires }] : parsed.issues),
-    ...wizardSkillIssues(given.files, given.skillMds),
-    ...(parsed.ok
-      ? wizardDataIssues(parsed.wizard, given.files, given.text).map((i) => ({
-          message: i.message,
-        }))
-      : []),
+    ...checked,
+    ...(await wizardToolFileIssues(given.files, given.read))
+      .filter((message) => !said.has(message))
+      .map((message) => ({ message })),
+    ...wizardSkillIssues(given.files, skillMds),
+    ...(parsed.ok ? await dataIssues(parsed.wizard, given) : []),
   ];
   return {
     path,
@@ -128,12 +142,12 @@ export function validatePath(path: string): Checked {
   };
 }
 
-export function validateCommand(paths: string[], asJson: boolean): number {
+export async function validateCommand(paths: string[], asJson: boolean): Promise<number> {
   if (!paths.length) {
     console.error("Give a path: a .wizard file, an unpacked package or a wizard JSON file.");
     return 2;
   }
-  const results = paths.map(validatePath);
+  const results = await Promise.all(paths.map(validatePath));
   if (asJson) {
     console.log(JSON.stringify(results, null, 2));
   } else {

@@ -1,5 +1,6 @@
 import { formatBytes } from "@engenty/wizards-shared/numbers";
 import { skillScript } from "@engenty/wizards-shared/skills";
+import { wizardToolId, wizardToolOfPath } from "@engenty/wizards-shared/wizard-code";
 import { wizardSkillFolders } from "@engenty/wizards-shared/wizard-skills";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQueryClient } from "@tanstack/react-query";
@@ -207,6 +208,14 @@ export function FilesPanel({
             >
               <Icon className="size-4 shrink-0 text-ink-3" />
               <span className="min-w-0 flex-1 truncate font-mono text-[0.75rem]">{f.path}</span>
+              {wizardToolOfPath(f.path) ? (
+                <span
+                  title={t("files.tool")}
+                  className="shrink-0 rounded-full bg-paper-2 px-2 py-0.5 font-mono text-[0.6875rem] text-ink-3"
+                >
+                  {wizardToolId(wizardToolOfPath(f.path) as string)}
+                </span>
+              ) : null}
               <span className="text-[0.75rem] text-ink-4 tabular-nums">{formatBytes(f.size)}</span>
               <a
                 href={`${base}/${f.path}`}
