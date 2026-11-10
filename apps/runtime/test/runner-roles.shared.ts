@@ -8,7 +8,7 @@ import { beforeAll, describe, expect, it } from "vitest";
  * A process in `role` that is not a runner: it puts a run in line and drives none; a runner's
  * look takes the run and finishes it. Called first in a test file, before the app is imported.
  */
-export function webRoleLeavesRunsToRunner(role: "web" | "studio" | "doors") {
+export function webRoleLeavesRunsToRunner(role: "web" | "studio" | "doors" | "broker") {
   const dir = mkdtempSync(join(tmpdir(), `wizards-roles-${role}-`));
   process.env.DATA_DIR = dir;
   process.env.APP_URL = "http://localhost:5181";

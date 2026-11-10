@@ -66,7 +66,8 @@ import { tenantOfLink, tenantStatus } from "./tenants/control.js";
 const app = new Hono<{ Variables: { user: Principal } }>();
 
 // Which halves this process serves (RUNTIME_ROLE): the studio's routes, the doors' routes, or
-// both. What both need — health, config, the runs' API, the connect callback — is always there.
+// both. What both need — health, config, the runs' API, the connect callback — is always there,
+// but on a broker, which serves the health checks and a run's services alone.
 const { serves } = env;
 
 // Every request is open until its handler returned: one that never returns shows in the health
@@ -160,6 +161,15 @@ app.get("/api/health/ready", async (c) => {
   const h = await health();
   return c.json(publicHealth(h), httpStatus(h));
 });
+
+if (serves.runServices) {
+  // A run's services, asked for with the run's token: `/api/run-services/v1/:service/:call`
+  // mounts here (docs/plans/runs-on-their-own.md, package 3.5).
+}
+if (env.role === "broker") {
+  // A broker serves the health checks above and a run's services, nothing people open.
+  app.all("*", (c) => c.json(notFoundAnswer(c), 404));
+}
 
 /**
  * A page in a browser (the studio, a wizard's own page) tells of an error it met: the line

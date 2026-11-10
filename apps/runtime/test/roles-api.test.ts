@@ -35,6 +35,7 @@ describe("RUNTIME_ROLE=api", () => {
       runner: false,
       api: true,
       vectors: false,
+      runServices: false,
     });
     expect((await get("/api/health")).status).toBe(200);
     // Known, and closed without a key or token.

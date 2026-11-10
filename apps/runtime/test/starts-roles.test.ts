@@ -41,6 +41,7 @@ describe("the clock's roles", () => {
     ["doors", false],
     ["api", false],
     ["web", false],
+    ["broker", false],
     ["runner", true],
     ["all", true],
   ])("%s: %s", async (role, ticks) => {

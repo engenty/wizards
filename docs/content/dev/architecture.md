@@ -33,10 +33,12 @@ and whether it takes runs.
 | `doors` | The customers’ half: `/api/public`, shared results, the plugins’ public routes and webhooks, `/embed.js`, the pages `/w/<token>` and `/s/<token>` |
 | `web` | Both halves |
 | `runner` | Takes the runs that wait and drives them. It serves the routes too, for what only the process holding a run can answer, such as its browser’s screen |
+| `broker` | A run’s services, which a run asks for with its token. No page, no other route, and it takes no runs. `runner` and `all` serve them too, until the cloud runs a broker apart |
 | `all` | Everything in one process. The default |
 
-Every role serves what both halves need: `/api/health`, `/api/config`, the runs’ API
-(`/api/runs`) and the OAuth callback (`/api/connect`).
+Every role but `broker` serves what both halves need: `/api/health`, `/api/config`, the runs’
+API (`/api/runs`) and the OAuth callback (`/api/connect`). A broker serves only the health checks
+beside a run’s services.
 
 Studio and Work are two modes of one web app, and the `studio` half serves both: `/api/studio`
 and `/api/studio/work`. They share the sign-in, the tenant database and the broker’s rules. The

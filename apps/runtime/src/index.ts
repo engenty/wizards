@@ -45,12 +45,19 @@ hookConsole();
 // A background job that failed (a dropped connection to a remote database) is logged; the
 // server keeps running for every other request instead of ending with it.
 process.on("unhandledRejection", (err) => console.error("[unhandled]", err));
+/**
+ * A broker (RUNTIME_ROLE=broker) answers a run's service calls and nothing more: the plugins'
+ * jobs, the reports, the syncs and the sweeps below are the other processes' part.
+ */
+const broker = env.role === "broker";
 await migrateControlDb();
 // What the linked account's plan confirmed last: the Pro modules it includes load with the rest.
 await loadEntitlement();
 // Before any tenant database opens: each gets the plugins' own tables as it does.
 await loadPlugins();
-startJobs();
+if (!broker) {
+  startJobs();
+}
 startStarts();
 startNotices();
 if (managed) {
@@ -67,11 +74,13 @@ if (managed) {
           .catch((err) => console.error("[move-files]", err));
       }
       // The admin app's list of every team's wizards starts from what is here now.
-      return reportAllWizards();
+      return broker ? undefined : reportAllWizards();
     })
     .catch((err) => console.error("[migrate]", err));
   // Which clients may start runs over the public API, and how often: the Manage-App's list.
-  startClientChecks();
+  if (!broker) {
+    startClientChecks();
+  }
 } else {
   await adoptLegacyData();
   await openTenantDb(LOCAL_TENANT);
@@ -100,8 +109,10 @@ if (managed) {
 // The marketplace's starters and the starred entries, kept for offline use; checked hourly.
 const marketplace = () =>
   void syncMarketplace().catch((err) => console.error("[marketplace]", (err as Error).message));
-marketplace();
-setInterval(marketplace, 3600_000).unref();
+if (!broker) {
+  marketplace();
+  setInterval(marketplace, 3600_000).unref();
+}
 
 const { default: app } = await import("./app.js");
 
@@ -157,7 +168,13 @@ async function purge() {
     ).catch((err) => console.error(`[retention ${id}]`, err));
   }
 }
-void purge().catch((err) => console.error("[retention]", err));
+if (!broker) {
+  void purge().catch((err) => console.error("[retention]", err));
+  setInterval(
+    () => void purge().catch((err) => console.error("[retention]", err)),
+    3600_000,
+  ).unref();
+}
 
 // The files of before 0.16 move to the blob store, once (cli/move-files.ts). In the cloud this
 // waits for the tenants' migrations, above.
@@ -211,10 +228,9 @@ if (env.serves.studio) {
   };
   setInterval(() => void criticalMails(), 3600_000).unref();
 }
-setInterval(() => void purge().catch((err) => console.error("[retention]", err)), 3600_000).unref();
 
 // A runtime that runs alone sends again what did not arrive in its account's cloud.
-if (!managed) {
+if (!managed && !broker) {
   const { retryFailedSends } = await import("./services/cloud.js");
   const retry = () =>
     withTenant(LOCAL_TENANT, () => retryFailedSends("local")).catch((err) =>
