@@ -47,18 +47,13 @@ vi.mock("@engenty/wizards-shared/transition", async (original) => {
 });
 
 /**
- * The moves as the engine makes them. The runner stands a run once more where a move left it (a
- * `resume` that changes nothing, after a step it ran and at the result); `advance` goes on from
- * the move itself.
+ * The moves as `advance` makes them from `start`. A run that starts at a page: the runtime's
+ * `createRun` takes the start's move itself and writes the page as it stands; `advance` writes a
+ * move into a person's step as `running` and stands it there with a `resume`.
  */
-const byEngine = (pinnedMoves: string[]) =>
-  pinnedMoves.filter(
-    (m, i) =>
-      !(
-        m.startsWith("resume ⇒ ") &&
-        i > 0 &&
-        m.split(" ⇒ ")[1] === pinnedMoves[i - 1].split(" ⇒ ")[1]
-      ),
+const fromStart = (pinnedMoves: string[]) =>
+  pinnedMoves.flatMap((m, i) =>
+    i === 0 && m.startsWith("start ⇒ ask ") ? [m, m.replace("start ⇒", "resume ⇒")] : [m],
   );
 
 /** The test plugin's tools, by the name a step calls them with, as the runtime registers them. */
@@ -93,7 +88,7 @@ function runOf(run: pinned.PinnedRun, n: number): MemoryRun {
 /** The run ended done, as the runner's did: its moves, the model's calls, its log and its state. */
 function ended(mem: MemoryRun, run: pinned.PinnedRun) {
   expect(moves.filter((m) => m.wizard === run.title).map((m) => m.move)).toEqual(
-    byEngine(run.moves),
+    fromStart(run.moves),
   );
   expect(mem.calls).toEqual(run.calls);
   expect(mem.lines).toEqual(run.log);
