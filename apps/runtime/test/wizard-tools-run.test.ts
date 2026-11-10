@@ -155,6 +155,23 @@ export const output = { type: "object", properties: { n: { type: "number" } }, r
 export function run() { return { n: "not a number" }; }
 `;
 
+const NOTES = `
+export const description = "Keeps a note and reads every note back";
+export const input = {
+  type: "object",
+  properties: { text: { type: "string" }, scope: { type: "string" } },
+  required: ["text"],
+};
+export async function run({ text, scope = "person" }, { db }) {
+  if (!db) return { db: "none" };
+  const written = await db.exec("INSERT INTO notes (text) VALUES (:text)", { text }, { scope });
+  const read = await db.query("SELECT text FROM notes ORDER BY id", {}, { scope });
+  return { changes: written.changes, notes: read.rows.map((r) => r.text) };
+}
+`;
+const DATA = { data: { scope: "shared", schema: "data/schema.sql" } };
+const SCHEMA = "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);";
+
 const stepWith = (tools: string[], hosts?: string[]) => ({
   id: "work",
   type: "agent",
@@ -180,8 +197,8 @@ async function until(ok: () => Promise<boolean>, ms = 90_000) {
   return false;
 }
 
-/** Runs a wizard of one step to its end; a guest's run when `guest`. */
-async function runStep(step: unknown, guest = false) {
+/** Runs a wizard of one step to its end; a guest's run when `guest`, with `data` when given. */
+async function runStep(step: unknown, guest = false, data: Record<string, unknown> = {}) {
   const id = await client.withTenant(T, async () => {
     const created = await wizards.createWizard("u", {
       definition: { ...base, steps: [end] } as never,
@@ -191,10 +208,12 @@ async function runStep(step: unknown, guest = false) {
       "tools/rate.ts": RATE,
       "tools/reader.js": READER,
       "tools/broken.ts": BROKEN,
+      "tools/notes.ts": NOTES,
+      "data/schema.sql": SCHEMA,
     });
     return runner.createRun({
       wizardId: created.id,
-      definition: wizardSchema.parse({ ...base, steps: [step, end] }),
+      definition: wizardSchema.parse({ ...base, ...data, steps: [step, end] }),
       files: await files.draftFiles(created.id),
       version: null,
       mode: guest ? "live" : "test",
@@ -207,7 +226,7 @@ async function runStep(step: unknown, guest = false) {
   );
   const r = await row(id);
   expect({ status: r?.status, error: r?.error }).toEqual({ status: "done", error: null });
-  return { id, text: String(r?.state.outputs.work?.text ?? "") };
+  return { id, wizardId: r?.wizardId ?? "", text: String(r?.state.outputs.work?.text ?? "") };
 }
 
 const logOf = (runId: string) =>
@@ -302,6 +321,42 @@ describe("a wizard's function tools in a run", { timeout: 120_000 }, () => {
     expect(await logOf(id)).toContainEqual(
       expect.objectContaining({ whoKind: "guest", actionId: "wizard.rate", outcome: "allow" }),
     );
+  });
+
+  it("reach the wizard's database through db, one line of the log per statement", async () => {
+    toolCall = { name: "wizard_notes", input: { text: "first" } };
+    const { id, wizardId, text } = await runStep(stepWith(["wizard.notes"]), false, DATA);
+    expect(JSON.parse(text)).toMatchObject({ value: { changes: 1, notes: ["first"] } });
+    const lines = (await logOf(id)).filter((l) => l.connectionId === `data:${wizardId}`);
+    expect(lines.map((l) => [l.actionId, l.kind, l.outcome])).toEqual([
+      ["wizard.notes:db.exec", "write", "allow"],
+      ["wizard.notes:db.query", "read", "allow"],
+    ]);
+  });
+
+  it("keep a guest's run out of the shared database, and reach the person's", async () => {
+    toolCall = { name: "wizard_notes", input: { text: "mine", scope: "person" } };
+    const own = await runStep(stepWith(["wizard.notes"]), true, DATA);
+    expect(JSON.parse(own.text)).toMatchObject({ value: { notes: ["mine"] } });
+
+    toolCall = { name: "wizard_notes", input: { text: "everyone's", scope: "shared" } };
+    const shared = await runStep(stepWith(["wizard.notes"]), true, DATA);
+    expect(shared.text).toContain("error");
+    expect(
+      (await logOf(shared.id)).filter((l) => l.connectionId === `data:${shared.wizardId}`),
+    ).toEqual([
+      expect.objectContaining({
+        whoKind: "guest",
+        actionId: "wizard.notes:db.exec",
+        outcome: "deny",
+      }),
+    ]);
+  });
+
+  it("get no db where the wizard keeps no data", async () => {
+    toolCall = { name: "wizard_notes", input: { text: "nowhere" } };
+    const { text } = await runStep(stepWith(["wizard.notes"]));
+    expect(JSON.parse(text)).toMatchObject({ value: { db: "none" } });
   });
 
   it("do not start while code in wizards is off", async () => {

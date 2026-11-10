@@ -46,7 +46,7 @@ export const output = {
   required: ["score"],
 };
 
-export async function run({ price, budget }, { fetch, tools }) {
+export async function run({ price, budget }, { fetch, tools, db }) {
   return { score: Math.max(0, 1 - price / budget) };
 }
 ```
@@ -56,7 +56,7 @@ export async function run({ price, budget }, { fetch, tools }) {
 | `description` | What the tool does. The model reads it to decide when to call it |
 | `input` | The JSON Schema of the arguments, an object. The model sees it as the tool’s schema |
 | `output` | Optional. The JSON Schema of what `run` returns. A result that doesn’t fit goes back to the model as an error |
-| `run` | The function. It gets the arguments and `{ fetch, tools }`, and returns JSON |
+| `run` | The function. It gets the arguments and `{ fetch, tools, db }`, and returns JSON |
 
 ### In a step
 
@@ -80,6 +80,7 @@ The model calls it as `wizard_score`, since tool names take no dot.
 |---|---|
 | `fetch(url, { method, headers, body })` | Sends a request to one of the hosts the step lists in `hosts`. It answers with `status`, `ok`, `headers.get()`, `text()` and `json()`. A host the step doesn’t list is refused |
 | `tools.<name>(args)` | Calls another tool of the step by the name the model sees, such as `tools.web_fetch({ url })` |
+| `db.query(sql, params, { scope })`, `db.exec(…)` | Reads and writes the [wizard’s own database](./data.md#function-tools). Only when the wizard has `data` |
 
 A tool reaches only the step’s own `hosts`, also in a member’s run. A guest’s run reaches only
 the hosts its grant lists, as with `http`.
@@ -94,7 +95,7 @@ The code runs sealed off, the same way as a code step:
 
 - It has no imports, no files and no timers.
 - A call stops after 10 seconds, its requests included.
-- A call makes at most 20 requests and tool calls.
+- A call makes at most 20 requests, tool calls and statements.
 - It runs in a guest’s run too, and it costs no credits.
 
 Every call is a line in the audit, under the tool’s name, and so is every request it sends.
@@ -210,6 +211,9 @@ The sandbox reaches the npm and PyPI registries and the hosts of the run’s gra
 hosts the steps list. Every other host is refused. So a tool’s `hosts` count only when the step
 that names the tool lists them as well. A step that doesn’t fails at its start.
 
+`run` reaches the wizard’s own database through `WIZARD_DATA_URL` and `WIZARD_DATA_TOKEN` in its
+environment, when the wizard has `data`. [The wizard’s data](./data.md#the-sandbox) shows how.
+
 Every call is a line in the audit, under the tool’s name.
 
 ### Checks
@@ -279,6 +283,9 @@ A step with the `sandbox` tool gets the skill’s folder at `skills/<name>/` in 
 it loads the skill. Its model runs the scripts there with `run_command`. The sandbox is the
 same as for [sandbox tools](#where-it-runs): on your computer, and in the cloud where its
 sandbox is switched on.
+
+A script reaches the wizard’s own database through `WIZARD_DATA_URL` and `WIZARD_DATA_TOKEN`
+in its environment, as described in [the wizard’s data](./data.md#the-sandbox).
 
 Without the sandbox, the skill’s text still counts and its scripts don’t run.
 

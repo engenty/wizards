@@ -10,6 +10,7 @@ import {
 } from "../broker/index.js";
 import { webContext } from "../render/chromium.js";
 import { guestRun } from "../safety.js";
+import { closeSandboxData, sandboxDataEnv } from "../sandbox/data.js";
 import {
   guestSandboxEngine,
   PACKAGE_REGISTRIES,
@@ -81,12 +82,16 @@ export class RunResources {
 
   constructor(readonly runId: string) {}
 
-  /** Whose store kept sign-ins are read from and written to, and whose run this is. */
+  /**
+   * Whose store kept sign-ins are read from and written to, and whose run this is. `dataHost`:
+   * the runtime's host, which the sandbox reaches where the wizard keeps data (sandbox/data.ts).
+   */
   bind(
     scope: StoreScope,
     run: { mode: string; userId: string | null },
     share = false,
     spaceId = "",
+    dataHost: string | null = null,
   ) {
     this.scope = scope;
     this.share = share;
@@ -105,10 +110,14 @@ export class RunResources {
         url: new URL(`https://${host.includes(":") ? `[${host}]` : host}/`),
         method: "CONNECT",
         handler: connect,
-        alwaysAllowed: PACKAGE_REGISTRIES,
+        alwaysAllowed: dataHost ? [...PACKAGE_REGISTRIES, dataHost] : PACKAGE_REGISTRIES,
       }).then((out) => (out.ok ? out.result : null)),
     );
-    this.egress = { hosts: AsyncResource.bind(() => runHosts(where)), open };
+    const hosts = async () => {
+      const run = await runHosts(where);
+      return dataHost ? { ...run, hosts: [...new Set([...run.hosts, dataHost])] } : run;
+    };
+    this.egress = { hosts: AsyncResource.bind(hosts), open };
   }
 
   /** What this run's sandbox runs, or null when the run has none (a guest's, or `SANDBOX=off`). */
@@ -284,7 +293,9 @@ export class RunResources {
     if (!this.engine) {
       throw new Error("This run has no sandbox.");
     }
-    this.sandbox ??= this.engine.create(this.runId, this.egress ?? undefined);
+    this.sandbox ??= withDataEnv(this.engine.create(this.runId, this.egress ?? undefined), () =>
+      sandboxDataEnv(this.runId),
+    );
     return this.sandbox;
   }
 
@@ -296,6 +307,7 @@ export class RunResources {
     this.sandbox = null;
     this.frame = null;
     this.setSeat("agent");
+    closeSandboxData(this.runId);
     await this.stopCast();
     for (const watcher of this.watchers) {
       watcher(null);
@@ -304,6 +316,20 @@ export class RunResources {
     await context?.close().catch(() => undefined);
     await sandbox?.destroy().catch(() => undefined);
   }
+}
+
+/** A sandbox whose every command finds the wizard's data address in its environment. */
+function withDataEnv(sandbox: Sandbox, dataEnv: () => Record<string, string>): Sandbox {
+  return {
+    get capabilities() {
+      return sandbox.capabilities;
+    },
+    exec: (command, options = {}) =>
+      sandbox.exec(command, { ...options, env: { ...dataEnv(), ...options.env } }),
+    writeFile: (path, data) => sandbox.writeFile(path, data),
+    readFile: (path) => sandbox.readFile(path),
+    destroy: () => sandbox.destroy(),
+  };
 }
 
 const live = new Map<string, RunResources>();

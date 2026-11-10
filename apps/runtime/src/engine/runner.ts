@@ -117,6 +117,7 @@ import {
   guestChecksOn,
   guestRun,
 } from "../safety.js";
+import { sandboxDataHost } from "../sandbox/data.js";
 import { peerTicket } from "../secrets/signing.js";
 import { nameOf } from "../services/access.js";
 import { snapshotFile } from "../services/files.js";
@@ -1117,7 +1118,7 @@ export async function makeContext(
 ): Promise<StepContext> {
   const store = scopeOf(run);
   const resources = resourcesFor(run.id);
-  resources.bind(store, run, own.share, space.id);
+  resources.bind(store, run, own.share, space.id, run.definition.data ? sandboxDataHost() : null);
   const stepId = own.stepId ?? run.cursor ?? "";
   const holder = await runHolder(run);
   return {

@@ -12,6 +12,7 @@ import { ZodError } from "zod";
 import { asImpersonator } from "./auth/impersonation.js";
 import { authRoutes, type Principal, principalOf } from "./auth/index.js";
 import { db, schema, withTenant } from "./db/client.js";
+import { fromOwner } from "./engine/owner.js";
 import { basePath, env } from "./env.js";
 import { features } from "./features.js";
 import { health, httpStatus, publicHealth, requestStarted } from "./health.js";
@@ -52,6 +53,7 @@ import { skillRoutes } from "./routes/skills.js";
 import { studio } from "./routes/studio.js";
 import { wizardStream } from "./routes/wizard-stream.js";
 import { workRoutes } from "./routes/work.js";
+import { sandboxDataRequest } from "./sandbox/data.js";
 import { runTicketValid } from "./secrets/signing.js";
 import { asRole } from "./services/access.js";
 import { ServiceError } from "./services/errors.js";
@@ -358,6 +360,25 @@ if (serves.runner) {
     bridgeRequest(c.req.param("token"), c.req.raw),
   );
 }
+
+// A run's sandbox reaches its wizard's database here, with the run's token (sandbox/data.ts). The
+// runner holding the run answers; any other process hands the request on to it.
+app.post(
+  "/api/sandbox/data/:run/:action",
+  bodyLimit({
+    maxSize: 64 * 1024,
+    onError: (c) => c.json({ error: "The body is too large." }, 413),
+  }),
+  async (c) => {
+    const runId = c.req.param("run");
+    const here = await sandboxDataRequest(runId, c.req.param("action"), c.req.raw);
+    if (here) {
+      return here;
+    }
+    const there = serves.runner ? null : await fromOwner(c, runId);
+    return there ?? c.json({ error: "The run isn't running." }, 404);
+  },
+);
 
 // What visitors send is read before anyone is known: a body is taken only up to a size. A page's
 // answers are text; an upload is a photo, a recording or a clip from a phone (routes/delivery.ts).
