@@ -1,13 +1,13 @@
 import { declaredShape, parseWizard } from "@engenty/wizards-shared/definition";
 import {
   MAX_SHAPE_KEYS,
-  type ObjectShape,
+  type ObjectSchema,
   shapeJsonSchema,
   shapeOfFields,
 } from "@engenty/wizards-shared/shape";
 import { bound, validateSurface } from "@engenty/wizards-shared/surface";
 import { describe, expect, it, vi } from "vitest";
-import { fridgeShape } from "../../web/src/dev/data-shape";
+import { fridgeSchema, fridgeShape } from "../../web/src/dev/data-shape";
 import { fridgePlan, fridgeView } from "../../web/src/dev/view-lab-sample";
 
 // The model answers with the plan in a fenced block, as an agent mostly does.
@@ -68,7 +68,7 @@ const cook = {
   title: "Menüplan",
   instructions: "Plan three days from the photos of the fridge.",
   tools: [],
-  output: { format: "json", schema: fridgeShape, surface: fridgeView },
+  output: { format: "json", schema: fridgeSchema, surface: fridgeView },
 };
 
 const wizard = (step: Record<string, unknown> = cook) => ({
@@ -106,37 +106,53 @@ describe("an agent step's output schema", () => {
     expect(
       messages(output({ fields: [{ id: "summary", kind: "text" }] })),
     ).toContain('"fields" or "schema", not both');
-    expect(messages({ ...cook, output: { format: "markdown", schema: fridgeShape } })).toContain(
+    expect(messages({ ...cook, output: { format: "markdown", schema: fridgeSchema } })).toContain(
       'output format "json"',
     );
     // A ref points at a top-level list whose entries have an id.
-    const noId = structuredClone(fridgeShape) as ObjectShape;
-    const recipes = noId.fields.recipes;
-    if (recipes.kind === "list" && recipes.of.kind === "object") {
-      delete recipes.of.fields.id;
+    const noId = structuredClone(fridgeSchema);
+    const recipes = noId.properties.recipes;
+    if (recipes.type === "array" && recipes.items.type === "object") {
+      delete recipes.items.properties.id;
     }
     expect(messages(output({ schema: noId, surface: undefined }))).toContain(
-      'its entries need an "id" text field',
+      'its items need an "id" string',
     );
     // Objects nest four deep at most.
-    const leaf = { kind: "text" } as const;
-    const nest = (n: number): ObjectShape =>
+    const leaf = { type: "string" } as const;
+    const nest = (n: number): ObjectSchema =>
       n === 1
-        ? { kind: "object", fields: { name: leaf } }
-        : { kind: "object", fields: { more: { kind: "list", of: nest(n - 1) } } };
+        ? { type: "object", properties: { name: leaf } }
+        : { type: "object", properties: { more: { type: "array", items: nest(n - 1) } } };
     expect(messages(output({ schema: nest(4), surface: undefined }))).not.toContain("deep");
     expect(messages(output({ schema: nest(5), surface: undefined }))).toContain(
       "objects nest at most 4 deep",
     );
-    const wide: ObjectShape = {
-      kind: "object",
-      fields: Object.fromEntries(
+    const wide: ObjectSchema = {
+      type: "object",
+      properties: Object.fromEntries(
         Array.from({ length: MAX_SHAPE_KEYS + 1 }, (_, i) => [`k${i}`, leaf]),
       ),
     };
     expect(messages(output({ schema: wide, surface: undefined }))).toContain(
       `at most ${MAX_SHAPE_KEYS} keys`,
     );
+  });
+
+  it("is written in JSON Schema and read as the shape everything goes by", () => {
+    const parsed = parseWizard(wizard());
+    const step = parsed.ok ? parsed.wizard.steps.find((x) => x.id === "cook") : undefined;
+    expect(step && declaredShape(step as never)).toEqual(fridgeShape);
+    const recipe = fridgeShape.fields.recipes;
+    expect(recipe.kind === "list" && recipe.of.kind === "object" && recipe.of.fields.time_minutes)
+      .toEqual({ kind: "number", label: "Zeit", unit: "Min" });
+    // "required" names every key or none: a model fills each one.
+    const some = { ...fridgeSchema, required: ["summary"] };
+    expect(
+      parseWizard(wizard({ ...cook, output: { ...cook.output, schema: some } }))
+        .issues.map((i) => i.message)
+        .join("\n"),
+    ).toContain('"required" names every property');
   });
 
   it("checks the view's paths into nested lists", () => {

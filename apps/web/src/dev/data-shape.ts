@@ -1,8 +1,8 @@
-import type { ObjectShape } from "@engenty/wizards-shared/shape";
+import { type ObjectSchema, type ObjectShape, shapeOfSchema } from "@engenty/wizards-shared/shape";
 
 /**
- * Kühlschrank-Koch's `output.schema`: what its agent step returns from photos of a fridge, in
- * the field kinds wizards already use. The view lab draws the admin's view and edit from it.
+ * Kühlschrank-Koch's `output.schema`: what its agent step returns from photos of a fridge, in the
+ * subset of JSON Schema the format takes. The view lab draws the admin's view and edit from it.
  */
 const CATEGORIES = [
   "Obst & Gemüse",
@@ -14,47 +14,74 @@ const CATEGORIES = [
 ];
 
 /** Kühlschrank-Koch's plan, as the architect would write its schema. */
-export const fridgeShape: ObjectShape = {
-  kind: "object",
-  label: "Menüplan",
-  fields: {
-    summary: { kind: "text", label: "Zusammenfassung", long: true },
+export const fridgeSchema: ObjectSchema = {
+  type: "object",
+  title: "Menüplan",
+  properties: {
+    summary: {
+      type: "string",
+      title: "Zusammenfassung",
+      "x-long": true,
+    },
     inventory: {
-      kind: "list",
-      label: "Im Kühlschrank erkannt",
-      of: {
-        kind: "object",
-        label: "Lebensmittel",
-        fields: {
-          name: { kind: "text", label: "Name" },
-          amount: { kind: "text", label: "Menge" },
-          category: { kind: "choice", label: "Abteilung", options: CATEGORIES },
-          use_soon: { kind: "yesno", label: "Bald verbrauchen" },
+      type: "array",
+      title: "Im Kühlschrank erkannt",
+      items: {
+        type: "object",
+        title: "Lebensmittel",
+        properties: {
+          name: {
+            type: "string",
+            title: "Name",
+          },
+          amount: {
+            type: "string",
+            title: "Menge",
+          },
+          category: {
+            type: "string",
+            title: "Abteilung",
+            enum: CATEGORIES,
+          },
+          use_soon: {
+            type: "boolean",
+            title: "Bald verbrauchen",
+          },
         },
       },
     },
     days: {
-      kind: "list",
-      label: "Tage",
-      of: {
-        kind: "object",
-        label: "Tag",
-        fields: {
-          label: { kind: "text", label: "Tag" },
-          theme: { kind: "text", label: "Motto" },
+      type: "array",
+      title: "Tage",
+      items: {
+        type: "object",
+        title: "Tag",
+        properties: {
+          label: {
+            type: "string",
+            title: "Tag",
+          },
+          theme: {
+            type: "string",
+            title: "Motto",
+          },
           meals: {
-            kind: "list",
-            label: "Mahlzeiten",
-            of: {
-              kind: "object",
-              label: "Mahlzeit",
-              fields: {
+            type: "array",
+            title: "Mahlzeiten",
+            items: {
+              type: "object",
+              title: "Mahlzeit",
+              properties: {
                 slot: {
-                  kind: "choice",
-                  label: "Mahlzeit",
-                  options: ["Frühstück", "Mittag", "Abend"],
+                  type: "string",
+                  title: "Mahlzeit",
+                  enum: ["Frühstück", "Mittag", "Abend"],
                 },
-                recipe_id: { kind: "ref", label: "Rezept", to: "recipes" },
+                recipe_id: {
+                  type: "string",
+                  title: "Rezept",
+                  "x-ref": "recipes",
+                },
               },
             },
           },
@@ -62,65 +89,129 @@ export const fridgeShape: ObjectShape = {
       },
     },
     recipes: {
-      kind: "list",
-      label: "Rezepte",
-      of: {
-        kind: "object",
-        label: "Rezept",
-        fields: {
-          id: { kind: "text", label: "Kennung", description: "Short and unique: r1, r2, …" },
-          title: { kind: "text", label: "Titel" },
-          description: { kind: "text", label: "Beschreibung", long: true },
-          cuisine: { kind: "text", label: "Küche" },
-          time_minutes: { kind: "number", label: "Zeit", unit: "Min" },
-          difficulty: {
-            kind: "choice",
-            label: "Schwierigkeit",
-            options: ["leicht", "mittel", "anspruchsvoll"],
+      type: "array",
+      title: "Rezepte",
+      items: {
+        type: "object",
+        title: "Rezept",
+        properties: {
+          id: {
+            type: "string",
+            title: "Kennung",
+            description: "Short and unique: r1, r2, …",
           },
-          servings: { kind: "number", label: "Portionen" },
+          title: {
+            type: "string",
+            title: "Titel",
+          },
+          description: {
+            type: "string",
+            title: "Beschreibung",
+            "x-long": true,
+          },
+          cuisine: {
+            type: "string",
+            title: "Küche",
+          },
+          time_minutes: {
+            type: "number",
+            title: "Zeit",
+            "x-unit": "Min",
+          },
+          difficulty: {
+            type: "string",
+            title: "Schwierigkeit",
+            enum: ["leicht", "mittel", "anspruchsvoll"],
+          },
+          servings: {
+            type: "number",
+            title: "Portionen",
+          },
           ingredients: {
-            kind: "list",
-            label: "Zutaten",
-            of: {
-              kind: "object",
-              label: "Zutat",
-              fields: {
-                name: { kind: "text", label: "Zutat" },
-                amount: { kind: "text", label: "Menge" },
-                in_fridge: { kind: "yesno", label: "Im Kühlschrank", yes: "da", no: "einkaufen" },
+            type: "array",
+            title: "Zutaten",
+            items: {
+              type: "object",
+              title: "Zutat",
+              properties: {
+                name: {
+                  type: "string",
+                  title: "Zutat",
+                },
+                amount: {
+                  type: "string",
+                  title: "Menge",
+                },
+                in_fridge: {
+                  type: "boolean",
+                  title: "Im Kühlschrank",
+                  "x-yes": "da",
+                  "x-no": "einkaufen",
+                },
               },
             },
           },
           steps: {
-            kind: "list",
-            label: "Zubereitung",
-            of: {
-              kind: "object",
-              label: "Schritt",
-              fields: {
-                text: { kind: "text", label: "Schritt", long: true },
-                minutes: { kind: "number", label: "Dauer", unit: "Min" },
+            type: "array",
+            title: "Zubereitung",
+            items: {
+              type: "object",
+              title: "Schritt",
+              properties: {
+                text: {
+                  type: "string",
+                  title: "Schritt",
+                  "x-long": true,
+                },
+                minutes: {
+                  type: "number",
+                  title: "Dauer",
+                  "x-unit": "Min",
+                },
               },
             },
           },
-          tip: { kind: "text", label: "Tipp", long: true },
+          tip: {
+            type: "string",
+            title: "Tipp",
+            "x-long": true,
+          },
         },
       },
     },
     shopping_list: {
-      kind: "list",
-      label: "Einkaufsliste",
-      of: {
-        kind: "object",
-        label: "Artikel",
-        fields: {
-          name: { kind: "text", label: "Artikel" },
-          amount: { kind: "text", label: "Menge" },
-          category: { kind: "choice", label: "Abteilung", options: CATEGORIES },
-          for_recipes: { kind: "list", label: "Für", of: { kind: "text", label: "Rezept" } },
+      type: "array",
+      title: "Einkaufsliste",
+      items: {
+        type: "object",
+        title: "Artikel",
+        properties: {
+          name: {
+            type: "string",
+            title: "Artikel",
+          },
+          amount: {
+            type: "string",
+            title: "Menge",
+          },
+          category: {
+            type: "string",
+            title: "Abteilung",
+            enum: CATEGORIES,
+          },
+          for_recipes: {
+            type: "array",
+            title: "Für",
+            items: {
+              type: "string",
+              title: "Rezept",
+            },
+          },
         },
       },
     },
   },
 };
+
+/** The schema read as a shape: what the view lab and the editors go by. */
+export const fridgeShape: ObjectShape = shapeOfSchema(fridgeSchema);

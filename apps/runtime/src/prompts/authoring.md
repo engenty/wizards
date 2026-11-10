@@ -113,6 +113,7 @@ type Wizard = {
   lists?: List[]                // tabular data the wizard KEEPS between runs — separately for each person who runs it, or for all with "shared"
   connections?: Connection[]    // accounts the PERSON connects during a run (their mailbox); kept for their next run
   themes?: string[]             // ids of the space's themes the wizard offers, in order (see Theme) — leave it out to look like the space's brand
+  requires?: { … }              // what a run needs (models, tools, plugins, switches …): filled in from the steps on every save. Never write it
   steps: Step[]                 // run top to bottom; the LAST step is always a "result"
 }
 
@@ -350,15 +351,17 @@ type SurfaceStep = {
   groups?: { id, instructions, optional? }[]
 }
 // SCHEMA (json only): nested data — lists of entries that hold lists of their own (days with meals, recipes with
-//   ingredients and steps). Its root is { kind: "object", label, fields: { <key>: Field } }; a Field is
-//     { kind: "text", label, description?, long?: true }           long: paragraphs, not a line
-//     { kind: "number", label, description?, unit?: "Min" }
-//     { kind: "yesno", label, description?, yes?: "da", no?: "einkaufen" }   (yes/no: the words people read)
-//     { kind: "choice", label, description?, options: string[] }
-//     { kind: "ref", label, description?, to: "<top-level list key>" }   the id of an entry of that list; its entries
-//                                                                          need { id: { kind: "text" } }
-//     { kind: "list", label, description?, of: Field-without-list | { kind: "object", label, fields: { … } } }
-//   Labels are in the wizard's language: column heads, part titles, "add <label>" in the admin's editor. Description:
+//   ingredients and steps), as a subset of JSON Schema. Its root is { type: "object", title, properties: { <key>: Property } };
+//   a Property is
+//     { type: "string", title, description?, "x-long"?: true }                  x-long: paragraphs, not a line
+//     { type: "number", title, description?, "x-unit"?: "Min" }
+//     { type: "boolean", title, description?, "x-yes"?: "da", "x-no"?: "einkaufen" }   (the words people read)
+//     { type: "string", title, description?, enum: string[] }                   one of the values
+//     { type: "string", title, description?, "x-ref": "<top-level array key>" }  the id of an entry of that array;
+//                                                                                its items need { id: { type: "string" } }
+//     { type: "array", title, description?, items: Property-without-array | { type: "object", title, properties: { … } } }
+//   "required" may list the keys of an object; it lists all of them or is left out. No $ref, no other keywords.
+//   Titles are in the wizard's language: column heads, part titles, "add <title>" in the admin's editor. Description:
 //   what the model is to put there. Objects nest at most 4 deep (the root counted), at most 100 keys in all.
 //   The model gets it as a strict JSON Schema: every key is always filled.
 //   DESIGN THE VIEW FIRST, then the schema it needs: write output.surface (Tabs, Card, Fold, Group, Chips, Checklist,
@@ -369,18 +372,18 @@ type SurfaceStep = {
 //   Later steps read top-level keys ({{steps.id.key}}, optionsFrom, foreach, conditions); a list of entries is a table
 //   there ("steps.id.recipes.title"). Downloads: xlsx one sheet per top-level list, csv the first list of flat
 //   entries, md and pdf the whole tree.
-//   Example (Kühlschrank-Koch): { kind: "object", label: "Menüplan", fields: {
-//     summary: { kind: "text", label: "Zusammenfassung", long: true },
-//     days: { kind: "list", label: "Tage", of: { kind: "object", label: "Tag", fields: {
-//       label: { kind: "text", label: "Tag" }, theme: { kind: "text", label: "Motto" },
-//       meals: { kind: "list", label: "Mahlzeiten", of: { kind: "object", label: "Mahlzeit", fields: {
-//         slot: { kind: "choice", label: "Mahlzeit", options: ["Frühstück", "Mittag", "Abend"] },
-//         recipe_id: { kind: "ref", label: "Rezept", to: "recipes" } } } } } } },
-//     recipes: { kind: "list", label: "Rezepte", of: { kind: "object", label: "Rezept", fields: {
-//       id: { kind: "text", label: "Kennung" }, title: { kind: "text", label: "Titel" },
-//       time_minutes: { kind: "number", label: "Zeit", unit: "Min" },
-//       steps: { kind: "list", label: "Zubereitung", of: { kind: "object", label: "Schritt", fields: {
-//         text: { kind: "text", label: "Schritt", long: true }, minutes: { kind: "number", label: "Dauer", unit: "Min" } } } } } } } } }
+//   Example (Kühlschrank-Koch): { type: "object", title: "Menüplan", properties: {
+//     summary: { type: "string", title: "Zusammenfassung", "x-long": true },
+//     days: { type: "array", title: "Tage", items: { type: "object", title: "Tag", properties: {
+//       label: { type: "string", title: "Tag" }, theme: { type: "string", title: "Motto" },
+//       meals: { type: "array", title: "Mahlzeiten", items: { type: "object", title: "Mahlzeit", properties: {
+//         slot: { type: "string", title: "Mahlzeit", enum: ["Frühstück", "Mittag", "Abend"] },
+//         recipe_id: { type: "string", title: "Rezept", "x-ref": "recipes" } } } } } } },
+//     recipes: { type: "array", title: "Rezepte", items: { type: "object", title: "Rezept", properties: {
+//       id: { type: "string", title: "Kennung" }, title: { type: "string", title: "Titel" },
+//       time_minutes: { type: "number", title: "Zeit", "x-unit": "Min" },
+//       steps: { type: "array", title: "Zubereitung", items: { type: "object", title: "Schritt", properties: {
+//         text: { type: "string", title: "Schritt", "x-long": true }, minutes: { type: "number", title: "Dauer", "x-unit": "Min" } } } } } } } } }
 //   with a view: Tabs over a Grid of day Cards (each meal a Link to its recipe) and a Grid of recipe Links whose
 //   view is a Card, a Fold of ingredients and the Steps.
 // A SURFACE is a native view in the runner — facts, a list of results, key figures, a chart — themed, on phones, free per run.

@@ -30,6 +30,15 @@
 //   `fields` or `schema` and view), `working`, `retries` and the keys every step has.
 // - `each` on an agent or generate step becomes `foreach`.
 // - `any` in a `when` becomes `or`.
+// - Every `output.schema` is written as the subset of JSON Schema the format takes now: text →
+//   string (`long` → x-long), number → number (`unit` → x-unit), yesno → boolean (`yes`/`no` →
+//   x-yes/x-no), choice → string with enum, ref → string with x-ref, list → array with items,
+//   object → object with properties and every key required; `label` → title.
+//
+// Every definition, of version 2 or 1, then gets the root `requires` its steps call for, as the
+// runtime works it out (`requiresOf`, packages/shared/src/requires.ts). It is read from the
+// runtime's shared package: in the runtime's container it is there; in a checkout, build it first
+// (`pnpm --filter @engenty/wizards-shared build`). A definition the schema refuses keeps none.
 //
 // `toVersion1` is exported for the marketplace's entries (the Manage repo), which are files.
 //
@@ -51,7 +60,7 @@ const open = (url, authToken) => createClient({ url, ...(authToken ? { authToken
 const OPS = { equals: "eq", notEquals: "ne", empty: "notExists", notEmpty: "exists" };
 
 /** What `toVersion1` counts, as the columns of its table say it. */
-const COUNTED = ["decisions", "ops", "ors", "forms", "tools", "code", "foreach"];
+const COUNTED = ["decisions", "ops", "ors", "forms", "tools", "code", "foreach", "schemas"];
 const HEADS = {
   decisions: "decisions",
   ops: "operators",
@@ -60,7 +69,52 @@ const HEADS = {
   tools: "tool steps",
   code: "code steps",
   foreach: "foreach",
+  schemas: "schemas",
+  requires: "requires filled",
+  unfilled: "requires left out",
 };
+
+/** A shape in the kinds of before as the subset of JSON Schema `output.schema` takes now. */
+function asJsonSchema(shape) {
+  if (!shape || typeof shape !== "object" || typeof shape.kind !== "string") {
+    return shape;
+  }
+  const { kind, label, description } = shape;
+  const head = {
+    ...(label !== undefined ? { title: label } : {}),
+    ...(description !== undefined ? { description } : {}),
+  };
+  switch (kind) {
+    case "text":
+      return { type: "string", ...head, ...(shape.long ? { "x-long": true } : {}) };
+    case "number":
+      return { type: "number", ...head, ...(shape.unit ? { "x-unit": shape.unit } : {}) };
+    case "yesno":
+      return {
+        type: "boolean",
+        ...head,
+        ...(shape.yes ? { "x-yes": shape.yes } : {}),
+        ...(shape.no ? { "x-no": shape.no } : {}),
+      };
+    case "choice":
+      return { type: "string", ...head, enum: shape.options };
+    case "ref":
+      return { type: "string", ...head, "x-ref": shape.to };
+    case "list":
+      return { type: "array", ...head, items: asJsonSchema(shape.of) };
+    case "object": {
+      const fields = shape.fields ?? {};
+      return {
+        type: "object",
+        ...head,
+        properties: Object.fromEntries(Object.entries(fields).map(([k, f]) => [k, asJsonSchema(f)])),
+        required: Object.keys(fields),
+      };
+    }
+    default:
+      return shape;
+  }
+}
 const DECISION_KINDS = new Set(["yesno", "choice", "score"]);
 
 /** Whether an agent step of version 2 was a decision: the shape the app recognized it by. */
@@ -191,6 +245,10 @@ export function toVersion1(def) {
       counts.decisions++;
       return asDecision(step);
     }
+    if (step.output?.schema?.kind === "object") {
+      counts.schemas++;
+      step = { ...step, output: { ...step.output, schema: asJsonSchema(step.output.schema) } };
+    }
     if (step.type === "page") {
       counts.forms++;
       return { ...step, type: "form" };
@@ -271,8 +329,47 @@ function setAt(obj, path, value) {
   return { ...obj, [k]: setAt(obj[k], rest, value) };
 }
 
-async function convertTenant(db) {
-  const counts = { v2: 0, current: 0, skipped: 0, ...Object.fromEntries(COUNTED.map((k) => [k, 0])) };
+/**
+ * The definition with the `requires` its steps call for, before its steps; the same object where
+ * it has that already, null where the schema refuses the definition.
+ */
+export function fillRequires(def, { wizardSchema, requiresOf }) {
+  const parsed = wizardSchema.safeParse(def);
+  if (!parsed.success) {
+    return null;
+  }
+  const requires = requiresOf(parsed.data);
+  if (JSON.stringify(def.requires ?? {}) === JSON.stringify(requires)) {
+    return def;
+  }
+  const { requires: _, steps, ...rest } = def;
+  return { ...rest, ...(Object.keys(requires).length ? { requires } : {}), steps };
+}
+
+/** What `fillRequires` reads, from the runtime's shared package. */
+async function sharedPackage() {
+  try {
+    const [{ wizardSchema }, { requiresOf }] = await Promise.all([
+      import("@engenty/wizards-shared/definition"),
+      import("@engenty/wizards-shared/requires"),
+    ]);
+    return { wizardSchema, requiresOf };
+  } catch (err) {
+    throw new Error(
+      `The runtime's shared package can't be read (${err?.message ?? err}). In a checkout, build it: pnpm --filter @engenty/wizards-shared build`,
+    );
+  }
+}
+
+async function convertTenant(db, shared) {
+  const counts = {
+    v2: 0,
+    current: 0,
+    skipped: 0,
+    requires: 0,
+    unfilled: 0,
+    ...Object.fromEntries(COUNTED.map((k) => [k, 0])),
+  };
   if (!(await hasTable(db, "wizard"))) {
     return { counts, missing: "no wizard table" };
   }
@@ -305,8 +402,18 @@ async function convertTenant(db) {
         for (const k of COUNTED) {
           counts[k] += out[k] ?? 0;
         }
-        if (out.def) {
-          doc = setAt(doc, path, out.def);
+        let next = out.def ?? (out.kind === "current" ? def : null);
+        if (next) {
+          const filled = fillRequires(next, shared);
+          if (filled === null) {
+            counts.unfilled++;
+          } else if (filled !== next) {
+            counts.requires++;
+            next = filled;
+          }
+        }
+        if (next && next !== def) {
+          doc = setAt(doc, path, next);
           changed = true;
         }
       }
@@ -335,6 +442,7 @@ function tenantUrl(id, dbUrl) {
 }
 
 async function main() {
+  const shared = await sharedPackage();
   const controlUrl = process.env.DATABASE_URL || `file:${join(dataDir, "control.db")}`;
   if (controlUrl.startsWith("file:") && !existsSync(controlUrl.slice(5))) {
     throw new Error(`No control database at ${controlUrl}`);
@@ -356,7 +464,7 @@ async function main() {
   }
   const token = process.env.TENANT_DB_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN;
   console.log(`${write ? "Converting" : "Dry run, nothing written:"} ${tenants.length} tenants`);
-  const columns = ["v2", ...COUNTED, "current", "skipped"];
+  const columns = ["v2", ...COUNTED, "requires", "unfilled", "current", "skipped"];
   const heads = { ...HEADS, v2: "version 2 → 1", current: "already 1", skipped: "not a definition" };
   console.log(["tenant", ...columns.map((k) => heads[k]), "rows"].join("\t"));
   const total = Object.fromEntries([...columns, "rows"].map((k) => [k, 0]));
@@ -369,7 +477,7 @@ async function main() {
     }
     const db = open(url, url.startsWith("file:") ? "" : token);
     try {
-      const out = await convertTenant(db);
+      const out = await convertTenant(db, shared);
       if (out.missing) {
         console.log(`${t.id}\t(${out.missing})`);
         if (out.missing.startsWith("before")) {

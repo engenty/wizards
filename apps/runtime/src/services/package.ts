@@ -12,6 +12,8 @@ import { strToU8, zipSync } from "fflate";
 import { listConnectors } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { getBlob } from "../files/blobs.js";
+import { pluginIdsOf } from "../plugins/registry.js";
+import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
 import { draftFiles, writeFile } from "./files.js";
 import { pageTree } from "./knowledge.js";
@@ -149,7 +151,11 @@ async function missing(
   const space = await ownedSpace(userId, spaceId);
   const connectors = await listConnectors(space.id);
   const wanted = [...new Set((draft.connections ?? []).flatMap((c) => c.connector ?? []))];
+  const plugins = await pluginIdsOf(currentTenant());
   return [
+    ...(draft.requires?.plugins ?? [])
+      .filter((id) => !plugins.has(id))
+      .map((id) => `Plugin „${id}“`),
     ...wanted
       .filter((id) => !connectors.some((c) => c.id === id))
       .map((id) => {

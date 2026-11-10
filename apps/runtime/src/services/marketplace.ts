@@ -22,10 +22,10 @@ import {
   type MarketplacePage,
   type MarketplaceSummary,
   type MarketplaceSyncItem,
-  pluginsOf,
 } from "@engenty/wizards-shared/marketplace";
 import { type WizardOutline, wizardOutline } from "@engenty/wizards-shared/marketplace-entry";
 import { searchEntries } from "@engenty/wizards-shared/marketplace-search";
+import { requiresOf } from "@engenty/wizards-shared/requires";
 import { note } from "@engenty/wizards-shared/run";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { formulaEstimate } from "../credits/estimate.js";
@@ -576,7 +576,9 @@ export async function marketplaceWizard(
   }
   // A wizard whose plugins are not here would stop at its first step that uses them.
   const have = await pluginIdsOf(currentTenant());
-  const needs = pluginsOf(wizardSchema.parse(found.definition)).filter((p) => !have.has(p));
+  const needs = (requiresOf(wizardSchema.parse(found.definition)).plugins ?? []).filter(
+    (p) => !have.has(p),
+  );
   if (needs.length) {
     throw new ServiceError(
       "refused",
