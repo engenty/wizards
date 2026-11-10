@@ -110,6 +110,7 @@ import {
 import { runEnded } from "../plugins/events.js";
 import { pluginsOf as loadedPlugins } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
+import { inProcessServices } from "../run-services/index.js";
 import {
   ContentBlockedError,
   checkGuestInput,
@@ -1121,7 +1122,7 @@ export async function makeContext(
   resources.bind(store, run, own.share, space.id, run.definition.data ? sandboxDataHost() : null);
   const stepId = own.stepId ?? run.cursor ?? "";
   const holder = await runHolder(run);
-  return {
+  const ctx: StepContext = {
     runId: run.id,
     tenantId: run.tenantId,
     test: run.mode === "test",
@@ -1156,7 +1157,9 @@ export async function makeContext(
         runId: run.id,
         stepId: input.stepId ?? own.stepId ?? run.cursor,
       }),
+    services: inProcessServices(run, () => ctx),
   };
+  return ctx;
 }
 
 /**
