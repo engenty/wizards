@@ -8,7 +8,8 @@ import {
   recordsOf,
   shapeZod,
 } from "@engenty/wizards-shared/shape";
-import { QuickJsCodeModeTransport } from "@mastra/quickjs";
+import type { QuickJsCodeModeTransport } from "@mastra/quickjs";
+import { onDemand } from "../on-demand.js";
 import { snapshotFile } from "../services/files.js";
 import { runStepData } from "./data-step.js";
 import { surfaceData } from "./surface.js";
@@ -33,10 +34,20 @@ export const CODE_STEP_LIMITS = {
   logChars: 2000,
 };
 
-/** One transport for the process; it loads the WebAssembly module once, on the first run. */
-let transport: QuickJsCodeModeTransport | null = null;
-function quickJs(): QuickJsCodeModeTransport {
-  transport ??= new QuickJsCodeModeTransport({ memoryLimitMb: CODE_STEP_LIMITS.memoryMb });
+/**
+ * One transport for the process; it loads the WebAssembly module once, on the first run. QuickJS
+ * is downloaded the first time a minimal installation needs it (on-demand.ts).
+ */
+let transport: Promise<QuickJsCodeModeTransport> | null = null;
+function quickJs(): Promise<QuickJsCodeModeTransport> {
+  transport ??= onDemand<typeof import("@mastra/quickjs")>("@mastra/quickjs").then(
+    ({ QuickJsCodeModeTransport }) =>
+      new QuickJsCodeModeTransport({ memoryLimitMb: CODE_STEP_LIMITS.memoryMb }),
+  );
+  // A failed download is tried again on the next run.
+  transport.catch(() => {
+    transport = null;
+  });
   return transport;
 }
 
@@ -169,7 +180,7 @@ export async function runCode(
       }),
     );
   }
-  const ran = await quickJs().run({
+  const ran = await (await quickJs()).run({
     program: codeProgram(source, input),
     toolIds: [],
     dispatch: async () => {

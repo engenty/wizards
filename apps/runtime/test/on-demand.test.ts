@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -103,6 +111,25 @@ describe("onDemand", () => {
     expect(existsSync(join(extrasDir(root, "exceljs"), "node_modules", "exceljs"))).toBe(true);
     await installAll(undefined, { root, npm });
     expect(calls).toHaveLength(2);
+  });
+
+  it("is the only way the runtime loads them: no static import names one", async () => {
+    const { ON_DEMAND } = await import("../src/on-demand");
+    const src = join(__dirname, "..", "src");
+    const files = readdirSync(src, { recursive: true, encoding: "utf8" }).filter((f) =>
+      /\.tsx?$/.test(f),
+    );
+    const found: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(join(src, file), "utf8");
+      for (const name of Object.keys(ON_DEMAND)) {
+        const value = new RegExp(`^(?:import|export)(?! type)[^;]*from "${name}"`, "m");
+        if (value.test(text)) {
+          found.push(`${file}: ${name}`);
+        }
+      }
+    }
+    expect(found).toEqual([]);
   });
 
   it("refuses a library the package doesn't name", async () => {
