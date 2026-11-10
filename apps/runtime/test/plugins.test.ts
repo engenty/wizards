@@ -438,6 +438,12 @@ describe("a plugin's tools", () => {
 
   it("answer a step that calls one, with no model", async () => {
     const { runAutomaticStep } = await import("../src/engine/steps/index.js");
+    const { inProcessServices } = await import("../src/run-services/index.js");
+    // The step's context with the run's services, as the runner makes it.
+    const served = (c: any) => {
+      c.services = inProcessServices({ id: c.runId, definition: c.def } as never, () => c);
+      return c;
+    };
     const emitted: string[] = [];
     const step = {
       id: "count",
@@ -452,7 +458,7 @@ describe("a plugin's tools", () => {
       brand: {},
     };
     const out = await client.withTenant(LOCAL, () =>
-      runAutomaticStep(step as any, { ...ctx(emitted), scope, def: scope.def, state: scope.state } as any),
+      runAutomaticStep(step as any, served({ ...ctx(emitted), scope, def: scope.def, state: scope.state })),
     );
     expect(out.json).toEqual({ entries: 1, word: "Gast", space: "Projekt" });
     expect(emitted).toEqual(["Zählt Einträge"]);
@@ -461,7 +467,7 @@ describe("a plugin's tools", () => {
       client.withTenant(LOCAL, () =>
         runAutomaticStep(
           { ...step, call: { tool: "guestbook.count", input: { word: 5 } } } as any,
-          { ...ctx([]), scope, def: scope.def, state: scope.state } as any,
+          served({ ...ctx([]), scope, def: scope.def, state: scope.state }),
         ),
       ),
     ).rejects.toThrow(/word/);

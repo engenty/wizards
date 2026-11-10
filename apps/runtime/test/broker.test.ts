@@ -68,6 +68,7 @@ let client: typeof import("../src/db/client");
 let broker: typeof import("../src/broker/index");
 let connections: typeof import("../src/connectors/plugin-connections");
 let runner: typeof import("../src/engine/runner");
+let runServices: typeof import("../src/run-services/index");
 let space: string;
 let wizardId: string;
 
@@ -143,6 +144,7 @@ beforeAll(async () => {
   broker = await import("../src/broker/index");
   connections = await import("../src/connectors/plugin-connections");
   runner = await import("../src/engine/runner");
+  runServices = await import("../src/run-services/index");
   const spaces = await import("../src/services/spaces");
   const wizards = await import("../src/services/wizards");
   space = (await inTenant(() => spaces.createSpace("user-b", "Vertrieb"))).id;
@@ -693,7 +695,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
       history: [],
       notes: {},
     };
-    return {
+    const ctx = {
       runId,
       tenantId: TENANT,
       holder,
@@ -713,6 +715,8 @@ describe("fixed steps write, AI steps on space connections read", () => {
       ask,
       call: {},
     } as unknown as import("../src/engine/types").StepContext;
+    ctx.services = runServices.inProcessServices({ id: runId, definition: def } as never, () => ctx);
+    return ctx;
   }
 
   beforeAll(async () => {

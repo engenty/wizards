@@ -27,7 +27,6 @@ import {
 import { Agent } from "@mastra/core/agent";
 import { generateText, type JSONSchema7, jsonSchema, Output, parsePartialJson } from "ai";
 import type { z } from "zod";
-import { subjectsOf } from "../../broker/rwx.js";
 import { loadAsset } from "../../files/storage.js";
 import {
   agentModel,
@@ -41,19 +40,16 @@ import {
   totalUsage,
 } from "../../models.js";
 import { prompt } from "../../prompts.js";
-import { knowledgeBlock } from "../../services/knowledge.js";
 import { watchActions } from "../../tools/acted.js";
 import { agentTools, stepOfAgent } from "../../tools/agent.js";
 import { buildStepTools } from "../../tools/index.js";
-import { spaceContextOf } from "../../tools/plugin.js";
-import { skillsBlock, skillsOf } from "../../tools/skills.js";
 import { personUploads, type UploadRef } from "../../tools/store.js";
 import { durableTurn, turnContext, turnOf } from "../durable-turn.js";
 import { renderTask } from "../template.js";
 import { type StepContext, StepError } from "../types.js";
 import { decideStep } from "./decision.js";
 import { runAgentEach } from "./foreach.js";
-import { answersBlock, brandBlock, groundRules, revisionBlock, today } from "./prompt.js";
+import { answersBlock, brandBlock, groundRules, revisionBlock } from "./prompt.js";
 
 // --- agent -------------------------------------------------------------------
 
@@ -366,22 +362,23 @@ export async function runAgentStep(
         : prompt("step", "format.json", {
             shape: shapeLines(outputSchema(step).shape).join("\n"),
           });
+  const setting = await ctx.services.context.forStep(step.id, {
+    tools: takesTools(resolved),
+    sandbox: step.tools.includes("sandbox"),
+  });
   const system = [
     groundRules(ctx),
     agentPart ? `# AGENT\n${agentPart}` : "",
     step.tools.includes("browser") ? prompt("step", "browser_rules") : "",
     instructions ?? "",
-    `Today is ${today(ctx)}.`,
-    brandBlock(ctx),
+    `Today is ${setting.date}.`,
+    brandBlock(setting.brand),
     // Knowledge: what the space holds for the run's holder and its wizard, and how to read it.
-    await knowledgeBlock(ctx.dataSpace.id, subjectsOf(ctx)),
+    setting.knowledge,
     // Skills: always on whole, on demand by name and description (docs/plans/skills.md).
-    skillsBlock(await skillsOf(ctx), {
-      tools: takesTools(resolved),
-      sandbox: step.tools.includes("sandbox") && ctx.resources.sandboxCapabilities() !== null,
-    }),
+    setting.skills,
     // What the space's plugins hold for its wizards: a wiki, questions and answers.
-    ...(await spaceContextOf(ctx)).blocks,
+    ...setting.plugins.blocks,
     formatHint,
   ]
     .filter(Boolean)

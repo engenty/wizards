@@ -75,6 +75,7 @@ let service: typeof import("../src/connectors/space-connections");
 let plugins: typeof import("../src/connectors/plugin-connections");
 let access: typeof import("../src/services/access");
 let wizards: typeof import("../src/services/wizards");
+let runServices: typeof import("../src/run-services/index");
 let space: string;
 let wizardId: string;
 
@@ -238,6 +239,7 @@ beforeAll(async () => {
   broker = await import("../src/broker/index");
   service = await import("../src/connectors/space-connections");
   plugins = await import("../src/connectors/plugin-connections");
+  runServices = await import("../src/run-services/index");
   access = await import("../src/services/access");
   wizards = await import("../src/services/wizards");
   const spaces = await import("../src/services/spaces");
@@ -591,7 +593,7 @@ describe("what a caller reads of a limit", () => {
 
   function contextOf(runId: string, stepId: string) {
     const state = { values: { email: "lead@b.at" }, outputs: {}, history: [], notes: {} };
-    return {
+    const ctx = {
       runId,
       tenantId: TENANT,
       holder: { kind: "person", id: "user-m", role: "member" },
@@ -611,6 +613,8 @@ describe("what a caller reads of a limit", () => {
       ask: async () => null,
       call: {},
     } as unknown as import("../src/engine/types").StepContext;
+    ctx.services = runServices.inProcessServices({ id: runId, definition: def } as never, () => ctx);
+    return ctx;
   }
 
   beforeAll(async () => {

@@ -7,6 +7,7 @@ import {
 } from "@engenty/wizards-shared/definition";
 import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
+import type { StepSetting } from "@engenty/wizards-shared/run-services";
 import { mainLogo, runTheme } from "@engenty/wizards-shared/spaces";
 import { generateText } from "ai";
 import { extFor, loadAsset } from "../../files/storage.js";
@@ -22,8 +23,6 @@ import { type AiOrigin, markMedia } from "../../media/marking.js";
 import { costOf, textModel } from "../../models.js";
 import { prompt } from "../../prompts.js";
 import { contentPolicy } from "../../safety.js";
-import { spaceContextOf } from "../../tools/plugin.js";
-import { skillsBlock, skillsOf } from "../../tools/skills.js";
 import {
   assetSectionLine,
   logoSectionLine,
@@ -33,7 +32,7 @@ import {
 } from "../template.js";
 import { type StepContext, StepError } from "../types.js";
 import { inParallel } from "./foreach.js";
-import { answersBlock, brandBlock, groundRules, revisionBlock, today } from "./prompt.js";
+import { answersBlock, brandBlock, groundRules, revisionBlock } from "./prompt.js";
 
 // --- generate ----------------------------------------------------------------
 
@@ -98,7 +97,11 @@ function entriesOf(step: GenerateStep, ctx: StepContext): Entry[] {
 const DOCUMENT_TEMPLATES = new Set(["invoice", "offer", "briefing", "letter", "report", "free"]);
 
 /** Images a document may place: earlier generated images, uploads, the space's logos and images. */
-function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; label: string }[] {
+function placeableImages(
+  step: GenerateStep,
+  ctx: StepContext,
+  { files, brand }: StepSetting,
+): { id: string; label: string }[] {
   const out: { id: string; label: string }[] = [];
   const index = ctx.def.steps.indexOf(step);
   for (const s of ctx.def.steps.slice(0, index)) {
@@ -129,10 +132,10 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       }
     }
   }
-  const logos = ctx.spaceFiles.filter((f) => f.kind === "logo");
-  const main = mainLogo(logos, ctx.scope.brand.logoSections);
+  const logos = files.filter((f) => f.kind === "logo");
+  const main = mainLogo(logos, brand.logoSections);
   for (const f of logos) {
-    const section = logoSectionLine(ctx.scope.brand.logoSections, f.id);
+    const section = logoSectionLine(brand.logoSections, f.id);
     out.push({
       id: f.id,
       label: [
@@ -142,9 +145,9 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       ].join(""),
     });
   }
-  for (const p of ctx.scope.brand.patterns ?? []) {
-    const file = ctx.spaceFiles.find((f) => f.id === p.file);
-    const section = ctx.scope.brand.colorSections?.find((s) => s.id === p.section);
+  for (const p of brand.patterns ?? []) {
+    const file = files.find((f) => f.id === p.file);
+    const section = brand.colorSections?.find((s) => s.id === p.section);
     if (file) {
       out.push({
         id: file.id,
@@ -152,9 +155,9 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       });
     }
   }
-  for (const f of ctx.spaceFiles) {
+  for (const f of files) {
     if (f.kind === "asset" && f.mime.startsWith("image/")) {
-      const section = assetSectionLine(ctx.scope.brand.assetSections, f.id);
+      const section = assetSectionLine(brand.assetSections, f.id);
       out.push({
         id: f.id,
         label: `${f.description || f.name} (from the space's assets${section ? `, section ${section}` : ""})`,
@@ -170,9 +173,11 @@ async function writeHtml(
   kind: "document" | "dashboard",
 ): Promise<string> {
   const brief = renderTemplate(step.prompt, ctx.scope);
-  const images = placeableImages(step, ctx);
+  // The skills always on hold for what a step writes, a document too.
+  const setting = await ctx.services.context.forStep(step.id, { tools: false });
+  const images = placeableImages(step, ctx, setting);
   // The look comes from the space's brand, as on the run page; what it does not say, the runner's own.
-  const theme = runTheme(ctx.scope.brand);
+  const theme = runTheme(setting.brand);
   const accent = theme.accent ?? "#e0531b";
   const look = [
     prompt("step", "look.type", {
@@ -195,13 +200,12 @@ async function writeHtml(
         });
   const system = [
     groundRules(ctx),
-    `Today is ${today(ctx)}.`,
-    brandBlock(ctx),
-    // The skills always on hold for what a step writes, a document too.
-    skillsBlock(await skillsOf(ctx), { tools: false }),
+    `Today is ${setting.date}.`,
+    brandBlock(setting.brand),
+    setting.skills,
     guide,
     // What plugins hold for the space's look: a UI library, say.
-    ...(await spaceContextOf(ctx)).html,
+    ...setting.plugins.html,
     images.length
       ? prompt("step", "html.images", {
           images: images.map((i) => `- asset://${i.id} — ${i.label}`).join("\n"),

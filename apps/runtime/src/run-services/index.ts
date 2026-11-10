@@ -1,4 +1,4 @@
-import { localeOf, textClassOf, wizardLang } from "@engenty/wizards-shared/definition";
+import { textClassOf } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import {
   type DataStatementRequest,
@@ -38,14 +38,13 @@ import { loadAsset, saveAsset } from "../files/storage.js";
 import { agentModel, costOf, embeddingModel, type ResolvedModel, textModel } from "../models.js";
 import { runMotionGraphicsStep } from "../motion-graphics/step.js";
 import { signedUrl } from "../secrets/signing.js";
-import { knowledgeBlock } from "../services/knowledge.js";
 import { runData } from "../store/data-access.js";
 import { listRows } from "../store/index.js";
 import { buildStepTools, type StepTools } from "../tools/index.js";
 import { assertPublicUrl, safeFetch } from "../tools/net-guard.js";
-import { skillsBlock, skillsOf } from "../tools/skills.js";
 import { personUploads } from "../tools/store.js";
 import { runWidgetStep } from "../widgets/step.js";
+import { contextService } from "./context.js";
 
 /**
  * The run's services inside the runtime (docs/plans/runs-on-their-own.md, "The run's services"):
@@ -214,28 +213,7 @@ export function inProcessServices(run: RunRow, ctx: () => StepContext): InProces
       },
     },
 
-    context: {
-      async forStep(stepId, options = {}) {
-        const c = at(stepId);
-        const step = stepOf(stepId);
-        const lang = wizardLang(run.definition);
-        const sandbox =
-          step?.type === "agent" &&
-          step.tools.includes("sandbox") &&
-          c.resources.sandboxCapabilities() !== null;
-        return {
-          date: new Date().toLocaleDateString(localeOf(lang), {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          }),
-          lang,
-          brand: c.scope.brand,
-          knowledge: await knowledgeBlock(c.dataSpace.id, subjectsOf(c)),
-          skills: skillsBlock(await skillsOf(c), { tools: options.tools ?? true, sandbox }),
-        };
-      },
-    },
+    context: contextService(run, at),
 
     files: {
       async read(ref) {
