@@ -385,6 +385,8 @@ const NOTES_EN = {
   wizardToolBroken: "The tool “{name}” can’t be used: {detail}",
   wizardAgentMissing: "The agent “{name}” isn’t in the wizard’s files.",
   wizardAgentBroken: "The agent “{name}” can’t be used: {detail}",
+  agentNeedsChanged:
+    "What the wizard says the agent “{name}” needs isn’t what its file says. Save the wizard again.",
   waitDateUnreadable: "“{date}” isn’t a date this step can wait for.",
   runStarted: "Run started",
   runStartedBy: "Run started by {name}",
@@ -909,6 +911,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   wizardToolBroken: "Das Werkzeug „{name}“ lässt sich nicht nutzen: {detail}",
   wizardAgentMissing: "Der Agent „{name}“ fehlt in den Dateien des Wizards.",
   wizardAgentBroken: "Der Agent „{name}“ lässt sich nicht nutzen: {detail}",
+  agentNeedsChanged:
+    "Was der Wizard für den Agenten „{name}“ angibt, passt nicht zu seiner Datei. Speicher den Wizard noch einmal.",
   waitDateUnreadable: "„{date}“ ist kein Datum, auf das dieser Schritt warten kann.",
   runStarted: "Lauf gestartet",
   runStartedBy: "Lauf gestartet von {name}",

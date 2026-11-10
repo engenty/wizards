@@ -2,6 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { wizardSchema } from "@engenty/wizards-shared/definition";
+import { withRequires } from "@engenty/wizards-shared/requires";
 import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -313,6 +314,65 @@ describe("a wizard's agents in a run", { timeout: 120_000 }, () => {
         result: "ok",
       }),
     );
+  });
+
+  it("don't start where requires says other than the agent's file, and name the agent", async () => {
+    const step = {
+      id: "work",
+      type: "agent",
+      title: "Work",
+      agent: "researcher",
+      instructions: "Go.",
+      output: { format: "text" },
+    };
+    await expect(
+      client.withTenant(T, async () => {
+        const created = await wizards.createWizard("u", {
+          definition: { ...base, steps: [end] } as never,
+        });
+        await files.seedFiles(created.id, { "agents/researcher.md": RESEARCHER });
+        // Saved by a writer that never read the file: the default class, no `requires.agents`.
+        const stale = withRequires(wizardSchema.parse({ ...base, steps: [step, end] }));
+        return runner.createRun({
+          wizardId: created.id,
+          definition: stale,
+          files: await files.draftFiles(created.id),
+          version: null,
+          mode: "test",
+          userId: "u",
+          visitorId: null,
+        });
+      }),
+    ).rejects.toThrow(/researcher/);
+  });
+
+  it("fill the draft's requires in again when an agent's file is written", async () => {
+    const step = {
+      id: "work",
+      type: "agent",
+      title: "Work",
+      agent: "researcher",
+      instructions: "Go.",
+      output: { format: "text" },
+    };
+    const agentsOf = (id: string) =>
+      client.withTenant(T, async () => (await wizards.ownedWizard("u", id)).draft.requires?.agents);
+    const id = await client.withTenant(T, async () => {
+      const created = await wizards.createWizard("u", {
+        definition: { ...base, steps: [step, end] } as never,
+      });
+      await files.writeFile("u", created.id, "agents/researcher.md", RESEARCHER);
+      return created.id;
+    });
+    expect(await agentsOf(id)).toEqual({
+      researcher: { models: ["classifier", "high"], tools: ["web_fetch"] },
+    });
+    await client.withTenant(T, () =>
+      files.writeFile("u", id, "agents/researcher.md", RESEARCHER.replace("model: high", "model: low")),
+    );
+    expect(await agentsOf(id)).toEqual({
+      researcher: { models: ["classifier", "low"], tools: ["web_fetch"] },
+    });
   });
 
   it("fail a step whose agent has no file", async () => {

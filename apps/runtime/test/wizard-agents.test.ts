@@ -2,7 +2,12 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { validateWizard, type WizardDefinition, wizardSchema } from "@engenty/wizards-shared/definition";
-import { requiresOf, requiresProblem, withRequires } from "@engenty/wizards-shared/requires";
+import {
+  agentsMismatch,
+  requiresOf,
+  requiresProblem,
+  withRequires,
+} from "@engenty/wizards-shared/requires";
 import {
   parseWizardAgent,
   parseYamlMap,
@@ -203,7 +208,7 @@ describe("a step and the wizard's agents", () => {
     expect(requiresOf(asStep).models).toEqual(["standard"]);
     // The file changed: validate says so.
     const lower = new Map([["researcher", { ...researcher, model: "low" as const }]]);
-    expect(requiresProblem(saved, lower)).toContain('"requires" is not what the steps need');
+    expect(requiresProblem(saved, lower)).toContain('"requires.agents.researcher" says');
 
     const asTool = definition({ tools: ["agent.researcher"], model: "low" });
     expect(requiresOf(asTool, agents)).toMatchObject({
@@ -217,6 +222,31 @@ describe("a step and the wizard's agents", () => {
     expect(
       requiresOf(definition({ agent: "researcher", tools: ["web_fetch"] }), agents).run,
     ).toBeUndefined();
+  });
+
+  it("say which agent's entry in requires differs from its file, and drop agents no step uses", () => {
+    const saved = withRequires(definition({ agent: "researcher" }), agents);
+    const lower = new Map([["researcher", { ...researcher, model: "low" as const }]]);
+    expect(agentsMismatch(saved, lower)).toEqual([
+      {
+        name: "researcher",
+        message:
+          '"requires.agents.researcher" says models ["classifier","high"], tools ["web_fetch","web_search","wizard.score"]; agents/researcher.md needs models ["classifier","low"], tools ["web_fetch","web_search","wizard.score"].',
+      },
+    ]);
+    expect(requiresProblem(saved, lower)).toBe(agentsMismatch(saved, lower)[0].message);
+    const missing = withRequires(definition({ agent: "researcher" }));
+    expect(agentsMismatch(missing, agents)[0].message).toContain(
+      '"requires.agents" has no "researcher": agents/researcher.md needs',
+    );
+    // A writer that reads only the definition keeps an agent a step still names, and drops one
+    // no step uses any more.
+    const moved = { ...saved, steps: definition({ instructions: "Alone." }).steps };
+    expect(withRequires(moved).requires?.agents).toBeUndefined();
+    const extra = { ...moved, requires: { ...saved.requires, agents: saved.requires?.agents } };
+    expect(agentsMismatch(extra, agents)).toEqual([
+      { name: "researcher", message: '"requires.agents.researcher": no step uses this agent.' },
+    ]);
   });
 
   it("are in the run's grant, with the tools their files list", () => {
@@ -247,7 +277,9 @@ export function run() { return { score: 1 }; }`;
     // Saved by a writer that never read the agent's file: requires is out of date.
     const stale = withRequires(definition({ agent: "researcher" }));
     const said = (await validatePath(write("stale.wizard", stale, files))).issues.map((i) => i.message);
-    expect(said).toEqual([expect.stringContaining('"requires" is not what the steps need')]);
+    expect(said).toEqual([
+      expect.stringContaining('"requires.agents" has no "researcher": agents/researcher.md needs'),
+    ]);
 
     const broken = await validatePath(
       write("broken.wizard", withRequires(definition({ agent: "researcher", tools: ["browser"] })), {

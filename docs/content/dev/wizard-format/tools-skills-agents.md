@@ -194,8 +194,11 @@ tools and answers with text, or with JSON as its `output` says.
 
 The wizard’s `requires` lists the agents the steps use under `agents`, each with the classes it
 calls and the tools it lists, as its file says. Its classes and tools count in `models`, `tools`
-and `plugins` too. The studio fills it in when it saves the wizard; `wizards validate` says when
-it differs from the files.
+and `plugins` too, so a reader that skips `agents` still sees everything the wizard needs.
+
+The studio fills it in when it saves the wizard or an agent’s file, and drops an agent no step
+uses any more. `wizards validate` names an agent whose entry differs from its file. A run
+doesn’t start until they match again.
 
 ### Checks
 
@@ -207,6 +210,6 @@ it differs from the files.
 - an `output` that is no output schema
 - a step that names a `model` next to its agent, or lists a tool its agent doesn’t
 - an agent a step lists as a tool that has no `description`
-- a `requires` that doesn’t match the agents’ files
+- an entry of `requires.agents` that doesn’t match the agent’s file, or names an agent no step uses
 
 A run that names an agent its workspace lacks fails at that step.

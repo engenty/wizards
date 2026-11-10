@@ -246,13 +246,59 @@ export function withRequires<T extends WizardDefinition>(
 }
 
 /**
+ * Where `requires.agents` is not what the agents' files say, one message per agent: an agent a
+ * step uses whose entry is missing or differs from its file, an entry no step uses. An agent
+ * without a file (or one that doesn't parse) is said by the step that names it, not here.
+ */
+export function agentsMismatch(
+  def: WizardDefinition,
+  agents: ReadonlyMap<string, WizardAgent>,
+): { name: string; message: string }[] {
+  const have = def.requires?.agents ?? {};
+  const used = new Set(wizardAgentsUsed(def));
+  const out: { name: string; message: string }[] = [];
+  const said = (needs: AgentNeeds[string]) =>
+    `models ${JSON.stringify(needs.models)}, tools ${JSON.stringify(needs.tools ?? [])}`;
+  for (const name of used) {
+    const agent = agents.get(name);
+    if (!agent) {
+      continue;
+    }
+    const want = agentNeedsOf(agent);
+    const entry = have[name];
+    if (!entry) {
+      out.push({
+        name,
+        message: `"requires.agents" has no "${name}": agents/${name}.md needs ${said(want)}.`,
+      });
+    } else if (JSON.stringify(normal(entry)) !== JSON.stringify(normal(want))) {
+      out.push({
+        name,
+        message: `"requires.agents.${name}" says ${said(entry)}; agents/${name}.md needs ${said(want)}.`,
+      });
+    }
+  }
+  for (const name of Object.keys(have).sort()) {
+    if (!used.has(name)) {
+      out.push({ name, message: `"requires.agents.${name}": no step uses this agent.` });
+    }
+  }
+  return out;
+}
+
+/**
  * Why a definition's `requires` is not what its steps need, or null when it is. `agents`: the
- * wizard's agents as their files say.
+ * wizard's agents as their files say; where `requires.agents` differs from them, the message
+ * names the agent.
  */
 export function requiresProblem(
   def: WizardDefinition,
   agents?: ReadonlyMap<string, WizardAgent>,
 ): string | null {
+  const mismatch = agents ? agentsMismatch(def, agents) : [];
+  if (mismatch.length) {
+    return mismatch.map((m) => m.message).join(" ");
+  }
   const want = requiresOf(def, agents);
   const have = def.requires ?? {};
   if (JSON.stringify(normal(have)) === JSON.stringify(normal(want))) {
@@ -262,7 +308,7 @@ export function requiresProblem(
 }
 
 /** A requires with its keys in one order and its lists sorted, for comparing. */
-function normal(r: Requires): Record<string, unknown> {
+function normal(r: Requires | AgentNeeds[string]): Record<string, unknown> {
   const flat = (o: Record<string, unknown>): Record<string, unknown> =>
     Object.fromEntries(
       Object.keys(o)
