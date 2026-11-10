@@ -95,13 +95,14 @@ function process(
   host: Host,
   step: AgentStep,
   script: (request: TurnRequest, n: number) => TurnPart[] | Promise<TurnPart[]>,
+  options: { ownLoop?: boolean } = {},
 ) {
   const abort = new AbortController();
   const asked: TurnRequest[] = [];
   const toolCalls: Omit<ToolCallRequest, "stepId">[] = [];
   const said: string[] = [];
   const model: AgentModel = {
-    ownLoop: false,
+    ownLoop: options.ownLoop ?? false,
     takesTools: true,
     seesImages: false,
     attach: () => {},
@@ -210,6 +211,16 @@ describe("an agent turn in the engine", () => {
     expect(host.stored.turn?.acted).toBe(true);
     // The model is told of the step's tools, not of asking the person: the step is not durable.
     expect(p.asked[0].tools?.map((t) => t.name)).toEqual(["send", "look"]);
+  });
+
+  it("tells a model that runs its tools itself (an installed client, the device) of the step's tools", async () => {
+    const host = memoryHost();
+    const p = process(host, stepOf(), () => say("done"), { ownLoop: true });
+    const out = await p.run();
+    expect(out.text).toBe("done");
+    // It runs them over its bridge with what was attached; the call names the ones it may use.
+    expect(p.asked[0].tools?.map((t) => t.name)).toEqual(["send", "look"]);
+    expect(p.toolCalls).toEqual([]);
   });
 
   it("goes on at the second model call after a kill between the two", async () => {

@@ -170,8 +170,9 @@ async function modelCall(
       ...input.request,
       system: input.system,
       messages,
-      // A model that runs its tools itself has them attached.
-      ...(input.model.ownLoop || !tools.length ? {} : { tools }),
+      // A model that runs its tools itself (an installed client, the device) has them attached
+      // and runs the ones the call names; the others call back as tool calls.
+      ...(tools.length ? { tools } : {}),
     },
     ctx.signal,
   );
