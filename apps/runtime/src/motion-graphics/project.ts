@@ -6,11 +6,11 @@ import { dataRef, MOTION_SIZES, type MotionGraphicsStep } from "@engenty/wizards
 import { gradientCss, ruleLines, textStyleLine } from "@engenty/wizards-shared/spaces";
 import { unzipSync } from "fflate";
 import { logoSectionLine, renderTemplate, resolveRef } from "../engine/template.js";
-import type { StepContext } from "../engine/types.js";
 import { env } from "../env.js";
 import { getBlob } from "../files/blobs.js";
 import { extFor, loadAsset } from "../files/storage.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { contentPolicy } from "../safety.js";
 import { spaceFileContent } from "../services/space-files.js";
 import { placeSkills } from "./skills.js";
@@ -85,7 +85,7 @@ const BRAND_STAMP = join(".engenty", "brand");
  */
 async function writeBrand(
   root: string,
-  ctx: StepContext,
+  ctx: InProcessContext,
 ): Promise<{ changed: boolean; stamp: string }> {
   const b = ctx.scope.brand;
   const hash = createHash("sha256");
@@ -206,7 +206,7 @@ const BASE = join(".engenty", "base");
  * BRAND.md says what — theme.json at least), kept per space for the kit and the brand as they are.
  * A changed brand or kit is another key, so it is made again.
  */
-function brandBaseDir(ctx: StepContext, kitHash: string, brandStamp: string): string {
+function brandBaseDir(ctx: InProcessContext, kitHash: string, brandStamp: string): string {
   const key = createHash("sha256").update(`${kitHash}:${brandStamp}`).digest("hex").slice(0, 24);
   return join(env.dataDir, "brand-bases", ctx.space.id, key);
 }
@@ -239,7 +239,7 @@ async function brandIntoMotion(root: string, brandChanged: boolean) {
 }
 
 /** A new brand is another brand base: the marker points at the one for the brand as it is now. */
-async function refreshBrandBase(root: string, ctx: StepContext, step: MotionGraphicsStep) {
+async function refreshBrandBase(root: string, ctx: InProcessContext, step: MotionGraphicsStep) {
   if (!existsSync(join(root, BASE))) {
     return;
   }
@@ -267,7 +267,7 @@ export async function keepBrandBase(root: string) {
 /** Sets up the folder for a first attempt; a later attempt finds it as it was left. */
 export async function prepareMotionFolder(
   step: MotionGraphicsStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
 ): Promise<{ root: string; brief: string; brandChanged: boolean; start: MotionStart }> {
   const root = motionRoot(ctx.runId, step.id);
   const brief = renderTemplate(step.brief, ctx.scope).trim();

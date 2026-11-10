@@ -22,6 +22,7 @@ import { callConnection } from "../tools/connector.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool } from "../tools/plugin.js";
 import { personUploads, type UploadRef } from "../tools/store.js";
+import type { InProcessContext } from "./in-process.js";
 import type { AgentModel, InProcessServices } from "./index.js";
 
 /** A tool of an agent step, as the step's model is told of it inside the runtime. */
@@ -43,6 +44,8 @@ export interface StepToolSet {
   assets: AssetRef[];
   /** How to write a program over the tools, with the `code` tool. */
   instructions?: string;
+  /** The run has a sandbox for a step that lists the sandbox tool. */
+  readonly sandbox: boolean;
 }
 
 export interface StepToolsOptions {
@@ -73,7 +76,9 @@ export interface InProcessTools extends ToolsService {
 export function inProcessTools(options: {
   definition: WizardDefinition;
   /** The step context for a step id. */
-  at(stepId: string): StepContext;
+  at(stepId: string): InProcessContext;
+  /** A step context the engine made of its own, with this process's rows and functions. */
+  within(ctx: StepContext): InProcessContext;
   agentModel: InProcessServices["models"]["agentModel"];
   /** Runs an agent step of the wizard's own agents, for the tools that hand a task to one. */
   runAgent(step: AgentStep, ctx: StepContext): Promise<StepOutput>;
@@ -82,9 +87,10 @@ export function inProcessTools(options: {
 
   async function forStep(
     step: AgentStep,
-    ctx: StepContext,
+    own: StepContext,
     { model, uploads, turn }: StepToolsOptions,
   ): Promise<StepToolSet> {
+    const ctx = options.within(own);
     const { tools, assets, instructions } = await buildStepTools(
       step,
       turn ? turnContext(ctx, turn) : ctx,
@@ -113,6 +119,9 @@ export function inProcessTools(options: {
       },
       assets,
       ...(instructions ? { instructions } : {}),
+      get sandbox() {
+        return ctx.resources.sandboxCapabilities() !== null;
+      },
     };
   }
 

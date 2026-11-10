@@ -1,8 +1,8 @@
 import type { Where, Who } from "../broker/call.js";
 import { whereOf, whoOf } from "../broker/call.js";
 import { type Subject, subjectsOf, subjectsOfAgent, subjectsOfGoose } from "../broker/rwx.js";
-import type { StepContext } from "../engine/types.js";
 import type { Role } from "../manage.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import type { SkillSandbox } from "../tools/skills.js";
 
 /**
@@ -34,7 +34,10 @@ export interface ElementNote {
 }
 
 /** A step of a run: its holder and its wizard, in the run. */
-export function stepCaller(ctx: StepContext, sandbox: SkillSandbox | null = null): ElementCaller {
+export function stepCaller(
+  ctx: InProcessContext,
+  sandbox: SkillSandbox | null = null,
+): ElementCaller {
   return {
     // The run's data: a client space's Knowledge reaches through to its parent as the rules allow.
     space: ctx.dataSpace,

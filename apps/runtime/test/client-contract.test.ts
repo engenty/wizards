@@ -215,7 +215,7 @@ describe("the client contract", () => {
     // Its data is the client space's, its setup the parent's.
     const runner = await import("../src/engine/runner");
     const ctx = await local(async () =>
-      runner.makeContext(run as any, await runner.loadSpace(run as any), run!.state, new AbortController().signal),
+      runner.inProcessContext(run as any, await runner.loadSpace(run as any), run!.state, new AbortController().signal),
     );
     expect(ctx.dataSpace.id).toBe(wagner);
     expect(ctx.space.id).toBe(spaceId);

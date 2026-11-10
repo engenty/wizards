@@ -9,13 +9,14 @@ import {
 } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
-import { type StepContext, StepError } from "../engine/types.js";
+import { StepError } from "../engine/types.js";
 import { CLAUDE_BIN, claudeEnv } from "../harness/claude.js";
 import { failureOf } from "../harness/model.js";
 import { type BridgeTool, openBridge } from "../mcp/bridge.js";
 import { saidOf } from "../model-errors.js";
 import { motionClient } from "../models.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { keepBrandBase, prepareMotionFolder, savedSession, saveSession } from "./project.js";
 import { runHyperframes } from "./tools.js";
 
@@ -122,7 +123,7 @@ const RENDER_FIXES = 2;
 
 export async function runMotionGraphicsStep(
   step: MotionGraphicsStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
 ): Promise<StepOutput> {
   const found = await motionClient(textClassOf(step.model ?? "low"));
   if ("problem" in found) {

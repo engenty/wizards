@@ -1,5 +1,5 @@
 import type { AssetRef } from "@engenty/wizards-shared/run";
-import type { StepContext } from "../engine/types.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { ServiceError } from "../services/errors.js";
 import { dataHolder } from "../store/data.js";
 import { type StoreScope, writeStoreFile } from "../store/index.js";
@@ -63,7 +63,7 @@ export class FileKeeper {
   private readonly kept = new Map<string, AssetRef>();
 
   constructor(
-    private readonly ctx: StepContext,
+    private readonly ctx: InProcessContext,
     private readonly assets: AssetRef[],
   ) {}
 

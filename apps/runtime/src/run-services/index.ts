@@ -39,6 +39,7 @@ import type { RunAgentStep } from "../tools/agent.js";
 import { contextService } from "./context.js";
 import { dataService } from "./data.js";
 import { filesService, type InProcessFiles } from "./files.js";
+import type { InProcessContext } from "./in-process.js";
 import { type InProcessSteps, stepsService } from "./steps.js";
 import { type InProcessTools, inProcessTools } from "./tools.js";
 
@@ -90,13 +91,20 @@ export interface AgentModel {
  */
 export function inProcessServices(
   run: RunRow,
-  ctx: () => StepContext,
+  ctx: () => InProcessContext,
   runAgent: RunAgentStep,
 ): InProcessServices {
-  const at = (stepId: string): StepContext => {
+  const at = (stepId: string): InProcessContext => {
     const c = ctx();
     return c.stepId === stepId ? c : { ...c, stepId, call: { ...c.call, stepId } };
   };
+  // A step context the engine made of its own (a foreach entry's, a turn's, a wizard's agent's),
+  // with this process's rows and functions.
+  const within = (c: StepContext): InProcessContext => ({
+    ...ctx(),
+    call: { ...ctx().call, stepId: c.stepId },
+    ...c,
+  });
   const stepOf = (stepId: string) => run.definition.steps.find((s) => s.id === stepId) ?? null;
   const resolve = (r: Pick<TurnRequest, "stepId" | "class" | "effort" | "maker">) =>
     textModel(r.class, {
@@ -214,6 +222,7 @@ export function inProcessServices(
     tools: inProcessTools({
       definition: run.definition,
       at,
+      within,
       agentModel: models.agentModel,
       runAgent,
     }),

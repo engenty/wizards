@@ -2,8 +2,8 @@ import { AsyncResource } from "node:async_hooks";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { stepCaller } from "../elements/caller.js";
-import type { StepContext } from "../engine/types.js";
 import { env } from "../env.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { ServiceError } from "../services/errors.js";
 import type { DataResult } from "../store/data.js";
 import { type DataCall, runData } from "../store/data-access.js";
@@ -57,7 +57,7 @@ const doors = new Map<string, Door>();
  * Opens the run's door for the step that builds its tools: the step's caller from now on. A
  * wizard without data, or a runtime the sandbox can't reach, opens none.
  */
-export function openSandboxData(ctx: StepContext): void {
+export function openSandboxData(ctx: InProcessContext): void {
   if (!ctx.def.data || !sandboxDataBase()) {
     return;
   }

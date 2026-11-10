@@ -339,7 +339,7 @@ export async function runAgentStep(
         };
   }
   // A step written for the sandbox on a run without one works on in text: said in the run's log.
-  if (step.tools.includes("sandbox") && !ctx.resources.sandboxCapabilities()) {
+  if (step.tools.includes("sandbox") && !stepTools.sandbox) {
     await ctx.emit("info", { code: "noSandbox" });
   }
   // A step without tools of its own and without uploads: the run's device may answer it alone.

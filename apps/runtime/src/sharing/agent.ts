@@ -1,8 +1,8 @@
 import { Agent } from "@mastra/core/agent";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import { canSpend, syncRunCost } from "../credits/credits.js";
-import type { StepContext } from "../engine/types.js";
 import { attachTools, costOf, textModel } from "../models.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { FileKeeper } from "../tools/shared.js";
 import { megabytes, resultBrief } from "./files.js";
 import {
@@ -38,7 +38,10 @@ export async function runShareAgent(
     task: string;
     /** Extra rules for this kind of target. */
     rules?: string;
-    tools(step: StepContext, files: FileKeeper): Promise<Record<string, any>> | Record<string, any>;
+    tools(
+      step: InProcessContext,
+      files: FileKeeper,
+    ): Promise<Record<string, any>> | Record<string, any>;
     maxSteps?: number;
   },
 ): Promise<ShareOutcome> {

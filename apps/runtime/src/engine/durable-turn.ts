@@ -130,7 +130,7 @@ function turnSignal(signal: AbortSignal): AbortSignal {
  * make of it (an error, a person's "no") would stay in the conversation for the next runner, which
  * goes on at that call as if nothing had stopped.
  */
-export function turnContext(ctx: StepContext, turn: RunTurn): StepContext {
+export function turnContext<C extends StepContext>(ctx: C, turn: RunTurn): C {
   return {
     ...ctx,
     turn: turn.id,

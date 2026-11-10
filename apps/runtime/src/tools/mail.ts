@@ -16,10 +16,10 @@ import {
   type MailSummary,
   mailSearchInput,
 } from "../connectors/mail.js";
-import type { StepContext } from "../engine/types.js";
 import { prompt } from "../prompts.js";
 import { escapeHtml, htmlToPdf } from "../render/convert.js";
 import { guardHtml } from "../render/guard.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
 
 reachesOutside("mail_search", { connection: "mail", action: "search", kind: "read" });
@@ -34,7 +34,7 @@ reachesOutside("mail_save", [
  * provider the person connected; attachments never pass through the model — they are saved.
  * Every read goes through the broker, which holds the mailbox's account.
  */
-export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) {
+export function mailTools(step: AgentStep, ctx: InProcessContext, files: FileKeeper) {
   const connection = (ctx.def.connections ?? []).find(
     (c) => c.kind === "mail" && step.connections?.includes(c.id),
   );

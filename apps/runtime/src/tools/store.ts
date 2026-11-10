@@ -7,9 +7,9 @@ import { z } from "zod";
 import { subjectsOf } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { parseDocument, type ScanKind, scanDocument } from "../documents/parse.js";
-import type { StepContext } from "../engine/types.js";
 import { loadAsset } from "../files/storage.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { parseResultRef, resultFile } from "../sharing/files.js";
 import { deleteRows, listRows, readStoreFile, saveRows, storeFiles } from "../store/index.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
@@ -23,7 +23,7 @@ export interface UploadRef {
 }
 
 /** Files the person gave on earlier pages: `upload:<id>` is how tools address them. */
-export async function personUploads(ctx: StepContext): Promise<UploadRef[]> {
+export async function personUploads(ctx: InProcessContext): Promise<UploadRef[]> {
   const out: UploadRef[] = [];
   for (const field of allFields(ctx.def)) {
     if (field.kind !== "image" && field.kind !== "file") {
@@ -47,7 +47,7 @@ export async function personUploads(ctx: StepContext): Promise<UploadRef[]> {
  * A file by the name agents use: `upload:<id>` (given by the person), `result:<step>.<format>`
  * (an output of this run, rendered) or a path in the store.
  */
-export async function resolveFile(ctx: StepContext, file: string) {
+export async function resolveFile(ctx: InProcessContext, file: string) {
   const result = parseResultRef(file);
   if (result) {
     const found = await resultFile(
@@ -107,7 +107,7 @@ function describeColumns(def: ListDef): string {
  * What every agent step can do with the wizard's store and the person's files: read and write
  * the lists, read documents (PDF, scans, photos, Word, Excel, CSV, saved mails).
  */
-export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileKeeper) {
+export function storeTools(ctx: InProcessContext, uploads: UploadRef[], keeper: FileKeeper) {
   const tools: Record<string, any> = {};
   const lists = ctx.def.lists ?? [];
   const charge = (usd: number) => ctx.chargeUsd(usd);

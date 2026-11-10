@@ -10,8 +10,9 @@ import type { Gap } from "@engenty/wizards-shared/texts";
 import type { Account, ActionKind } from "../broker/index.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import type { AskResult } from "../engine/asks.js";
-import type { RunRow, StepContext } from "../engine/types.js";
+import type { RunRow } from "../engine/types.js";
 import { NotedError, type ServerLine } from "../model-errors.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { type ServerKey, serverText } from "../texts.js";
 
 /**
@@ -143,7 +144,7 @@ export interface ShareContext extends TargetScope {
   /** The link to the result page, if people elsewhere can open it; shares the run if needed. */
   link(): Promise<string | null>;
   /** What an agent works with: the run's browser, store and asks. For targets with `agent`. */
-  step(): Promise<StepContext>;
+  step(): Promise<InProcessContext>;
 }
 
 /** A failure the person can read and act on; anything else is reported as "did not work". */

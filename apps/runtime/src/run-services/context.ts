@@ -2,16 +2,20 @@ import { localeOf, wizardLang } from "@engenty/wizards-shared/definition";
 import type { ContextService } from "@engenty/wizards-shared/run-services";
 import { subjectsOf } from "../broker/rwx.js";
 import { prepareInputs } from "../engine/prepare.js";
-import type { RunRow, StepContext } from "../engine/types.js";
+import type { RunRow } from "../engine/types.js";
 import { knowledgeBlock } from "../services/knowledge.js";
 import { spaceContextOf } from "../tools/plugin.js";
 import { skillsBlock, skillsOf } from "../tools/skills.js";
+import type { InProcessContext } from "./in-process.js";
 
 /**
  * What the model is told beside a step's task, from the run's space: its brand and files, its
  * Knowledge, its skills, what its plugins hold. `at`: the step context under a step's id.
  */
-export function contextService(run: RunRow, at: (stepId: string) => StepContext): ContextService {
+export function contextService(
+  run: RunRow,
+  at: (stepId: string) => InProcessContext,
+): ContextService {
   return {
     async forStep(stepId, options = {}) {
       const c = at(stepId);

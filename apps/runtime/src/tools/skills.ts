@@ -4,9 +4,9 @@ import { readableIds } from "../broker/rwx.js";
 import { type ElementCaller, stepCaller } from "../elements/caller.js";
 import { elementCall, mayDo } from "../elements/gate.js";
 import { ELEMENT_SPECS } from "../elements/specs.js";
-import type { StepContext } from "../engine/types.js";
 import { getBlob } from "../files/blobs.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import type { Sandbox } from "../sandbox/index.js";
 import { activeSkills, skillConnectors } from "../services/skills.js";
 import { withWizardSkills } from "../services/wizard-skills.js";
@@ -31,10 +31,10 @@ import { attempt, clip } from "./shared.js";
 type Skills = Awaited<ReturnType<typeof activeSkills>>;
 type Skill = Skills["always"][number];
 
-const found = new WeakMap<StepContext, Promise<Skills>>();
+const found = new WeakMap<InProcessContext, Promise<Skills>>();
 
 /** The skills that count in a step, the wizard's and the space's, asked once per step. */
-export function skillsOf(ctx: StepContext): Promise<Skills> {
+export function skillsOf(ctx: InProcessContext): Promise<Skills> {
   let skills = found.get(ctx);
   if (!skills) {
     skills = activeSkills(ctx.space.id).then((space) =>
@@ -318,7 +318,7 @@ async function readSkillFile(
  * step's sandbox, where the folders of skills whose scripts may run go.
  */
 export async function skillTools(
-  ctx: StepContext,
+  ctx: InProcessContext,
   sandbox: SkillSandbox | null = null,
 ): Promise<Record<string, any>> {
   return skillToolsOf(await skillsOf(ctx), stepCaller(ctx, sandbox));
