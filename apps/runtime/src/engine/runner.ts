@@ -187,8 +187,8 @@ import {
 import { startedRunEnded, startOf } from "./starts.js";
 import { outputSchema, runAutomaticStep } from "./steps/index.js";
 import { surfaceData } from "./surface.js";
-import { answersAsText, fillLabel, renderTemplate, resolveRef } from "./template.js";
-import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
+import { answersAsText, fillLabel, renderTemplate, resolveRef, scopeLists } from "./template.js";
+import type { RunRow, SpaceRow, StepContext } from "./types.js";
 import { SignInNeeded, StepError } from "./types.js";
 import { wizardAgentFiles } from "./wizard-code.js";
 
@@ -1071,10 +1071,9 @@ function viewContext(
 /** The wizard's lists with the person's rows, by list id; a shared list's as its holder may read them. */
 async function storedLists(
   run: RunRow,
-  holder?: RunHolder,
 ): Promise<Record<string, { def: ListDef; rows: ListRow[] }>> {
   const scope = scopeOf(run);
-  const who = subjectsOf({ holder: holder ?? (await runHolder(run)), store: scope });
+  const who = subjectsOf({ holder: await runHolder(run), store: scope });
   const out: Record<string, { def: ListDef; rows: ListRow[] }> = {};
   for (const def of run.definition.lists ?? []) {
     out[def.id] = { def, rows: await listRows(scope, def, who) };
@@ -1113,7 +1112,6 @@ export async function makeContext(
       def: run.definition,
       state,
       brand: spaceProfile(space),
-      lists: await storedLists(run, holder),
     },
     space,
     dataSpace: await dataSpaceOf(run, space),
@@ -1135,6 +1133,7 @@ export async function makeContext(
       }),
     services: inProcessServices(run, () => ctx),
   };
+  ctx.scope.lists = await scopeLists(run.definition, ctx.services.data);
   return ctx;
 }
 
