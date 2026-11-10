@@ -1,7 +1,9 @@
+import type { AgentStep } from "@engenty/wizards-shared/definition";
 import type { ServiceStep, TurnPart } from "@engenty/wizards-shared/run-services";
 import { ServiceError } from "@engenty/wizards-shared/run-services";
 import { describe, expect, it } from "vitest";
 import { base64Of, httpServices } from "../src/http-services.js";
+import type { StepContext } from "../src/types.js";
 
 /**
  * What only the HTTP client meets (../src/http-services.ts): the network, a proxy's answer, a
@@ -215,6 +217,79 @@ describe("the run's services over fetch", () => {
       name: "p",
       url: "https://x.example/p.png",
     });
+  });
+
+  it("names an agent step's tools by step, turn and entry; their model's turn carries them by name", async () => {
+    const made = { id: "shot", kind: "image", mime: "image/png", name: "shot.png" };
+    const later = { id: "page", kind: "html", mime: "text/html", name: "page.html" };
+    const { services, seen } = client(({ url }) => {
+      if (url.endsWith("/models/agentModel")) {
+        return Response.json({ ownLoop: true, takesTools: true, seesImages: false });
+      }
+      if (url.endsWith("/tools/forStep")) {
+        return Response.json({
+          tools: [{ name: "send", description: "Sends.", inputSchema: { type: "object" } }],
+          assets: [],
+          sandbox: false,
+        });
+      }
+      if (url.endsWith("/tools/stepCall")) {
+        return Response.json({ output: { sent: true }, assets: [made] });
+      }
+      // A model with its own loop called a tool that acted and made a file, within the turn.
+      return chunked([
+        `${JSON.stringify({ type: "text", text: "Sent." })}\n`,
+        `${JSON.stringify({ tools: { acted: true, assets: [later] } })}\n`,
+        `${JSON.stringify(finish)}\n`,
+      ]);
+    });
+    let saves = 0;
+    const ctx = {
+      scope: { entry: { item: "x", index: 2, count: 3 } },
+      state: { turn: { stepId: "s", id: "r.t" } },
+      signal: new AbortController().signal,
+      saveState: async () => {
+        saves += 1;
+      },
+    } as unknown as StepContext;
+    const model = await services.models.agentModel({ stepId: "s", class: "standard" });
+    expect(model).toMatchObject({ ownLoop: true, takesTools: true, seesImages: false });
+    const set = await services.tools.forStep({ id: "s" } as AgentStep, ctx, {
+      model,
+      uploads: [],
+      turn: "r.t.2",
+    });
+    expect(JSON.parse(String(seen[1]?.init.body))).toEqual({ stepId: "s", turn: "r.t.2", entry: 2 });
+    expect(set.list()).toEqual([
+      expect.objectContaining({
+        name: "send",
+        mastra: { id: "send", description: "Sends.", inputSchema: { type: "object" } },
+      }),
+    ]);
+    expect(await set.call({ name: "send", input: { to: "a" }, effect: "r.t.2:c1" })).toEqual({
+      output: { sent: true },
+      assets: [made],
+    });
+    expect(JSON.parse(String(seen[2]?.init.body))).toEqual({
+      stepId: "s",
+      turn: "r.t.2",
+      entry: 2,
+      name: "send",
+      input: { to: "a" },
+      effect: "r.t.2:c1",
+    });
+    model.attach({ send: set.list()[0]?.mastra }, false);
+    const parts = await collect(model.turn({ ...turn, messages: [] }));
+    expect(parts).toEqual([{ type: "text", text: "Sent." }, finish]);
+    expect(JSON.parse(String(seen[3]?.init.body))).toMatchObject({
+      stepId: "s",
+      attached: { stepId: "s", turn: "r.t.2", entry: 2, names: ["send"], ignorable: false },
+    });
+    expect(seen[3]?.url).toMatch(/\/models\/agentTurn$/);
+    // The run notes that the turn acted, and the step has both files.
+    expect(ctx.state.turn?.acted).toBe(true);
+    expect(saves).toBe(1);
+    expect(set.assets).toEqual([made, later]);
   });
 
   it("writes base64 of every byte, past one slice", () => {

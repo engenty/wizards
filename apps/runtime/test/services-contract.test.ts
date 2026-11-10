@@ -1,20 +1,19 @@
 import { httpServices } from "@engenty/wizards-engine/http-services";
-import {
-  type RunServices,
-  ServiceError,
-  type ServiceStep,
-} from "@engenty/wizards-shared/run-services";
+import type { StepContext, StepServices } from "@engenty/wizards-engine/types";
+import { ServiceError, type ServiceStep } from "@engenty/wizards-shared/run-services";
 import { vi } from "vitest";
 import {
   type ContractRun,
   servicesContract,
 } from "../../../packages/engine/test/services-contract";
 import {
+  ACTING_ROW,
   answers,
   definition,
   loadRuntime,
   MODEL,
   SCHEMA,
+  SCRIBE,
   startRun,
   TORN,
 } from "./run-services-fixture";
@@ -27,13 +26,16 @@ import {
  */
 vi.setConfig({ testTimeout: 120_000 });
 
-/** The run in `tenant`, with what the contract knows of it; `services` as `serve` gives them. */
+type Served = Pick<ContractRun, "services" | "context" | "host">;
+
+/** The run in `tenant`, with what the contract knows of it; its services as `serve` gives them. */
 async function contractRun(
   tenant: string,
-  serve: (started: { tenant: string; runId: string; token: string }) => Promise<RunServices>,
+  serve: (started: { tenant: string; runId: string; token: string }) => Promise<Served>,
 ): Promise<ContractRun> {
   const started = await startRun(tenant);
-  const services = await serve(started);
+  const served = await serve(started);
+  const { services } = served;
   // A file of the run's tenant, saved before the contract reads it.
   const file = await services.files.save({
     kind: "text",
@@ -55,7 +57,7 @@ async function contractRun(
   const { classifyFailure } = await import("../src/engine/failures");
   const { failureContext } = await loadRuntime().then((r) => r.runner);
   return {
-    services,
+    ...served,
     // As the runner sorts a step's error: a ServiceError keeps its class.
     sorted(err) {
       if (err instanceof ServiceError) {
@@ -106,36 +108,90 @@ async function contractRun(
       failure: { class: "final" },
       message: "No list nope in this wizard.",
     },
+    agent: {
+      flags: { ownLoop: false, takesTools: true, seesImages: false },
+      tools: {
+        stepId: "write",
+        tool: "list_read",
+        input: { list: "notes" },
+        output: { list: "notes", total: 1 },
+      },
+      acting: { stepId: "acting", tool: "list_write", text: "Noted the beavers." },
+      each: {
+        stepId: "each",
+        text: "## Otters\n\nAbout Otters.\n\n## Beavers\n\nAbout Beavers.",
+        rows: [{ title: "Otters" }, ACTING_ROW],
+      },
+      byAgent: {
+        stepId: "byagent",
+        step: { id: "byagent", model: "low", tools: [] },
+        instructions: SCRIBE,
+        text: "As the scribe.",
+      },
+    },
   };
+}
+
+/** The run's context at a step, as the runner makes it, read in the run's tenant. */
+async function contextIn(tenant: string, runId: string, stepId: string | null) {
+  const { client, runner } = await loadRuntime();
+  return client.withTenant(tenant, async () => {
+    const run = await runner.loadRun(runId);
+    return runner.contextAt(run!, stepId, new AbortController().signal);
+  });
 }
 
 servicesContract("in process", () =>
   contractRun("tenant-contract-in", async ({ tenant, runId }) => {
-    const { client, runner } = await loadRuntime();
+    const { client } = await loadRuntime();
     const { withCaller } = await import("../src/broker/caller");
     const { whereOf } = await import("../src/broker/call");
     const { holderWho } = await import("../src/tools/plugin");
     // As the runner's step calls them: in the run's tenant, for the run's person, at its cursor.
-    const ctx = await client.withTenant(tenant, async () => {
-      const run = await runner.loadRun(runId);
-      return runner.contextAt(run!, null, new AbortController().signal);
-    });
+    const ctx = await contextIn(tenant, runId, null);
     const caller = { who: holderWho(ctx), where: whereOf(ctx) };
     const inRun = <T>(fn: () => T | Promise<T>) =>
       client.withTenant(tenant, () => withCaller(caller, async () => fn()));
-    return inside(ctx.services, inRun);
+    return {
+      services: inside(ctx.services, inRun),
+      // The runner's context at the step, its services the runtime's own.
+      context: (stepId) => contextIn(tenant, runId, stepId),
+      host: (work) => inRun(work),
+    };
   }),
 );
 
 servicesContract("over HTTP", async () => {
-  const { app } = await loadRuntime();
-  return contractRun("tenant-contract-http", async ({ token }) =>
-    httpServices({
+  const { app, client } = await loadRuntime();
+  return contractRun("tenant-contract-http", async ({ tenant, runId, token }) => {
+    const services = httpServices({
       url: "http://localhost:5181",
       token,
       fetch: (input, init) => Promise.resolve(app.request(String(input), init)),
-    }),
-  );
+    });
+    const inTenant = <T>(fn: () => Promise<T>) => client.withTenant(tenant, fn);
+    return {
+      services,
+      // The host keeps the run's state, events and turns itself (here the runtime's, in the run's
+      // tenant); everything else goes over HTTP.
+      async context(stepId): Promise<StepContext> {
+        const ctx = await contextIn(tenant, runId, stepId);
+        return {
+          ...ctx,
+          services,
+          emit: (...args) => inTenant(() => ctx.emit(...args)),
+          ask: (ask) => inTenant(() => ctx.ask(ask)),
+          saveState: () => inTenant(() => ctx.saveState()),
+          turns: {
+            load: (id) => inTenant(() => ctx.turns.load(id)),
+            save: (turn) => inTenant(() => ctx.turns.save(turn)),
+            drop: (stepId) => inTenant(() => ctx.turns.drop(stepId)),
+          },
+        };
+      },
+      host: (work) => work(),
+    };
+  });
 });
 
 /**
@@ -143,9 +199,9 @@ servicesContract("over HTTP", async () => {
  * so what the call reads of its tenant and caller is there however it is awaited.
  */
 function inside(
-  services: RunServices,
+  services: StepServices,
   inRun: <T>(fn: () => T | Promise<T>) => Promise<T>,
-): RunServices {
+): StepServices {
   const wrap = (service: object) =>
     new Proxy(service, {
       get(target, key) {
@@ -176,5 +232,5 @@ function inside(
     });
   return Object.fromEntries(
     Object.entries(services).map(([name, service]) => [name, wrap(service as object)]),
-  ) as unknown as RunServices;
+  ) as unknown as StepServices;
 }

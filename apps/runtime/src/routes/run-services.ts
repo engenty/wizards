@@ -1,6 +1,18 @@
-import { StepError } from "@engenty/wizards-engine/types";
+import { randomId } from "@engenty/wizards-engine/ids";
+import { actedOn } from "@engenty/wizards-engine/steps/agent-turn";
+import { agentEntries, entryContext, entryStep } from "@engenty/wizards-engine/steps/foreach";
+import { StepError, type StepToolSet } from "@engenty/wizards-engine/types";
 import {
+  type AgentStep,
+  classIdOf,
+  decisionAsAgent,
+  textClassOf,
+} from "@engenty/wizards-shared/definition";
+import {
+  type AgentModelFlags,
   ASSET_REF_HEADER,
+  agentModelRequestSchema,
+  agentTurnRequestSchema,
   type DecideRequest,
   dataStatementRequestSchema,
   decideRequestSchema,
@@ -14,9 +26,14 @@ import {
   noticeSchema,
   ServiceError,
   type ServiceErrorBody,
+  type StepToolsAnswer,
+  type StepToolsAt,
   stepRequestSchema,
   stepRunRequestSchema,
+  stepToolCallSchema,
+  stepToolsAtSchema,
   type TurnPart,
+  type TurnToolsLine,
   toolCallRequestSchema,
   turnRequestSchema,
   workspaceRequestSchema,
@@ -34,7 +51,8 @@ import { contextAt, failureContext, loadRun } from "../engine/runner.js";
 import type { RunRow } from "../engine/types.js";
 import { SignInNeeded } from "../engine/types.js";
 import { NotedError } from "../model-errors.js";
-import type { InProcessServices } from "../run-services/index.js";
+import type { InProcessContext } from "../run-services/in-process.js";
+import type { AgentModel, InProcessServices } from "../run-services/index.js";
 import { runServicesOn } from "../tools/acted.js";
 import { holderWho } from "../tools/plugin.js";
 import { notFoundAnswer } from "./lang.js";
@@ -51,8 +69,13 @@ import { notFoundAnswer } from "./lang.js";
  * `files/read` and `files/workspace` answer the bytes (`files/read` with the file's `AssetRef` in
  * `x-asset-ref`), every other call JSON. A failure answers a `ServiceErrorBody`.
  *
- * Not here yet: the engine's calls beyond `RunServices` (`StepServices` in packages/engine:
- * `models.agentModel`, `tools.forStep`, `tools.ofAgent`) are served by a later package (3.5b).
+ * An agent step's calls (the engine's `StepServices` beyond `RunServices`) name the step, never
+ * carry it: `tools/forStep`, `tools/stepCall` and `models/agentTurn` name the step, its turn and
+ * the foreach entry it runs for, and the step is read from the run's definition (`toolsAt`): a
+ * wizard's agent's as its file has it, an entry's with that entry's item. Its tools are built
+ * again for each call. `models/agentTurn` attaches the ones the engine attached, by name, to the
+ * step's model: one with its own loop (an installed client, the run's device) runs them here, and
+ * what they did goes back as `TurnToolsLine`s beside the turn's parts.
  */
 
 /** A file saved as base64 in JSON must fit: a page, an image, a short clip. */
@@ -66,7 +89,15 @@ interface Call<S extends z.ZodType = z.ZodType> {
     services: InProcessServices,
     signal: AbortSignal,
     run: RunRow,
+    ctx: InProcessContext,
   ): Promise<Response>;
+}
+
+/** A request that names what the run doesn't have: a step, an entry, a turn. */
+class BadRequest extends ServiceError {
+  constructor(message: string) {
+    super({ class: "final" }, message);
+  }
 }
 
 const call = <S extends z.ZodType>(request: S, answer: Call<S>["answer"]): Call =>
@@ -107,6 +138,9 @@ const refused = (message: string, status: number) => failed({ class: "final" }, 
  */
 function failureOf(err: unknown): { failure: FlowFailure; message: string; status: number } {
   const message = String((err as Error)?.message ?? err).slice(0, 400);
+  if (err instanceof BadRequest) {
+    return { failure: err.failure, message, status: 400 };
+  }
   if (err instanceof ServiceError) {
     return { failure: err.failure, message, status: STATUS[err.failure.class] };
   }
@@ -125,7 +159,7 @@ function failureOf(err: unknown): { failure: FlowFailure; message: string; statu
 }
 
 /** A turn's parts, one JSON line each, sent as they come. The first part is waited for, so a call that fails at once answers with its status. */
-async function streamed(parts: AsyncIterable<TurnPart>): Promise<Response> {
+async function streamed(parts: AsyncIterable<TurnPart | TurnToolsLine>): Promise<Response> {
   const it = parts[Symbol.asyncIterator]();
   const first = await it.next();
   const encoder = new TextEncoder();
@@ -181,9 +215,168 @@ const asciiJson = (value: unknown) =>
     (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );
 
+/** The agent step of the definition, as the engine runs it: a decision as an agent. */
+function agentStepOf(run: RunRow, stepId: string): AgentStep {
+  const found = run.definition.steps.find((s) => s.id === stepId);
+  if (found?.type === "agent") {
+    return found;
+  }
+  if (found?.type === "decision") {
+    return decisionAsAgent(found);
+  }
+  throw new BadRequest(`Step ${stepId} is not an agent step.`);
+}
+
+/**
+ * The tools of the agent step `at` names, built as the engine has them built: the step from the
+ * run's definition, a wizard's agent's as its file has it (`ofAgent`), a foreach entry's with
+ * that entry's item; `model`: the step's model, else its class's. Built again for each call.
+ */
+async function toolsAt(
+  run: RunRow,
+  ctx: InProcessContext,
+  at: StepToolsAt,
+  model?: AgentModel,
+): Promise<{ set: StepToolSet; ctx: InProcessContext }> {
+  if (!at.turn.startsWith(`${run.id}.`)) {
+    throw new BadRequest(`The turn ${at.turn} is not one of this run's.`);
+  }
+  const s = ctx.services;
+  let step = agentStepOf(run, at.stepId);
+  if (step.agent) {
+    step = (await s.tools.ofAgent({ ...step, agent: step.agent }, ctx)).step;
+  }
+  let own: InProcessContext = { ...ctx, turn: at.turn };
+  if (step.foreach) {
+    const entries = agentEntries(step, ctx);
+    if (at.entry === undefined || at.entry >= entries.length) {
+      throw new BadRequest(`Step ${at.stepId} has no entry ${at.entry ?? "named"}.`);
+    }
+    own = entryContext(own, entries, at.entry, at.turn);
+    step = entryStep(step);
+  } else if (at.entry !== undefined) {
+    throw new BadRequest(`Step ${at.stepId} has no entries.`);
+  }
+  const stepModel =
+    model ??
+    (await s.models.agentModel({
+      stepId: at.stepId,
+      class: textClassOf(step.model ?? "standard"),
+      effort: step.effort,
+      maker: step.maker ? classIdOf(step, "standard") : undefined,
+    }));
+  const set = await s.tools.forStep(step, own, {
+    model: stepModel,
+    uploads: await s.files.uploads(),
+    turn: at.turn,
+  });
+  return { set, ctx: own };
+}
+
+/**
+ * The step's tools attached to its model, the ones the engine attached by name: a provider's own
+ * tool as it is, any other one called here, as the engine's own loop calls it (steps/agent.ts).
+ * `told`: the line of what the calls did since it was last asked, null for nothing.
+ */
+async function attachAt(
+  run: RunRow,
+  ctx: InProcessContext,
+  model: AgentModel,
+  attached: NonNullable<z.infer<typeof agentTurnRequestSchema>["attached"]>,
+): Promise<() => TurnToolsLine | null> {
+  const { names, ignorable, ...at } = attached;
+  const { set, ctx: own } = await toolsAt(run, ctx, at, model);
+  let acted = false;
+  const tools: Record<string, unknown> = {};
+  for (const tool of set.list().filter((t) => names.includes(t.name))) {
+    tools[tool.name] = tool.provider
+      ? tool.mastra
+      : {
+          ...tool.mastra,
+          execute: async (input: unknown, context: unknown) => {
+            // Noted on the run before it acts, here and in the engine's state (the line).
+            if (!tool.onlyReads) {
+              await actedOn(own);
+              acted = true;
+            }
+            const callId =
+              (context as { agent?: { toolCallId?: string } } | undefined)?.agent?.toolCallId ??
+              randomId();
+            const { output } = await set.call(
+              { name: tool.name, input, effect: `${at.turn}:${callId}` },
+              context,
+            );
+            return output;
+          },
+        };
+  }
+  model.attach(tools, ignorable);
+  let kept = set.assets.length;
+  return () => {
+    const assets = set.assets.slice(kept);
+    kept = set.assets.length;
+    if (!(acted || assets.length)) {
+      return null;
+    }
+    const line: TurnToolsLine = {
+      tools: { ...(acted ? { acted: true as const } : {}), ...(assets.length ? { assets } : {}) },
+    };
+    acted = false;
+    return line;
+  };
+}
+
+/** A turn's parts with what its tools did, each line before the part that follows it. */
+async function* toldWith(
+  parts: AsyncIterable<TurnPart>,
+  told: () => TurnToolsLine | null,
+): AsyncIterable<TurnPart | TurnToolsLine> {
+  try {
+    for await (const part of parts) {
+      const line = told();
+      if (line) {
+        yield line;
+      }
+      yield part;
+    }
+  } catch (err) {
+    // What the tools did counts for the step even when the turn fails.
+    const line = told();
+    if (line) {
+      yield line;
+    }
+    throw err;
+  }
+  const line = told();
+  if (line) {
+    yield line;
+  }
+}
+
 const CALLS: Record<string, Record<string, Call>> = {
   models: {
     turn: call(turnRequestSchema, (request, s, signal) => streamed(s.models.turn(request, signal))),
+    agentModel: call(agentModelRequestSchema, async (request, s) => {
+      const model = await s.models.agentModel(request);
+      return json({
+        ownLoop: model.ownLoop,
+        takesTools: model.takesTools,
+        seesImages: model.seesImages,
+      } satisfies AgentModelFlags);
+    }),
+    // A turn of the step's model: the class's model, with the step's tools attached by name. A
+    // model without its own loop only needs a provider's own tools of them.
+    agentTurn: call(
+      agentTurnRequestSchema,
+      async ({ attached, ...request }, s, signal, run, ctx) => {
+        const model = await s.models.agentModel(request);
+        const told =
+          attached && (model.ownLoop || request.tools?.some((t) => t.provider))
+            ? await attachAt(run, ctx, model, attached)
+            : () => null;
+        return streamed(toldWith(model.turn(request, signal), told));
+      },
+    ),
     decide: call(decideRequestSchema, async (request, s, signal) =>
       json(await s.models.decide(request as DecideRequest, signal)),
     ),
@@ -196,6 +389,33 @@ const CALLS: Record<string, Record<string, Call>> = {
     call: call(toolCallRequestSchema, async (request, s, signal) =>
       json(await s.tools.call(request, signal)),
     ),
+    forStep: call(stepToolsAtSchema, async (at, _s, _signal, run, ctx) => {
+      const { set } = await toolsAt(run, ctx, at);
+      return json({
+        tools: set.list().map(({ mastra: _, ...d }) => d),
+        assets: set.assets,
+        ...(set.instructions ? { instructions: set.instructions } : {}),
+        sandbox: set.sandbox,
+      } satisfies StepToolsAnswer);
+    }),
+    stepCall: call(
+      stepToolCallSchema,
+      async ({ name, input, effect, ...at }, _s, _signal, run, ctx) => {
+        const { set } = await toolsAt(run, ctx, at);
+        const before = set.assets.length;
+        const { output } = await set.call({ name, input, effect });
+        const assets = set.assets.slice(before);
+        return json(assets.length ? { output, assets } : { output });
+      },
+    ),
+    // The step and the agent's file are the run's: only the step's id comes.
+    ofAgent: call(stepRequestSchema, async ({ stepId }, s, _signal, run, ctx) => {
+      const step = agentStepOf(run, stepId);
+      if (!step.agent) {
+        throw new BadRequest(`No agent of the wizard runs step ${stepId}.`);
+      }
+      return json(await s.tools.ofAgent({ ...step, agent: step.agent }, ctx));
+    }),
   },
   context: {
     forStep: call(forStepRequestSchema, async ({ stepId, options }, s) =>
@@ -332,7 +552,7 @@ export const runServiceRoutes = new Hono()
         // As the runner's AI step calls: for the person the run is held for.
         const caller = { who: holderWho(ctx), where: whereOf(ctx) };
         return await withCaller(caller, () =>
-          handler.answer(parsed.data, ctx.services, signal, run),
+          handler.answer(parsed.data, ctx.services, signal, run, ctx),
         );
       } catch (err) {
         const { failure, message, status } = failureOf(err);

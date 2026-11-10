@@ -9,13 +9,35 @@ import { composeSurface, runAgentStep } from "./agent.js";
 const MAX_AGENT_ENTRIES = 20;
 
 /** The entries an agent step with `foreach` runs for: rows of a table, entries of a list, list rows. */
-function agentEntries(step: AgentStep, ctx: StepContext): unknown[] {
+export function agentEntries(step: AgentStep, ctx: StepContext): unknown[] {
   const ref = dataRef(step.foreach ?? "");
   const list = ref.match(/^lists\.([a-zA-Z][a-zA-Z0-9_]*)$/)?.[1];
   const value = list
     ? (ctx.scope.lists?.[list]?.rows ?? []).map((r) => r.cells)
     : resolveRef(ref, ctx.scope);
   return (Array.isArray(value) ? value : []).slice(0, MAX_AGENT_ENTRIES);
+}
+
+/** The step as one entry runs it. The view, if any, is composed once over the table of all entries. */
+export function entryStep(step: AgentStep): AgentStep {
+  return { ...step, foreach: undefined, output: { ...step.output, surface: false } };
+}
+
+/**
+ * An entry's context: it reads its entry as {{item}} and runs in its own turn. The run's
+ * services build an entry's tools over the same (apps/runtime/src/routes/run-services.ts).
+ */
+export function entryContext<C extends StepContext>(
+  ctx: C,
+  entries: unknown[],
+  index: number,
+  turn: string,
+): C {
+  const scope: TemplateScope = {
+    ...ctx.scope,
+    entry: { item: entries[index], index, count: entries.length },
+  };
+  return { ...ctx, scope, turn };
 }
 
 /**
@@ -32,31 +54,21 @@ export async function runAgentEach(
   if (!entries.length) {
     throw new StepError(runNote("noEntriesStepWork"));
   }
-  // The view, if any, is composed once over the table of all entries.
-  const single: AgentStep = {
-    ...step,
-    foreach: undefined,
-    output: { ...step.output, surface: false },
-  };
+  const single = entryStep(step);
   const rows: Record<string, unknown>[] = [];
   const texts: string[] = [];
   const assets: AssetRef[] = [];
   // `concurrency` entries at a time; the rows keep the entries' order.
-  const outs = await inParallel(
-    [...entries.entries()],
-    step.concurrency ?? 1,
-    async ([index, item]) => {
-      await ctx.emit("info", { code: "entry", params: { n: index + 1, total: entries.length } });
-      const scope: TemplateScope = { ...ctx.scope, entry: { item, index, count: entries.length } };
-      // Each entry is a turn of its own, under the step's.
-      return runAgentStep(
-        single,
-        { ...ctx, scope, turn: `${ctx.turn}.${index}` },
-        false,
-        agentPart,
-      );
-    },
-  );
+  const outs = await inParallel([...entries.entries()], step.concurrency ?? 1, async ([index]) => {
+    await ctx.emit("info", { code: "entry", params: { n: index + 1, total: entries.length } });
+    // Each entry is a turn of its own, under the step's.
+    return runAgentStep(
+      single,
+      entryContext(ctx, entries, index, `${ctx.turn}.${index}`),
+      false,
+      agentPart,
+    );
+  });
   for (const [index, item] of entries.entries()) {
     const out = outs[index];
     const own = item && typeof item === "object" ? (item as Record<string, unknown>) : { item };

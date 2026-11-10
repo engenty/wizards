@@ -1,16 +1,19 @@
+import type { AgentStep } from "@engenty/wizards-shared/definition";
 import type { Decision } from "@engenty/wizards-shared/decision";
 import type { ServiceStep } from "@engenty/wizards-shared/run-services";
 import {
+  type AgentModelFlags,
   type DataStatementRequest,
   type DecideRequest,
   isPending,
-  type RunServices,
   ServiceError,
   type TurnPart,
   type TurnRequest,
 } from "@engenty/wizards-shared/run-services";
 import type { FlowFailure } from "@engenty/wizards-shared/transition";
 import { beforeAll, describe, expect, it } from "vitest";
+import { runAgentStep } from "../src/steps/agent.js";
+import type { StepContext, StepServices } from "../src/types.js";
 
 /**
  * What every implementation of the run's services does the same (docs/plans/runs-on-their-own.md,
@@ -19,12 +22,21 @@ import { beforeAll, describe, expect, it } from "vitest";
  * apps/runtime/test/services-contract.test.ts runs them against both.
  *
  * Every call of `RunServices` is made once. The cases run in order on one run: the tool call
- * writes the list row `data.rows` and `data.counts` read after it.
+ * writes the list row `data.rows` and `data.counts` read after it. Then an agent step's calls
+ * (`StepServices` beyond `RunServices`), and whole agent steps run by the engine on them: one
+ * whose model calls a tool, one with an entry per list row, one a wizard's agent runs.
  */
 
 /** The run the cases work on, and what its fixture knows of it. */
 export interface ContractRun {
-  services: RunServices;
+  services: StepServices;
+  /** The run's step context at a step, with `services`: what its host gives step code. */
+  context(stepId: string): Promise<StepContext>;
+  /**
+   * Step code as its host runs it: the runtime's runner in the run's tenant and for its person;
+   * a host that reaches the services over HTTP as it is.
+   */
+  host<T>(work: () => Promise<T>): Promise<T>;
   /**
    * The failure the run takes a call's error as (`stepFailed`): a `ServiceError`'s own class,
    * anything else as its host sorts it (the runtime's runner: `classifyFailure`).
@@ -51,6 +63,19 @@ export interface ContractRun {
   serviceStep: { step: ServiceStep; kind: string };
   /** A call the service refuses: a list the wizard does not have. */
   refused: { listId: string; failure: FlowFailure; message: string };
+  /** Agent steps, and what their scripted model does. */
+  agent: {
+    /** What the model's loop needs of it. */
+    flags: AgentModelFlags;
+    /** A step whose tools hold `tool`; called with `input`, it answers what `output` matches. */
+    tools: { stepId: string; tool: string; input: unknown; output: Record<string, unknown> };
+    /** A step whose model calls a tool once (a row more in `list`), then writes `text`. */
+    acting: { stepId: string; tool: string; text: string };
+    /** A step with an entry per row of `list`: its text and its table. */
+    each: { stepId: string; text: string; rows: Record<string, unknown>[] };
+    /** A step a wizard's agent runs: the step as the agent's file has it, its instructions, its text. */
+    byAgent: { stepId: string; step: Partial<AgentStep>; instructions: string; text: string };
+  };
 }
 
 const collect = async (parts: AsyncIterable<TurnPart>) => {
@@ -67,7 +92,7 @@ const text = (data: Uint8Array) => new TextDecoder().decode(data);
 export function servicesContract(name: string, setup: () => Promise<ContractRun>): void {
   describe(`the run's services: ${name}`, () => {
     let run: ContractRun;
-    let s: RunServices;
+    let s: StepServices;
     beforeAll(async () => {
       run = await setup();
       s = run.services;
@@ -233,6 +258,110 @@ export function servicesContract(name: string, setup: () => Promise<ContractRun>
 
     it("tells the run's person", async () => {
       expect(await s.people.tell({ kind: "done" })).toBeUndefined();
+    });
+
+    // --- an agent step's calls
+
+    /** The step of the run's definition. */
+    const stepOf = (ctx: StepContext, stepId: string) =>
+      ctx.def.steps.find((x) => x.id === stepId) as AgentStep;
+
+    it("gives an agent step's model with what its loop needs", async () => {
+      const model = await s.models.agentModel({ stepId: run.agent.tools.stepId, class: "standard" });
+      expect({
+        ownLoop: model.ownLoop,
+        takesTools: model.takesTools,
+        seesImages: model.seesImages,
+      }).toEqual(run.agent.flags);
+    });
+
+    it("builds an agent step's tools and calls one in its turn", async () => {
+      const { stepId, tool, input, output } = run.agent.tools;
+      const ctx = await run.context(stepId);
+      const turn = `${ctx.runId}.tools`;
+      const answer = await run.host(async () => {
+        const model = await s.models.agentModel({ stepId, class: "standard" });
+        const set = await s.tools.forStep(stepOf(ctx, stepId), ctx, { model, uploads: [], turn });
+        const listed = set.list();
+        expect(listed.map((t) => t.name)).toContain(tool);
+        for (const t of listed) {
+          expect(t).toMatchObject({
+            name: expect.any(String),
+            description: expect.any(String),
+            inputSchema: expect.any(Object),
+            mastra: expect.any(Object),
+          });
+        }
+        expect(set.assets).toEqual([]);
+        expect(set.sandbox).toBe(false);
+        return set.call({ name: tool, input, effect: `${turn}:call-1` });
+      });
+      expect(answer).toMatchObject({ output });
+    });
+
+    it("acts once for a tool call made again under its effect id, each time with a set built anew", async () => {
+      const { stepId, scope, table, column } = run.data;
+      const ctx = await run.context(stepId);
+      const turn = `${ctx.runId}.again`;
+      const insert = {
+        name: "data_exec",
+        input: { scope, sql: `INSERT INTO ${table} (${column}) VALUES ('again')` },
+        effect: `${turn}:call-1`,
+      };
+      const again = await run.host(async () => {
+        const answers = [];
+        for (let i = 0; i < 2; i++) {
+          const model = await s.models.agentModel({ stepId, class: "standard" });
+          const set = await s.tools.forStep(stepOf(ctx, stepId), ctx, { model, uploads: [], turn });
+          answers.push(await set.call(insert));
+        }
+        return answers;
+      });
+      expect(again[1]).toEqual(again[0]);
+      const { rows } = await s.data.query({
+        stepId,
+        scope,
+        by: "wizard",
+        sql: `SELECT ${column} FROM ${table} WHERE ${column} = 'again'`,
+      });
+      expect(rows).toHaveLength(1);
+    });
+
+    it("runs an agent step whose model calls a tool", async () => {
+      const { stepId, tool, text } = run.agent.acting;
+      const ctx = await run.context(stepId);
+      const out = await run.host(() => runAgentStep(stepOf(ctx, stepId), ctx));
+      expect(out.text).toBe(text);
+      // The tool wrote its row, and the run notes that the step's turn acted.
+      expect((await s.data.rows(run.list.id)).rows).toHaveLength(2);
+      expect(ctx.state.turn).toMatchObject({ stepId, acted: true });
+      const turn = await run.host(() => ctx.turns.load(ctx.state.turn?.id ?? ""));
+      expect(turn?.messages.map((m) => m.role)).toEqual(["user", "assistant", "tool", "assistant"]);
+      expect(turn?.messages[2]?.content).toEqual([
+        expect.objectContaining({ type: "tool-result", name: tool }),
+      ]);
+      expect(turn?.end?.closing).toBe(text);
+    });
+
+    it("runs an agent step once per entry", async () => {
+      const { stepId, text, rows } = run.agent.each;
+      const ctx = await run.context(stepId);
+      const out = await run.host(() => runAgentStep(stepOf(ctx, stepId), ctx));
+      expect(out.text).toBe(text);
+      expect(out.json).toEqual({ rows });
+    });
+
+    it("runs an agent step as the wizard's agent it names", async () => {
+      const { stepId, step, instructions, text } = run.agent.byAgent;
+      const ctx = await run.context(stepId);
+      const ran = await run.host(() =>
+        s.tools.ofAgent({ ...stepOf(ctx, stepId), agent: stepOf(ctx, stepId).agent ?? "" }, ctx),
+      );
+      expect(ran.step).toMatchObject(step);
+      expect(ran.step.agent).toBeUndefined();
+      expect(ran.instructions).toBe(instructions);
+      const out = await run.host(() => runAgentStep(stepOf(ctx, stepId), ctx));
+      expect(out.text).toBe(text);
     });
   });
 }
