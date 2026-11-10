@@ -15,6 +15,7 @@ import { withRequires } from "@engenty/wizards-shared/requires";
 import { note } from "@engenty/wizards-shared/run";
 import { inputSchemaOf, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
+import type { WizardAgent } from "@engenty/wizards-shared/wizard-agents";
 import { DATA_MIGRATIONS, wizardDataIssues } from "@engenty/wizards-shared/wizard-data";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { and, desc, eq, or, sql } from "drizzle-orm";
@@ -26,6 +27,7 @@ import { listSpaceConnections } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { answeringNarrowed, whoOf } from "../engine/answerers.js";
+import { wizardAgentFiles } from "../engine/wizard-code.js";
 import { env } from "../env.js";
 import { getBlob } from "../files/blobs.js";
 import { managed, tenantMembers } from "../manage.js";
@@ -38,7 +40,7 @@ import { serverText } from "../texts.js";
 import { requireAdmin, requireBuild, requireWritable, requireWritableSpace } from "./access.js";
 import { changedSteps, emitDraftChanged } from "./draft-events.js";
 import { notFound, ServiceError } from "./errors.js";
-import { copyFiles, draftFiles, sameFiles, seedFiles } from "./files.js";
+import { copyFiles, draftFiles, sameFiles, seedFiles, snapshotFile } from "./files.js";
 import { forgetWizardLinks } from "./links.js";
 import { pushWizards } from "./manage-reports.js";
 import { asLang, countInstall, marketplaceWizard } from "./marketplace.js";
@@ -495,10 +497,15 @@ export async function addMessage(
   return id;
 }
 
-/** The schema check every write passes. Validator issues are allowed in a draft; a wrong shape is not. */
+/**
+ * The schema check every write passes. Validator issues are allowed in a draft; a wrong shape is
+ * not. `agents`: the wizard's agents as their files say, for `requires`; left out, what the
+ * definition's `requires` says of them is kept.
+ */
 export function parseDraft(
   raw: unknown,
   files?: string[],
+  agents?: ReadonlyMap<string, WizardAgent>,
 ): { draft: WizardDefinition; issues: ValidationIssue[] } {
   const parsed = wizardSchema.safeParse(raw);
   if (!parsed.success) {
@@ -511,7 +518,7 @@ export function parseDraft(
     );
   }
   // Every writer saves `requires` as the steps say.
-  const draft = withRequires(parsed.data);
+  const draft = withRequires(parsed.data, agents);
   return { draft, issues: validateWizard(draft, files) };
 }
 
@@ -597,7 +604,12 @@ export async function writeDraft(
   const w = await writableWizard(userId, wizardId);
   const files = await draftFiles(w.id);
   const paths = files.map((f) => f.path);
-  const { draft } = parseDraft(input.definition, paths);
+  // The agents' files say what they need: `requires` takes it from them.
+  const { agents } = await wizardAgentFiles(paths, async (path) => {
+    const file = await snapshotFile(files, path);
+    return file ? file.data.toString("utf8") : null;
+  });
+  const { draft } = parseDraft(input.definition, paths, agents);
   const issues = await checkDraft(w.spaceId, draft, files);
   const [row] = await db
     .update(schema.wizard)
