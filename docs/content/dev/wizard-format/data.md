@@ -68,11 +68,88 @@ when `output.fields` names them.
 A [code step](./agent-steps.md#code-steps) can have `data` too. It runs the statement first, and
 `run` gets what it gave as `input.data`.
 
+## Function tools
+
+A [function tool](./tools-skills-agents.md#function-tools) gets `db` beside `fetch` and `tools`
+when the wizard has `data`:
+
+```ts
+// tools/remember.ts
+export async function run({ url, title }, { db }) {
+  const seen = await db.query("SELECT 1 FROM seen WHERE url = :url", { url });
+  if (seen.rows.length) return { new: false };
+  await db.exec("INSERT INTO seen (url, title, seen_at) VALUES (:url, :title, datetime())", {
+    url,
+    title,
+  });
+  return { new: true };
+}
+```
+
+| Call | What it does |
+|---|---|
+| `db.query(sql, params, { scope })` | Runs one statement that reads. It answers with `columns`, `rows` and `truncated` |
+| `db.exec(sql, params, { scope })` | Runs one statement that writes. It answers with `changes` and `lastId` |
+
+`params` and the options can be left out. `scope` is `person` by default. Each call counts toward
+the tool’s 20 requests and calls, and each is a line in the audit. A wizard without `data` gets
+no `db`.
+
+## The sandbox
+
+A command in the run’s sandbox reaches the database through engenty wizards, never as a file. A
+sandbox tool, a skill’s script and a command the model runs find two variables in their
+environment:
+
+| Variable | What it holds |
+|---|---|
+| `WIZARD_DATA_URL` | The address to send statements to |
+| `WIZARD_DATA_TOKEN` | The run’s token. It works only while the run is running |
+
+`POST $WIZARD_DATA_URL/query` reads and `POST $WIZARD_DATA_URL/exec` writes. The body is JSON
+with `sql`, `params` and `scope`, as with `db`:
+
+```bash
+curl -s "$WIZARD_DATA_URL/query" \
+  -H "authorization: Bearer $WIZARD_DATA_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"sql": "SELECT url, title FROM seen WHERE seen_at > :since", "params": {"since": "2026-11-01"}}'
+```
+
+```python
+import json, os, urllib.request
+
+def data(action, sql, params=None, scope="person"):
+    body = json.dumps({"sql": sql, "params": params or {}, "scope": scope}).encode()
+    request = urllib.request.Request(
+        f"{os.environ['WIZARD_DATA_URL']}/{action}",
+        data=body,
+        headers={
+            "authorization": f"Bearer {os.environ['WIZARD_DATA_TOKEN']}",
+            "content-type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(request) as answer:
+        return json.load(answer)
+
+rows = data("query", "SELECT url FROM seen")["rows"]
+```
+
+A refused statement answers with an error status and `{ "error": "…" }`: 403 where the space’s
+rights or the guest rule refuse it, 400 where the statement breaks a limit.
+
+The sandbox reaches engenty wizards at `SANDBOX_DATA_URL`, or at `PUBLIC_URL` when that is an
+HTTPS address. Without either, the variables are missing and only the steps’ own tools reach the
+database. A sandbox on your computer has none: it reaches only public HTTPS addresses, and engenty wizards answers on `localhost`.
+
 ## Guests
 
 On a shared link, a guest’s AI steps reach only that guest’s own database. The shared database
 is reached in a guest’s run only by fixed steps, with SQL the wizard wrote. So a sign-up can be
 saved, and what one guest gave never reaches another guest’s model.
+
+A function tool and the sandbox count as the AI’s: the model decides when they run. In a guest’s
+run they reach only the guest’s own database.
 
 The same holds for files. `files_keep` takes `shared: true` when the wizard has shared data, and
 a guest’s AI step doesn’t get it.
