@@ -1,11 +1,12 @@
 import type { FileRead, FileSave, FilesService } from "@engenty/wizards-shared/run-services";
-import { type RunRow, type StepContext, StepError } from "../engine/types.js";
+import { type RunRow, StepError } from "../engine/types.js";
 import { extFor, loadAsset, saveAsset } from "../files/storage.js";
 import { snapshotHtmlImages } from "../files/web-images.js";
 import { signedUrl } from "../secrets/signing.js";
 import { snapshotFile } from "../services/files.js";
 import { assertPublicUrl, safeFetch } from "../tools/net-guard.js";
 import { personUploads, type UploadRef } from "../tools/store.js";
+import type { InProcessContext } from "./in-process.js";
 
 export type { UploadRef };
 export { extFor };
@@ -26,7 +27,7 @@ export interface InProcessFiles extends FilesService {
   workspace(path: string): Promise<Uint8Array | null>;
 }
 
-export function filesService(run: RunRow, ctx: () => StepContext): InProcessFiles {
+export function filesService(run: RunRow, ctx: () => InProcessContext): InProcessFiles {
   const save = async (file: FileSave) => {
     const { mime, data } = "url" in file ? await fetched(file, ctx().signal) : file;
     return saveAsset({

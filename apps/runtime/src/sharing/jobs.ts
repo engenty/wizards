@@ -18,7 +18,7 @@ import {
 import { askPerson } from "../engine/asks.js";
 import { signalChanged } from "../engine/events.js";
 import { releaseResources } from "../engine/resources.js";
-import { loadSpace, makeContext, spaceIdOf } from "../engine/runner.js";
+import { inProcessContext, loadSpace, spaceIdOf } from "../engine/runner.js";
 import type { RunRow } from "../engine/types.js";
 import { env } from "../env.js";
 import { errorText } from "../model-errors.js";
@@ -136,7 +136,7 @@ function contextOf(
     },
     link: async () => (publicOrigin() ? (await shareRun(run)).url : null),
     step: async () =>
-      makeContext(run, await loadSpace(run), structuredClone(run.state), signal, {
+      inProcessContext(run, await loadSpace(run), structuredClone(run.state), signal, {
         stepId: SHARE_STEP,
         share: true,
         emit: (_type, message) =>

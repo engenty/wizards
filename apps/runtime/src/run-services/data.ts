@@ -5,10 +5,11 @@ import {
 } from "@engenty/wizards-shared/run-services";
 import { subjectsOf } from "../broker/rwx.js";
 import { stepCaller } from "../elements/caller.js";
-import { type RunRow, type StepContext, StepError } from "../engine/types.js";
+import { type RunRow, StepError } from "../engine/types.js";
 import { NotedError } from "../model-errors.js";
 import { runData } from "../store/data-access.js";
 import { listRows } from "../store/index.js";
+import type { InProcessContext } from "./in-process.js";
 
 /**
  * The wizard's own database and its stored lists inside the runtime, as the run's holder may read
@@ -16,8 +17,8 @@ import { listRows } from "../store/index.js";
  */
 export function dataService(
   run: RunRow,
-  ctx: () => StepContext,
-  at: (stepId: string) => StepContext,
+  ctx: () => InProcessContext,
+  at: (stepId: string) => InProcessContext,
 ): DataService {
   return {
     query: (request) => statement(at(request.stepId), request, "read"),
@@ -47,7 +48,11 @@ export function dataService(
  * write marks the step as having acted: what it did, a later try of the step would do again. A
  * refusal with a note fails the step with that note.
  */
-async function statement(c: StepContext, request: DataStatementRequest, mode: "read" | "write") {
+async function statement(
+  c: InProcessContext,
+  request: DataStatementRequest,
+  mode: "read" | "write",
+) {
   if (mode === "write") {
     c.resources.acted = true;
   }

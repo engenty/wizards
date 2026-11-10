@@ -1,9 +1,9 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { stepCaller } from "../elements/caller.js";
-import type { StepContext } from "../engine/types.js";
 import { getBlob } from "../files/blobs.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import type { DataResult } from "../store/data.js";
 import { runData } from "../store/data-access.js";
 import { attempt, clip } from "./shared.js";
@@ -13,7 +13,7 @@ import { attempt, clip } from "./shared.js";
  * wizard declares `data` (docs/plans/wizard-data.md). Each call names its scope and goes through
  * the broker (store/data-access.ts). In a guest's run the shared database is not offered.
  */
-export async function dataTools(ctx: StepContext): Promise<Record<string, any>> {
+export async function dataTools(ctx: InProcessContext): Promise<Record<string, any>> {
   const data = ctx.def.data;
   if (!data) {
     return {};

@@ -11,8 +11,8 @@ import type {
 } from "../engenty/connections-sdk/types.js";
 import type { AskResult } from "../engine/asks.js";
 import { effectUnsure } from "../engine/events.js";
-import type { StepContext } from "../engine/types.js";
 import type { Role } from "../manage.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import type { StoreScope } from "../store/index.js";
 import {
   type Account,
@@ -196,7 +196,7 @@ export function whoOf(holder: string, role?: Role): Who {
 }
 
 /** Where a step's call is made. */
-export function whereOf(ctx: StepContext): Where {
+export function whereOf(ctx: InProcessContext): Where {
   return {
     ...whereOfRun(
       { id: ctx.runId, wizardId: ctx.store.wizardId, mode: ctx.test ? "test" : "live" },

@@ -11,6 +11,7 @@ import { z } from "zod";
 import { summarizeInput, writeLog } from "../broker/log.js";
 import { type StepContext, StepError } from "../engine/types.js";
 import { loadWizardAgent } from "../engine/wizard-code.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { snapshotFile } from "../services/files.js";
 import { clip } from "./shared.js";
 import { whoWhere } from "./wizard.js";
@@ -85,7 +86,7 @@ export async function stepOfAgent(
 /** The agents a step lists as tools (`agent.<name>`), each as a tool its model calls. */
 export async function agentTools(
   step: AgentStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
   run: RunAgentStep,
 ): Promise<Record<string, any>> {
   const tools: Record<string, any> = {};
@@ -101,7 +102,7 @@ function agentTool(
   agent: WizardAgent,
   callName: string,
   step: AgentStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
   run: RunAgentStep,
 ) {
   const id = wizardAgentId(agent.name);

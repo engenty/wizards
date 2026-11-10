@@ -8,7 +8,6 @@ import { brokerHost, reachesOutside, whereOf, whoOf } from "../broker/index.js";
 import { documentMime, parseDocument } from "../documents/parse.js";
 import { stepCaller } from "../elements/caller.js";
 import { elementTools } from "../elements/catalogue.js";
-import type { StepContext } from "../engine/types.js";
 import { generateImageMedia } from "../media/generate.js";
 import { markMedia } from "../media/marking.js";
 import {
@@ -20,6 +19,7 @@ import {
 } from "../models.js";
 import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { openSandboxData, sandboxDataEnv } from "../sandbox/data.js";
 import { type ExecResult, shellToolDescription } from "../sandbox/index.js";
 import { snapshotFile } from "../services/files.js";
@@ -92,7 +92,7 @@ export function storeIdle(
 /** The tools an agent step may use: exactly what its definition allowlists. */
 export async function buildStepTools(
   step: AgentStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
   resolved: ResolvedModel<unknown>,
   uploads: UploadRef[],
 ): Promise<StepTools> {

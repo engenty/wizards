@@ -19,9 +19,10 @@ import {
   resolveRef,
   type TemplateScope,
 } from "../engine/template.js";
-import { type StepContext, StepError } from "../engine/types.js";
+import { StepError } from "../engine/types.js";
 import { prompt } from "../prompts.js";
 import { extFor } from "../run-services/files.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { contentPolicy } from "../safety.js";
 import {
   type GeneratedMedia,
@@ -35,7 +36,7 @@ import { type AiOrigin, markMedia } from "./marking.js";
 // --- generate ----------------------------------------------------------------
 
 /** The images a name stands for: an image field's uploads, or the images an earlier step made. */
-function imagesOf(name: string, ctx: StepContext): string[] {
+function imagesOf(name: string, ctx: InProcessContext): string[] {
   const field = allFields(ctx.def).find((f) => f.id === name);
   if (field) {
     const value = ctx.state.values[name];
@@ -48,7 +49,7 @@ function imagesOf(name: string, ctx: StepContext): string[] {
     .map((a) => a.id);
 }
 
-async function loadReference(id: string | undefined, ctx: StepContext) {
+async function loadReference(id: string | undefined, ctx: InProcessContext) {
   const found = id ? await ctx.services.files.read(id) : null;
   return found && found.runId === ctx.runId
     ? ({ bytes: found.data, mediaType: found.ref.mime } satisfies MediaReference)
@@ -67,7 +68,7 @@ interface Entry {
 const MAX_ENTRIES = 8;
 
 /** The entries of a step with `foreach` — or the single one of a step without. */
-function entriesOf(step: GenerateStep, ctx: StepContext): Entry[] {
+function entriesOf(step: GenerateStep, ctx: InProcessContext): Entry[] {
   const references = step.referenceImage ? imagesOf(step.referenceImage, ctx) : [];
   if (!step.foreach) {
     return [{ item: null, index: 0, count: 1, reference: references[0] }];
@@ -97,7 +98,7 @@ const DOCUMENT_TEMPLATES = new Set(["invoice", "offer", "briefing", "letter", "r
 /** Images a document may place: earlier generated images, uploads, the space's logos and images. */
 function placeableImages(
   step: GenerateStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
   { files, brand }: StepSetting,
 ): { id: string; label: string }[] {
   const out: { id: string; label: string }[] = [];
@@ -167,7 +168,7 @@ function placeableImages(
 
 async function writeHtml(
   step: GenerateStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
   kind: "document" | "dashboard",
 ): Promise<string> {
   const brief = renderTemplate(step.prompt, ctx.scope);
@@ -241,7 +242,11 @@ async function writeHtml(
 }
 
 /** For image/video: let a fast model turn the brief + answers into one strong visual prompt. */
-async function visualPrompt(step: GenerateStep, ctx: StepContext, entry: Entry): Promise<string> {
+async function visualPrompt(
+  step: GenerateStep,
+  ctx: InProcessContext,
+  entry: Entry,
+): Promise<string> {
   const scope: TemplateScope = { ...ctx.scope, entry };
   const brief = renderTemplate(step.prompt, scope);
   const note = ctx.state.notes[step.id];
@@ -280,7 +285,7 @@ async function visualPrompt(step: GenerateStep, ctx: StepContext, entry: Entry):
 /** Images and video clips: one per entry. A revision can name the entries to make again. */
 async function runMediaStep(
   step: GenerateStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
   asset: "image" | "video",
 ): Promise<StepOutput> {
   const entries = entriesOf(step, ctx);
@@ -386,7 +391,10 @@ async function runMediaStep(
   return { text: prompts.join("\n\n"), assets, at: new Date().toISOString() };
 }
 
-export async function runGenerateStep(step: GenerateStep, ctx: StepContext): Promise<StepOutput> {
+export async function runGenerateStep(
+  step: GenerateStep,
+  ctx: InProcessContext,
+): Promise<StepOutput> {
   const at = new Date().toISOString();
   switch (step.asset) {
     case "image":

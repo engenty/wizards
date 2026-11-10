@@ -111,6 +111,7 @@ import {
 import { runEnded } from "../plugins/events.js";
 import { pluginsOf as loadedPlugins } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext, SpaceRow } from "../run-services/in-process.js";
 import { inProcessServices } from "../run-services/index.js";
 import {
   ContentBlockedError,
@@ -188,7 +189,7 @@ import { startedRunEnded, startOf } from "./starts.js";
 import { outputSchema, runAgentStep, runAutomaticStep } from "./steps/index.js";
 import { surfaceData } from "./surface.js";
 import { answersAsText, fillLabel, renderTemplate, resolveRef, scopeLists } from "./template.js";
-import type { RunRow, SpaceRow, StepContext } from "./types.js";
+import type { RunRow, StepContext } from "./types.js";
 import { SignInNeeded, StepError } from "./types.js";
 import { wizardAgentFiles } from "./wizard-code.js";
 
@@ -1092,12 +1093,36 @@ export async function makeContext(
   signal: AbortSignal,
   own: Partial<Pick<StepContext, "stepId" | "emit" | "ask" | "share">> = {},
 ): Promise<StepContext> {
+  const {
+    store,
+    space: _,
+    spaceFiles,
+    resources,
+    call,
+    chargeUsd,
+    saveAsset,
+    ...ctx
+  } = await inProcessContext(run, space, state, signal, own);
+  return ctx;
+}
+
+/**
+ * The step context as the run's services keep it (run-services/in-process.ts): with the rows and
+ * functions of this process. A share job's targets work with it.
+ */
+export async function inProcessContext(
+  run: RunRow,
+  space: SpaceRow,
+  state: RunState,
+  signal: AbortSignal,
+  own: Partial<Pick<StepContext, "stepId" | "emit" | "ask" | "share">> = {},
+): Promise<InProcessContext> {
   const store = scopeOf(run);
   const resources = resourcesFor(run.id);
   resources.bind(store, run, own.share, space.id, run.definition.data ? sandboxDataHost() : null);
   const stepId = own.stepId ?? run.cursor ?? "";
   const holder = await runHolder(run);
-  const ctx: StepContext = {
+  const ctx: InProcessContext = {
     runId: run.id,
     tenantId: run.tenantId,
     test: run.mode === "test",
@@ -2333,7 +2358,11 @@ async function drive(runId: string, signal: AbortSignal) {
           const answers = [answersAsText(ctx.scope), ...Object.values(state.notes)].join("\n");
           const hash = createHash("sha256").update(answers).digest("base64url").slice(0, 24);
           if (state.inputChecked !== hash) {
-            await checkGuestInput({ text: answers, call: ctx.call, signal: limit });
+            await checkGuestInput({
+              text: answers,
+              call: { runId: ctx.runId, stepId: ctx.stepId },
+              signal: limit,
+            });
             state.inputChecked = hash;
           }
         }
@@ -2341,7 +2370,7 @@ async function drive(runId: string, signal: AbortSignal) {
         if (guest && !limit.aborted) {
           await checkGuestText({
             text: made.text || (made.json ? JSON.stringify(made.json) : ""),
-            call: ctx.call,
+            call: { runId: ctx.runId, stepId: ctx.stepId },
             signal: limit,
           });
         }

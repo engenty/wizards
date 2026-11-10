@@ -22,9 +22,10 @@ import {
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
-import type { RunHolder, RunRow, StepContext } from "../engine/types.js";
+import type { RunHolder, RunRow } from "../engine/types.js";
 import { currentFeatures } from "../features.js";
 import type { Role } from "../manage.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { currentRole, isAdminRole, MEMBERS_EDIT_ONLY, roleOf } from "../services/access.js";
 import { notFound, ServiceError } from "../services/errors.js";
 import { ownedSpace } from "../services/spaces.js";
@@ -148,7 +149,7 @@ export const subjectsOfHolder = (holder: RunHolder): Subject[] =>
   holder.kind === "guest" ? subjectsOfGuest() : subjectsOfPerson(holder.id, holder.role);
 
 /** A run's step: who holds the run (a guest or a person), and the wizard it runs. */
-export function subjectsOf(ctx: Pick<StepContext, "holder" | "store">): Subject[] {
+export function subjectsOf(ctx: Pick<InProcessContext, "holder" | "store">): Subject[] {
   return [
     ...(ctx.holder ? subjectsOfHolder(ctx.holder) : []),
     { kind: "wizard", id: ctx.store.wizardId },

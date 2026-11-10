@@ -12,7 +12,7 @@ import { brokerHost, whereOf } from "../broker/index.js";
 import { summarizeInput, writeLog } from "../broker/log.js";
 import { stepCaller } from "../elements/caller.js";
 import { quickJs } from "../engine/quickjs.js";
-import { type StepContext, StepError } from "../engine/types.js";
+import { StepError } from "../engine/types.js";
 import {
   loadWizardTool,
   schemaZod,
@@ -20,6 +20,7 @@ import {
   type WizardTool,
 } from "../engine/wizard-code.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { snapshotFile } from "../services/files.js";
 import type { DataResult } from "../store/data.js";
 import { runData } from "../store/data-access.js";
@@ -142,7 +143,7 @@ function callableBy(
  */
 export async function wizardTools(
   step: AgentStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
   others: Record<string, any>,
   browser: Record<string, unknown>,
   made: { assets: AssetRef[]; uploads: UploadRef[] },
@@ -205,7 +206,7 @@ function functionTool(
   callName: string,
   declared: WizardTool,
   step: AgentStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
   callable: Record<string, any>,
 ) {
   const body = declared.body;
@@ -419,7 +420,7 @@ function functionTool(
 }
 
 /** The log row's who and where for a call of the step. */
-export function whoWhere(ctx: StepContext) {
+export function whoWhere(ctx: InProcessContext) {
   const who = holderWho(ctx);
   const where = whereOf(ctx);
   return {
