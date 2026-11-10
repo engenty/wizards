@@ -130,7 +130,7 @@ jobs:
         if: matrix.check == 'docs'
         run: pnpm --filter @engenty/wizards-docs typecheck && pnpm build:docs
 
-  # The cloud runtime's two images and the documentation's, built on GitHub's runners: the server
+  # The cloud runtime's images (runtime, browser, sandbox), the portal's and the documentation's, built on GitHub's runners: the server
   # only pulls them. The layers come from the registry's cache, so a release rebuilds only what
   # changed. Pushed under the tag; `latest` follows in `deploy`, once the checks are green too.
   images:
@@ -148,6 +148,9 @@ jobs:
             file: apps/runtime/Dockerfile
           - image: browser
             file: deploy/Dockerfile.browser
+          # agentOS for the runner's runs (deploy/Dockerfile.sandbox, apps/sandbox).
+          - image: sandbox
+            file: deploy/Dockerfile.sandbox
           # The client portal: its own app (docs/plans/client-portal.md).
           - image: portal
             file: apps/portal/Dockerfile
@@ -209,7 +212,7 @@ jobs:
       - name: The release's images become latest
         run: |
           set -euo pipefail
-          for image in runtime browser docs portal; do
+          for image in runtime browser sandbox docs portal; do
             ref="ghcr.io/engenty/engenty-wizards-$image"
             docker buildx imagetools create --tag "$ref:latest" "$ref:$GITHUB_REF_NAME"
           done
@@ -236,10 +239,11 @@ jobs:
             git push origin "$commit:refs/heads/$branch"
             echo "$branch now at $(git rev-parse --short "$commit"): the server deploys it."
           }
-          # The runtime: compose.cloud.yaml with the two images (apps/runtime/Dockerfile,
-          # deploy/Dockerfile.browser) built above.
-          move deploy/runtime apps/runtime apps/web packages modules plugin \
-            deploy/Dockerfile.browser deploy/browser-entrypoint.sh compose.cloud.yaml .dockerignore \
+          # The runtime: compose.cloud.yaml with the images (apps/runtime/Dockerfile,
+          # deploy/Dockerfile.browser, deploy/Dockerfile.sandbox) built above.
+          move deploy/runtime apps/runtime apps/web apps/sandbox packages modules plugin \
+            deploy/Dockerfile.browser deploy/browser-entrypoint.sh deploy/Dockerfile.sandbox \
+            deploy/Dockerfile.sandbox.dockerignore compose.cloud.yaml .dockerignore \
             package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json \
             ':(exclude)apps/runtime/test'
           # The documentation site: deploy/Dockerfile.docs with the image (apps/docs/Dockerfile)

@@ -74,6 +74,7 @@ const readJson = (path) => JSON.parse(readFileSync(join(root, path), "utf8"));
 // --- 1. build ---------------------------------------------------------------------------
 const BUILT = [
   "apps/runtime/dist",
+  "apps/runtime/assets",
   "apps/web/dist",
   "packages/shared/dist",
   "packages/wizards/dist",
