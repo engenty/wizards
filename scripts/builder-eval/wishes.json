@@ -1,0 +1,122 @@
+[
+  {
+    "id": "bath-offer",
+    "lang": "de",
+    "wish": "Wir sind ein Installateurbetrieb. Kunden beschreiben ihr Bad-Projekt, der Wizard erstellt daraus ein unverbindliches Angebot als PDF.",
+    "kind": "intake → document",
+    "expect": { "image": false },
+    "notes": "Questions about the bathroom, perhaps photos of the current bath; an offer document. Prices only if the wizard has a source for them (a price list), never invented totals."
+  },
+  {
+    "id": "sales-brief",
+    "lang": "en",
+    "wish": "Before a sales call I type in a company name and get a one-page briefing about them, with sources.",
+    "kind": "research → briefing",
+    "expect": { "image": false, "maxPages": 1 },
+    "notes": "One short page (company, perhaps website and what we sell), web research, a one-page document with sources."
+  },
+  {
+    "id": "tenant-damage",
+    "lang": "de",
+    "wish": "Mieter melden Schäden in der Wohnung. Notfälle (Wasser, Strom, Gas) sollen sofort an die Hausverwaltung gehen, alles andere sammeln wir für die wöchentliche Runde.",
+    "kind": "triage with branches",
+    "expect": { "image": false, "branch": true, "collect": true },
+    "notes": "Photo, place, what happened; a decision on urgency; urgent → immediate notice, else into a shared list for the weekly round."
+  },
+  {
+    "id": "workshop-signup",
+    "lang": "en",
+    "wish": "Sign-up for our summer workshop: name, email, which date, dietary needs. I want to see the list of everyone who signed up.",
+    "kind": "collect into a list",
+    "expect": { "image": false, "ai": false, "collect": true },
+    "notes": "One page, a shared list, a short confirmation. No AI step is needed."
+  },
+  {
+    "id": "pv-news",
+    "lang": "de",
+    "wish": "Jeden Montag eine Zusammenfassung der Branchennews zu Photovoltaik in Österreich als kurzer Newsletter-Text.",
+    "kind": "scheduled report",
+    "expect": { "image": false },
+    "notes": "Few or no questions, web research of the last week, a short text. A start every Monday is what the wish asks for."
+  },
+  {
+    "id": "heat-pump-calc",
+    "lang": "de",
+    "wish": "Ein Rechner für unsere Website: Wie viel spart man mit einer Wärmepumpe gegenüber Gas? Eingaben: Wohnfläche, Baujahr, aktuelle Heizkosten.",
+    "kind": "calculator without AI",
+    "expect": { "image": false, "ai": false },
+    "notes": "Pages with the three inputs and calculated metrics; a model step would only guess figures a formula gives."
+  },
+  {
+    "id": "lead-to-crm",
+    "lang": "en",
+    "wish": "When a lead fills in our contact form, qualify it and put it into HubSpot with a score.",
+    "kind": "write into another system",
+    "expect": { "image": false, "write": true },
+    "notes": "A short contact form, a decision or agent step for the score, a write to HubSpot through a connection (a tool step), no long result for the lead."
+  },
+  {
+    "id": "phone-plan",
+    "lang": "de",
+    "wish": "Ein Berater, der Kunden hilft, den richtigen Handytarif zu finden.",
+    "kind": "advice",
+    "expect": { "image": false },
+    "notes": "A few questions on usage, a recommendation with reasons. Current tariffs need research or a list the admin keeps."
+  },
+  {
+    "id": "bakery-ad",
+    "lang": "en",
+    "wish": "A 30-second video ad for Instagram for my bakery's new sourdough bread.",
+    "kind": "media pipeline",
+    "expect": { "image": true },
+    "notes": "Script, stills, clips or motion graphics, voice, reviews before the expensive steps. Images belong here."
+  },
+  {
+    "id": "hi",
+    "lang": "de",
+    "wish": "hi",
+    "kind": "no wish yet",
+    "expect": {},
+    "notes": "There is nothing to build yet. A short question back is fine, and so is a clearly labelled example."
+  },
+  {
+    "id": "team-onboarding",
+    "lang": "en",
+    "wish": "something for my team's onboarding",
+    "kind": "vague",
+    "expect": {},
+    "notes": "Who runs it (the new person or the manager) and what comes out (a plan, a checklist, accounts) decide the shape. Asking one question, or stating what it assumed, is what a good answer does."
+  },
+  {
+    "id": "receipts",
+    "lang": "de",
+    "wish": "Belege aus dem Monat hochladen und eine Liste für die Buchhaltung als Excel bekommen.",
+    "kind": "documents → table",
+    "expect": { "image": false },
+    "notes": "One upload of many files, scan_documents, a table as xlsx. No image."
+  },
+  {
+    "id": "museum-quiz",
+    "lang": "en",
+    "wish": "A quiz for our museum visitors about the exhibition on Roman Vienna, with a certificate at the end.",
+    "kind": "quiz",
+    "expect": {},
+    "notes": "Questions with fixed answers and a score (calculated, not judged by a model), a certificate document with the name."
+  },
+  {
+    "id": "job-screening",
+    "lang": "de",
+    "wish": "Bewerbungen für eine Stelle als Bürokraft: Lebenslauf hochladen, ein paar kurze Fragen, und wir bekommen eine Einschätzung.",
+    "kind": "intake → assessment for the admin",
+    "expect": { "image": false, "collect": true },
+    "notes": "The applicant uploads and answers; the assessment goes to the employer (a shared list or a notice), not as a result shown to the applicant."
+  },
+  {
+    "id": "menu-translate",
+    "lang": "en",
+    "wish": "Translate our restaurant menu into English, Italian and French, keeping the layout.",
+    "kind": "file → files",
+    "expect": { "image": false },
+    "notes": "Upload the menu, pick the languages, one translated document per language."
+  }
+]
