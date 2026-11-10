@@ -437,12 +437,16 @@ describe("a plugin's tools", () => {
   });
 
   it("answer a step that calls one, with no model", async () => {
-    const { runAutomaticStep } = await import("../src/engine/steps/index.js");
+    const { runAgentStep, runAutomaticStep } = await import("../src/engine/steps/index.js");
     const { inProcessServices } = await import("../src/run-services/index.js");
     // The step's context, with the run's services for a run whose wizard has this step.
     const ctxFor = (emitted: string[], s: unknown) => {
       const c = { ...ctx(emitted), scope, def: scope.def, state: scope.state } as any;
-      c.services = inProcessServices({ id: "run-1", definition: { steps: [s] } } as never, () => c);
+      c.services = inProcessServices(
+        { id: "run-1", definition: { steps: [s] } } as never,
+        () => c,
+        runAgentStep,
+      );
       return c;
     };
     const emitted: string[] = [];

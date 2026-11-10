@@ -149,7 +149,11 @@ function contextOf(runId: string, stepId: string, holder: Holder) {
     ask: async () => null,
     call: {},
   } as unknown as import("../src/engine/types").StepContext;
-  ctx.services = runServices.inProcessServices({ id: runId, definition } as never, () => ctx);
+  ctx.services = runServices.inProcessServices(
+    { id: runId, definition } as never,
+    () => ctx,
+    (s, c) => steps.runAgentStep(s, c),
+  );
   return ctx;
 }
 
