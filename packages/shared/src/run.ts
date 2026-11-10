@@ -89,6 +89,22 @@ export interface RunJob {
 }
 
 /**
+ * The kinds of host a run can live on: a runtime process, a Node process of its own (`wizards
+ * run`), an object at the edge.
+ */
+export const RUN_HOST_KINDS = ["runtime", "node", "edge"] as const;
+export type RunHostKind = (typeof RUN_HOST_KINDS)[number];
+
+/**
+ * Where a run lives when it is not this runtime (`run.host`): the host's kind and the address its
+ * calls go to. A run without one lives in the runtime that keeps its record.
+ */
+export interface RunHostRef {
+  kind: RunHostKind;
+  url: string;
+}
+
+/**
  * The run sleeps while a service works on the step it stands at: whoever looks sees the step at
  * work, as when the step ran in the process itself.
  */

@@ -1,4 +1,10 @@
-import type { AskAnswer, RunAsk, RunState, RunStatus } from "@engenty/wizards-shared/run";
+import type {
+  AskAnswer,
+  RunAsk,
+  RunHostRef,
+  RunState,
+  RunStatus,
+} from "@engenty/wizards-shared/run";
 import { and, eq, inArray, isNull, lt, min, ne, notInArray, or, type SQL, sql } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 
@@ -56,6 +62,19 @@ export const runStore = {
     return (await db.query.run.findFirst({ where: eq(schema.run.id, runId), columns })) as
       | Pick<RunRow, K>
       | undefined;
+  },
+
+  /**
+   * Where the run lives: null for this runtime, else the host's kind and address. Undefined when
+   * there is no such run.
+   */
+  async hostOf(runId: string): Promise<RunHostRef | null | undefined> {
+    return (await runStore.pick(runId, "host"))?.host;
+  },
+
+  /** Places the run on a host; null brings it back to this runtime. */
+  async setHost(runId: string, host: RunHostRef | null) {
+    await db.update(schema.run).set({ host }).where(eq(schema.run.id, runId));
   },
 
   /** Where the runs a person's notices wait on stand. */
