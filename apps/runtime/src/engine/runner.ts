@@ -1911,6 +1911,12 @@ async function apply(
     await setWake(run.id, wakeAt);
   }
   const waiting = to.status === "sleeping" || to.status === "waiting_signal";
+  // A run that reached its result keeps the data the result names; one that goes on has none yet.
+  if (to.status === "done" && step?.type === "result" && step.data) {
+    to.state.data = await resultDataOf(step.data, run, to.state);
+  } else if (to.status !== "done") {
+    delete to.state.data;
+  }
   await updateRun(
     run.id,
     {
@@ -2937,6 +2943,25 @@ async function formDataOf(
     ...(open.some(([, ref]) => listRef(dataRef(ref))) ? { lists: await storedLists(run) } : {}),
   };
   return surfaceData(Object.fromEntries(open), { def, state: run.state, scope });
+}
+
+/** What the result step's `data` names, read from the run as a surface reads it. */
+async function resultDataOf(
+  refs: Record<string, string>,
+  run: RunRow,
+  state: RunState,
+): Promise<Record<string, unknown>> {
+  const def = run.definition;
+  const reads = (head: string) => Object.values(refs).some((ref) => dataRef(ref).startsWith(head));
+  const scope = {
+    def,
+    state,
+    brand: reads("brand.") ? spaceProfile(await loadSpace(run)) : {},
+    ...(Object.values(refs).some((ref) => listRef(dataRef(ref)))
+      ? { lists: await storedLists(run) }
+      : {}),
+  };
+  return surfaceData(refs, { def, state, scope });
 }
 
 function prefillOf(

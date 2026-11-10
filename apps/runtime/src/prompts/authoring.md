@@ -471,7 +471,12 @@ type ReviewStep = { type: "review", show: (stepId | "lists.<listId>")[], edit?: 
 // a shown list is edited in place by the person
 
 type ResultStep = { type: "result", message?: string, deliverables: { from: stepId | "lists.<listId>", label?, formats: Format[] }[],
-                    share?: { target: string, label?: string, values?: { [fieldId]: string } }[] }
+                    share?: { target: string, label?: string, values?: { [fieldId]: string } }[],
+                    data?: { [key]: fieldId | "steps.<id>" | "steps.<id>.<key>" | "lists.<id>" | "brand.name" | "today" } }
+// data: what a finished run gives back besides its files, for an app, an MCP client or another workflow that starts it:
+//   { reply: "steps.reply", urgent: "steps.check.urgent" }. It reads only steps before the result. Give it when the wizard
+//   is meant to be run by a program; a run for a person needs none. What a run takes (the person's form fields) and gives
+//   (files + data) is worked out as JSON Schema from the definition: never describe it by hand.
 // formats per source: image→png · video→mp4 (several results: zip) · voice→mp3 · document→pdf docx html md png · dashboard→html pdf png
 //                     video widget (video: true)→mp4 png · video→mp4
 //                     widget→html png pdf mp4 json (mp4 only when the widget registers a timeline)

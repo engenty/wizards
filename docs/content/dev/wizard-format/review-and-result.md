@@ -1,7 +1,7 @@
 ---
 title: Review and result
-description: A review step shows earlier results to check, the result step ends the run with its downloads.
-version: 0.11.1
+description: A review step shows earlier results to check, the result step ends the run with its downloads and its data.
+version: 0.18.0
 ---
 
 ## Review
@@ -46,6 +46,39 @@ The `result` step is always the last. It shows `message` and offers the download
 
 Each deliverable names a step id or `lists.<id>` in `from`, an optional `label` and its
 `formats`.
+
+### Data
+
+`data` names what a finished run gives back besides its files: key → a field id, `steps.<id>`,
+`steps.<id>.<key>`, `lists.<id>`, `brand.name` or `today`. It’s the shape `widget` and `surface`
+take, and it reads only steps that run before the result.
+
+```json
+{
+  "id": "done", "type": "result", "title": "Your reply",
+  "deliverables": [{ "from": "reply", "label": "Reply", "formats": ["txt"] }],
+  "data": { "reply": "steps.reply", "urgent": "steps.check.urgent" }
+}
+```
+
+The run fills it when it reaches the result. An MCP client gets it from `get_run`, the API
+from `GET /api/v1/runs/:id`, as `data` beside the files. Without `data` a run gives its files alone.
+
+## What a wizard takes and gives
+
+Nobody writes a wizard’s input or output schema by hand: both come from the definition, as
+JSON Schema (draft 2020-12).
+
+- **Input:** one property per field the run’s own person answers, under the field’s id, with
+  its `label` as `title` and its `help` as `description`. A field is required when it’s marked
+  `required` on a form every run reaches, with no `when`. Fields a decision picks, forms of the
+  owner or the team, uploads, connections and lists are left out: they’re asked during the run.
+- **Output:** `files`, the deliverables by `from` with their formats, and `data`, one property
+  per key of the result’s `data` with the schema of what it names. A key whose step some runs
+  skip is optional.
+
+MCP `list_wizards` and `show_wizard` give both as `inputSchema` and `outputSchema`, as do the
+wizards of `GET /api/v1/wizards` and `wizards validate --json`.
 
 ## Formats
 
