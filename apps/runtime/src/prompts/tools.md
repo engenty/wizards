@@ -117,8 +117,29 @@ ${catalog}
 <!-- section: tool.files_list -->
 List the files this wizard keeps for the person (invoices collected on earlier runs, scans …), optionally only one folder.
 
+<!-- section: tool.data_query -->
+Read from the wizard's own database with one SQL statement (SQLite): what earlier runs saved. ${where} Pass values as `params` and name them `:name` in the statement; never write them into it. A read hands back at most a few hundred rows; ask for what you need.
+The database's schema:
+${schema}
+
+<!-- section: tool.data_exec -->
+Write to the wizard's own database with one SQL statement (SQLite): INSERT, UPDATE, DELETE, or CREATE what the schema lacks. It is there on the next run. ${where} Pass values as `params` and name them `:name` in the statement; never write them into it. One statement changes at most a thousand rows.
+The database's schema:
+${schema}
+
+<!-- Where the wizard's database is, in data_query's and data_exec's description. -->
+<!-- section: note.data_person -->
+It is the person's own: what they saved before, nobody else's.
+
+<!-- section: note.data_scopes -->
+`scope` picks the database: `person` (the default) is the person's own, `shared` the one every run of the wizard reads and writes.
+
 <!-- section: tool.files_keep -->
 Keep files the person gave in the wizard's files, several at once: each is stored under `path`, is there on the next run and belongs to this step's result. Returns the path each file now has.
+
+<!-- After files_keep's description when the wizard keeps shared data. -->
+<!-- section: note.files_keep_shared -->
+With `shared: true` the files are kept for every run of the wizard, beside its shared database, not for this person alone.
 
 <!-- After read_document's and scan_documents' description when the person gave files. -->
 <!-- section: note.files_given -->

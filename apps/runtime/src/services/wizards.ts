@@ -16,6 +16,7 @@ import { note } from "@engenty/wizards-shared/run";
 import { inputSchemaOf, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import type { WizardAgent } from "@engenty/wizards-shared/wizard-agents";
+import { DATA_MIGRATIONS, wizardDataIssues } from "@engenty/wizards-shared/wizard-data";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -28,9 +29,11 @@ import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { answeringNarrowed, whoOf } from "../engine/answerers.js";
 import { wizardAgentFiles } from "../engine/wizard-code.js";
 import { env } from "../env.js";
+import { getBlob } from "../files/blobs.js";
 import { managed, tenantMembers } from "../manage.js";
 import { saidOf } from "../model-errors.js";
 import { pluginToolsOf } from "../plugins/registry.js";
+import { dropWizardData } from "../store/data.js";
 import { dropLinks, putLink } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
@@ -234,7 +237,7 @@ async function pluginIssues(draft: WizardDefinition) {
     const tools =
       step.type === "agent"
         ? step.tools
-        : step.type === "tool" && "tool" in step.call
+        : step.type === "tool" && step.call && "tool" in step.call
           ? [step.call.tool]
           : [];
     for (const id of tools) {
@@ -262,7 +265,7 @@ async function pluginIssues(draft: WizardDefinition) {
 async function spaceConnectionIssues(spaceId: string, draft: WizardDefinition) {
   const connections = draft.connections ?? [];
   const fixed = draft.steps.filter(
-    (s) => s.type === "tool" && "connection" in s.call,
+    (s) => s.type === "tool" && s.call && "connection" in s.call,
   ) as (ToolStep & { call: { connection: string; action: string } })[];
   if (!connections.some((c) => c.spaceConnection) && !fixed.length) {
     return [];
@@ -339,7 +342,7 @@ export async function stepWarnings(
   draft: WizardDefinition,
 ): Promise<StepWarning[]> {
   const fixed = draft.steps.filter(
-    (s) => s.type === "tool" && "connection" in s.call,
+    (s) => s.type === "tool" && s.call && "connection" in s.call,
   ) as (ToolStep & { call: { connection: string; action: string } })[];
   const ofSpace = new Map(
     (draft.connections ?? []).flatMap((c) =>
@@ -379,9 +382,25 @@ export async function stepWarnings(
   return warnings;
 }
 
+/** The SQL files of a draft's own database, read: each splits into statements the runtime runs. */
+async function draftDataIssues(draft: WizardDefinition, files: WorkspaceFile[]) {
+  if (!draft.data) {
+    return [];
+  }
+  const paths = files.map((f) => f.path);
+  const wanted = [draft.data.schema, ...paths.filter((p) => DATA_MIGRATIONS.test(p))];
+  const texts = new Map<string, string>();
+  for (const f of files.filter((f) => wanted.includes(f.path))) {
+    texts.set(f.path, (await getBlob(f.hash)).toString("utf8"));
+  }
+  return wizardDataIssues(draft, paths, (p) => texts.get(p) ?? null).map((i) => ({
+    message: i.message,
+  }));
+}
+
 /**
- * Everything wrong with a draft: its structure, its workspace files and the skills among them,
- * its space's connectors and plugins.
+ * Everything wrong with a draft: its structure, its workspace files and the skills and SQL among
+ * them, its space's connectors and plugins.
  */
 export async function checkDraft(
   spaceId: string,
@@ -394,6 +413,7 @@ export async function checkDraft(
       files?.map((f) => f.path),
     ),
     ...(files ? await workspaceSkillIssues(files) : []),
+    ...(files ? await draftDataIssues(draft, files) : []),
     ...(await connectorIssues(spaceId, draft)),
     ...(await spaceConnectionIssues(spaceId, draft)),
     ...(await pluginIssues(draft)),
@@ -759,6 +779,8 @@ export async function deleteWizard(userId: string, wizardId: string) {
   await requireAdmin();
   const w = await writableWizard(userId, wizardId);
   await forgetWizardLinks(wizardId);
+  // Its databases are files or databases of their own: their rows go with the wizard's, they don't.
+  await dropWizardData(wizardId);
   await db
     .delete(schema.wizard)
     .where(and(eq(schema.wizard.id, wizardId), eq(schema.wizard.tenantId, currentTenant())));

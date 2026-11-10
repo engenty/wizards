@@ -377,7 +377,7 @@ describe("where a rule is set", () => {
 
   it("the start set: every rule of the seed", async () => {
     const seeded = (await list()).filter((r) => r.createdBy === "seed");
-    expect(seeded).toHaveLength(22);
+    expect(seeded).toHaveLength(26);
     expect(seeded.every((r) => r.origin === "start" && r.subjectName === null && r.resourceName === null)).toBe(true);
   });
 

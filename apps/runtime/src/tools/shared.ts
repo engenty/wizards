@@ -1,6 +1,7 @@
 import type { AssetRef } from "@engenty/wizards-shared/run";
 import type { StepContext } from "../engine/types.js";
 import { ServiceError } from "../services/errors.js";
+import { dataHolder } from "../store/data.js";
 import { type StoreScope, writeStoreFile } from "../store/index.js";
 
 export const TEXT_LIMIT = 8000;
@@ -69,18 +70,21 @@ export class FileKeeper {
   async keep(
     rawPath: string,
     data: Uint8Array,
-    meta: { mime?: string; source?: string },
+    meta: { mime?: string; source?: string; shared?: boolean },
   ): Promise<{ path: string; mime: string; size: number }> {
-    const scope: StoreScope = this.ctx.store;
+    // Shared: the files every run of the space reaches, beside the wizard's shared database.
+    const scope: StoreScope = meta.shared
+      ? { ...this.ctx.store, holder: await dataHolder(this.ctx.store, "shared") }
+      : this.ctx.store;
     const file = await writeStoreFile(scope, rawPath, data, meta);
-    if (!this.kept.has(file.path)) {
+    if (!this.kept.has(`${scope.holder}/${file.path}`)) {
       const ref = await this.ctx.saveAsset({
         kind: "file",
         mime: file.mime,
         name: file.path.split("/").pop() ?? "file",
         data,
       });
-      this.kept.set(file.path, ref);
+      this.kept.set(`${scope.holder}/${file.path}`, ref);
       this.assets.push(ref);
     }
     return { path: file.path, mime: file.mime, size: file.size };

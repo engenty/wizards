@@ -87,7 +87,8 @@ export interface Decision {
 /**
  * The resource kinds this runtime asks the broker about today; the others wait for their reader.
  * A wizard is run (`x`) and listed (`r`) through the tool catalogue (elements/), a skill read
- * (`r`) and its scripts placed to run (`x`), a space's setup written (`w`) by Goose.
+ * (`r`) and its scripts placed to run (`x`), a space's setup written (`w`) by Goose, a wizard's
+ * own database read and written (`r`, `w`) by its runs (store/data-access.ts).
  */
 export const ENFORCED: readonly RwxResourceKind[] = [
   "document",
@@ -96,6 +97,7 @@ export const ENFORCED: readonly RwxResourceKind[] = [
   "wizard",
   "skill",
   "setup",
+  "data",
 ];
 
 type Rule = typeof schema.rwxRule.$inferSelect;
@@ -430,6 +432,7 @@ const WHAT: Record<RwxResourceKind, RunNoteCode> = {
   skill: "rwxSkill",
   setup: "rwxSetup",
   mount: "rwxMount",
+  data: "rwxData",
 };
 const VERB: Record<Perm, RunNoteCode> = { r: "rwxRead", w: "rwxWrite", x: "rwxRun" };
 
@@ -630,14 +633,19 @@ const CLIENT_SEED: Partial<Record<RwxResourceKind, Flags>> = {
   page: { r: "allow", w: "allow", x: null },
   wizard: { r: "allow", w: null, x: "allow" },
   skill: { r: "allow", w: null, x: "allow" },
+  data: MEMBER_DATA,
 };
 
-/** A guest's seed: data read, a skill read and run in its run; no wizard, no setup. */
+/**
+ * A guest's seed: data read, a skill read and run in its run, a wizard's own database read and
+ * written by its run (the AI steps of a guest's run reach their own alone); no wizard, no setup.
+ */
 const GUEST_SEED: Partial<Record<RwxResourceKind, Flags>> = {
   document: { r: "allow", w: null, x: null },
   table: { r: "allow", w: null, x: null },
   page: { r: "allow", w: null, x: null },
   skill: { r: "allow", w: null, x: "allow" },
+  data: { r: "allow", w: "allow", x: null },
 };
 
 const rule = (
@@ -697,6 +705,7 @@ const KIND_WORD: Record<RwxResourceKind, string> = {
   skill: "a skill",
   setup: "the setup",
   mount: "a mounted folder",
+  data: "a wizard's data",
 };
 const SUBJECT_WORD: Record<RwxSubjectKind, string> = {
   guest: "a guest",
@@ -815,7 +824,8 @@ async function resourceIn(
       );
       return table && { kind, id, fileId: table.fileId };
     }
-    case "wizard": {
+    case "wizard":
+    case "data": {
       const wizard = here(
         await db.query.wizard.findFirst({
           columns: { spaceId: true },

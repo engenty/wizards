@@ -14,19 +14,20 @@ Use it, change it and share it in any app, open or closed. Keep the licence text
 
 | Part | Where | Licence |
 |---|---|---|
-| The wizard format | seventeen files in `packages/shared/src` | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT)) |
+| The wizard format | eighteen files in `packages/shared/src` | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT)) |
 | The runner | `@engenty/wizards-runner` in `packages/runner` | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/packages/runner/LICENSE)) |
 | The plugin for the AI apps | `plugin/`, without the engenty figures in it | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/plugin/LICENSE)) |
 | The libraries | `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql` and `@engenty/goose` in `packages/` | MIT (the `LICENSE` in each folder) |
 
 ### The wizard format
 
-These seventeen files define a wizard, read it and pack it as a `.wizard` file:
+These eighteen files define a wizard, read it and pack it as a `.wizard` file:
 
 - `definition.ts`, `fit.ts`, `numbers.ts`, `run.ts`, `runner-texts.ts`, `shape.ts`
 - `run-schema.ts`: what a wizard takes and gives, as JSON Schema
 - `sharing.ts`, `store.ts`, `surface.ts`, `texts.ts`, `translation.ts`
 - `theme.ts`: a theme’s values, which a `.wizard` file carries
+- `wizard-data.ts`: the SQL of a wizard’s own data, read and checked
 - `wizard-package.ts`: the `.wizard` file and its `wizard.json`
 - `engenty/data-tables/columns.ts`, `columns-format.ts`, `columns-value.ts`
 

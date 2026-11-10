@@ -128,6 +128,7 @@ import { spaceProfile } from "../services/spaces.js";
 import { storedTranslation } from "../services/translations.js";
 import { decidedHeld, holdReview } from "../services/work-approvals.js";
 import { latestShareJob } from "../sharing/state.js";
+import { dataRequirement } from "../store/data.js";
 import { listRows, listSecrets, scopeOf } from "../store/index.js";
 import {
   claimRun,
@@ -619,6 +620,11 @@ export async function createRun(input: {
   const lacking = (requires.plugins ?? []).filter((p) => !installed.has(p));
   if (lacking.length) {
     throw new ModelUnavailableError(note("pluginsMissing", { plugins: lacking.join(", ") }));
+  }
+  // The wizard's own database (`requires.data`, `data`): a runtime that keeps none refuses here.
+  const noData = dataRequirement(input.definition);
+  if (noData) {
+    throw new ModelUnavailableError(noData);
   }
   // A step every run passes through needs a model this runtime cannot serve: refuse before anything is held.
   const blocked = blockingMessage(await missingModelsSaid(input.definition));

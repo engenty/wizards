@@ -82,7 +82,12 @@ export function grantOf(definition: WizardDefinition): Grant {
         connections[id] = [...have].sort();
       }
     }
-    if (step.type === "tool" && "connection" in step.call && defs.has(step.call.connection)) {
+    if (
+      step.type === "tool" &&
+      step.call &&
+      "connection" in step.call &&
+      defs.has(step.call.connection)
+    ) {
       const have = new Set(connections[step.call.connection] ?? []);
       have.add(step.call.action);
       connections[step.call.connection] = [...have].sort();

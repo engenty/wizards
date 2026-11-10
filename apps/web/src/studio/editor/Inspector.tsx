@@ -827,20 +827,35 @@ function FixedStepBody({
   step: Extract<Step, { type: "tool" }>;
   set: (s: Step) => void;
 }) {
-  const { call } = step;
+  const { call, data } = step;
   const plugins = useStudioPlugins().plugins;
   const connection =
-    "connection" in call ? def.connections?.find((c) => c.id === call.connection) : undefined;
+    call && "connection" in call
+      ? def.connections?.find((c) => c.id === call.connection)
+      : undefined;
   const toolTitle =
-    "tool" in call
+    call && "tool" in call
       ? plugins.flatMap((plugin) => plugin.tools).find((tool) => tool.id === call.tool)?.title
       : undefined;
-  const inputs = Object.entries(call.input ?? {});
+  const inputs = Object.entries(call?.input ?? data?.params ?? {});
   return (
     <>
       <Section title={t("inspector.call")}>
-        <p className="text-[0.8125rem] text-ink-3">{t("inspector.callHint")}</p>
-        {"connection" in call ? (
+        <p className="text-[0.8125rem] text-ink-3">
+          {t(call ? "inspector.callHint" : "inspector.dataHint")}
+        </p>
+        {!call ? (
+          data ? (
+            <>
+              <CallRow label={t("inspector.dataScope")}>
+                {t(data.scope === "shared" ? "inspector.dataShared" : "inspector.dataPerson")}
+              </CallRow>
+              <CallRow label="SQL">
+                <code className="whitespace-pre-wrap break-words">{data.sql}</code>
+              </CallRow>
+            </>
+          ) : null
+        ) : "connection" in call ? (
           <>
             <CallRow label={t("inspector.callConnection")}>
               {connection?.title ? `${connection.title} (${call.connection})` : call.connection}
