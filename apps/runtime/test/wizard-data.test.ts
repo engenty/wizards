@@ -259,6 +259,10 @@ describe("a database per person, and one shared", () => {
       emit: async () => {},
       resources: { acted: false },
     } as never;
+    const { dataService } = await import("../src/run-services/data");
+    (ctx as { services: unknown }).services = {
+      data: dataService({ definition: def } as never, () => ctx, () => ctx),
+    };
     const out = await local(() =>
       runStepData(
         {

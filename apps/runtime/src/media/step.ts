@@ -7,38 +7,36 @@ import {
 } from "@engenty/wizards-shared/definition";
 import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
+import type { StepSetting } from "@engenty/wizards-shared/run-services";
 import { mainLogo, runTheme } from "@engenty/wizards-shared/spaces";
-import { generateText } from "ai";
-import { extFor, loadAsset } from "../../files/storage.js";
-import { snapshotHtmlImages } from "../../files/web-images.js";
-import {
-  type GeneratedMedia,
-  generateImageMedia,
-  generateSpeechMedia,
-  generateVideoMedia,
-  type MediaReference,
-} from "../../media/generate.js";
-import { type AiOrigin, markMedia } from "../../media/marking.js";
-import { costOf, textModel } from "../../models.js";
-import { prompt } from "../../prompts.js";
-import { contentPolicy } from "../../safety.js";
-import { spaceContextOf } from "../../tools/plugin.js";
-import { skillsBlock, skillsOf } from "../../tools/skills.js";
+import { inParallel } from "../engine/steps/foreach.js";
+import { answersBlock, brandBlock, groundRules, revisionBlock } from "../engine/steps/prompt.js";
+import { turnText } from "../engine/steps/turn.js";
 import {
   assetSectionLine,
   logoSectionLine,
   renderTemplate,
   resolveRef,
   type TemplateScope,
-} from "../template.js";
-import { type StepContext, StepError } from "../types.js";
-import { inParallel } from "./foreach.js";
-import { answersBlock, brandBlock, groundRules, revisionBlock, today } from "./prompt.js";
+} from "../engine/template.js";
+import { StepError } from "../engine/types.js";
+import { prompt } from "../prompts.js";
+import { extFor } from "../run-services/files.js";
+import type { InProcessContext } from "../run-services/in-process.js";
+import { contentPolicy } from "../safety.js";
+import {
+  type GeneratedMedia,
+  generateImageMedia,
+  generateSpeechMedia,
+  generateVideoMedia,
+  type MediaReference,
+} from "./generate.js";
+import { type AiOrigin, markMedia } from "./marking.js";
 
 // --- generate ----------------------------------------------------------------
 
 /** The images a name stands for: an image field's uploads, or the images an earlier step made. */
-function imagesOf(name: string, ctx: StepContext): string[] {
+function imagesOf(name: string, ctx: InProcessContext): string[] {
   const field = allFields(ctx.def).find((f) => f.id === name);
   if (field) {
     const value = ctx.state.values[name];
@@ -51,10 +49,10 @@ function imagesOf(name: string, ctx: StepContext): string[] {
     .map((a) => a.id);
 }
 
-async function loadReference(id: string | undefined, ctx: StepContext) {
-  const found = id ? await loadAsset(id) : null;
-  return found && found.row.runId === ctx.runId
-    ? ({ bytes: new Uint8Array(found.data), mediaType: found.row.mime } satisfies MediaReference)
+async function loadReference(id: string | undefined, ctx: InProcessContext) {
+  const found = id ? await ctx.services.files.read(id) : null;
+  return found && found.runId === ctx.runId
+    ? ({ bytes: found.data, mediaType: found.ref.mime } satisfies MediaReference)
     : null;
 }
 
@@ -70,7 +68,7 @@ interface Entry {
 const MAX_ENTRIES = 8;
 
 /** The entries of a step with `foreach` — or the single one of a step without. */
-function entriesOf(step: GenerateStep, ctx: StepContext): Entry[] {
+function entriesOf(step: GenerateStep, ctx: InProcessContext): Entry[] {
   const references = step.referenceImage ? imagesOf(step.referenceImage, ctx) : [];
   if (!step.foreach) {
     return [{ item: null, index: 0, count: 1, reference: references[0] }];
@@ -98,7 +96,11 @@ function entriesOf(step: GenerateStep, ctx: StepContext): Entry[] {
 const DOCUMENT_TEMPLATES = new Set(["invoice", "offer", "briefing", "letter", "report", "free"]);
 
 /** Images a document may place: earlier generated images, uploads, the space's logos and images. */
-function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; label: string }[] {
+function placeableImages(
+  step: GenerateStep,
+  ctx: InProcessContext,
+  { files, brand }: StepSetting,
+): { id: string; label: string }[] {
   const out: { id: string; label: string }[] = [];
   const index = ctx.def.steps.indexOf(step);
   for (const s of ctx.def.steps.slice(0, index)) {
@@ -129,10 +131,10 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       }
     }
   }
-  const logos = ctx.spaceFiles.filter((f) => f.kind === "logo");
-  const main = mainLogo(logos, ctx.scope.brand.logoSections);
+  const logos = files.filter((f) => f.kind === "logo");
+  const main = mainLogo(logos, brand.logoSections);
   for (const f of logos) {
-    const section = logoSectionLine(ctx.scope.brand.logoSections, f.id);
+    const section = logoSectionLine(brand.logoSections, f.id);
     out.push({
       id: f.id,
       label: [
@@ -142,9 +144,9 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       ].join(""),
     });
   }
-  for (const p of ctx.scope.brand.patterns ?? []) {
-    const file = ctx.spaceFiles.find((f) => f.id === p.file);
-    const section = ctx.scope.brand.colorSections?.find((s) => s.id === p.section);
+  for (const p of brand.patterns ?? []) {
+    const file = files.find((f) => f.id === p.file);
+    const section = brand.colorSections?.find((s) => s.id === p.section);
     if (file) {
       out.push({
         id: file.id,
@@ -152,9 +154,9 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       });
     }
   }
-  for (const f of ctx.spaceFiles) {
+  for (const f of files) {
     if (f.kind === "asset" && f.mime.startsWith("image/")) {
-      const section = assetSectionLine(ctx.scope.brand.assetSections, f.id);
+      const section = assetSectionLine(brand.assetSections, f.id);
       out.push({
         id: f.id,
         label: `${f.description || f.name} (from the space's assets${section ? `, section ${section}` : ""})`,
@@ -166,13 +168,15 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
 
 async function writeHtml(
   step: GenerateStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
   kind: "document" | "dashboard",
 ): Promise<string> {
   const brief = renderTemplate(step.prompt, ctx.scope);
-  const images = placeableImages(step, ctx);
+  // The skills always on hold for what a step writes, a document too.
+  const setting = await ctx.services.context.forStep(step.id, { tools: false });
+  const images = placeableImages(step, ctx, setting);
   // The look comes from the space's brand, as on the run page; what it does not say, the runner's own.
-  const theme = runTheme(ctx.scope.brand);
+  const theme = runTheme(setting.brand);
   const accent = theme.accent ?? "#e0531b";
   const look = [
     prompt("step", "look.type", {
@@ -195,13 +199,12 @@ async function writeHtml(
         });
   const system = [
     groundRules(ctx),
-    `Today is ${today(ctx)}.`,
-    brandBlock(ctx),
-    // The skills always on hold for what a step writes, a document too.
-    skillsBlock(await skillsOf(ctx), { tools: false }),
+    `Today is ${setting.date}.`,
+    brandBlock(setting.brand),
+    setting.skills,
     guide,
     // What plugins hold for the space's look: a UI library, say.
-    ...(await spaceContextOf(ctx)).html,
+    ...setting.plugins.html,
     images.length
       ? prompt("step", "html.images", {
           images: images.map((i) => `- asset://${i.id} — ${i.label}`).join("\n"),
@@ -214,20 +217,15 @@ async function writeHtml(
   const request = [`# BRIEF\n${brief}`, answersBlock(ctx), await revisionBlock(ctx, step.id)]
     .filter(Boolean)
     .join("\n\n");
-  const writer = await textModel(textClassOf(step.model ?? "standard"), {
-    ...ctx.call,
+  const written = await turnText(ctx, {
+    class: textClassOf(step.model ?? "standard"),
     effort: step.effort,
-    makerClass: step.maker ? classIdOf(step, "standard") : undefined,
-  });
-  const result = await generateText({
-    model: writer.model,
+    maker: step.maker ? classIdOf(step, "standard") : undefined,
     system,
-    prompt: request,
-    abortSignal: ctx.signal,
+    messages: [{ role: "user", content: request }],
     maxOutputTokens: 32_000,
   });
-  await ctx.chargeUsd(costOf(writer, result.usage));
-  const html = result.text
+  const html = written
     .replace(/^```(?:html)?\s*/i, "")
     .replace(/```\s*$/, "")
     .trim();
@@ -244,19 +242,21 @@ async function writeHtml(
 }
 
 /** For image/video: let a fast model turn the brief + answers into one strong visual prompt. */
-async function visualPrompt(step: GenerateStep, ctx: StepContext, entry: Entry): Promise<string> {
+async function visualPrompt(
+  step: GenerateStep,
+  ctx: InProcessContext,
+  entry: Entry,
+): Promise<string> {
   const scope: TemplateScope = { ...ctx.scope, entry };
   const brief = renderTemplate(step.prompt, scope);
   const note = ctx.state.notes[step.id];
-  const prompter = await textModel("low", ctx.call);
   const from = entry.reference
     ? step.asset === "video"
       ? prompt("step", "visual.from_image")
       : prompt("step", "visual.reference")
     : "";
-  const result = await generateText({
-    model: prompter.model,
-    abortSignal: ctx.signal,
+  const written = await turnText(ctx, {
+    class: "low",
     system: [
       [
         step.asset === "video" ? prompt("step", "visual.video") : prompt("step", "visual.image"),
@@ -266,22 +266,26 @@ async function visualPrompt(step: GenerateStep, ctx: StepContext, entry: Entry):
         .join(" "),
       contentPolicy(),
     ].join("\n\n"),
-    prompt: [
-      `Brief:\n${brief}`,
-      step.options?.style ? `Style: ${step.options.style}` : "",
-      note ? `Change requested by the person after seeing the last version: ${note}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
+    messages: [
+      {
+        role: "user",
+        content: [
+          `Brief:\n${brief}`,
+          step.options?.style ? `Style: ${step.options.style}` : "",
+          note ? `Change requested by the person after seeing the last version: ${note}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+      },
+    ],
   });
-  await ctx.chargeUsd(costOf(prompter, result.usage));
-  return result.text.trim() || brief;
+  return written.trim() || brief;
 }
 
 /** Images and video clips: one per entry. A revision can name the entries to make again. */
 async function runMediaStep(
   step: GenerateStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
   asset: "image" | "video",
 ): Promise<StepOutput> {
   const entries = entriesOf(step, ctx);
@@ -358,7 +362,7 @@ async function runMediaStep(
     // A picture changed from one the person gave is "edited"; everything else a model made.
     const origin: AiOrigin =
       asset === "image" && entry.reference && given.has(entry.reference) ? "edited" : "generated";
-    const ref = await ctx.saveAsset({
+    const ref = await ctx.services.files.save({
       stepId: step.id,
       kind: asset,
       mime: media.mime,
@@ -387,7 +391,10 @@ async function runMediaStep(
   return { text: prompts.join("\n\n"), assets, at: new Date().toISOString() };
 }
 
-export async function runGenerateStep(step: GenerateStep, ctx: StepContext): Promise<StepOutput> {
+export async function runGenerateStep(
+  step: GenerateStep,
+  ctx: InProcessContext,
+): Promise<StepOutput> {
   const at = new Date().toISOString();
   switch (step.asset) {
     case "image":
@@ -410,7 +417,7 @@ export async function runGenerateStep(step: GenerateStep, ctx: StepContext): Pro
         abortSignal: ctx.signal,
       });
       await ctx.chargeUsd(media.costUsd);
-      const ref = await ctx.saveAsset({
+      const ref = await ctx.services.files.save({
         stepId: step.id,
         kind: "audio",
         mime: media.mime,
@@ -423,13 +430,11 @@ export async function runGenerateStep(step: GenerateStep, ctx: StepContext): Pro
     case "document":
     case "dashboard": {
       // Pictures the model took from the web stay: the page itself may load none.
-      const html = await snapshotHtmlImages(
+      const html = await ctx.services.files.keepWebImages(
         await writeHtml(step, ctx, step.asset),
-        ctx.saveAsset,
         step.id,
-        ctx.signal,
       );
-      const ref: AssetRef = await ctx.saveAsset({
+      const ref: AssetRef = await ctx.services.files.save({
         stepId: step.id,
         kind: "html",
         mime: "text/html",

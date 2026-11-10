@@ -76,7 +76,7 @@ import {
 import { machineTranslated, translateDefinition } from "@engenty/wizards-shared/translation";
 import { wizardAgentsUsed } from "@engenty/wizards-shared/wizard-code";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
-import { and, eq, lt, type SQL, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
 import { effectsOn, enterVisit } from "../broker/effect.js";
@@ -93,6 +93,7 @@ import {
 } from "../credits/credits.js";
 import { estimateRun } from "../credits/estimate.js";
 import { db, schema, withTenant } from "../db/client.js";
+import { decide } from "../decide.js";
 import { env } from "../env.js";
 import { feature, remoteFeatures } from "../features.js";
 import { saveAsset } from "../files/storage.js";
@@ -110,6 +111,7 @@ import {
 import { runEnded } from "../plugins/events.js";
 import { pluginsOf as loadedPlugins } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext, SpaceRow } from "../run-services/in-process.js";
 import { inProcessServices } from "../run-services/index.js";
 import {
   ContentBlockedError,
@@ -149,7 +151,6 @@ import { currentTenant, currentTenantOrNull } from "../tenants/tenant.js";
 import { hasOwnAccount } from "../upstreams.js";
 import { whoOf } from "./answerers.js";
 import { type AskResult, askPerson, clearStaleAsk } from "./asks.js";
-import { decide } from "./decide.js";
 import { clearDeviceCalls } from "./device.js";
 import { newTurn, TurnAsks, turnOf } from "./durable-turn.js";
 import { emitEvent, recentEvents, saidInVisit, signalChanged, visitLeftOpen } from "./events.js";
@@ -175,6 +176,7 @@ import {
   tierRefusalSaid,
 } from "./requirements.js";
 import { liveResources, releaseResources, resourcesFor } from "./resources.js";
+import { type RunPatch, type RunValues, runStore } from "./run-store.js";
 import {
   dropWait,
   findSignal,
@@ -184,10 +186,10 @@ import {
   sendSignal,
 } from "./signals.js";
 import { startedRunEnded, startOf } from "./starts.js";
-import { outputSchema, runAutomaticStep } from "./steps/index.js";
+import { outputSchema, runAgentStep, runAutomaticStep } from "./steps/index.js";
 import { surfaceData } from "./surface.js";
-import { answersAsText, fillLabel, renderTemplate, resolveRef } from "./template.js";
-import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
+import { answersAsText, fillLabel, renderTemplate, resolveRef, scopeLists } from "./template.js";
+import type { RunRow, StepContext } from "./types.js";
 import { SignInNeeded, StepError } from "./types.js";
 import { wizardAgentFiles } from "./wizard-code.js";
 
@@ -256,14 +258,11 @@ async function concurrencyLimit(tenant: string): Promise<number> {
 
 /** Puts a claim on the run's own row; an older claim that arrives late changes nothing. */
 async function holdRun(runId: string, generation: number) {
-  await db
-    .update(schema.run)
-    .set({ claim: generation })
-    .where(and(eq(schema.run.id, runId), lt(schema.run.claim, generation)));
+  await runStore.claim(runId, generation);
 }
 
 async function loadRun(runId: string): Promise<RunRow | undefined> {
-  return db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+  return runStore.get(runId);
 }
 
 /** The space a run's wizard belongs to — where its imported connectors live. */
@@ -327,7 +326,7 @@ async function remindersOf(
 /** The notices a status change writes, one per person told. A notice never breaks a run. */
 async function noticesOfStatus(
   runId: string,
-  patch: Partial<typeof schema.run.$inferInsert>,
+  patch: RunPatch,
   by?: Actor,
 ): Promise<NoticeValues[]> {
   const kind = patch.status && TOLD[patch.status];
@@ -335,7 +334,7 @@ async function noticesOfStatus(
     return [];
   }
   try {
-    const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+    const run = await runStore.get(runId);
     if (!run) {
       return [];
     }
@@ -359,12 +358,12 @@ async function noticesOfStatus(
  * What a run's move does to a held approval: a review with `approve` for the team is held while the
  * run waits on it. A held row never breaks a run.
  */
-async function moveHeld(runId: string, patch: Partial<typeof schema.run.$inferInsert>) {
+async function moveHeld(runId: string, patch: RunPatch) {
   if (!((patch.status || patch.cursor !== undefined) && (await durableRunsOn()))) {
     return;
   }
   try {
-    const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+    const run = await runStore.get(runId);
     if (!run) {
       return;
     }
@@ -390,37 +389,24 @@ async function moveHeld(runId: string, patch: Partial<typeof schema.run.$inferIn
  */
 async function updateRun(
   runId: string,
-  patch: Partial<typeof schema.run.$inferInsert>,
+  patch: RunPatch,
   seen?: { rev: number } | { status: RunStatus },
   by?: Actor,
 ) {
   const holder = driving.getStore();
   const held = holder?.runId === runId ? holder : undefined;
-  const where = and(
-    eq(schema.run.id, runId),
-    held ? eq(schema.run.claim, held.generation) : undefined,
-    seen && ("rev" in seen ? eq(schema.run.rev, seen.rev) : eq(schema.run.status, seen.status)),
-  ) as SQL;
-  const write = db
-    .update(schema.run)
-    .set({
-      ...patch,
-      // A run that rests has no drive to break off, whatever becomes of this process now.
-      ...(patch.status && patch.status !== "running" ? { driving: false } : {}),
-      rev: sql`${schema.run.rev} + 1`,
-      updatedAt: new Date(),
-    })
-    .where(where);
   // The notices go in with the status: all of it happens, or none.
   const notices = await noticesOfStatus(runId, patch, by);
-  const result = notices.length
-    ? (
-        (await db.batch([...noticeWrites(notices, where), write] as never)) as {
-          rowsAffected: number;
-        }[]
-      ).at(-1)
-    : await write;
-  if (result?.rowsAffected === 0) {
+  const changed = await runStore.move(
+    runId,
+    patch,
+    {
+      claim: held?.generation,
+      ...(seen && ("rev" in seen ? { rev: seen.rev } : { status: seen.status })),
+    },
+    notices.length ? (where) => noticeWrites(notices, where) : undefined,
+  );
+  if (changed === 0) {
     if (held) {
       throw new LostClaim();
     }
@@ -461,10 +447,7 @@ async function tellRunEnded(runId: string, status: "done" | "failed" | "cancelle
     return;
   }
   try {
-    const run = await db.query.run.findFirst({
-      where: eq(schema.run.id, runId),
-      columns: { wizardId: true },
-    });
+    const run = await runStore.pick(runId, "wizardId");
     if (run) {
       await sendSignal({
         spaceId: await spaceIdOf(run),
@@ -669,38 +652,35 @@ export async function createRun(input: {
   const deadline = waits
     ? await deadlineOf({ expiresAt }, first, started.run.wakeAt)
     : { wakeAt: null };
-  const insert = db
-    .insert(schema.run)
-    .values({
-      id,
-      wizardId: input.wizardId,
-      tenantId: currentTenant(),
-      definition: input.definition,
-      files: input.files,
-      grant,
-      version: input.version,
-      mode: input.mode,
-      runner: input.runner ?? null,
-      visitorId: input.visitorId ?? null,
-      userId: input.userId ?? null,
-      impersonatedBy: currentImpersonator()?.adminId ?? null,
-      ipHash: input.ipHash ?? null,
-      origin: input.origin ?? null,
-      lang: input.lang ?? null,
-      unattended: input.unattended ?? false,
-      client: input.client ?? null,
-      clientSpaceId: input.clientSpaceId ?? null,
-      chatId: input.chatId ?? null,
-      startedBy: input.startedBy ?? null,
-      occurrence: input.occurrence ?? null,
-      status: waits ? "waiting_input" : "running",
-      cursor: first.id,
-      state,
-      label: await labelOf(input.definition, state),
-      expiresAt,
-      ...deadline,
-    })
-    .onConflictDoNothing({ target: [schema.run.wizardId, schema.run.occurrence] });
+  const values: RunValues = {
+    id,
+    wizardId: input.wizardId,
+    tenantId: currentTenant(),
+    definition: input.definition,
+    files: input.files,
+    grant,
+    version: input.version,
+    mode: input.mode,
+    runner: input.runner ?? null,
+    visitorId: input.visitorId ?? null,
+    userId: input.userId ?? null,
+    impersonatedBy: currentImpersonator()?.adminId ?? null,
+    ipHash: input.ipHash ?? null,
+    origin: input.origin ?? null,
+    lang: input.lang ?? null,
+    unattended: input.unattended ?? false,
+    client: input.client ?? null,
+    clientSpaceId: input.clientSpaceId ?? null,
+    chatId: input.chatId ?? null,
+    startedBy: input.startedBy ?? null,
+    occurrence: input.occurrence ?? null,
+    status: waits ? "waiting_input" : "running",
+    cursor: first.id,
+    state,
+    label: await labelOf(input.definition, state),
+    expiresAt,
+    ...deadline,
+  };
   // Whoever starts a run stands on its first page: today that tells nobody, by `noticesFor`'s rule.
   const facts = {
     id,
@@ -724,14 +704,11 @@ export async function createRun(input: {
         ...(await remindersOf(facts, first)),
       ]
     : [];
-  const inserted = notices.length
-    ? (
-        (await db.batch([insert, ...noticeWrites(notices, eq(schema.run.id, id))] as never)) as {
-          rowsAffected: number;
-        }[]
-      )[0]
-    : await insert;
-  if (inserted.rowsAffected === 0) {
+  const inserted = await runStore.create(
+    values,
+    notices.length ? (where) => noticeWrites(notices, where) : undefined,
+  );
+  if (inserted === 0) {
     await releaseRun(id);
     throw new OccurrenceTaken();
   }
@@ -1095,10 +1072,9 @@ function viewContext(
 /** The wizard's lists with the person's rows, by list id; a shared list's as its holder may read them. */
 async function storedLists(
   run: RunRow,
-  holder?: RunHolder,
 ): Promise<Record<string, { def: ListDef; rows: ListRow[] }>> {
   const scope = scopeOf(run);
-  const who = subjectsOf({ holder: holder ?? (await runHolder(run)), store: scope });
+  const who = subjectsOf({ holder: await runHolder(run), store: scope });
   const out: Record<string, { def: ListDef; rows: ListRow[] }> = {};
   for (const def of run.definition.lists ?? []) {
     out[def.id] = { def, rows: await listRows(scope, def, who) };
@@ -1117,12 +1093,36 @@ export async function makeContext(
   signal: AbortSignal,
   own: Partial<Pick<StepContext, "stepId" | "emit" | "ask" | "share">> = {},
 ): Promise<StepContext> {
+  const {
+    store,
+    space: _,
+    spaceFiles,
+    resources,
+    call,
+    chargeUsd,
+    saveAsset,
+    ...ctx
+  } = await inProcessContext(run, space, state, signal, own);
+  return ctx;
+}
+
+/**
+ * The step context as the run's services keep it (run-services/in-process.ts): with the rows and
+ * functions of this process. A share job's targets work with it.
+ */
+export async function inProcessContext(
+  run: RunRow,
+  space: SpaceRow,
+  state: RunState,
+  signal: AbortSignal,
+  own: Partial<Pick<StepContext, "stepId" | "emit" | "ask" | "share">> = {},
+): Promise<InProcessContext> {
   const store = scopeOf(run);
   const resources = resourcesFor(run.id);
   resources.bind(store, run, own.share, space.id, run.definition.data ? sandboxDataHost() : null);
   const stepId = own.stepId ?? run.cursor ?? "";
   const holder = await runHolder(run);
-  const ctx: StepContext = {
+  const ctx: InProcessContext = {
     runId: run.id,
     tenantId: run.tenantId,
     test: run.mode === "test",
@@ -1137,7 +1137,6 @@ export async function makeContext(
       def: run.definition,
       state,
       brand: spaceProfile(space),
-      lists: await storedLists(run, holder),
     },
     space,
     dataSpace: await dataSpaceOf(run, space),
@@ -1157,8 +1156,9 @@ export async function makeContext(
         runId: run.id,
         stepId: input.stepId ?? own.stepId ?? run.cursor,
       }),
-    services: inProcessServices(run, () => ctx),
+    services: inProcessServices(run, () => ctx, runAgentStep),
   };
+  ctx.scope.lists = await scopeLists(run.definition, ctx.services.data);
   return ctx;
 }
 
@@ -1703,7 +1703,7 @@ async function answerGoesOn(
   run: RunRow,
   step: FormStep | ReviewStep,
   result: FlowResult,
-  patch: Partial<typeof schema.run.$inferInsert> = {},
+  patch: RunPatch = {},
   by?: Actor,
   told?: () => Promise<void>,
 ): Promise<boolean> {
@@ -1873,7 +1873,7 @@ interface Apply {
   /** The row as read: a person's write needs its `rev`, a wait's its status. */
   seen?: { rev: number } | { status: RunStatus };
   by?: Actor;
-  patch?: Partial<typeof schema.run.$inferInsert>;
+  patch?: RunPatch;
   /**
    * Stand the run at the wait, person's step or result the move arrives at. Otherwise the row says
    * `running` there and the drive loop stands it (`resume`), with what that step says and does
@@ -2020,7 +2020,7 @@ async function tellPerson(run: RunRow, stepId: string, pause: RunPause) {
       detail: saidText(said, textLang(wizardLang(run.definition))),
     });
     if (notice) {
-      await db.batch(noticeWrites(notice, eq(schema.run.id, run.id)) as never);
+      await db.batch(noticeWrites(notice, runStore.where(run.id)) as never);
     }
   } catch (err) {
     // A notice never breaks a run.
@@ -2154,10 +2154,7 @@ async function startDriving(runId: string): Promise<boolean> {
   if (!(await durableRunsOn())) {
     return false;
   }
-  const run = await db.query.run.findFirst({
-    where: eq(schema.run.id, runId),
-    columns: { status: true, cursor: true, driving: true },
-  });
+  const run = await runStore.pick(runId, "status", "cursor", "driving");
   // A wake of a person's step may well change nothing: the run only works once its time is up.
   if (run?.status === "waiting_input") {
     return false;
@@ -2167,15 +2164,7 @@ async function startDriving(runId: string): Promise<boolean> {
     await emitEvent(runId, run.cursor, "resumed", note("runResumed"));
   }
   const holder = driving.getStore();
-  await db
-    .update(schema.run)
-    .set({ driving: true })
-    .where(
-      and(
-        eq(schema.run.id, runId),
-        holder?.runId === runId ? eq(schema.run.claim, holder.generation) : undefined,
-      ),
-    );
+  await runStore.markDriving(runId, holder?.runId === runId ? holder.generation : undefined);
   return interrupted;
 }
 
@@ -2369,7 +2358,11 @@ async function drive(runId: string, signal: AbortSignal) {
           const answers = [answersAsText(ctx.scope), ...Object.values(state.notes)].join("\n");
           const hash = createHash("sha256").update(answers).digest("base64url").slice(0, 24);
           if (state.inputChecked !== hash) {
-            await checkGuestInput({ text: answers, call: ctx.call, signal: limit });
+            await checkGuestInput({
+              text: answers,
+              call: { runId: ctx.runId, stepId: ctx.stepId },
+              signal: limit,
+            });
             state.inputChecked = hash;
           }
         }
@@ -2377,7 +2370,7 @@ async function drive(runId: string, signal: AbortSignal) {
         if (guest && !limit.aborted) {
           await checkGuestText({
             text: made.text || (made.json ? JSON.stringify(made.json) : ""),
-            call: ctx.call,
+            call: { runId: ctx.runId, stepId: ctx.stepId },
             signal: limit,
           });
         }
@@ -2545,12 +2538,7 @@ export async function keepUnsent(run: RunRow, stepId: string, values: Record<str
   if (step?.type !== "form") {
     throw new RunConflict("Not a page");
   }
-  await db
-    .update(schema.run)
-    .set({
-      unsent: sql`json_set(coalesce(${schema.run.unsent}, '{}'), ${`$.${stepId}`}, json(${JSON.stringify(values)}))`,
-    })
-    .where(eq(schema.run.id, run.id));
+  await runStore.keepUnsent(run.id, stepId, values);
 }
 
 /**
@@ -2731,11 +2719,7 @@ export async function writeRunState(
   run: Pick<RunRow, "id" | "rev">,
   state: RunState,
 ): Promise<boolean> {
-  const result = await db
-    .update(schema.run)
-    .set({ state, rev: sql`${schema.run.rev} + 1` })
-    .where(and(eq(schema.run.id, run.id), eq(schema.run.rev, run.rev)));
-  return result.rowsAffected > 0;
+  return runStore.writeState(run.id, run.rev, state);
 }
 
 export type ReviewAction =
@@ -2862,7 +2846,7 @@ export async function cancel(runId: string) {
 }
 
 /** A write that only holds on the run as it was read; a run that moved on meanwhile refuses. */
-async function whileItWaits(run: RunRow, patch: Partial<typeof schema.run.$inferInsert>) {
+async function whileItWaits(run: RunRow, patch: RunPatch) {
   try {
     await updateRun(run.id, patch, { rev: run.rev });
   } catch (err) {

@@ -9,10 +9,11 @@ import { note } from "@engenty/wizards-shared/run";
 import { runTheme } from "@engenty/wizards-shared/spaces";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { resolveRef } from "../engine/template.js";
-import { type SpaceRow, type StepContext, StepError } from "../engine/types.js";
+import { StepError } from "../engine/types.js";
 import { extFor, inlineAssetRefs, loadAsset } from "../files/storage.js";
 import { snapshotDataImages } from "../files/web-images.js";
 import { type AiOrigin, markMedia } from "../media/marking.js";
+import type { InProcessContext, SpaceRow } from "../run-services/in-process.js";
 import { mainLogoId } from "../services/brand.js";
 import { snapshotFile } from "../services/files.js";
 import { spaceFileContent } from "../services/space-files.js";
@@ -45,7 +46,7 @@ const MEDIA_KINDS = { image: "image", video: "video", voice: "audio" } as const;
  * voice-over earlier steps made as URLs the page can show — data URLs, or for a video addresses
  * its renderer answers (kept in `media`).
  */
-async function widgetData(step: WidgetStep, ctx: StepContext) {
+async function widgetData(step: WidgetStep, ctx: InProcessContext) {
   const out: Record<string, unknown> = {};
   const media = new Map<string, MotionMedia>();
   const fields = allFields(ctx.def);
@@ -119,7 +120,7 @@ async function widgetData(step: WidgetStep, ctx: StepContext) {
 /** A video: the widget's timeline rendered to an MP4 with sound — that video is the result. */
 async function runMotionWidget(
   step: WidgetStep,
-  ctx: StepContext,
+  ctx: InProcessContext,
   html: string,
   data: Record<string, unknown>,
   media: Map<string, MotionMedia>,
@@ -170,7 +171,7 @@ async function runMotionWidget(
 }
 
 /** A widget step makes no model call: it binds this run's data into the widget and keeps the file. */
-export async function runWidgetStep(step: WidgetStep, ctx: StepContext): Promise<StepOutput> {
+export async function runWidgetStep(step: WidgetStep, ctx: InProcessContext): Promise<StepOutput> {
   const { data: raw, media, origin } = await widgetData(step, ctx);
   // Photos the data points to on the web (a listing, a product) are kept with the run: the
   // page may load none itself.

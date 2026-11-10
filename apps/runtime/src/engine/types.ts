@@ -1,20 +1,13 @@
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
-import type { AskInput, AssetRef, RunNote, RunState } from "@engenty/wizards-shared/run";
+import type { AskInput, RunNote, RunState } from "@engenty/wizards-shared/run";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
-import type { schema } from "../db/client.js";
-import type { SaveAssetInput } from "../files/storage.js";
 import type { Role } from "../manage.js";
 import { NotedError } from "../model-errors.js";
-import type { CallMeta } from "../models.js";
 import type { InProcessServices } from "../run-services/index.js";
-import type { StoreScope } from "../store/index.js";
 import type { AskResult } from "./asks.js";
-import type { RunResources } from "./resources.js";
 import type { TemplateScope } from "./template.js";
 
-export type SpaceRow = typeof schema.space.$inferSelect;
-export type SpaceFileRow = typeof schema.spaceFile.$inferSelect;
-export type RunRow = typeof schema.run.$inferSelect;
+export type { RunRow } from "./run-store.js";
 
 /**
  * Who a run belongs to, as the broker asks it (broker/rwx.ts): a guest on a shared link (the
@@ -33,8 +26,6 @@ export interface StepContext {
   stepId: string;
   /** The durable turn this step runs in; none: its tool calls have no lasting id (broker/effect.ts). */
   turn?: string;
-  /** What the wizard keeps for the person running it. */
-  store: StoreScope;
   def: WizardDefinition;
   /** The language the viewer reads the wizard in, translated on request; null: its own. */
   lang: string | null;
@@ -42,17 +33,12 @@ export interface StepContext {
   files: WorkspaceFile[];
   state: RunState;
   scope: TemplateScope;
-  /** The wizard's space: its setup (connections, skills, plugins, brand) is what the run uses. */
-  space: SpaceRow;
   /**
    * Where the run's data is (docs/plans/client-portal.md): the client space a run was started
    * in, whose Knowledge reaches through to the parent as the rules allow; else the wizard's space.
    */
   dataSpace: { id: string; name: string };
-  /** The space's logos, assets and documents that are ready to use. */
-  spaceFiles: SpaceFileRow[];
   signal: AbortSignal;
-  resources: RunResources;
   /** Tells the person what the step is doing; `asset` is a picture of the run it is about. */
   emit(type: "tool" | "info", message: string | RunNote, asset?: string): Promise<void>;
   /**
@@ -60,15 +46,10 @@ export interface StepContext {
    * MCP client drives).
    */
   ask(ask: AskInput): Promise<AskResult | null>;
-  /** Run and step every model call of this step is made for. */
-  call: CallMeta;
   /** A share job's step: the run is done and the person sends its result on (broker/over.ts). */
   share?: boolean;
   /** Writes `state` to the run's row, for what must outlive this process in the middle of a step. */
   saveState(): Promise<void>;
-  /** Adds provider cost to the run where the runtime resolves models itself; the gateway books the rest. */
-  chargeUsd(usd: number): Promise<void>;
-  saveAsset(input: Omit<SaveAssetInput, "runId">): Promise<AssetRef>;
   /**
    * Everything outside the run, as the run's services (docs/plans/runs-on-their-own.md): the
    * runtime's own functions, called in this process.

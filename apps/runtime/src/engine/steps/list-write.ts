@@ -1,17 +1,7 @@
 import type { ListWriteInput } from "@engenty/wizards-shared/definition";
 import { allFields } from "@engenty/wizards-shared/definition";
-import { note } from "@engenty/wizards-shared/run";
-import { whereOf } from "../../broker/call.js";
-import {
-  effectDone,
-  effectIdOf,
-  effectThrew,
-  findEffect,
-  startEffect,
-} from "../../broker/effect.js";
-import { writeList } from "../../tools/store.js";
 import { renderTemplate, resolveRef } from "../template.js";
-import { type StepContext, StepError } from "../types.js";
+import type { StepContext } from "../types.js";
 
 const ALONE = /^\s*\{\{([^{}]+)\}\}\s*$/;
 
@@ -41,8 +31,10 @@ function cell(value: unknown, ctx: StepContext): unknown {
   return text || undefined;
 }
 
-function filled(input: ListWriteInput, ctx: StepContext) {
+/** A tool step's `list_write` input, filled in from the run: what the service writes. */
+export function listWriteInput(input: ListWriteInput, ctx: StepContext): ListWriteInput {
   return {
+    list: input.list,
     rows: input.rows?.map((row) =>
       Object.fromEntries(
         Object.entries(row)
@@ -54,48 +46,4 @@ function filled(input: ListWriteInput, ctx: StepContext) {
       ?.map((key) => renderTemplate(key, ctx.scope).trim())
       .filter((key) => key.length > 0),
   };
-}
-
-/**
- * A tool step's `list_write`: the same write as an AI step's tool, with the wizard's input. It
- * writes once per visit of the step: a restart finds the visit's row in `run_effect` and answers
- * what the write answered. Where runs keep no such row, the step counts as acted, so a failure is
- * not tried again by itself.
- */
-export async function runListWrite(input: ListWriteInput, ctx: StepContext): Promise<unknown> {
-  const def = ctx.def.lists?.find((l) => l.id === input.list);
-  if (!def) {
-    throw new StepError(note("listWriteNoList", { list: input.list }));
-  }
-  const write = () => writeList(ctx, def, filled(input, ctx));
-  const effectId = await effectIdOf(whereOf(ctx), { visit: ctx.state.visits?.[ctx.stepId] });
-  if (!effectId) {
-    ctx.resources.acted = true;
-    return write();
-  }
-  const found = await findEffect(effectId);
-  if (found?.state === "done") {
-    return found.output;
-  }
-  const taken = await startEffect({
-    id: effectId,
-    runId: ctx.runId,
-    stepId: ctx.stepId,
-    tool: "list_write",
-  });
-  // Broken off between the row and the write: a row with a key is only saved again, any other
-  // may be there already.
-  if (!(taken || def.key)) {
-    throw new StepError(note("listWriteMayHaveHappened", { title: def.title }));
-  }
-  const answer = await write().catch(async (err) => {
-    await effectThrew(effectId, err);
-    throw err;
-  });
-  if (answer && typeof answer === "object" && "error" in answer) {
-    await effectThrew(effectId, new Error(String(answer.error)));
-  } else {
-    await effectDone(effectId, answer);
-  }
-  return answer;
 }

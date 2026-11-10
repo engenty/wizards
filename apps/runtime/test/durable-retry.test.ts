@@ -36,8 +36,8 @@ vi.mock("../src/engine/steps/index.js", async (original) => ({
     return { text: `made ${step.id}`, at: new Date().toISOString() };
   },
 }));
-vi.mock("../src/engine/decide.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/decide.js")>()),
+vi.mock("../src/decide.js", async (original) => ({
+  ...(await original<typeof import("../src/decide.js")>()),
   decide: async () => {
     await script.decide.shift()?.();
     return { source: "llm", answers: { next: { type: "choice", choice: "none" } } };

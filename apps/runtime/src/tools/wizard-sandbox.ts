@@ -3,9 +3,9 @@ import { mimeForPath } from "@engenty/wizards-shared/workspace";
 import { createTool } from "@mastra/core/tools";
 import type { z } from "zod";
 import { summarizeInput, writeLog } from "../broker/log.js";
-import type { StepContext } from "../engine/types.js";
 import { SANDBOX_TOOL_LIMITS, type SandboxTool, schemaZod } from "../engine/wizard-code.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import type { Sandbox } from "../sandbox/index.js";
 import { snapshotFile } from "../services/files.js";
 import { parseResultRef } from "../sharing/files.js";
@@ -37,7 +37,7 @@ const placed = new WeakMap<Sandbox, Map<string, Promise<void>>>();
 const turns = new WeakMap<Sandbox, Map<string, Promise<unknown>>>();
 
 /** Copies the tool's folder from the workspace into the sandbox, unless it is there as it is. */
-function placeTool(sandbox: Sandbox, tool: SandboxTool, ctx: StepContext): Promise<void> {
+function placeTool(sandbox: Sandbox, tool: SandboxTool, ctx: InProcessContext): Promise<void> {
   let done = placed.get(sandbox);
   if (!done) {
     done = new Map();
@@ -125,7 +125,7 @@ export function sandboxTool(
   id: string,
   callName: string,
   tool: SandboxTool,
-  ctx: StepContext,
+  ctx: InProcessContext,
   sandbox: () => Sandbox,
   { assets, uploads }: { assets: AssetRef[]; uploads: UploadRef[] },
 ) {
@@ -266,7 +266,7 @@ async function readOutput(
 async function keepOut(
   box: Sandbox,
   folder: string,
-  ctx: StepContext,
+  ctx: InProcessContext,
   assets: AssetRef[],
 ): Promise<{ name: string; assetId: string }[]> {
   const found = await box.exec(

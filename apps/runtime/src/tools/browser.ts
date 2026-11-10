@@ -16,10 +16,10 @@ import {
   settleScript,
   targetScript,
 } from "../browser/snapshot.js";
-import type { StepContext } from "../engine/types.js";
 import { env } from "../env.js";
 import { costOf, textModel } from "../models.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { assertPublicUrl } from "./net-guard.js";
 import { attempt, type FileKeeper, imageOutput } from "./shared.js";
 import { resolveFile } from "./store.js";
@@ -160,7 +160,7 @@ async function handleOf(page: Page, n: number): Promise<ElementHandle<HTMLElemen
 }
 
 /** Clicks at a point; a tab the click opens is where the agent goes on. */
-async function clickAt(ctx: StepContext, page: Page, point: { x: number; y: number }) {
+async function clickAt(ctx: InProcessContext, page: Page, point: { x: number; y: number }) {
   const opened: Page[] = [];
   const onPage = (p: Page) => {
     opened.push(p);
@@ -268,7 +268,7 @@ function fastStepNote(step: FastLoopStep): RunNote | null {
   }
 }
 
-export async function browserTools(ctx: StepContext, assets: AssetRef[], files: FileKeeper) {
+export async function browserTools(ctx: InProcessContext, assets: AssetRef[], files: FileKeeper) {
   const page = () => ctx.resources.browserPage();
   const tools: Record<string, any> = {};
   /** What each [number] was called on the latest reading, for the run's log. */

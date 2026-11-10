@@ -1,11 +1,10 @@
 import type { ToolStep } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
-import { callConnection } from "../../tools/connector.js";
-import { callPluginTool } from "../../tools/plugin.js";
+import { isPending } from "@engenty/wizards-shared/run-services";
 import { runStepData } from "../data-step.js";
 import { renderTemplate } from "../template.js";
 import { type StepContext, StepError } from "../types.js";
-import { runListWrite } from "./list-write.js";
+import { listWriteInput } from "./list-write.js";
 
 /**
  * A call's input as the step's answers fill it: string values are templates; a filled-in whole
@@ -48,12 +47,23 @@ export async function runToolStep(step: ToolStep, ctx: StepContext): Promise<Ste
     return { json: await runStepData(step.data, ctx), at: new Date().toISOString() };
   }
   // What it is doing is the step's `working` line, shown as it starts, and what the tool says.
-  const answer =
-    "connection" in step.call
-      ? await callConnection(step.call, callInput(step.call.input, ctx), ctx)
-      : step.call.tool === "list_write"
-        ? await runListWrite(step.call.input, ctx)
-        : await callPluginToolOnce(step.call.tool, callInput(step.call.input, ctx), ctx);
+  const input =
+    "tool" in step.call && step.call.tool === "list_write"
+      ? listWriteInput(step.call.input, ctx)
+      : callInput(step.call.input, ctx);
+  const called = await ctx.services.tools.call(
+    {
+      stepId: step.id,
+      name: "tool" in step.call ? step.call.tool : `${step.call.connection}.${step.call.action}`,
+      input,
+      effect: null,
+    },
+    ctx.signal,
+  );
+  if (isPending(called)) {
+    throw new StepError(`${step.id}: the call did not answer.`);
+  }
+  const answer = called.output;
   if (
     answer &&
     typeof answer === "object" &&
@@ -65,10 +75,4 @@ export async function runToolStep(step: ToolStep, ctx: StepContext): Promise<Ste
   const json =
     answer && typeof answer === "object" && !Array.isArray(answer) ? answer : { result: answer };
   return { json, at: new Date().toISOString() };
-}
-
-/** What a plugin's tool does nobody knows here, so a later try of the step does not repeat it. */
-function callPluginToolOnce(tool: string, input: unknown, ctx: StepContext) {
-  ctx.resources.acted = true;
-  return callPluginTool(tool, input, ctx);
 }

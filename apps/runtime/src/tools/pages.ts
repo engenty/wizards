@@ -1,8 +1,8 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { readableIds, subjectsOf } from "../broker/rwx.js";
-import type { StepContext } from "../engine/types.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { runPages, writeRunPage } from "../services/space-data.js";
 import { attempt, clip } from "./shared.js";
 import { pageReadInput, readKnowledgePage } from "./space.js";
@@ -13,7 +13,7 @@ import { pageReadInput, readKnowledgePage } from "./space.js";
  * page_read also reads the pages of Knowledge, by path. A test run reads the wizard's pages but
  * writes into a copy of its own in the run's state, which goes with the run.
  */
-export function pageTools(ctx: StepContext) {
+export function pageTools(ctx: InProcessContext) {
   const spaceId = ctx.dataSpace.id;
   const wizardId = ctx.store.wizardId;
   /**

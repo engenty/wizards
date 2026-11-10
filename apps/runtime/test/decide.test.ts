@@ -35,7 +35,7 @@ vi.mock("ai", () => ({
   Output: { object: (o: unknown) => o },
 }));
 
-const { decide } = await import("../src/engine/decide");
+const { decide } = await import("../src/decide");
 const { readFormInput } = await import("../src/engine/input");
 const { stepClasses } = await import("../src/engine/requirements");
 

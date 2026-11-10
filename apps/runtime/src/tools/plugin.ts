@@ -3,8 +3,9 @@ import { type AgentStep, pluginToolOf } from "@engenty/wizards-shared/definition
 import { note } from "@engenty/wizards-shared/run";
 import { createTool } from "@mastra/core/tools";
 import { type Caller, type Who, whereOf, whoOf, withCaller } from "../broker/index.js";
-import { type StepContext, StepError } from "../engine/types.js";
+import { StepError } from "../engine/types.js";
 import { loadedPlugin, pluginIdsOf, pluginsOf } from "../plugins/registry.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { attempt, clip } from "./shared.js";
 
 /** The model's name of a plugin's tool: `<plugin>_<tool>`, since a tool name takes no dot. */
@@ -13,7 +14,7 @@ export function pluginToolName(plugin: string, tool: string): string {
 }
 
 /** What a plugin's tool learns of the step that calls it. */
-function toolContext(ctx: StepContext) {
+function toolContext(ctx: InProcessContext) {
   const space = { id: ctx.space.id, name: ctx.space.name };
   return {
     runId: ctx.runId,
@@ -28,20 +29,20 @@ function toolContext(ctx: StepContext) {
 }
 
 /** Who an AI step calls as: the person running the wizard, an admin where their role says so. */
-export function holderWho(ctx: StepContext): Who {
+export function holderWho(ctx: InProcessContext): Who {
   return whoOf(ctx.store.holder, ctx.holder.kind === "person" ? ctx.holder.role : undefined);
 }
 
 /** Who a fixed step calls as: the step itself, for the person running the wizard. The broker hears it. */
-export function stepWho(ctx: StepContext): Who {
+export function stepWho(ctx: InProcessContext): Who {
   return { kind: "step", id: ctx.stepId, for: holderWho(ctx) };
 }
 
 /** Who a step's plugin tool calls for: the person running the wizard, in this run. The broker hears it. */
-const callerOf = (ctx: StepContext): Caller => ({ who: holderWho(ctx), where: whereOf(ctx) });
+const callerOf = (ctx: InProcessContext): Caller => ({ who: holderWho(ctx), where: whereOf(ctx) });
 
 /** A plugin's tool as an agent step calls it. */
-function stepTool(plugin: string, tool: PluginTool, ctx: StepContext) {
+function stepTool(plugin: string, tool: PluginTool, ctx: InProcessContext) {
   return createTool({
     id: pluginToolName(plugin, tool.name),
     description: tool.description,
@@ -52,7 +53,10 @@ function stepTool(plugin: string, tool: PluginTool, ctx: StepContext) {
 }
 
 /** A plugin's tool by its `<plugin>.<tool>` id, as this tenant has it; a StepError where it does not. */
-async function toolOf(id: string, ctx: StepContext): Promise<{ plugin: string; tool: PluginTool }> {
+async function toolOf(
+  id: string,
+  ctx: InProcessContext,
+): Promise<{ plugin: string; tool: PluginTool }> {
   const named = pluginToolOf(id);
   const has = named ? await pluginIdsOf(ctx.tenantId) : new Set<string>();
   const found =
@@ -68,7 +72,7 @@ async function toolOf(id: string, ctx: StepContext): Promise<{ plugin: string; t
  * Calls one plugin tool with its input as it is, no model between: a step's `call`. The input
  * is checked against the tool's schema; what the tool throws is the step's error.
  */
-export async function callPluginTool(id: string, input: unknown, ctx: StepContext) {
+export async function callPluginTool(id: string, input: unknown, ctx: InProcessContext) {
   const { tool } = await toolOf(id, ctx);
   const parsed = tool.inputSchema.safeParse(input);
   if (!parsed.success) {
@@ -95,7 +99,10 @@ export async function callPluginTool(id: string, input: unknown, ctx: StepContex
  * The tools of plugins a step allowlists as `<plugin>.<tool>`. A step that names a tool this
  * tenant does not have fails: the wizard was written for a runtime with that plugin.
  */
-export async function pluginTools(step: AgentStep, ctx: StepContext): Promise<Record<string, any>> {
+export async function pluginTools(
+  step: AgentStep,
+  ctx: InProcessContext,
+): Promise<Record<string, any>> {
   const tools: Record<string, any> = {};
   for (const id of step.tools.filter((t) => pluginToolOf(t) !== null)) {
     const { plugin, tool } = await toolOf(id, ctx);
@@ -116,14 +123,14 @@ export interface SpaceContext {
   tools: Record<string, any>;
 }
 
-const contexts = new WeakMap<StepContext, Promise<SpaceContext>>();
+const contexts = new WeakMap<InProcessContext, Promise<SpaceContext>>();
 
 /**
  * What the tenant's plugins add to an AI step of a space's wizard (`registerSpaceContext`):
  * asked once per step, for its instructions and for its tools — an agent step's, or an HTML
  * step's blocks. A context that fails adds nothing.
  */
-export function spaceContextOf(ctx: StepContext): Promise<SpaceContext> {
+export function spaceContextOf(ctx: InProcessContext): Promise<SpaceContext> {
   let found = contexts.get(ctx);
   if (!found) {
     found = gather(ctx);
@@ -132,7 +139,7 @@ export function spaceContextOf(ctx: StepContext): Promise<SpaceContext> {
   return found;
 }
 
-async function gather(ctx: StepContext): Promise<SpaceContext> {
+async function gather(ctx: InProcessContext): Promise<SpaceContext> {
   const space: PluginSpace = { id: ctx.space.id, name: ctx.space.name };
   const result: SpaceContext = { blocks: [], html: [], tools: {} };
   for (const plugin of await pluginsOf(ctx.tenantId)) {

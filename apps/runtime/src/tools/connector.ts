@@ -18,8 +18,9 @@ import {
 import { refreshConnector, resolveConnector } from "../connectors/external.js";
 import { spaceConnectionOf } from "../connectors/space-connections.js";
 import type { ConnectorAction } from "../engenty/connections-sdk/types.js";
-import { SignInNeeded, type StepContext, StepError } from "../engine/types.js";
+import { SignInNeeded, StepError } from "../engine/types.js";
 import { prompt } from "../prompts.js";
+import type { InProcessContext } from "../run-services/in-process.js";
 import { askOf, inProgram, toolCallIdOf } from "./code.js";
 import { holderWho, stepWho } from "./plugin.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
@@ -35,7 +36,7 @@ const TOOL_NAME = /^[a-zA-Z0-9_-]{1,64}$/;
  * and destructive: ask), asked of the person who is running the wizard. On a connection of the
  * space its audience and rules decide (broker/call.ts).
  */
-export async function connectorTools(step: AgentStep, ctx: StepContext, files: FileKeeper) {
+export async function connectorTools(step: AgentStep, ctx: InProcessContext, files: FileKeeper) {
   const tools: Record<string, any> = {};
   const connections = (ctx.def.connections ?? []).filter(
     (c) => (c.connector || c.spaceConnection) && step.connections?.includes(c.id),
@@ -100,7 +101,7 @@ async function keepContent(
 }
 
 /** The other way round: `file:<path>` in a `*_base64` input sends a kept file or an upload. */
-async function sendContent(input: unknown, ctx: StepContext): Promise<unknown> {
+async function sendContent(input: unknown, ctx: InProcessContext): Promise<unknown> {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return input;
   }
@@ -122,7 +123,7 @@ const sentence = (text: string) => (/[.!?]$/.test(text.trim()) ? text.trim() : `
  * no side effect. The wizard's author can settle it per action (`connection.policy`); deleting is
  * never taken off the person.
  */
-function asks(held: BrokerConnection, action: ConnectorAction, ctx: StepContext): boolean {
+function asks(held: BrokerConnection, action: ConnectorAction, ctx: InProcessContext): boolean {
   return (
     decide({
       who: holderWho(ctx),
@@ -176,7 +177,11 @@ interface Held {
  * no longer has it. An MCP server that lists its tools only to a signed-in account is asked now
  * that there is one.
  */
-async function heldOf(connection: ConnectionDef, ctx: StepContext, who: Who): Promise<Held | null> {
+async function heldOf(
+  connection: ConnectionDef,
+  ctx: InProcessContext,
+  who: Who,
+): Promise<Held | null> {
   const spaceId = ctx.space.id;
   const ofSpace = connection.spaceConnection
     ? await spaceConnectionOf(spaceId, connection.spaceConnection)
@@ -221,7 +226,7 @@ async function heldOf(connection: ConnectionDef, ctx: StepContext, who: Who): Pr
 export async function callConnection(
   call: { connection: string; action: string },
   input: unknown,
-  ctx: StepContext,
+  ctx: InProcessContext,
 ): Promise<unknown> {
   const connection = (ctx.def.connections ?? []).find((c) => c.id === call.connection);
   if (!connection) {
@@ -293,7 +298,7 @@ export async function callConnection(
 }
 
 /** One connection's actions as tools — for a step that lists it, or a share job that sends through it. */
-export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files: FileKeeper) {
+export async function toolsOf(connection: ConnectionDef, ctx: InProcessContext, files: FileKeeper) {
   const who = holderWho(ctx);
   const found = await heldOf(connection, ctx, who);
   if (!found) {

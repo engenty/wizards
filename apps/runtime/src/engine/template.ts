@@ -11,6 +11,7 @@ import {
 } from "@engenty/wizards-shared/definition";
 import { formatMoney } from "@engenty/wizards-shared/numbers";
 import type { RunState } from "@engenty/wizards-shared/run";
+import type { DataService } from "@engenty/wizards-shared/run-services";
 import {
   type AssetSection,
   type BrandColor,
@@ -60,6 +61,18 @@ export interface TemplateScope {
   lists?: Record<string, { def: ListDef; rows: ListRow[] }>;
   /** A generate step with `foreach`: the entry this result is made for. */
   entry?: { item: unknown; index: number; count: number };
+}
+
+/** The wizard's stored lists with the rows the run's holder may read, by list id: a scope's `lists`. */
+export async function scopeLists(
+  def: WizardDefinition,
+  data: Pick<DataService, "rows">,
+): Promise<NonNullable<TemplateScope["lists"]>> {
+  const lists: NonNullable<TemplateScope["lists"]> = {};
+  for (const list of def.lists ?? []) {
+    lists[list.id] = await data.rows(list.id);
+  }
+  return lists;
 }
 
 const TEMPLATE_RE = /\{\{\s*([^}]+?)\s*\}\}/g;

@@ -231,7 +231,9 @@ const viewOf = async (app: App, id: string) => {
   return (await listed.json()).connections.find((c: { id: string }) => c.id === id);
 };
 
+let runServices: typeof import("../src/run-services/index.js");
 beforeAll(async () => {
+  runServices = await import("../src/run-services/index.js");
   client = await import("../src/db/client");
   await client.migrateControlDb();
   await client.openTenantDb(TENANT);
@@ -591,7 +593,7 @@ describe("what a caller reads of a limit", () => {
 
   function contextOf(runId: string, stepId: string) {
     const state = { values: { email: "lead@b.at" }, outputs: {}, history: [], notes: {} };
-    return {
+    const ctx = {
       runId,
       tenantId: TENANT,
       holder: { kind: "person", id: "user-m", role: "member" },
@@ -611,6 +613,12 @@ describe("what a caller reads of a limit", () => {
       ask: async () => null,
       call: {},
     } as unknown as import("../src/engine/types").StepContext;
+    ctx.services = runServices.inProcessServices(
+      { id: runId, definition: def } as never,
+      () => ctx,
+      (s, c) => import("../src/engine/steps/index.js").then((m) => m.runAgentStep(s, c)),
+    );
+    return ctx;
   }
 
   beforeAll(async () => {

@@ -136,7 +136,9 @@ async function logOf(connectionId: string) {
   );
 }
 
+let runServices: typeof import("../src/run-services/index.js");
 beforeAll(async () => {
+  runServices = await import("../src/run-services/index.js");
   client = await import("../src/db/client");
   await client.migrateControlDb();
   await client.openTenantDb(TENANT);
@@ -693,7 +695,7 @@ describe("fixed steps write, AI steps on space connections read", () => {
       history: [],
       notes: {},
     };
-    return {
+    const ctx = {
       runId,
       tenantId: TENANT,
       holder,
@@ -713,6 +715,12 @@ describe("fixed steps write, AI steps on space connections read", () => {
       ask,
       call: {},
     } as unknown as import("../src/engine/types").StepContext;
+    ctx.services = runServices.inProcessServices(
+      { id: runId, definition: def } as never,
+      () => ctx,
+      (s, c) => import("../src/engine/steps/index.js").then((m) => m.runAgentStep(s, c)),
+    );
+    return ctx;
   }
 
   beforeAll(async () => {
