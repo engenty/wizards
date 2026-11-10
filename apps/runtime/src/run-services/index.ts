@@ -1,13 +1,11 @@
-import { localeOf, textClassOf, wizardLang } from "@engenty/wizards-shared/definition";
+import { localeOf, wizardLang } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import {
   type DataStatementRequest,
   type FileSave,
-  type JsonSchema,
   type ModelsService,
   type RunServices,
   ServiceError,
-  type ToolDescriptor,
   type TurnMessage,
   type TurnPart,
   type TurnRequest,
@@ -25,13 +23,13 @@ import {
   type UserModelMessage,
 } from "ai";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { subjectsOf } from "../broker/rwx.js";
 import { addLocalCost } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { decide } from "../decide.js";
 import { stepCaller } from "../elements/caller.js";
 import { noticesFor, noticeWrites } from "../engine/notices.js";
+import { runAgentStep } from "../engine/steps/agent.js";
 import { runGenerateStep } from "../engine/steps/generate.js";
 import { type RunRow, type StepContext, StepError } from "../engine/types.js";
 import { loadAsset, saveAsset } from "../files/storage.js";
@@ -52,19 +50,19 @@ import { signedUrl } from "../secrets/signing.js";
 import { knowledgeBlock } from "../services/knowledge.js";
 import { runData } from "../store/data-access.js";
 import { listRows } from "../store/index.js";
-import { buildStepTools, type StepTools } from "../tools/index.js";
 import { assertPublicUrl, safeFetch } from "../tools/net-guard.js";
 import { skillsBlock, skillsOf } from "../tools/skills.js";
-import { personUploads } from "../tools/store.js";
 import { runWidgetStep } from "../widgets/step.js";
+import { type InProcessTools, inProcessTools } from "./tools.js";
 
 /**
  * The run's services inside the runtime (docs/plans/runs-on-their-own.md, "The run's services"):
  * each call is one of the functions step code calls today, with the run and its step context
  * filled in. Nothing here acts differently from those functions.
  *
- * `models.agentModel` is the one call beyond `RunServices`: an agent step's loop still runs in
- * Mastra's `Agent`, which takes the model itself, until the engine keeps its own loop (phase 2).
+ * `models.agentModel`, `tools.forStep` and `tools.ofAgent` are the calls beyond `RunServices`: an
+ * agent step's loop still runs in Mastra's `Agent`, which takes the model and its tools itself,
+ * until the engine keeps its own loop (phase 2).
  */
 export interface InProcessServices extends RunServices {
   models: ModelsService & {
@@ -72,6 +70,7 @@ export interface InProcessServices extends RunServices {
       request: Pick<TurnRequest, "stepId" | "class" | "effort" | "maker">,
     ): Promise<AgentModel>;
   };
+  tools: InProcessTools;
 }
 
 /** The model of an agent step whose loop runs in Mastra's `Agent`, and what the step asks of it. */
@@ -112,163 +111,117 @@ export function inProcessServices(run: RunRow, ctx: () => StepContext): InProces
       makerClass: r.maker,
     });
 
-  // An agent step's tools, built once per step as the step builds them.
-  const built = new Map<string, Promise<StepTools>>();
-  const toolsOf = (stepId: string): Promise<StepTools> => {
-    let found = built.get(stepId);
-    if (!found) {
-      found = (async () => {
-        const step = stepOf(stepId);
-        if (step?.type !== "agent") {
-          return { tools: {}, assets: [] };
-        }
-        const c = at(stepId);
-        const resolved = await resolve({
-          stepId,
-          class: textClassOf(step.model ?? "standard"),
-          effort: step.effort,
-          maker: step.maker,
-        });
-        return buildStepTools(step, c, resolved, await personUploads(c));
-      })();
-      built.set(stepId, found);
-    }
-    return found;
-  };
-
-  return {
-    models: {
-      async *turn(request, signal) {
-        const resolved = await resolve(request);
-        const out = streamText({
-          model: resolved.model,
-          system: request.system,
-          messages: request.messages.map(modelMessage),
-          tools: Object.fromEntries(
-            (request.tools ?? [])
-              .filter((d) => !d.provider)
-              .map((d) => [
-                d.name,
-                tool({ description: d.description, inputSchema: jsonSchema(d.inputSchema) }),
-              ]),
-          ),
-          ...(request.output
-            ? { output: Output.object({ schema: jsonSchema(request.output) }) }
-            : {}),
-          ...(request.maxOutputTokens ? { maxOutputTokens: request.maxOutputTokens } : {}),
-          abortSignal: signal,
-        });
-        for await (const part of out.fullStream) {
-          if (part.type === "text-delta") {
-            yield { type: "text", text: part.text };
-          } else if (part.type === "reasoning-delta") {
-            yield { type: "reasoning", text: part.text };
-          } else if (part.type === "tool-call") {
-            yield {
-              type: "tool-call",
-              toolCallId: part.toolCallId,
-              name: part.toolName,
-              input: part.input,
-            };
-          } else if (part.type === "error") {
-            throw part.error;
-          } else if (part.type === "finish") {
-            // Whoever spends books: a model the runtime resolves itself costs the run here.
-            const usd = costOf(resolved, part.totalUsage);
-            if (usd > 0) {
-              await addLocalCost(run.id, request.stepId, usd);
-            }
-            yield {
-              type: "finish",
-              reason: part.finishReason,
-              usage: {
-                inputTokens: part.totalUsage.inputTokens ?? 0,
-                outputTokens: part.totalUsage.outputTokens ?? 0,
-              },
-              model: resolved.ref,
-            } satisfies TurnPart;
-          }
-        }
-      },
-      decide: (request, signal) =>
-        decide({
-          state: request.state,
-          questions: request.questions,
-          call: { ...ctx().call, stepId: request.stepId },
-          signal,
-          deadlineMs: request.deadlineMs,
-          charge: (usd) => addLocalCost(run.id, request.stepId, usd),
-        }),
-      async embed(values, signal) {
-        const resolved = await embeddingModel();
-        if (!resolved) {
-          return null;
-        }
-        const { embeddings } = await embedMany({
-          model: resolved.model,
-          values,
-          abortSignal: signal,
-        });
-        return { model: resolved.ref, vectors: embeddings.map((e) => Array.from(e)) };
-      },
-      async agentModel(request) {
-        const resolved = await resolve(request);
-        const charge = async (usage: unknown) => {
-          const usd = costOf(resolved, usage);
+  const models: InProcessServices["models"] = {
+    async *turn(request, signal) {
+      const resolved = await resolve(request);
+      const out = streamText({
+        model: resolved.model,
+        system: request.system,
+        messages: request.messages.map(modelMessage),
+        tools: Object.fromEntries(
+          (request.tools ?? [])
+            .filter((d) => !d.provider)
+            .map((d) => [
+              d.name,
+              tool({ description: d.description, inputSchema: jsonSchema(d.inputSchema) }),
+            ]),
+        ),
+        ...(request.output
+          ? { output: Output.object({ schema: jsonSchema(request.output) }) }
+          : {}),
+        ...(request.maxOutputTokens ? { maxOutputTokens: request.maxOutputTokens } : {}),
+        abortSignal: signal,
+      });
+      for await (const part of out.fullStream) {
+        if (part.type === "text-delta") {
+          yield { type: "text", text: part.text };
+        } else if (part.type === "reasoning-delta") {
+          yield { type: "reasoning", text: part.text };
+        } else if (part.type === "tool-call") {
+          yield {
+            type: "tool-call",
+            toolCallId: part.toolCallId,
+            name: part.toolName,
+            input: part.input,
+          };
+        } else if (part.type === "error") {
+          throw part.error;
+        } else if (part.type === "finish") {
+          // Whoever spends books: a model the runtime resolves itself costs the run here.
+          const usd = costOf(resolved, part.totalUsage);
           if (usd > 0) {
             await addLocalCost(run.id, request.stepId, usd);
           }
-        };
-        return {
-          model: agentModel(resolved),
-          resolved,
-          get ownLoop() {
-            return keepsOwnLoop(resolved);
-          },
-          get takesTools() {
-            return takesTools(resolved);
-          },
-          get seesImages() {
-            return (
-              isHarnessVendor(resolved.vendor) ||
-              /^(anthropic|openai|google)$/.test(resolved.vendor)
-            );
-          },
-          attach: (tools, ignorable) => attachTools(resolved, tools, ignorable),
-          charge,
-          chargeTotal: async (result) => charge(await totalUsage(result)),
-        };
-      },
-    },
-
-    tools: {
-      async list(stepId) {
-        const { tools } = await toolsOf(stepId);
-        return Object.entries(tools).map(([name, t]) => descriptorOf(name, t));
-      },
-      async call(request) {
-        const stepTools = await toolsOf(request.stepId);
-        const found = stepTools.tools[request.name] as
-          | { execute?: (input: unknown, context: unknown) => Promise<unknown> }
-          | undefined;
-        if (!found?.execute) {
-          throw new ServiceError({ class: "final" }, `No tool ${request.name} in this step.`);
+          yield {
+            type: "finish",
+            reason: part.finishReason,
+            usage: {
+              inputTokens: part.totalUsage.inputTokens ?? 0,
+              outputTokens: part.totalUsage.outputTokens ?? 0,
+            },
+            model: resolved.ref,
+          } satisfies TurnPart;
         }
-        // An agent turn's call keeps its id: `<turn>:<toolCallId>` (broker/effect.ts).
-        const turn = ctx().turn;
-        const toolCallId =
-          turn && request.effect?.startsWith(`${turn}:`)
-            ? request.effect.slice(turn.length + 1)
-            : undefined;
-        const before = stepTools.assets.length;
-        const output = await found.execute(
-          request.input,
-          toolCallId ? { agent: { toolCallId } } : {},
-        );
-        const assets = stepTools.assets.slice(before);
-        return assets.length ? { output, assets } : { output };
-      },
+      }
     },
+    decide: (request, signal) =>
+      decide({
+        state: request.state,
+        questions: request.questions,
+        call: { ...ctx().call, stepId: request.stepId },
+        signal,
+        deadlineMs: request.deadlineMs,
+        charge: (usd) => addLocalCost(run.id, request.stepId, usd),
+      }),
+    async embed(values, signal) {
+      const resolved = await embeddingModel();
+      if (!resolved) {
+        return null;
+      }
+      const { embeddings } = await embedMany({
+        model: resolved.model,
+        values,
+        abortSignal: signal,
+      });
+      return { model: resolved.ref, vectors: embeddings.map((e) => Array.from(e)) };
+    },
+    async agentModel(request) {
+      const resolved = await resolve(request);
+      const charge = async (usage: unknown) => {
+        const usd = costOf(resolved, usage);
+        if (usd > 0) {
+          await addLocalCost(run.id, request.stepId, usd);
+        }
+      };
+      return {
+        model: agentModel(resolved),
+        resolved,
+        get ownLoop() {
+          return keepsOwnLoop(resolved);
+        },
+        get takesTools() {
+          return takesTools(resolved);
+        },
+        get seesImages() {
+          return (
+            isHarnessVendor(resolved.vendor) || /^(anthropic|openai|google)$/.test(resolved.vendor)
+          );
+        },
+        attach: (tools, ignorable) => attachTools(resolved, tools, ignorable),
+        charge,
+        chargeTotal: async (result) => charge(await totalUsage(result)),
+      };
+    },
+  };
+
+  return {
+    models,
+    tools: inProcessTools({
+      definition: run.definition,
+      at,
+      agentModel: models.agentModel,
+      runAgent: (step, c) => runAgentStep(step, c),
+    }),
 
     context: {
       async forStep(stepId, options = {}) {
@@ -370,27 +323,6 @@ export function inProcessServices(run: RunRow, ctx: () => StepContext): InProces
       },
     },
   };
-}
-
-/** A tool as the model is told of it: a provider's own tool has no schema of ours. */
-function descriptorOf(name: string, t: unknown): ToolDescriptor {
-  const found = t as { type?: string; description?: string; inputSchema?: unknown };
-  if (found.type === "provider" || found.type === "provider-defined") {
-    return { name, description: "", inputSchema: {}, provider: true };
-  }
-  return { name, description: found.description ?? "", inputSchema: schemaOf(found.inputSchema) };
-}
-
-function schemaOf(input: unknown): JsonSchema {
-  if (!input) {
-    return { type: "object", properties: {} };
-  }
-  if (input instanceof z.ZodType) {
-    return z.toJSONSchema(input, { unrepresentable: "any", io: "input" }) as JsonSchema;
-  }
-  // The AI SDK's own schema (`jsonSchema(...)`) carries its JSON Schema.
-  const own = (input as { jsonSchema?: unknown }).jsonSchema;
-  return (own && typeof own === "object" ? own : { type: "object" }) as JsonSchema;
 }
 
 /** One statement on the wizard's own database, as the data tools and the data step run it. */
