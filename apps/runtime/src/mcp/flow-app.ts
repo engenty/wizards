@@ -4,13 +4,13 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { EngentyCostume, WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { RunTheme } from "@engenty/wizards-shared/run";
+import type { RunReport } from "@engenty/wizards-shared/run-view";
 import { themeOffered } from "@engenty/wizards-shared/theme";
 import { RESOURCE_MIME_TYPE, registerAppResource } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { env } from "../env.js";
 import { runTicket } from "../secrets/signing.js";
 import { brandView } from "../services/brand.js";
-import type { RunReport } from "../services/runs.js";
 import { draftIssues, ownedWizard, publishedVersion } from "../services/wizards.js";
 
 /**
