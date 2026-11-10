@@ -12,22 +12,40 @@
  *
  * Only `fetch`, `TextDecoder` and `btoa`: no Node built-in, so the engine bundles for any host.
  *
- * Not here yet: the engine's calls beyond `RunServices` (`StepServices` in ./types.ts:
- * `models.agentModel`, `tools.forStep`, `tools.ofAgent`). Package 3.5b serves them and adds them
- * here, beside `models` and `tools` in `httpServices`.
+ * It is the engine's `StepServices`: an agent step's calls beyond `RunServices` go over HTTP too.
+ * A request names the step (its id, its turn, the foreach entry it runs for) and never carries
+ * it; the runtime builds the step's tools again for each call. The step's model is a set of flags
+ * here: `attach` notes the tools' names, and each turn (`models/agentTurn`) has the runtime
+ * attach the step's tools by those names, so a model with its own loop runs them there. What
+ * those tools did comes back as lines beside the turn's parts: the run notes that the turn
+ * acted, and the step has the files they made.
  */
 import type { AssetRef } from "@engenty/wizards-shared/run";
 import {
+  type AgentModelFlags,
+  type AgentTurnRequest,
   ASSET_REF_HEADER,
   assetRefSchema,
   type FileSave,
   RUN_SERVICES_PATH,
-  type RunServices,
   ServiceError,
+  type StepToolsAnswer,
+  type StepToolsAt,
   serviceErrorSchema,
+  type ToolResult,
   type TurnPart,
+  type TurnToolsLine,
+  turnToolsLineSchema,
 } from "@engenty/wizards-shared/run-services";
 import type { FlowFailure } from "@engenty/wizards-shared/transition";
+import { actedOn } from "./steps/agent-turn.js";
+import type {
+  AgentModel,
+  StepContext,
+  StepServices,
+  StepToolDescriptor,
+  StepToolSet,
+} from "./types.js";
 
 export interface HttpServicesOptions {
   /** The runtime that serves the run's services: its origin, `https://wizards.example`. */
@@ -40,7 +58,14 @@ export interface HttpServicesOptions {
 
 const RETRY: FlowFailure = { class: "retry", retryAfterMs: null };
 
-export function httpServices(options: HttpServicesOptions): RunServices {
+/** An agent step's model once its tools are built: where they work, the step, its tool set. */
+interface Bound {
+  at: StepToolsAt;
+  ctx: StepContext;
+  set: StepToolSet;
+}
+
+export function httpServices(options: HttpServicesOptions): StepServices {
   const base = `${options.url.replace(/\/+$/, "")}${RUN_SERVICES_PATH}`;
   const fetchOf = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
 
@@ -112,31 +137,127 @@ export function httpServices(options: HttpServicesOptions): RunServices {
     return { res, data: new Uint8Array(await read(res, undefined, () => res.arrayBuffer())) };
   }
 
+  /**
+   * A turn's parts as the runtime streams them. `tools`: what the tools of a model with its own
+   * loop did, a line of its own beside the parts.
+   */
+  async function* turn(
+    path: string,
+    request: unknown,
+    signal: AbortSignal | undefined,
+    tools?: (line: TurnToolsLine) => Promise<void>,
+  ): AsyncIterable<TurnPart> {
+    const res = (await post(path, request, signal)) as Response;
+    let finished = false;
+    for await (const line of lines(res, signal)) {
+      const value = parseLine(line);
+      const error = serviceErrorSchema.safeParse(value);
+      if (error.success) {
+        throw new ServiceError(error.data.error.failure, error.data.error.message);
+      }
+      const told = tools ? turnToolsLineSchema.safeParse(value) : null;
+      if (told?.success) {
+        await tools?.(told.data);
+        continue;
+      }
+      const part = value as TurnPart;
+      finished ||= part.type === "finish";
+      yield part;
+    }
+    if (!finished) {
+      throw new ServiceError(RETRY, "The model's turn broke off before it finished.");
+    }
+  }
+
+  /** The models this client made, each told where its step's tools work once they are built. */
+  const bindings = new WeakMap<AgentModel, (bound: Bound) => void>();
+
+  /** An agent step's model: its flags from the runtime, its turns made there. */
+  async function agentModel(
+    request: Parameters<StepServices["models"]["agentModel"]>[0],
+  ): Promise<AgentModel> {
+    const flags = await call<AgentModelFlags>("models/agentModel", request);
+    let bound: Bound | null = null;
+    let attached: { names: string[]; ignorable: boolean } | null = null;
+    const model: AgentModel = {
+      ownLoop: flags.ownLoop,
+      takesTools: flags.takesTools,
+      seesImages: flags.seesImages,
+      // The tools stay with the runtime: it attaches the step's own by these names.
+      attach(tools, ignorable) {
+        attached = { names: Object.keys(tools), ignorable };
+      },
+      turn(turnRequest, signal) {
+        const body: AgentTurnRequest =
+          bound && attached
+            ? { ...turnRequest, attached: { ...bound.at, ...attached } }
+            : turnRequest;
+        const at = bound;
+        return turn("models/agentTurn", body, signal, async ({ tools }) => {
+          if (!at) {
+            return;
+          }
+          // As the engine's own loop notes it before such a call (steps/agent.ts).
+          if (tools.acted) {
+            await actedOn(at.ctx);
+          }
+          at.set.assets.push(...(tools.assets ?? []));
+        });
+      },
+    };
+    bindings.set(model, (b) => {
+      bound = b;
+    });
+    return model;
+  }
+
+  /** An agent step's tools: built by the runtime, each call made there. */
+  async function forStep(
+    step: { id: string },
+    ctx: StepContext,
+    { model, turn: stepTurn }: { model: AgentModel; turn: string },
+  ): Promise<StepToolSet> {
+    const entry = ctx.scope.entry?.index;
+    const at: StepToolsAt = {
+      stepId: step.id,
+      turn: stepTurn,
+      ...(entry === undefined ? {} : { entry }),
+    };
+    const answer = await call<StepToolsAnswer>("tools/forStep", at, ctx.signal);
+    // Without code: a model that runs its tools itself has them attached by the runtime.
+    const tools: StepToolDescriptor[] = answer.tools.map((d) => ({
+      ...d,
+      mastra: { id: d.name, description: d.description, inputSchema: d.inputSchema },
+    }));
+    const assets: AssetRef[] = [...answer.assets];
+    const set: StepToolSet = {
+      list: () => tools,
+      async call(request) {
+        const result = await call<ToolResult>("tools/stepCall", { ...at, ...request }, ctx.signal);
+        assets.push(...(result.assets ?? []));
+        return result;
+      },
+      assets,
+      ...(answer.instructions ? { instructions: answer.instructions } : {}),
+      sandbox: answer.sandbox,
+    };
+    bindings.get(model)?.({ at, ctx, set });
+    return set;
+  }
+
   return {
     models: {
-      async *turn(request, signal) {
-        const res = (await post("models/turn", request, signal)) as Response;
-        let finished = false;
-        for await (const line of lines(res, signal)) {
-          const value = parseLine(line);
-          const error = serviceErrorSchema.safeParse(value);
-          if (error.success) {
-            throw new ServiceError(error.data.error.failure, error.data.error.message);
-          }
-          const part = value as TurnPart;
-          finished ||= part.type === "finish";
-          yield part;
-        }
-        if (!finished) {
-          throw new ServiceError(RETRY, "The model's turn broke off before it finished.");
-        }
-      },
+      turn: (request, signal) => turn("models/turn", request, signal),
       decide: (request, signal) => call("models/decide", request, signal),
       embed: (values, signal) => call("models/embed", { values }, signal),
+      agentModel,
     },
     tools: {
       list: (stepId) => call("tools/list", { stepId }),
       call: (request, signal) => call("tools/call", request, signal),
+      forStep,
+      // The runtime reads the step and the agent's file: only the step's id goes.
+      ofAgent: (step, ctx) => call("tools/ofAgent", { stepId: step.id }, ctx.signal),
     },
     context: {
       forStep: (stepId, stepOptions) =>

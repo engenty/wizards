@@ -42,6 +42,50 @@ export const TORN = "The model went away.";
 /** The model as the gateway names it. */
 export const MODEL = "test/scripted";
 
+/** The row the model of step `acting` writes with its one tool call. */
+export const ACTING_ROW = { title: "Beavers" };
+/** The instructions of the wizard's agent `scribe`. */
+export const SCRIBE = "You write as the scribe.";
+
+/**
+ * What the model writes for an agent step of the engine's, by what it is asked: `acting` calls
+ * `list_write` once and then says so, `each` writes about its entry, `byagent` says whether it
+ * runs as the scribe.
+ */
+function agentScript(step: string, prompt: unknown): unknown[] | null {
+  const asked = JSON.stringify(prompt);
+  if (step === "acting") {
+    if (!asked.includes('"role":"tool"')) {
+      return [
+        {
+          type: "tool-call",
+          toolCallId: "call-1",
+          toolName: "list_write",
+          input: JSON.stringify({ list: "notes", rows: [ACTING_ROW] }),
+        },
+        { type: "finish", finishReason: { unified: "tool-calls", raw: "tool_calls" }, usage },
+      ];
+    }
+    return textParts(["Noted the beavers."]);
+  }
+  if (step === "each") {
+    return textParts([`About ${asked.match(/Write about (\w+)\./)?.[1] ?? "nothing"}.`]);
+  }
+  if (step === "byagent") {
+    return textParts([asked.includes(SCRIBE) ? "As the scribe." : "Not as the scribe."]);
+  }
+  return null;
+}
+
+const textParts = (pieces: string[], torn = false) => [
+  { type: "text-start", id: "t" },
+  ...pieces.map((delta) => ({ type: "text-delta", id: "t", delta })),
+  // The model breaks off after its first words.
+  ...(torn ? [{ type: "error", error: Object.assign(new Error(TORN), { statusCode: 503 }) }] : []),
+  { type: "text-end", id: "t" },
+  { type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage },
+];
+
 const modelFor = (step: string) =>
   new MockLanguageModelV3({
     doGenerate: async () =>
@@ -51,17 +95,10 @@ const modelFor = (step: string) =>
         usage,
         warnings: [],
       }) as never,
-    doStream: async () => ({
+    doStream: async (options: { prompt: unknown }) => ({
       stream: convertArrayToReadableStream([
         { type: "stream-start", warnings: [] },
-        { type: "text-start", id: "t" },
-        ...(answers[step] ?? []).map((delta) => ({ type: "text-delta", id: "t", delta })),
-        // The model breaks off after its first words.
-        ...(step === "torn"
-          ? [{ type: "error", error: Object.assign(new Error(TORN), { statusCode: 503 }) }]
-          : []),
-        { type: "text-end", id: "t" },
-        { type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage },
+        ...(agentScript(step, options.prompt) ?? textParts(answers[step] ?? [], step === "torn")),
       ] as never[]),
     }),
   });
@@ -94,6 +131,8 @@ vi.mock("../src/credits/credits.js", async (original) => ({
 
 export const USER = "user-run-services";
 export const SCHEMA = "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);";
+/** The wizard's agent that runs step `byagent`, on the low class. */
+const SCRIBE_FILE = `---\ndescription: Writes a line as the scribe\nmodel: low\ntools: []\n---\n${SCRIBE}\n`;
 
 export const definition: WizardDefinition = wizardSchema.parse({
   version: 1,
@@ -135,6 +174,34 @@ export const definition: WizardDefinition = wizardSchema.parse({
       tools: [],
     },
     { id: "doc", type: "generate", title: "Doc", asset: "document", prompt: "A page on otters." },
+    // Agent steps the engine runs on the services: one whose model calls a tool, one per list
+    // row, one the wizard's agent runs.
+    {
+      id: "acting",
+      type: "agent",
+      title: "Acting",
+      instructions: "Note the beavers.",
+      output: { format: "text" },
+      tools: [],
+    },
+    {
+      id: "each",
+      type: "agent",
+      title: "Each",
+      instructions: "Write about {{item.title}}.",
+      output: { format: "text" },
+      tools: [],
+      foreach: "lists.notes",
+    },
+    {
+      id: "byagent",
+      type: "agent",
+      title: "By agent",
+      instructions: "Write a line.",
+      output: { format: "text" },
+      tools: [],
+      agent: "scribe",
+    },
     { id: "done", type: "result", title: "Done", deliverables: [] },
   ],
 });
@@ -179,14 +246,13 @@ export async function startRun(tenant: string): Promise<Started> {
   const wizards = await import("../src/services/wizards");
   return client.withTenant(tenant, async () => {
     const { putBlob } = await import("../src/files/blobs");
-    const schemaBytes = Buffer.from(SCHEMA, "utf8");
+    const fileOf = async (path: string, text: string, mime: string) => {
+      const bytes = Buffer.from(text, "utf8");
+      return { path, hash: await putBlob(bytes), mime, size: bytes.length };
+    };
     const files = [
-      {
-        path: "data/schema.sql",
-        hash: await putBlob(schemaBytes),
-        mime: "application/sql",
-        size: schemaBytes.length,
-      },
+      await fileOf("data/schema.sql", SCHEMA, "application/sql"),
+      await fileOf("agents/scribe.md", SCRIBE_FILE, "text/markdown"),
     ];
     const seed = await wizards.createWizard(USER, { definition });
     const runId = await runner.createRun({

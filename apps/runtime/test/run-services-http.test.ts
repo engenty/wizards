@@ -244,6 +244,50 @@ describe("the run's services over HTTP", () => {
     });
   });
 
+  it("read an agent step's tools from the run's definition, and refuse what it doesn't have", async () => {
+    const turn = `${a.runId}.turn`;
+    const said = async (path: string, body: unknown) =>
+      (await json(post(a.token, path, body), 400)).error.message;
+    expect(await json(post(a.token, "tools/forStep", { stepId: "write", turn }))).toMatchObject({
+      tools: expect.arrayContaining([expect.objectContaining({ name: "list_read" })]),
+      assets: [],
+      sandbox: false,
+    });
+    // An entry's tools: the step's entries are the list's rows, the one the first case wrote.
+    expect(
+      await json(post(a.token, "tools/forStep", { stepId: "each", turn, entry: 0 })),
+    ).toMatchObject({ sandbox: false });
+    expect(await said("tools/forStep", { stepId: "each", turn, entry: 1 })).toBe(
+      "Step each has no entry 1.",
+    );
+    expect(await said("tools/forStep", { stepId: "write", turn, entry: 0 })).toBe(
+      "Step write has no entries.",
+    );
+    expect(await said("tools/forStep", { stepId: "write", turn: `${b.runId}.turn` })).toBe(
+      `The turn ${b.runId}.turn is not one of this run's.`,
+    );
+    expect(await said("tools/forStep", { stepId: "doc", turn })).toBe(
+      "Step doc is not an agent step.",
+    );
+    expect(
+      await said("tools/stepCall", {
+        stepId: "each",
+        turn,
+        name: "list_read",
+        input: {},
+        effect: null,
+      }),
+    ).toBe("Step each has no entry named.");
+    expect(await said("tools/ofAgent", { stepId: "write" })).toBe(
+      "No agent of the wizard runs step write.",
+    );
+    // The agent's file gives the step's model and its instructions.
+    expect(await json(post(a.token, "tools/ofAgent", { stepId: "byagent" }))).toMatchObject({
+      step: { id: "byagent", model: "low" },
+      instructions: "You write as the scribe.",
+    });
+  });
+
   it("answer nothing while the switch is off", async () => {
     process.env.FEATURES = "durableRuns=on,runServices=off";
     try {

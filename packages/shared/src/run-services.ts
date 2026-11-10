@@ -577,3 +577,105 @@ export const turnRequestSchema: z.ZodType<TurnRequest> = z.object({
   output: jsonSchema.optional(),
   maxOutputTokens: z.number().int().positive().optional(),
 });
+
+// --- an agent step's calls ---------------------------------------------------------------------
+
+/*
+ * What an agent step asks of the runtime beyond `RunServices` (the engine's `StepServices`), as
+ * it crosses HTTP: the step's model, its tools, the wizard's agent that runs it. A request names
+ * the step and never carries it: the runtime reads it from the run's definition (an entry's with
+ * that entry's item, an agent's as the agent's file has it) and builds its tools again for each
+ * call.
+ */
+
+/** Where an agent step's tools work: the step, its turn, and the foreach entry it runs for. */
+export interface StepToolsAt {
+  stepId: string;
+  /** The turn the tools work in: their calls' effect ids are `<turn>:<toolCallId>`. */
+  turn: string;
+  /** The index of the foreach entry the step runs for; none outside an entry. */
+  entry?: number;
+}
+
+export const stepToolsAtSchema = z.object({
+  stepId: z.string().min(1),
+  turn: z.string().min(1).max(300),
+  entry: z.number().int().min(0).optional(),
+});
+
+/** `tools.forStep`'s answer: the step's tools as its model is told of them. */
+export interface StepToolsAnswer {
+  tools: ToolDescriptor[];
+  /** The files the tools made while they were built. */
+  assets: AssetRef[];
+  /** How to write a program over the tools, with the `code` tool. */
+  instructions?: string;
+  /** The run has a sandbox for a step that lists the sandbox tool. */
+  sandbox: boolean;
+}
+
+/** One of an agent step's tools called (`tools.stepCall`); it answers a `ToolResult`. */
+export interface StepToolCall extends StepToolsAt {
+  name: string;
+  input: unknown;
+  effect: EffectId | null;
+}
+
+export const stepToolCallSchema: z.ZodType<StepToolCall> = stepToolsAtSchema.extend({
+  name: z.string().min(1),
+  input: z.unknown(),
+  effect: effectIdSchema.nullable(),
+});
+
+/** `models.agentModel`'s request: the class of the step's model. */
+export const agentModelRequestSchema = z.object({
+  stepId: z.string().min(1),
+  class: z.enum(TEXT_CLASSES),
+  effort: z.enum(EFFORTS).optional(),
+  maker: z.string().optional(),
+});
+
+/** `models.agentModel`'s answer: what the step's loop asks of its model. */
+export interface AgentModelFlags {
+  ownLoop: boolean;
+  takesTools: boolean;
+  seesImages: boolean;
+}
+
+/**
+ * The step's tools handed to its model (`AgentModel.attach`), by name: the runtime builds the
+ * step's tools again and attaches those.
+ */
+export interface AttachedTools extends StepToolsAt {
+  names: string[];
+  /** The run's device may answer alone. */
+  ignorable: boolean;
+}
+
+/** `models.agentTurn`'s request: a turn, and the tools attached to the step's model. */
+export type AgentTurnRequest = TurnRequest & { attached?: AttachedTools };
+
+export const agentTurnRequestSchema: z.ZodType<AgentTurnRequest> = z.intersection(
+  turnRequestSchema,
+  z.object({
+    attached: stepToolsAtSchema
+      .extend({ names: z.array(z.string().min(1)), ignorable: z.boolean() })
+      .optional(),
+  }),
+);
+
+/**
+ * A line of `models.agentTurn`'s NDJSON beside the turn's parts: what the tools did that a model
+ * with its own loop called within the turn. `acted`: one did more than read; `assets`: the files
+ * they made.
+ */
+export interface TurnToolsLine {
+  tools: { acted?: true; assets?: AssetRef[] };
+}
+
+export const turnToolsLineSchema: z.ZodType<TurnToolsLine> = z.object({
+  tools: z.object({
+    acted: z.literal(true).optional(),
+    assets: z.array(assetRefSchema).optional(),
+  }),
+});
