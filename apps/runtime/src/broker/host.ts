@@ -1,5 +1,6 @@
 import type { AskInput } from "@engenty/wizards-shared/run";
 import type { AskResult } from "../engine/asks.js";
+import { PACKAGE_REGISTRIES } from "../sandbox/types.js";
 import type { Where, Who } from "./call.js";
 import {
   askAgain,
@@ -101,8 +102,9 @@ export async function brokerHost<T>(call: {
   const bound = where.guest || (await brokerOn());
   let reason = call.only ? "The step lists the host." : "Members reach every public host.";
   if (call.alwaysAllowed?.includes(host)) {
-    reason =
-      "A sandbox always reaches the host: a package registry, or the runtime for the wizard's data.";
+    reason = PACKAGE_REGISTRIES.includes(host)
+      ? "The host is a package registry."
+      : "The host is the runtime's, for the wizard's data.";
   } else if (bound) {
     const grant = where.runId ? await runGrant(where.runId) : null;
     if (!grant || !hostInGrant(grant, host)) {
