@@ -1,191 +1,27 @@
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { type WizardDefinition, wizardSchema } from "@engenty/wizards-shared/definition";
 import type { TurnPart } from "@engenty/wizards-shared/run-services";
-import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  loadRuntime,
+  ON,
+  post,
+  type Runtime,
+  SCHEMA,
+  type Started,
+  startRun,
+  USER,
+} from "./run-services-fixture";
 
 /**
  * The run's services over HTTP (routes/run-services.ts): two tenants with a run each, every
- * service called once through the app with the run's token. The model is scripted per step,
- * nothing reaches the network.
+ * service called once through the app with the run's token. The runtime, the wizard and the
+ * scripted model are run-services-fixture.ts's.
  */
-process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "wizards-run-services-http-"));
-process.env.APP_URL = "http://localhost:5181";
-process.env.LOCAL_ACCESS_KEY = "test-key";
-process.env.MARKETPLACE_URL = "off";
-process.env.AI_GATEWAY_API_KEY = "";
-process.env.OPENAI_API_KEY = "";
-process.env.ANTHROPIC_API_KEY = "";
-const ON = "durableRuns=on,runServices=on";
-process.env.FEATURES = ON;
-process.env.PLUGINS_WATCH = "0";
-process.env.PLUGIN_JOBS = "0";
-
-const usage = {
-  inputTokens: { total: 3, noCache: 3, cacheRead: 0, cacheWrite: 0 },
-  outputTokens: { total: 2, text: 2, reasoning: 0 },
-};
-/** What the model writes, in pieces, by the step the call is made for. */
-const answers: Record<string, string[]> = {
-  write: ["Hello ", "there."],
-  doc: ["<!doctype html><html><body><h1>Otters</h1></body></html>"],
-  pick: [JSON.stringify({ otters: true })],
-  torn: ["Otters "],
-};
-const modelFor = (step: string) =>
-  new MockLanguageModelV3({
-    doGenerate: async () =>
-      ({
-        content: [{ type: "text", text: (answers[step] ?? []).join("") }],
-        finishReason: { unified: "stop", raw: "stop" },
-        usage,
-        warnings: [],
-      }) as never,
-    doStream: async () => ({
-      stream: convertArrayToReadableStream([
-        { type: "stream-start", warnings: [] },
-        { type: "text-start", id: "t" },
-        ...(answers[step] ?? []).map((delta) => ({ type: "text-delta", id: "t", delta })),
-        // The model breaks off after its first words.
-        ...(step === "torn" ? [{ type: "error", error: new Error("The model went away.") }] : []),
-        { type: "text-end", id: "t" },
-        { type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage },
-      ] as never[]),
-    }),
-  });
-vi.mock("../src/models.js", async (original) => ({
-  ...(await original<typeof import("../src/models.js")>()),
-  textModel: async (_cls: string, meta: { stepId?: string } = {}) => ({
-    model: modelFor(meta.stepId ?? "-"),
-    ref: "test/scripted",
-    vendor: "test",
-    gateway: false,
-    metered: true,
-  }),
-  systemOneAccess: async () => null,
-  embeddingModel: async () => null,
-}));
-vi.mock("../src/safety.js", async (original) => ({
-  ...(await original<typeof import("../src/safety.js")>()),
-  guestChecksOn: async () => false,
-}));
-vi.mock("../src/engine/requirements.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/requirements.js")>()),
-  missingModelsSaid: async () => [],
-}));
-vi.mock("../src/credits/credits.js", async (original) => ({
-  ...(await original<typeof import("../src/credits/credits.js")>()),
-  canSpend: async () => true,
-  reserveForRun: async () => true,
-  releaseRun: async () => undefined,
-}));
-
-type App = { request: (path: string, init?: RequestInit) => Response | Promise<Response> };
-
-let app: App;
-let client: typeof import("../src/db/client");
-let runner: typeof import("../src/engine/runner");
-let wizards: typeof import("../src/services/wizards");
-let tokens: typeof import("../src/broker/token");
-let signing: typeof import("../src/secrets/signing");
-
 const A = "tenant-http-a";
 const B = "tenant-http-b";
-const USER = "user-http";
-const SCHEMA = "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);";
 
-const definition: WizardDefinition = wizardSchema.parse({
-  version: 1,
-  title: "Services",
-  description: "",
-  avatar: "round",
-  data: { scope: "shared", schema: "data/schema.sql" },
-  lists: [{ id: "notes", title: "Notes", columns: [{ id: "title", name: "Title", type: "text" }] }],
-  steps: [
-    // The run waits here: nobody answers, so it stays under way and its token opens it.
-    { id: "start", type: "form", title: "Start", fields: [{ id: "name", kind: "text", label: "Name" }] },
-    {
-      id: "write",
-      type: "agent",
-      title: "Write",
-      instructions: "Write about otters.",
-      output: { format: "text" },
-      tools: [],
-    },
-    {
-      id: "torn",
-      type: "agent",
-      title: "Torn",
-      instructions: "Write.",
-      output: { format: "text" },
-      tools: [],
-    },
-    {
-      id: "pick",
-      type: "agent",
-      title: "Pick",
-      instructions: "Pick.",
-      output: { format: "text" },
-      tools: [],
-    },
-    { id: "doc", type: "generate", title: "Doc", asset: "document", prompt: "A page on otters." },
-    { id: "done", type: "result", title: "Done", deliverables: [] },
-  ],
-});
-
-interface Started {
-  tenant: string;
-  runId: string;
-  token: string;
-}
-
-/** A run of `definition` in `tenant` that is not driven (no runner here), and its token. */
-const startRun = (tenant: string): Promise<Started> =>
-  client.withTenant(tenant, async () => {
-    const { putBlob } = await import("../src/files/blobs");
-    const schemaBytes = Buffer.from(SCHEMA, "utf8");
-    const files = [
-      {
-        path: "data/schema.sql",
-        hash: await putBlob(schemaBytes),
-        mime: "application/sql",
-        size: schemaBytes.length,
-      },
-    ];
-    const seed = await wizards.createWizard(USER, { definition });
-    const runId = await runner.createRun({
-      wizardId: seed.id,
-      definition,
-      files,
-      version: null,
-      mode: "test",
-      userId: USER,
-    });
-    const run = await client.db.query.run.findFirst({ where: eq(client.schema.run.id, runId) });
-    // The agent step is at work: its turn is on the run, as the step writes it before it lists its tools.
-    await client.db
-      .update(client.schema.run)
-      .set({ state: { ...run!.state, turn: { stepId: "write", id: `${runId}.turn` } } })
-      .where(eq(client.schema.run.id, runId));
-    const token = run && (await tokens.tokenOf(run));
-    if (!token) {
-      throw new Error("no token");
-    }
-    return { tenant, runId, token };
-  });
-
-const post = (token: string | null, path: string, body: unknown = {}) =>
-  app.request(`http://localhost:5181/api/run-services/v1/${path}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
+let client: Runtime["client"];
+let signing: Runtime["signing"];
 
 const json = async (res: Response | Promise<Response>, status = 200) => {
   const r = await res;
@@ -198,13 +34,7 @@ let a: Started;
 let b: Started;
 
 beforeAll(async () => {
-  client = await import("../src/db/client");
-  await client.migrateControlDb();
-  runner = await import("../src/engine/runner");
-  wizards = await import("../src/services/wizards");
-  tokens = await import("../src/broker/token");
-  signing = await import("../src/secrets/signing");
-  app = (await import("../src/app")).default as unknown as App;
+  ({ client, signing } = await loadRuntime());
   a = await startRun(A);
   b = await startRun(B);
 }, 180_000);
@@ -335,16 +165,23 @@ describe("the run's services over HTTP", () => {
   it("refuse a call across tenants: the token alone names the tenant and the run", async () => {
     // A's token reads A's run and its files only: B's file is no file of A's tenant.
     const bFile = await json(
-      post(b.token, "files/save", { kind: "text", mime: "text/plain", name: "b.txt", base64: "Yg==" }),
+      post(b.token, "files/save", {
+        kind: "text",
+        mime: "text/plain",
+        name: "b.txt",
+        base64: "Yg==",
+      }),
     );
     expect((await post(a.token, "files/read", { ref: bFile.id })).status).toBe(404);
     expect((await post(b.token, "files/read", { ref: bFile.id })).status).toBe(200);
-    const rows = await json(post(a.token, "data/query", {
-      stepId: "write",
-      scope: "shared",
-      by: "wizard",
-      sql: "SELECT text FROM notes",
-    }));
+    const rows = await json(
+      post(a.token, "data/query", {
+        stepId: "write",
+        scope: "shared",
+        by: "wizard",
+        sql: "SELECT text FROM notes",
+      }),
+    );
     expect(rows.rows).toEqual([{ text: A }]);
 
     // A token signed for A's run that names tenant B, or B's run in tenant A, opens nothing.
@@ -366,9 +203,9 @@ describe("the run's services over HTTP", () => {
       expect(res).toMatchObject({ error: { failure: { class: "final" } } });
     }
     // A body that names another tenant or run changes nothing: only A's run is told.
-    expect(
-      await json(post(a.token, "data/counts", { tenant: B, runId: b.runId })),
-    ).toEqual({ notes: 1 });
+    expect(await json(post(a.token, "data/counts", { tenant: B, runId: b.runId }))).toEqual({
+      notes: 1,
+    });
 
     // No token, a token of nobody's: refused.
     expect((await post(null, "data/counts")).status).toBe(401);
@@ -388,14 +225,16 @@ describe("the run's services over HTTP", () => {
       .map((line) => JSON.parse(line));
     expect(lines).toEqual([
       { type: "text", text: "Otters " },
-      { error: { failure: { class: "retry", retryAfterMs: null }, message: "The model went away." } },
+      {
+        error: { failure: { class: "retry", retryAfterMs: null }, message: "The model went away." },
+      },
     ]);
   });
 
   it("refuse a step the run's wizard does not have, and a request that is not valid", async () => {
-    expect(
-      await json(post(a.token, "tools/list", { stepId: "elsewhere" }), 400),
-    ).toMatchObject({ error: { failure: { class: "final" } } });
+    expect(await json(post(a.token, "tools/list", { stepId: "elsewhere" }), 400)).toMatchObject({
+      error: { failure: { class: "final" } },
+    });
     expect((await post(a.token, "steps/run", { stepId: "write" })).status).toBe(400);
     expect((await post(a.token, "models/embed", { values: [] })).status).toBe(400);
     expect((await post(a.token, "models/nothing")).status).toBe(404);
