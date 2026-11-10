@@ -1,12 +1,11 @@
 import { type DecisionQuestion, pOf } from "@engenty/wizards-shared/decision";
 import type { AgentStep } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
-import { decide } from "../decide.js";
 import type { StepContext } from "../types.js";
 
 /**
  * A decision step: its yes/no, choice and score fields are the questions, its prompt the state,
- * answered in one call through decide() — with probabilities where a decision model answers.
+ * answered in one call through the models service's `decide` — with probabilities where a decision model answers.
  */
 export async function decideStep(
   step: AgentStep,
@@ -29,13 +28,10 @@ export async function decideStep(
       questions[f.id] = { type: "score", instructions, criteria: f.options ?? [] };
     }
   }
-  const decision = await decide({
-    state,
-    questions,
-    call: ctx.call,
-    signal: ctx.signal,
-    charge: ctx.chargeUsd,
-  });
+  const decision = await ctx.services.models.decide(
+    { stepId: ctx.stepId, state, questions },
+    ctx.signal,
+  );
   const json: Record<string, unknown> = {};
   const decided: Record<string, number> = {};
   for (const [id, answer] of Object.entries(decision.answers)) {

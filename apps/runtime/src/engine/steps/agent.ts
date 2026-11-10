@@ -25,21 +25,10 @@ import {
   validateSurface,
 } from "@engenty/wizards-shared/surface";
 import { Agent } from "@mastra/core/agent";
-import { generateText, type JSONSchema7, jsonSchema, Output, parsePartialJson } from "ai";
+import { parsePartialJson } from "ai";
 import type { z } from "zod";
 import { subjectsOf } from "../../broker/rwx.js";
 import { loadAsset } from "../../files/storage.js";
-import {
-  agentModel,
-  attachTools,
-  costOf,
-  isHarnessVendor,
-  keepsOwnLoop,
-  type ResolvedModel,
-  takesTools,
-  textModel,
-  totalUsage,
-} from "../../models.js";
 import { prompt } from "../../prompts.js";
 import { knowledgeBlock } from "../../services/knowledge.js";
 import { watchActions } from "../../tools/acted.js";
@@ -54,6 +43,7 @@ import { type StepContext, StepError } from "../types.js";
 import { decideStep } from "./decision.js";
 import { runAgentEach } from "./foreach.js";
 import { answersBlock, brandBlock, groundRules, revisionBlock, today } from "./prompt.js";
+import { turnObject, turnText } from "./turn.js";
 
 // --- agent -------------------------------------------------------------------
 
@@ -199,23 +189,19 @@ async function streamWithProgress(
 /** An agent step looks at this many photos itself; more are read one by one with read_document. */
 const MAX_SEEN = 8;
 
-/** Models that take pictures in a message: the installed clients and the large vendors' models. */
-function seesImages(resolved: ResolvedModel<unknown>): boolean {
-  return isHarnessVendor(resolved.vendor) || /^(anthropic|openai|google)$/.test(resolved.vendor);
-}
-
 /**
  * The photos the step's instructions name ({{imageField}}), handed to the model itself. Looking
  * at them directly is one model call; reading each with read_document is one more call per photo
- * and leaves the step with a description instead of the picture.
+ * and leaves the step with a description instead of the picture. `seesImages`: the model takes
+ * pictures in a message.
  */
 async function seenPhotos(
   step: AgentStep,
   ctx: StepContext,
-  resolved: ResolvedModel<unknown>,
+  seesImages: boolean,
   uploads: UploadRef[],
 ) {
-  if (!seesImages(resolved)) {
+  if (!seesImages) {
     return [];
   }
   const named = new Set(templateRefs(step.instructions).map((ref) => ref.split(".")[0]));
@@ -269,25 +255,27 @@ export async function composeSurface(
   const fields = shapeLines(shape).join("\n");
   const sample = JSON.stringify(json).slice(0, 4000);
   try {
-    const writer = await textModel("low", ctx.call);
     let issues: string[] = [];
     for (let attempt = 0; attempt < 2; attempt++) {
-      const result = await generateText({
-        model: writer.model,
-        abortSignal: ctx.signal,
-        prompt: [
-          prompt("step", "view.compose", { title: ctx.def.title }),
-          prompt("authoring", "surfaces"),
-          prompt("step", "view.data", { fields, sample }),
-          issues.length
-            ? `# YOUR LAST ANSWER HAD THESE PROBLEMS — fix them\n${issues.join("\n")}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
+      const written = await turnText(ctx, {
+        class: "low",
+        messages: [
+          {
+            role: "user",
+            content: [
+              prompt("step", "view.compose", { title: ctx.def.title }),
+              prompt("authoring", "surfaces"),
+              prompt("step", "view.data", { fields, sample }),
+              issues.length
+                ? `# YOUR LAST ANSWER HAD THESE PROBLEMS — fix them\n${issues.join("\n")}`
+                : "",
+            ]
+              .filter(Boolean)
+              .join("\n\n"),
+          },
+        ],
       });
-      await ctx.chargeUsd(costOf(writer, result.usage));
-      const components = jsonArrayIn(result.text);
+      const components = jsonArrayIn(written);
       issues = validateSurface(components, shape).map((i) => i.message);
       if (!issues.length) {
         return { components: components as SurfaceComponent[], data: json };
@@ -321,20 +309,21 @@ export async function runAgentStep(
   if (step.foreach) {
     return runAgentEach(step, ctx, agentPart);
   }
-  const resolved = await textModel(textClassOf(step.model ?? "standard"), {
-    ...ctx.call,
+  const model = await ctx.services.models.agentModel({
+    stepId: ctx.stepId,
+    class: textClassOf(step.model ?? "standard"),
     effort: step.effort,
-    makerClass: step.maker ? classIdOf(step, "standard") : undefined,
+    maker: step.maker ? classIdOf(step, "standard") : undefined,
   });
   const uploads = await personUploads(ctx);
   // An installed client or the run's device keeps its tool loop in a process of its own: nothing
   // of it could go on elsewhere, so such a step runs as a step without `durable`.
   const going = turnOf(ctx.state, step.id);
-  const turn = going && !keepsOwnLoop(resolved) ? going : undefined;
+  const turn = going && !model.ownLoop ? going : undefined;
   const { tools, assets, instructions } = await buildStepTools(
     step,
     turn ? turnContext(ctx, turn) : ctx,
-    resolved,
+    model.resolved,
     uploads,
   );
   // The wizard's agents the step lists, each a tool that runs an agent step of its own.
@@ -344,7 +333,7 @@ export async function runAgentStep(
     await ctx.emit("info", { code: "noSandbox" });
   }
   // A step without tools of its own and without uploads: the run's device may answer it alone.
-  attachTools(resolved, tools, step.tools.length === 0 && uploads.length === 0);
+  model.attach(tools, step.tools.length === 0 && uploads.length === 0);
   watchActions(
     tools,
     ctx.resources,
@@ -356,7 +345,7 @@ export async function runAgentStep(
         }
       }),
   );
-  const photos = await seenPhotos(step, ctx, resolved, uploads);
+  const photos = await seenPhotos(step, ctx, model.seesImages, uploads);
   const others = uploads.filter((u) => !photos.some((p) => p.upload === u));
   const formatHint =
     step.output.format === "markdown"
@@ -377,7 +366,7 @@ export async function runAgentStep(
     await knowledgeBlock(ctx.dataSpace.id, subjectsOf(ctx)),
     // Skills: always on whole, on demand by name and description (docs/plans/skills.md).
     skillsBlock(await skillsOf(ctx), {
-      tools: takesTools(resolved),
+      tools: model.takesTools,
       sandbox: step.tools.includes("sandbox") && ctx.resources.sandboxCapabilities() !== null,
     }),
     // What the space's plugins hold for its wizards: a wiki, questions and answers.
@@ -441,13 +430,13 @@ export async function runAgentStep(
   if (turn) {
     const end = await durableTurn(turn, ctx, {
       instructions: system,
-      model: agentModel(resolved),
+      model: model.model,
       tools,
       assets,
       message,
       maxSteps,
       // Each model step is booked as it ends: a crash neither repeats nor loses the ones before it.
-      onStepUsage: (usage) => ctx.chargeUsd(costOf(resolved, usage)),
+      onStepUsage: (usage) => model.charge(usage),
       onText: step.output.format === "json" ? foundLines(step, ctx).text : undefined,
     });
     assets.splice(0, assets.length, ...end.assets);
@@ -457,7 +446,7 @@ export async function runAgentStep(
       id: `step-${step.id}`,
       name: step.title,
       instructions: system,
-      model: agentModel(resolved),
+      model: model.model,
       tools,
     });
     // A json step streams, so the person sees its entries as they are written (`found`).
@@ -465,7 +454,7 @@ export async function runAgentStep(
       step.output.format === "json"
         ? await streamWithProgress(agent, message, { maxSteps, abortSignal: ctx.signal }, step, ctx)
         : await agent.generate(message, { maxSteps, abortSignal: ctx.signal });
-    await ctx.chargeUsd(costOf(resolved, await totalUsage(result)));
+    await model.chargeTotal(result);
   }
   // `result.text` strings together what the model said between tool calls ("I open the page …").
   // A written result is its last message; structuring keeps everything, numbers may sit anywhere.
@@ -485,25 +474,16 @@ export async function runAgentStep(
   // Having it copy kilobytes of JSON again is slow and can fail on its own.
   let output = ownJson(text, schema, shape);
   if (!output) {
-    const structurer = await textModel("classifier", ctx.call);
-    const structured = await generateText({
-      model: structurer.model,
-      abortSignal: ctx.signal,
-      // The JSON Schema built from the shape, strict: every key required, no other keys.
-      output: Output.object({
-        schema: jsonSchema<Record<string, unknown>>(shapeJsonSchema(shape) as JSONSchema7, {
-          validate: (value) => {
-            const parsed = schema.safeParse(value);
-            return parsed.success
-              ? { success: true, value: parsed.data }
-              : { success: false, error: parsed.error };
-          },
-        }),
-      }),
-      prompt: prompt("step", "structure", { text }),
-    });
-    await ctx.chargeUsd(costOf(structurer, structured.usage));
-    output = structured.output as Record<string, unknown>;
+    output = await turnObject(
+      ctx,
+      {
+        class: "classifier",
+        // The JSON Schema built from the shape, strict: every key required, no other keys.
+        output: shapeJsonSchema(shape),
+        messages: [{ role: "user", content: prompt("step", "structure", { text }) }],
+      },
+      schema,
+    );
   }
   const json = recordsOf(shape, output) as Record<string, unknown>;
   // A view written once is bound to this run's data; `true` asks a model for one.

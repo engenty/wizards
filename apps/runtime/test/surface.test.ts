@@ -18,6 +18,7 @@ vi.mock("ai", () => ({
 }));
 
 const { runSurfaceStep, surfaceData } = await import("../src/engine/surface");
+const { decide } = await import("../src/decide");
 
 const facts = [
   { id: "root", component: "Column", children: ["title", "figures", "list"] },
@@ -428,9 +429,13 @@ describe("surface steps", () => {
       def: { title: "x", steps: [step] },
       state: { values: {}, outputs: { research: { json: { suppliers: [] }, at: "" } }, history: [], notes: {} },
       scope: { def: { title: "x", steps: [step] }, state: { values: {}, outputs: {}, history: [], notes: {} }, brand: {} },
-      call: {},
       signal: new AbortController().signal,
-      chargeUsd: async () => {},
+      services: {
+        models: {
+          decide: (r: { state: unknown; questions: never }) =>
+            decide({ state: r.state, questions: r.questions }),
+        },
+      },
     };
     const out = await runSurfaceStep(step, ctx as never);
     expect(out.surface?.components[0]).toEqual({ id: "root", component: "Column", children: ["head", "table"] });
