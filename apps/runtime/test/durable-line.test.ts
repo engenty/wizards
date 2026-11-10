@@ -21,8 +21,8 @@ const started = new Set<string>();
 const finish = new Map<string, () => void>();
 const during = new Map<string, () => Promise<void>>();
 const signals = new Map<string, AbortSignal>();
-vi.mock("../src/engine/steps.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps.js")>()),
+vi.mock("../src/engine/steps/index.js", async (original) => ({
+  ...(await original<typeof import("../src/engine/steps/index.js")>()),
   runAutomaticStep: async (_step: unknown, ctx: { runId: string; signal: AbortSignal }) => {
     started.add(ctx.runId);
     signals.set(ctx.runId, ctx.signal);

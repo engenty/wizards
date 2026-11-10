@@ -19,8 +19,8 @@ process.env.FEATURES = "durableRuns=on";
 process.env.RUNNER_CLOCK_MS = "100";
 
 const worked: { run: string; step: string }[] = [];
-vi.mock("../src/engine/steps.js", async (original) => ({
-  ...(await original<typeof import("../src/engine/steps.js")>()),
+vi.mock("../src/engine/steps/index.js", async (original) => ({
+  ...(await original<typeof import("../src/engine/steps/index.js")>()),
   runAutomaticStep: async (step: { id: string }, ctx: { runId: string }) => {
     worked.push({ run: ctx.runId, step: step.id });
     return { text: `made ${step.id}`, at: new Date().toISOString() };
