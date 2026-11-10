@@ -25,8 +25,8 @@ export function safeJson(text: string) {
 }
 
 export interface Api {
-  get<T>(path: string): Promise<T>;
   /** `signal`: a call that is no longer wanted ends, and the server stops its work. */
+  get<T>(path: string, signal?: AbortSignal): Promise<T>;
   post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>;
   put<T>(path: string, body?: unknown): Promise<T>;
   patch<T>(path: string, body?: unknown): Promise<T>;
@@ -83,7 +83,7 @@ export function createApi(
     return data as T;
   }
   return {
-    get: <T>(path: string) => request<T>("GET", path),
+    get: <T>(path: string, signal?: AbortSignal) => request<T>("GET", path, undefined, signal),
     post: <T>(path: string, body?: unknown, signal?: AbortSignal) =>
       request<T>("POST", path, body ?? {}, signal),
     put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body),

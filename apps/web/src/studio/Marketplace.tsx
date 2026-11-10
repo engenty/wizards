@@ -437,6 +437,9 @@ function FadeScroll({ className, children }: { className?: string; children: Rea
   );
 }
 
+/** How long the dialog waits for an entry's details before it says they did not come. */
+const DETAIL_TIMEOUT_MS = 20_000;
+
 /** `fallback`: the entry as the list has it, shown until the marketplace has answered. */
 export function EntryDialog({
   id,
@@ -456,8 +459,12 @@ export function EntryDialog({
   const navigate = useNavigate();
   const detail = useQuery({
     queryKey: ["marketplace-entry", id, lang],
-    queryFn: () =>
-      api.get<EntryDetail>(`/api/studio/marketplace/${encodeURIComponent(id!)}?lang=${lang}`),
+    // A call that gets no answer ends: the dialog says so instead of waiting on.
+    queryFn: ({ signal }) =>
+      api.get<EntryDetail>(
+        `/api/studio/marketplace/${encodeURIComponent(id!)}?lang=${lang}`,
+        AbortSignal.any([signal, AbortSignal.timeout(DETAIL_TIMEOUT_MS)]),
+      ),
     enabled: Boolean(id),
     retry: false,
   });
@@ -583,6 +590,7 @@ export function EntryDialog({
                 </Fact>
                 <Fact title={t("market.result")}>
                   <div className="flex flex-col gap-2">
+                    {detail.isLoading ? <Spinner className="size-4 text-ink-3" /> : null}
                     {(detail.data?.results ?? []).map((r) => (
                       <Detail
                         key={r.title}
@@ -637,6 +645,18 @@ export function EntryDialog({
                 <FadeScroll className="-mr-2 overscroll-contain pt-1 pr-2 pl-1 sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
                   {detail.isLoading ? (
                     <Spinner className="size-5 text-ink-3" />
+                  ) : detail.isError ? (
+                    <div className="flex flex-col items-start gap-2 text-[0.875rem] text-ink-2">
+                      <p>{t("market.detailFailed")}</p>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        busy={detail.isFetching}
+                        onClick={() => void detail.refetch()}
+                      >
+                        {t("market.retry")}
+                      </Button>
+                    </div>
                   ) : (
                     <Suspense fallback={<Spinner className="size-5 text-ink-3" />}>
                       <FlowPreview steps={previewSteps(detail.data?.outline ?? [])} />
