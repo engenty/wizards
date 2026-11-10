@@ -91,10 +91,13 @@ Docker): bash, coreutils, curl, git, jq, sqlite3, node, npm, and Python as Pyodi
 pandas, but no native programs; `off` removes the tool. agentOS is not a dependency:
 `pnpm sandbox:add agentos` (or `wizards sandbox add`) installs it into `SANDBOX_ENGINES_DIR`, and
 an image gets it with `--build-arg SANDBOX_ENGINES=agentos` ([plan](plans/agentos-sandbox.md)).
+`agentos-remote` is the cloud's: the same VMs in a container of their own (`deploy/Dockerfile.sandbox`,
+the API in `apps/sandbox`), one per run, reached over HTTP with `SANDBOX_URL` and `SANDBOX_SECRET`
+([plan](plans/agentos-sandbox.md#the-cloud)).
 Unset, `SANDBOX` is the first engine that is ready: `docker` when the image is on the machine,
 else `agentos` when it is installed, else `off`. The agent is told what the chosen sandbox runs.
 A guest's run (a visitor's, a channel's: no `userId`) never gets Docker: `SANDBOX_GUESTS` picks
-its engine, `off` (the default) or `agentos` when that is ready; `runSandboxEngine` in
+its engine, `off` (the default), `agentos` or `agentos-remote` when that is ready; `runSandboxEngine` in
 `apps/runtime/src/engine/resources.ts` is the one place that decides, and a step without the
 sandbox says so in the run's log.
 
@@ -619,7 +622,8 @@ reach only servers on the internet: for them a wizard runs on engenty.ai, not on
 | Step runner (cursor over the definition, pages / back / regenerate / branches) | `apps/runtime/src/engine/runner.ts` |
 | Agent + generate steps (Mastra Agent, AI SDK media) | `apps/runtime/src/engine/steps.ts` |
 | Agent tools: web search/fetch, sandbox, HTTP, image, MCP | `apps/runtime/src/tools/index.ts` |
-| Sandbox engines (Docker, agentOS), what each runs, the installer of the engines outside the package | `apps/runtime/src/sandbox/` |
+| Sandbox engines (Docker, agentOS, agentOS in the sandbox container), what each runs, the installer of the engines outside the package | `apps/runtime/src/sandbox/` |
+| The cloud's sandbox container: agentOS behind a small HTTP API, one VM per run | `apps/sandbox/`, `deploy/Dockerfile.sandbox` |
 | Browser tools: open/click/type, screenshot, sign-in handed to the person, downloads | `apps/runtime/src/tools/browser.ts`, `apps/runtime/src/engine/asks.ts` |
 | What a wizard keeps per person: lists, files, connected accounts, sign-ins | `packages/shared/src/store.ts`, `apps/runtime/src/store/`, `apps/runtime/src/tools/store.ts` |
 | Mail connectors (Gmail, Outlook, IMAP) in engenty's connector format | `apps/runtime/src/connectors/`, `apps/runtime/src/tools/mail.ts` |

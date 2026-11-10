@@ -1,0 +1,17 @@
+{
+  "name": "@engenty/wizards-sandbox",
+  "version": "0.1.0",
+  "description": "The cloud's sandbox: agentOS in a container of its own, behind a small HTTP API. One VM per run.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "~7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

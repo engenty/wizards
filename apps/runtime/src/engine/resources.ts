@@ -42,8 +42,8 @@ const SEAT_IDLE_MS = 3 * 60_000;
 /**
  * The sandbox engine of a run: a member's (a `userId`) and a Work chat's is the server's
  * (`SANDBOX`); a guest's – a live run with a visitor and no user, a plugin door's among them –
- * is `SANDBOX_GUESTS`: agentOS when it is ready, else none, never Docker. The one place where a
- * run's engine is picked (docs/plans/capabilities.md, A1).
+ * is `SANDBOX_GUESTS`: agentOS (here or in the sandbox container) when it is ready, else none,
+ * never Docker. The one place where a run's engine is picked (docs/plans/capabilities.md, A1).
  */
 export function runSandboxEngine(run: {
   mode: string;
