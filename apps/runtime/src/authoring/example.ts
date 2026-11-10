@@ -11,6 +11,8 @@ export const EXAMPLE_WIZARD: WizardDefinition = {
   avatar: "flame",
   lang: "en",
   intro: "Tell me briefly what it is about – I write the post and draw the image for it.",
+  // Filled in from the steps on every save; `wizards validate` checks it.
+  requires: { models: ["image", "low"] },
   steps: [
     {
       id: "about",

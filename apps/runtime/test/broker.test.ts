@@ -102,7 +102,7 @@ const withStep = (actions?: string[], tools: string[] = []) => ({
   connections: [{ id: "hub", connector: "hubspot", ...(actions ? { actions } : {}) }],
   steps: [
     definition.steps[0],
-    { id: "sync", type: "agent", title: "Sync", instructions: "Sync the lead.", tools, connections: ["hub"] },
+    { id: "sync", type: "agent", title: "Sync", instructions: "Sync the lead.", tools, connections: ["hub"], output: { format: "markdown" } },
     definition.steps[1],
   ],
 });

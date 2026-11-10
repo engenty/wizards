@@ -5,7 +5,6 @@ import {
   classIdOf,
   conditionMatches,
   type FormStep,
-  isDecidedField,
   isOtherwise,
   type Lang,
   MODEL_CLASSES,
@@ -28,6 +27,7 @@ import {
 } from "@engenty/wizards-shared/fit";
 
 import { CLASS_NAMES } from "@engenty/wizards-shared/providers";
+import { optionalStepClasses, stepClasses } from "@engenty/wizards-shared/requires";
 import type {
   ClosedChoice,
   MissingModel,
@@ -45,73 +45,15 @@ import {
 import { classProblem, currentTier, motionClient, tierRefusal } from "../models.js";
 
 // The steps every run passes through, and the choices that lead around a missing model, are
-// pure and shared (packages/shared/src/fit.ts): the standalone check uses the same.
-export { openValue, unavoidableFrom, unavoidableSteps };
+// pure and shared (packages/shared/src/fit.ts): the standalone check uses the same. So are the
+// classes a step calls (requires.ts), which a definition's `requires` lists.
+export { openValue, optionalStepClasses, stepClasses, unavoidableFrom, unavoidableSteps };
 
 /**
  * What a wizard needs of the models before a run starts: each class its steps call, and whether
  * this runtime can serve it. A step every run passes through blocks the start when its class is
  * missing; a step behind a branch only warns, since the person may choose around it.
  */
-
-/**
- * The classes a step calls, as ../engine/steps.ts and ../media/generate.ts call them — and the
- * classifier where a decision picks its next step or a page's fields.
- */
-export function stepClasses(step: Step): ModelClass[] {
-  const own = ownClasses(step);
-  const decides =
-    step.next?.some((r) => r.ask) || (step.type === "form" && step.fields.some(isDecidedField));
-  return decides && !own.includes("classifier") ? [...own, "classifier"] : own;
-}
-
-function ownClasses(step: Step): ModelClass[] {
-  switch (step.type) {
-    case "decision":
-      return ["classifier"];
-    case "agent": {
-      const classes: ModelClass[] = [textClassOf(step.model ?? "standard")];
-      if (step.tools.includes("image")) {
-        classes.push("image");
-      }
-      if (step.output.format === "json") {
-        classes.push("classifier");
-      }
-      if (step.output.surface === true && !classes.includes("low")) {
-        classes.push("low");
-      }
-      return classes;
-    }
-    case "generate":
-      switch (step.asset) {
-        case "image":
-          return ["low", "image"];
-        case "video":
-          return ["low", "video"];
-        case "voice":
-          return ["speech"];
-        default:
-          return [textClassOf(step.model ?? "standard")];
-      }
-    case "motion-graphics":
-      return [textClassOf(step.model ?? "low")];
-    case "form":
-      // A voice note the page asks for is listened to before the next step reads it.
-      return step.fields.some((f) => f.kind === "audio" && f.required) ? ["audio"] : [];
-    default:
-      // Reviews (they redo a generate step counted already), widgets, results.
-      return [];
-  }
-}
-
-/** The classes a step can do without: a voice note the person may leave out. */
-export function optionalStepClasses(step: Step): ModelClass[] {
-  return step.type === "form" &&
-    step.fields.some((f) => f.kind === "audio" && !f.required) &&
-    !stepClasses(step).includes("audio")
-    ? ["audio"]
-    : [];
-}
 
 /** What the branches taken so far say about an answer. */
 interface Known {
