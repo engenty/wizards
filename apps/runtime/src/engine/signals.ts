@@ -2,7 +2,7 @@ import { RUN_DONE_SIGNAL, signalMissing, type WaitStep } from "@engenty/wizards-
 import { and, asc, eq, gte, inArray, lt, notInArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
-import { wakeRun } from "../tenants/control.js";
+import { signalWaiting } from "./run-host-client.js";
 import type { RunRow } from "./types.js";
 
 /**
@@ -30,7 +30,7 @@ export interface SentSignal {
   runs: number;
 }
 
-/** Puts the runs that wait for this signal in line, and keeps how many that were. */
+/** Puts the runs that wait for this signal in line, or tells their host; keeps how many that were. */
 async function wakeWaiting(signal: typeof schema.runSignal.$inferSelect): Promise<SentSignal> {
   const waiting = await db.query.runWait.findMany({
     where: and(
@@ -45,7 +45,7 @@ async function wakeWaiting(signal: typeof schema.runSignal.$inferSelect): Promis
     ),
   });
   const fitting = waiting.filter((w) => !signalMissing(signal.data, w.fields).length);
-  await Promise.all(fitting.map((w) => wakeRun(w.runId)));
+  await Promise.all(fitting.map((w) => signalWaiting(w.runId, signal)));
   await db
     .update(schema.runSignal)
     .set({ runs: fitting.length })

@@ -1,4 +1,19 @@
-import { and, count, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import type { RunHostRef } from "@engenty/wizards-shared/run";
+import {
+  and,
+  count,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  not,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { control, controlDb } from "../db/client.js";
 import { env } from "../env.js";
 import { currentTenant } from "./tenant.js";
@@ -96,6 +111,8 @@ export async function indexRun(input: {
   ipHash?: string | null;
   /** A run that starts on a page with a deadline: when the clock wakes it. */
   wakeAt?: Date | null;
+  /** Where the run lives, as its record says; null: this runtime. */
+  host?: RunHostRef | null;
 }) {
   const tenantId = currentTenant();
   runTenants.set(input.runId, tenantId);
@@ -105,7 +122,13 @@ export async function indexRun(input: {
     visitorId: input.visitorId ?? null,
     ipHash: input.ipHash ?? null,
     wakeAt: input.wakeAt ?? null,
+    host: input.host ?? null,
   });
+}
+
+/** The line's copy of where a run lives: written with the record's (`runStore.setHost`). */
+export async function setLineHost(runId: string, host: RunHostRef | null) {
+  await controlDb.update(control.runIndex).set({ host }).where(eq(control.runIndex.runId, runId));
 }
 
 export async function tenantOfRun(runId: string): Promise<string | null> {
@@ -138,16 +161,38 @@ export async function dropRuns(runIds: string[]) {
 
 // --- the queue: which runner works on which run ---------------------------------
 // `active` = the run wants a runner. `owner` = the one driving it, `seen` = its last heartbeat.
+// `host` = where the run lives: null, any runner here; a runtime host, only the runner at its
+// address; another kind, none here.
+
+/**
+ * The runs this runner may drive: those of this runtime, and those placed on it as a runtime host
+ * (its `RUNNER_URL` is the address the host list names).
+ */
+function drivenHere(): SQL {
+  const { host } = control.runIndex;
+  return env.runner.url
+    ? sql`(${host} IS NULL OR (json_extract(${host}, '$.kind') = 'runtime' AND json_extract(${host}, '$.url') = ${env.runner.url}))`
+    : sql`${host} IS NULL`;
+}
+
+/** The runs a runner of this runtime may drive at all: not those living outside any runtime. */
+function inRuntime(): SQL {
+  const { host } = control.runIndex;
+  return sql`(${host} IS NULL OR json_extract(${host}, '$.kind') = 'runtime')`;
+}
 
 /** An owner silent this long has lost the run: another runner takes it. */
 export const RUNNER_STALE_MS = 30_000;
 
-/** Puts a run in line for a runner (again): active, owned by nobody. */
+/**
+ * Puts a run in line for a runner (again): active, owned by nobody. A run outside any runtime
+ * (`wizards run`, an object) is never in line here: its host drives it.
+ */
 export async function wakeRun(runId: string) {
   await controlDb
     .update(control.runIndex)
     .set({ active: true, owner: null, seen: null, wokenAt: new Date() })
-    .where(eq(control.runIndex.runId, runId));
+    .where(and(eq(control.runIndex.runId, runId), inRuntime()));
 }
 
 /**
@@ -174,8 +219,57 @@ export async function wakeDue(now = new Date()): Promise<number> {
       wakeAt: null,
       wokenAt: sql`${control.runIndex.wakeAt}`,
     })
-    .where(and(eq(control.runIndex.active, false), lte(control.runIndex.wakeAt, now)));
+    .where(
+      and(eq(control.runIndex.active, false), lte(control.runIndex.wakeAt, now), drivenHere()),
+    );
   return result.rowsAffected;
+}
+
+/**
+ * The runs on another host whose time came: each is taken off the clock here, one by one, so of
+ * several runners sweeping only one sends the wake (`wakeElsewhere`). `wakeAt` is the time it had.
+ */
+export async function dueElsewhere(
+  now = new Date(),
+): Promise<{ runId: string; tenantId: string; wakeAt: Date }[]> {
+  const due = await controlDb
+    .select({
+      runId: control.runIndex.runId,
+      tenantId: control.runIndex.tenantId,
+      wakeAt: control.runIndex.wakeAt,
+    })
+    .from(control.runIndex)
+    .where(
+      and(
+        eq(control.runIndex.active, false),
+        lte(control.runIndex.wakeAt, now),
+        isNotNull(control.runIndex.host),
+        not(drivenHere()),
+      ),
+    )
+    .limit(200);
+  const taken: { runId: string; tenantId: string; wakeAt: Date }[] = [];
+  for (const row of due) {
+    if (!row.wakeAt) {
+      continue;
+    }
+    const cleared = await controlDb
+      .update(control.runIndex)
+      .set({ wakeAt: null })
+      .where(and(eq(control.runIndex.runId, row.runId), eq(control.runIndex.wakeAt, row.wakeAt)));
+    if (cleared.rowsAffected) {
+      taken.push({ runId: row.runId, tenantId: row.tenantId, wakeAt: row.wakeAt });
+    }
+  }
+  return taken;
+}
+
+/** A wake its host did not hear goes back on the clock, unless a newer time came meanwhile. */
+export async function putWakeBack(runId: string, wakeAt: Date) {
+  await controlDb
+    .update(control.runIndex)
+    .set({ wakeAt })
+    .where(and(eq(control.runIndex.runId, runId), isNull(control.runIndex.wakeAt)));
 }
 
 /**
@@ -203,7 +297,7 @@ export async function claimRun(
   const stale = now - RUNNER_STALE_MS;
   const result = await controlDb.run(sql`
     UPDATE run_index SET owner = ${env.runner.id}, seen = ${now}, generation = generation + 1
-    WHERE run_id = ${runId} AND active = 1
+    WHERE run_id = ${runId} AND active = 1 AND ${drivenHere()}
       AND (owner IS NULL OR seen IS NULL OR seen < ${stale})
       AND (SELECT count(*) FROM run_index
            WHERE tenant_id = ${tenantId} AND owner IS NOT NULL AND seen >= ${stale}
@@ -249,6 +343,7 @@ export async function waitingRuns(): Promise<{ runId: string; tenantId: string }
           isNull(control.runIndex.seen),
           lt(control.runIndex.seen, stale),
         ),
+        drivenHere(),
       ),
     )
     .orderBy(inLineSince);
@@ -315,6 +410,7 @@ export async function lineState() {
           isNull(control.runIndex.seen),
           lt(control.runIndex.seen, new Date(Date.now() - RUNNER_STALE_MS)),
         ),
+        inRuntime(),
       ),
     )
     .orderBy(inLineSince)
