@@ -36,20 +36,55 @@ function offersOf(host: RunHostRef): HostOffers {
   return { ways: HOST_OFFERS[host.kind].ways.filter((way) => !OF_THIS_MACHINE.has(way)) };
 }
 
+/** What of a new run, besides its wizard, says where it may live. */
+export interface Placing {
+  /**
+   * A guest's run of a published wizard: what objects are for, many runs that mostly wait. Only
+   * such a run goes to an object (`EDGE_URL`); a test run never does.
+   */
+  guest?: boolean;
+}
+
 /**
- * The host a new run of `def` is placed on: the first of `candidates` that can run it. Null:
- * this runtime, as for every run while other hosts are off, none is listed or none fits.
+ * The hosts a new run may go to, in order, for the tenant at hand: an object first for a guest's
+ * run while the tenant's runs may live in objects (their routes need other hosts on, their
+ * services the run's services), then what `RUN_HOSTS` lists.
+ */
+async function candidatesFor(
+  placing: Placing,
+  listed: readonly RunHostRef[],
+): Promise<readonly RunHostRef[]> {
+  const switches = await remoteFeatures().catch(() => null);
+  if (!feature("runHosts", switches)) {
+    return [];
+  }
+  const objects =
+    placing.guest &&
+    env.edgeUrl &&
+    feature("edgeRuns", switches) &&
+    feature("runServices", switches)
+      ? [{ kind: "edge", url: env.edgeUrl } satisfies RunHostRef]
+      : [];
+  return [...objects, ...listed];
+}
+
+/**
+ * The host a new run of `def` is placed on: the first of the candidates that can run it, an
+ * object first for a guest's run (`Placing`), then `candidates`. Null: this runtime, as for every
+ * run while other hosts are off, none is listed or none fits.
  */
 export async function hostFor(
   def: WizardDefinition,
+  placing: Placing = {},
   candidates: readonly RunHostRef[] = env.runHosts,
 ): Promise<RunHostRef | null> {
-  if (!candidates.length || !feature("runHosts", await remoteFeatures().catch(() => null))) {
+  const hosts = await candidatesFor(placing, candidates);
+  if (!hosts.length) {
     return null;
   }
   const requires = def.requires ?? requiresOf(def);
   const ways = await modelWays(requiredClasses(requires));
-  return candidates.find((host) => hostFit(requires, offersOf(host), ways).fits) ?? null;
+  return hosts.find((host) => hostFit(requires, offersOf(host), ways).fits) ?? null;
 }
 
 /** How a class reaches its model where a host cannot follow, in words for the one who starts. */

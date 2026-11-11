@@ -7,8 +7,9 @@ import type { ModelClass } from "@engenty/wizards-shared/definition";
 import type { ModelWay } from "@engenty/wizards-shared/fit";
 import { handOverSchema } from "@engenty/wizards-engine/host-api";
 import type { RunHostRef } from "@engenty/wizards-shared/run";
+import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Where a new run lives (docs/plans/runs-on-their-own.md, 4.6): with other hosts off, here as
 // always; with them on, the first listed host that can run the wizard, handed the run by
@@ -89,8 +90,10 @@ function listHosts(...listed: RunHostRef[]) {
   env.runHosts = listed;
 }
 
-/** A run of `def`, started by `createRun`. */
-async function startRun(): Promise<string> {
+/** A run of `def`, started by `createRun`: a person's, or a guest's on the wizard's page. */
+async function startRun(
+  who: { userId: string } | { visitorId: string } = { userId: "u-person" },
+): Promise<string> {
   return inTenant(async () => {
     const wizardId = nanoid(12);
     await client.db.insert(client.schema.wizard).values({
@@ -108,7 +111,7 @@ async function startRun(): Promise<string> {
       files: [{ path: "notes.md", hash: "abc123", mime: "text/markdown", size: 12 }],
       version: 1,
       mode: "live",
-      userId: "u-person",
+      ...who,
     });
   });
 }
@@ -243,6 +246,89 @@ describe("with other hosts on", () => {
     expect(await tokens.readRunToken(token ?? "")).toMatchObject({
       claims: { run: runId, host: "runtime" },
     });
+  });
+});
+
+describe("an object for a guest's run", () => {
+  const ON = "runHosts=on,runServices=on,edgeRuns=on";
+  let edge: RunHostRef;
+  const guest = { visitorId: "v-guest" };
+
+  beforeEach(() => {
+    process.env.FEATURES = ON;
+    edge = { kind: "edge", url: other.url };
+    env.edgeUrl = edge.url;
+  });
+  afterEach(() => {
+    env.edgeUrl = "";
+  });
+
+  it("takes a guest's run first, before what is listed, and never a person's", async () => {
+    listHosts(another);
+    expect(await inTenant(() => hosts.hostFor(def as never, { guest: true }))).toEqual(edge);
+    expect(await inTenant(() => hosts.hostFor(def as never))).toEqual(another);
+    listHosts();
+    expect(await inTenant(() => hosts.hostFor(def as never, { guest: false }))).toBeNull();
+  });
+
+  it("takes none while the tenant's runs may not live in objects, other hosts or services are off, or no Worker is set", async () => {
+    listHosts(another);
+    for (const features of [
+      "runHosts=on,runServices=on",
+      "runHosts=on,edgeRuns=on",
+      "runServices=on,edgeRuns=on",
+    ]) {
+      process.env.FEATURES = features;
+      expect(await inTenant(() => hosts.hostFor(def as never, { guest: true }))).not.toEqual(edge);
+    }
+    process.env.FEATURES = ON;
+    env.edgeUrl = "";
+    expect(await inTenant(() => hosts.hostFor(def as never, { guest: true }))).toEqual(another);
+  });
+
+  it("a wizard an object cannot run goes where it fits", async () => {
+    listHosts(other);
+    useWays("ollama");
+    expect(await inTenant(() => hosts.hostFor(def as never, { guest: true }))).toEqual(other);
+    useWays("client");
+    expect(await inTenant(() => hosts.hostFor(def as never, { guest: true }))).toBeNull();
+  });
+
+  it("is handed the run with a token that stays the same however often it is signed", async () => {
+    const runId = await startRun(guest);
+    expect(await inTenant(() => store.runStore.hostOf(runId))).toEqual(edge);
+    const line = await client.controlDb.query.runIndex.findFirst({
+      where: eq(client.control.runIndex.runId, runId),
+    });
+    expect(line).toMatchObject({ host: edge, wakeAt: null });
+    expect(received).toHaveLength(1);
+    const handed = handOverSchema.parse(received[0].body);
+    expect(await tokens.readRunToken(handed.token)).toMatchObject({
+      claims: { run: runId, host: "edge", tenant: TENANT },
+    });
+    // The run is kept longer while it waits: its token stays the one the object holds.
+    const signed = await inTenant(async () => {
+      await client.db
+        .update(client.schema.run)
+        .set({ expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) })
+        .where(eq(client.schema.run.id, runId));
+      const run = await store.runStore.get(runId);
+      return run && tokens.tokenOf(run);
+    });
+    expect(signed).toBe(handed.token);
+  });
+
+  it("a person's run stays here", async () => {
+    const runId = await startRun();
+    expect(await inTenant(() => store.runStore.hostOf(runId))).toBeNull();
+    expect(received).toEqual([]);
+  });
+
+  it("an object that does not take the run leaves it here", async () => {
+    answer = 503;
+    const runId = await startRun(guest);
+    expect(received).toHaveLength(1);
+    expect(await inTenant(() => store.runStore.hostOf(runId))).toBeNull();
   });
 });
 

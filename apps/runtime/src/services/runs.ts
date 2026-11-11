@@ -27,6 +27,7 @@ import {
   hostedRun,
   type RunHostClient,
   reviewEvent,
+  runLines,
 } from "../engine/run-host-client.js";
 import {
   createRun,
@@ -312,7 +313,7 @@ export async function runReportOf(
         : null,
     autopilot: autopilots.has(run.id),
     credits: Math.ceil(run.costMicros / MICROS_PER_CREDIT),
-    events: await recentEvents(run.id, 0, 15),
+    events: await runLines(run, 15),
     browserUrl: await browserUrl(run),
     studioUrl: run.mode === "test" ? studioUrl(run.wizardId) : null,
     text: (key, vars) => prompt("mcp", key, vars),
