@@ -137,6 +137,14 @@ export const env = {
     /** A run's services over HTTP, `/api/run-services/v1` (docs/plans/runs-on-their-own.md). */
     runServices: ["broker", "runner", "all"].includes(role()),
   },
+  /**
+   * `RUN_SERVICES_URL`: the origin of the process that serves this process's runs their services
+   * (a `broker`), which a runner asks over HTTP with each run's token: a run's model calls, tools,
+   * files, data and its browser and sandbox are there. Empty: the runs' services are this
+   * process's own, as in a runtime that runs alone (`all`); that is how one process is set up,
+   * not a fallback. Read only while the run services are switched on (engine/owner.ts).
+   */
+  runServicesUrl: str("RUN_SERVICES_URL").replace(/\/+$/, ""),
   runner: {
     /** This runner's name in the control database; a new one each start. */
     id: `${hostname()}-${randomBytes(3).toString("hex")}`,

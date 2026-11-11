@@ -46,11 +46,10 @@ export function jobKindOf(step: ServiceStep): JobKind | null {
 
 /** A job's failure as the service answers it: its class, and what the run's log says. */
 export class JobFailed extends ServiceError {
-  constructor(
-    failure: FlowFailure,
-    readonly said: Said,
-  ) {
-    super(failure, typeof said === "string" ? said : noteText(said, "en"));
+  declare readonly said: Said;
+
+  constructor(failure: FlowFailure, said: Said) {
+    super(failure, typeof said === "string" ? said : noteText(said, "en"), said);
     this.name = "JobFailed";
   }
 }

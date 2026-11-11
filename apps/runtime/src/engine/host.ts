@@ -1,19 +1,26 @@
 /**
  * The runtime as the host of a run: what `advance` (packages/engine) asks of it, in the runner's
  * drive. The row through `writeMove` and its guards, the control copy of the wake, the log, asks,
- * credits, signals, the in-process step context and its services. The line, the claim and the
- * heartbeat stay with the runner.
+ * credits, signals, the step context and its services. The line, the claim and the heartbeat stay
+ * with the runner.
+ *
+ * The run's services are this process's own (run-services/), or, while the run services are
+ * switched on and `RUN_SERVICES_URL` names a broker, that broker's over HTTP with the run's token
+ * (`httpServices`): then the run's browser, sandbox and what they did live there, by the run's id,
+ * and this process holds none of it (engine/owner.ts lets go of them when the drive ends).
  */
 import { createHash } from "node:crypto";
 import type { Failure } from "@engenty/wizards-engine/failures";
 import type { Move, RunHost, StepFailure } from "@engenty/wizards-engine/host";
+import { httpServices } from "@engenty/wizards-engine/http-services";
 import { answersAsText } from "@engenty/wizards-engine/template";
-import { type StepServices, TurnAsks } from "@engenty/wizards-engine/types";
+import { StepError, type StepServices, TurnAsks } from "@engenty/wizards-engine/types";
 import { isNoteTime, note, type RunEventType, type Said } from "@engenty/wizards-shared/run";
 import { ServiceError } from "@engenty/wizards-shared/run-services";
 import type { FlowFailure, FlowRun } from "@engenty/wizards-shared/transition";
 import { effectsOn } from "../broker/effect.js";
 import { runHolder, subjectsOf } from "../broker/rwx.js";
+import { tokenOf } from "../broker/token.js";
 import { addLocalCost, canSpend, syncRunCost } from "../credits/credits.js";
 import { db } from "../db/client.js";
 import { decide } from "../decide.js";
@@ -29,6 +36,7 @@ import { emitEvent, saidInVisit, visitLeftOpen } from "./events.js";
 import { classifyFailure } from "./failures.js";
 import { withMailText } from "./mail-watch.js";
 import { noticeFor, noticeWrites } from "./notices.js";
+import { servicesUrl } from "./owner.js";
 import { pushRun } from "./push.js";
 import { maskedNote } from "./requirements.js";
 import { liveResources, resourcesFor } from "./resources.js";
@@ -103,9 +111,11 @@ export async function withDeadline<T>(
  * choose "try again". A refused sign-in did nothing, so it waits for one whatever the step did.
  */
 export function flowFailure(err: unknown, failure: Failure, acted: boolean): FlowFailure {
-  // A service's failure says its class itself (run-services/jobs.ts).
+  // A service's failure says its class itself (run-services/jobs.ts, routes/run-services.ts). A
+  // sign-in it could not name is the step's own, as below: once the step acted, it is final.
   if (err instanceof ServiceError) {
-    return err.failure;
+    const { failure: said } = err;
+    return said.class === "sign_in" && !said.service && acted ? { class: "final" } : said;
   }
   switch (failure.class) {
     case "retry":
@@ -183,6 +193,25 @@ function hostServices(run: RunRow): StepServices {
   return services as unknown as StepServices;
 }
 
+/** Said by a step of a run from before tokens, while its services are a broker's. */
+const NO_TOKEN = "This run started before an update and can't go on. Start it again.";
+
+/**
+ * The host's services of a run from before tokens while its services are a broker's: the run's own
+ * lists and notices, which its record needs to go on and to fail; a decision fails as its steps do.
+ */
+function withoutModels(services: StepServices): StepServices {
+  return {
+    ...services,
+    models: {
+      ...services.models,
+      decide: async () => {
+        throw new StepError(NO_TOKEN);
+      },
+    },
+  };
+}
+
 /** The runtime's host of a run, with whether its drive went on after an interruption. */
 export type RuntimeHost = RunHost & { interrupted: boolean };
 
@@ -204,6 +233,21 @@ export async function runtimeHost(
   let working: string | null = null;
   /** A wait's time the log said before an interruption: the wait keeps it. */
   let said: { stepId: string; until: number } | null = null;
+  /** The broker that serves the run's services, if this process asks one, and the run's token. */
+  const there = await servicesUrl();
+  const token = there ? await tokenOf(row) : null;
+  /** A call of the step's try acted, as the broker said (`RUN_ACTED_HEADER`). */
+  let actedThere = false;
+  const remote =
+    there && token
+      ? httpServices({
+          url: there,
+          token,
+          acted: () => {
+            actedThere = true;
+          },
+        })
+      : null;
   const until = (run: FlowRun) =>
     said && run.cursor === said.stepId && run.wakeAt !== null ? said.until : run.wakeAt;
 
@@ -328,9 +372,18 @@ export async function runtimeHost(
     },
     async context(step, state, stepSignal) {
       working = step.id;
-      resourcesFor(runId).acted = false;
       space ??= await loadSpace(current);
-      return makeContext({ ...current, cursor: step.id, state }, space, state, stepSignal);
+      const at = { ...current, cursor: step.id, state };
+      if (there) {
+        actedThere = false;
+        if (!remote) {
+          // A run from before tokens can't open the broker, and its services are nowhere else.
+          throw new StepError(NO_TOKEN);
+        }
+        return makeContext(at, space, state, stepSignal, {}, remote);
+      }
+      resourcesFor(runId).acted = false;
+      return makeContext(at, space, state, stepSignal);
     },
     guard: {
       // A guest's answers are checked once before any model works on them, and what a step
@@ -372,7 +425,9 @@ export async function runtimeHost(
       }
       console.error(`[run ${runId} step ${stepId}]`, err);
       await noteFreeTierRefusal(err);
-      const acted = turnActed || (working === stepId && Boolean(liveResources(runId)?.acted));
+      const acted =
+        turnActed ||
+        (working === stepId && (there ? actedThere : Boolean(liveResources(runId)?.acted)));
       const failure = classifyFailure(err, failureContext());
       return {
         kind: "failed",
@@ -390,7 +445,7 @@ export async function runtimeHost(
       }
     },
     signal,
-    services: hostServices(row),
+    services: remote ?? (there ? withoutModels(hostServices(row)) : hostServices(row)),
     switches: {
       durable: await durableRunsOn(),
       effects: await effectsOn(),

@@ -27,6 +27,7 @@ import {
   ASSET_REF_HEADER,
   assetRefSchema,
   type FileSave,
+  RUN_ACTED_HEADER,
   RUN_SERVICES_PATH,
   ServiceError,
   type StepToolsAnswer,
@@ -54,6 +55,11 @@ export interface HttpServicesOptions {
   token: string;
   /** Left out: `globalThis.fetch`. */
   fetch?: typeof fetch;
+  /**
+   * Hears that a call did something that may not be repeated (`RUN_ACTED_HEADER`): the host's
+   * mark that the step's try acted, which in its own process it reads off the run's resources.
+   */
+  acted?: () => void;
 }
 
 const RETRY: FlowFailure = { class: "retry", retryAfterMs: null };
@@ -95,6 +101,9 @@ export function httpServices(options: HttpServicesOptions): StepServices {
         aborted(err, signal) ??
         new ServiceError(RETRY, `The run's services did not answer: ${messageOf(err)}`)
       );
+    }
+    if (res.headers.get(RUN_ACTED_HEADER)) {
+      options.acted?.();
     }
     if (res.ok) {
       return res;
@@ -153,7 +162,8 @@ export function httpServices(options: HttpServicesOptions): StepServices {
       const value = parseLine(line);
       const error = serviceErrorSchema.safeParse(value);
       if (error.success) {
-        throw new ServiceError(error.data.error.failure, error.data.error.message);
+        const { failure, message, said } = error.data.error;
+        throw new ServiceError(failure, message, said);
       }
       const told = tools ? turnToolsLineSchema.safeParse(value) : null;
       if (told?.success) {
@@ -307,10 +317,8 @@ async function failureOf(res: Response): Promise<{ error: ServiceError; said: bo
   }
   const said = serviceErrorSchema.safeParse(body);
   if (said.success) {
-    return {
-      error: new ServiceError(said.data.error.failure, said.data.error.message),
-      said: true,
-    };
+    const { failure, message, said: what } = said.data.error;
+    return { error: new ServiceError(failure, message, what), said: true };
   }
   const message = `The run's services answered ${res.status}.`;
   // Not the runtime's own answer: a proxy, a runtime that went away, too many calls.
