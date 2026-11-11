@@ -8,7 +8,8 @@
  *   past is woken at once, so a process started again picks up where the last one stopped;
  * - everything outside the run through the run's services over HTTP (`httpServices`), with the
  *   run's token: models, tools, files, data, context, notices. Whoever spends books it there;
- *   this host books nothing;
+ *   this host books nothing. A run without an organization brings services of its own instead
+ *   (`alone.ts`), and nothing is copied anywhere;
  * - a copy of the run for its tenant (`run.report`) as each step starts, at each person's step,
  *   at each wait and at the end: the tenant's services build a step's context from it, and the
  *   tenant tells people, releases credits and lists the run from it;
@@ -23,11 +24,16 @@ import { formContextOf } from "@engenty/wizards-engine/decisions";
 import { NOTE_CLASS } from "@engenty/wizards-engine/failures";
 import { type RunHost, RunMoved, type RunStart } from "@engenty/wizards-engine/host";
 import type { HostActor, HostChange, HostRun, HostState } from "@engenty/wizards-engine/host-api";
-import { httpServices } from "@engenty/wizards-engine/http-services";
+import { type HttpServices, httpServices } from "@engenty/wizards-engine/http-services";
 import { fieldErrorsIn, readFormInput } from "@engenty/wizards-engine/input";
 import { surfaceData } from "@engenty/wizards-engine/surface";
 import { scopeLists } from "@engenty/wizards-engine/template";
-import { type StepContext, StepError, TurnAsks } from "@engenty/wizards-engine/types";
+import {
+  type StepContext,
+  StepError,
+  type StepServices,
+  TurnAsks,
+} from "@engenty/wizards-engine/types";
 import type { Step, WizardDefinition } from "@engenty/wizards-shared/definition";
 import { note, type Said, saidText } from "@engenty/wizards-shared/run";
 import { ServiceError } from "@engenty/wizards-shared/run-services";
@@ -47,8 +53,12 @@ export { HostRefusal };
 export interface NodeHostOptions {
   /** The run's folder; made if it is not there. A folder the run was in before goes on from where it is. */
   dir: string;
-  /** The run's services: the runtime's origin and the run's token (`httpServices`). */
-  services: { url: string; token: string; fetch?: typeof fetch };
+  /**
+   * The run's services: the runtime's origin and the run's token (`httpServices`), or services of
+   * the host's own for a run without an organization (`alone.ts`). Such a run has no tenant, so
+   * nothing is copied anywhere: its record is its folder.
+   */
+  services: { url: string; token: string; fetch?: typeof fetch } | { alone: StepServices };
   def: WizardDefinition;
   /** The workspace the run started with; the services read the files by path. */
   files: WorkspaceFile[];
@@ -149,7 +159,9 @@ export async function nodeHost(options: NodeHostOptions): Promise<NodeHost> {
   const now = options.now ?? Date.now;
   const folder = await RunFolder.open(options.dir);
   const abort = new AbortController();
-  const services = httpServices(options.services);
+  const own = "alone" in options.services ? options.services.alone : null;
+  const remote = "alone" in options.services ? null : httpServices(options.services);
+  const services: StepServices = own ?? (remote as HttpServices);
   const listeners = new Set<(change: HostChange) => void>();
 
   let rev = (await folder.load())?.rev ?? 0;
@@ -192,7 +204,7 @@ export async function nodeHost(options: NodeHostOptions): Promise<NodeHost> {
    * good by the next; a passing failure is tried again, and one that stays is said on stderr.
    */
   const report = async (s: StoredRun, error: Said | null) => {
-    if (options.reports === false) {
+    if (options.reports === false || !remote) {
       return;
     }
     const copy = {
@@ -208,7 +220,7 @@ export async function nodeHost(options: NodeHostOptions): Promise<NodeHost> {
     };
     for (let tries = 1; ; tries++) {
       try {
-        await services.run.report(copy, abort.signal);
+        await remote.run.report(copy, abort.signal);
         return;
       } catch (err) {
         const passing = err instanceof ServiceError && err.failure.class === "retry";

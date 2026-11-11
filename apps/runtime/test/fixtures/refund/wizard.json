@@ -1,0 +1,62 @@
+{
+  "format": "engenty-wizard",
+  "version": 1,
+  "definition": {
+    "version": 1,
+    "title": "Refund",
+    "description": "Reads what a customer wrote, starts a refund when they want their money back, and apologises when they are angry.",
+    "avatar": "round",
+    "requires": { "models": ["classifier"], "optional": { "models": ["standard"] } },
+    "steps": [
+      {
+        "id": "ask",
+        "type": "form",
+        "title": "Ask",
+        "fields": [{ "id": "message", "kind": "text", "label": "message" }]
+      },
+      {
+        "id": "triage",
+        "type": "decision",
+        "title": "Triage",
+        "instructions": "The customer wrote: {{message}}",
+        "output": {
+          "fields": [
+            {
+              "id": "kind",
+              "kind": "choice",
+              "description": "What does the customer want?",
+              "options": ["refund", "question"]
+            }
+          ]
+        },
+        "next": [
+          { "when": { "field": "steps.triage.kind", "op": "eq", "value": "refund" }, "goto": "refund" }
+        ]
+      },
+      {
+        "id": "question",
+        "type": "agent",
+        "title": "Question",
+        "instructions": "Answer the question.",
+        "output": { "format": "text" },
+        "next": [{ "goto": "done" }]
+      },
+      {
+        "id": "refund",
+        "type": "agent",
+        "title": "Refund",
+        "instructions": "Start the refund.",
+        "output": { "format": "text" },
+        "next": [{ "ask": "The customer is angry.", "goto": "soothe" }, { "goto": "done" }]
+      },
+      {
+        "id": "soothe",
+        "type": "agent",
+        "title": "Soothe",
+        "instructions": "Apologise.",
+        "output": { "format": "text" }
+      },
+      { "id": "done", "type": "result", "title": "Done", "deliverables": [] }
+    ]
+  }
+}

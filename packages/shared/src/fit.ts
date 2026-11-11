@@ -430,6 +430,12 @@ export type ModelWay = (typeof MODEL_WAYS)[number];
  */
 export interface HostOffers {
   ways: readonly ModelWay[];
+  /**
+   * The run's services stand for tools, plugins, connections, the sandbox, the data and the
+   * makers' models; left out: they do. False: nothing stands for them, as for a run without an
+   * organization (`wizards run` with no engenty wizards to start it at).
+   */
+  services?: boolean;
 }
 
 /**
@@ -450,7 +456,27 @@ export interface HostGap {
   way: ModelWay | null;
 }
 
-export type HostFit = { fits: true } | { fits: false; missing: HostGap[] };
+/** What the run's services would give, where a host has none: the names `requires` lists. */
+export interface HostLack {
+  need: "tools" | "sandbox" | "plugins" | "connections" | "data" | "makers";
+  names: string[];
+}
+
+/** `lacks` only where the host has no services and the wizard needs some of them. */
+export type HostFit = { fits: true } | { fits: false; missing: HostGap[]; lacks?: HostLack[] };
+
+/** What a wizard needs of the run's services, by what `requires` lists. */
+function servicesNeeded(requires: Requires): HostLack[] {
+  const lacks: HostLack[] = [
+    { need: "tools", names: requires.tools ?? [] },
+    { need: "sandbox", names: requires.sandbox ? [requires.sandbox] : [] },
+    { need: "plugins", names: requires.plugins ?? [] },
+    { need: "connections", names: requires.connections ?? [] },
+    { need: "data", names: requires.data ? [requires.data] : [] },
+    { need: "makers", names: requires.makers ?? [] },
+  ];
+  return lacks.filter((lack) => lack.names.length);
+}
 
 /**
  * Every class a run of the wizard may call, the optional ones too: a run never falls back to
@@ -467,7 +493,8 @@ export function requiredClasses(requires: Requires): Set<ModelClass> {
 /**
  * Whether a host can run a wizard, from what it requires and how the tenant reaches each class
  * (`ways`). A class without a way is missing: the start refuses it anyway, and no host is picked
- * for what nobody can serve.
+ * for what nobody can serve. A host without the run's services (`services: false`) also lacks
+ * what they would give.
  */
 export function hostFit(
   requires: Requires,
@@ -479,6 +506,10 @@ export function hostFit(
     const way = ways[cls] ?? null;
     return way && offers.ways.includes(way) ? [] : [{ cls, way }];
   });
+  const lacks = offers.services === false ? servicesNeeded(requires) : [];
+  if (lacks.length) {
+    return { fits: false, missing, lacks };
+  }
   return missing.length ? { fits: false, missing } : { fits: true };
 }
 
