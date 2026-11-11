@@ -1,7 +1,7 @@
 import { AsyncResource } from "node:async_hooks";
 import { EventEmitter } from "node:events";
 import { note as noted, noteText, type RunEvent, type RunNote } from "@engenty/wizards-shared/run";
-import { and, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { runStore } from "./run-store.js";
 
@@ -194,6 +194,31 @@ export async function visitLeftOpen(runId: string, stepId: string): Promise<bool
   return last?.type === "step_started";
 }
 
+/** The run's lines after `afterId`, oldest first, at most `limit`: a reader that must miss none pages on. */
+export async function eventsAfter(
+  runId: string,
+  afterId: number,
+  limit = 200,
+): Promise<RunEvent[]> {
+  const rows = await db
+    .select()
+    .from(schema.runEvent)
+    .where(and(eq(schema.runEvent.runId, runId), gt(schema.runEvent.id, afterId)))
+    .orderBy(asc(schema.runEvent.id))
+    .limit(limit);
+  return rows.map(eventOf);
+}
+
+const eventOf = (r: typeof schema.runEvent.$inferSelect): RunEvent => ({
+  id: r.id,
+  at: r.createdAt.toISOString(),
+  stepId: r.stepId,
+  type: r.type,
+  message: r.message,
+  note: r.note ?? null,
+  asset: r.assetId,
+});
+
 export async function recentEvents(runId: string, afterId = 0, limit = 40): Promise<RunEvent[]> {
   const rows = await db
     .select()
@@ -201,13 +226,5 @@ export async function recentEvents(runId: string, afterId = 0, limit = 40): Prom
     .where(and(eq(schema.runEvent.runId, runId), gt(schema.runEvent.id, afterId)))
     .orderBy(desc(schema.runEvent.id))
     .limit(limit);
-  return rows.reverse().map((r) => ({
-    id: r.id,
-    at: r.createdAt.toISOString(),
-    stepId: r.stepId,
-    type: r.type,
-    message: r.message,
-    note: r.note ?? null,
-    asset: r.assetId,
-  }));
+  return rows.reverse().map(eventOf);
 }
