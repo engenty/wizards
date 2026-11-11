@@ -224,6 +224,8 @@ async function hostOf(p: Placed, more: Partial<NodeHostOptions> = {}): Promise<N
     def: p.run.wizard,
     files: [],
     run: { id: p.id },
+    // This test writes the record itself, with every write: no copies over `run/report`.
+    reports: false,
     // The tenant's copy of the run: its services read the run's state from the record (a foreach
     // over an earlier step's output, the step's turn).
     onWrite: (r) =>

@@ -47,6 +47,7 @@ const COMMANDS = [
   // Once after 2.5 of docs/plans/runs-on-their-own.md; not in the help.
   "drop-turn-snapshots",
   "validate",
+  "run",
   "uninstall",
 ];
 
@@ -96,6 +97,8 @@ ${line(`${command()} move-files`, "move the spaces’ files to where 0.16 keeps 
 ${line(`${command()} move-folder-sources`, "once with Dateien on: the Sources plugin’s folders become mounts, taken into Wissen from there")}
 ${line(`${command()} validate`, "check wizards without the studio: .wizard files, unpacked packages, wizard JSON")}
 ${more("--json prints the issues as JSON. A space’s connectors and plugins are checked on import.")}
+${line(`${command()} run`, "run a wizard in this terminal: a folder, a .wizard file or an address")}
+${more(`answers as --<field>=…; ${command()} run --help shows every option`)}
 
 Options
   --yes, -y           don’t ask; skip everything optional
@@ -196,6 +199,12 @@ function parse(argv: string[]): Args | string {
 }
 
 async function main(argv: string[]): Promise<number> {
+  // `run` reads its own arguments: any --<field> is an answer to the wizard.
+  if (argv[0] === "run") {
+    // The wizard's path is the person's, from where they typed the command (install-env.ts).
+    process.chdir(startedIn);
+    return (await import("./run.js")).runWizardCommand(argv.slice(1), layout(), command());
+  }
   // A command another tool put in the commands folder gets every argument as typed.
   if (argv[0] && !argv[0].startsWith("-") && !COMMANDS.includes(argv[0])) {
     const file = findExternal(layout(), argv[0]);

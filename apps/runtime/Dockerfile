@@ -76,6 +76,7 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/runtime/node_modules ./apps/runtime/node_modules
 COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=prod-deps /app/packages/engine/node_modules ./packages/engine/node_modules
+COPY --from=prod-deps /app/packages/run/node_modules ./packages/run/node_modules
 # The built-in terminal (apps/runtime/src/harness/terminal.ts) needs node-pty's binary for this
 # platform: an image whose terminal cannot start a command is not built.
 RUN cd apps/runtime && node -e "require('@lydell/node-pty').spawn('/bin/sh', ['-c', 'exit 0'], {}).onExit((e) => process.exit(e.exitCode))"
@@ -85,6 +86,8 @@ COPY --from=build /app/packages/shared/package.json ./packages/shared/
 COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build /app/packages/engine/package.json ./packages/engine/
 COPY --from=build /app/packages/engine/dist ./packages/engine/dist
+COPY --from=build /app/packages/run/package.json ./packages/run/
+COPY --from=build /app/packages/run/dist ./packages/run/dist
 COPY --from=build /app/packages/wizards/package.json ./packages/wizards/
 COPY --from=build /app/packages/wizards/dist ./packages/wizards/dist
 COPY --from=build /app/apps/web/dist ./apps/web/dist

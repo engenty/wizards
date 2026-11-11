@@ -9,6 +9,9 @@
  * - everything outside the run through the run's services over HTTP (`httpServices`), with the
  *   run's token: models, tools, files, data, context, notices. Whoever spends books it there;
  *   this host books nothing;
+ * - a copy of the run for its tenant (`run.report`) as each step starts, at each person's step,
+ *   at each wait and at the end: the tenant's services build a step's context from it, and the
+ *   tenant tells people, releases credits and lists the run from it;
  * - the three host calls (`state`, `changes`, `events`, as `@engenty/wizards-engine/host-api`
  *   has them) on a loopback port, for doors in other processes (`loopback.ts`).
  *
@@ -54,6 +57,11 @@ export interface NodeHostOptions {
     id: string;
     /** The language the person reads the wizard in; null or left out: its own. */
     lang?: string | null;
+    /**
+     * The revision the run's record at its tenant holds when the host takes the run: the host's
+     * writes go on from it, so the tenant keeps each copy. Left out: the run starts at 1.
+     */
+    rev?: number;
   };
   /** The start the run came from with nobody there; left out: a person runs it. */
   start?: RunStart | null;
@@ -68,10 +76,16 @@ export interface NodeHostOptions {
   /** How often a run that waits for a person looks whether they acted; left out: 5 minutes. */
   lookAgainMs?: number;
   /**
-   * Each write of the run's state, once it is in the folder: whoever started the host can copy it
-   * to the run's tenant, whose services read the run there. Awaited before the run goes on.
+   * Each write of the run's state, once it is in the folder and before its copy goes to the
+   * tenant: whoever started the host can still use the run's token here, e.g. to fetch a result's
+   * files before the run ends. Awaited before the run goes on.
    */
   onWrite?(run: HostRun): void | Promise<void>;
+  /**
+   * Copies of the run to its tenant (`run.report`); left out: on. Off only where something else
+   * copies the run (a test that writes the record itself).
+   */
+  reports?: boolean;
 }
 
 export interface NodeHost {
@@ -117,6 +131,9 @@ const LONGEST_TIMER_MS = 2 ** 31 - 1;
 
 /** A woken run that did not move looks again after this long, not at once. */
 const LOOK_AGAIN_MS = 60_000;
+
+/** A copy the tenant did not take for a passing reason is sent this often in all. */
+const REPORT_TRIES = 3;
 
 const blank = (): FlowRun => ({
   cursor: null,
@@ -170,13 +187,56 @@ export async function nodeHost(options: NodeHostOptions): Promise<NodeHost> {
     return s;
   };
 
-  /** Writes the run whole; everyone who follows it hears of it. */
-  const write = async (s: StoredRun) => {
+  /**
+   * The run's copy at its tenant. Each copy is the whole run, so one that does not arrive is made
+   * good by the next; a passing failure is tried again, and one that stays is said on stderr.
+   */
+  const report = async (s: StoredRun, error: Said | null) => {
+    if (options.reports === false) {
+      return;
+    }
+    const copy = {
+      status: s.run.status,
+      cursor: s.run.cursor,
+      state: s.run.state,
+      wakeAt: s.run.wakeAt,
+      rev: s.rev,
+      // The record keeps at most 2000 characters of words.
+      ...(error === null
+        ? {}
+        : { error: typeof error === "string" ? error.slice(0, 2000) : error }),
+    };
+    for (let tries = 1; ; tries++) {
+      try {
+        await services.run.report(copy, abort.signal);
+        return;
+      } catch (err) {
+        const passing = err instanceof ServiceError && err.failure.class === "retry";
+        if (passing && tries < REPORT_TRIES && !closed()) {
+          await new Promise((r) => setTimeout(r, 500 * tries));
+          continue;
+        }
+        console.error(
+          `[run ${runId}] The run's copy didn't reach its organization: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return;
+      }
+    }
+  };
+
+  /**
+   * Writes the run whole; everyone who follows it hears of it. `copy`: the write moves the run
+   * (another step, another status), so its tenant gets a copy, with the failure's words if any.
+   */
+  const write = async (s: StoredRun, copy?: { error: Said | null }) => {
     stopIfClosed();
     await folder.save(s);
     const moved = s.rev !== rev;
     rev = s.rev;
     await options.onWrite?.({ ...s.run, rev: s.rev });
+    if (copy) {
+      await report(s, copy.error);
+    }
     if (moved) {
       tell({ rev, events: [] });
       firstWrite?.(rev);
@@ -292,7 +352,13 @@ export async function nodeHost(options: NodeHostOptions): Promise<NodeHost> {
         } else if (to.status !== "done") {
           delete to.state.data;
         }
-        await write({ runId, rev: held + 1, run: structuredClone(to) });
+        const moves = s.run.status !== to.status || s.run.cursor !== to.cursor;
+        await write(
+          { runId, rev: held + 1, run: structuredClone(to) },
+          moves
+            ? { error: to.status === "failed" ? (move.failed?.said ?? null) : null }
+            : undefined,
+        );
         return held + 1;
       },
     },
@@ -470,9 +536,13 @@ export async function nodeHost(options: NodeHostOptions): Promise<NodeHost> {
 
   async function state(): Promise<HostState> {
     const s = await stored();
-    // Nothing here asks the person while a step works (`ctx.ask` is null), and a failure's words
-    // are only in the log's `error` line.
-    return { run: { ...s.run, rev: s.rev }, event: folder.lastEvent, error: null, ask: null };
+    // Nothing here asks the person while a step works (`ctx.ask` is null). A failure's words are
+    // the log's last `error` line.
+    const error =
+      s.run.status === "failed"
+        ? (folder.eventsAfter(0).findLast((e) => e.type === "error")?.message ?? null)
+        : null;
+    return { run: { ...s.run, rev: s.rev }, event: folder.lastEvent, error, ask: null };
   }
 
   function watch(listener: (change: HostChange) => void) {
@@ -524,7 +594,8 @@ export async function nodeHost(options: NodeHostOptions): Promise<NodeHost> {
       enqueue(async () => {
         const s = await folder.load();
         if (!s) {
-          await write({ runId, rev: 1, run: blank() });
+          // The revision the tenant's record has: the start's move is the first one past it.
+          await write({ runId, rev: options.run.rev ?? 1, run: blank() });
           await event(null, "run_started", note("runStarted"));
           await advance(host, { kind: "start" });
           return;

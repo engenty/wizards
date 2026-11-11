@@ -1,0 +1,50 @@
+{
+  "format": "engenty-wizard",
+  "version": 1,
+  "definition": {
+    "version": 1,
+    "title": "Weather",
+    "description": "What the weather will be where you are going.",
+    "avatar": "round",
+    "requires": { "models": ["standard"] },
+    "steps": [
+      {
+        "id": "where",
+        "type": "form",
+        "title": "Where to?",
+        "fields": [
+          { "id": "place", "kind": "text", "label": "Place", "required": true },
+          {
+            "id": "day",
+            "kind": "select",
+            "label": "Day",
+            "options": ["today", "tomorrow"],
+            "default": "today"
+          }
+        ]
+      },
+      {
+        "id": "forecast",
+        "type": "agent",
+        "title": "Forecast",
+        "instructions": "Say in two sentences what the weather will be in {{place}} {{day}}.",
+        "output": { "format": "text" }
+      },
+      {
+        "id": "check",
+        "type": "review",
+        "title": "Check the forecast",
+        "show": ["forecast"],
+        "regenerate": true
+      },
+      {
+        "id": "done",
+        "type": "result",
+        "title": "Done",
+        "message": "Here is your forecast.",
+        "deliverables": [{ "from": "forecast", "label": "Forecast", "formats": ["md"] }],
+        "data": { "place": "place", "forecast": "steps.forecast" }
+      }
+    ]
+  }
+}

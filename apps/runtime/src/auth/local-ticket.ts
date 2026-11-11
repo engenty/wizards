@@ -10,9 +10,10 @@ const TTL_MS = 60_000;
 /**
  * `local-enter` lets a browser in once; `local-mcp` is what `wizards mcp` signs each
  * request to the MCP endpoint with, so that no AI client's config has to hold a key;
- * `local-debug` is what `wizards report` and `wizards logs` sign theirs with.
+ * `local-debug` is what `wizards report` and `wizards logs` sign theirs with; `local-run` is
+ * what `wizards run` starts its runs with, the one signature that may take a run elsewhere.
  */
-export type Purpose = "local-enter" | "local-mcp" | "local-debug";
+export type Purpose = "local-enter" | "local-mcp" | "local-debug" | "local-run";
 
 /** The header `wizards mcp` signs its requests with, and the one naming its client. */
 export const LOCAL_MCP_HEADER = "x-engenty-local";
