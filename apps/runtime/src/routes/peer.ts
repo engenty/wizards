@@ -1,6 +1,8 @@
 import {
+  HAND_OVER,
   type HostChange,
   type HostState,
+  handOverSchema,
   hostEventSchema,
   TENANT_HEADER,
 } from "@engenty/wizards-engine/host-api";
@@ -9,6 +11,7 @@ import type { StepOutput } from "@engenty/wizards-shared/run";
 import type { FlowEvent } from "@engenty/wizards-shared/transition";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
+import { readRunToken } from "../broker/token.js";
 import { withTenant } from "../db/client.js";
 import { eventsAfter, watchRun } from "../engine/events.js";
 import type { Actor } from "../engine/notices.js";
@@ -28,6 +31,7 @@ import {
   takeNow,
   wakeNow,
 } from "../engine/runner.js";
+import { env } from "../env.js";
 import { feature, remoteFeatures } from "../features.js";
 import { errorText } from "../model-errors.js";
 import { peerTicketValid } from "../secrets/signing.js";
@@ -276,6 +280,42 @@ export const peerRoutes = new Hono()
       return c.json({ error: "unauthorized" }, 401);
     }
     return takeNow(runId, tenant) ? c.json({ ok: true }, 202) : c.json({ error: "no runner" }, 404);
+  })
+  // The tenant's runtime placed a new run on this process (`createRun`, engine/hosts.ts). The
+  // run's token is the key: it names the tenant and the run, and the host's kind as the record
+  // has it. A process of the same runtime reads the run from the tenant's database, so the state
+  // handed over is the record's; it puts the run to work, as `kick` does where it was started.
+  .post(`/runs/:id/${HAND_OVER}`, async (c) => {
+    const runId = c.req.param("id");
+    const token = bearer(c) ?? "";
+    const read = await readRunToken(token);
+    if ("refused" in read || read.claims.run !== runId || read.claims.host !== "runtime") {
+      return feature("runHosts")
+        ? c.json({ error: "unauthorized" }, 401)
+        : c.json(notFoundAnswer(c), 404);
+    }
+    return withTenant(read.claims.tenant, async () => {
+      if (!(await runHostsOn())) {
+        return c.json(notFoundAnswer(c), 404);
+      }
+      const given = handOverSchema.safeParse(await c.req.json().catch(() => undefined));
+      if (!given.success || given.data.runId !== runId || given.data.token !== token) {
+        return c.json({ error: "Not a hand-over of this run." }, 400);
+      }
+      const run = await runStore.pick(runId, "host", "status");
+      // A run the record keeps on the tenant's own runtime was not placed anywhere.
+      if (run?.host?.kind !== "runtime") {
+        return c.json({ error: "The run is not placed on another runtime." }, 409);
+      }
+      if (!env.serves.runner) {
+        return c.json({ error: "no runner" }, 404);
+      }
+      // A run at a person's step waits for its event; one that runs goes in line here now.
+      if (run.status === "running") {
+        kick(runId);
+      }
+      return c.json({ ok: true }, 202);
+    });
   })
   .get("/runs/:id/state", (c) =>
     asHost(c, async (runId) => {

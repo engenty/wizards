@@ -19,6 +19,7 @@
  *
  * Only `fetch` and `TextDecoder`: no Node built-in, so the engine bundles for any host.
  */
+import { wizardSchema } from "@engenty/wizards-shared/definition";
 import {
   RUN_EVENT_TYPES,
   type RunEvent,
@@ -29,6 +30,7 @@ import {
 } from "@engenty/wizards-shared/run";
 import { flowFailureSchema } from "@engenty/wizards-shared/run-services";
 import type { FlowEvent, FlowRun } from "@engenty/wizards-shared/transition";
+import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { z } from "zod";
 
 /** Where a runtime serves its runs' hosts: `<url><PEER_RUNS_PATH>/<run>/<call>`. */
@@ -149,6 +151,34 @@ export interface HostEvent {
 
 /** What `POST events` answers. */
 export const hostSentSchema = z.object({ rev: z.number().int() });
+
+/** A file of the wizard's workspace, by reference: the bytes stay in the tenant's storage. */
+const workspaceFileSchema = z.object({
+  path: z.string().min(1).max(200),
+  hash: z.string().min(1).max(200),
+  mime: z.string().max(200),
+  size: z.number().int().nonnegative(),
+}) satisfies z.ZodType<WorkspaceFile>;
+
+/** Where the tenant's runtime hands a new run to its host: `<url><PEER_RUNS_PATH>/<run>/<HAND_OVER>`. */
+export const HAND_OVER = "hand-over";
+
+/**
+ * `POST hand-over`: what a host is given when the tenant's runtime places a new run on it
+ * (`createRun`). The definition, the workspace by reference (the run reads a file through its
+ * services), the run's token, which the host keeps for every call of the run, and the run as it
+ * stands after its start, with the record's revision. Unlike the three calls it carries no peer
+ * ticket: the token is its `Authorization: Bearer`, as on every call of a run, and names the
+ * tenant, the run and the host's kind. The host answers 202 once it holds the run.
+ */
+export const handOverSchema = z.object({
+  runId: z.string().min(1).max(40),
+  token: z.string().min(1).max(4000),
+  definition: wizardSchema,
+  files: z.array(workspaceFileSchema),
+  run: hostRunSchema,
+});
+export type HandOver = z.infer<typeof handOverSchema>;
 
 /** A refusal: `{ error, fields? }` as the host answered it, with its status. */
 export class HostApiError extends Error {
