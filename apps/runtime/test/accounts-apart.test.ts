@@ -437,3 +437,117 @@ describe("named calls from a process without the key", () => {
     expect(await res.text()).toBe(`auth=Bearer ${JSON.stringify({ access_token: "xoxb-7" })}`);
   });
 });
+
+describe("a share job from a process without the key", () => {
+  /** A finished run of a wizard in the team's space, with Slack connected for its holder. */
+  async function finishedRun(id: string) {
+    const wizards = await import("../src/services/wizards");
+    const store = await import("../src/store/index");
+    const definition = {
+      version: 1,
+      title: "Bericht",
+      description: "",
+      avatar: "round",
+      steps: [{ id: "done", type: "result", title: "Fertig", deliverables: [] }],
+    };
+    return client.withTenant(TENANT, async () => {
+      const row = await client.db.query.spaceConnection.findFirst({
+        where: eq(client.schema.spaceConnection.id, connection),
+      });
+      const wizard = await wizards.createWizard("local", {
+        definition: definition as never,
+        spaceId: row?.spaceId,
+      });
+      const [run] = await client.db
+        .insert(client.schema.run)
+        .values({
+          id,
+          wizardId: wizard.id,
+          tenantId: TENANT,
+          definition: definition as never,
+          files: [],
+          version: null,
+          mode: "live",
+          userId: "local",
+          status: "done",
+          cursor: "done",
+          state: { values: {}, outputs: {}, history: ["done"], notes: {} },
+        })
+        .returning();
+      await store.putSecret(store.scopeOf(run), "connection:share:slack", "slack", "Firma / bot", {
+        accessToken: "xoxb-share",
+        refreshToken: null,
+        expiresAt: null,
+        scopes: [],
+      });
+      return run;
+    });
+  }
+  const job = (id: string) =>
+    client.withTenant(TENANT, () =>
+      client.db.query.shareJob.findFirst({ where: eq(client.schema.shareJob.id, id) }),
+    );
+  const posted = () =>
+    readFileSync(join(DIR, "posts"), "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as { channel: string; text: string; token: string });
+
+  it("is done by the broker, and the run's watch sees it", { timeout: 30_000 }, async () => {
+    const { startShare } = await import("../src/sharing/jobs");
+    const { workingJob } = await import("../src/sharing/state");
+    const { runStore } = await import("../src/engine/run-store");
+    const run = await finishedRun("run-share");
+    const started = await client.withTenant(TENANT, () =>
+      startShare(
+        run,
+        { target: "slack", items: [], values: { channel: "C0SHARE", message: "Ergebnis" }, lang: "de" },
+        { member: true },
+      ),
+    );
+    // Nothing of it works in this process.
+    expect(workingJob(run.id)).toBeNull();
+    expect(await until(async () => (await job(started.id))?.status !== "running", 15_000)).toBe(true);
+    const row = await job(started.id);
+    expect(row, brokerSaid()).toMatchObject({ status: "done" });
+    expect(row?.events.map((e) => e.message)).toEqual([
+      expect.stringContaining("Firma / bot"),
+    ]);
+    expect(posted().at(-1)).toMatchObject({ channel: "C0SHARE", text: "Ergebnis", token: "xoxb-share" });
+    const change = await client.withTenant(TENANT, () => runStore.lastChange(run.id));
+    expect(change?.job).toBe(row?.updatedAt.getTime());
+  });
+
+  it("stops at the broker when it is cancelled here", { timeout: 30_000 }, async () => {
+    const { cancelShare, startShare } = await import("../src/sharing/jobs");
+    const { runningJob } = await import("../src/sharing/state");
+    const run = await finishedRun("run-share-slow");
+    const share = () =>
+      client.withTenant(TENANT, () =>
+        startShare(
+          run,
+          { target: "slack", items: [], values: { channel: "C0SLOW", message: "Langsam" }, lang: "de" },
+          { member: true },
+        ),
+      );
+    const started = await share();
+    // The broker works on it: the job stays on its way here, and a second one waits for it.
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(await client.withTenant(TENANT, () => runningJob(run.id))).toMatchObject({
+      id: started.id,
+    });
+    await expect(share()).rejects.toThrow();
+    expect(await client.withTenant(TENANT, () => cancelShare(run.id, started.id))).toBe(true);
+    // The broker still waits for the post: a job handed now fails as busy, nothing is dropped.
+    const next = await share();
+    expect(await until(async () => (await job(next.id))?.status !== "running", 5000)).toBe(true);
+    expect(await job(next.id)).toMatchObject({ status: "failed", error: "Es wird gerade schon etwas gesendet." });
+    // The post that was on its way ends at Slack, but the job stays cancelled.
+    expect(
+      await until(() => posted().some((p) => p.text === "Langsam"), 10_000),
+      brokerSaid(),
+    ).toBe(true);
+    await new Promise((r) => setTimeout(r, 500));
+    expect((await job(started.id))?.status).toBe("cancelled");
+  });
+});

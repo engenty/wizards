@@ -36,6 +36,8 @@ import type { NamedCall } from "./named.js";
  */
 
 export const BROKER_CALL_PATH = "/api/broker/v1/call";
+/** Where a share job goes that a process without the key stood up (sharing/jobs.ts). */
+export const BROKER_SHARE_PATH = "/api/broker/v1/share";
 
 /** Which connection, as the broker finds it again: a connection of the space by its id. */
 export type RemoteConnection =
@@ -149,13 +151,21 @@ export async function remoteBrokerCall<T>(call: BrokerCallInput<T>): Promise<Bro
 }
 
 /** One round to the broker at `BROKER_URL`, in this tenant. */
-async function post(call: RemoteCall): Promise<RemoteAnswer> {
+function post(call: RemoteCall): Promise<RemoteAnswer> {
+  return brokerPost(BROKER_CALL_PATH, call);
+}
+
+/**
+ * Sends the broker at `BROKER_URL` what this process hands it, in the current tenant, with a
+ * ticket for the tenant and the body (routes/broker-calls.ts).
+ */
+export async function brokerPost<T>(path: string, data: unknown): Promise<T> {
   if (!env.brokerUrl) {
     throw new Error("BROKER_URL is not set: this process opens no connected account.");
   }
   const tenant = currentTenant();
-  const body = JSON.stringify(call);
-  const res = await fetch(`${env.brokerUrl}${BROKER_CALL_PATH}`, {
+  const body = JSON.stringify(data);
+  const res = await fetch(`${env.brokerUrl}${path}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -167,7 +177,7 @@ async function post(call: RemoteCall): Promise<RemoteAnswer> {
   if (!res.ok) {
     throw new Error(`The broker answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
   }
-  return (await res.json()) as RemoteAnswer;
+  return (await res.json()) as T;
 }
 
 /** Whether an account is there for `who`, and whose, as the broker reads it. */

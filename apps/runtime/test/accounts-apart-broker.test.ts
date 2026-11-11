@@ -53,6 +53,10 @@ vi.mock("../src/engenty/connections-slack/connector", async (importOriginal) => 
                 input: { channel: string; text: string },
                 ctx: { accessToken: string },
               ) => {
+                // A post that takes its time, so a share can be cancelled on its way.
+                if (input.channel === "C0SLOW") {
+                  await new Promise((r) => setTimeout(r, 3000));
+                }
                 appendFileSync(
                   join(DIR, "posts"),
                   `${JSON.stringify({ ...input, token: ctx.accessToken })}\n`,

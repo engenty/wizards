@@ -86,7 +86,8 @@ const WATCH_HOT_FOR_MS = 15_000;
 
 /**
  * Tells of every change on a run: at once when this process made it, within a second when the
- * runner (another process) wrote to the row, added an event or put a call to the run's device.
+ * runner (another process) wrote to the row, added an event or put a call to the run's device, or
+ * the broker worked on one of its share jobs.
  * Each event row reaches the listener once, whichever process wrote it. Call it in the run's
  * tenant.
  */
@@ -133,7 +134,7 @@ export function watchRun(runId: string, listener: (signal: RunSignal) => void): 
         }
       }
       changedAt = Math.max(changedAt, row?.updatedAt.getTime() ?? 0);
-      const mark = row ? `${row.updatedAt.getTime()}:${row.call ?? 0}` : null;
+      const mark = row ? `${row.updatedAt.getTime()}:${row.call ?? 0}:${row.job ?? 0}` : null;
       if (last !== null && mark !== last) {
         listener({ runId, event: null });
       }

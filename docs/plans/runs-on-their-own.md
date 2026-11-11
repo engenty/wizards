@@ -75,8 +75,8 @@ full: what was decided on the way, what is open, which tests passed on which tip
 | fix | merged #664 | A woken run says so once (the runtime host); node and edge hosts need the same rule |
 | 7.1 | step 1 merged #671 | Connected accounts sealed with a public key, opened with `ACCOUNTS_KEY` on the broker; `wizards reseal-accounts`; step 2 (own model keys and the rest) open |
 | 7.5a | merged #673 | A process without the key hands `brokerCall` to the broker (`BROKER_URL`, `/api/broker/v1/call`); asks come back to the caller |
-| 7.5b | in a pull request | Named calls (`broker/named.ts`): tools of an MCP server, a mailbox's stream, mail as the account, a plugin's request, a share's upload; `brokerConnected` |
-| 7.5c | open | The connector share target's agent: its tools still run code with the account |
+| 7.5b | merged #674 | Named calls (`broker/named.ts`): tools of an MCP server, a mailbox's stream, mail as the account, a plugin's request, a share's upload; `brokerConnected` |
+| 7.5c | in a pull request | Share jobs of a process without the key go to the broker (`/api/broker/v1/share`); the job's row is what both processes know of it |
 | 7.2a | merged #661 | `apps/documents`: reading documents as a service of its own; `DOCUMENTS_URL` |
 | 7.2b, 7.2c | open | Render (Chromium) and media (ffmpeg) as services of their own |
 | 7.3 | merged #667 | A minimal install 536 → 394 MB: the document readers and the OpenAPI importer on demand; installers and install docs state the sizes. Then the PDF reader back in every install (Matthias, 11 November): 426 MB |
@@ -133,11 +133,17 @@ process without the private key never opens an account, so it can't run a call i
   and sends it; the plugin gets a `Response` back) and `upload` (a share into cloud storage).
   Bytes travel as base64. `brokerConnected` asks the broker too. A share's upload
   names each file it uploads before the upload starts, no longer one by one as it goes.
-- **7.5c, left:** the connector share target hands a result to an agent whose tools
-  (`tools/connector.ts`) run code with the account: a line in the run's log, files put into the
-  input. In a run that code runs in the broker; a share job runs in the studio's process, where
-  a process without the key refuses those calls. Moving share jobs to the broker, or naming that
-  code, closes it.
+- **7.5c, share jobs at the broker** (Matthias, 11 November 2026: move them, nothing changes for
+  the person). The connector share target hands a result to an agent whose tools
+  (`tools/connector.ts`) run code with the account. A process without the key now stands the job
+  up as before (the checks, the form's errors, the row) and hands it to the broker
+  (`POST /api/broker/v1/share`, the same ticket as a call), which does it as its own
+  (`workShare`). The job's row is what both know of it: the broker touches it while it works and
+  looks at it every second, so a cancel in the studio stops the work there; the studio takes a
+  running job whose row nobody touched for 20 seconds as interrupted. The run's watch sees a
+  job's row change (`lastChange`), so the result page follows the broker's lines. A job handed
+  while the broker still finishes a cancelled one's call fails as busy. A broker that does not
+  answer fails the job at once. A process with the key works on its jobs itself, as before.
 
 ## In short
 

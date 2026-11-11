@@ -15,6 +15,7 @@ import {
   whereOfRun,
   whoOf,
 } from "../broker/index.js";
+import { BROKER_SHARE_PATH, brokerPost } from "../broker/remote.js";
 import { askPerson } from "../engine/asks.js";
 import { signalChanged } from "../engine/events.js";
 import { releaseResources } from "../engine/resources.js";
@@ -22,6 +23,7 @@ import { inProcessContext, loadSpace, spaceIdOf } from "../engine/runner.js";
 import type { RunRow } from "../engine/types.js";
 import { env } from "../env.js";
 import { errorText } from "../model-errors.js";
+import { opensAccounts } from "../secrets/accounts.js";
 import { ServiceError } from "../services/errors.js";
 import { shareRun } from "../services/shares.js";
 import { holderOf, scopeOf } from "../store/index.js";
@@ -33,9 +35,14 @@ import {
   addJobEvent,
   createJob,
   finishJob,
+  JOB_LOOK_MS,
+  JOB_TOUCH_MS,
   jobCount,
+  jobRow,
+  runningJob,
   sentCount,
   setWorking,
+  touchJob,
   workingJob,
 } from "./state.js";
 import { parseRecipients } from "./targets/email.js";
@@ -172,7 +179,8 @@ async function entryOf(run: RunRow, spaceId: string, key: string, member: boolea
 
 /**
  * Sends a finished result to one target. Answers as soon as the job stands; the work goes on in
- * the background and shows in the run's view. One job per run at a time.
+ * the background and shows in the run's view. One job per run at a time. A process that opens no
+ * connected account hands the work to the broker, which does it as it would its own (`workShare`).
  */
 export async function startShare(
   run: RunRow,
@@ -182,7 +190,8 @@ export async function startShare(
   if (run.status !== "done") {
     throw new ServiceError("refused", { server: "shareOnlyDone" });
   }
-  if (workingJob(run.id)) {
+  // A job that was cancelled while its last call was on its way still holds the run here.
+  if (workingJob(run.id) || (await runningJob(run.id))) {
     throw new ServiceError("refused", { server: "shareBusy" });
   }
   // A run of someone without an account sends a limited number of times: it is no mail relay.
@@ -237,26 +246,98 @@ export async function startShare(
     icon: target.icon,
     request: { target: request.target, items, values, lang },
   });
+  if (opensAccounts()) {
+    await workShare(run, job.id, who.member);
+  } else {
+    await handShare(run.id, job.id, who.member).catch((err) =>
+      finishJob(run.id, job.id, {
+        status: "failed",
+        error: `${serverText(lang, "shareFailed")}: ${String((err as Error)?.message ?? err).slice(0, 240)}`,
+      }),
+    );
+  }
+  return job;
+}
+
+/** What a process without the accounts' key sends the broker for a job it stood up. */
+export interface HandedShare {
+  runId: string;
+  jobId: string;
+  member: boolean;
+}
+
+/** Hands the job to the broker; it answers once the work has begun there. */
+async function handShare(runId: string, jobId: string, member: boolean) {
+  await brokerPost(BROKER_SHARE_PATH, { runId, jobId, member } satisfies HandedShare);
+}
+
+/**
+ * Does a job that stands as a row: in the process that stood it up, or in the broker that
+ * process handed it to. Answers once the work has begun. The work looks at the job's row while it
+ * goes on: a job cancelled in another process stops here, and the touched row tells the others
+ * that someone works on it.
+ */
+export async function workShare(run: RunRow, jobId: string, member: boolean): Promise<void> {
+  const row = await jobRow(jobId);
+  if (row?.status !== "running") {
+    return;
+  }
+  const request = row.request;
+  const lang = request.lang ?? "en";
+  const busy = workingJob(run.id);
+  if (busy) {
+    if (busy.jobId !== jobId) {
+      await finishJob(run.id, jobId, { status: "failed", error: serverText(lang, "shareBusy") });
+    }
+    return;
+  }
+  const spaceId = await spaceIdOf(run);
   const abort = new AbortController();
-  setWorking(run.id, { jobId: job.id, abort });
+  setWorking(run.id, { jobId, abort });
+  let entry: OfferedTarget;
+  try {
+    entry = await entryOf(run, spaceId, request.target, member);
+  } catch (err) {
+    setWorking(run.id, null);
+    await finishJob(run.id, jobId, { status: "failed", error: errorText(err, lang) });
+    return;
+  }
+  const { target } = entry;
   const ctx = contextOf(
     run,
     spaceId,
     entry,
-    { member: who.member, lang },
-    { id: job.id, signal: abort.signal, sentBefore: await sentCount(run.id, target.id) },
+    { member, lang },
+    { id: jobId, signal: abort.signal, sentBefore: await sentCount(run.id, target.id) },
   );
+  let looks = 0;
+  const watch = setInterval(() => {
+    looks += 1;
+    const going =
+      looks % (JOB_TOUCH_MS / JOB_LOOK_MS) === 0
+        ? touchJob(jobId)
+        : jobRow(jobId).then((now) => now?.status === "running");
+    void going.then(
+      (still) => {
+        if (!still) {
+          abort.abort();
+        }
+      },
+      () => undefined,
+    );
+  }, JOB_LOOK_MS);
+  watch.unref();
 
   void (async () => {
     try {
-      if (items.length) {
+      if (request.items.length) {
         await ctx.emit({ server: "sharePreparing" });
       }
-      const files = await shareFiles(run, items);
-      const outcome = await target.send({ values, files }, ctx);
+      const files = await shareFiles(run, request.items);
+      const outcome = await target.send({ values: request.values, files }, ctx);
       await finishJob(
         run.id,
-        job.id,
+        jobId,
         abort.signal.aborted
           ? { status: "cancelled" }
           : {
@@ -270,7 +351,7 @@ export async function startShare(
       }
       await finishJob(
         run.id,
-        job.id,
+        jobId,
         abort.signal.aborted
           ? { status: "cancelled" }
           : {
@@ -282,23 +363,25 @@ export async function startShare(
             },
       ).catch(() => undefined);
     } finally {
+      clearInterval(watch);
       setWorking(run.id, null);
       await releaseResources(run.id).catch(() => undefined);
       signalChanged(run.id);
     }
   })();
-
-  return job;
 }
 
-/** Stops the job a run is working on; what it already sent stays sent. */
+/**
+ * Stops the job a run is working on; what it already sent stays sent. The row says so: the
+ * process at work on it, here or the broker, stops when it next looks.
+ */
 export async function cancelShare(runId: string, jobId?: string): Promise<boolean> {
-  const job = workingJob(runId);
-  if (!job || (jobId && job.jobId !== jobId)) {
+  const job = await runningJob(runId);
+  if (!job || (jobId && job.id !== jobId)) {
     return false;
   }
-  job.abort.abort();
-  await finishJob(runId, job.jobId, { status: "cancelled" });
+  workingJob(runId)?.abort.abort();
+  await finishJob(runId, job.id, { status: "cancelled" });
   return true;
 }
 

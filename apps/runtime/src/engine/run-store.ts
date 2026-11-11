@@ -99,6 +99,10 @@ export const runStore = {
         call: sql<
           number | null
         >`(select max(${schema.deviceCall.id}) from ${schema.deviceCall} where ${schema.deviceCall.runId} = ${runId})`,
+        // A share job the broker works on changes its own row, not the run's.
+        job: sql<
+          number | null
+        >`(select max(${schema.shareJob.updatedAt}) from ${schema.shareJob} where ${schema.shareJob.runId} = ${runId})`,
       })
       .from(schema.run)
       .where(eq(schema.run.id, runId));
