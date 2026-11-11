@@ -24,6 +24,8 @@ import {
   isServiceStep,
   listRowsRequestSchema,
   noticeSchema,
+  type RunReportAnswer,
+  runReportSchema,
   ServiceError,
   type ServiceErrorBody,
   type StepToolsAnswer,
@@ -47,7 +49,7 @@ import { withCaller } from "../broker/caller.js";
 import { readRunToken } from "../broker/token.js";
 import { withTenant } from "../db/client.js";
 import { classifyFailure } from "../engine/failures.js";
-import { contextAt, failureContext, loadRun } from "../engine/runner.js";
+import { contextAt, failureContext, keepReport, loadRun } from "../engine/runner.js";
 import type { RunRow } from "../engine/types.js";
 import { SignInNeeded } from "../engine/types.js";
 import { NotedError } from "../model-errors.js";
@@ -56,6 +58,7 @@ import type { AgentModel, InProcessServices } from "../run-services/index.js";
 import { runServicesOn } from "../tools/acted.js";
 import { holderWho } from "../tools/plugin.js";
 import { notFoundAnswer } from "./lang.js";
+import { runHostsOn } from "./peer.js";
 
 /*
  * The run's services over HTTP (docs/plans/runs-on-their-own.md, "The run's services"), for a
@@ -68,6 +71,9 @@ import { notFoundAnswer } from "./lang.js";
  * writes it; a failure after the first part is a last line `{"error":{failure,message}}`.
  * `files/read` and `files/workspace` answer the bytes (`files/read` with the file's `AssetRef` in
  * `x-asset-ref`), every other call JSON. A failure answers a `ServiceErrorBody`.
+ *
+ * Beside the services, `run/report` takes a host's copy of the run it works on: as each step
+ * starts, at each person's step and at the end, written to the run's record here.
  *
  * An agent step's calls (the engine's `StepServices` beyond `RunServices`) name the step, never
  * carry it: `tools/forStep`, `tools/stepCall` and `models/agentTurn` name the step, its turn and
@@ -501,6 +507,31 @@ const stepIdOf = (input: unknown): string | null => {
  */
 const off = (c: Context) => c.json(notFoundAnswer(c), 404);
 
+/** What a refused token says. */
+const tokenRefused = (read: { refused: string } | null) =>
+  read
+    ? refused(`The run's token opens nothing (${read.refused}).`, 401)
+    : refused("The run's token is missing.", 401);
+
+/** The request's body, checked: its data, or the 400 that says what is wrong. */
+async function checked<S extends z.ZodType>(
+  c: Context,
+  schema: S,
+): Promise<{ data: z.infer<S> } | { refusal: Response }> {
+  const raw = await c.req.json().catch(() => undefined);
+  const parsed = schema.safeParse(raw ?? {});
+  if (parsed.success) {
+    return { data: parsed.data };
+  }
+  const issue = parsed.error.issues[0];
+  return {
+    refusal: refused(
+      `The request is not valid: ${issue?.path.join(".") || "body"}: ${issue?.message ?? ""}`,
+      400,
+    ),
+  };
+}
+
 export const runServiceRoutes = new Hono()
   .use(
     "*",
@@ -509,6 +540,47 @@ export const runServiceRoutes = new Hono()
       onError: () => refused("The request is too large.", 413),
     }),
   )
+  /*
+   * A host's copy of its run (`run/report`), written to the record at the run's tenant
+   * (`keepReport`). No service of `CALLS`: it builds no context and names no step. The end report
+   * makes the run over, and a run that is over opens nothing with its token; that report is taken
+   * since the record is not over yet when it comes. One that comes again (the answer to the first
+   * was lost) is read with `over` (`readRunToken`): the token is checked as ever, and the answer
+   * says the run is over and that nothing was kept.
+   */
+  .post("/run/report", async (c) => {
+    const token = tokenOf(c);
+    const read = token ? await readRunToken(token, { over: true }) : null;
+    if (!(read && "claims" in read)) {
+      if (!(await runServicesOn())) {
+        return off(c);
+      }
+      return tokenRefused(read);
+    }
+    const { claims } = read;
+    return withTenant(claims.tenant, async () => {
+      if (!((await runServicesOn()) && (await runHostsOn()))) {
+        return off(c);
+      }
+      const body = await checked(c, runReportSchema);
+      if ("refusal" in body) {
+        return body.refusal;
+      }
+      try {
+        const kept = await keepReport(claims.run, body.data);
+        if (kept === "no_run") {
+          return tokenRefused({ refused: kept });
+        }
+        if (kept === "here") {
+          return refused("This runtime works on the run itself: it takes no copy of it.", 409);
+        }
+        return json(kept satisfies RunReportAnswer);
+      } catch (err) {
+        const { failure, message, status } = failureOf(err);
+        return failed(failure, message, status);
+      }
+    });
+  })
   .post("/:service/:call", async (c) => {
     const handler = CALLS[c.req.param("service")]?.[c.req.param("call")];
     const token = tokenOf(c);
@@ -520,9 +592,7 @@ export const runServiceRoutes = new Hono()
       if (!handler) {
         return refused("No such call.", 404);
       }
-      return read && "refused" in read
-        ? refused(`The run's token opens nothing (${read.refused}).`, 401)
-        : refused("The run's token is missing.", 401);
+      return tokenRefused(read && "refused" in read ? read : null);
     }
     const { claims } = read;
     const signal = c.req.raw.signal;
@@ -530,14 +600,9 @@ export const runServiceRoutes = new Hono()
       if (!(await runServicesOn())) {
         return off(c);
       }
-      const raw = await c.req.json().catch(() => undefined);
-      const parsed = handler.request.safeParse(raw ?? {});
-      if (!parsed.success) {
-        const issue = parsed.error.issues[0];
-        return refused(
-          `The request is not valid: ${issue?.path.join(".") || "body"}: ${issue?.message ?? ""}`,
-          400,
-        );
+      const parsed = await checked(c, handler.request);
+      if ("refusal" in parsed) {
+        return parsed.refusal;
       }
       const run = await loadRun(claims.run);
       if (!run) {

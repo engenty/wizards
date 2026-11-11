@@ -15,12 +15,14 @@ export type DeviceOfferRow = RunRow["deviceOffer"];
 
 /**
  * What a write holds on besides the run's id. `claim`: the drive's claim, inside its drive. `rev`:
- * the revision a person's write read. `status`: the status a wait's write came from.
+ * the revision a person's write read. `status`: the status a wait's write came from. `below`: a
+ * revision the run's must be lower than, for a host's copy of a run that works elsewhere.
  */
 export interface RunGuard {
   claim?: number;
   rev?: number;
   status?: RunStatus;
+  below?: number;
 }
 
 /** Statements that go into one batch with a write, built on the write's condition. */
@@ -41,6 +43,7 @@ export const runStore = {
       guard.claim === undefined ? undefined : eq(schema.run.claim, guard.claim),
       guard.rev === undefined ? undefined : eq(schema.run.rev, guard.rev),
       guard.status === undefined ? undefined : eq(schema.run.status, guard.status),
+      guard.below === undefined ? undefined : lt(schema.run.rev, guard.below),
     ) as SQL;
   },
 
@@ -152,7 +155,8 @@ export const runStore = {
   },
 
   /**
-   * Moves the run: the patch, a new `rev` and `updatedAt`, held on `guard`. `alongside` goes in
+   * Moves the run: the patch, a new `rev` and `updatedAt`, held on `guard`. The new `rev` is the
+   * next one, or the patch's: a host's copy carries the host's revision. `alongside` goes in
    * before it, in one batch, on the same condition. The rows the write changed.
    */
   async move(
@@ -168,7 +172,7 @@ export const runStore = {
         ...patch,
         // A run that rests has no drive to break off, whatever becomes of this process now.
         ...(patch.status && patch.status !== "running" ? { driving: false } : {}),
-        rev: sql`${schema.run.rev} + 1`,
+        rev: patch.rev ?? sql`${schema.run.rev} + 1`,
         updatedAt: new Date(),
       })
       .where(where);
