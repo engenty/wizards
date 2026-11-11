@@ -32,7 +32,14 @@ import {
   wizardLang,
 } from "@engenty/wizards-shared/definition";
 import { agentsMismatch, requiresOf, withRequires } from "@engenty/wizards-shared/requires";
-import type { AskInput, RunNote, RunStatus, Said, StepOutput } from "@engenty/wizards-shared/run";
+import type {
+  AskInput,
+  RunHostRef,
+  RunNote,
+  RunStatus,
+  Said,
+  StepOutput,
+} from "@engenty/wizards-shared/run";
 import { note, type RunState, type RunView, saidText } from "@engenty/wizards-shared/run";
 import {
   formatsOf,
@@ -63,6 +70,7 @@ import { currentImpersonator } from "../auth/impersonation.js";
 import { effectsOn } from "../broker/effect.js";
 import { grantNote, grantOf, type KnownConnector, kindOf } from "../broker/index.js";
 import { runHolder, subjectsOf } from "../broker/rwx.js";
+import { tokenOf } from "../broker/token.js";
 import { resolveConnector } from "../connectors/external.js";
 import { connectionViews } from "../connectors/index.js";
 import { addLocalCost, releaseRun, reserveForRun } from "../credits/credits.js";
@@ -121,6 +129,7 @@ import { editedJson } from "./edits.js";
 import { emitEvent, recentEvents, signalChanged } from "./events.js";
 import { classifyFailure } from "./failures.js";
 import { runtimeHost } from "./host.js";
+import { handOver, hostFor } from "./hosts.js";
 import {
   type Actor,
   type NoticeKind,
@@ -561,6 +570,8 @@ export async function createRun(input: {
   if (blocked) {
     throw new ModelUnavailableError(blocked);
   }
+  // Where the run lives: another host that can run the wizard, else this runtime (null).
+  const host = await hostFor(input.definition);
   // The run's expected cost is held before it starts; what it really costs is booked per call.
   const estimate = await estimateRun(
     input.wizardId,
@@ -659,6 +670,10 @@ export async function createRun(input: {
     await releaseRun(id);
     throw new OccurrenceTaken();
   }
+  if (host) {
+    // Before anything else reads the run: its token names the host's kind.
+    await runStore.setHost(id, host);
+  }
   if (await durableRunsOn()) {
     const name = input.userId ? await nameOf(input.userId) : null;
     await emitEvent(
@@ -686,10 +701,47 @@ export async function createRun(input: {
     await waitsForAnswer(id, first, deadline.wakeAt);
   }
   reportRun(id, waits ? "waiting_input" : "running");
+  // A run its host took is driven there.
+  if (host && (await placeRun(id, host))) {
+    return id;
+  }
   if (!waits) {
     kick(id);
   }
   return id;
+}
+
+/**
+ * Hands a new run to the host `hostFor` picked: the token is signed from the record, which names
+ * the host. A host that does not take it leaves the run here, before any step ran: it fits here
+ * too, since this runtime runs every wizard.
+ */
+async function placeRun(id: string, host: RunHostRef): Promise<boolean> {
+  const run = await runStore.get(id);
+  const token = run && (await tokenOf(run));
+  try {
+    if (!run || !token) {
+      throw new Error("The run has no token.");
+    }
+    await handOver(host, {
+      runId: id,
+      token,
+      definition: run.definition,
+      files: run.files,
+      run: {
+        cursor: run.cursor,
+        status: run.status,
+        state: run.state,
+        wakeAt: run.wakeAt?.getTime() ?? null,
+        rev: run.rev,
+      },
+    });
+    return true;
+  } catch (err) {
+    console.warn(`[run ${id}] stays here: ${err instanceof Error ? err.message : String(err)}`);
+    await runStore.setHost(id, null);
+    return false;
+  }
 }
 
 /**

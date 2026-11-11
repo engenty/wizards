@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
+import { z } from "zod";
 import {
   type AheadForm,
   type CardOption,
@@ -103,6 +104,15 @@ export interface RunHostRef {
   kind: RunHostKind;
   url: string;
 }
+
+/** A host as a runtime's settings list it (`RUN_HOSTS`): the address without a trailing slash. */
+export const runHostRefSchema = z.object({
+  kind: z.enum(RUN_HOST_KINDS),
+  url: z
+    .string()
+    .regex(/^https?:\/\/[^/\s]+(\/\S*)?$/)
+    .transform((url) => url.replace(/\/+$/, "")),
+});
 
 /**
  * The run sleeps while a service works on the step it stands at: whoever looks sees the step at

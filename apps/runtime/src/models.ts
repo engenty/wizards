@@ -15,6 +15,7 @@ import {
   TEXT_CLASSES,
   type TextClass,
 } from "@engenty/wizards-shared/definition";
+import type { ModelWay } from "@engenty/wizards-shared/fit";
 import {
   blockingNeeds,
   CAPABILITY_CLASSES,
@@ -2020,6 +2021,30 @@ export interface ClassWay {
   by: string | null;
   ref: string;
   problem: Said | null;
+}
+
+/**
+ * How each class reaches its model here, for placing a run on a host (`hostFit`): read from the
+ * settings alone, without asking a provider. A class with no way of its own goes to the credits;
+ * where there are none, the start refuses it before a host is picked.
+ */
+export async function modelWays(
+  classes: Iterable<ModelClass>,
+): Promise<Partial<Record<ModelClass, ModelWay>>> {
+  const cfg = await config();
+  const ways: Partial<Record<ModelClass, ModelWay>> = {};
+  for (const cls of classes) {
+    const ref = ownRef(cfg, cls);
+    const { provider, vendor } = parse(ref);
+    ways[cls] = !ref
+      ? "credits"
+      : provider === null && isHarnessVendor(vendor)
+        ? "client"
+        : provider === "apple" || provider === "ollama"
+          ? provider
+          : "key";
+  }
+  return ways;
 }
 
 export async function classWays(): Promise<Record<ModelClass, ClassWay>> {

@@ -9,6 +9,7 @@ import {
   listRef,
   type ModelClass,
   pluginToolOf,
+  type Requires,
   ruleMatches,
   type Step,
   type ToolId,
@@ -16,7 +17,7 @@ import {
   type WizardDefinition,
   whenNames,
 } from "./definition.js";
-import type { ClosedChoice } from "./run.js";
+import type { ClosedChoice, RunHostKind } from "./run.js";
 import { wizardCodeOf } from "./wizard-code.js";
 
 /**
@@ -409,6 +410,76 @@ export function standaloneEntry(def: WizardDefinition): StandaloneFit {
     needs: [...needs].sort(),
     without: [...without],
   };
+}
+
+// --- which host can run a wizard -------------------------------------------------------------
+
+/**
+ * How a model class reaches its model where the run starts: the credits through the
+ * model-gateway, an own API key, Ollama, Apple Intelligence on the Mac, an installed AI client
+ * (Codex, Claude Code, …). The tenant's runtime knows it per class from its settings.
+ */
+export const MODEL_WAYS = ["credits", "key", "ollama", "apple", "client"] as const;
+export type ModelWay = (typeof MODEL_WAYS)[number];
+
+/**
+ * What a host offers a run beyond the engine (code steps in QuickJS included) and the run's
+ * services over HTTP. The services stand for the rest on every host: tools, the browser, the
+ * sandbox, files, the data, and the steps a service does whole (media, widgets, films). So the
+ * ways it reaches a model are what tells hosts apart.
+ */
+export interface HostOffers {
+  ways: readonly ModelWay[];
+}
+
+/**
+ * What each kind of host offers (docs/plans/runs-on-their-own.md, "Where a run can live"). The
+ * runtime: everything, and it is the only one with an installed client or Apple on the device.
+ * `wizards run`: models by fetch only, the gateway through the broker, an own key, Ollama. An
+ * object at the edge: models by fetch only and nothing of a machine, so no local model.
+ */
+export const HOST_OFFERS: Record<RunHostKind, HostOffers> = {
+  runtime: { ways: MODEL_WAYS },
+  node: { ways: ["credits", "key", "ollama"] },
+  edge: { ways: ["credits", "key"] },
+};
+
+/** A class the host cannot reach the way the tenant runs it; `way` null: no way is known. */
+export interface HostGap {
+  cls: ModelClass;
+  way: ModelWay | null;
+}
+
+export type HostFit = { fits: true } | { fits: false; missing: HostGap[] };
+
+/**
+ * Every class a run of the wizard may call, the optional ones too: a run never falls back to
+ * another host in the middle, so a branch some runs take must run where the run lives.
+ */
+export function requiredClasses(requires: Requires): Set<ModelClass> {
+  return new Set<ModelClass>([
+    ...(requires.models ?? []),
+    ...(requires.optional?.models ?? []),
+    ...Object.values(requires.agents ?? {}).flatMap((agent) => agent.models),
+  ]);
+}
+
+/**
+ * Whether a host can run a wizard, from what it requires and how the tenant reaches each class
+ * (`ways`). A class without a way is missing: the start refuses it anyway, and no host is picked
+ * for what nobody can serve.
+ */
+export function hostFit(
+  requires: Requires,
+  host: RunHostKind | HostOffers,
+  ways: Partial<Record<ModelClass, ModelWay>>,
+): HostFit {
+  const offers = typeof host === "string" ? HOST_OFFERS[host] : host;
+  const missing = [...requiredClasses(requires)].flatMap((cls): HostGap[] => {
+    const way = ways[cls] ?? null;
+    return way && offers.ways.includes(way) ? [] : [{ cls, way }];
+  });
+  return missing.length ? { fits: false, missing } : { fits: true };
 }
 
 // --- the steps every run passes through ------------------------------------------------------

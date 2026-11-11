@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { join, resolve } from "node:path";
+import { type RunHostRef, runHostRefSchema } from "@engenty/wizards-shared/run";
 import { DATA_LIMITS } from "@engenty/wizards-shared/wizard-data";
 import { findChrome } from "./render/browser-path.js";
 import { enginesDir } from "./sandbox/install.js";
@@ -45,6 +46,23 @@ const minutesByName = (key: string): Record<string, number> =>
       .map(([name, value]) => [name?.trim(), Number(value)] as const)
       .filter(([name, value]) => name && Number.isFinite(value) && value > 0),
   );
+
+/** `RUN_HOSTS`: a JSON list of hosts (`[{"kind":"node","url":"http://…"}]`); one that doesn't read is left out. */
+function runHosts(): RunHostRef[] {
+  let given: unknown = [];
+  try {
+    given = JSON.parse(str("RUN_HOSTS", "[]"));
+  } catch {
+    console.warn("[env] RUN_HOSTS is not JSON: no other host takes runs.");
+  }
+  return (Array.isArray(given) ? given : []).flatMap((host) => {
+    const read = runHostRefSchema.safeParse(host);
+    if (!read.success) {
+      console.warn(`[env] RUN_HOSTS: left out ${JSON.stringify(host)}.`);
+    }
+    return read.success ? [read.data] : [];
+  });
+}
 
 const dataDir = resolve(str("DATA_DIR", "data"));
 
@@ -143,6 +161,11 @@ export const env = {
       ...minutesByName("RUNNER_STEP_DEADLINES"),
     } as Record<string, number>,
   },
+  /**
+   * The hosts besides this runtime a new run may be placed on, in order: the first that can run
+   * the wizard takes it (`hostFor`, engine/hosts.ts). Empty: every run lives here.
+   */
+  runHosts: runHosts(),
   appUrl,
   /**
    * `1`: a process whose own health check (`process`, health.ts) is down three times in a row,
