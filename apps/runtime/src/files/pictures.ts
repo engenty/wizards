@@ -1,8 +1,5 @@
 // Pictures for the embedding model: an image as a JPEG it looks at, a PDF as pictures of its
-// pages. @napi-rs/canvas has prebuilt binaries, so nothing is compiled; pdf-parse, which draws
-// with it, is loaded on demand.
-
-import { onDemand } from "../on-demand.js";
+// pages. @napi-rs/canvas comes with pdf-parse and has prebuilt binaries, so nothing is compiled.
 
 /** The side EmbeddingGemma sees a picture at; larger only costs time. */
 export const EMBED_SIDE = 768;
@@ -29,7 +26,7 @@ export async function jpegOf(bytes: Buffer | Uint8Array, side = EMBED_SIDE): Pro
 export async function pdfPages(
   bytes: Buffer | Uint8Array,
 ): Promise<{ page: number; jpeg: Buffer }[]> {
-  const { PDFParse } = await onDemand<typeof import("pdf-parse")>("pdf-parse");
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: new Uint8Array(bytes) });
   try {
     const shots = await parser.getScreenshot({

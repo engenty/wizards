@@ -1,5 +1,5 @@
 /**
- * Local provider — Uses pdf-parse for PDFs and mammoth for DOCX, both loaded on demand
+ * Local provider — Uses pdf-parse for PDFs and mammoth for DOCX, mammoth loaded on demand
  * (on-demand.ts).
  *
  * No external API calls needed. Good as fallback.
@@ -41,7 +41,7 @@ export class LocalProvider implements DocConverterProvider {
     const metadata: ConversionResult["metadata"] = {};
 
     if (mimeType === "application/pdf") {
-      const { PDFParse } = await onDemand<typeof import("pdf-parse")>("pdf-parse");
+      const { PDFParse } = await import("pdf-parse");
       const buffer = Buffer.from(data);
       const parser = new PDFParse({ data: buffer });
       try {

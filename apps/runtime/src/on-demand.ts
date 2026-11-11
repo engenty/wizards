@@ -25,7 +25,6 @@ export const ON_DEMAND = {
   "@mastra/docker": "the Docker sandbox",
   "@turbodocx/html-to-docx": "writing Word files",
   exceljs: "Excel files",
-  "pdf-parse": "reading PDFs",
   mammoth: "reading Word files",
   "word-extractor": "reading old Word files",
   "@executor-js/plugin-openapi": "connectors from an OpenAPI description",
@@ -50,18 +49,9 @@ export const onDemandPackages = (): string[] => [
 /**
  * What an install of a library leaves out, as paths in its node_modules (`*` at the end matches
  * a name's start): what the runtime has already, which the library then finds one folder up, and
- * folders Node never loads. pdf-parse and its PDF.js draw with the runtime's @napi-rs/canvas, as
- * the overrides in pnpm-workspace.yaml make them do in a checkout, not with a canvas of their own.
+ * folders Node never loads.
  */
 const LEAVE_OUT: Partial<Record<OnDemandName, string[]>> = {
-  "pdf-parse": [
-    "@napi-rs/canvas",
-    "@napi-rs/canvas-*",
-    // PDF.js for browsers: pdf-parse loads legacy/ alone.
-    "pdfjs-dist/build",
-    "pdfjs-dist/web",
-    "pdf-parse/dist/pdf-parse/web",
-  ],
   // Icons for its React screens; the runtime imports /core.
   "@executor-js/plugin-openapi": ["lucide-react"],
 };
