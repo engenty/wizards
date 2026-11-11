@@ -470,7 +470,9 @@ export async function nodeHost(options: NodeHostOptions): Promise<NodeHost> {
 
   async function state(): Promise<HostState> {
     const s = await stored();
-    return { run: { ...s.run, rev: s.rev }, event: folder.lastEvent };
+    // Nothing here asks the person while a step works (`ctx.ask` is null), and a failure's words
+    // are only in the log's `error` line.
+    return { run: { ...s.run, rev: s.rev }, event: folder.lastEvent, error: null, ask: null };
   }
 
   function watch(listener: (change: HostChange) => void) {
