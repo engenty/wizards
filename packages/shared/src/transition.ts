@@ -32,6 +32,7 @@ import {
 import {
   CAN_GO_BACK,
   note,
+  RUN_ENDED,
   type RunNote,
   type RunPause,
   type RunState,
@@ -326,6 +327,10 @@ export function transition(
       return standAt(def, state, run.cursor, host);
 
     case "cancel":
+      // A run that is over stays as it ended.
+      if (RUN_ENDED.has(run.status)) {
+        throw new FlowRefused("runBusy");
+      }
       return settle(run.cursor, "cancelled", state, null, { kind: "end" });
   }
 }

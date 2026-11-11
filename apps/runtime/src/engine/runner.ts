@@ -55,6 +55,7 @@ import {
   type ClosedChoice,
   isNoteTime,
   note,
+  RUN_ENDED,
   type RunState,
   type RunView,
   type ShownList,
@@ -76,7 +77,7 @@ import {
 import { machineTranslated, translateDefinition } from "@engenty/wizards-shared/translation";
 import { wizardAgentsUsed } from "@engenty/wizards-shared/wizard-code";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
-import { and, eq, lt, type SQL, sql } from "drizzle-orm";
+import { and, eq, lt, notInArray, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
 import { effectsOn, enterVisit } from "../broker/effect.js";
@@ -385,20 +386,23 @@ async function moveHeld(runId: string, patch: Partial<typeof schema.run.$inferIn
 /**
  * Writes the run. Inside its drive the write needs the drive's claim; with `seen`, a person's write
  * needs the `rev` it read, and a wait's write the status it came from: a cancel wins over either. A
- * step may start or answer other runs: only its own run's claim counts.
+ * step may start or answer other runs: only its own run's claim counts. With `"open"` the write
+ * holds only on a run that has not ended, and says with `false` that it found none.
  */
 async function updateRun(
   runId: string,
   patch: Partial<typeof schema.run.$inferInsert>,
-  seen?: { rev: number } | { status: RunStatus },
+  seen?: { rev: number } | { status: RunStatus } | "open",
   by?: Actor,
-) {
+): Promise<boolean> {
   const holder = driving.getStore();
   const held = holder?.runId === runId ? holder : undefined;
   const where = and(
     eq(schema.run.id, runId),
     held ? eq(schema.run.claim, held.generation) : undefined,
-    seen && ("rev" in seen ? eq(schema.run.rev, seen.rev) : eq(schema.run.status, seen.status)),
+    seen === "open"
+      ? notInArray(schema.run.status, [...RUN_ENDED])
+      : seen && ("rev" in seen ? eq(schema.run.rev, seen.rev) : eq(schema.run.status, seen.status)),
   ) as SQL;
   const write = db
     .update(schema.run)
@@ -422,6 +426,9 @@ async function updateRun(
   if (result?.rowsAffected === 0) {
     if (held) {
       throw new LostClaim();
+    }
+    if (seen === "open") {
+      return false;
     }
     if (seen) {
       throw new RunConflict({ code: "runBusy" });
@@ -449,6 +456,7 @@ async function updateRun(
     reportRun(runId, patch.status);
   }
   signalChanged(runId);
+  return true;
 }
 
 /**
@@ -929,7 +937,12 @@ async function driveClaimed(
         await withTenant(tenant, async () => {
           const run = await loadRun(runId);
           const lang = run ? textLang(wizardLang(run.definition)) : "en";
-          await updateRun(runId, { status: "failed", error: saidText(friendly(err), lang) });
+          // A run that ended meanwhile, a cancel among them, stays as it ended.
+          await updateRun(
+            runId,
+            { status: "failed", error: saidText(friendly(err), lang) },
+            "open",
+          );
         }).catch((e) => console.error(`[run ${runId}] marking it failed:`, e));
       }),
     )
@@ -1148,7 +1161,9 @@ export async function makeContext(
       own.emit ?? ((type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset)),
     call: { runId: run.id, stepId },
     ...(own.share ? { share: true } : {}),
-    saveState: () => updateRun(run.id, { state }),
+    saveState: async () => {
+      await updateRun(run.id, { state });
+    },
     chargeUsd: (usd) => addLocalCost(run.id, stepId, usd),
     saveAsset: (input) =>
       saveAsset({
@@ -2853,7 +2868,10 @@ export async function retry(runId: string) {
 
 export async function cancel(runId: string) {
   active.get(runId)?.abort();
-  await updateRun(runId, { status: "cancelled", wakeAt: null });
+  // A run that is over already stays as it ended.
+  if (!(await updateRun(runId, { status: "cancelled", wakeAt: null }, "open"))) {
+    return;
+  }
   // After the row: a crash in between gives a wake that finds the run over, never a lost cancel.
   await setWake(runId, null);
 }

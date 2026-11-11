@@ -156,6 +156,7 @@ export function refusalWord(
 const RUN_STATE_WORDS: Record<string, Key> = {
   waiting_input: "runs.status.waiting_input",
   sleeping: "runs.status.sleeping",
+  waiting_signal: "runs.status.waiting_signal",
   running: "runs.status.running",
   done: "runs.status.done",
   failed: "runs.status.failed",
@@ -169,7 +170,12 @@ export function runStateWord(status: string): string {
 
 /** Whether a run still calls: the ones an admin can stop from the audit. */
 export function runUnderWay(status: string): boolean {
-  return status === "running" || status === "waiting_input" || status === "sleeping";
+  return (
+    status === "running" ||
+    status === "waiting_input" ||
+    status === "sleeping" ||
+    status === "waiting_signal"
+  );
 }
 
 export type Tone = "done" | "refused" | "held" | "failed";

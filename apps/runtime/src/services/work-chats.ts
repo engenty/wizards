@@ -786,11 +786,15 @@ function beginRun(
     wake(run);
   }
   watcher.waiting.clear();
-  void db
+  // Kept, so the turn's end clears it only once it is written.
+  const answering = db
     .update(schema.chat)
     .set({ answeringSince: new Date() })
     .where(eq(schema.chat.id, chat.id))
-    .catch((err) => console.error("[work-chats] answering:", err));
+    .then(
+      () => undefined,
+      (err) => console.error("[work-chats] answering:", err),
+    );
   let feed!: ReadableStreamDefaultController<unknown>;
   const chunks = new ReadableStream({
     start(controller) {
@@ -827,7 +831,9 @@ function beginRun(
       if (watcher.run === run) {
         watcher.run = null;
       }
-      await afterTurn(chat, reply(), steps.list).catch((err) =>
+      await answering;
+      // A turn that began meanwhile still answers.
+      await afterTurn(chat, reply(), steps.list, !watcher.run).catch((err) =>
         console.error("[work-chats] after the turn:", err),
       );
       if (!watcher.next.length && !watcher.run) {
@@ -986,9 +992,14 @@ export async function followTurn(user: SessionUser, id: string): Promise<Readabl
   return watcher?.run && !watcher.run.done ? followRun(chat.id, false) : null;
 }
 
-/** What a finished turn leaves: its text as the chat's last message, a client's steps stored. */
-async function afterTurn(chat: ChatRow, reply: string, steps: ClientStep[]) {
-  await db.update(schema.chat).set({ answeringSince: null }).where(eq(schema.chat.id, chat.id));
+/**
+ * What a finished turn leaves: its text as the chat's last message, a client's steps stored, and,
+ * with `answered`, a chat that no longer answers.
+ */
+async function afterTurn(chat: ChatRow, reply: string, steps: ClientStep[], answered: boolean) {
+  if (answered) {
+    await db.update(schema.chat).set({ answeringSince: null }).where(eq(schema.chat.id, chat.id));
+  }
   if (steps.length) {
     const { memory } = await workMastra();
     const { messages } = await memory.recall({
