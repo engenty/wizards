@@ -96,5 +96,8 @@
 # a program starts a run of a space and drives it on its own machine (off by default)
 # wizardsRun=on|off
 #
+# a run can live in an object of its own, with its own storage and alarm (off by default)
+# edgeRuns=on|off
+#
 # a plugin's switches carry its id; `wizards features` lists the ones installed here
 # contacts.leadScoring=on|off

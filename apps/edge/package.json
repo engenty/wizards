@@ -1,0 +1,30 @@
+{
+  "name": "@engenty/wizards-edge",
+  "version": "0.1.0",
+  "description": "A run of engenty wizards in an isolated object: a Worker with one Durable Object per run, its state in the object's storage, woken by the object's alarm, everything else through the run's services over HTTP.",
+  "license": "FSL-1.1-MIT",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": {
+      "wizards-source": "./src/*.ts",
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@engenty/wizards-engine": "workspace:*",
+    "@engenty/wizards-shared": "workspace:*",
+    "@jitl/quickjs-wasmfile-release-sync": "0.31.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "miniflare": "4.20260730.0",
+    "typescript": "~7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
