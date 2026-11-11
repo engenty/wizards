@@ -193,6 +193,8 @@ async function hostFor(started: Started): Promise<NodeHost> {
     def: started.definition,
     files: started.files,
     run: { id: started.runId },
+    // This test writes the record itself, with every write: no copies over `run/report`.
+    reports: false,
     // The tenant's copy of the run (the end at the tenant is 4.4's): its services read the run's
     // state from the record, and the studio lists it from there.
     onWrite: (r) =>

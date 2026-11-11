@@ -151,11 +151,14 @@ async function tokenAuth(token: string): Promise<AuthInfo | Response> {
 }
 
 /**
- * A request from `wizards mcp` on this machine: signed with the data folder's secret,
- * which only a runtime alone has. It acts as the admin, like a key from the settings.
+ * A request from `wizards mcp` or `wizards run` on this machine: signed with the data folder's
+ * secret, which only a runtime alone has. It acts as the admin, like a key from the settings;
+ * `wizards run`'s signature also starts runs it drives itself (`runs:host`).
  */
 function localAuth(request: Request, ticket: string): AuthInfo | Response {
-  if (managed || !localTicketExpiry(env.authSecret, ticket, Date.now(), "local-mcp")) {
+  const now = Date.now();
+  const run = !managed && localTicketExpiry(env.authSecret, ticket, now, "local-run") !== null;
+  if (managed || !(run || localTicketExpiry(env.authSecret, ticket, now, "local-mcp"))) {
     return challenge(401, "invalid_token", "This local signature is invalid or expired.");
   }
   const client =
@@ -169,7 +172,7 @@ function localAuth(request: Request, ticket: string): AuthInfo | Response {
     tenantId: LOCAL_TENANT,
     role: "owner",
     client,
-    scopes: [...KEY_SCOPES],
+    scopes: run ? [...KEY_SCOPES, "runs:host"] : [...KEY_SCOPES],
   };
   return authInfoFor(who, ticket, "local");
 }
