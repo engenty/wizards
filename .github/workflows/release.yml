@@ -14,6 +14,9 @@ name: Release
 # `@engenty/search-libsql` and `@engenty/goose` without a second factor: the runtime for the
 # updates and the launcher, then the launcher for `npx wizards`, then what code outside the repo
 # imports (scripts/npm-package.mjs).
+# `@engenty/wizards-run`, the command `wizards-run` without the runtime, is packed and tested with
+# every run, but goes out (GitHub release and npm; NPM_TOKEN must then be allowed to publish it)
+# only once packages/run/package.json is no longer `private`. Until then the tag leaves it out.
 # Run by hand (workflow_dispatch), it builds and tests everything and publishes nothing. On a pull
 # request that touches what a local install is made of it does the same, except that the Mac
 # helper, the package and the installers run only when what the installers test changes (the job
@@ -60,6 +63,7 @@ jobs:
   #                              bump of the root package.json (every release PR) is not one
   #   apps/runtime/apple/**, apps/runtime/scripts/build-apple.mjs
   #                              the Mac helper the package carries
+  #   packages/run/bin/**        the command `wizards-run` of the small package
   #   release.yml                this workflow
   # Runtime and studio code reach the package as `pnpm build` leaves it, which ci.yml builds and
   # tests on every pull request.
@@ -90,6 +94,7 @@ jobs:
               - pnpm-workspace.yaml
               - apps/runtime/apple/**
               - apps/runtime/scripts/build-apple.mjs
+              - packages/run/bin/**
               - .github/workflows/release.yml
 
   # Apple Intelligence as a model (apps/runtime/src/harness/apple.ts) runs through a Swift helper
@@ -313,6 +318,23 @@ jobs:
           "$home/bin/wizards" doctor
           test -f "$home/runtime/current/node_modules/@engenty/wizards-runtime/apps/runtime/dist/index.js"
 
+      # `wizards-run` from its own package, in an empty folder with the install's Node: npm
+      # installs the tarball and what it names from the registry, and the command answers. The
+      # install stays small: the engine, shared and their libraries, nothing of the runtime.
+      - name: The small package runs on its own
+        run: |
+          set -euo pipefail
+          export PATH="$ENGENTY_HOME/wizards/tools/node/bin:$PATH"
+          version="$(node -p "require('./package.json').version")"
+          tgz="$(ls "$PWD"/dist/npm/engenty-wizards-run-*.tgz)"
+          dir="$RUNNER_TEMP/wizards-run" && mkdir -p "$dir" && cd "$dir"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund "$tgz"
+          npx --no-install wizards-run --help
+          test "$(npx --no-install wizards-run --version)" = "$version"
+          du -sh node_modules
+          test "$(du -sk node_modules | cut -f1)" -lt 51200
+
   # The same on Windows, with install.ps1 in the Windows PowerShell that Windows ships.
   installer-windows:
     needs: [changes, package]
@@ -377,6 +399,17 @@ jobs:
           node-version: 26
           registry-url: https://registry.npmjs.org
 
+      # @engenty/wizards-run goes out only once packages/run is no longer private: until then its
+      # tarball stays off the release and npm.
+      - name: The small package waits while it is private
+        run: |
+          set -euo pipefail
+          tgz="artifacts/npm-package/engenty-wizards-run-${GITHUB_REF_NAME#v}.tgz"
+          if [ "$(tar -xzOf "$tgz" package/package.json | jq -r '.private // false')" = true ]; then
+            rm "$tgz"
+            echo "@engenty/wizards-run is private: it is not published"
+          fi
+
       - name: GitHub release with the packages
         env:
           GH_TOKEN: ${{ github.token }}
@@ -434,6 +467,11 @@ jobs:
           served wizards "wizards-$version.tgz"
           publish @engenty/wizards "engenty-wizards-$version.tgz"
           served @engenty/wizards "wizards-$version.tgz"
+          # Only while it is public (the step above took it out otherwise).
+          if [ -f "artifacts/npm-package/engenty-wizards-run-$version.tgz" ]; then
+            publish @engenty/wizards-run "engenty-wizards-run-$version.tgz"
+            served @engenty/wizards-run "wizards-run-$version.tgz"
+          fi
           libraries="decision-model search-index search-libsql goose"
           for library in $libraries; do
             publish "@engenty/$library" "engenty-$library-$version.tgz"

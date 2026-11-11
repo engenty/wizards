@@ -172,7 +172,7 @@ export interface RunDeps {
   io: TerminalIO;
   /** The result: stdout. */
   out(text: string): void;
-  /** How the command is typed, for hints: `wizards`. */
+  /** How the run command is typed, for hints: `wizards run`, `wizards-run`. */
   command: string;
   /** Left out: the global `fetch`. Reaches the API and the run's services. */
   fetch?: typeof fetch;
@@ -538,7 +538,7 @@ async function give(
 ): Promise<number> {
   const { io } = deps;
   const result: RunResult = resultOf(start.runId, start.definition, end.state, dir);
-  const again = `${deps.command} run --continue ${start.runId}`;
+  const again = `${deps.command} --continue ${start.runId}`;
   if (end.kind === "waits") {
     if (args.json) {
       deps.out(`${JSON.stringify({ ...result, status: end.state.run.status, waits: end.why })}\n`);

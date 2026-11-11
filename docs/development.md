@@ -64,6 +64,7 @@ A pnpm workspace:
 | `wizards` | The launcher people run with `npx wizards`: it installs the runtime and hands over. Built by `scripts/npm-package.mjs` |
 | `@engenty/wizards-runtime` | The runtime the installer and the updates install: `apps/runtime`, built by `scripts/npm-package.mjs` beside the launcher |
 | `@engenty/wizards` | What code outside this repo imports, one subpath per use: `/plugin`, `/openui`. Inside the repo the runtime and the studio import it by the same name |
+| `@engenty/wizards-run` | `packages/run` with the command `wizards-run`: `wizards run` without the runtime, the engine and shared bundled in it (277 KB packed, 33 MB installed, against 539 MB for the runtime). The runtime’s own `wizards run` imports the same code. Packed by `scripts/npm-package.mjs`; it stays `private`, and so off npm and the release, until it is published |
 | `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/goose` | The MIT libraries in `packages/`, published with each release at its version by `scripts/npm-package.mjs`. Their runtime dependencies stay MIT or as permissive (`pnpm mit-deps:check`) |
 | `@engenty/wizards-*` | The workspace’s other parts, named after the product, never published: `wizards-studio` (`apps/web`), `wizards-docs`, `wizards-shared`, `wizards-runner`, and the examples `wizards-example-run-log` and `wizards-example-openui-chat`. The folders keep their names |
 

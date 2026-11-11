@@ -1,10 +1,13 @@
 {
   "name": "@engenty/wizards-run",
   "version": "0.1.0",
-  "description": "A host for one run of engenty wizards in a Node process: its state in a folder, its clock, its services over HTTP.",
+  "description": "Runs a wizard of engenty wizards in this terminal: at your organization, or on this computer alone with Ollama or your own API key. The command wizards-run, and the host for one run in a Node process that engenty wizards’ own `wizards run` uses.",
   "license": "FSL-1.1-MIT",
   "private": true,
   "type": "module",
+  "bin": {
+    "wizards-run": "./bin/wizards-run.mjs"
+  },
   "exports": {
     "./*": {
       "wizards-source": "./src/*.ts",
@@ -13,6 +16,7 @@
     }
   },
   "files": [
+    "bin",
     "dist"
   ],
   "scripts": {
