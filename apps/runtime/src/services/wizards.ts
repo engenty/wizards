@@ -1,3 +1,4 @@
+import { wizardAgentFiles } from "@engenty/wizards-engine/wizard-code";
 import { versionChanges } from "@engenty/wizards-shared/changes";
 import type { StepWarning } from "@engenty/wizards-shared/connectors";
 import {
@@ -28,7 +29,6 @@ import { listSpaceConnections } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { answeringNarrowed } from "../engine/answerers.js";
-import { wizardAgentFiles } from "../engine/wizard-code.js";
 import { env } from "../env.js";
 import { getBlob } from "../files/blobs.js";
 import { managed, tenantMembers } from "../manage.js";

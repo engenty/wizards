@@ -1,3 +1,4 @@
+import { wizardAgentFiles } from "@engenty/wizards-engine/wizard-code";
 import { withRequires } from "@engenty/wizards-shared/requires";
 import { WIZARD_AGENTS_DIR } from "@engenty/wizards-shared/wizard-code";
 import {
@@ -9,7 +10,6 @@ import {
 } from "@engenty/wizards-shared/workspace";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
-import { wizardAgentFiles } from "../engine/wizard-code.js";
 import { getBlob, putBlob } from "../files/blobs.js";
 import { emitDraftChanged, filesChanged } from "./draft-events.js";
 import { notFound, ServiceError } from "./errors.js";

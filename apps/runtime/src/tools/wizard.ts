@@ -1,5 +1,11 @@
 import { quickJs, WIZARD_CODE_MEMORY_MB } from "@engenty/wizards-engine/quickjs";
 import { StepError } from "@engenty/wizards-engine/types";
+import {
+  loadWizardTool,
+  schemaZod,
+  WIZARD_TOOL_LIMITS,
+  type WizardTool,
+} from "@engenty/wizards-engine/wizard-code";
 import type { AgentStep } from "@engenty/wizards-shared/definition";
 import type { AssetRef } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
@@ -15,12 +21,6 @@ import { keepsOwnRows } from "../broker/effect.js";
 import { brokerHost, whereOf } from "../broker/index.js";
 import { summarizeInput, writeLog } from "../broker/log.js";
 import { stepCaller } from "../elements/caller.js";
-import {
-  loadWizardTool,
-  schemaZod,
-  WIZARD_TOOL_LIMITS,
-  type WizardTool,
-} from "../engine/wizard-code.js";
 import { prompt } from "../prompts.js";
 import type { InProcessContext } from "../run-services/in-process.js";
 import { snapshotFile } from "../services/files.js";

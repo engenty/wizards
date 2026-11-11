@@ -1,21 +1,9 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
-import {
-  parseWizard,
-  type ValidationIssue,
-  type WizardDefinition,
-} from "@engenty/wizards-shared/definition";
-import { requiresProblem } from "@engenty/wizards-shared/requires";
+import { checkWizard, type WizardGiven } from "@engenty/wizards-engine/wizard-check";
+import type { ValidationIssue } from "@engenty/wizards-shared/definition";
 import { inputSchemaOf, type JsonSchema, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
-import { wizardAgentUseIssues } from "@engenty/wizards-shared/wizard-agents";
-import { dataFiles, wizardDataIssues } from "@engenty/wizards-shared/wizard-data";
 import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
-import { WIZARD_SKILLS_DIR, wizardSkillIssues } from "@engenty/wizards-shared/wizard-skills";
-import {
-  sandboxToolHostIssues,
-  wizardAgentFiles,
-  wizardToolFileIssues,
-} from "../engine/wizard-code.js";
 import { json, readManifest, readPackage } from "../services/package-file.js";
 import { bad, dim, ok } from "./ui.js";
 
@@ -53,18 +41,8 @@ function workspace(folder: string): string[] {
   }
 }
 
-const isSkillMd = (path: string) =>
-  path.startsWith(WIZARD_SKILLS_DIR) && path.endsWith("/SKILL.md");
-
-interface Given {
-  definition: unknown;
-  files: string[];
-  /** A workspace file's text, or null where it isn't there. */
-  read: (path: string) => Promise<string | null>;
-}
-
 /** The definition and the workspace, read the way the import reads them. */
-function read(path: string): Given {
+function read(path: string): WizardGiven {
   const folder = statSync(path).isDirectory()
     ? path
     : basename(path) === PACKAGE_MANIFEST
@@ -91,20 +69,8 @@ function read(path: string): Given {
   };
 }
 
-/** The SQL files of the wizard's own database, read: each splits into statements the runtime runs. */
-async function dataIssues(def: WizardDefinition, given: Given): Promise<ValidationIssue[]> {
-  const files = dataFiles(def, given.files);
-  const texts = new Map<string, string | null>();
-  for (const file of files ? [files.schema, ...files.migrations] : []) {
-    texts.set(file, await given.read(file));
-  }
-  return wizardDataIssues(def, given.files, (p) => texts.get(p) ?? null).map((i) => ({
-    message: i.message,
-  }));
-}
-
 export async function validatePath(path: string): Promise<Checked> {
-  let given: Given;
+  let given: WizardGiven;
   try {
     given = read(path);
   } catch (err) {
@@ -114,44 +80,17 @@ export async function validatePath(path: string): Promise<Checked> {
         : (err as Error).message;
     return { path, ok: false, issues: [{ message }] };
   }
-  const parsed = parseWizard(given.definition, given.files);
-  const agents = await wizardAgentFiles(given.files, given.read);
-  // `requires` says what the steps and the agents' files need: a file that says otherwise is out
-  // of date. Where an agent's file is broken, that is said first.
-  const requires =
-    parsed.ok && !agents.issues.length
-      ? requiresProblem(parsed.wizard, agents.agents, given.files)
-      : null;
-  const checked = [
-    ...parsed.issues,
-    ...(parsed.ok ? wizardAgentUseIssues(parsed.wizard, agents.agents) : []),
-    ...(requires ? [{ message: requires }] : []),
-  ];
-  // A tool a step names is checked by the definition too: each message once.
-  const said = new Set(checked.map((issue) => issue.message));
-  const skillMds: Record<string, string> = {};
-  for (const file of given.files.filter(isSkillMd)) {
-    skillMds[file] = (await given.read(file)) ?? "";
-  }
-  const issues = [
-    ...checked,
-    ...[...(await wizardToolFileIssues(given.files, given.read)), ...agents.issues]
-      .filter((message) => !said.has(message))
-      .map((message) => ({ message })),
-    ...wizardSkillIssues(given.files, skillMds),
-    ...(parsed.ok ? await sandboxToolHostIssues(parsed.wizard.steps, given.files, given.read) : []),
-    ...(parsed.ok ? await dataIssues(parsed.wizard, given) : []),
-  ];
+  const checked = await checkWizard(given);
   return {
     path,
-    ok: parsed.ok && issues.length === 0,
-    steps: parsed.ok ? parsed.wizard.steps.length : undefined,
+    ok: checked.ok,
+    steps: checked.wizard?.steps.length,
     files: given.files.length,
-    issues,
-    ...(parsed.ok
+    issues: checked.issues,
+    ...(checked.wizard
       ? {
-          inputSchema: inputSchemaOf(parsed.wizard),
-          outputSchema: outputSchemaOf(parsed.wizard),
+          inputSchema: inputSchemaOf(checked.wizard),
+          outputSchema: outputSchemaOf(checked.wizard),
         }
       : {}),
   };
