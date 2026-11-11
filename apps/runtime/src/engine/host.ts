@@ -322,6 +322,16 @@ export async function runtimeHost(
       if (type === "wait" && said?.stepId === stepId) {
         return;
       }
+      if (
+        type === "woken" &&
+        stepId &&
+        typeof words !== "string" &&
+        words.code === "runWaitOver" &&
+        (await saidInVisit(runId, stepId, "woken"))
+      ) {
+        // A person's "Continue now" said so itself, and a wake that came back after a crash has said it.
+        return;
+      }
       await emitEvent(runId, stepId, type, words);
     },
     async ask(step) {
