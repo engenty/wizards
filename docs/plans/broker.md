@@ -2,7 +2,10 @@
 
 Status: built in parts. Written on 2026-10-31 against `feat/work-mode` as a plan; phases 0 to 2
 are built (RWX with its page Fähigkeiten › Rechte, the broker's call and log, the Audit, the
-notifications, „Was darf …?“), phase 3 (its own process) is not. What the code does is in
+notifications, „Was darf …?“). Phase 3 (its own process) is built in part on the branch
+`feat/runs-on-their-own` (phase 3 of `docs/plans/runs-on-their-own.md`): the role, the run's
+services over HTTP and the run's token are in, the vault and its key on the broker alone are not.
+What the code does is in
 `docs/content/dev/broker.md`; what comes next in `docs/plans/capabilities-next.md`. Part A of
 `docs/plans/capabilities.md` built it; the connections plan (artifact “Verbindungen in Quellen”,
 claude.ai/artifact/GUtiTfPMVvoe1EcgRes3fh) named it first.
@@ -220,6 +223,27 @@ same function the broker uses, with no side effect. The same shows on a wizard's
    and the studio call it over the private network; a guest instance opens only „alle“. Cedar
    or OPA may read the same rows for an enterprise that wants its own policy engine; the
    product still shows sentences.
+
+   **Built in part** (on `feat/runs-on-their-own`, 11 November 2026, behind the switch
+   `runServices`, off by default):
+   - **The role.** `RUNTIME_ROLE=broker` serves the health checks and a run's services, and a 404
+     for everything else; it starts no runner, no sweeps and no syncs (#639). `runner` and `all`
+     serve the run's services too.
+   - **The run's services over HTTP.** `POST /api/run-services/v1/:service/:call` (#642, #647):
+     models, tools, context, files, data, whole steps, people. A runner with `RUN_SERVICES_URL`
+     asks a broker for them (#653), and the broker holds a run's browser and sandbox by run id
+     until `run/release`. Hosts outside the runtime (`wizards run`, the objects) use the same
+     calls.
+   - **The run's token.** Signed per run (`secrets/signing.ts`, `broker/token.ts`, #640): tenant,
+     run, wizard, space, data space, mode, holder, host kind, expiry. The route opens the tenant
+     and sets the caller from it; the grant stays on the run. Every tool has a descriptor
+     (`broker/registry.ts`, #641), and every acting call an effect id (#645).
+   - **Not built:** the vault and its key only in the broker. Today `seal`/`unseal` is one
+     symmetric key that studio, doors and runner hold too, and fourteen modules unseal. That is
+     package 7.1 of `docs/plans/runs-on-their-own.md`, an open question with a proposed answer
+     (asymmetric sealing, connection accounts first). Also not built: the guest instance that
+     opens only „alle“, and the studio calling the broker over the network. Cedar or OPA: not
+     started.
 
 ## Open
 
