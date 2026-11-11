@@ -326,6 +326,15 @@ export const env = {
   /** What the runtime sends the sandbox container; the container has the same. */
   sandboxSecret: str("SANDBOX_SECRET"),
   /**
+   * `DOCUMENTS_URL`: the documents service (apps/documents, its Dockerfile), which
+   * reads PDFs, Word and Excel files and scans (OCR) for this process (documents/service.ts).
+   * Empty: this process reads them itself, with the libraries it loads on demand; that is how a
+   * runtime that runs alone is set up, not a fallback. A service that fails is a failure.
+   */
+  documentsUrl: str("DOCUMENTS_URL").replace(/\/+$/, ""),
+  /** What this process sends the documents service; the service has the same. */
+  documentsSecret: str("DOCUMENTS_SECRET"),
+  /**
    * The runtime's address as a run's sandbox reaches it, for the wizard's database
    * (sandbox/data.ts). Empty: `PUBLIC_URL` where it is HTTPS, else the sandbox reaches no database.
    */

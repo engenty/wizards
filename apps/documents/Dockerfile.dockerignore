@@ -1,0 +1,17 @@
+# apps/documents/Dockerfile needs the service, the runtime's reading and the manifests, nothing else.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!apps/documents/package.json
+!apps/documents/src
+!apps/runtime/src/documents/read.ts
+!apps/runtime/src/documents/ocr.ts
+!apps/runtime/src/engenty/doc-converter
+!apps/runtime/src/engenty/csv-import/xlsx-workbook.ts
+!apps/runtime/src/render/markdown.ts
+!apps/runtime/src/on-demand.ts
+!apps/runtime/src/sandbox/install.ts
+!apps/runtime/src/sandbox/agentos-package.ts
+!apps/runtime/src/cli/home.ts
+**/node_modules

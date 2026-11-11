@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // tsx runs the sources as they are: no build. The reading itself is the runtime's own
+    // (apps/runtime/src/documents/read.ts), which the service runs as it is.
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src", "test"]
+}

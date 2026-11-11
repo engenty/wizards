@@ -7,32 +7,30 @@ import { generateText, Output } from "ai";
 import PostalMime from "postal-mime";
 import { z } from "zod";
 import { parseCsvMatrix } from "../engenty/csv-import/csv-matrix.js";
-import { readXlsxWorkbook } from "../engenty/csv-import/xlsx-workbook.js";
 import type {
   ConversionOptions,
   ConversionResult,
   DocConverterProvider,
 } from "../engenty/doc-converter/interface.js";
-import {
-  joinPagesWithBreaks,
-  splitMarkdownByPageBreaks,
-} from "../engenty/doc-converter/page-break.js";
-import { LocalProvider } from "../engenty/doc-converter/providers/local/index.js";
+import { splitMarkdownByPageBreaks } from "../engenty/doc-converter/page-break.js";
 import { invoiceSchema, receiptSchema } from "../engenty/document-scanner/schemas/index.js";
 import { env } from "../env.js";
 import { NotedError } from "../model-errors.js";
 import { type CallMeta, costOf, textModel } from "../models.js";
 import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
-import { OcrProvider } from "./ocr.js";
+import {
+  letters,
+  OCR_IMAGES,
+  type ParsedDocument,
+  PDF,
+  readsOwn,
+  SCAN_LETTERS,
+  tableMarkdown,
+} from "./read.js";
+import { documentsService } from "./service.js";
 
-/** A document as text a model can read. */
-export interface ParsedDocument {
-  markdown: string;
-  pages: number | null;
-  /** How it was read: its own text, OCR or a vision model (scan, photo), a table, or a mail. */
-  via: "text" | "ocr" | "vision" | "table" | "mail";
-}
+export type { ParsedDocument };
 
 export class UnreadableDocument extends NotedError {}
 
@@ -143,45 +141,6 @@ class VisionProvider implements DocConverterProvider {
   }
 }
 
-const local = new LocalProvider();
-const ocr = new OcrProvider();
-
-/** A page with fewer letters than this is a scan, and so is a picture. */
-const SCAN_LETTERS = 60;
-const letters = (markdown: string) =>
-  markdown.replace(/<page-break[^>]*><\/page-break>|\s/g, "").length;
-
-/** OCR that doesn't work (no models without the internet, a broken file) reads nothing. */
-async function ocrPages(data: Uint8Array, name: string, pages?: number[]) {
-  return ocr.pages(data, pages).catch((err) => {
-    console.error("[ocr]", name, err);
-    return new Map<number, string>();
-  });
-}
-
-/** Old Word files (Word 97–2003): their body, headers and footnotes. */
-async function readWord97(data: Uint8Array): Promise<string> {
-  const { default: WordExtractor } = await import("word-extractor");
-  const doc = await new WordExtractor().extract(Buffer.from(data));
-  return [
-    doc.getHeaders({ includeFooters: false }),
-    doc.getBody(),
-    doc.getFootnotes(),
-    doc.getFooters(),
-  ]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join("\n\n");
-}
-
-function tableMarkdown(columns: string[], rows: string[][], limit = 400): string {
-  const cell = (v: string) => v.replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
-  const head = `| ${columns.map(cell).join(" | ")} |\n|${columns.map(() => " --- ").join("|")}|`;
-  const body = rows.slice(0, limit).map((r) => `| ${r.map(cell).join(" | ")} |`);
-  const more = rows.length > limit ? [`\n… ${rows.length - limit} more rows`] : [];
-  return [head, ...body, ...more].join("\n");
-}
-
 async function parseMail(data: Uint8Array): Promise<string> {
   const mail = await PostalMime.parse(data);
   const body = mail.text?.trim() || (mail.html ? htmlToMarkdown(mail.html) : "");
@@ -261,6 +220,11 @@ async function kept<T>(data: Uint8Array, variant: string, make: () => Promise<T>
   return made;
 }
 
+/**
+ * Reads a file. What takes a document library (PDFs, Word and Excel files, OCR) goes to
+ * documentsService(): this process, or the documents service. A vision model reads, here, what
+ * that left without text.
+ */
 async function read(
   input: { data: Uint8Array; name: string; mime: string },
   opts: { charge?: Charge; signal?: AbortSignal; call?: CallMeta; vision?: false },
@@ -268,10 +232,10 @@ async function read(
   const { data, name, mime } = input;
   const vision = new VisionProvider(opts.charge, opts.signal, opts.call);
   if (mime.startsWith("image/")) {
-    if (ocr.canConvert(mime)) {
-      const text = [...(await ocrPages(data, name)).values()].join("\n\n");
-      if (letters(text) >= SCAN_LETTERS) {
-        return { markdown: text, pages: 1, via: "ocr" };
+    if (OCR_IMAGES.includes(mime)) {
+      const seen = await documentsService().read(input, { signal: opts.signal });
+      if (letters(seen.markdown) >= SCAN_LETTERS) {
+        return seen;
       }
     }
     if (!vision.canConvert(mime)) {
@@ -280,42 +244,19 @@ async function read(
     const result = await vision.convert(data, name, mime);
     return { markdown: result.markdown, pages: 1, via: "vision" };
   }
-  if (mime === "application/pdf") {
-    const own = await local.convert(data, name, mime);
-    const total = own.metadata.page_count ?? 0;
-    const byPage = new Map(
-      splitMarkdownByPageBreaks(own.markdown).map((page) => [page.number, page.markdown]),
-    );
-    // Pages with hardly any text of their own are scans: OCR reads them.
-    const scanned = Array.from({ length: total }, (_, i) => i + 1).filter(
-      (n) => letters(byPage.get(n) ?? "") < SCAN_LETTERS,
-    );
-    let via: ParsedDocument["via"] = "text";
-    for (const [n, text] of scanned.length ? await ocrPages(data, name, scanned) : []) {
-      if (letters(text) > letters(byPage.get(n) ?? "")) {
-        byPage.set(n, text);
-        via = "ocr";
-      }
-    }
-    const markdown =
-      via === "ocr"
-        ? joinPagesWithBreaks(
-            [...byPage]
-              .sort(([a], [b]) => a - b)
-              .map(([number, text]) => ({ number, markdown: text })),
-            total,
-          )
-        : own.markdown;
+  if (mime === PDF) {
+    const own = await documentsService().read(input, { signal: opts.signal });
+    const total = own.pages ?? 0;
     // Still hardly any text per page: a vision model reads it, where one may.
-    if (opts.vision !== false && letters(markdown) < SCAN_LETTERS * Math.max(1, total)) {
+    if (opts.vision !== false && letters(own.markdown) < SCAN_LETTERS * Math.max(1, total)) {
       const seen = await vision.convert(data, name, mime).catch((err) => {
-        if (letters(markdown)) {
+        if (letters(own.markdown)) {
           return null;
         }
         throw err;
       });
       if (!seen) {
-        return { markdown, pages: total || null, via };
+        return own;
       }
       return {
         markdown: seen.markdown,
@@ -323,22 +264,15 @@ async function read(
         via: "vision",
       };
     }
-    return { markdown, pages: total || null, via };
+    return own;
   }
-  if (mime === "application/msword") {
-    return { markdown: await readWord97(data), pages: null, via: "text" };
-  }
-  if (local.canConvert(mime)) {
-    return { markdown: (await local.convert(data, name, mime)).markdown, pages: null, via: "text" };
-  }
-  if (mime === XLSX) {
-    const workbook = await readXlsxWorkbook(data);
-    const sheets = workbook.sheets
-      .filter((s) => s.matrix.rows.length)
-      .map((s) => `## ${s.name}\n\n${tableMarkdown(s.matrix.columns, s.matrix.rows)}`);
-    return { markdown: sheets.join("\n\n"), pages: null, via: "table" };
+  if (readsOwn(mime)) {
+    return documentsService().read(input, { signal: opts.signal });
   }
   const text = () => Buffer.from(data).toString("utf8");
+  if (mime === "text/plain" || mime === "text/markdown") {
+    return { markdown: new TextDecoder().decode(data), pages: null, via: "text" };
+  }
   if (mime === "text/csv") {
     const matrix = parseCsvMatrix(text());
     return { markdown: tableMarkdown(matrix.columns, matrix.rows), pages: null, via: "table" };
