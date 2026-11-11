@@ -10,6 +10,7 @@ import {
 } from "@engenty/wizards-engine/template";
 import type { AskResult, StepContext, StepServices } from "@engenty/wizards-engine/types";
 import { StepError } from "@engenty/wizards-engine/types";
+import { wizardAgentFiles } from "@engenty/wizards-engine/wizard-code";
 import {
   branchValues,
   type CardOption,
@@ -158,7 +159,6 @@ import { dropWait, runScope, SPACE_SCOPE, sendSignal } from "./signals.js";
 import { startedRunEnded, startOf } from "./starts.js";
 import { runTurns } from "./turns.js";
 import type { RunRow } from "./types.js";
-import { wizardAgentFiles } from "./wizard-code.js";
 
 /** A command the run cannot take in its current state; a note where the person may read it. */
 export class RunConflict extends NotedError {}

@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
  * included: a type from the runtime would break the package's type check as surely as a value
  * breaks its bundle. Allowed: `@engenty/wizards-shared/*`, `ai`, `zod`, QuickJS
  * (`quickjs-emscripten-core` with its release-sync WebAssembly build) and `sucrase` for wizard
- * code, and the package itself. No `node:*` module, no database client, no `@mastra/*`.
+ * code, `yaml` for a sandbox tool's front matter, and the package itself. No `node:*` module,
+ * no database client, no `@mastra/*`.
  */
 
 const SRC = resolve(__dirname, "../../../packages/engine/src");
@@ -33,6 +34,7 @@ const PACKAGES = [
   /^quickjs-emscripten-core$/,
   /^@jitl\/quickjs-wasmfile-release-sync$/,
   /^sucrase$/,
+  /^yaml$/,
 ];
 
 /**

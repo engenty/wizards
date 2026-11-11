@@ -1,3 +1,4 @@
+import { checkWizard } from "@engenty/wizards-engine/wizard-check";
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import { note, noteText, RUN_HOST_KINDS, runHostRefSchema } from "@engenty/wizards-shared/run";
 import { blobHash, missingBlobsSchema, pushSchema } from "@engenty/wizards-shared/sync";
@@ -9,7 +10,6 @@ import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { tokenOf } from "../broker/token.js";
-import { checkWizard } from "../cli/validate.js";
 import { clientOf, clientRefused } from "../clients.js";
 import { balanceCredits, canSpend } from "../credits/credits.js";
 import { db, schema, withTenant } from "../db/client.js";

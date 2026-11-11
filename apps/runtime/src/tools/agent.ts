@@ -1,4 +1,5 @@
 import { type StepContext, StepError } from "@engenty/wizards-engine/types";
+import { loadWizardAgent } from "@engenty/wizards-engine/wizard-code";
 import { type AgentStep, agentStepSchema } from "@engenty/wizards-shared/definition";
 import { note, type StepOutput } from "@engenty/wizards-shared/run";
 import type { WizardAgent } from "@engenty/wizards-shared/wizard-agents";
@@ -11,7 +12,6 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { keepsOwnRows } from "../broker/effect.js";
 import { summarizeInput, writeLog } from "../broker/log.js";
-import { loadWizardAgent } from "../engine/wizard-code.js";
 import type { InProcessContext } from "../run-services/in-process.js";
 import { snapshotFile } from "../services/files.js";
 import { clip } from "./shared.js";

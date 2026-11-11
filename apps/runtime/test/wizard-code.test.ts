@@ -17,7 +17,7 @@ import {
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { validatePath } from "../src/cli/validate";
-import { declareSandboxTool, declareWizardTool } from "../src/engine/wizard-code";
+import { declareSandboxTool, declareWizardTool } from "@engenty/wizards-engine/wizard-code";
 
 const SCORE = `
 export const description = "Scores an offer";

@@ -204,7 +204,7 @@ const shellVms: MakeVm = async () => {
 };
 
 async function convertTool(files: WorkspaceFile[], sandbox: unknown, runId: string) {
-  const { loadWizardTool } = await import("../src/engine/wizard-code");
+  const { loadWizardTool } = await import("@engenty/wizards-engine/wizard-code");
   const { sandboxTool } = await import("../src/tools/wizard-sandbox");
   const { getBlob } = await import("../src/files/blobs");
   const loaded = await loadWizardTool(
