@@ -1,11 +1,5 @@
-import { reachesOutside } from "../../broker/index.js";
-import {
-  MAIL_SENDERS,
-  MailTooLarge,
-  sendAsAccount,
-  sendFromServer,
-  serverSender,
-} from "../../connectors/smtp.js";
+import { mailWire, reachesOutside } from "../../broker/index.js";
+import { MAIL_SENDERS, sendFromServer, serverSender, tooLarge } from "../../connectors/smtp.js";
 import { megabytes } from "../files.js";
 import { line, ShareError, type ShareTarget } from "../types.js";
 
@@ -89,10 +83,10 @@ export const emailTarget: ShareTarget = {
         await ctx.call(
           { id: "send_message", kind: "send" },
           { to: message.to, subject: message.subject, attachments: message.attachments.length },
-          (held) => sendAsAccount(held.connector, held.ctx, message),
+          { name: "send_mail", message: mailWire(message) },
         );
       } catch (err) {
-        if (err instanceof MailTooLarge) {
+        if (tooLarge(err)) {
           throw new ShareError(line("shareMailboxLimit"));
         }
         throw err;

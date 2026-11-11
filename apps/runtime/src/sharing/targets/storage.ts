@@ -162,6 +162,20 @@ function capabilityUpload(connector: ConnectorDefinition): Upload | null {
   };
 }
 
+/** Saves the files into a folder of the account's storage; the link to the first, if it has one. */
+export async function uploadWith(
+  account: { connector: ConnectorDefinition; ctx: ConnectorActionContext },
+  folder: string,
+  files: { name: string; mime: string; data: Uint8Array }[],
+): Promise<string | null> {
+  const upload = UPLOADS[account.connector.id] ?? capabilityUpload(account.connector);
+  if (!upload) {
+    throw new Error(`${account.connector.name} takes no files.`);
+  }
+  const each = files.map((f) => ({ ...f, label: f.name, ref: f.name }));
+  return upload(account.ctx, folder, each, async () => undefined);
+}
+
 /** The connectors files can be saved into: `storage:<id>` is a share target for each. */
 export function storageConnectors(): ConnectorDefinition[] {
   return BUILTIN_CONNECTORS.filter((c) => UPLOADS[c.id] || c.storage);
@@ -204,13 +218,22 @@ export function storageTarget(connector: ConnectorDefinition): ShareTarget | nul
         throw new ShareError(line("shareConnectFirst", { name: connector.name }));
       }
       const folder = (values.folder ?? "").trim();
-      const link = await ctx.call(
+      for (const file of files) {
+        await ctx.emit(line("shareUploading", { name: file.name }));
+      }
+      // The broker uploads with the account (broker/named.ts, `uploadWith` below).
+      const link: string | null = await ctx.call(
         { id: action, kind: "write" },
         { folder, files: files.map((f) => f.name) },
-        (account) =>
-          upload(account.ctx, folder, files, (file) =>
-            ctx.emit(line("shareUploading", { name: file.name })),
-          ),
+        {
+          name: "upload",
+          folder,
+          files: files.map((f) => ({
+            name: f.name,
+            mime: f.mime,
+            data: Buffer.from(f.data).toString("base64"),
+          })),
+        },
       );
       const where = [connector.name, folder].filter(Boolean).join(" › ");
       return { summary: line("shareSavedFiles", { count: files.length, where }), url: link };

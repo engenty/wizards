@@ -97,7 +97,7 @@ function contextOf(
     ask,
     connected: () =>
       connection ? brokerConnected(heldBy(run, connection, spaceId)) : Promise.resolve(null),
-    call: async (action, input, handler) => {
+    call: async (action, input, work) => {
       const name = sayIn(who.lang, entry.target.name);
       if (!connection) {
         throw new ShareError(line("shareConnectFirst", { name }));
@@ -110,7 +110,7 @@ function contextOf(
         action,
         input,
         ctx: { ask, confirmed: true },
-        handler,
+        ...(typeof work === "function" ? { handler: work } : work ? { named: work } : {}),
       });
       if (!out.ok) {
         throw new ShareError(

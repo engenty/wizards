@@ -14,7 +14,8 @@ export const brokerCallRoutes = new Hono();
 brokerCallRoutes.post(
   "/call",
   bodyLimit({
-    maxSize: 8 * 1024 * 1024,
+    // A share's files travel in the body, as base64.
+    maxSize: 64 * 1024 * 1024,
     onError: (c) => c.json({ error: "The body is too large." }, 413),
   }),
   async (c) => {

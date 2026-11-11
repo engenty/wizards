@@ -15,10 +15,12 @@ import {
   type BrokerConnection,
   type BrokerResult,
   brokerCall,
+  brokerConnected,
   type Where,
   type Who,
 } from "./call.js";
 import type { EffectCall } from "./effect.js";
+import type { NamedCall } from "./named.js";
 
 /*
  * A connection call from a process that opens no connected account (docs/plans/runs-on-their-own.md,
@@ -46,6 +48,9 @@ export interface RemoteCall {
   connection: RemoteConnection;
   action: BrokerAction;
   input: unknown;
+  named?: NamedCall;
+  /** Only whether an account is there, and whose (`brokerConnected`). */
+  connected?: boolean;
   ctx: {
     /** Whether the caller can ask the person; no: the broker refuses what would ask. */
     canAsk: boolean;
@@ -67,7 +72,8 @@ export type RemoteAnswer =
     }
   | { ok: false; refused: string; reason: string; allowed: string[] }
   | { ask: AskInput }
-  | { thrown: { message: string; status?: number } };
+  | { thrown: { message: string; name?: string; status?: number } }
+  | { connected: { connector: string; name: string; label: string } | null };
 
 /** Thrown by the broker's stand-in for `ask` when the person's answer isn't there yet. */
 class AskFirst extends Error {
@@ -89,18 +95,15 @@ export async function remoteBrokerCall<T>(call: BrokerCallInput<T>): Promise<Bro
       `${call.action.id}: a call that runs code with the account can't go to the broker.`,
     );
   }
-  if (!env.brokerUrl) {
-    throw new Error("BROKER_URL is not set: this process opens no connected account.");
-  }
-  const tenant = currentTenant();
   const answers: (AskResult | null)[] = [];
   for (;;) {
-    const body = JSON.stringify({
+    const out = await post({
       who: call.who,
       where: call.where,
       connection: remoteConnectionOf(call.connection),
       action: call.action,
       input: call.input,
+      ...(call.named ? { named: call.named } : {}),
       ctx: {
         canAsk: Boolean(call.ctx?.ask),
         answers,
@@ -109,20 +112,10 @@ export async function remoteBrokerCall<T>(call: BrokerCallInput<T>): Promise<Bro
         approved: call.ctx?.approved,
         effect: call.ctx?.effect,
       },
-    } satisfies RemoteCall);
-    const res = await fetch(`${env.brokerUrl}${BROKER_CALL_PATH}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-wizards-tenant": tenant,
-        "x-wizards-ticket": brokerTicket(tenant, body),
-      },
-      body,
     });
-    if (!res.ok) {
-      throw new Error(`The broker answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    if ("connected" in out) {
+      throw new Error("The broker answered a call with whether it is connected.");
     }
-    const out = (await res.json()) as RemoteAnswer;
     if ("ask" in out) {
       // Two questions at most: whether it may happen again, then the rule's.
       if (!call.ctx?.ask || answers.length >= 2) {
@@ -132,10 +125,10 @@ export async function remoteBrokerCall<T>(call: BrokerCallInput<T>): Promise<Bro
       continue;
     }
     if ("thrown" in out) {
-      throw Object.assign(
-        new Error(out.thrown.message),
-        out.thrown.status ? { status: out.thrown.status } : {},
-      );
+      throw Object.assign(new Error(out.thrown.message), {
+        ...(out.thrown.name ? { name: out.thrown.name } : {}),
+        ...(out.thrown.status ? { status: out.thrown.status } : {}),
+      });
     }
     for (const key of out.allowed) {
       call.ctx?.allowed?.add(key);
@@ -153,6 +146,53 @@ export async function remoteBrokerCall<T>(call: BrokerCallInput<T>): Promise<Bro
       },
     };
   }
+}
+
+/** One round to the broker at `BROKER_URL`, in this tenant. */
+async function post(call: RemoteCall): Promise<RemoteAnswer> {
+  if (!env.brokerUrl) {
+    throw new Error("BROKER_URL is not set: this process opens no connected account.");
+  }
+  const tenant = currentTenant();
+  const body = JSON.stringify(call);
+  const res = await fetch(`${env.brokerUrl}${BROKER_CALL_PATH}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-wizards-tenant": tenant,
+      "x-wizards-ticket": brokerTicket(tenant, body),
+    },
+    body,
+  });
+  if (!res.ok) {
+    throw new Error(`The broker answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+  return (await res.json()) as RemoteAnswer;
+}
+
+/** Whether an account is there for `who`, and whose, as the broker reads it. */
+export async function remoteConnected(
+  connection: BrokerConnection,
+  who: Who,
+): Promise<{ connector: ConnectorDefinition; label: string } | null> {
+  const out = await post({
+    who,
+    where: {},
+    connection: remoteConnectionOf(connection),
+    action: { id: "connected", kind: "read" },
+    input: null,
+    connected: true,
+    ctx: { canAsk: false },
+  });
+  if (!("connected" in out)) {
+    throw new Error("The broker answered whether it is connected with something else.");
+  }
+  return out.connected
+    ? {
+        connector: { id: out.connected.connector, name: out.connected.name } as ConnectorDefinition,
+        label: out.connected.label,
+      }
+    : null;
 }
 
 async function connectionOf(remote: RemoteConnection): Promise<BrokerConnection | null> {
@@ -175,6 +215,14 @@ async function connectionOf(remote: RemoteConnection): Promise<BrokerConnection 
 /** The broker's side: makes the call it was sent, in the tenant the route opened. */
 export async function answerRemoteCall(call: RemoteCall): Promise<RemoteAnswer> {
   const connection = await connectionOf(call.connection);
+  if (call.connected) {
+    const found = connection ? await brokerConnected(connection, call.who) : null;
+    return {
+      connected: found
+        ? { connector: found.connector.id, name: found.connector.name, label: found.label }
+        : null,
+    };
+  }
   if (!connection) {
     return {
       ok: false,
@@ -201,6 +249,7 @@ export async function answerRemoteCall(call: RemoteCall): Promise<RemoteAnswer> 
       connection,
       action: call.action,
       input: call.input,
+      ...(call.named ? { named: call.named } : {}),
       ctx: {
         ...(ask ? { ask } : {}),
         allowed,
@@ -230,6 +279,7 @@ export async function answerRemoteCall(call: RemoteCall): Promise<RemoteAnswer> 
     return {
       thrown: {
         message: err instanceof Error ? err.message : String(err),
+        ...(err instanceof Error && err.name !== "Error" ? { name: err.name } : {}),
         ...(typeof status === "number" ? { status } : {}),
       },
     };
