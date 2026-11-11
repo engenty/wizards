@@ -21,22 +21,21 @@ import {
   mayAct,
   mayGoBackFrom,
 } from "../engine/answerers.js";
-import { answerAsk } from "../engine/asks.js";
-import { emitEvent, recentEvents, watchRun } from "../engine/events.js";
+import { emitEvent, recentEvents } from "../engine/events.js";
 import {
-  answerTurn,
-  cancel,
+  hostClientOf,
+  hostedRun,
+  type RunHostClient,
+  reviewEvent,
+} from "../engine/run-host-client.js";
+import {
   createRun,
   formContext,
-  goBack,
   NoCreditsError,
   type ReviewAction,
   RunConflict,
   RunInputError,
-  retry,
-  reviewStep,
   runView,
-  submitPage,
   viewedRun,
 } from "../engine/runner.js";
 import { managed } from "../manage.js";
@@ -92,6 +91,7 @@ function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boo
     unsubscribe();
     clearTimeout(timeout);
   };
+  let host: RunHostClient | null = null;
   const step = async () => {
     if (busy) {
       again = true;
@@ -101,7 +101,8 @@ function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boo
     try {
       do {
         again = false;
-        const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+        const row = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+        const run = row && (await hostedRun(row));
         if (
           !run ||
           run.status === "done" ||
@@ -119,9 +120,9 @@ function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boo
           const values = Object.fromEntries(
             current.fields.filter((f) => f.id in answers).map((f) => [f.id, answers[f.id]]),
           );
-          await submitPage(runId, current.id, values);
+          await host?.send({ kind: "answered", stepId: current.id, values });
         } else if (current?.type === "review" && acceptReviews) {
-          await reviewStep(runId, current.id, { type: "accept" });
+          await host?.send(reviewEvent(current.id, { type: "accept" }));
         } else {
           land();
           return;
@@ -142,11 +143,25 @@ function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boo
       busy = false;
     }
   };
-  const unsubscribe = watchRun(runId, () => {
-    void step();
-  });
+  let unsubscribe = () => {};
   const timeout = setTimeout(land, 30 * 60_000);
-  void step();
+  void (async () => {
+    const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+    if (!(run && autopilots.has(runId))) {
+      return;
+    }
+    host = await hostClientOf(run);
+    if (!autopilots.has(runId)) {
+      return;
+    }
+    unsubscribe = host.watch(() => {
+      void step();
+    });
+    void step();
+  })().catch((err) => {
+    console.error(`[run ${runId}] autopilot:`, err);
+    land();
+  });
 }
 
 /**
@@ -181,7 +196,7 @@ async function ownedRun(userId: string, runId: string, only?: "test" | "live"): 
   if (!run) {
     throw notFound();
   }
-  return run;
+  return hostedRun(run);
 }
 
 /** Still moving: running, or waiting on a page the autopilot is about to fill. */
@@ -197,7 +212,7 @@ export async function pluginRun(runId: string): Promise<RunRow> {
   if (!run) {
     throw notFound();
   }
-  return run;
+  return hostedRun(run);
 }
 
 /**
@@ -214,15 +229,23 @@ export async function pluginAnswerableRun(runId: string): Promise<RunRow> {
 
 /** Loads the run again while it works, up to `seconds` (at most 45), and gives it as it stands. */
 export async function waitRun(load: () => Promise<RunRow>, seconds: number): Promise<RunRow> {
-  const deadline = Date.now() + Math.min(45, Math.max(0, seconds)) * 1000;
+  return whileMoving(load, Date.now() + Math.min(45, Math.max(0, seconds)) * 1000);
+}
+
+/**
+ * Loads the run again at each change while it works, until `deadline`. A run on another host
+ * changes as its host's stream says; the load reads it from there (`hostedRun`).
+ */
+async function whileMoving(load: () => Promise<RunRow>, deadline: number): Promise<RunRow> {
   let run = await load();
-  while (moving(run) && Date.now() < deadline) {
+  const host = moving(run) ? await hostClientOf(run) : null;
+  while (host && moving(run) && Date.now() < deadline) {
     await new Promise<void>((resolve) => {
-      const unsubscribe = watchRun(run.id, () => {
+      const unsubscribe = host.watch(() => {
         unsubscribe();
         clearTimeout(timer);
         resolve();
-      });
+      }, run.rev);
       const timer = setTimeout(() => {
         unsubscribe();
         resolve();
@@ -239,23 +262,7 @@ async function waitWhileMoving(
   seconds: number,
   only?: "test" | "live",
 ): Promise<RunRow> {
-  const deadline = Date.now() + seconds * 1000;
-  let run = await ownedRun(userId, runId, only);
-  while (moving(run) && Date.now() < deadline) {
-    await new Promise<void>((resolve) => {
-      const unsubscribe = watchRun(runId, () => {
-        unsubscribe();
-        clearTimeout(timer);
-        resolve();
-      });
-      const timer = setTimeout(() => {
-        unsubscribe();
-        resolve();
-      }, deadline - Date.now());
-    });
-    run = await ownedRun(userId, runId, only);
-  }
-  return run;
+  return whileMoving(() => ownedRun(userId, runId, only), Date.now() + seconds * 1000);
 }
 
 /** Where the person can go on in a browser: the run page of a live run, the studio for a test. */
@@ -384,8 +391,9 @@ export async function startRun(
     return { runId, refused: null };
   }
   // A first page someone else answers isn't filled by whoever starts the run.
-  const started = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
-  if (started && !(await mayAct(started, await callerOfUser(userId)))) {
+  const record = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
+  const started = record && (await hostedRun(record));
+  if (!started || !(await mayAct(started, await callerOfUser(userId)))) {
     return { runId, refused: null };
   }
   const values = Object.fromEntries(
@@ -393,7 +401,10 @@ export async function startRun(
   );
   // The run is there either way; what did not fit is answered again with answer_form.
   try {
-    await submitPage(runId, first.id, values, { userId });
+    await (await hostClientOf(started)).send(
+      { kind: "answered", stepId: first.id, values },
+      { userId },
+    );
     return { runId, refused: null };
   } catch (err) {
     if (err instanceof RunInputError) {
@@ -409,8 +420,10 @@ export async function answerRunForm(
   stepId: string,
   values: Record<string, unknown>,
 ) {
-  await answerableRun(userId, runId);
-  await submitPage(runId, stepId, values, { userId }).catch(refusedInput);
+  const run = await answerableRun(userId, runId);
+  await (await hostClientOf(run))
+    .send({ kind: "answered", stepId, values }, { userId })
+    .catch(refusedInput);
 }
 
 export async function reviewRun(
@@ -419,8 +432,8 @@ export async function reviewRun(
   stepId: string,
   action: ReviewAction,
 ) {
-  await answerableRun(userId, runId);
-  await reviewStep(runId, stepId, action, { userId }).catch(refusedInput);
+  const run = await answerableRun(userId, runId);
+  await (await hostClientOf(run)).send(reviewEvent(stepId, action), { userId }).catch(refusedInput);
 }
 
 export async function controlRun(
@@ -436,8 +449,13 @@ export async function controlRun(
   ) {
     throw new ServiceError("forbidden", { code: "notYourStep" });
   }
-  const command = { back: (id: string) => goBack(id, { userId }), retry, cancel }[action];
-  await command(runId).catch(refusedInput);
+  const host = await hostClientOf(run);
+  const sent = {
+    back: () => host.send({ kind: "back" }, { userId }),
+    retry: () => host.send({ kind: "resume" }),
+    cancel: () => host.send({ kind: "cancel" }),
+  }[action];
+  await sent().catch(refusedInput);
 }
 
 /** Answers what a running step asks: allow a change in a connected account, or skip it. */
@@ -447,16 +465,21 @@ export async function answerRunAsk(
   askId: string,
   answer: "allow" | "skip",
 ) {
-  await answerableRun(userId, runId);
-  if (!(await answerAsk(runId, askId, answer === "allow" ? { type: "done" } : { type: "skip" }))) {
-    throw new ServiceError("refused", { code: "askClosed" });
-  }
+  const run = await answerableRun(userId, runId);
+  // A question no longer open: a conflict that says `askClosed`.
+  await (await hostClientOf(run))
+    .send({
+      kind: "askAnswered",
+      askId,
+      answer: answer === "allow" ? { type: "done" } : { type: "skip" },
+    })
+    .catch(refusedInput);
 }
 
 /** Answers what a durable step asked: its turn goes on with that. */
 export async function answerRunQuestion(userId: string, runId: string, answer: string) {
-  await answerableRun(userId, runId);
-  await answerTurn(runId, answer).catch(refusedInput);
+  const run = await answerableRun(userId, runId);
+  await (await hostClientOf(run)).send({ kind: "turnAnswered", answer }).catch(refusedInput);
 }
 
 /**

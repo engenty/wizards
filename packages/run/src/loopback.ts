@@ -12,8 +12,10 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import {
+  type DoorEvent,
   type HostActor,
   type HostChange,
+  type HostSendable,
   type HostState,
   hostEventSchema,
   PEER_RUNS_PATH,
@@ -134,8 +136,14 @@ export async function serveLoopback(host: LoopbackHost): Promise<Loopback> {
       });
       return;
     }
+    const { event, by } = parsed.data;
+    // A door's own events (a step's question, a view's state …) are not taken here yet.
+    if (!isFlowEvent(event)) {
+      json(res, 400, { error: `The run's host does not take "${event.kind}" from outside.` });
+      return;
+    }
     try {
-      json(res, 200, await host.send(parsed.data.event, parsed.data.by));
+      json(res, 200, await host.send(event, by));
     } catch (err) {
       if (err instanceof HostRefusal) {
         json(res, err.status, {
@@ -200,4 +208,17 @@ async function bodyOf(req: IncomingMessage): Promise<string | null> {
 function json(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(body));
+}
+
+const DOOR_KINDS: ReadonlySet<string> = new Set<DoorEvent["kind"]>([
+  "askAnswered",
+  "turnAnswered",
+  "stop",
+  "viewKept",
+  "outputEdited",
+  "resultTranslated",
+]);
+
+function isFlowEvent(event: HostSendable): event is FlowEvent {
+  return !DOOR_KINDS.has(event.kind);
 }
