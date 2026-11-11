@@ -1,9 +1,11 @@
 /**
- * Local provider — Uses pdf-parse for PDFs and mammoth for DOCX.
+ * Local provider — Uses pdf-parse for PDFs and mammoth for DOCX, both loaded on demand
+ * (on-demand.ts).
  *
  * No external API calls needed. Good as fallback.
  */
 
+import { onDemand } from "../../../../on-demand.js";
 import { htmlToMarkdown } from "../../../../render/markdown.js";
 import type {
   ConversionOptions,
@@ -39,7 +41,7 @@ export class LocalProvider implements DocConverterProvider {
     const metadata: ConversionResult["metadata"] = {};
 
     if (mimeType === "application/pdf") {
-      const { PDFParse } = await import("pdf-parse");
+      const { PDFParse } = await onDemand<typeof import("pdf-parse")>("pdf-parse");
       const buffer = Buffer.from(data);
       const parser = new PDFParse({ data: buffer });
       try {
@@ -67,7 +69,7 @@ export class LocalProvider implements DocConverterProvider {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
       mimeType === "application/msword"
     ) {
-      const mammoth = await import("mammoth");
+      const mammoth = await onDemand<typeof import("mammoth")>("mammoth");
       const buffer = Buffer.from(data);
       const result = await mammoth.convertToHtml({ buffer });
       // Simple HTML to markdown conversion (basic)

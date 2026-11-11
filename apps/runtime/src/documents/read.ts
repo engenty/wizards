@@ -4,6 +4,7 @@ import {
   splitMarkdownByPageBreaks,
 } from "../engenty/doc-converter/page-break.js";
 import { LocalProvider } from "../engenty/doc-converter/providers/local/index.js";
+import { onDemand } from "../on-demand.js";
 import { OCR_TYPES, OcrProvider } from "./ocr.js";
 
 /**
@@ -130,7 +131,9 @@ export function ownReader(tessdata: string): DocumentReader {
 
 /** Old Word files (Word 97–2003): their body, headers and footnotes. */
 async function readWord97(data: Uint8Array): Promise<string> {
-  const { default: WordExtractor } = await import("word-extractor");
+  const { default: WordExtractor } = await onDemand<{ default: typeof import("word-extractor") }>(
+    "word-extractor",
+  );
   const doc = await new WordExtractor().extract(Buffer.from(data));
   return [
     doc.getHeaders({ includeFooters: false }),

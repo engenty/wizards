@@ -1,3 +1,4 @@
+import { onDemand } from "../../../on-demand.js";
 import { ImportValidationError } from "../errors.js";
 import type { JsonPatchOperation } from "../registry-client.js";
 import type { NormalizedAction, NormalizeResult } from "../types.js";
@@ -11,7 +12,8 @@ import { classifyHttpOperation } from "./classify.js";
  * The executor/effect packages are imported LAZILY: they run ONLY at admin
  * import/refresh time, never at plugin boot or action execute time — the
  * stored `NormalizedAction[]` is what boot and execute consume. (Same
- * lazy-import posture the AI app uses for heavyweight optional deps.)
+ * lazy-import posture the AI app uses for heavyweight optional deps.) An
+ * install downloads them the first time (on-demand.ts).
  *
  * Registry `specOverrides` are RFC 6902 patches the registry publishes to
  * correct a published spec (Figma's truncated OAuth scopes, say). They are
@@ -45,9 +47,15 @@ export async function normalizeOpenApiSpec(
     );
   }
   const overrides = options?.specOverrides ?? [];
+  // effect comes with the plugin: the same copy its parse and extract run on.
   const [{ extract, parse }, { Effect, Option }] = await Promise.all([
-    import("@executor-js/plugin-openapi/core"),
-    import("effect"),
+    onDemand<typeof import("@executor-js/plugin-openapi/core")>(
+      "@executor-js/plugin-openapi",
+      { entry: "@executor-js/plugin-openapi/core" }
+    ),
+    onDemand<typeof import("effect")>("@executor-js/plugin-openapi", {
+      entry: "effect",
+    }),
   ]);
   const optional = <T>(value: { _tag: string }): T | undefined =>
     Option.getOrUndefined(
