@@ -28,6 +28,7 @@ import { openCommand } from "./open-command.js";
 import { PLUGIN_NAME, pluginArchive, pluginMarketplace } from "./plugin.js";
 import { apiRoutes } from "./routes/api.js";
 import { brokerRoutes } from "./routes/broker.js";
+import { brokerCallRoutes } from "./routes/broker-calls.js";
 import { bundleRoutes } from "./routes/bundles.js";
 import { clientContractRoutes } from "./routes/client-contract.js";
 import { clientSpaceRoutes } from "./routes/client-spaces.js";
@@ -56,6 +57,7 @@ import { studio } from "./routes/studio.js";
 import { wizardStream } from "./routes/wizard-stream.js";
 import { workRoutes } from "./routes/work.js";
 import { sandboxDataRequest } from "./sandbox/data.js";
+import { opensAccounts } from "./secrets/accounts.js";
 import { runTicketValid } from "./secrets/signing.js";
 import { asRole } from "./services/access.js";
 import { ServiceError } from "./services/errors.js";
@@ -168,6 +170,10 @@ if (serves.runServices) {
   // A run's services, asked for with the run's token (docs/plans/runs-on-their-own.md). Its own
   // body limit: the one of `/api/runs/*` comes after a broker's catch-all.
   app.route(RUN_SERVICES_PATH, runServiceRoutes);
+}
+if (serves.runServices && opensAccounts()) {
+  // Connection calls of this runtime's processes that open no account (broker/remote.ts).
+  app.route("/api/broker/v1", brokerCallRoutes);
 }
 
 // A run's sandbox reaches its wizard's database here, with the run's token (sandbox/data.ts). The

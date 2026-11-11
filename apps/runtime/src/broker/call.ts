@@ -13,6 +13,7 @@ import type {
 import { effectUnsure } from "../engine/events.js";
 import type { Role } from "../manage.js";
 import type { InProcessContext } from "../run-services/in-process.js";
+import { opensAccounts } from "../secrets/accounts.js";
 import type { StoreScope } from "../store/index.js";
 import {
   type Account,
@@ -469,6 +470,10 @@ const MAY_HAVE_HAPPENED = "It was interrupted before and may have happened alrea
  * and logs the call, whatever came of it. An error the action throws is logged and thrown on.
  */
 export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise<BrokerResult<T>> {
+  // A process that opens no connected account hands the call to the broker (remote.ts).
+  if (!opensAccounts()) {
+    return (await import("./remote.js")).remoteBrokerCall(call);
+  }
   const started = Date.now();
   const { who, where, ctx = {} } = call;
   let { connection } = call;

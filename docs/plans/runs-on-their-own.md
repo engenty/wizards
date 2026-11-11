@@ -73,7 +73,9 @@ full: what was decided on the way, what is open, which tests passed on which tip
 | 6.3 | open | Deploy, in the Manage repo: not done. Needs D4 (provider, sub-processor, region), the Worker with `SERVICES_URL`, the runtime's `EDGE_URL`, the run services at a public origin |
 | 6.4 | open | Edge tests: waits, deploys, stops; under way |
 | fix | merged #664 | A woken run says so once (the runtime host); node and edge hosts need the same rule |
-| 7.1 | step 1 in a pull request | Connected accounts sealed with a public key, opened with `ACCOUNTS_KEY` on the broker; `wizards reseal-accounts`; step 2 (own model keys and the rest) open |
+| 7.1 | step 1 merged #671 | Connected accounts sealed with a public key, opened with `ACCOUNTS_KEY` on the broker; `wizards reseal-accounts`; step 2 (own model keys and the rest) open |
+| 7.5a | in a pull request | A process without the key hands `brokerCall` to the broker (`BROKER_URL`, `/api/broker/v1/call`); asks come back to the caller |
+| 7.5b, 7.5c | open | Calls with code of their own as named calls; work that reads accounts in the background where the key is |
 | 7.2a | merged #661 | `apps/documents`: reading documents as a service of its own; `DOCUMENTS_URL` |
 | 7.2b, 7.2c | open | Render (Chromium) and media (ffmpeg) as services of their own |
 | 7.3 | merged #667 | A minimal install 536 → 394 MB: the document readers and the OpenAPI importer on demand; installers and install docs state the sizes. Then the PDF reader back in every install (Matthias, 11 November): 426 MB |
@@ -100,12 +102,34 @@ one symmetric key whoever seals can unseal, so the first step takes connected ac
 - **Not yet in step 1:** a run reaches the broker over HTTP (3.8), but the studio's chats,
   Goose, MCP's connection calls, sharing, mail watching and plugins call the broker in their own
   process. Until they ask the broker over the network too, a cloud can't take the private key off
-  the studio, doors and runner processes; the format and the command are ready for it.
+  the studio, doors and runner processes; the format and the command are ready for it. That is
+  7.5.
 - **Step 2:** own model keys and the rest, once the studio's assistants call models through the
   broker too.
 
 The cloud's env is a deploy step: set the pair first, then run `wizards reseal-accounts` on the
 broker.
+
+**7.5, connection calls from every process reach the broker** (asked for on 11 November 2026). A
+process without the private key never opens an account, so it can't run a call itself:
+
+- **7.5a, the call as data.** `brokerCall` in such a process sends the call to the broker at
+  `BROKER_URL` (`broker/remote.ts`, `POST /api/broker/v1/call`, served where `serves.runServices`
+  and the key are): who, where, the connection by its id, the action, its input, what the caller
+  already allowed. A ticket signed with the runtime's secret for the tenant and the body lets it
+  in (`brokerTicket`); the processes share that secret, so a process without the key can still
+  make the broker act, logged as anyone's call, but can't read a secret. An ask comes back as the
+  answer: the caller asks the person in its own process (Goose's card, a share's page) and sends
+  the call again with the answer, at most twice; the broker asks before it acts or writes the
+  call's line. What the person allowed for the rest comes back to the caller's set. A call that
+  brings code to run with the account (`handler`, `quietWhen`) is refused. That covers Work
+  chats, Goose, MCP's elements and a plugin's actions.
+- **7.5b, calls with code of their own** become calls the broker knows by name: refreshing a
+  connector's tools (`reload.ts`, `tools/connector.ts`), a plugin's own request with the account
+  (`plugin-connections.ts`), `brokerConnected`.
+- **7.5c, background work that reads accounts runs where the key is:** mail watching
+  (`brokerPullStream`, `brokerReadMessage`), the broker's notices sent as an account
+  (`broker-notify.ts`), share jobs. A process without the key leaves them to the broker.
 
 ## In short
 

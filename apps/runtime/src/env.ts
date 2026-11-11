@@ -145,6 +145,11 @@ export const env = {
    * not a fallback. Read only while the run services are switched on (engine/owner.ts).
    */
   runServicesUrl: str("RUN_SERVICES_URL").replace(/\/+$/, ""),
+  /**
+   * `BROKER_URL`: the origin of the broker that makes this process's connection calls, where it
+   * opens no connected account itself (`ACCOUNTS_PUBLIC_KEY` alone, secrets/accounts.ts).
+   */
+  brokerUrl: str("BROKER_URL").replace(/\/+$/, ""),
   runner: {
     /** This runner's name in the control database; a new one each start. */
     id: `${hostname()}-${randomBytes(3).toString("hex")}`,

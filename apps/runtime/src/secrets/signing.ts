@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { RUN_HOST_KINDS } from "@engenty/wizards-shared/run";
 import { z } from "zod";
 import { env } from "../env.js";
@@ -62,6 +62,30 @@ export function peerTicketValid(
     return false;
   }
   return sameSignature(`take:${tenant}:${runId}|${exp}`, sig);
+}
+
+const digest = (body: string) => createHash("sha256").update(body).digest("base64url");
+
+/**
+ * One of this runtime's processes hands the broker a connection call (broker/remote.ts): good for
+ * a minute, for this tenant and this body alone. The processes share `authSecret`, nobody else
+ * has it; the call says who calls, as the process that sends it knows.
+ */
+export function brokerTicket(tenant: string, body: string): string {
+  const exp = String(Math.floor(Date.now() / 1000) + 60);
+  return `${exp}.${sign(`broker:${tenant}:${digest(body)}|${exp}`)}`;
+}
+
+export function brokerTicketValid(
+  tenant: string,
+  body: string,
+  ticket: string | undefined,
+): boolean {
+  const [exp, sig] = (ticket ?? "").split(".");
+  if (!exp || !sig || Number(exp) * 1000 < Date.now()) {
+    return false;
+  }
+  return sameSignature(`broker:${tenant}:${digest(body)}|${exp}`, sig);
 }
 
 /**
