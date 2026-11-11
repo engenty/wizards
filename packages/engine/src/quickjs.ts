@@ -1,6 +1,7 @@
 import RELEASE_SYNC from "@jitl/quickjs-wasmfile-release-sync";
 import {
   newQuickJSWASMModuleFromVariant,
+  newVariant,
   type QuickJSDeferredPromise,
   type QuickJSWASMModule,
 } from "quickjs-emscripten-core";
@@ -28,6 +29,14 @@ const MAX_STACK_SIZE_BYTES = 262_144;
 const DRAIN_BUDGET_MS = 50;
 /** At most this many drain passes, so a queue that fills itself again ends. */
 const MAX_DRAIN_PASSES = 10;
+/**
+ * How many times QuickJS asks its interrupt handler, counted as one millisecond of a program's
+ * time. QuickJS asks about every ten thousand jumps and calls: a loop of plain arithmetic asks
+ * some 16 times a millisecond on a laptop, one that spends its time in built-ins far less. A
+ * runtime whose clock stands still while code runs (workerd's `Date.now()`) stops a program by
+ * this count; elsewhere the clock mostly comes first, with the same timeout.
+ */
+const INTERRUPTS_PER_MS = 30;
 
 /** What a run of a program gives back. */
 export interface QuickJsResult {
@@ -47,7 +56,7 @@ export interface QuickJsRun {
   /** Allow-listed tool ids, each called as `external_<id>` (`externalName`). */
   toolIds: string[];
   dispatch(tool: string, args: unknown): Promise<unknown>;
-  /** Wall time of the program, in milliseconds. */
+  /** Wall time of the program, in milliseconds; where the clock stands still, as QuickJS counts it. */
   timeout: number;
   abortSignal?: AbortSignal;
   onExternalCall?(tool: string, args: unknown): void;
@@ -67,10 +76,25 @@ export function externalName(toolId: string): string {
   return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(cleaned) ? cleaned : `_${cleaned}`;
 }
 
+/** QuickJS's `.wasm` as its host imported it; null: the variant loads the file itself. */
+let imported: WebAssembly.Module | null = null;
+
+/**
+ * For a host that compiles no WebAssembly from bytes (workerd): QuickJS's `.wasm`
+ * (`@jitl/quickjs-wasmfile-release-sync/wasm`), imported as a module by the host's bundle.
+ * Called before the first program.
+ */
+export function useQuickJsWasm(module: WebAssembly.Module): void {
+  imported = module;
+  loading = null;
+}
+
 /** QuickJS's WebAssembly module, loaded once for the process on the first program. */
 let loading: Promise<QuickJSWASMModule> | null = null;
 function wasm(): Promise<QuickJSWASMModule> {
-  loading ??= newQuickJSWASMModuleFromVariant(RELEASE_SYNC);
+  loading ??= newQuickJSWASMModuleFromVariant(
+    imported ? newVariant(RELEASE_SYNC, { wasmModule: imported }) : RELEASE_SYNC,
+  );
   loading.catch(() => {
     loading = null;
   });
@@ -176,7 +200,10 @@ async function runProgram(opts: QuickJsRun, memoryLimitMb: number): Promise<Quic
 
   const drainJobs = () => {
     const until = Date.now() + DRAIN_BUDGET_MS;
-    runtime.setInterruptHandler(() => Date.now() >= until);
+    let asked = 0;
+    runtime.setInterruptHandler(
+      () => Date.now() >= until || ++asked > DRAIN_BUDGET_MS * INTERRUPTS_PER_MS,
+    );
     for (let pass = 0; pass < MAX_DRAIN_PASSES && Date.now() < until; pass++) {
       const jobs = runtime.executePendingJobs();
       if ("error" in jobs && jobs.error) {
@@ -215,13 +242,16 @@ async function runProgram(opts: QuickJsRun, memoryLimitMb: number): Promise<Quic
   };
 
   const deadline = Date.now() + timeout;
+  /** The program's time as QuickJS counts it, for where the clock stands still. */
+  let asked = 0;
+  const budget = timeout * INTERRUPTS_PER_MS;
   let interrupted: "abort" | "timeout" | undefined;
   runtime.setInterruptHandler(() => {
     if (abortSignal?.aborted) {
       interrupted = "abort";
       return true;
     }
-    if (Date.now() >= deadline) {
+    if (Date.now() >= deadline || ++asked > budget) {
       interrupted = "timeout";
       return true;
     }

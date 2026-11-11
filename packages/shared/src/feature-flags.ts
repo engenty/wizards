@@ -251,6 +251,12 @@ export const FEATURES = {
     label: "Runs from the command line",
     hint: "A program starts a run of a space and drives it on its own machine; the run shows in the studio.",
   },
+  edgeRuns: {
+    kind: "release",
+    default: false,
+    label: "Runs in isolated objects",
+    hint: "A run can live in an object of its own, with its own storage and alarm; its record keeps the object's address.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,
