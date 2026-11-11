@@ -19,6 +19,7 @@ COPY apps/runtime/package.json apps/runtime/
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 COPY packages/engine/package.json packages/engine/
+COPY packages/run/package.json packages/run/
 COPY packages/wizards/package.json packages/wizards/
 COPY packages/runner/package.json packages/runner/
 RUN sed -i 's/"version": *"[^"]*"/"version": "0.0.0"/' package.json

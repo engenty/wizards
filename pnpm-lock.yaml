@@ -347,6 +347,9 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
+      '@engenty/wizards-run':
+        specifier: workspace:*
+        version: link:../../packages/run
       '@types/cross-spawn':
         specifier: ^6.0.6
         version: 6.0.6
@@ -759,6 +762,22 @@ importers:
       zod:
         specifier: 4.6.7
         version: 4.6.7
+
+  packages/run:
+    dependencies:
+      '@engenty/wizards-engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@engenty/wizards-shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: ~7.0.2
+        version: 7.0.2
 
   packages/runner:
     dependencies:
