@@ -76,7 +76,7 @@ full: what was decided on the way, what is open, which tests passed on which tip
 | 7.1 | step 1 in a pull request | Connected accounts sealed with a public key, opened with `ACCOUNTS_KEY` on the broker; `wizards reseal-accounts`; step 2 (own model keys and the rest) open |
 | 7.2a | merged #661 | `apps/documents`: reading documents as a service of its own; `DOCUMENTS_URL` |
 | 7.2b, 7.2c | open | Render (Chromium) and media (ffmpeg) as services of their own |
-| 7.3 | merged #667 | A minimal install 536 → 394 MB: the document readers and the OpenAPI importer on demand; installers and install docs state the sizes |
+| 7.3 | merged #667 | A minimal install 536 → 394 MB: the document readers and the OpenAPI importer on demand; installers and install docs state the sizes. Then the PDF reader back in every install (Matthias, 11 November): 426 MB |
 | 7.4 | open #668 | This table, `docs/content/dev/architecture.md` as built, the broker plan's phase 3 |
 
 **By phase.** Phases 0 to 5 are built. Phase 6 is built and tested on a local workerd; its deploy
