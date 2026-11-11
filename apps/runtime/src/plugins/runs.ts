@@ -18,20 +18,16 @@ import {
   mayGoBackFrom,
   mayWithdraw,
 } from "../engine/answerers.js";
-import { answerAsk } from "../engine/asks.js";
-import { emitEvent, watchRun } from "../engine/events.js";
+import { emitEvent, type RunSignal, watchRun } from "../engine/events.js";
+import { hostClientOf, reviewEvent } from "../engine/run-host-client.js";
+import { runStore } from "../engine/run-store.js";
 import {
-  answerTurn,
-  cancel,
   createRun,
   GuestBudgetError,
-  goBack,
   NoCreditsError,
+  RunConflict,
   RunInputError,
-  retry,
-  reviewStep,
   signalRun,
-  submitPage,
 } from "../engine/runner.js";
 import { saveAsset } from "../files/storage.js";
 import { checkUpload } from "../files/upload-check.js";
@@ -143,7 +139,10 @@ export function runsApiFor(pluginId: string): PluginRuns {
           first.fields.filter((f) => f.id in answers).map((f) => [f.id, answers[f.id]]),
         );
         try {
-          await submitPage(runId, first.id, values, { visitorId });
+          await (await hostClientOf(started)).send(
+            { kind: "answered", stepId: first.id, values },
+            { visitorId },
+          );
         } catch (err) {
           if (!(err instanceof RunInputError)) {
             throw err;
@@ -203,32 +202,43 @@ export function runsApiFor(pluginId: string): PluginRuns {
     },
     async answerForm(runId, stepId, values) {
       const run = await pluginAnswerableRun(runId);
-      await submitPage(runId, stepId, values, doorCaller(run)).catch(refusedInput);
+      await (await hostClientOf(run))
+        .send({ kind: "answered", stepId, values }, doorCaller(run))
+        .catch(refusedInput);
     },
     async review(runId, stepId, action) {
       const run = await pluginAnswerableRun(runId);
-      await reviewStep(runId, stepId, action, doorCaller(run)).catch(refusedInput);
+      await (await hostClientOf(run))
+        .send(reviewEvent(stepId, action), doorCaller(run))
+        .catch(refusedInput);
     },
     async answerAsk(runId, askId, answer) {
       const run = await pluginAnswerableRun(runId);
-      if (
-        !(await answerAsk(runId, askId, answer === "allow" ? { type: "done" } : { type: "skip" }))
-      ) {
-        throw new ServiceError(
-          "refused",
-          noteText({ code: "askClosed" }, wizardLang(run.definition)),
-        );
+      try {
+        await (await hostClientOf(run)).send({
+          kind: "askAnswered",
+          askId,
+          answer: answer === "allow" ? { type: "done" } : { type: "skip" },
+        });
+      } catch (err) {
+        if (err instanceof RunConflict && err.note?.code === "askClosed") {
+          throw new ServiceError(
+            "refused",
+            noteText({ code: "askClosed" }, wizardLang(run.definition)),
+          );
+        }
+        throw err;
       }
     },
     async answerQuestion(runId, answer) {
-      await pluginAnswerableRun(runId);
-      await answerTurn(runId, answer).catch(refusedInput);
+      const run = await pluginAnswerableRun(runId);
+      await (await hostClientOf(run)).send({ kind: "turnAnswered", answer }).catch(refusedInput);
     },
     async control(runId, action) {
       const opened = await pluginRun(runId);
       if (action === "cancel" && (await mayWithdraw(opened, doorCaller(opened)))) {
         await emitEvent(runId, opened.cursor, "stopped", note("runWithdrawn"));
-        await cancel(runId).catch(refusedInput);
+        await (await hostClientOf(opened)).send({ kind: "cancel" }).catch(refusedInput);
         return;
       }
       const run = await pluginAnswerableRun(runId);
@@ -239,14 +249,17 @@ export function runsApiFor(pluginId: string): PluginRuns {
       ) {
         throw new ServiceError("forbidden", { code: "notYourStep" });
       }
-      const command = { back: goBack, retry, cancel }[action];
-      await command(runId).catch(refusedInput);
+      const event = (
+        { back: { kind: "back" }, retry: { kind: "resume" }, cancel: { kind: "cancel" } } as const
+      )[action];
+      await (await hostClientOf(run)).send(event).catch(refusedInput);
     },
     subscribe(runId, listener) {
       // The listener runs inside the tenant the subscription was made in, as the events do.
       const tenantId = currentTenant();
-      // Changes the runner makes in another process reach the plugin too, each event once.
-      return watchRun(runId, (signal) => {
+      // Changes the runner makes in another process, or the run's host, reach the plugin too, each
+      // event once.
+      const heard = (signal: RunSignal) => {
         const event = signal.event;
         const shaped: PluginRunSignal = {
           runId,
@@ -269,7 +282,25 @@ export function runsApiFor(pluginId: string): PluginRuns {
             : null,
         };
         void withTenant(tenantId, () => listener(shaped));
-      });
+      };
+      // At once as a run of this runtime; a run on another host is watched there once the record
+      // says so.
+      let unsubscribe = watchRun(runId, heard);
+      let stopped = false;
+      void runStore
+        .hostOf(runId)
+        .then((host) => (host ? hostClientOf({ id: runId, host }) : null))
+        .then((client) => {
+          if (client?.host && !stopped) {
+            unsubscribe();
+            unsubscribe = client.watch(heard);
+          }
+        })
+        .catch((err) => console.error(`[run ${runId}] subscribe:`, err));
+      return () => {
+        stopped = true;
+        unsubscribe();
+      };
     },
     async handoffUrl(runId) {
       const run = await pluginRun(runId);

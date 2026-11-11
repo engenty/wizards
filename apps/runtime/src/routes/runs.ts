@@ -66,34 +66,25 @@ import {
   stepOfRun,
   viewFor,
 } from "../engine/answerers.js";
-import { answerAsk, pendingAsk } from "../engine/asks.js";
+import { pendingAsk } from "../engine/asks.js";
 import { answerDevice, offerDevice, openDeviceCalls } from "../engine/device.js";
-import { emitEvent, signalChanged, watchRun } from "../engine/events.js";
+import { emitEvent, signalChanged } from "../engine/events.js";
 import type { Actor } from "../engine/notices.js";
 import { fromOwner } from "../engine/owner.js";
 import { pushAvailable, setPushDevice, setRunViewed } from "../engine/push.js";
 import { liveResources } from "../engine/resources.js";
+import { hostClientOf, hostedRun, reviewEvent } from "../engine/run-host-client.js";
 import {
-  answerTurn,
-  cancel,
   createRun,
   durableRunsOn,
-  editOutput,
   GuestBudgetError,
-  goBack,
   keepUnsent,
   NoCreditsError,
   RunConflict,
   RunInputError,
-  retry,
-  reviewStep,
   runView,
   spaceIdOf,
-  stopRun,
-  submitPage,
   talkAllowed,
-  wakeNow,
-  writeRunState,
 } from "../engine/runner.js";
 import { basePath, env } from "../env.js";
 import { loadAsset, saveAsset } from "../files/storage.js";
@@ -297,7 +288,21 @@ async function callerOf(c: Context, run: RunRow): Promise<Caller> {
   };
 }
 
+/**
+ * The run, if the caller may open it, as its host has it: where it stands and its state come from
+ * the host when that is another one (engine/run-host-client.ts). Who may open it is decided here,
+ * at the tenant, before anything reaches the host.
+ */
 async function openedRun(c: Context, runId: string, opts: { signed?: boolean; answers?: boolean }) {
+  const run = await openedRecord(c, runId, opts);
+  return run && hostedRun(run);
+}
+
+async function openedRecord(
+  c: Context,
+  runId: string,
+  opts: { signed?: boolean; answers?: boolean },
+) {
   const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
   if (!run) {
     return null;
@@ -889,13 +894,16 @@ export const runRoutes = new Hono()
     }
     const member = await memberViewing(c, first);
     const caller = await callerOf(c, first);
+    // A run on another host: its stream of changes says when, and its state what the view shows.
+    const host = await hostClientOf(first);
     return streamSSE(c, async (stream) => {
       let closed = false;
       let busy = false;
       let again = false;
       let sentAt = 0;
       const send = async () => {
-        const run = await db.query.run.findFirst({ where: eq(schema.run.id, id) });
+        const row = await db.query.run.findFirst({ where: eq(schema.run.id, id) });
+        const run = row && (await hostedRun(row));
         if (run && !closed) {
           const hide = member
             ? new Set<string>()
@@ -943,12 +951,12 @@ export const runRoutes = new Hono()
           }
         }
       };
-      const unsubscribe = watchRun(id, (signal) => {
+      const unsubscribe = host.watch((signal) => {
         if (!signal.event) {
           void sendDeviceCalls().catch(() => undefined);
         }
         void push();
-      });
+      }, first.rev);
       stream.onAbort(() => {
         closed = true;
         unsubscribe();
@@ -1023,17 +1031,13 @@ export const runRoutes = new Hono()
       })
       .parse(await c.req.json());
     try {
-      const already = await submitPage(
-        run.id,
-        c.req.param("stepId"),
-        values,
+      const host = await hostClientOf(run);
+      // The run's `rev` after it: a view older than this is late, and the runner drops it.
+      const { rev, already } = await host.send(
+        { kind: "answered", stepId: c.req.param("stepId"), values },
         await actorOf(c, run),
-        seq === undefined ? undefined : { seq, tab },
+        seq === undefined ? undefined : { seq, ...(tab === undefined ? {} : { tab }) },
       );
-      // The run's `rev` now: a view older than this is late, and the runner drops it.
-      const rev =
-        (await db.query.run.findFirst({ where: eq(schema.run.id, run.id), columns: { rev: true } }))
-          ?.rev ?? run.rev;
       return c.json({ ok: true, rev, ...(already ? { already: true } : {}) });
     } catch (err) {
       return commandError(c, err);
@@ -1078,11 +1082,16 @@ export const runRoutes = new Hono()
     if (JSON.stringify(state).length > MAX_VIEW_STATE) {
       return c.json({ error: "too large" }, 413);
     }
-    const kept = await writeRunState(run, {
-      ...run.state,
-      outputs: { ...run.state.outputs, [stepId]: { ...output, view: state } },
-    });
-    return kept ? c.json({ ok: true }) : c.json({ error: "busy" }, 409);
+    try {
+      // On the state this door read: a run that moved since refuses.
+      await (await hostClientOf(run)).send({ kind: "viewKept", stepId, view: state, rev: run.rev });
+    } catch (err) {
+      if (err instanceof RunConflict) {
+        return c.json({ error: "busy" }, 409);
+      }
+      throw err;
+    }
+    return c.json({ ok: true });
   })
   // A json step's data, edited in the studio by someone of the organization the run belongs to.
   .put("/:id/outputs/:stepId", async (c) => {
@@ -1095,7 +1104,11 @@ export const runRoutes = new Hono()
       .object({ json: z.record(z.string(), z.unknown()) })
       .parse(await c.req.json());
     try {
-      await editOutput(run.id, c.req.param("stepId"), json);
+      await (await hostClientOf(run)).send({
+        kind: "outputEdited",
+        stepId: c.req.param("stepId"),
+        json,
+      });
       return c.json({ ok: true });
     } catch (err) {
       return commandError(c, err);
@@ -1126,7 +1139,10 @@ export const runRoutes = new Hono()
       ])
       .parse(await c.req.json());
     try {
-      await reviewStep(run.id, c.req.param("stepId"), action, await actorOf(c, run));
+      await (await hostClientOf(run)).send(
+        reviewEvent(c.req.param("stepId"), action),
+        await actorOf(c, run),
+      );
       return c.json({ ok: true });
     } catch (err) {
       return commandError(c, err);
@@ -1147,7 +1163,7 @@ export const runRoutes = new Hono()
     try {
       // A result that is on its way somewhere stops going there when the person steps back.
       await cancelShare(run.id);
-      await goBack(run.id, await actorOf(c, run));
+      await (await hostClientOf(run)).send({ kind: "back" }, await actorOf(c, run));
       return c.json({ ok: true });
     } catch (err) {
       return commandError(c, err);
@@ -1159,7 +1175,7 @@ export const runRoutes = new Hono()
       return c.json(notFoundAnswer(c), 404);
     }
     try {
-      await retry(run.id);
+      await (await hostClientOf(run)).send({ kind: "resume" });
       return c.json({ ok: true });
     } catch (err) {
       return commandError(c, err);
@@ -1175,7 +1191,11 @@ export const runRoutes = new Hono()
     if (withdraws) {
       await emitEvent(run.id, run.cursor, "stopped", note("runWithdrawn"));
     }
-    await cancel(run.id);
+    try {
+      await (await hostClientOf(run)).send({ kind: "cancel" });
+    } catch (err) {
+      return commandError(c, err);
+    }
     return c.json({ ok: true });
   })
   // A run's timeline in the runs panel, for the people of its organization.
@@ -1193,7 +1213,7 @@ export const runRoutes = new Hono()
       return asked.refused;
     }
     try {
-      await wakeNow(asked.run.id, asked.by);
+      await (await hostClientOf(asked.run)).send({ kind: "woke" }, { name: asked.by });
       return c.json({ ok: true });
     } catch (err) {
       return commandError(c, err);
@@ -1205,7 +1225,7 @@ export const runRoutes = new Hono()
       return asked.refused;
     }
     try {
-      await stopRun(asked.run.id, asked.by);
+      await (await hostClientOf(asked.run)).send({ kind: "stop" }, { name: asked.by });
       return c.json({ ok: true });
     } catch (err) {
       return commandError(c, err);
@@ -1263,16 +1283,17 @@ export const runRoutes = new Hono()
         }
         throw err;
       }
-      const fresh = (await db.query.run.findFirst({ where: eq(schema.run.id, run.id) })) ?? run;
-      const state = fresh.state;
-      state.translated = {
-        ...state.translated,
-        [run.lang]: { ...state.translated?.[run.lang], [stepId]: translated },
-      };
-      if (!(await writeRunState(fresh, state))) {
-        return refuse(c, { code: "runBusy" }, 409);
+      // The host keeps it in the run's state as it stands then.
+      try {
+        await (await hostClientOf(run)).send({
+          kind: "resultTranslated",
+          stepId,
+          lang: run.lang,
+          text: translated,
+        });
+      } catch (err) {
+        return commandError(c, err);
       }
-      signalChanged(run.id);
     }
     return c.json({ ok: true });
   })
@@ -1434,8 +1455,15 @@ export const runRoutes = new Hono()
         z.object({ type: z.literal("skip") }),
       ])
       .parse(await c.req.json());
-    if (!(await answerAsk(run.id, c.req.param("askId"), answer))) {
-      return refuse(c, { code: "askClosed" }, 409);
+    try {
+      // A question no longer open is a conflict that says `askClosed`, as before.
+      await (await hostClientOf(run)).send({
+        kind: "askAnswered",
+        askId: c.req.param("askId"),
+        answer,
+      });
+    } catch (err) {
+      return commandError(c, err);
     }
     return c.json({ ok: true });
   })
@@ -1449,7 +1477,7 @@ export const runRoutes = new Hono()
       .object({ answer: z.string().trim().min(1).max(10_000) })
       .parse(await c.req.json());
     try {
-      await answerTurn(run.id, answer);
+      await (await hostClientOf(run)).send({ kind: "turnAnswered", answer });
     } catch (err) {
       return commandError(c, err);
     }

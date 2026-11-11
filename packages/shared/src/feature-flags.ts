@@ -245,6 +245,12 @@ export const FEATURES = {
     label: "Runs on other hosts",
     hint: "A run can live on a host other than this runtime; its record keeps the host's address.",
   },
+  wizardsRun: {
+    kind: "release",
+    default: false,
+    label: "Runs from the command line",
+    hint: "A program starts a run of a space and drives it on its own machine; the run shows in the studio.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

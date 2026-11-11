@@ -11,7 +11,8 @@ import { sandboxToolHostIssues, wizardAgentFiles, wizardToolFileIssues } from ".
 
 /**
  * A wizard checked on its own, as the studio checks it on import: what `wizards validate` says,
- * and what a run started from a folder, a file or an address checks before it starts
+ * what the start route checks in a definition sent to it (`POST /api/v1/spaces/:id/runs`), and
+ * what a run started from a folder, a file or an address checks before it starts
  * (`@engenty/wizards-run/resolve`).
  *
  * The definition parses; its agents' files read and say what the steps use of them; `requires`

@@ -153,6 +153,76 @@ export function watchRun(runId: string, listener: (signal: RunSignal) => void): 
   };
 }
 
+/** Where a watcher of a run on another host reads: the host's state and its stream of changes. */
+export interface ChangeSource {
+  state(signal?: AbortSignal): Promise<{ run: { rev: number }; event: number }>;
+  changes(
+    since: number,
+    after: number | undefined,
+    signal: AbortSignal,
+  ): AsyncIterable<{ rev: number; events: RunEvent[] }>;
+}
+
+/** How long a watcher waits before it opens a broken stream of changes again. */
+const WATCH_RETRY_MS = 1000;
+
+/**
+ * `watchRun` for a run another host holds: its stream of changes says, not the row. Each line of
+ * the log reaches the listener once, then a change of revision as a signal without an event. A
+ * stream that breaks off is opened again from what was told. `since`: the revision the caller
+ * read, so a change between that read and the watch is not missed. Call it in the run's tenant.
+ */
+export function watchChanges(
+  runId: string,
+  source: ChangeSource,
+  listener: (signal: RunSignal) => void,
+  since?: number,
+): () => void {
+  const bound = AsyncResource.bind(listener);
+  const abort = new AbortController();
+  const { signal } = abort;
+  void (async () => {
+    let rev: number | null = null;
+    let told = 0;
+    while (!signal.aborted) {
+      try {
+        if (rev === null) {
+          const now = await source.state(signal);
+          // A revision the caller already read: a change since then is told at once.
+          rev = since ?? now.run.rev;
+          told = now.event;
+        }
+        for await (const change of source.changes(rev, told, signal)) {
+          for (const event of change.events) {
+            if (event.id > told) {
+              told = event.id;
+              bound({ runId, event });
+            }
+          }
+          if (change.rev !== rev) {
+            rev = change.rev;
+            bound({ runId, event: null });
+          }
+        }
+      } catch (err) {
+        if (!signal.aborted) {
+          console.warn(`[run ${runId}] its host's changes broke off:`, err);
+        }
+      }
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(done, WATCH_RETRY_MS);
+        function done() {
+          clearTimeout(timer);
+          signal.removeEventListener("abort", done);
+          resolve();
+        }
+        signal.addEventListener("abort", done, { once: true });
+      });
+    }
+  })();
+  return () => abort.abort();
+}
+
 /**
  * The newest line of this type since `stepId` last started, if the visit has one: what a step
  * already said when a takeover or a second wake comes back to it.

@@ -3,15 +3,18 @@
  * calls under `<url>/api/peer/runs/<run>/`, served by the runtime that holds the run
  * (apps/runtime/src/routes/peer.ts).
  *
- * - `GET state`: where the run stands, `{ run: { cursor, status, state, wakeAt, rev }, event }`.
- *   `event` is the newest line of the run's log at that read, so a stream can start right after it.
+ * - `GET state`: where the run stands, `{ run: { cursor, status, state, wakeAt, rev }, event,
+ *   error, ask }`. `event` is the newest line of the run's log at that read, so a stream can start
+ *   right after it; `error` and `ask` are what a door's view shows besides the flow's own fields.
  * - `GET changes?since=<rev>&after=<event>`: NDJSON, held open. Each line is a change
  *   `{ rev, events }`: the run's revision now and the lines of its log written since the last
  *   change. The first line comes at once when the run is past `since` or has lines past `after`;
  *   without `after` the stream starts at the log's newest line. A blank line every few seconds
  *   keeps the connection open and says nothing.
- * - `POST events`: `{ event, by? }`, a `FlowEvent` and who sent it as the door established it. The
- *   host takes it the way its doors do and answers `{ rev }`, the run's revision after the write.
+ * - `POST events`: `{ event, by?, page? }`, a `FlowEvent` or a door's own (`DoorEvent`) and who
+ *   sent it as the door established it; `page` is a page's number from a runner that sends one
+ *   page at a time. The host takes it the way its doors do and answers `{ rev, already? }`, the
+ *   run's revision after the write (`already`: that page's number had come before).
  *
  * Every call carries a peer ticket for the run and its tenant as `Authorization: Bearer` and the
  * tenant in `x-wizards-tenant`; the ticket signs both. A ticket is checked when a call opens, so a
@@ -21,7 +24,9 @@
  */
 import { wizardSchema } from "@engenty/wizards-shared/definition";
 import {
+  type AskAnswer,
   RUN_EVENT_TYPES,
+  type RunAsk,
   type RunEvent,
   type RunNote,
   type RunState,
@@ -55,6 +60,7 @@ const RUN_STATUSES = [
 const runStateSchema = z.custom<RunState>(isRecord, "A run's state is an object.");
 const stepOutputSchema = z.custom<StepOutput>(isRecord, "A step's output is an object.");
 const runNoteSchema = z.custom<RunNote>(isRecord, "A note is an object.");
+const runAskSchema = z.custom<RunAsk>(isRecord, "A question to the person is an object.");
 
 /** The run as its host keeps it, with the revision a write holds on. */
 export const hostRunSchema = z.object({
@@ -72,10 +78,16 @@ export const hostStateSchema = z.object({
   run: hostRunSchema,
   /** The newest line of the run's log at this read; 0 when it has none. */
   event: z.number().int().nonnegative(),
+  /** What the run's failure says; null while it has none. */
+  error: z.string().nullable(),
+  /** What a running step asks the person right now (a sign-in, a change to allow); null: nothing. */
+  ask: runAskSchema.nullable(),
 });
 export interface HostState {
   run: HostRun;
   event: number;
+  error: string | null;
+  ask: RunAsk | null;
 }
 
 export const runEventSchema: z.ZodType<RunEvent> = z.object({
@@ -134,7 +146,65 @@ export const flowEventSchema: z.ZodType<FlowEvent> = z.discriminatedUnion("kind"
   z.object({ kind: z.literal("cancel") }),
 ]);
 
-/** Who sent an event, as the door that took it established. `name`: what the log says, for "Continue now". */
+const askAnswerSchema: z.ZodType<AskAnswer> = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("fill"),
+    values: z.record(z.string(), z.string().max(500)),
+    remember: z.boolean().optional(),
+  }),
+  z.object({ type: z.literal("done"), remember: z.boolean().optional() }),
+  z.object({ type: z.literal("skip") }),
+]);
+
+/**
+ * What a door does to a run besides the flow's events:
+ * - `askAnswered`: the answer to what a running step asks.
+ * - `turnAnswered`: the answer to what a durable step's turn asks.
+ * - `stop`: "Stop" on a run that waits; unlike `cancel` it refuses a run that moved on, and
+ *   `by.name` says who.
+ * - `viewKept`: what the person did in a step's view (a checklist's ticks), on the state the door
+ *   read at `rev`.
+ * - `outputEdited`: a json step's data, edited by the organization.
+ * - `resultTranslated`: a finished result's text in the language the viewer reads the run in; the
+ *   door translates, the host keeps it.
+ */
+export type DoorEvent =
+  | { kind: "askAnswered"; askId: string; answer: AskAnswer }
+  | { kind: "turnAnswered"; answer: string }
+  | { kind: "stop" }
+  | { kind: "viewKept"; stepId: string; view: Record<string, unknown>; rev: number }
+  | { kind: "outputEdited"; stepId: string; json: Record<string, unknown> }
+  | { kind: "resultTranslated"; stepId: string; lang: string; text: string };
+
+export const doorEventSchema: z.ZodType<DoorEvent> = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("askAnswered"),
+    askId: z.string().min(1).max(40),
+    answer: askAnswerSchema,
+  }),
+  z.object({ kind: z.literal("turnAnswered"), answer: z.string().min(1).max(10_000) }),
+  z.object({ kind: z.literal("stop") }),
+  z.object({ kind: z.literal("viewKept"), stepId, view: values, rev: z.number().int() }),
+  z.object({ kind: z.literal("outputEdited"), stepId, json: values }),
+  z.object({
+    kind: z.literal("resultTranslated"),
+    stepId,
+    lang: z.string().min(2).max(20),
+    text: z.string().max(500_000),
+  }),
+]);
+
+/** What a door sends a run's host. */
+export type HostSendable = FlowEvent | DoorEvent;
+
+/** A page's number from a runner that sends one page at a time, and the tab that sent it. */
+export const pageSentSchema = z.object({
+  seq: z.number().int().min(1),
+  tab: z.string().max(40).optional(),
+});
+export type PageSent = z.infer<typeof pageSentSchema>;
+
+/** Who sent an event, as the door that took it established. `name`: what the log says, for "Continue now" and "Stop". */
 export const hostActorSchema = z.object({
   userId: z.string().max(200).nullable().optional(),
   visitorId: z.string().max(200).nullable().optional(),
@@ -143,14 +213,20 @@ export const hostActorSchema = z.object({
 export type HostActor = z.infer<typeof hostActorSchema>;
 
 /** `POST events`. */
-export const hostEventSchema = z.object({ event: flowEventSchema, by: hostActorSchema.optional() });
+export const hostEventSchema = z.object({
+  event: z.union([flowEventSchema, doorEventSchema]),
+  by: hostActorSchema.optional(),
+  page: pageSentSchema.optional(),
+});
 export interface HostEvent {
-  event: FlowEvent;
+  event: HostSendable;
   by?: HostActor;
+  page?: PageSent;
 }
 
-/** What `POST events` answers. */
-export const hostSentSchema = z.object({ rev: z.number().int() });
+/** What `POST events` answers. `already`: the page's number had come before, nothing was done again. */
+export const hostSentSchema = z.object({ rev: z.number().int(), already: z.boolean().optional() });
+export type HostSent = z.infer<typeof hostSentSchema>;
 
 /** A file of the wizard's workspace, by reference: the bytes stay in the tenant's storage. */
 const workspaceFileSchema = z.object({
@@ -180,13 +256,18 @@ export const handOverSchema = z.object({
 });
 export type HandOver = z.infer<typeof handOverSchema>;
 
-/** A refusal: `{ error, fields? }` as the host answered it, with its status. */
+/**
+ * A refusal: `{ error, fields?, said?, errors? }` as the host answered it, with its status. `said`
+ * (409) is what the refusal says before it is put in words, `errors` (422) each field's.
+ */
 export class HostApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
     /** The page's fields that were not accepted, as the host wrote them (status 422). */
     readonly fields?: unknown,
+    /** The whole answer, for what a door puts in its own words. */
+    readonly body?: unknown,
   ) {
     super(message);
     this.name = "HostApiError";
@@ -212,7 +293,7 @@ export interface HostApi {
    * stream starts at the log's newest line.
    */
   changes(since: number, signal?: AbortSignal, after?: number): AsyncIterable<HostChange>;
-  send(event: FlowEvent, by?: HostActor): Promise<{ rev: number }>;
+  send(event: HostSendable, by?: HostActor, page?: PageSent): Promise<HostSent>;
 }
 
 export function hostApi(options: HostApiOptions): HostApi {
@@ -309,8 +390,11 @@ export function hostApi(options: HostApiOptions): HostApi {
       }
     },
 
-    async send(event, by) {
-      const res = await call("events", { method: "POST", body: { event, ...(by ? { by } : {}) } });
+    async send(event, by, page) {
+      const res = await call("events", {
+        method: "POST",
+        body: { event, ...(by ? { by } : {}), ...(page ? { page } : {}) } satisfies HostEvent,
+      });
       return hostSentSchema.parse(await res.json());
     },
   };
@@ -329,6 +413,7 @@ async function refusalOf(res: Response): Promise<HostApiError> {
     res.status,
     error ?? `The run's host refused (${res.status}).`,
     isRecord(body) ? body.fields : undefined,
+    body,
   );
 }
 

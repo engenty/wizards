@@ -7,13 +7,14 @@ import {
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import {
   HOST_OFFERS,
+  type HostGap,
   type HostOffers,
   hostFit,
   type ModelWay,
   requiredClasses,
 } from "@engenty/wizards-shared/fit";
 import { requiresOf } from "@engenty/wizards-shared/requires";
-import type { RunHostRef } from "@engenty/wizards-shared/run";
+import type { RunHostKind, RunHostRef } from "@engenty/wizards-shared/run";
 import { env } from "../env.js";
 import { feature, remoteFeatures } from "../features.js";
 import { modelWays } from "../models.js";
@@ -49,6 +50,45 @@ export async function hostFor(
   const requires = def.requires ?? requiresOf(def);
   const ways = await modelWays(requiredClasses(requires));
   return candidates.find((host) => hostFit(requires, offersOf(host), ways).fits) ?? null;
+}
+
+/** How a class reaches its model where a host cannot follow, in words for the one who starts. */
+const WAY_WORDS: Record<ModelWay, string> = {
+  credits: "on credits",
+  key: "with your own API key",
+  ollama: "with Ollama",
+  apple: "on Apple’s model on this computer",
+  client: "through an AI client installed with engenty wizards",
+};
+
+/**
+ * A host the caller brings (`wizards run`) cannot run the wizard: a model it calls is reached in
+ * a way only this runtime has, or in no way at all. Nothing was held for the run.
+ */
+export class HostUnfit extends Error {
+  constructor(readonly missing: HostGap[]) {
+    super(
+      `This wizard can’t run there. ${missing
+        .map(({ cls, way }) =>
+          way
+            ? `Its ${cls} model runs ${WAY_WORDS[way]}, and only engenty wizards reaches it that way.`
+            : `Its ${cls} model has nothing to run on.`,
+        )
+        .join(" ")} Start it in the studio instead.`,
+    );
+  }
+}
+
+/**
+ * Throws `HostUnfit` where a host of `kind`, brought by the caller, cannot run `def`: the check
+ * `hostFor` makes, with the kind's own ways (the caller's machine is not this one).
+ */
+export async function requireFit(def: WizardDefinition, kind: RunHostKind): Promise<void> {
+  const requires = def.requires ?? requiresOf(def);
+  const fit = hostFit(requires, kind, await modelWays(requiredClasses(requires)));
+  if (!fit.fits) {
+    throw new HostUnfit(fit.missing);
+  }
 }
 
 /** How long a host has to take a run before it stays here. */
