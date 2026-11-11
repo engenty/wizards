@@ -13,6 +13,9 @@
 //                             the MIT libraries in packages/: each its dist/ as tsc leaves it
 //                             (tsconfig.build.json), its LICENSE and README, at the release's
 //                             version. search-libsql names the other two at that version.
+//   @engenty/wizards-run      `wizards run` without the runtime, as the command `wizards-run`:
+//                             packages/run with the engine and shared bundled. Packed, and
+//                             private while packages/run is; release.yml publishes it once not.
 //
 //   node scripts/npm-package.mjs [--skip-build] [--version 1.2.3] [--apple <wizards-apple>]
 //
@@ -24,7 +27,8 @@
 // Out: dist/npm/runtime/, dist/npm/wizards/, dist/npm/engenty-wizards/ and
 // dist/npm/engenty-<library>/ (the staged folders), dist/npm/engenty-wizards-runtime-<version>.tgz,
 // dist/npm/wizards-<version>.tgz, dist/npm/engenty-wizards-<version>.tgz and
-// dist/npm/engenty-<library>-<version>.tgz for each MIT library.
+// dist/npm/engenty-<library>-<version>.tgz for each MIT library, and
+// dist/npm/engenty-wizards-run/ with dist/npm/engenty-wizards-run-<version>.tgz.
 // Publish the runtime first: the launcher installs the runtime of its own version from npm.
 //
 // The folder keeps the checkout's layout (apps/runtime/dist, apps/web/dist, plugin/), so the
@@ -147,15 +151,24 @@ const resolved = (dir) => {
   );
   return listed.dependencies ?? {};
 };
-const dependencies = {};
-const bundled = [];
-// The runtime imports @engenty/wizards for /plugin alone: its copy leaves out /openui, which
-// bundles the runner and brings the runner's libraries.
-const ONLY = { "@engenty/wizards": "plugin" };
-const collect = (dir) => {
-  const installed = resolved(dir);
-  for (const [name, range] of Object.entries(readJson(`${dir}/package.json`).dependencies ?? {})) {
-    if (range.startsWith("workspace:")) {
+// The dependencies of the workspace package in `dir`, into a package staged at `into`: a workspace
+// package goes into its node_modules as its build (`keep` picks the files), and its own
+// dependencies join; any other is named at the version the lockfile resolved. `only` copies just
+// one subpath of a workspace package.
+const collector = (into, dependencies, bundled, { only: ONLY = {}, keep = () => true } = {}) => {
+  const collect = (dir) => {
+    const installed = resolved(dir);
+    for (const [name, range] of Object.entries(
+      readJson(`${dir}/package.json`).dependencies ?? {},
+    )) {
+      if (!range.startsWith("workspace:")) {
+        const exact = installed[name]?.version;
+        if (!exact) {
+          throw new Error(`${name} (${dir}) is not installed — run pnpm install.`);
+        }
+        dependencies[name] = exact;
+        continue;
+      }
       // The workspace folder pnpm linked the package from.
       const linked = installed[name]?.path;
       if (!linked) {
@@ -163,13 +176,16 @@ const collect = (dir) => {
       }
       const from = relative(root, linked);
       const manifest = readJson(`${from}/package.json`);
-      bundled.push(name);
+      if (!bundled.includes(name)) {
+        bundled.push(name);
+      }
       dependencies[name] = manifest.version;
-      const to = join(stage, "node_modules", name);
+      const to = join(into, "node_modules", name);
       const only = ONLY[name];
       mkdirSync(to, { recursive: true });
       cpSync(join(root, from, "dist", only ?? ""), join(to, "dist", only ?? ""), {
         recursive: true,
+        filter: (source) => statSync(source).isDirectory() || keep(source),
       });
       // Without the condition that points at the TypeScript sources, which are not shipped.
       const exports = Object.fromEntries(
@@ -194,16 +210,15 @@ const collect = (dir) => {
       if (!only) {
         collect(from);
       }
-    } else {
-      const exact = installed[name]?.version;
-      if (!exact) {
-        throw new Error(`${name} (${dir}) is not installed — run pnpm install.`);
-      }
-      dependencies[name] = exact;
     }
-  }
+  };
+  return collect;
 };
-collect("apps/runtime");
+const dependencies = {};
+const bundled = [];
+// The runtime imports @engenty/wizards for /plugin alone: its copy leaves out /openui, which
+// bundles the runner and brings the runner's libraries.
+collector(stage, dependencies, bundled, { only: { "@engenty/wizards": "plugin" } })("apps/runtime");
 
 // Third-party packages that ship with the dependencies the overrides in pnpm-workspace.yaml give
 // them here: npm reads overrides only from the folder it installs into, so the runtime brings
@@ -481,16 +496,71 @@ const libraries = LIBRARIES.map((dir) => {
   return { name: manifest.name, stage: to, tarball: join(outDir, `engenty-${dir}-${version}.tgz`) };
 });
 
-// --- 7. pack ----------------------------------------------------------------------------
+// --- 7. @engenty/wizards-run ------------------------------------------------------------
+// `wizards run` without the runtime: the command `wizards-run` (packages/run/bin), packages/run's
+// build and, bundled as in the runtime, the builds of the engine and of shared, which are never
+// published on their own. Their other dependencies at the versions the lockfile resolved. Only
+// the JavaScript: it is a command, and the declarations would double it (shared's
+// definition.d.ts alone is 1.4 MB). `private` as long as packages/run is: npm packs it, and the
+// release publishes it only once packages/run says otherwise (release.yml).
+const runPackage = readJson("packages/run/package.json");
+const runStage = join(outDir, "engenty-wizards-run");
+const runDependencies = {};
+const runBundled = [];
+const javascript = (file) => file.endsWith(".js");
+mkdirSync(runStage, { recursive: true });
+cpSync(join(root, "packages", "run", "dist"), join(runStage, "dist"), {
+  recursive: true,
+  filter: (source) => statSync(source).isDirectory() || javascript(source),
+});
+cpSync(join(root, "packages", "run", "bin"), join(runStage, "bin"), { recursive: true });
+for (const file of Object.values(runPackage.bin)) {
+  chmodSync(join(runStage, file), 0o755);
+}
+cpSync(join(root, "LICENSE"), join(runStage, "LICENSE"));
+collector(runStage, runDependencies, runBundled, { keep: javascript })("packages/run");
+writeFileSync(
+  join(runStage, "package.json"),
+  `${JSON.stringify(
+    {
+      name: runPackage.name,
+      version,
+      ...(runPackage.private ? { private: true } : {}),
+      description: runPackage.description,
+      ...about,
+      repository: { ...about.repository, directory: "packages/run" },
+      type: "module",
+      bin: runPackage.bin,
+      engines: pkg.engines,
+      exports: Object.fromEntries(
+        Object.entries(runPackage.exports).map(([key, value]) => [key, value.default]),
+      ),
+      files: ["bin", "dist"],
+      dependencies: Object.fromEntries(
+        Object.keys(runDependencies)
+          .sort((a, b) => a.localeCompare(b))
+          .map((name) => [name, runDependencies[name]]),
+      ),
+      bundleDependencies: runBundled,
+      publishConfig: { access: "public" },
+    },
+    null,
+    2,
+  )}\n`,
+);
+
+// --- 8. pack ----------------------------------------------------------------------------
 run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], stage);
 run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], launcherStage);
 run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], libraryStage);
 for (const { stage: dir } of libraries) {
   run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], dir);
 }
+run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], runStage);
 const tarball = join(outDir, `engenty-wizards-runtime-${version}.tgz`);
 const launcherTarball = join(outDir, `wizards-${version}.tgz`);
 const libraryTarball = join(outDir, `engenty-wizards-${version}.tgz`);
+const runTarball = join(outDir, `engenty-wizards-run-${version}.tgz`);
 
 function* walk(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -521,6 +591,12 @@ wizards ${version} (the launcher)
 ${library.name} ${version}
   staged    ${libraryFiles.length} files, ${mb(sizeOf(libraryFiles))}  (${libraryStage})
   tarball   ${kb(statSync(libraryTarball).size)}  (${libraryTarball})
+`);
+const runFiles = [...walk(runStage)];
+console.log(`${runPackage.name} ${version} (the command wizards-run${runPackage.private ? ", private: not published" : ""})
+  staged    ${runFiles.length} files, ${mb(sizeOf(runFiles))}  (${runStage})
+  tarball   ${kb(statSync(runTarball).size)}  (${runTarball})
+  depends   ${Object.keys(runDependencies).length} packages, ${runBundled.length} bundled (${runBundled.join(", ")})
 `);
 for (const { name, stage: dir, tarball: file } of libraries) {
   const staged = [...walk(dir)];

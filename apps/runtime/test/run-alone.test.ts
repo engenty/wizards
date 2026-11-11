@@ -145,7 +145,7 @@ async function run(
     where: null,
     env,
     runsDir,
-    command: "wizards",
+    command: "wizards run",
     io: {
       ask: null,
       say: (line) => {

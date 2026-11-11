@@ -139,7 +139,7 @@ async function run(argv: string[], typed: string[] | null = null): Promise<Ran> 
       name: "this organization",
     },
     runsDir,
-    command: "wizards",
+    command: "wizards run",
     fetch: (input, init) => Promise.resolve(app.request(String(input), init)),
     io: {
       ask: answers

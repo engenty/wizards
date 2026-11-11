@@ -340,6 +340,21 @@ Eight phases. Each package is one pull request into the branch `feat/runs-on-the
 | 5.5 | `feat(run): without an organization` | `packages/run`, `hostFit` | With a runtime on the machine: its address and a token for this client. With none: only what `hostFit` allows with a model reached by fetch (Ollama, an own key). | The refund example runs with Ollama and nothing else installed. |
 | 5.6 | `build(run): the small package` | `scripts/npm-package.mjs`, the Release workflow | Publishes `@engenty/wizards-run` with its own `bin`. `wizards run` in the large package calls the same code. | The installed size is measured and written into the plan file and the docs. |
 
+**Measured (5.6, 0.19.0, macOS, Node 24.14, npm 11.9).** Each tarball as `scripts/npm-package.mjs`
+packs it, installed with `npm install` into an empty folder, `du -sh node_modules`:
+
+| Package | Tarball | Installed | Packages |
+|---|---|---|---|
+| `@engenty/wizards-run` (the command `wizards-run`) | 277 KB | 33 MB | 34 |
+| `@engenty/wizards-runtime` (minimal: no optional peers, `--ignore-scripts --legacy-peer-deps` as the installer) | 26.0 MB | 539 MB | 345 |
+
+The small one is the engine and shared bundled as JavaScript (no declarations), and `ai` 9.9 MB,
+`zod` 8.1 MB, `@ai-sdk/*` 4.7 MB, `undici` 2.1 MB, `sucrase` 1.6 MB, QuickJS 1.5 MB, `yaml`
+1.2 MB, `fflate` 0.8 MB. From that install, `npx wizards-run --help` answers and the refund
+example runs alone to its end against a fake Ollama. The large one is about 700 MB with its own
+Node (`docs/content/user-guide/install.md`). The package stays `private` until it is decided to
+publish it; the Release workflow packs and tests it and leaves it out of the release while it is.
+
 ### Phase 6 · A run as an isolated object
 
 **Goal:** one run, one object, with its own storage, woken by its own alarm. **Switch `edgeRuns`.** Starts only after spike 0.3 and decision D4, because an object holds people's answers and so is a place of processing.
