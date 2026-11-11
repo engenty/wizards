@@ -94,7 +94,7 @@ afterAll(async () => {
 });
 
 /** Hands a run that has not started to its object, as the tenant does. */
-async function handOver(runId: string, def: WizardDefinition) {
+async function handOver(runId: string, def: WizardDefinition, at: LocalEdge = edge) {
   const body: HandOver = {
     runId,
     token: runId,
@@ -108,20 +108,20 @@ async function handOver(runId: string, def: WizardDefinition) {
       rev: 1,
     },
   };
-  return edge.fetch(`/api/peer/runs/${runId}/hand-over`, {
+  return at.fetch(`/api/peer/runs/${runId}/hand-over`, {
     method: "POST",
     headers: { authorization: `Bearer ${runId}`, "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 }
 
-const api = (runId: string) =>
+const api = (runId: string, at: LocalEdge = edge) =>
   hostApi({
     url: "http://edge.local",
     runId,
     tenant: "t",
     ticket: runId,
-    fetch: (input, init) => edge.fetch(pathOf(input), init),
+    fetch: (input, init) => at.fetch(pathOf(input), init),
   });
 
 async function until<T>(read: () => Promise<T>, ok: (value: T) => boolean, ms: number) {
@@ -181,4 +181,32 @@ describe("a code step in a run's object", () => {
     expect(again.status).toBe(202);
     expect((await api("run-sum").state()).run.status).toBe("done");
   });
+
+  it("stops a function that never ends by QuickJS's count alone, the clock held still", async () => {
+    // The objects' clock does not move at all here (test-clock.ts): the step's 10 s on it never
+    // pass, so only the count of QuickJS's interrupts (`countQuickJsInterrupts`) ends the loop.
+    const held = await localEdge({
+      persist: mkdtempSync(join(tmpdir(), "wizards-edge-code-held-")),
+      services: SERVICES,
+      outbound: services,
+      clock: true,
+    });
+    try {
+      const { now } = await held.clock("run-held", { hold: true });
+      const started = performance.now();
+      await handOver("run-held", wizard("forever.js"), held);
+      const state = await until(
+        () => api("run-held", held).state(),
+        (s) => s.run.status === "failed",
+        240_000,
+      );
+      const took = performance.now() - started;
+      expect(state.run.status).toBe("failed");
+      expect(state.error).toContain("timed out after 10000ms");
+      expect((await held.clock("run-held")).now).toBe(now);
+      console.log(`[code step] stopped by the count after ${Math.round(took)} ms of wall time`);
+    } finally {
+      await held.dispose();
+    }
+  }, 300_000);
 });

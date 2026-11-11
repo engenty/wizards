@@ -11,7 +11,9 @@
  * makes none: it moves the run as far as it goes without one, and the alarm does the rest.
  *
  * The call stops by aborting its signal: the engine writes nothing more and leaves the run where
- * it was, at work at its step, as after a restart. The step's turn is saved after each model call
+ * it was, at work at its step, as after a restart. A cancel stops a call the same way (`stop`), in
+ * the middle of a model's or a tool's call: the run ends where it stood, as in the runtime, whose
+ * cancel stops the drive. The step's turn is saved after each model call
  * and each tool call (steps/agent-turn.ts), so going on repeats nothing that was answered.
  * A step that goes on in the next call writes its lines again (its `step_started`, a foreach's
  * entries); a line this visit of the step wrote already is not written twice (`replay`).
@@ -40,6 +42,14 @@ export class Yield extends Error {
   }
 }
 
+/** The call was stopped from outside: the run is cancelled, and the call writes nothing more. */
+export class Stopped extends Error {
+  constructor() {
+    super("The object's call stops: the run is cancelled.");
+    this.name = "Stopped";
+  }
+}
+
 /** Statuses a time can end. */
 export const WAITS = new Set<FlowRun["status"]>(["sleeping", "waiting_signal", "waiting_input"]);
 
@@ -63,6 +73,13 @@ export interface ObjectCall {
   readonly made: number;
   /** It stopped before a model call. */
   readonly yielded: boolean;
+  /** It was stopped from outside (`stop`). */
+  readonly stopped: boolean;
+  /**
+   * Stops the call where it is, a model's or a tool's call among it, as the runtime's cancel
+   * stops a drive: it writes nothing more, and what it waited for is not waited for.
+   */
+  stop(): void;
   /** The run as stored. */
   stored(): Promise<StoredRun>;
   /** The door's part of an event: what goes on to the flow, or null when the door did it all. */
@@ -311,7 +328,7 @@ export async function objectCall(options: ObjectCallOptions): Promise<ObjectCall
       };
     },
     async failure(err, _stepId, acted) {
-      if (err instanceof RunMoved || err instanceof Yield) {
+      if (err instanceof RunMoved || err instanceof Yield || err instanceof Stopped) {
         throw err;
       }
       if (err instanceof TurnAsks) {
@@ -473,6 +490,14 @@ export async function objectCall(options: ObjectCallOptions): Promise<ObjectCall
     },
     get yielded() {
       return yielded;
+    },
+    get stopped() {
+      return abort.signal.reason instanceof Stopped;
+    },
+    stop() {
+      if (!abort.signal.aborted) {
+        abort.abort(new Stopped());
+      }
     },
     stored,
     door,
