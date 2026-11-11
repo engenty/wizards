@@ -3,12 +3,14 @@
  * run's object (`run-object.ts`), one object a run, named by the run's id.
  */
 import { PEER_RUNS_PATH } from "@engenty/wizards-engine/host-api";
-import { useQuickJsWasm } from "@engenty/wizards-engine/quickjs";
+import { countQuickJsInterrupts, useQuickJsWasm } from "@engenty/wizards-engine/quickjs";
 import quickJsWasm from "@jitl/quickjs-wasmfile-release-sync/wasm";
 import { type EdgeEnv, RunObject } from "./run-object.js";
 
 // workerd compiles no WebAssembly from bytes: a code step's QuickJS comes as an imported module.
 useQuickJsWasm(quickJsWasm);
+// A deployed object's clock stands still while code runs: a code step's time is counted too.
+countQuickJsInterrupts();
 
 export { RunObject };
 

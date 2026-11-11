@@ -31,12 +31,23 @@ const DRAIN_BUDGET_MS = 50;
 const MAX_DRAIN_PASSES = 10;
 /**
  * How many times QuickJS asks its interrupt handler, counted as one millisecond of a program's
- * time. QuickJS asks about every ten thousand jumps and calls: a loop of plain arithmetic asks
- * some 16 times a millisecond on a laptop, one that spends its time in built-ins far less. A
- * runtime whose clock stands still while code runs (workerd's `Date.now()`) stops a program by
- * this count; elsewhere the clock mostly comes first, with the same timeout.
+ * time where the clock stands still while code runs (`countQuickJsInterrupts`). QuickJS asks
+ * about every ten thousand jumps and calls: a loop of plain arithmetic asks some 16 times a
+ * millisecond on a laptop, one that spends its time in built-ins far less.
  */
 const INTERRUPTS_PER_MS = 30;
+
+/** Programs are stopped by QuickJS's count as well as by the clock. */
+let counted = false;
+
+/**
+ * For a host whose clock stands still while code runs (workerd's `Date.now()`): a program's time
+ * is also counted in QuickJS's calls of its interrupt handler, so a loop that never ends still
+ * meets its timeout. Elsewhere the clock alone stops it, as it always has.
+ */
+export function countQuickJsInterrupts(on = true): void {
+  counted = on;
+}
 
 /** What a run of a program gives back. */
 export interface QuickJsResult {
@@ -56,7 +67,7 @@ export interface QuickJsRun {
   /** Allow-listed tool ids, each called as `external_<id>` (`externalName`). */
   toolIds: string[];
   dispatch(tool: string, args: unknown): Promise<unknown>;
-  /** Wall time of the program, in milliseconds; where the clock stands still, as QuickJS counts it. */
+  /** Wall time of the program, in milliseconds; also counted where the host asks for it (`countQuickJsInterrupts`). */
   timeout: number;
   abortSignal?: AbortSignal;
   onExternalCall?(tool: string, args: unknown): void;
@@ -202,7 +213,7 @@ async function runProgram(opts: QuickJsRun, memoryLimitMb: number): Promise<Quic
     const until = Date.now() + DRAIN_BUDGET_MS;
     let asked = 0;
     runtime.setInterruptHandler(
-      () => Date.now() >= until || ++asked > DRAIN_BUDGET_MS * INTERRUPTS_PER_MS,
+      () => Date.now() >= until || (counted && ++asked > DRAIN_BUDGET_MS * INTERRUPTS_PER_MS),
     );
     for (let pass = 0; pass < MAX_DRAIN_PASSES && Date.now() < until; pass++) {
       const jobs = runtime.executePendingJobs();
@@ -251,7 +262,7 @@ async function runProgram(opts: QuickJsRun, memoryLimitMb: number): Promise<Quic
       interrupted = "abort";
       return true;
     }
-    if (Date.now() >= deadline || ++asked > budget) {
+    if (Date.now() >= deadline || (counted && ++asked > budget)) {
       interrupted = "timeout";
       return true;
     }
