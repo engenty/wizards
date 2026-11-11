@@ -254,7 +254,7 @@ async function extrasStep(paths: Layout, interactive: boolean): Promise<"cancell
 }
 
 /** What a full installation adds on disk (macOS arm64, measured with 0.19: every library in extras/). */
-const FULL_EXTRA_MB = 320;
+const FULL_EXTRA_MB = 290;
 
 const gb = (bytes: number) => (bytes / 2 ** 30).toFixed(1);
 

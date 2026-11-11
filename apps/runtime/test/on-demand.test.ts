@@ -148,8 +148,8 @@ describe("onDemand", () => {
 });
 
 // The document readers as an install meets them the first time: npm puts the library and what it
-// needs into extras/ (here copied from this checkout, as npm would download it), the runtime's
-// @napi-rs/canvas stays one folder up, and the library reads a document from there.
+// needs into extras/ (here copied from this checkout, as npm would download it), and the library
+// reads a document from there.
 describe("a document reader on first use", () => {
   const fixtures = join(__dirname, "fixtures", "documents");
   const runtimeModules = join(__dirname, "..", "node_modules");
@@ -183,9 +183,7 @@ describe("a document reader on first use", () => {
       for (const [name, dir] of packages) {
         cpSync(dir, join(at, "node_modules", name), { recursive: true, dereference: true });
       }
-      // What npm brings and an override keeps out of the checkout: the platform's canvas binary
-      // beside the canvas, the OpenAPI plugin's icons.
-      mkdirSync(join(at, "node_modules", "@napi-rs", "canvas-test-platform"), { recursive: true });
+      // What npm brings and an override keeps out of the checkout: the OpenAPI plugin's icons.
       mkdirSync(join(at, "node_modules", "lucide-react"), { recursive: true });
       return { code: 0, tail: "" };
     };
@@ -197,7 +195,6 @@ describe("a document reader on first use", () => {
       join(root, "package.json"),
       JSON.stringify({
         peerDependencies: {
-          "pdf-parse": "2.4.5",
           "word-extractor": "1.0.4",
           mammoth: "1.13.0",
           "@executor-js/plugin-openapi": "1.6.11",
@@ -205,33 +202,6 @@ describe("a document reader on first use", () => {
         },
       }),
     );
-    // The runtime's own canvas, where npm put it for the runtime.
-    mkdirSync(join(prefix, "node_modules", "@napi-rs"), { recursive: true });
-    symlinkSync(
-      realpathSync(join(runtimeModules, "@napi-rs", "canvas")),
-      join(prefix, "node_modules", "@napi-rs", "canvas"),
-    );
-  });
-
-  it("reads a PDF with pdf-parse from extras/, drawing with the runtime's canvas", async () => {
-    const { onDemand, extrasDir } = await import("../src/on-demand");
-    const { npm, calls } = copyingNpm();
-    const { PDFParse } = await onDemand<typeof import("pdf-parse")>("pdf-parse", { root, npm });
-    expect(calls).toHaveLength(1);
-    const dir = extrasDir(root, "pdf-parse");
-    expect(existsSync(join(dir, "node_modules", "pdfjs-dist", "legacy"))).toBe(true);
-    // Left out: the runtime has a canvas, and PDF.js for browsers is never loaded.
-    expect(readdirSync(join(dir, "node_modules", "@napi-rs"))).toEqual([]);
-    expect(existsSync(join(dir, "node_modules", "pdfjs-dist", "build"))).toBe(false);
-    expect(existsSync(join(dir, "node_modules", "pdfjs-dist", "web"))).toBe(false);
-    const parser = new PDFParse({ data: readFileSync(join(fixtures, "rechnung.pdf")) });
-    try {
-      const text = await parser.getText();
-      expect(text.total).toBe(1);
-      expect(text.text).toContain("Gartenbau Huber GmbH");
-    } finally {
-      await parser.destroy();
-    }
   });
 
   it("reads an old Word file with word-extractor from extras/", async () => {
