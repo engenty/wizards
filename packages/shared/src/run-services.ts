@@ -20,7 +20,7 @@ import {
   type TextClass,
   type WidgetStep,
 } from "./definition.js";
-import type { AssetRef, StepOutput } from "./run.js";
+import type { AssetRef, Said, StepOutput } from "./run.js";
 import type {
   AssetSection,
   BrandColor,
@@ -86,20 +86,37 @@ export const flowFailureSchema: z.ZodType<FlowFailure> = z.discriminatedUnion("c
   z.object({ class: z.literal("final") }),
 ]);
 
-/** A service's failure, with the class `transition()` takes it as (`stepFailed`). */
+/**
+ * A service's failure, with the class `transition()` takes it as (`stepFailed`). `said`: what the
+ * run's log says of it, as the process that met the error put it; left out, the message counts.
+ */
 export class ServiceError extends Error {
   constructor(
     readonly failure: FlowFailure,
     message: string,
+    readonly said?: Said,
   ) {
     super(message);
     this.name = "ServiceError";
   }
 }
 
+/** Plain words, or a note by its code. */
+const saidSchema = z.custom<Said>(
+  (value) =>
+    typeof value === "string" ||
+    (typeof value === "object" &&
+      value !== null &&
+      typeof (value as { code?: unknown }).code === "string"),
+);
+
 /** A failure as it crosses HTTP. */
 export const serviceErrorSchema = z.object({
-  error: z.object({ failure: flowFailureSchema, message: z.string() }),
+  error: z.object({
+    failure: flowFailureSchema,
+    message: z.string(),
+    said: saidSchema.optional(),
+  }),
 });
 
 export type ServiceErrorBody = z.infer<typeof serviceErrorSchema>;
@@ -453,6 +470,13 @@ export const workspaceRequestSchema = z.object({ path: z.string().min(1).max(100
 
 /** The header `files.read` answers the file's `AssetRef` in, as JSON; the body is the bytes. */
 export const ASSET_REF_HEADER = "x-asset-ref";
+
+/**
+ * The header of an answer whose call did something that may not be repeated (a write, a send):
+ * the step's try acted, and a failure of it is not tried again by itself. A turn's stream says
+ * so in its `TurnToolsLine`s instead.
+ */
+export const RUN_ACTED_HEADER = "x-run-acted";
 
 // --- data --------------------------------------------------------------------------------------
 

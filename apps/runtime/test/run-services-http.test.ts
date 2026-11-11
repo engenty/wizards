@@ -1,4 +1,4 @@
-import type { TurnPart } from "@engenty/wizards-shared/run-services";
+import { RUN_ACTED_HEADER, type TurnPart } from "@engenty/wizards-shared/run-services";
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
@@ -226,7 +226,12 @@ describe("the run's services over HTTP", () => {
     expect(lines).toEqual([
       { type: "text", text: "Otters " },
       {
-        error: { failure: { class: "retry", retryAfterMs: null }, message: "The model went away." },
+        // With what the run's log says of it, as the runner would say it in its own process.
+        error: {
+          failure: { class: "retry", retryAfterMs: null },
+          message: "The model went away.",
+          said: { code: "aiServiceNotReached" },
+        },
       },
     ]);
   });
@@ -240,7 +245,11 @@ describe("the run's services over HTTP", () => {
     expect((await post(a.token, "models/nothing")).status).toBe(404);
     // A service's own failure keeps its class.
     expect(await json(post(a.token, "data/rows", { listId: "nope" }), 422)).toEqual({
-      error: { failure: { class: "final" }, message: "No list nope in this wizard." },
+      error: {
+        failure: { class: "final" },
+        message: "No list nope in this wizard.",
+        said: { code: "stepFailed", params: { detail: "No list nope in this wizard." } },
+      },
     });
   });
 
@@ -286,6 +295,37 @@ describe("the run's services over HTTP", () => {
       step: { id: "byagent", model: "low" },
       instructions: "You write as the scribe.",
     });
+  });
+
+  it("say when a call acted, and let go of a run's browser and sandbox when its drive ended", async () => {
+    const c = await startRun("tenant-http-c");
+    const statement = { stepId: "write", scope: "shared", by: "wizard" };
+    const read = await post(c.token, "data/query", { ...statement, sql: "SELECT 1 AS one" });
+    expect(read.status).toBe(200);
+    expect(read.headers.get(RUN_ACTED_HEADER)).toBeNull();
+    // A write with no effect id: a later try of the step would do it again.
+    const wrote = await post(c.token, "data/exec", {
+      ...statement,
+      sql: "INSERT INTO notes (text) VALUES (:text)",
+      params: { text: "once" },
+    });
+    expect(wrote.status).toBe(200);
+    expect(wrote.headers.get(RUN_ACTED_HEADER)).toBe("1");
+
+    // The calls bound the run's resources here; the release lets them go, also once the run ended.
+    const { liveResources } = await import("../src/engine/resources");
+    expect(liveResources(c.runId)).not.toBeNull();
+    await client.withTenant(c.tenant, () =>
+      client.db
+        .update(client.schema.run)
+        .set({ status: "cancelled" })
+        .where(eq(client.schema.run.id, c.runId)),
+    );
+    expect((await post(c.token, "data/counts")).status).toBe(401);
+    expect((await post(c.token, "run/release")).status).toBe(204);
+    expect(liveResources(c.runId)).toBeNull();
+    expect((await post("nobody", "run/release")).status).toBe(401);
+    expect((await post(null, "run/release")).status).toBe(401);
   });
 
   it("answer nothing while the switch is off", async () => {

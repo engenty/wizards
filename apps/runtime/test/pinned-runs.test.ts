@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,8 +17,17 @@ import * as pinned from "./fixtures/pinned-runs/runs.js";
  * The code that runs a run moves out of engine/runner.ts and engine/steps.ts in steps that change
  * no behaviour. Such a move changes nothing here: an expectation that fails after one is a change
  * of behaviour, not of the test.
+ *
+ * pinned-runs-services.test.ts runs this file again with the run's services over HTTP, as
+ * `PINNED_SERVICES` says: `here`, a server of this process that its runner asks on loopback
+ * (`RUN_SERVICES_URL`, `PINNED_PORT`); `apart`, a broker of its own on the same data folder
+ * (pinned-runs-broker.test.ts), which keeps what the model was asked and the tool's calls in files
+ * there. The runs end as pinned all the same.
  */
-process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "wizards-pinned-runs-"));
+const SERVICES = process.env.PINNED_SERVICES as "here" | "apart" | undefined;
+/** The data folder this process shares with its broker, when the broker is apart. */
+const APART = SERVICES === "apart" ? (process.env.DATA_DIR ?? "") : "";
+process.env.DATA_DIR = APART || mkdtempSync(join(tmpdir(), "wizards-pinned-runs-"));
 process.env.APP_URL = "http://localhost:5181";
 process.env.LOCAL_ACCESS_KEY = "test-key";
 process.env.MARKETPLACE_URL = "off";
@@ -26,7 +35,7 @@ process.env.AI_GATEWAY_API_KEY = "";
 process.env.OPENAI_API_KEY = "";
 process.env.ANTHROPIC_API_KEY = "";
 process.env.RUNTIME_ROLE = "runner";
-process.env.FEATURES = "durableRuns=on";
+process.env.FEATURES = SERVICES ? "durableRuns=on,runServices=on" : "durableRuns=on";
 process.env.RUNNER_CLOCK_MS = "100";
 process.env.PLUGINS_DIR = fileURLToPath(new URL("./fixtures/pinned-runs/plugins", import.meta.url));
 process.env.PLUGINS_WATCH = "0";
@@ -245,8 +254,22 @@ const logOf = async (id: string) =>
 /** The moves of one wizard's runs, as "event ⇒ command → status". */
 const movesOf = (title: string) => moves.filter((m) => m.wizard === title).map((m) => m.move);
 
+/** The JSON lines the broker apart wrote to a file of the data folder. */
+const keptApart = <T>(name: string): T[] => {
+  const file = join(APART, name);
+  return existsSync(file)
+    ? readFileSync(file, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as T)
+    : [];
+};
+
 /** What the model was asked in one run, in order. */
-const callsOf = (id: string) => scripted.calls.filter((c) => c.run === id).map((c) => c.name);
+const callsOf = (id: string) =>
+  (APART ? keptApart<{ run: string; name: string }>("calls") : scripted.calls)
+    .filter((c) => c.run === id)
+    .map((c) => c.name);
 
 /** The run ended done, as pinned: its moves, what the model was asked, its log and its state. */
 async function ended(id: string, run: pinned.PinnedRun, ms?: number) {
@@ -259,10 +282,18 @@ async function ended(id: string, run: pinned.PinnedRun, ms?: number) {
 }
 
 const stamps = () => {
+  if (APART) {
+    return keptApart<{ run: string }>("stamps");
+  }
   const g = globalThis as { __pinnedStamps?: { run: string }[] };
   g.__pinnedStamps ??= [];
   return g.__pinnedStamps;
 };
+
+/** The run's services of this process, served on loopback for its own runner. */
+let served: { close(): void } | null = null;
+/** The calls of the run's services that came over HTTP, by service and call. */
+const asked = new Map<string, number>();
 
 beforeAll(async () => {
   client = await import("../src/db/client");
@@ -272,10 +303,25 @@ beforeAll(async () => {
   runner = await import("../src/engine/runner");
   wizards = await import("../src/services/wizards");
   reports = await import("../src/services/runs");
+  if (SERVICES === "here") {
+    const { serve } = await import("@hono/node-server");
+    const app = (await import("../src/app")).default;
+    const fetch = (request: Request) => {
+      const call = new URL(request.url).pathname.split("/api/run-services/v1/")[1];
+      if (call) {
+        asked.set(call, (asked.get(call) ?? 0) + 1);
+      }
+      return app.fetch(request);
+    };
+    served = serve({ fetch, port: Number(process.env.PINNED_PORT), hostname: "127.0.0.1" });
+  }
   runner.startRunner();
 }, 60_000);
 
-afterAll(() => runner.stopRunner());
+afterAll(async () => {
+  await runner.stopRunner();
+  served?.close();
+});
 
 beforeEach(() => {
   scripted.script = () => "";
@@ -349,5 +395,35 @@ describe("a run, pinned end to end", () => {
     expect(asleep.state).toEqual(pinned.retryAsleep);
     expect(movesOf(run.title)).toEqual(run.moves.slice(0, 2));
     await ended(id, run, 40_000);
+  });
+});
+
+describe.runIf(SERVICES)("a run whose services are asked over HTTP", () => {
+  it.runIf(SERVICES === "here")("asked them over HTTP in the six runs above", () => {
+    // The model's turns, the tool, the release at each drive's end.
+    expect([...asked.keys()]).toEqual(
+      expect.arrayContaining(["models/agentModel", "models/agentTurn", "tools/call", "run/release"]),
+    );
+  });
+
+  it("fails its step for good when it is from before tokens: no step works in the runner's process", async () => {
+    const run = pinned.pageAgentReview;
+    scripted.script = run.script;
+    const id = await start(run.wizard);
+    const resting = async (status: string) =>
+      (await row(id))?.status === status && (await line(id))?.owner == null;
+    expect(await until(() => resting("waiting_input"), 30_000)).toBe(true);
+    await client.withTenant(T, () =>
+      client.db.update(client.schema.run).set({ tokenId: null }).where(eq(client.schema.run.id, id)),
+    );
+    await client.withTenant(T, () => runner.submitPage(id, "ask", { topic: "otters" }));
+    expect(await until(() => resting("failed"), 30_000)).toBe(true);
+    const failed = await row(id);
+    expect({ cursor: failed?.cursor, error: failed?.error }).toEqual({
+      cursor: "write",
+      error: "This run started before an update and can't go on. Start it again.",
+    });
+    // Nobody was asked: the step's model never wrote.
+    expect(callsOf(id)).toEqual([]);
   });
 });

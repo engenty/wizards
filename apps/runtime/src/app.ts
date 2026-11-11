@@ -13,7 +13,7 @@ import { ZodError } from "zod";
 import { asImpersonator } from "./auth/impersonation.js";
 import { authRoutes, type Principal, principalOf } from "./auth/index.js";
 import { db, schema, withTenant } from "./db/client.js";
-import { fromOwner } from "./engine/owner.js";
+import { fromOwner, servicesUrl } from "./engine/owner.js";
 import { basePath, env } from "./env.js";
 import { features } from "./features.js";
 import { health, httpStatus, publicHealth, requestStarted } from "./health.js";
@@ -63,7 +63,7 @@ import { membersStudioGate } from "./services/members-studio.js";
 import { servePageRunner } from "./services/runners.js";
 import { markSeen } from "./services/seen.js";
 import { afterStudioWrite, beforeStudioLoad } from "./sync/client.js";
-import { tenantOfLink, tenantStatus } from "./tenants/control.js";
+import { tenantOfLink, tenantOfRun, tenantStatus } from "./tenants/control.js";
 
 const app = new Hono<{ Variables: { user: Principal } }>();
 
@@ -169,8 +169,38 @@ if (serves.runServices) {
   // body limit: the one of `/api/runs/*` comes after a broker's catch-all.
   app.route(RUN_SERVICES_PATH, runServiceRoutes);
 }
+
+// A run's sandbox reaches its wizard's database here, with the run's token (sandbox/data.ts). The
+// process that has the sandbox answers: the runner holding the run, or the broker serving its
+// services; any other process hands the request on to it (engine/owner.ts).
+app.post(
+  "/api/sandbox/data/:run/:action",
+  bodyLimit({
+    maxSize: 64 * 1024,
+    onError: (c) => c.json({ error: "The body is too large." }, 413),
+  }),
+  async (c) => {
+    const runId = c.req.param("run");
+    const here = await sandboxDataRequest(runId, c.req.param("action"), c.req.raw);
+    if (here) {
+      return here;
+    }
+    const tenant = env.role === "broker" ? null : await tenantOfRun(runId);
+    const there = tenant
+      ? await withTenant(tenant, async () =>
+          !serves.runner || (await servicesUrl()) ? fromOwner(c, runId) : null,
+        )
+      : null;
+    return there ?? c.json({ error: "The run isn't running." }, 404);
+  },
+);
+
 if (env.role === "broker") {
-  // A broker serves the health checks above and a run's services, nothing people open.
+  // The browser of a run whose services a broker serves is here: its screen and its seat, which
+  // the process a person asked hands on (engine/owner.ts).
+  const browser = new Hono().route("/api/runs", runRoutes);
+  app.on(["GET", "POST"], "/api/runs/:id/browser/*", (c) => browser.fetch(c.req.raw, c.env));
+  // Besides, a broker serves the health checks above and a run's services, nothing people open.
   app.all("*", (c) => c.json(notFoundAnswer(c), 404));
 }
 
@@ -373,25 +403,6 @@ if (serves.runner) {
     bridgeRequest(c.req.param("token"), c.req.raw),
   );
 }
-
-// A run's sandbox reaches its wizard's database here, with the run's token (sandbox/data.ts). The
-// runner holding the run answers; any other process hands the request on to it.
-app.post(
-  "/api/sandbox/data/:run/:action",
-  bodyLimit({
-    maxSize: 64 * 1024,
-    onError: (c) => c.json({ error: "The body is too large." }, 413),
-  }),
-  async (c) => {
-    const runId = c.req.param("run");
-    const here = await sandboxDataRequest(runId, c.req.param("action"), c.req.raw);
-    if (here) {
-      return here;
-    }
-    const there = serves.runner ? null : await fromOwner(c, runId);
-    return there ?? c.json({ error: "The run isn't running." }, 404);
-  },
-);
 
 // What visitors send is read before anyone is known: a body is taken only up to a size. A page's
 // answers are text; an upload is a photo, a recording or a clip from a phone (routes/delivery.ts).
