@@ -90,6 +90,7 @@ const brokerSaid = () =>
 beforeAll(async () => {
   const port = await freePort();
   process.env.RUN_SERVICES_URL = `http://127.0.0.1:${port}`;
+  process.env.BROKER_URL = `http://127.0.0.1:${port}`;
   client = await import("../src/db/client");
   await client.migrateControlDb();
   await client.openTenantDb(TENANT);
@@ -113,6 +114,7 @@ beforeAll(async () => {
         ACCOUNTS_BROKER_PORT: String(port),
         ACCOUNTS_KEY: jwk.d,
         RUN_SERVICES_URL: "",
+        BROKER_URL: "",
       },
       stdio: ["ignore", log, log],
       detached: true,
@@ -222,5 +224,120 @@ describe("a runner without the accounts' private key", () => {
     expect(posts).toEqual([
       { channel: "C0TEAM", text: "Neue Anfrage", token: JSON.stringify({ access_token: "xoxb-7" }) },
     ]);
+  });
+});
+
+describe("a connection call from a process without the key", () => {
+  /** The team's Slack as the runner's process knows it: its row and connector. */
+  async function slackHere() {
+    const connections = await import("../src/connectors/space-connections");
+    return client.withTenant(TENANT, async () => {
+      const row = await connections.spaceConnectionById(connection);
+      return { row, connector: await connections.connectorOfRow(row) };
+    });
+  }
+  const posted = () =>
+    readFileSync(join(DIR, "posts"), "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as { text: string });
+
+  it("is made by the broker, as a Work chat's call", { timeout: 30_000 }, async () => {
+    const { brokerCall } = await import("../src/broker/call");
+    const { row, connector } = await slackHere();
+    const out = await client.withTenant(TENANT, () =>
+      brokerCall({
+        who: { kind: "person", id: "local" },
+        where: { chatId: "chat-1", spaceId: row.spaceId },
+        connection: { kind: "space_connection", row, connector },
+        action: { id: "post_message" },
+        input: { channel: "C0TEAM", text: "Aus dem Chat" },
+        ctx: { confirmed: true },
+      }),
+    );
+    expect(out).toMatchObject({ ok: true, account: { label: "Firma / bot" } });
+    expect(posted().at(-1)?.text).toBe("Aus dem Chat");
+    // The broker wrote the call's line, with the chat it came from.
+    const lines = await client.withTenant(TENANT, () =>
+      client.db.query.brokerLog.findMany({
+        where: eq(client.schema.brokerLog.chatId, "chat-1"),
+      }),
+    );
+    expect(lines.map((l) => [l.actionId, l.outcome, l.result])).toEqual([
+      ["post_message", "allow", "ok"],
+    ]);
+  });
+
+  it("asks the person in the caller's process, and the broker acts on the answer", {
+    timeout: 30_000,
+  }, async () => {
+    const { brokerCall } = await import("../src/broker/call");
+    const connections = await import("../src/connectors/space-connections");
+    const space = (await slackHere()).row.spaceId;
+    // A Slack each person signs in to, „Nachfragen“ for sending: the person is asked.
+    const { row, connector } = await client.withTenant(TENANT, async () => {
+      const made = await connections.createSpaceConnection("local", space, {
+        connectorId: "slack",
+        name: "Meins",
+        signIn: "person",
+        audience: "all",
+        rules: { read: "allow", write: "ask", destructive: "deny", send: "ask" },
+        actions: [],
+      });
+      await connections.signInWithCredentials(
+        made.id,
+        { as: "person", userId: "local", role: "member" },
+        { access_token: "xoxp-own" },
+      );
+      const row = await connections.spaceConnectionById(made.id);
+      return { row, connector: await connections.connectorOfRow(row) };
+    });
+    const asked: string[] = [];
+    const call = (answer: "done" | "skip", text: string, allowed = new Set<string>()) =>
+      client.withTenant(TENANT, () =>
+        brokerCall({
+          who: { kind: "person", id: "local" },
+          where: { chatId: "chat-2", spaceId: space },
+          connection: { kind: "space_connection", row, connector },
+          action: { id: "post_message" },
+          input: { channel: "C0OWN", text },
+          ctx: {
+            allowed,
+            ask: async (ask) => {
+              asked.push(ask.kind);
+              return answer === "done" ? { type: "done", remember: true } : { type: "skip" };
+            },
+          },
+        }),
+      );
+    expect(await call("skip", "Nein")).toMatchObject({ ok: false, refused: "declined" });
+    expect(posted().map((p) => p.text)).not.toContain("Nein");
+    const allowed = new Set<string>();
+    expect(await call("done", "Ja", allowed)).toMatchObject({ ok: true });
+    // The person's own sign-in, opened by the broker.
+    expect(posted().at(-1)).toMatchObject({
+      text: "Ja",
+      token: JSON.stringify({ access_token: "xoxp-own" }),
+    });
+    expect(asked).toEqual(["confirm", "confirm"]);
+    // „Für den Rest erlauben“ comes back to the caller's set.
+    expect([...allowed]).toEqual([`${row.id}:post_message`]);
+  });
+
+  it("refuses to send code that would run with the account", async () => {
+    const { brokerCall } = await import("../src/broker/call");
+    const { row, connector } = await slackHere();
+    await expect(
+      client.withTenant(TENANT, () =>
+        brokerCall({
+          who: { kind: "admin", id: "local" },
+          where: { spaceId: row.spaceId },
+          connection: { kind: "space_connection", row, connector },
+          action: { id: "list_tools", kind: "read" },
+          input: {},
+          handler: async (account) => account.ctx.accessToken,
+        }),
+      ),
+    ).rejects.toThrow(/can't go to the broker/);
   });
 });
