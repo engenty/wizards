@@ -77,7 +77,7 @@ full: what was decided on the way, what is open, which tests passed on which tip
 | 7.2a | merged #661 | `apps/documents`: reading documents as a service of its own; `DOCUMENTS_URL` |
 | 7.2b, 7.2c | open | Render (Chromium) and media (ffmpeg) as services of their own |
 | 7.3 | merged #667 | A minimal install 536 → 394 MB: the document readers and the OpenAPI importer on demand; installers and install docs state the sizes |
-| 7.4 | open, this pull request | This table, `docs/content/dev/architecture.md` as built, the broker plan's phase 3 |
+| 7.4 | open #668 | This table, `docs/content/dev/architecture.md` as built, the broker plan's phase 3 |
 
 **By phase.** Phases 0 to 5 are built. Phase 6 is built and tested on a local workerd; its deploy
 (6.3) and its tests of waits, deploys and stops (6.4) are open. Phase 7 is built in part: 7.2a and
