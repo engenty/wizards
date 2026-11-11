@@ -149,10 +149,17 @@ async function importDraft(
   return { wizardId, written, current };
 }
 
-/** Whether the tenant's runs may be driven elsewhere: they need their services over HTTP. */
+/**
+ * Whether the tenant's runs may be driven elsewhere: they need their services over HTTP, and the
+ * tenant takes the copies of a run that lives on another host (`run/report`).
+ */
 async function wizardsRunOn(): Promise<boolean> {
   const switches = await remoteFeatures().catch(() => null);
-  return feature("wizardsRun", switches) && feature("runServices", switches);
+  return (
+    feature("wizardsRun", switches) &&
+    feature("runServices", switches) &&
+    feature("runHosts", switches)
+  );
 }
 
 /** What `createRun` starts with, but for who starts it and where. */
