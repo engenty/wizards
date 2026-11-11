@@ -53,6 +53,7 @@ import { withTenant } from "../db/client.js";
 import { classifyFailure } from "../engine/failures.js";
 import { flowFailure } from "../engine/host.js";
 import { releaseResources } from "../engine/resources.js";
+import { runHostsOn } from "../engine/run-host-client.js";
 import { contextAt, failSaid, failureContext, keepReport, loadRun } from "../engine/runner.js";
 import type { RunRow } from "../engine/types.js";
 import { SignInNeeded } from "../engine/types.js";
@@ -63,7 +64,6 @@ import type { RunClaims } from "../secrets/signing.js";
 import { runServicesOn } from "../tools/acted.js";
 import { holderWho } from "../tools/plugin.js";
 import { notFoundAnswer } from "./lang.js";
-import { runHostsOn } from "./peer.js";
 
 /*
  * The run's services over HTTP (docs/plans/runs-on-their-own.md, "The run's services"), for a
