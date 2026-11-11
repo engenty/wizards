@@ -1,6 +1,8 @@
 # Plan: runs on their own
 
-Status: plan, written on 2026-11-10. Phase 0 done, not committed (see Progress). The same plan with its
+Status: built on the branch `feat/runs-on-their-own` up to phase 5; phase 6 built and tested
+locally, its deploy open; phase 7 in part (see Progress). Written as a plan on 2026-11-10. What
+the code does now is in `docs/content/dev/architecture.md`, "The engine". The same plan with its
 diagram is the artifact "Self-contained Wizard Runs"
 (claude.ai/artifact/1heGEt5oi3vLoghrHJsvyp). Builds on `docs/plans/broker.md` (its phase 3 is
 phase 3 here), `docs/plans/modular.md`, `docs/plans/wizard-code.md` and
@@ -12,12 +14,90 @@ that looks when it is built, and how to get there from today's code in small pul
 
 ## Progress
 
+Updated on 2026-11-11. Every package went into the branch `feat/runs-on-their-own`, one pull
+request each; nothing of it is on `main`. The artifact "Self-contained Wizard Runs" has each row in
+full: what was decided on the way, what is open, which tests passed on which tip.
+
 | Id | State | Result |
 |---|---|---|
-| 0.1 | written, not committed | This file, and a pointer in `docs/content/dev/architecture.md` |
+| 0.1 | merged #609 | This file, and a pointer in `docs/content/dev/architecture.md` |
 | 0.2 | measured | esbuild 0.28.2, neutral build with workerd's conditions. `transition.ts` 476 KB, 0 Node builtins. Agent loop on `ai` + gateway 737 KB raw / 167 KB gzip, 0 builtins. Same on Mastra `Agent` 6,544 / 1,668 KB, 17 builtins (all `@mastra/core`) and `new Function(…)`. `steps.ts` and `runner.ts` do not bundle (canvas native addon, playwright), 43 builtins, the same 2,144 modules for both; Mastra alone is not the blocker (26+ builtins without it). Cycle `steps.ts → tools/index.ts → elements/catalogue.ts → elements/wizards.ts → services/runs.ts → runner.ts`, broken by 1.4b. QuickJS on `quickjs-emscripten-core` 55 KB + 507 KB `.wasm` imported as a module (`newVariant(…, { wasmModule })`), 0 builtins; `@mastra/quickjs` 4.3 MB, 13 builtins, fails once bundled. The code step's 10 s cap uses `Date.now()`, which stands still in a deployed object during CPU work. Results: `.claude/worktrees/agent-a86f1b90c11288fbe/spikes/engine-bundle/RESULTS.md`, uncommitted. |
 | 0.3 | ran | One Durable Object per run on local workerd (wrangler 4.153.0), importing `transition()` and `parseWizard()` unchanged; model was a local mock, not the gateway; never deployed. Happy path form → decision → agent with a 3-minute stream → wait → signal → result in 243 s; the stream ran in one alarm call of 182 s wall, about 1.6 s process CPU. Killed 60 s into the stream: the call is cut, state and alarm survive, the watchdog alarm fired 30 s later without a request and the call went on from the saved text (180/180 tokens in order; needs a model API that continues an assistant message, else the call repeats). State survived kills at a form and during sleeps; overdue alarms fire at start-up. Bundle 933 KiB / 161 KiB gzip. No limit hit locally (local dev enforces none). Docs: 30 s CPU per request or alarm (max 5 min), 15 min wall per alarm call, 128 MB per isolate, one alarm per object, a stream is cut by code updates and runtime restarts. For the plan: each model call saved and the alarm re-armed (2.4), the one alarm carries `wakeAt`, reminders and the watchdog (6.1), signals matched at the tenant (`run_signal`). D4 stays a sub-processor and region question. Results: `.claude/worktrees/agent-ab157cabcca458941/spikes/run-object/RESULTS.md`, uncommitted. |
-| 0.4 | written, passes, not committed | `apps/runtime/test/pinned-runs.test.ts` and a one-tool plugin `fixtures/pinned-runs/plugins/pinned.ts` (`pinned.stamp`). Six runs through the real runner with `durableRuns` on and a scripted model (`textModel` mocked as in `durable-steps`): form → agent → review → result; a `decision` branch with `next.ask` rules; a `tool` step (plugin tool, no model); `foreach` over 3 entries; a signal wait (`signalRun`, only the signal's `fields` reach the run); `retries: 1` with the clock's own wake after `failureRetryMs`. Each asserts the moves of `transition()` (wrapped with `vi.mock`), the `run_event` rows, the model calls and the full state. About 20–30 s, 10 s of it the real retry wait. Not pinned: `durableRuns` off, `onFail`, a `tool` step on a `wizard.*` tool (the validator refuses it). Holds only while `@engenty/wizards-shared/transition` and `src/models.js` stay mockable: package 2.1 must keep the engine inlined by vitest, and 1.4a must keep `textModel` behind `models`. |
+| 0.4 | merged #610 | `apps/runtime/test/pinned-runs.test.ts`: six runs through the real runner with a scripted model, asserting the moves, the log, the model calls and the state. Every later package kept it green |
+| 1.1 | merged #612 | `engine/steps.ts` split into one file per step type, a pure move |
+| 1.2 | merged #611 | `packages/shared/src/run-services.ts`: the seven services as types, `ServiceError` with its class, zod for what crosses HTTP |
+| 1.3 | merged #614 | `inProcessServices(run)` in `run-services/`, set as `ctx.services` |
+| 1.4a | merged #621 | Steps call models through `ctx.services.models` |
+| 1.4b | merged #622 | Steps list and call tools through `tools`; the cycle into `runner.ts` is broken |
+| 1.4c | merged #617 | Steps read and save files through `files` |
+| 1.4d | merged #619 | What the model is told comes from `context.forStep` |
+| 1.4e | merged #625 | `generate`, `widget`, `motion-graphics` run as `steps.run` |
+| 1.4f | merged #624 | Lists and the wizard's data through `data` |
+| 1.5 | merged #626 | `StepContext` holds no database rows; they live on `InProcessContext` |
+| 1.5 fix | merged #632 | Three `durable-retry` cases set `acted` where the runner reads it now (test only) |
+| 1.6 | merged #627 | `engine-imports.test.ts`: step code imports only shared, `ai`, `zod`. Phase 1 complete |
+| 1.7 | merged #620 | `engine/run-store.ts`: every read and write of a run under way, with its guards |
+| 2.1a | merged #631 | `packages/engine` with the step code, `StepContext`, `StepError`, the failure table, the step prompts |
+| 2.1b | merged #633 | Wizard code on `quickjs-emscripten-core` in the engine; `@mastra/quickjs` gone (57.6 MB download → 4.4 MB) |
+| 2.2 | merged #634 | `RunHost` and `advance(host, event)`, tested on a memory host |
+| 2.3 | merged #636 | `runtimeHost`: `drive` calls `advance`; `runner.ts` lost 936 lines |
+| 2.4 | merged #637 | The engine's own agent loop, turns in `run_turn` (tenant migration 0075), tool calls under `<turn>:<toolCallId>` |
+| 2.5 | merged #638 | `durable-turn.ts` deleted; hidden `wizards drop-turn-snapshots`. Phase 2 complete |
+| 2.6 | merged #630 | `viewOf` and `reportOf` in `packages/shared/src/run-view.ts` |
+| 2.7 | merged #635 | `memoryHost()` and scripted services; the six pinned runs on the engine alone, a neutral build |
+| 3.1 | merged #640 | The run's token: `runToken`, `readRunToken`, `tokenOf`; `run.token_id` (tenant migration 0076) |
+| 3.2 | merged #641 | A descriptor for every tool (`broker/registry.ts`); one log line per call no other path logs |
+| 3.3 | merged #645 | An effect id and a `run_effect` row for every acting call and every whole step |
+| 3.4 | merged #639 | `RUNTIME_ROLE=broker` |
+| 3.5 | merged #642 | `POST /api/run-services/v1/:service/:call` |
+| 3.5b | merged #647 | An agent step's model and tools over HTTP (`agentModel`, `agentTurn`, `forStep`, `stepCall`, `ofAgent`) |
+| 3.6 | merged #643 | `httpServices` in the engine, one contract suite for both implementations |
+| 3.7 | merged #644 | A film or a video answers `Pending`; `run_job` (tenant migration 0077); the run sleeps on its job |
+| 3.8 | merged #653 | With `RUN_SERVICES_URL` the runner asks a broker over HTTP; `run/release`; pinned runs across two processes. Phase 3 complete |
+| fix | merged #648 | Two runtime tests fixed on the plan branch (prompts, output-schema) |
+| fix | merged #649 | An installed client's agent turn names the step's tools again |
+| 4.1 | merged #646 | `run.host` (tenant migration 0078); the token's host claim |
+| 4.2 | merged #650 | The host's three calls: `state`, `changes`, `events` (`host-api.ts`, `routes/peer.ts`) |
+| 4.3 | merged #655 | Doors reach the run through `hostClientOf(run)`; new door events |
+| 4.4 | merged #654 | `run/report`: a remote host's copies; `statusMoved` sets off a status change once |
+| 4.5 | merged #658 | `run_index.host` (control migration 0017); the clock and signals reach a runtime host. Phase 4 complete for runtime hosts |
+| 4.6 | merged #651 | `hostFit`, `hostFor`, `handOver` and the receiving route |
+| 5.1 | merged #652 | `packages/run`: `nodeHost`, state as files, the host calls on a loopback port |
+| 5.2 | merged #656, #660 | `POST /api/v1/spaces/:spaceId/runs` with `host: "node"`, scope `runs:host` |
+| 5.3 | merged #659 | `wizards run`: the terminal door, `--continue`, copies on every move |
+| 5.4 | merged #657 | `resolveWizard`: a folder, a `.wizard` file, an address; one `checkWizard` |
+| 5.5 | merged #663 | Without an organization: Ollama or an OpenAI-compatible key, `hostFit` with `services: false` |
+| 5.6 | merged #665 | The small package `@engenty/wizards-run` with its own bin, 33 MB installed, not published. Phase 5 complete |
+| 6.1 | merged #662 | `apps/edge`: one Durable Object per run, one model call per alarm call, QuickJS from an imported `.wasm` |
+| 6.2 | merged #666 | `EDGE_URL`: a guest's live run of a published wizard goes to an object when it fits |
+| 6.3 | open | Deploy, in the Manage repo: not done. Needs D4 (provider, sub-processor, region), the Worker with `SERVICES_URL`, the runtime's `EDGE_URL`, the run services at a public origin |
+| 6.4 | open | Edge tests: waits, deploys, stops; under way |
+| fix | merged #664 | A woken run says so once (the runtime host); node and edge hosts need the same rule |
+| 7.1 | question | Needs a decision; the question and the proposed answer are below the table |
+| 7.2a | merged #661 | `apps/documents`: reading documents as a service of its own; `DOCUMENTS_URL` |
+| 7.2b, 7.2c | open | Render (Chromium) and media (ffmpeg) as services of their own |
+| 7.3 | merged #667 | A minimal install 536 → 394 MB: the document readers and the OpenAPI importer on demand; installers and install docs state the sizes |
+| 7.4 | open, this pull request | This table, `docs/content/dev/architecture.md` as built, the broker plan's phase 3 |
+
+**By phase.** Phases 0 to 5 are built. Phase 6 is built and tested on a local workerd; its deploy
+(6.3) and its tests of waits, deploys and stops (6.4) are open. Phase 7 is built in part: 7.2a and
+7.3 are in, 7.1 waits for a decision, 7.2b and 7.2c are open. No switch of this plan is on by
+default yet (`runServices`, `runHosts`, `wizardsRun`, `edgeRuns` are all off), so 7.4 removed none.
+
+**7.1, the open question.** `seal`/`unseal` (`secrets/crypto.ts`) is one AES-256-GCM key from
+`STORE_KEY` (or `authSecret`). Fourteen modules unseal, not only the broker: `models.ts` (own API
+keys), `auth/*`, `store/index.ts`, `routes/signals.ts`, `plugins/loader.ts`, `upstreams.ts`, the
+connectors, the vault; and the studio and doors seal (an OAuth callback stores a token). With one
+symmetric key, whoever seals can unseal, so "only the broker opens secrets" needs (a) sealing with a
+public key everywhere and opening with a private key on the broker alone, (b) every reader of a
+secret (own model keys for Goose and the architect too) going through the broker, and (c) a hidden
+`wizards` command that seals every stored secret again.
+
+**Proposed:** two steps. First connection accounts only (`broker/account.ts`, the vault):
+asymmetric seal (X25519 + AES-GCM, `v2.` prefix), the private key only where
+`serves.runServices`, a one-off `wizards reseal-accounts`. Own model keys and the rest later, once
+the studio's assistants call models through the broker too. The cloud's env (a new key on the
+broker only) is a deploy step. Phase 7.2 doesn't depend on it.
 
 ## In short
 
@@ -255,6 +335,8 @@ Eight phases. Each package is one pull request into the branch `feat/runs-on-the
 
 ### Phase 0 · Measure and pin
 
+**Built.** 0.1 and 0.4 merged, 0.2 and 0.3 measured.
+
 **Why first:** two decisions need numbers, and the refactoring in phases 1 and 2 needs a net.
 
 | Id | Pull request | Touches | Does | Done when |
@@ -265,6 +347,8 @@ Eight phases. Each package is one pull request into the branch `feat/runs-on-the
 | 0.4 | `test(engine): six runs pinned end to end` | `apps/runtime/test/pinned-runs.test.ts`, fixtures | Six definitions with a scripted model: form, agent, review, result · a decision branch · a `tool` step · `foreach` · `wait` with a signal · `onFail` with a retry. Asserts the commands of `transition()`, the `run_event` rows and the final `RunState`. | Green on `feat/runs-on-their-own`. Every later package keeps it green without editing its expectations. |
 
 ### Phase 1 · One way out of a step
+
+**Built.** Every package merged (#611, #612, #614, #617, #619–#622, #624–#627, #632).
 
 **Goal:** nothing under the step code imports a runtime module. **No switch:** each package moves code and keeps behaviour. The in-process services call the same functions as before.
 
@@ -285,6 +369,8 @@ Eight phases. Each package is one pull request into the branch `feat/runs-on-the
 
 ### Phase 2 · The engine as a package
 
+**Built.** Every package merged (#630, #631, #633–#638); 2.1 went in as 2.1a and 2.1b.
+
 **Goal:** the code that runs a run builds without Node and runs on a host with no database. **No switch.** Package 2.4 changes how an agent turn is saved, so it lands with the pinned runs and the durable tests green.
 
 | Id | Pull request | Touches | Does | Done when |
@@ -299,6 +385,8 @@ Eight phases. Each package is one pull request into the branch `feat/runs-on-the
 
 ### Phase 3 · Token and broker
 
+**Built.** Every package merged (#639–#645, #647, #653), 3.5 in two (3.5b). Not built: the long sandbox command as a job (3.7) and `RunResources` going (3.8 keeps it for the switch off, share jobs and the broker).
+
 **Goal:** a run's requests work the same from inside and from outside the process. **Switch `runServices`:** off, the runner calls functions; on, it calls the role `broker` over HTTP. This phase is phase 3 of `docs/plans/broker.md` and finishes rule 3 of `docs/plans/modular.md`.
 
 | Id | Pull request | Touches | Does | Done when |
@@ -308,6 +396,7 @@ Eight phases. Each package is one pull request into the branch `feat/runs-on-the
 | 3.3 | `feat(broker): every acting call has an effect id` | `broker/effect.ts`, `run-services/*` | The `run_effect` row before the act, for every write and act kind and for whole-step services. | The `run-effect` tests, extended to a browser download, a file write and a film. |
 | 3.4 | `feat(runtime): the role broker` | `env.ts` (`ROLES`, `serves`), `app.ts`, `index.ts` | `RUNTIME_ROLE=broker`. `all` and `runner` serve it too until the cloud runs it apart. | `runner-roles` tests cover the new role. |
 | 3.5 | `feat(broker): the run's services over HTTP` | `routes/run-services.ts` at `/api/run-services/v1/:service/:call` | Reads the token, opens the tenant (`withTenant`), sets the caller (`withCaller`), calls `inProcessServices`. Model text is streamed. | Each service answers over HTTP in a test with two tenants; a call across tenants is refused. |
+| 3.5b | `feat(broker): an agent step's tools and model over HTTP` | `routes/run-services.ts`, `packages/engine/src/http-services.ts` | Split from 3.5: `models.agentModel`, `models.agentTurn`, `tools.forStep`, `tools.stepCall`, `tools.ofAgent` on both sides. The step is taken from the run's definition by id, never from the body. | An agent step with tools runs through the HTTP client in the contract suite. |
 | 3.6 | `feat(engine): the run's services over fetch` | `packages/engine/src/http-services.ts`, `packages/engine/test/services-contract.ts` | The client. One contract suite that runs against the in-process and the HTTP implementation. | Both pass the same suite. |
 | 3.7 | `feat(broker): long calls answer pending` | `run-services/steps.ts`, `packages/engine/src/advance.ts`, a `run_job` table | A film, a video and a long sandbox command return a job. The service posts the result to the run when done; the run sleeps meanwhile. | A film step survives a restart of the runner in the middle. |
 | 3.8 | `feat(runtime): the runner asks the broker over HTTP` | `engine/host.ts`, env `RUN_SERVICES_URL`, switch `runServices` | With the switch on, `runtimeHost` uses the HTTP client. Browser and sandbox sessions live in the broker role by run id; `RunResources` goes. | Pinned runs pass with the switch on and two processes (runner, broker). |
@@ -315,6 +404,8 @@ Eight phases. Each package is one pull request into the branch `feat/runs-on-the
 **In Manage, later and optional:** the model-gateway accepts a run's token directly, so a model call from another host skips the broker role. Until then `models.turn` is proxied by the broker role, which calls the gateway as today.
 
 ### Phase 4 · A run on another host
+
+**Built** for runtime hosts (#646, #650, #651, #654, #655, #658). Open for node and object hosts: the tenant reaching a node run, and signals for node and object runs.
 
 **Goal:** the tenant's routes, starts, signals and the end of a run work the same wherever the run lives. **Switch `runHosts`.** It ships with one other host: a second runtime process reached over HTTP, so it is tested before `wizards run` exists.
 
@@ -328,6 +419,8 @@ Eight phases. Each package is one pull request into the branch `feat/runs-on-the
 | 4.6 | `feat(shared): which host can run a wizard` | `packages/shared/src/fit.ts` (`hostFit`), `createRun` | `hostFit(requires, host)` beside `standaloneFit`. `createRun` picks with `hostFor` and hands over definition, workspace references, token and first state. | A wizard that needs an installed client is never placed on another host. |
 
 ### Phase 5 · `wizards run`
+
+**Built.** Every package merged (#652, #656, #657, #659, #660, #663, #665). The small package is not published.
 
 **Goal:** `wizards run ./weather` works on a machine that has only Node and a small package. **Switch `wizardsRun`** on the tenant's side for the start route. Builds on the direction of 10 October (`wizards run <address>`).
 
@@ -357,6 +450,8 @@ publish it; the Release workflow packs and tests it and leaves it out of the rel
 
 ### Phase 6 · A run as an isolated object
 
+**Built locally.** 6.1 and 6.2 merged (#662, #666) and tested on a local workerd. Open: the deploy (6.3, with D4) and 6.4.
+
 **Goal:** one run, one object, with its own storage, woken by its own alarm. **Switch `edgeRuns`.** Starts only after spike 0.3 and decision D4, because an object holds people's answers and so is a place of processing.
 
 | Id | Pull request | Touches | Does | Done when |
@@ -368,12 +463,15 @@ publish it; the Release workflow packs and tests it and leaves it out of the rel
 
 ### Phase 7 · Services apart, smaller installs
 
+**In part.** 7.1 is an open question (Progress has it with the proposed answer). 7.2 is in part: documents (7.2a, #661) are a service of their own, render and media (7.2b, 7.2c) are not. 7.3 merged (#667). 7.4 is this file's update.
+
 **Goal:** the size and the secrets sit where they are needed. Can start once phase 3 is in, beside phases 4 to 6.
 
 | Id | Pull request | Touches | Does | Done when |
 |---|---|---|---|---|
 | 7.1 | `feat(broker): only the broker opens secrets` | `secrets/crypto.ts`, `broker/account.ts`, the cloud's env | The key for `unseal` is set only on the role `broker`. Studio, doors and runner cannot read an account. | A runner process without the key completes a run that uses a connection. |
 | 7.2 | `feat(sandbox)`\-style containers for documents, render and media | New apps beside `apps/sandbox`; `documents/`, `render/`, `media/` | Each behind a small HTTP API, called by the broker role. The runner's image loses Chromium and ffmpeg. | The runner image is measured before and after. |
+| 7.2a | `feat(documents): reading documents as a service of its own` | New `apps/documents`; `documents/` | Split from 7.2: documents first. Render (Chromium) and media (ffmpeg) are 7.2b and 7.2c. | The runtime reads through the service when it is set up. |
 | 7.3 | `build: what a minimal install carries` | `scripts/npm-package.mjs`, `on-demand.ts`, `install.sh`, `install.ps1`, the install docs | More of the heavy tools move to on-demand, now that they sit behind one interface. | The size in the installers and docs is the measured one. |
 | 7.4 | `docs(dev): the architecture as built` | `docs/content/dev/architecture.md`, `docs/plans/*` | Rewrites the engine part. Marks this plan and the broker's phase 3 as built. Removes switches whose default became on. | `pnpm docs:check` passes. |
 
@@ -466,7 +564,7 @@ Carry the screen's files in the small package, or load them from engenty.ai.
 
 At every change, at each person's step and the end, or only at the end.
 
-**Proposed:** at each person's step and the end. The studio then shows the answers without asking the host.
+**Proposed:** at each person's step and the end. The studio then shows the answers without asking the host. **Widened on 11 November:** also as each automatic step starts, since the services build a step's context from the record (found in 5.1). The node host copies at every change of step or status.
 
 #### D8 · The names
 
