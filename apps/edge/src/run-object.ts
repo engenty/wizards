@@ -7,7 +7,8 @@
  * - `POST hand-over`: the tenant places the run here (`HandOver`, with the run's token as Bearer).
  *   Answers 202 once the object holds it; the same hand-over again changes nothing.
  * - `GET state`, `GET changes`, `POST events`: a host's three calls in the wire format of
- *   `@engenty/wizards-engine/host-api`, with the run's token as Bearer.
+ *   `@engenty/wizards-engine/host-api`, with the run's token as Bearer. An event waits for the
+ *   call at work, but a cancel stops that call first, in the middle of a model's or a tool's call.
  *
  * The one alarm carries the run's work and its time, the earliest of:
  * - now, while the run is at work: each alarm call makes at most one model call (`object-call.ts`),
@@ -54,7 +55,9 @@ type Ended =
   /** The clock woke a wait that did not move: it looks again later. */
   | "still"
   /** Something outside the run's steps failed (its services out of reach): tried again later. */
-  | "error";
+  | "error"
+  /** A cancel stopped it in the middle: the cancel comes next. */
+  | "stopped";
 
 const WATCHDOG_MS = 30_000;
 /** A call that failed outside the run's steps is tried again after this long. */
@@ -76,6 +79,8 @@ export class RunObject {
   private queue: Promise<unknown> = Promise.resolve();
   private readonly followers = new Set<() => void>();
   private readonly watchdogMs: number;
+  /** The call that moves the run now, which a cancel stops. */
+  private current: ObjectCall | null = null;
 
   constructor(
     private readonly ctx: DurableObjectState,
@@ -216,6 +221,10 @@ export class RunObject {
     if ((NOT_TAKEN as readonly string[]).includes(event.kind)) {
       throw new Refusal(400, `The run's object does not take "${event.kind}" from outside.`);
     }
+    if (event.kind === "cancel") {
+      // Not after the call at work: it stops where it is, and the cancel comes next.
+      this.current?.stop();
+    }
     const rev = await this.enqueue(async () => {
       await this.drive("door", (call) => call.door(event, by));
       return (await this.stored()).rev;
@@ -322,6 +331,7 @@ export class RunObject {
       Math.max(1000, this.watchdogMs / 3),
     );
     let ended: Ended = "rest";
+    this.current = call;
     try {
       const event = await take(call);
       if (event) {
@@ -334,13 +344,16 @@ export class RunObject {
       if (err instanceof FlowRefused) {
         throw new Refusal(409, `The run does not take this now (${err.code}).`);
       }
-      if (!call.yielded) {
+      if (!(call.yielded || call.stopped)) {
         ended = "error";
         console.error(`[run ${held.runId}] the ${kind} call failed:`, err);
       }
     } finally {
+      this.current = null;
       clearInterval(watchdog);
-      if (call.yielded) {
+      if (call.stopped) {
+        ended = "stopped";
+      } else if (call.yielded) {
         ended = "yield";
         await this.storage.setYielded();
       } else if (ended === "rest") {

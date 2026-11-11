@@ -11,6 +11,7 @@ import type { Plugin } from "esbuild";
 import { Miniflare } from "miniflare";
 import { buildWorker, QUICKJS_WASM } from "../scripts/build.mjs";
 import { MOVE_LINE } from "./probe-transition.js";
+import { CLOCK_PATH } from "./clock-path.js";
 
 export interface LocalEdgeOptions {
   /** Where the objects keep their storage and alarms. */
@@ -23,6 +24,16 @@ export interface LocalEdgeOptions {
   probe?: boolean;
   /** The watchdog of an object's call, in ms. */
   watchdogMs?: number;
+  /** A clock the test moves on or holds still (`test-clock.ts`), for `clock`. */
+  clock?: boolean;
+  /** The port to listen on, as a new version of the Worker has its old one's address; else any. */
+  port?: number;
+}
+
+/** The objects' clock, and a run's object's alarm on it, in ms. */
+export interface EdgeClock {
+  now: number;
+  alarm: number | null;
 }
 
 export interface LocalEdge {
@@ -34,6 +45,11 @@ export interface LocalEdge {
   readonly logs: string[];
   /** The flow's moves so far, `{ wizard, move }`, with `probe`. */
   moves(): { wizard: string; move: string }[];
+  /**
+   * With `clock`: the objects' clock and the alarm of `runId`'s object; `advance` moves the clock
+   * on (and that alarm back, as if the time went by), `hold` holds it still from now.
+   */
+  clock(runId: string, change?: { advance?: number; hold?: boolean }): Promise<EdgeClock>;
   /** Stops workerd; what the objects stored stays under `persist`. */
   dispose(): Promise<void>;
 }
@@ -44,7 +60,7 @@ export function pathOf(input: RequestInfo | URL): string {
   return `${url.pathname}${url.search}`;
 }
 
-const builds = new Map<boolean, ReturnType<typeof buildWorker>>();
+const builds = new Map<string, ReturnType<typeof buildWorker>>();
 
 /** Points the bundle's `transition` at the probe, which imports the real one. */
 const probe: Plugin = {
@@ -57,12 +73,26 @@ const probe: Plugin = {
   },
 };
 
+/** Builds the Worker from `test-clock.ts`, which wraps the shipped one. */
+const clock: Plugin = {
+  name: "test-clock",
+  setup(b) {
+    const entry = fileURLToPath(new URL("./test-clock.ts", import.meta.url));
+    b.onResolve({ filter: /worker\.ts$/ }, (args) =>
+      args.kind === "entry-point" ? { path: entry } : undefined,
+    );
+  },
+};
+
 export async function localEdge(options: LocalEdgeOptions): Promise<LocalEdge> {
   const probed = options.probe ?? false;
-  if (!builds.has(probed)) {
-    builds.set(probed, buildWorker({ plugins: probed ? [probe] : [] }));
+  const clocked = options.clock ?? false;
+  const build = `${probed}:${clocked}`;
+  if (!builds.has(build)) {
+    const plugins = [...(probed ? [probe] : []), ...(clocked ? [clock] : [])];
+    builds.set(build, buildWorker({ plugins }));
   }
-  const { script, wasm } = await (builds.get(probed) as ReturnType<typeof buildWorker>);
+  const { script, wasm } = await (builds.get(build) as ReturnType<typeof buildWorker>);
   const logs: string[] = [];
   const mf = new Miniflare({
     modules: [
@@ -78,6 +108,7 @@ export async function localEdge(options: LocalEdgeOptions): Promise<LocalEdge> {
     },
     outboundService: (request: Request) => options.outbound(request),
     durableObjectsPersist: options.persist,
+    ...(options.port ? { port: options.port } : {}),
     handleStructuredLogs: (log) => {
       logs.push(log.message);
       if (log.level === "error" || log.level === "warn") {
@@ -86,15 +117,26 @@ export async function localEdge(options: LocalEdgeOptions): Promise<LocalEdge> {
     },
   } as ConstructorParameters<typeof Miniflare>[0]);
   const url = (await mf.ready).origin;
+  const fetch = (path: string, init?: RequestInit) =>
+    mf.dispatchFetch(`http://edge.local${path}`, init as never) as unknown as Promise<Response>;
   return {
     url,
-    fetch: (path, init) =>
-      mf.dispatchFetch(`http://edge.local${path}`, init as never) as unknown as Promise<Response>,
+    fetch,
     logs,
     moves: () =>
       logs
         .filter((line) => line.startsWith(MOVE_LINE))
         .map((line) => JSON.parse(line.slice(MOVE_LINE.length))),
+    async clock(runId, change) {
+      if (!clocked) {
+        throw new Error("This Worker was built without the test's clock (`clock: true`).");
+      }
+      const res = await fetch(`${CLOCK_PATH}${encodeURIComponent(runId)}`, {
+        method: change ? "POST" : "GET",
+        ...(change ? { body: JSON.stringify(change) } : {}),
+      });
+      return (await res.json()) as EdgeClock;
+    },
     dispose: () => mf.dispose(),
   };
 }
