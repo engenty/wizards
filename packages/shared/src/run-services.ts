@@ -20,7 +20,15 @@ import {
   type TextClass,
   type WidgetStep,
 } from "./definition.js";
-import type { AssetRef, Said, StepOutput } from "./run.js";
+import {
+  type AssetRef,
+  RUN_NOTES,
+  type RunNote,
+  type RunState,
+  type RunStatus,
+  type Said,
+  type StepOutput,
+} from "./run.js";
 import type {
   AssetSection,
   BrandColor,
@@ -717,4 +725,83 @@ export const turnToolsLineSchema: z.ZodType<TurnToolsLine> = z.object({
     acted: z.literal(true).optional(),
     assets: z.array(assetRefSchema).optional(),
   }),
+});
+
+// --- the run's own record ----------------------------------------------------------------------
+
+/*
+ * A run that works on another host keeps its state there; its tenant keeps the record (docs/plans/
+ * runs-on-their-own.md, "Record, state, token"). The host posts a copy of its state as each
+ * step starts (the services build a step's context from the record), at each person's step and
+ * at the end (`run/report`, with the run's token), and the tenant writes the record from it: the
+ * status, the cursor, the state, the wake. What a status change sets off (notices, credits,
+ * plugins, Manage's copy) happens at the tenant, once.
+ */
+
+const REPORTED_STATUSES = [
+  "waiting_input",
+  "sleeping",
+  "waiting_signal",
+  "running",
+  "done",
+  "failed",
+  "cancelled",
+] as const satisfies readonly RunStatus[];
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Why the run failed: words, or one of the run's notes. Stricter than a failure's `said`: the record
+ * keeps it, and every reader says it in their language.
+ */
+const failedSaidSchema: z.ZodType<Said> = z.union([
+  z.string().max(2000),
+  z.custom<RunNote>(
+    (v) => isRecord(v) && typeof v.code === "string" && v.code in RUN_NOTES.en,
+    "A note is one of the run's notes.",
+  ),
+]);
+
+/** A host's copy of its run. */
+export interface RunReport {
+  status: RunStatus;
+  cursor: string | null;
+  state: RunState;
+  /** When the clock wakes the run, in ms; null: nothing due. */
+  wakeAt: number | null;
+  /** The host's revision of the state: a copy no newer than the record changes nothing. */
+  rev: number;
+  /**
+   * What the run spent so far, in micro-credits, as the host counted it: for reading only. The
+   * services book every call themselves.
+   */
+  cost?: number;
+  /** Why the run failed, when it did. */
+  error?: Said | null;
+}
+
+export const runReportSchema: z.ZodType<RunReport> = z.object({
+  status: z.enum(REPORTED_STATUSES),
+  cursor: z.string().nullable(),
+  // The engine's own shape, kept as it comes: checked as an object, not field by field.
+  state: z.custom<RunState>(isRecord, "A run's state is an object."),
+  wakeAt: z.number().nullable(),
+  rev: z.number().int().nonnegative(),
+  cost: z.number().nonnegative().optional(),
+  error: failedSaidSchema.nullable().optional(),
+});
+
+/** What the tenant did with a copy: `kept`, or not, since the record was as new or the run is over. */
+export interface RunReportAnswer {
+  kept: boolean;
+  /** The record's status and revision after the call. */
+  status: RunStatus;
+  rev: number;
+}
+
+export const runReportAnswerSchema: z.ZodType<RunReportAnswer> = z.object({
+  kept: z.boolean(),
+  status: z.enum(REPORTED_STATUSES),
+  rev: z.number().int(),
 });

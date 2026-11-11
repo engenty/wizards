@@ -41,7 +41,11 @@ import type {
   StepOutput,
 } from "@engenty/wizards-shared/run";
 import { note, type RunState, type RunView, saidText } from "@engenty/wizards-shared/run";
-import { ServiceError } from "@engenty/wizards-shared/run-services";
+import {
+  type RunReport,
+  type RunReportAnswer,
+  ServiceError,
+} from "@engenty/wizards-shared/run-services";
 import {
   formatsOf,
   needsNoRunner,
@@ -339,26 +343,47 @@ async function moveHeld(runId: string, patch: RunPatch) {
 }
 
 /**
+ * Where the record stood when a host's copy of a run that works elsewhere came (`keepReport`): its
+ * status and step, and the copy's revision, which the record's must be lower than.
+ */
+interface CopySeen {
+  status: RunStatus;
+  cursor: string | null;
+  below: number;
+}
+
+/**
+ * What a write of the run holds on besides the drive's claim: a person's write the `rev` it read, a
+ * wait's write the status it came from, a host's copy the status the tenant read and a revision.
+ */
+type Seen = { rev: number } | { status: RunStatus } | { copy: CopySeen };
+
+/**
+ * A host's copy that stands where the record stood (the same status at the same step: the state
+ * moved on within a step) changes the state alone and sets nothing off.
+ */
+const standsStill = (copy: CopySeen | null, status: RunStatus | undefined, cursor: unknown) =>
+  copy !== null && copy.status === status && copy.cursor === cursor;
+
+/**
  * Writes the run. Inside its drive the write needs the drive's claim; with `seen`, a person's write
  * needs the `rev` it read, and a wait's write the status it came from: a cancel wins over either. A
  * step may start or answer other runs: only its own run's claim counts.
  */
-async function updateRun(
-  runId: string,
-  patch: RunPatch,
-  seen?: { rev: number } | { status: RunStatus },
-  by?: Actor,
-) {
+async function updateRun(runId: string, patch: RunPatch, seen?: Seen, by?: Actor) {
   const holder = driving.getStore();
   const held = holder?.runId === runId ? holder : undefined;
+  const copy = seen && "copy" in seen ? seen.copy : null;
   // The notices go in with the status: all of it happens, or none.
-  const notices = await noticesOfStatus(runId, patch, by);
+  const notices = standsStill(copy, patch.status, patch.cursor)
+    ? []
+    : await noticesOfStatus(runId, patch, by);
   const changed = await runStore.move(
     runId,
     patch,
     {
       claim: held?.generation,
-      ...(seen && ("rev" in seen ? { rev: seen.rev } : { status: seen.status })),
+      ...(copy ? { status: copy.status, below: copy.below } : seen),
     },
     notices.length ? (where) => noticeWrites(notices, where) : undefined,
   );
@@ -371,27 +396,42 @@ async function updateRun(
     }
   }
   await moveHeld(runId, patch);
+  // A host's copy sets off only what a change of status sets off.
+  if (patch.status && copy?.status !== patch.status) {
+    await statusMoved(runId, copy?.status ?? null, patch.status);
+  }
+  signalChanged(runId);
+}
+
+const isOver = (status: RunStatus) =>
+  status === "done" || status === "failed" || status === "cancelled";
+
+/**
+ * What a run's status change sets off at its tenant: credits held or given back, the end's signal,
+ * plugins, the phone, the run's start, Manage's copy. A run this runtime drives and a host's copy
+ * of one that works elsewhere both come here, after the write that changed the status. `from`: the
+ * status that write held on, when it held on one (a host's copy): a run that was over already sets
+ * off no end again. Null: the drive's or a person's write, as before other hosts.
+ */
+async function statusMoved(runId: string, from: RunStatus | null, to: RunStatus) {
   // A run that waits holds no credits: it reserves again when it wakes.
-  if (patch.status === "sleeping" || patch.status === "waiting_signal") {
+  if (to === "sleeping" || to === "waiting_signal") {
     await releaseRun(runId);
   }
   // A run that ended needs no credits held for it any more.
-  if (patch.status === "done" || patch.status === "failed" || patch.status === "cancelled") {
+  if (isOver(to) && !(from && isOver(from))) {
     await releaseRun(runId);
     await dropWait(runId);
-    await tellRunEnded(runId, patch.status);
+    await tellRunEnded(runId, to);
     // Plugins hear of it; the run does not wait for them.
-    void runEnded(runId, patch.status);
-    if (patch.status !== "cancelled") {
-      void pushRun(runId, patch.status);
+    void runEnded(runId, to);
+    if (to !== "cancelled") {
+      void pushRun(runId, to);
     }
     // A start's run that ended: the start counts it, the owner hears of it.
-    void startedRunEnded(runId, patch.status);
+    void startedRunEnded(runId, to);
   }
-  if (patch.status) {
-    reportRun(runId, patch.status);
-  }
-  signalChanged(runId);
+  reportRun(runId, to);
 }
 
 /**
@@ -1524,7 +1564,7 @@ export async function writeMove(
   run: RunRow,
   to: FlowRun,
   o: {
-    seen?: { rev: number } | { status: RunStatus };
+    seen?: Seen;
     by?: Actor;
     patch?: RunPatch;
     err?: unknown;
@@ -1568,9 +1608,67 @@ export async function writeMove(
     o.seen,
     o.by,
   );
-  // The wait is on the row: its hold goes back.
-  if (to.status === "waiting_input" && isPersonStep(step) && (await waitsLong(step))) {
+  // The wait is on the row: its hold goes back, once.
+  const copy = o.seen && "copy" in o.seen ? o.seen.copy : null;
+  if (
+    to.status === "waiting_input" &&
+    !standsStill(copy, to.status, to.cursor) &&
+    isPersonStep(step) &&
+    (await waitsLong(step))
+  ) {
     await releaseRun(run.id);
+  }
+}
+
+/** How often a host's copy is tried again when another copy changed the record in between. */
+const REPORT_TRIES = 3;
+
+/**
+ * A host's copy of a run that works elsewhere (docs/plans/runs-on-their-own.md, D7): the host
+ * posts its state as each step starts (the services build a step's context from the record), at
+ * each person's step and at the end, and the record takes it as the runner's own move is written
+ * (`writeMove`): the notices with it, the label, a person's deadline, the result's data, the
+ * error's words, and then what the status change sets off (`statusMoved`). A copy at the status
+ * and step the record has already writes the state alone. The record keeps the host's revision. A
+ * copy no newer than the record changes nothing, nor does one for a run that is over, so the end
+ * sets everything off once. The run's cost is not taken
+ * from the copy: the services booked each call. `no_run`: no such run; `here`: this runtime
+ * drives the run itself.
+ */
+export async function keepReport(
+  runId: string,
+  report: RunReport,
+): Promise<RunReportAnswer | "no_run" | "here"> {
+  for (let tries = 1; ; tries++) {
+    const run = await loadRun(runId);
+    if (!run) {
+      return "no_run";
+    }
+    if (!run.host) {
+      return "here";
+    }
+    if (isOver(run.status) || run.rev >= report.rev) {
+      return { kept: false, status: run.status, rev: run.rev };
+    }
+    const to: FlowRun = {
+      cursor: report.cursor,
+      status: report.status,
+      state: report.state,
+      wakeAt: report.wakeAt,
+    };
+    try {
+      await writeMove(run, to, {
+        seen: { copy: { status: run.status, cursor: run.cursor, below: report.rev } },
+        patch: { rev: report.rev },
+        ...(report.error ? { said: report.error } : {}),
+      });
+      return { kept: true, status: report.status, rev: report.rev };
+    } catch (err) {
+      // Another copy came in between: the record is read again, and this one may be the older.
+      if (!(err instanceof RunConflict) || tries >= REPORT_TRIES) {
+        throw err;
+      }
+    }
   }
 }
 

@@ -108,13 +108,18 @@ const CHECKED = [
 /**
  * What a run's token opens: its claims, once the signature, the expiry and the run itself agree,
  * else why not. The tenant comes from the token alone, and its database is opened here. It never
- * throws for a bad token. `ended`: a run that ended opens it too, for what only lets go of the
- * run's things (its resources' release), never for a call that works for it.
+ * throws for a bad token.
+ *
+ * `ended`: a run that ended opens it too, every other check made, and reads as
+ * `{ claims, over: true }`. Only for the calls that come at or after the run's end and work for
+ * none of its steps: letting go of the run's things (`run/release`), and a host's copy of its run
+ * (`run/report`), whose end report may come again when the answer to the first was lost, to hear
+ * that the run is over. Never for a call that works for the run.
  */
 export async function readRunToken(
   token: string,
   { ended = false }: { ended?: boolean } = {},
-): Promise<{ claims: RunClaims } | { refused: RunTokenRefusal }> {
+): Promise<{ claims: RunClaims; over?: true } | { refused: RunTokenRefusal }> {
   const read = runTokenClaims(token);
   if ("refused" in read) {
     return read;
@@ -146,8 +151,8 @@ export async function readRunToken(
     if (!record || CHECKED.some((key) => record[key] !== claims[key])) {
       return { refused: "claims" as const };
     }
-    if (!ended && (await runOver({ runId: run.id }))) {
-      return { refused: "over" as const };
+    if (await runOver({ runId: run.id })) {
+      return ended ? { claims, over: true as const } : { refused: "over" as const };
     }
     return { claims };
   });

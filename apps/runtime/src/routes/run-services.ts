@@ -26,6 +26,8 @@ import {
   listRowsRequestSchema,
   noticeSchema,
   RUN_ACTED_HEADER,
+  type RunReportAnswer,
+  runReportSchema,
   ServiceError,
   type ServiceErrorBody,
   type StepToolsAnswer,
@@ -51,15 +53,17 @@ import { withTenant } from "../db/client.js";
 import { classifyFailure } from "../engine/failures.js";
 import { flowFailure } from "../engine/host.js";
 import { releaseResources } from "../engine/resources.js";
-import { contextAt, failSaid, failureContext, loadRun } from "../engine/runner.js";
+import { contextAt, failSaid, failureContext, keepReport, loadRun } from "../engine/runner.js";
 import type { RunRow } from "../engine/types.js";
 import { SignInNeeded } from "../engine/types.js";
 import { NotedError } from "../model-errors.js";
 import type { InProcessContext } from "../run-services/in-process.js";
 import type { AgentModel, InProcessServices } from "../run-services/index.js";
+import type { RunClaims } from "../secrets/signing.js";
 import { runServicesOn } from "../tools/acted.js";
 import { holderWho } from "../tools/plugin.js";
 import { notFoundAnswer } from "./lang.js";
+import { runHostsOn } from "./peer.js";
 
 /*
  * The run's services over HTTP (docs/plans/runs-on-their-own.md, "The run's services"), for a
@@ -78,6 +82,9 @@ import { notFoundAnswer } from "./lang.js";
  * The run's browser, sandbox and what they did are this process's while it serves the run's calls
  * (engine/resources.ts, by the run's id); `POST …/run/release` lets go of them when the runner's
  * drive of the run ends, with the run's token, which a run that ended still has for this.
+ *
+ * Beside the services, `run/report` takes a host's copy of the run it works on: as each step
+ * starts, at each person's step and at the end, written to the run's record here.
  *
  * An agent step's calls (the engine's `StepServices` beyond `RunServices`) name the step, never
  * carry it: `tools/forStep`, `tools/stepCall` and `models/agentTurn` name the step, its turn and
@@ -525,6 +532,52 @@ function told(res: Response, ctx: InProcessContext | null, before: number): Resp
  */
 const off = (c: Context) => c.json(notFoundAnswer(c), 404);
 
+/** What a refused token says. */
+const tokenRefused = (read: { refused: string } | null) =>
+  read
+    ? refused(`The run's token opens nothing (${read.refused}).`, 401)
+    : refused("The run's token is missing.", 401);
+
+/** The request's body, checked: its data, or the 400 that says what is wrong. */
+async function checked<S extends z.ZodType>(
+  c: Context,
+  schema: S,
+): Promise<{ data: z.infer<S> } | { refusal: Response }> {
+  const raw = await c.req.json().catch(() => undefined);
+  const parsed = schema.safeParse(raw ?? {});
+  if (parsed.success) {
+    return { data: parsed.data };
+  }
+  const issue = parsed.error.issues[0];
+  return {
+    refusal: refused(
+      `The request is not valid: ${issue?.path.join(".") || "body"}: ${issue?.message ?? ""}`,
+      400,
+    ),
+  };
+}
+
+/**
+ * A call that comes at or after the run's end and works for none of its steps (`run/release`,
+ * `run/report`): the one way a token of a run that is over opens anything. The token is read with
+ * `ended` (`readRunToken`): every other check is made, and what the run's status means is the
+ * call's own business.
+ */
+async function atRunEnd(
+  c: Context,
+  work: (claims: RunClaims) => Promise<Response>,
+): Promise<Response> {
+  const token = tokenOf(c);
+  const read = token ? await readRunToken(token, { ended: true }) : null;
+  if (!(read && "claims" in read)) {
+    if (!(await runServicesOn())) {
+      return off(c);
+    }
+    return tokenRefused(read);
+  }
+  return work(read.claims);
+}
+
 export const runServiceRoutes = new Hono()
   .use(
     "*",
@@ -534,23 +587,46 @@ export const runServiceRoutes = new Hono()
     }),
   )
   // The run's drive ended (it rests, waits or ended for good): what it held here goes, its
-  // browser and its sandbox (engine/owner.ts). The token of a run that ended still opens this.
-  .post("/run/release", async (c) => {
-    const token = tokenOf(c);
-    const read = token ? await readRunToken(token, { ended: true }) : null;
-    if (!(read && "claims" in read)) {
-      if (!(await runServicesOn())) {
-        return off(c);
-      }
-      return refused(
-        read ? `The run's token opens nothing (${read.refused}).` : "The run's token is missing.",
-        401,
-      );
-    }
-    const { claims } = read;
-    await withTenant(claims.tenant, () => releaseResources(claims.run));
-    return done();
-  })
+  // browser and its sandbox (engine/owner.ts).
+  .post("/run/release", (c) =>
+    atRunEnd(c, async (claims) => {
+      await withTenant(claims.tenant, () => releaseResources(claims.run));
+      return done();
+    }),
+  )
+  /*
+   * A host's copy of its run (`run/report`), written to the record at the run's tenant
+   * (`keepReport`). No service of `CALLS`: it builds no context and names no step. The end report
+   * makes the run over, and it is taken since the record is not over yet when it comes. One that
+   * comes again (the answer to the first was lost) hears that the run is over and that nothing was
+   * kept: `keepReport` reads the record.
+   */
+  .post("/run/report", (c) =>
+    atRunEnd(c, (claims) =>
+      withTenant(claims.tenant, async () => {
+        if (!((await runServicesOn()) && (await runHostsOn()))) {
+          return off(c);
+        }
+        const body = await checked(c, runReportSchema);
+        if ("refusal" in body) {
+          return body.refusal;
+        }
+        try {
+          const kept = await keepReport(claims.run, body.data);
+          if (kept === "no_run") {
+            return tokenRefused({ refused: kept });
+          }
+          if (kept === "here") {
+            return refused("This runtime works on the run itself: it takes no copy of it.", 409);
+          }
+          return json(kept satisfies RunReportAnswer);
+        } catch (err) {
+          const { failure, message, status, said } = await failureOf(err);
+          return failed(failure, message, status, said);
+        }
+      }),
+    ),
+  )
   .post("/:service/:call", async (c) => {
     const handler = CALLS[c.req.param("service")]?.[c.req.param("call")];
     const token = tokenOf(c);
@@ -562,9 +638,7 @@ export const runServiceRoutes = new Hono()
       if (!handler) {
         return refused("No such call.", 404);
       }
-      return read && "refused" in read
-        ? refused(`The run's token opens nothing (${read.refused}).`, 401)
-        : refused("The run's token is missing.", 401);
+      return tokenRefused(read && "refused" in read ? read : null);
     }
     const { claims } = read;
     const signal = c.req.raw.signal;
@@ -572,14 +646,9 @@ export const runServiceRoutes = new Hono()
       if (!(await runServicesOn())) {
         return off(c);
       }
-      const raw = await c.req.json().catch(() => undefined);
-      const parsed = handler.request.safeParse(raw ?? {});
-      if (!parsed.success) {
-        const issue = parsed.error.issues[0];
-        return refused(
-          `The request is not valid: ${issue?.path.join(".") || "body"}: ${issue?.message ?? ""}`,
-          400,
-        );
+      const parsed = await checked(c, handler.request);
+      if ("refusal" in parsed) {
+        return parsed.refusal;
       }
       const run = await loadRun(claims.run);
       if (!run) {
