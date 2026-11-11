@@ -8,7 +8,7 @@ import {
   resolveRef,
   scopeLists,
 } from "@engenty/wizards-engine/template";
-import type { AskResult, StepContext } from "@engenty/wizards-engine/types";
+import type { AskResult, StepContext, StepServices } from "@engenty/wizards-engine/types";
 import { StepError } from "@engenty/wizards-engine/types";
 import {
   branchValues,
@@ -41,7 +41,11 @@ import type {
   StepOutput,
 } from "@engenty/wizards-shared/run";
 import { note, type RunState, type RunView, saidText } from "@engenty/wizards-shared/run";
-import type { RunReport, RunReportAnswer } from "@engenty/wizards-shared/run-services";
+import {
+  type RunReport,
+  type RunReportAnswer,
+  ServiceError,
+} from "@engenty/wizards-shared/run-services";
 import {
   formatsOf,
   needsNoRunner,
@@ -93,7 +97,7 @@ import { runEnded } from "../plugins/events.js";
 import { pluginsOf as loadedPlugins } from "../plugins/registry.js";
 import type { InProcessContext, SpaceRow } from "../run-services/in-process.js";
 import { inProcessServices } from "../run-services/index.js";
-import { JobFailed, stopJobs } from "../run-services/jobs.js";
+import { stopJobs } from "../run-services/jobs.js";
 import { ContentBlockedError, checkGuestText, guestChecksOn, guestRun } from "../safety.js";
 import { sandboxDataHost } from "../sandbox/data.js";
 import { peerTicket } from "../secrets/signing.js";
@@ -138,6 +142,7 @@ import {
   noticesFor,
   noticeWrites,
 } from "./notices.js";
+import { releaseRunResources } from "./owner.js";
 import { pushRun } from "./push.js";
 import {
   blockingMessage,
@@ -147,7 +152,7 @@ import {
   stepsWithoutModel,
   tierRefusalSaid,
 } from "./requirements.js";
-import { releaseResources, resourcesFor } from "./resources.js";
+import { resourcesFor } from "./resources.js";
 import { type RunPatch, type RunValues, runStore } from "./run-store.js";
 import { dropWait, runScope, SPACE_SCOPE, sendSignal } from "./signals.js";
 import { startedRunEnded, startOf } from "./starts.js";
@@ -950,7 +955,7 @@ async function driveClaimed(
     .finally(async () => {
       clearInterval(beat);
       // What fails here leaves the rest of the cleanup to run.
-      await withTenant(tenant, () => releaseResources(runId)).catch((err) =>
+      await withTenant(tenant, () => releaseRunResources(runId)).catch((err) =>
         console.error(`[run ${runId}] releasing its resources:`, err),
       );
       // A run the shutdown stopped goes back in line for the next runner; the rest is done for now.
@@ -1114,17 +1119,27 @@ async function storedLists(
   return out;
 }
 
+type OwnOfStep = Partial<Pick<StepContext, "stepId" | "emit" | "ask" | "share">>;
+
 /**
  * What a step works with. A share job works with the same — the run's browser, store and
- * answers — under a step id, progress lines and questions of its own.
+ * answers — under a step id, progress lines and questions of its own. `services`: the run's
+ * services another process serves (the broker over HTTP, engine/host.ts); then this process makes
+ * no resources for the run. Left out: this process's own.
  */
 export async function makeContext(
   run: RunRow,
   space: SpaceRow,
   state: RunState,
   signal: AbortSignal,
-  own: Partial<Pick<StepContext, "stepId" | "emit" | "ask" | "share">> = {},
+  own: OwnOfStep = {},
+  services?: StepServices,
 ): Promise<StepContext> {
+  if (services) {
+    const ctx: StepContext = { ...(await stepContext(run, space, state, signal, own)), services };
+    ctx.scope.lists = await scopeLists(run.definition, services.data);
+    return ctx;
+  }
   const {
     store,
     space: _,
@@ -1138,29 +1153,21 @@ export async function makeContext(
   return ctx;
 }
 
-/**
- * The step context as the run's services keep it (run-services/in-process.ts): with the rows and
- * functions of this process. A share job's targets work with it.
- */
-export async function inProcessContext(
+/** The step context but for its services: the run, its state, the person, the log. */
+async function stepContext(
   run: RunRow,
   space: SpaceRow,
   state: RunState,
   signal: AbortSignal,
-  own: Partial<Pick<StepContext, "stepId" | "emit" | "ask" | "share">> = {},
-): Promise<InProcessContext> {
-  const store = scopeOf(run);
-  const resources = resourcesFor(run.id);
-  resources.bind(store, run, own.share, space.id, run.definition.data ? sandboxDataHost() : null);
+  own: OwnOfStep,
+): Promise<Omit<StepContext, "services">> {
   const stepId = own.stepId ?? run.cursor ?? "";
-  const holder = await runHolder(run);
-  const ctx: InProcessContext = {
+  return {
     runId: run.id,
     tenantId: run.tenantId,
     test: run.mode === "test",
     stepId,
-    holder,
-    store,
+    holder: await runHolder(run),
     def: run.definition,
     lang: run.lang,
     files: run.files,
@@ -1170,19 +1177,41 @@ export async function inProcessContext(
       state,
       brand: spaceProfile(space),
     },
-    space,
     dataSpace: await dataSpaceOf(run, space),
-    spaceFiles: await runSpaceFiles(space.id),
     signal,
-    resources,
     ask: own.ask ?? ((ask) => askOf(run, ask, stepId, signal)),
     emit:
       own.emit ?? ((type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset)),
-    call: { runId: run.id, stepId },
     ...(own.share ? { share: true } : {}),
     saveState: () => updateRun(run.id, { state }),
     turns: runTurns(run.id),
     durable: await effectsOn(),
+  };
+}
+
+/**
+ * The step context as the run's services keep it (run-services/in-process.ts): with the rows and
+ * functions of this process. A share job's targets work with it.
+ */
+export async function inProcessContext(
+  run: RunRow,
+  space: SpaceRow,
+  state: RunState,
+  signal: AbortSignal,
+  own: OwnOfStep = {},
+): Promise<InProcessContext> {
+  const store = scopeOf(run);
+  const resources = resourcesFor(run.id);
+  resources.bind(store, run, own.share, space.id, run.definition.data ? sandboxDataHost() : null);
+  const base = await stepContext(run, space, state, signal, own);
+  const { stepId } = base;
+  const ctx: InProcessContext = {
+    ...base,
+    store,
+    space,
+    spaceFiles: await runSpaceFiles(space.id),
+    resources,
+    call: { runId: run.id, stepId },
     chargeUsd: (usd) => addLocalCost(run.id, stepId, usd),
     saveAsset: (input) =>
       saveAsset({
@@ -1657,8 +1686,9 @@ export const lookAgainMs = () => (managed ? 5 : 30) * 60_000;
 
 /** What a failed step says: its own note, a tier's refusal, or the error in plain words. */
 export async function failSaid(err: unknown): Promise<Said> {
-  if (err instanceof JobFailed) {
-    // Said when the job failed, as it would have been in the step.
+  if (err instanceof ServiceError && err.said !== undefined) {
+    // Said where the service met it, as it would have been in the step: a job that failed, a
+    // call of the run's services over HTTP (routes/run-services.ts).
     return err.said;
   }
   return noteOf(err) ?? (await tierRefusalSaid(err)) ?? friendly(err);

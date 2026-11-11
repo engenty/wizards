@@ -55,7 +55,9 @@ export function runSandboxEngine(run: {
 
 /**
  * What a run holds while an agent works: a browser context and a sandbox, both made on first
- * use and released when the run stops running.
+ * use and released when the run stops running. They are in the process that serves the run's
+ * services, by the run's id: the runner's own, or a broker's when the runner asks one over HTTP
+ * (engine/owner.ts), which lets go of them when the runner says the drive ended.
  */
 export class RunResources {
   private context: BrowserContext | null = null;
@@ -70,8 +72,25 @@ export class RunResources {
   private share = false;
   /** Changes the person allowed for the rest of this run, as "<connection>:<action>". */
   readonly allowed = new Set<string>();
+  private actedNow = false;
+  private acts = 0;
   /** This try of the step did something that may not be repeated; the runner resets it per try. */
-  acted = false;
+  get acted(): boolean {
+    return this.actedNow;
+  }
+  set acted(value: boolean) {
+    if (value) {
+      this.acts += 1;
+    }
+    this.actedNow = value;
+  }
+  /**
+   * How often the run's calls acted in this process, never reset: a call of the run's services
+   * over HTTP compares it before and after, as several calls of the run may work at once.
+   */
+  get actCount(): number {
+    return this.acts;
+  }
   private watchers = new Set<BrowserWatcher>();
   private cast: { page: Page; session: CDPSession } | null = null;
   /** The latest picture of the page, for a watcher who comes in between two changes. */

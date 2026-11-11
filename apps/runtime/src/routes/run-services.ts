@@ -8,6 +8,7 @@ import {
   decisionAsAgent,
   textClassOf,
 } from "@engenty/wizards-shared/definition";
+import type { Said } from "@engenty/wizards-shared/run";
 import {
   type AgentModelFlags,
   ASSET_REF_HEADER,
@@ -24,6 +25,7 @@ import {
   isServiceStep,
   listRowsRequestSchema,
   noticeSchema,
+  RUN_ACTED_HEADER,
   type RunReportAnswer,
   runReportSchema,
   ServiceError,
@@ -49,12 +51,15 @@ import { withCaller } from "../broker/caller.js";
 import { readRunToken } from "../broker/token.js";
 import { withTenant } from "../db/client.js";
 import { classifyFailure } from "../engine/failures.js";
-import { contextAt, failureContext, keepReport, loadRun } from "../engine/runner.js";
+import { flowFailure } from "../engine/host.js";
+import { releaseResources } from "../engine/resources.js";
+import { contextAt, failSaid, failureContext, keepReport, loadRun } from "../engine/runner.js";
 import type { RunRow } from "../engine/types.js";
 import { SignInNeeded } from "../engine/types.js";
 import { NotedError } from "../model-errors.js";
 import type { InProcessContext } from "../run-services/in-process.js";
 import type { AgentModel, InProcessServices } from "../run-services/index.js";
+import type { RunClaims } from "../secrets/signing.js";
 import { runServicesOn } from "../tools/acted.js";
 import { holderWho } from "../tools/plugin.js";
 import { notFoundAnswer } from "./lang.js";
@@ -70,7 +75,13 @@ import { runHostsOn } from "./peer.js";
  * Every call takes JSON. `models/turn` answers NDJSON, one `TurnPart` per line as the model
  * writes it; a failure after the first part is a last line `{"error":{failure,message}}`.
  * `files/read` and `files/workspace` answer the bytes (`files/read` with the file's `AssetRef` in
- * `x-asset-ref`), every other call JSON. A failure answers a `ServiceErrorBody`.
+ * `x-asset-ref`), every other call JSON. A failure answers a `ServiceErrorBody`, sorted as the
+ * runner sorts it in its own process and with what the run's log says of it. An answer whose call
+ * did something a later try of the step would do again carries `x-run-acted`.
+ *
+ * The run's browser, sandbox and what they did are this process's while it serves the run's calls
+ * (engine/resources.ts, by the run's id); `POST …/run/release` lets go of them when the runner's
+ * drive of the run ends, with the run's token, which a run that ended still has for this.
  *
  * Beside the services, `run/report` takes a host's copy of the run it works on: as each step
  * starts, at each person's step and at the end, written to the run's record here.
@@ -123,8 +134,8 @@ const bytes = (data: Uint8Array, headers: Record<string, string> = {}) =>
   });
 
 /** A failure as it crosses HTTP, with a status for its class. */
-function failed(failure: FlowFailure, message: string, status?: number): Response {
-  const body: ServiceErrorBody = { error: { failure, message } };
+function failed(failure: FlowFailure, message: string, status?: number, said?: Said): Response {
+  const body: ServiceErrorBody = { error: { failure, message, ...(said ? { said } : {}) } };
   return json(body, status ?? STATUS[failure.class]);
 }
 
@@ -138,30 +149,30 @@ const STATUS: Record<FlowFailure["class"], number> = {
 const refused = (message: string, status: number) => failed({ class: "final" }, message, status);
 
 /**
- * What an error says over HTTP. A `ServiceError` keeps its class; what the runtime says itself
- * (a step's, a sign-in that is needed) is sorted as the runner sorts it; anything else is short
- * trouble here, tried again.
+ * What an error says over HTTP: sorted as the runner sorts an error of its step in its own process
+ * (`classifyFailure`, `flowFailure`), so a call fails the same here and there, and with what the
+ * run's log says of it (`failSaid`). Whether the step acted the runner adds: it knows the step's
+ * try, and the header and a turn's lines tell it of this call's part.
  */
-function failureOf(err: unknown): { failure: FlowFailure; message: string; status: number } {
+async function failureOf(
+  err: unknown,
+): Promise<{ failure: FlowFailure; message: string; status: number; said?: Said }> {
   const message = String((err as Error)?.message ?? err).slice(0, 400);
   if (err instanceof BadRequest) {
     return { failure: err.failure, message, status: 400 };
   }
-  if (err instanceof ServiceError) {
-    return { failure: err.failure, message, status: STATUS[err.failure.class] };
+  if (
+    !(
+      err instanceof ServiceError ||
+      err instanceof StepError ||
+      err instanceof NotedError ||
+      err instanceof SignInNeeded
+    )
+  ) {
+    console.error("[run-services]", err);
   }
-  if (err instanceof StepError || err instanceof NotedError) {
-    const sorted = classifyFailure(err, failureContext());
-    const failure: FlowFailure =
-      sorted.class === "retry"
-        ? { class: "retry", retryAfterMs: sorted.retryAfterMs }
-        : sorted.class === "sign_in"
-          ? { class: "sign_in", service: err instanceof SignInNeeded ? err.service : "" }
-          : { class: sorted.class };
-    return { failure, message, status: STATUS[failure.class] };
-  }
-  console.error("[run-services]", err);
-  return { failure: { class: "retry", retryAfterMs: null }, message, status: 500 };
+  const failure = flowFailure(err, classifyFailure(err, failureContext()), false);
+  return { failure, message, status: STATUS[failure.class], said: await failSaid(err) };
 }
 
 /** A turn's parts, one JSON line each, sent as they come. The first part is waited for, so a call that fails at once answers with its status. */
@@ -191,8 +202,10 @@ async function streamed(parts: AsyncIterable<TurnPart | TurnToolsLine>): Promise
             }
           }
         } catch (err) {
-          const { failure, message } = failureOf(err);
-          send({ error: { failure, message } } satisfies ServiceErrorBody);
+          const { failure, message, said } = await failureOf(err);
+          send({
+            error: { failure, message, ...(said ? { said } : {}) },
+          } satisfies ServiceErrorBody);
         }
         try {
           controller.close();
@@ -501,6 +514,18 @@ const stepIdOf = (input: unknown): string | null => {
 };
 
 /**
+ * The answer, marked when the call acted (`RUN_ACTED_HEADER`): what the run's resources say it
+ * did, counted from before the call, as calls of one run may work at once. A turn's stream says
+ * so in its own lines.
+ */
+function told(res: Response, ctx: InProcessContext | null, before: number): Response {
+  if (ctx && ctx.resources.actCount > before) {
+    res.headers.set(RUN_ACTED_HEADER, "1");
+  }
+  return res;
+}
+
+/**
  * Off: nothing answers here, as for any path this runtime does not serve. The switch is the
  * organization's, read in the token's tenant once the token opened it; before that (no such call,
  * no token, a token that opens nothing) the runtime's own switches count.
@@ -532,6 +557,27 @@ async function checked<S extends z.ZodType>(
   };
 }
 
+/**
+ * A call that comes at or after the run's end and works for none of its steps (`run/release`,
+ * `run/report`): the one way a token of a run that is over opens anything. The token is read with
+ * `ended` (`readRunToken`): every other check is made, and what the run's status means is the
+ * call's own business.
+ */
+async function atRunEnd(
+  c: Context,
+  work: (claims: RunClaims) => Promise<Response>,
+): Promise<Response> {
+  const token = tokenOf(c);
+  const read = token ? await readRunToken(token, { ended: true }) : null;
+  if (!(read && "claims" in read)) {
+    if (!(await runServicesOn())) {
+      return off(c);
+    }
+    return tokenRefused(read);
+  }
+  return work(read.claims);
+}
+
 export const runServiceRoutes = new Hono()
   .use(
     "*",
@@ -540,47 +586,47 @@ export const runServiceRoutes = new Hono()
       onError: () => refused("The request is too large.", 413),
     }),
   )
+  // The run's drive ended (it rests, waits or ended for good): what it held here goes, its
+  // browser and its sandbox (engine/owner.ts).
+  .post("/run/release", (c) =>
+    atRunEnd(c, async (claims) => {
+      await withTenant(claims.tenant, () => releaseResources(claims.run));
+      return done();
+    }),
+  )
   /*
    * A host's copy of its run (`run/report`), written to the record at the run's tenant
    * (`keepReport`). No service of `CALLS`: it builds no context and names no step. The end report
-   * makes the run over, and a run that is over opens nothing with its token; that report is taken
-   * since the record is not over yet when it comes. One that comes again (the answer to the first
-   * was lost) is read with `over` (`readRunToken`): the token is checked as ever, and the answer
-   * says the run is over and that nothing was kept.
+   * makes the run over, and it is taken since the record is not over yet when it comes. One that
+   * comes again (the answer to the first was lost) hears that the run is over and that nothing was
+   * kept: `keepReport` reads the record.
    */
-  .post("/run/report", async (c) => {
-    const token = tokenOf(c);
-    const read = token ? await readRunToken(token, { over: true }) : null;
-    if (!(read && "claims" in read)) {
-      if (!(await runServicesOn())) {
-        return off(c);
-      }
-      return tokenRefused(read);
-    }
-    const { claims } = read;
-    return withTenant(claims.tenant, async () => {
-      if (!((await runServicesOn()) && (await runHostsOn()))) {
-        return off(c);
-      }
-      const body = await checked(c, runReportSchema);
-      if ("refusal" in body) {
-        return body.refusal;
-      }
-      try {
-        const kept = await keepReport(claims.run, body.data);
-        if (kept === "no_run") {
-          return tokenRefused({ refused: kept });
+  .post("/run/report", (c) =>
+    atRunEnd(c, (claims) =>
+      withTenant(claims.tenant, async () => {
+        if (!((await runServicesOn()) && (await runHostsOn()))) {
+          return off(c);
         }
-        if (kept === "here") {
-          return refused("This runtime works on the run itself: it takes no copy of it.", 409);
+        const body = await checked(c, runReportSchema);
+        if ("refusal" in body) {
+          return body.refusal;
         }
-        return json(kept satisfies RunReportAnswer);
-      } catch (err) {
-        const { failure, message, status } = failureOf(err);
-        return failed(failure, message, status);
-      }
-    });
-  })
+        try {
+          const kept = await keepReport(claims.run, body.data);
+          if (kept === "no_run") {
+            return tokenRefused({ refused: kept });
+          }
+          if (kept === "here") {
+            return refused("This runtime works on the run itself: it takes no copy of it.", 409);
+          }
+          return json(kept satisfies RunReportAnswer);
+        } catch (err) {
+          const { failure, message, status, said } = await failureOf(err);
+          return failed(failure, message, status, said);
+        }
+      }),
+    ),
+  )
   .post("/:service/:call", async (c) => {
     const handler = CALLS[c.req.param("service")]?.[c.req.param("call")];
     const token = tokenOf(c);
@@ -612,16 +658,21 @@ export const runServiceRoutes = new Hono()
       if (stepId !== null && !run.definition.steps.some((s) => s.id === stepId)) {
         return refused(`The wizard has no step ${stepId}.`, 400);
       }
+      let ctx: InProcessContext | null = null;
+      let before = 0;
       try {
-        const ctx = await contextAt(run, stepId, signal);
+        const at = await contextAt(run, stepId, signal);
+        ctx = at;
+        before = at.resources.actCount;
         // As the runner's AI step calls: for the person the run is held for.
-        const caller = { who: holderWho(ctx), where: whereOf(ctx) };
-        return await withCaller(caller, () =>
-          handler.answer(parsed.data, ctx.services, signal, run, ctx),
+        const caller = { who: holderWho(at), where: whereOf(at) };
+        const res = await withCaller(caller, () =>
+          handler.answer(parsed.data, at.services, signal, run, at),
         );
+        return told(res, ctx, before);
       } catch (err) {
-        const { failure, message, status } = failureOf(err);
-        return failed(failure, message, status);
+        const { failure, message, status, said } = await failureOf(err);
+        return told(failed(failure, message, status, said), ctx, before);
       }
     });
   });

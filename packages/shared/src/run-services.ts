@@ -94,20 +94,37 @@ export const flowFailureSchema: z.ZodType<FlowFailure> = z.discriminatedUnion("c
   z.object({ class: z.literal("final") }),
 ]);
 
-/** A service's failure, with the class `transition()` takes it as (`stepFailed`). */
+/**
+ * A service's failure, with the class `transition()` takes it as (`stepFailed`). `said`: what the
+ * run's log says of it, as the process that met the error put it; left out, the message counts.
+ */
 export class ServiceError extends Error {
   constructor(
     readonly failure: FlowFailure,
     message: string,
+    readonly said?: Said,
   ) {
     super(message);
     this.name = "ServiceError";
   }
 }
 
+/** Plain words, or a note by its code. */
+const saidSchema = z.custom<Said>(
+  (value) =>
+    typeof value === "string" ||
+    (typeof value === "object" &&
+      value !== null &&
+      typeof (value as { code?: unknown }).code === "string"),
+);
+
 /** A failure as it crosses HTTP. */
 export const serviceErrorSchema = z.object({
-  error: z.object({ failure: flowFailureSchema, message: z.string() }),
+  error: z.object({
+    failure: flowFailureSchema,
+    message: z.string(),
+    said: saidSchema.optional(),
+  }),
 });
 
 export type ServiceErrorBody = z.infer<typeof serviceErrorSchema>;
@@ -462,6 +479,13 @@ export const workspaceRequestSchema = z.object({ path: z.string().min(1).max(100
 /** The header `files.read` answers the file's `AssetRef` in, as JSON; the body is the bytes. */
 export const ASSET_REF_HEADER = "x-asset-ref";
 
+/**
+ * The header of an answer whose call did something that may not be repeated (a write, a send):
+ * the step's try acted, and a failure of it is not tried again by itself. A turn's stream says
+ * so in its `TurnToolsLine`s instead.
+ */
+export const RUN_ACTED_HEADER = "x-run-acted";
+
 // --- data --------------------------------------------------------------------------------------
 
 /** One statement on the wizard's own database. */
@@ -727,8 +751,11 @@ const REPORTED_STATUSES = [
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** Why the run failed: words, or one of the run's notes. */
-const saidSchema: z.ZodType<Said> = z.union([
+/**
+ * Why the run failed: words, or one of the run's notes. Stricter than a failure's `said`: the record
+ * keeps it, and every reader says it in their language.
+ */
+const failedSaidSchema: z.ZodType<Said> = z.union([
   z.string().max(2000),
   z.custom<RunNote>(
     (v) => isRecord(v) && typeof v.code === "string" && v.code in RUN_NOTES.en,
@@ -762,7 +789,7 @@ export const runReportSchema: z.ZodType<RunReport> = z.object({
   wakeAt: z.number().nullable(),
   rev: z.number().int().nonnegative(),
   cost: z.number().nonnegative().optional(),
-  error: saidSchema.nullable().optional(),
+  error: failedSaidSchema.nullable().optional(),
 });
 
 /** What the tenant did with a copy: `kept`, or not, since the record was as new or the run is over. */

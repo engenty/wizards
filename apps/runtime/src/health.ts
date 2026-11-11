@@ -334,7 +334,8 @@ function checksOf(): { name: string; required: boolean; run: Run }[] {
         await answers(`${env.manage.gatewayUrl}/health`);
         return undefined;
       },
-      when: managed && Boolean(env.manage.gatewayUrl) && (serves.studio || serves.runner),
+      // A runner and a broker call the models of the runs they serve.
+      when: managed && Boolean(env.manage.gatewayUrl) && (serves.studio || serves.runServices),
     },
     {
       name: "manage",
@@ -352,7 +353,8 @@ function checksOf(): { name: string; required: boolean; run: Run }[] {
         await answers(`${env.browserCdpUrl}/json/version`);
         return undefined;
       },
-      when: serves.runner && Boolean(env.browserCdpUrl),
+      // A runner and a broker hold the browsers of the runs they serve.
+      when: serves.runServices && Boolean(env.browserCdpUrl),
     },
   ];
   return all.filter((c) => c.when);

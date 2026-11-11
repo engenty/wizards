@@ -45,6 +45,7 @@ A pnpm workspace:
 | `scripts/` | `npm-package.mjs` (the npm packages: the runtime, the launcher, `@engenty/wizards` and the MIT libraries) |
 | `packages/shared/` | types and schemas the server and the SPA both use |
 | `packages/engine/` | `@engenty/wizards-engine`, the step code of a run: no Node modules, no database; what lies outside the run it asks the run's services for |
+| `packages/run/` | `@engenty/wizards-run`, a host for one run in a Node process: the run’s state, turns and log in a folder, a timer for its wakes, its services over HTTP, its three host calls on a loopback port |
 | `packages/wizards/` | `@engenty/wizards`, the one package code outside this repo imports: `/plugin` (a plugin’s server half), `/plugin/studio`, `/plugin/thread`, `/openui` (wizards in OpenUI chats), `/openui/server` |
 | `packages/decision-model/`, `search-index/`, `search-libsql/`, `goose/` | the MIT libraries of the engenty framework, each on npm under its own name (below) |
 | `modules/` | plugins that ship with the runtime |

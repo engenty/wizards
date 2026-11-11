@@ -139,6 +139,39 @@ describe("the run's services over fetch", () => {
     expect(err).toBeInstanceOf(ServiceError);
     expect((err as ServiceError).failure).toEqual({ class: "sign_in", service: "google" });
     expect((err as ServiceError).message).toBe("Sign in.");
+    expect((err as ServiceError).said).toBeUndefined();
+  });
+
+  it("keeps what the run's log says of a failure, and hears when a call acted", async () => {
+    let acted = 0;
+    const services = httpServices({
+      url: "https://runtime.example",
+      token: "tok",
+      acted: () => {
+        acted += 1;
+      },
+      fetch: async (input) =>
+        String(input).endsWith("/data/exec")
+          ? Response.json({ changes: 1, lastId: 1 }, { headers: { "x-run-acted": "1" } })
+          : Response.json(
+              {
+                error: {
+                  failure: { class: "final" },
+                  message: "No list.",
+                  said: { code: "stepFailed", params: { detail: "No list." } },
+                },
+              },
+              { status: 422, headers: { "x-run-acted": "1" } },
+            ),
+    });
+    await services.data.exec({ stepId: "s", sql: "DELETE FROM notes" } as never);
+    const err = await rejection(services.data.rows("nope"));
+    expect((err as ServiceError).said).toEqual({
+      code: "stepFailed",
+      params: { detail: "No list." },
+    });
+    // A failure that acted first counts as well.
+    expect(acted).toBe(2);
   });
 
   it("takes a network failure and a 5xx that is no answer of the runtime as retry", async () => {
