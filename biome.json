@@ -4,6 +4,7 @@
     "includes": [
       "apps/runtime/src/**",
       "apps/runtime/*.ts",
+      "apps/documents/src/**",
       "apps/web/src/**",
       "apps/web/*.ts",
       "apps/web/scripts/**",

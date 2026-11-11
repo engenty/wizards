@@ -122,6 +122,7 @@ import {
   markLine,
   otherRunners,
   restRun,
+  setLineHost,
   setWake,
   waitingRuns,
   wakeDue,
@@ -154,6 +155,7 @@ import {
   tierRefusalSaid,
 } from "./requirements.js";
 import { resourcesFor } from "./resources.js";
+import { hostedRun, wakeElsewhere } from "./run-host-client.js";
 import { type RunPatch, type RunValues, runStore } from "./run-store.js";
 import { dropWait, runScope, SPACE_SCOPE, sendSignal } from "./signals.js";
 import { startedRunEnded, startOf } from "./starts.js";
@@ -748,6 +750,7 @@ export async function createRun(input: {
     ipHash: input.ipHash,
     // The caller's host keeps the run's time itself: the clock here never puts it in line.
     wakeAt: input.drivenOn ? null : deadline.wakeAt,
+    host,
   });
   if (waits) {
     await waitsForAnswer(id, first, deadline.wakeAt);
@@ -795,6 +798,7 @@ async function placeRun(id: string, host: RunHostRef): Promise<boolean> {
   } catch (err) {
     console.warn(`[run ${id}] stays here: ${err instanceof Error ? err.message : String(err)}`);
     await runStore.setHost(id, null);
+    await setLineHost(id, null);
     return false;
   }
 }
@@ -1054,7 +1058,10 @@ export function startRunner() {
   void lookAtClock();
 }
 
-/** The clock: what came due goes in line, and the line need not wait for its next look. */
+/**
+ * The clock: what came due goes in line, and the line need not wait for its next look. A run on
+ * another host hears its wake from there.
+ */
 async function lookAtClock() {
   if (stopping) {
     return;
@@ -1066,6 +1073,7 @@ async function lookAtClock() {
   } catch (err) {
     console.warn("[clock]", (err as Error).message);
   }
+  await wakeElsewhere().catch((err) => console.warn("[clock]", (err as Error).message));
 }
 
 /** Stops the runs this process holds and hands them back to the line. */
@@ -1744,11 +1752,6 @@ function eventOf(run: RunRow): FlowEvent | null {
 
 /** Takes the run to its next wait or its end: the engine on this runtime as its host. */
 async function drive(runId: string, signal: AbortSignal) {
-  // A run that lives outside any runtime (`wizards run`, an object) is driven there only.
-  const kind = (await runStore.hostOf(runId))?.kind;
-  if (kind && kind !== "runtime") {
-    return;
-  }
   // The step starts afresh here: a question or a device call another process left has no one
   // waiting.
   await clearStaleAsk(runId);
@@ -2331,7 +2334,9 @@ export async function signalRun(
     only?: string;
   },
 ) {
-  const run = await loadRun(runId);
+  const record = await loadRun(runId);
+  // Where the run stands is its host's; the signal is kept here, and its host hears of it.
+  const run = record && (await hostedRun(record));
   const step = run ? stepOf(run.definition, run.cursor) : undefined;
   if (run?.status !== "waiting_signal" || step?.type !== "wait" || !step.signal) {
     return null;

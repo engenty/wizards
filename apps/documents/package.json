@@ -1,0 +1,29 @@
+{
+  "name": "@engenty/wizards-documents",
+  "version": "0.1.0",
+  "description": "The cloud's documents service: PDFs, Word and Excel files and scans read in a container of its own, behind a small HTTP API. It keeps nothing.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@llamaindex/liteparse": "2.18.0",
+    "exceljs": "^4.4.0",
+    "mammoth": "^1.13.0",
+    "pdf-parse": "^2.4.5",
+    "tsx": "^4.23.15",
+    "turndown": "^7.2.5",
+    "word-extractor": "1.0.4"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "1.0.13",
+    "@types/node": "^26.6.6",
+    "@types/turndown": "^5.0.6",
+    "@types/word-extractor": "1.0.6",
+    "typescript": "~7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

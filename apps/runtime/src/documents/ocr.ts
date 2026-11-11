@@ -1,4 +1,3 @@
-import { join } from "node:path";
 import type { LiteParse } from "@llamaindex/liteparse";
 import type {
   ConversionOptions,
@@ -6,25 +5,25 @@ import type {
   DocConverterProvider,
 } from "../engenty/doc-converter/interface.js";
 import { markdownFromPagedParseResult } from "../engenty/doc-converter/page-break.js";
-import { env } from "../env.js";
 import { onDemand } from "../on-demand.js";
 
 /**
  * Reads scans and photos on this computer, as an engenty doc-converter provider: LlamaIndex's
  * LiteParse, with PDFium and Tesseract built in (docs/plans/document-reading.md). Tesseract's
- * models are downloaded the first time a scan is read, into DATA_DIR/tessdata.
+ * models are downloaded the first time a scan is read, into the folder it is given
+ * (DATA_DIR/tessdata in the runtime). Nothing here reads the runtime's settings: the documents
+ * service (apps/documents) runs it as it is.
  */
 
 /** Tesseract's languages, by their model names. */
 const LANGUAGES = "deu+eng";
 /** Pages of one document read by OCR at most: a long scanned book costs minutes. */
 export const MAX_OCR_PAGES = 100;
-export const TESSDATA_DIR = join(env.dataDir, "tessdata");
 
 let loaded: Promise<typeof import("@llamaindex/liteparse")> | null = null;
 
 /** A parser for one read: which pages it reads is part of its config. */
-async function liteparse(targetPages?: string): Promise<LiteParse> {
+async function liteparse(tessdata: string, targetPages?: string): Promise<LiteParse> {
   loaded ??= onDemand<typeof import("@llamaindex/liteparse")>("@llamaindex/liteparse").catch(
     (err) => {
       // A platform LiteParse has no build for, or its download failed: no OCR this time.
@@ -38,25 +37,31 @@ async function liteparse(targetPages?: string): Promise<LiteParse> {
     outputFormat: "markdown",
     imageMode: "off",
     ocrLanguage: LANGUAGES,
-    tessdataPath: TESSDATA_DIR,
+    tessdataPath: tessdata,
     maxPages: MAX_OCR_PAGES,
     quiet: true,
     ...(targetPages ? { targetPages } : {}),
   });
 }
 
+/** What OCR reads. */
+export const OCR_TYPES = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/tiff",
+  "image/bmp",
+];
+
 export class OcrProvider implements DocConverterProvider {
   readonly id = "liteparse";
   readonly name = "LiteParse OCR";
-  readonly supportedTypes = [
-    "application/pdf",
-    "image/png",
-    "image/jpeg",
-    "image/webp",
-    "image/gif",
-    "image/tiff",
-    "image/bmp",
-  ];
+  readonly supportedTypes = OCR_TYPES;
+
+  /** `tessdata`: where Tesseract's models are kept. */
+  constructor(private readonly tessdata: string) {}
 
   canConvert(mimeType: string): boolean {
     return this.supportedTypes.includes(mimeType);
@@ -89,7 +94,7 @@ export class OcrProvider implements DocConverterProvider {
 
   /** The text of each page by its number: of `only` where given, else of the first pages. */
   async pages(data: Uint8Array, only?: number[]): Promise<Map<number, string>> {
-    const lp = await liteparse(only?.slice(0, MAX_OCR_PAGES).join(","));
+    const lp = await liteparse(this.tessdata, only?.slice(0, MAX_OCR_PAGES).join(","));
     const result = await lp.parse(data);
     return new Map(result.pages.map((page) => [page.pageNum, (page.markdown ?? page.text).trim()]));
   }

@@ -26,7 +26,7 @@ process.env.RUNTIME_ROLE = "all";
 process.env.PLUGINS_DIR = fileURLToPath(new URL("./fixtures/pinned-runs/plugins", import.meta.url));
 process.env.PLUGINS_WATCH = "0";
 process.env.PLUGIN_JOBS = "0";
-const ON = "durableRuns=on,runServices=on,wizardsRun=on";
+const ON = "durableRuns=on,runServices=on,runHosts=on,wizardsRun=on";
 process.env.FEATURES = ON;
 
 const usage = {
@@ -193,6 +193,8 @@ async function hostFor(started: Started): Promise<NodeHost> {
     def: started.definition,
     files: started.files,
     run: { id: started.runId },
+    // This test writes the record itself, with every write: no copies over `run/report`.
+    reports: false,
     // The tenant's copy of the run (the end at the tenant is 4.4's): its services read the run's
     // state from the record, and the studio lists it from there.
     onWrite: (r) =>
@@ -348,6 +350,9 @@ describe("starting a run on the caller's host", () => {
       expect((await start({ host: "node", wizardId })).status).toBe(404);
       // Without the run's services over HTTP nobody could drive it elsewhere.
       process.env.FEATURES = "durableRuns=on,wizardsRun=on";
+      expect((await start({ host: "node", wizardId })).status).toBe(404);
+      // Nor without the tenant taking a run's copies from another host.
+      process.env.FEATURES = "durableRuns=on,runServices=on,wizardsRun=on";
       expect((await start({ host: "node", wizardId })).status).toBe(404);
     } finally {
       process.env.FEATURES = ON;

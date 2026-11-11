@@ -151,16 +151,18 @@ describe("a host's three calls", () => {
     expect((await api.state()).run.cursor).toBe("start");
   });
 
-  it("refuses what the host makes itself, and a wake before its time without a name", async () => {
+  it("refuses what the host makes itself, and takes a signal the tenant kept", async () => {
     const runId = await startRun(TENANT);
     const api = clientOf(runId);
     expect(await refusal(api.send({ kind: "start" }))).toBe(400);
     expect(
       await refusal(api.send({ kind: "stepDone", stepId: "write", output: { at: "x" } })),
     ).toBe(400);
+    // A signal the tenant kept is taken: a run that does not wait for it stays where it is.
     expect(
       await refusal(api.send({ kind: "signal", stepId: "start", id: "s", data: null })),
-    ).toBe(400);
+    ).toBeNull();
+    expect((await api.state()).run).toMatchObject({ cursor: "start", status: "waiting_input" });
     // Not an event at all.
     expect(await refusal(api.send({ kind: "nothing" } as never))).toBe(400);
   });

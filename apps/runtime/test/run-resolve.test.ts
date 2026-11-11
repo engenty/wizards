@@ -113,6 +113,8 @@ async function firstState(w: ResolvedWizard) {
     def: w.definition,
     files: w.files.map(({ data: _, ...file }) => file),
     run: { id: "run-1" },
+    // No tenant here to take its copies.
+    reports: false,
     now: () => 1_700_000_000_000,
   });
   try {

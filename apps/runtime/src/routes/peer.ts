@@ -109,7 +109,9 @@ const WAKES = new Set(["sleeping", "waiting_signal", "waiting_input"]);
 
 /**
  * Takes an event as the doors take it (`takeEvent`), with what only a caller from outside asks:
- * "try again" on a run at work puts it in line, and a wake that is due is the clock's.
+ * "try again" on a run at work puts it in line, and a wake that is due, or that names nobody, is
+ * the clock's (the tenant's clock, engine/run-host-client.ts `wakeElsewhere`): the run looks, and
+ * one whose time has not come puts it back, as for a wake of the clock here.
  */
 async function take(runId: string, event: HostSendable, by?: HostActor, page?: PageSent) {
   if (event.kind === "resume") {
@@ -124,7 +126,7 @@ async function take(runId: string, event: HostSendable, by?: HostActor, page?: P
     if (!(run && WAKES.has(run.status) && run.wakeAt)) {
       throw new RunConflict({ code: "runMovedOn" });
     }
-    if (run.wakeAt.getTime() <= Date.now()) {
+    if (!by?.name || run.wakeAt.getTime() <= Date.now()) {
       kick(runId);
       return false;
     }
