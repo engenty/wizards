@@ -34,14 +34,22 @@ type TokenRun = Pick<
   | "clientSpaceId"
   | "tokenId"
   | "host"
+  | "createdAt"
 > & { expiresAt: Date | null };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * When a token signed now ends: when the run is deleted (`expiresAt`, which moves later while the
- * run waits), else `RUN_TOKEN_DAYS` from now.
+ * run waits), else `RUN_TOKEN_DAYS` from now. An object keeps the token it was handed as the
+ * run's secret and takes no other (it cannot check a signature): signed again, the token must be
+ * the same, so it ends `RUN_TOKEN_DAYS` after the run began.
  */
-function expiryOf(run: Pick<TokenRun, "expiresAt">): number {
-  const at = run.expiresAt?.getTime() ?? Date.now() + RUN_TOKEN_DAYS * 24 * 60 * 60 * 1000;
+function expiryOf(run: Pick<TokenRun, "expiresAt" | "createdAt" | "host">): number {
+  const at =
+    run.host?.kind === "edge"
+      ? run.createdAt.getTime() + RUN_TOKEN_DAYS * DAY_MS
+      : (run.expiresAt?.getTime() ?? Date.now() + RUN_TOKEN_DAYS * DAY_MS);
   return Math.floor(at / 1000);
 }
 
@@ -138,6 +146,7 @@ export async function readRunToken(
         tokenId: true,
         host: true,
         expiresAt: true,
+        createdAt: true,
       },
       where: eq(schema.run.id, claims.run),
     });

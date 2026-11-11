@@ -174,6 +174,12 @@ export const env = {
    * the wizard takes it (`hostFor`, engine/hosts.ts). Empty: every run lives here.
    */
   runHosts: runHosts(),
+  /**
+   * `EDGE_URL`: the Worker whose objects hold runs, one object a run (apps/edge). A guest's run of
+   * a published wizard that an object can run is placed there first (`hostFor`). Empty: no run
+   * goes to an object.
+   */
+  edgeUrl: str("EDGE_URL").replace(/\/+$/, ""),
   appUrl,
   /**
    * `1`: a process whose own health check (`process`, health.ts) is down three times in a row,

@@ -9,14 +9,22 @@ import {
   type PageSent,
 } from "@engenty/wizards-engine/host-api";
 import type { InputError } from "@engenty/wizards-engine/input";
-import type { RunHostKind, RunHostRef, StepOutput } from "@engenty/wizards-shared/run";
+import type { RunEvent, RunHostKind, RunHostRef, StepOutput } from "@engenty/wizards-shared/run";
+import { tokenOf } from "../broker/token.js";
 import { withTenant } from "../db/client.js";
 import { feature, remoteFeatures } from "../features.js";
 import { peerTicket } from "../secrets/signing.js";
 import { dueElsewhere, putWakeBack, wakeRun } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { answerAsk } from "./asks.js";
-import { eventsAfter, type RunSignal, signalChanged, watchChanges, watchRun } from "./events.js";
+import {
+  eventsAfter,
+  type RunSignal,
+  recentEvents,
+  signalChanged,
+  watchChanges,
+  watchRun,
+} from "./events.js";
 import { runStore } from "./run-store.js";
 import {
   answerTurn,
@@ -42,7 +50,8 @@ import type { RunRow } from "./types.js";
  * A run as its doors reach it (docs/plans/runs-on-their-own.md, phase 4): where the record says
  * it lives. A run of this runtime (`host` null) is reached through the runner's functions in this
  * process, exactly as the doors called them before other hosts; a run on another runtime process
- * through that host's three calls (`hostApi`, routes/peer.ts) with a fresh peer ticket each.
+ * through that host's three calls (`hostApi`, routes/peer.ts) with a fresh peer ticket each; a
+ * run in an object (apps/edge) through the same three calls with the run's token.
  *
  * What stays at the tenant stays at the door: who may see and answer (`openedRun`, `mayAct`), the
  * run's own lines a door writes (a withdrawn run), a share that stops on "back", the typed
@@ -85,17 +94,19 @@ export class HostUnreachable extends Error {
 
 /**
  * How a door reaches a run on a host of each kind. `runtime`: another process of this runtime,
- * with a peer ticket (the secret they share). `node` (`wizards run`, phase 5) and `edge` (phase 6)
- * authenticate differently, with what their hand-over gives them: until then they are not reached.
+ * with a peer ticket (the secret they share). `edge`: the run's object, with the run's token,
+ * which the object was handed and keeps as the run's secret. `node` (`wizards run`, phase 5)
+ * authenticates with what its hand-over gives it: until then it is not reached.
  */
 const REACH: Record<RunHostKind, (host: RunHostRef, runId: string) => RunHostClient> = {
-  runtime: (host, runId) => remoteClient(host, runId),
+  runtime: (host, runId) => {
+    const tenant = currentTenant();
+    return remoteClient(host, runId, () => peerTicket(runId, tenant));
+  },
   node: (host) => {
     throw new HostUnreachable(host.kind);
   },
-  edge: (host) => {
-    throw new HostUnreachable(host.kind);
-  },
+  edge: (host, runId) => remoteClient(host, runId, runTokenOf(runId)),
 };
 
 /**
@@ -135,6 +146,38 @@ export function withHostState<R extends RunRow>(row: R, { run, error, ask }: Hos
     error,
     ask,
   };
+}
+
+/**
+ * The newest `limit` lines of the run's log, as its view shows them. A run of this runtime, or of
+ * another of its processes, writes its log here. A run in an object keeps its log there: the
+ * lines the tenant wrote as it started, then the object's.
+ */
+export async function runLines(run: Pick<RunRow, "id" | "host">, limit: number) {
+  const here = await recentEvents(run.id, 0, limit);
+  if (!run.host || run.host.kind === "runtime") {
+    return here;
+  }
+  const client = await hostClientOf(run);
+  if (!client.host) {
+    return here;
+  }
+  const { run: at, event } = await client.state();
+  if (!event) {
+    return here;
+  }
+  // Lines past `after` exist, so the first answer comes at once.
+  const stop = new AbortController();
+  let there: RunEvent[] = [];
+  try {
+    for await (const change of client.changes(at.rev, Math.max(0, event - limit), stop.signal)) {
+      there = change.events;
+      break;
+    }
+  } finally {
+    stop.abort();
+  }
+  return [...here, ...there].slice(-limit);
 }
 
 // --- this runtime ------------------------------------------------------------
@@ -415,16 +458,40 @@ export async function takeEvent(
   }
 }
 
-// --- another runtime process -------------------------------------------------
+// --- another host --------------------------------------------------------------
 
-function remoteClient(host: RunHostRef, runId: string): RunHostClient {
+/**
+ * The run's token for its object, signed from the record in the tenant at hand once a client
+ * needs it: the same token the object was handed (broker/token.ts, `expiryOf`).
+ */
+function runTokenOf(runId: string): () => Promise<string> {
   const tenant = currentTenant();
-  const api = hostApi({
-    url: host.url,
-    runId,
-    tenant,
-    ticket: () => peerTicket(runId, tenant),
-  });
+  let token: Promise<string> | null = null;
+  const sign = () =>
+    withTenant(tenant, async () => {
+      const run = await runStore.get(runId);
+      const signed = run && (await tokenOf(run));
+      if (!signed) {
+        throw new RunConflict("Run not found");
+      }
+      return signed;
+    });
+  return () => {
+    token ??= sign().catch((err) => {
+      token = null;
+      throw err;
+    });
+    return token;
+  };
+}
+
+/** A run on another host, through that host's three calls, each with `ticket`. */
+function remoteClient(
+  host: RunHostRef,
+  runId: string,
+  ticket: () => string | Promise<string>,
+): RunHostClient {
+  const api = hostApi({ url: host.url, runId, tenant: currentTenant(), ticket });
   const client: RunHostClient = {
     runId,
     host,

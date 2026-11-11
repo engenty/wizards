@@ -133,7 +133,7 @@ import { hasOwnAccount } from "../upstreams.js";
 import { askPerson, clearStaleAsk } from "./asks.js";
 import { clearDeviceCalls } from "./device.js";
 import { editedJson } from "./edits.js";
-import { emitEvent, recentEvents, signalChanged } from "./events.js";
+import { emitEvent, signalChanged } from "./events.js";
 import { classifyFailure } from "./failures.js";
 import { runtimeHost } from "./host.js";
 import { handOver, hostFor, requireFit } from "./hosts.js";
@@ -155,7 +155,7 @@ import {
   tierRefusalSaid,
 } from "./requirements.js";
 import { resourcesFor } from "./resources.js";
-import { hostedRun, wakeElsewhere } from "./run-host-client.js";
+import { hostedRun, runLines, wakeElsewhere } from "./run-host-client.js";
 import { type RunPatch, type RunValues, runStore } from "./run-store.js";
 import { dropWait, runScope, SPACE_SCOPE, sendSignal } from "./signals.js";
 import { startedRunEnded, startOf } from "./starts.js";
@@ -620,11 +620,18 @@ export async function createRun(input: {
     throw new ModelUnavailableError(blocked);
   }
   // Where the run lives: the caller's host, another host that can run the wizard, else this
-  // runtime (null).
+  // runtime (null). A guest's run of a published wizard (its page, a plugin's runner) may go to
+  // an object of its own: nobody of the organization starts it, and no start began it.
   if (input.drivenOn) {
     await requireFit(input.definition, input.drivenOn.kind);
   }
-  const host = input.drivenOn ?? (await hostFor(input.definition));
+  const guest =
+    input.mode === "live" &&
+    !!input.visitorId &&
+    !input.userId &&
+    !input.startedBy &&
+    !input.clientSpaceId;
+  const host = input.drivenOn ?? (await hostFor(input.definition, { guest }));
   // The run's expected cost is held before it starts; what it really costs is booked per call.
   const estimate = await estimateRun(
     input.wizardId,
@@ -748,8 +755,9 @@ export async function createRun(input: {
     runId: id,
     visitorId: input.visitorId,
     ipHash: input.ipHash,
-    // The caller's host keeps the run's time itself: the clock here never puts it in line.
-    wakeAt: input.drivenOn ? null : deadline.wakeAt,
+    // The caller's host and an object keep the run's time themselves: the clock here never puts
+    // it in line.
+    wakeAt: input.drivenOn || host?.kind === "edge" ? null : deadline.wakeAt,
     host,
   });
   if (waits) {
@@ -760,7 +768,7 @@ export async function createRun(input: {
     return id;
   }
   // A run its host took is driven there.
-  if (host && (await placeRun(id, host))) {
+  if (host && (await placeRun(id, host, deadline.wakeAt))) {
     return id;
   }
   if (!waits) {
@@ -772,9 +780,10 @@ export async function createRun(input: {
 /**
  * Hands a new run to the host `hostFor` picked: the token is signed from the record, which names
  * the host. A host that does not take it leaves the run here, before any step ran: it fits here
- * too, since this runtime runs every wizard.
+ * too, since this runtime runs every wizard. Its first page's deadline (`wakeAt`) then goes in
+ * line, where an object would have kept it.
  */
-async function placeRun(id: string, host: RunHostRef): Promise<boolean> {
+async function placeRun(id: string, host: RunHostRef, wakeAt: Date | null): Promise<boolean> {
   const run = await runStore.get(id);
   const token = run && (await tokenOf(run));
   try {
@@ -799,6 +808,9 @@ async function placeRun(id: string, host: RunHostRef): Promise<boolean> {
     console.warn(`[run ${id}] stays here: ${err instanceof Error ? err.message : String(err)}`);
     await runStore.setHost(id, null);
     await setLineHost(id, null);
+    if (host.kind === "edge" && wakeAt) {
+      await setWake(id, wakeAt);
+    }
     return false;
   }
 }
@@ -2304,7 +2316,7 @@ export async function runView(
     ...(page?.data ? { pageData: await formDataOf(page.data, run, def, brand.name, hide) } : {}),
     waitKey: step?.type === "wait" && run.status === "waiting_signal" ? waitKeyText(run, step) : "",
     talk: needs.talk && (await talkAllowed(run)),
-    events: await recentEvents(run.id, 0, 30),
+    events: await runLines(run, 30),
     connections: needs.connections
       ? await connectionViews(
           def.connections ?? [],
