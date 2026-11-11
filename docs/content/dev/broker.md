@@ -1,7 +1,7 @@
 ---
 title: The broker
 description: The one path every connector call takes in engenty wizards – who calls, what decides, what a run may reach, what is logged and heard, the RWX rules and the routes the studio uses.
-version: 0.17.1
+version: 0.19.0
 ---
 
 Every call a wizard step, a Work chat, Goose, a share target or a plugin makes to a connected
@@ -10,8 +10,10 @@ reads the account’s secret (nothing else does), decides *allow*, *ask* or *den
 rules say so, runs the action and writes one row of `broker_log`, whatever came of it. Model calls
 don’t pass it.
 
-The broker is a library inside the runtime’s processes, not a process of its own. Everything it
-exports comes from `apps/runtime/src/broker/index.ts`. The words the studio shares with it live in
+The broker is a library inside the runtime’s processes. A run reaches it with its own token
+through the run’s services, as a function in the same process or over HTTP from a process with
+the role `broker` ([the architecture](./architecture.md)). Everything it exports comes from
+`apps/runtime/src/broker/index.ts`. The words the studio shares with it live in
 `packages/shared/src/connectors.ts` and `packages/shared/src/rwx.ts`.
 
 ## Words
