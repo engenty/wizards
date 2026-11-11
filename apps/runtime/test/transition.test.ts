@@ -678,6 +678,16 @@ describe("cancel", () => {
     expect(run).toMatchObject({ cursor: "pause", status: "cancelled", wakeAt: null });
     expect(command).toEqual({ kind: "end" });
   });
+
+  it("leaves a run that is over as it ended", () => {
+    const def = wizard([{ id: "pause", type: "wait", title: "Pause", for: "1d" }, end()]);
+    const waiting = transition(def, fresh(), { kind: "start" }, host()).run;
+    for (const status of ["done", "failed", "cancelled"] as const) {
+      expect(() =>
+        transition(def, { ...waiting, status }, { kind: "cancel" }, host()),
+      ).toThrow(new FlowRefused("runBusy"));
+    }
+  });
 });
 
 describe("purity", () => {

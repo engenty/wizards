@@ -287,7 +287,7 @@ export function WorkRunPage() {
   useCrumbs([{ label: t("work.waiting") }]);
   return runId ? (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <RunnerBody runId={runId} studio stickyProgress />
+      <RunnerBody key={runId} runId={runId} studio stickyProgress />
     </div>
   ) : null;
 }
