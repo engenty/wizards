@@ -72,11 +72,21 @@ function importTarget(target: unknown): string | undefined {
   return undefined;
 }
 
-/** A package of an engine's folder, for `import()`: its export map's `.`, else its main. */
-export function packageEntry(dir: string, name: string): string {
+/**
+ * A package of an engine's folder, for `import()`: its export map's `.`, else its main. With
+ * `path` (`./core`), that path of its export map.
+ */
+export function packageEntry(dir: string, name: string, path = "."): string {
   const root = join(dir, "node_modules", name);
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const { exports } = pkg;
+  if (path !== ".") {
+    const target = importTarget(exports?.[path]);
+    if (!target) {
+      throw new Error(`${name} has no ${path}.`);
+    }
+    return join(root, target);
+  }
   const dot = exports && typeof exports === "object" && "." in exports ? exports["."] : exports;
   return join(root, importTarget(dot) ?? pkg.main ?? "index.js");
 }

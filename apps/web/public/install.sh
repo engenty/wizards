@@ -609,7 +609,7 @@ runtime() {
   # them. --legacy-peer-deps: no peers on top, which nothing here uses (about 70 MB less).
   stage="$(mktemp -d "$dir/.staging-XXXXXX")"
   STAGE="$stage"
-  local what="Installing engenty wizards (about 530 MB on disk, a minute or two)"
+  local what="Installing engenty wizards (about 400 MB on disk, a minute or two)"
   if reuse "$stage"; then
     what="Updating engenty wizards to $VERSION (only what changed)"
   fi
