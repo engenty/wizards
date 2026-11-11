@@ -28,6 +28,7 @@ import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { currentFeatures } from "../features.js";
 import { managed, type Role, tenantInfo } from "../manage.js";
 import { loadedPlugin } from "../plugins/registry.js";
+import { sealAccount } from "../secrets/accounts.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { isAdminRole, requireAdmin, requireWritableSpace } from "../services/access.js";
 import { notFound, ServiceError } from "../services/errors.js";
@@ -566,7 +567,8 @@ async function keepSignIn(
     await db
       .update(schema.spaceConnection)
       .set({
-        secret: seal(stored),
+        secret: sealAccount(stored),
+        grantedScopes: stored.scopes,
         label,
         updatedAt: new Date(),
         ...(another ? { autonomousMode: "off" as const } : {}),
@@ -579,10 +581,10 @@ async function keepSignIn(
   }
   await db
     .insert(schema.spaceConnectionSignIn)
-    .values({ connectionId: row.id, userId: as.userId, label, secret: seal(stored) })
+    .values({ connectionId: row.id, userId: as.userId, label, secret: sealAccount(stored) })
     .onConflictDoUpdate({
       target: [schema.spaceConnectionSignIn.connectionId, schema.spaceConnectionSignIn.userId],
-      set: { label, secret: seal(stored), signedInAt: new Date(), updatedAt: new Date() },
+      set: { label, secret: sealAccount(stored), signedInAt: new Date(), updatedAt: new Date() },
     });
 }
 

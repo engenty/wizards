@@ -16,7 +16,7 @@ import type { Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { getBlob, putBlob } from "../files/blobs.js";
-import { seal, unseal } from "../secrets/crypto.js";
+import { sealAccount, unsealAccount } from "../secrets/accounts.js";
 import { dropHolderData } from "./data.js";
 import { StoreError } from "./errors.js";
 import { deleteSharedRows, saveSharedRows, sharedRows } from "./shared-lists.js";
@@ -351,7 +351,7 @@ export async function getSecret<T>(
   const row = await db.query.storeSecret.findFirst({
     where: and(ownSecrets(scope), eq(schema.storeSecret.slot, slot)),
   });
-  const data = row ? unseal<T>(row.data) : null;
+  const data = row ? unsealAccount<T>(row.data) : null;
   return row && data
     ? { provider: row.provider, label: row.label, data, createdAt: row.createdAt }
     : null;
@@ -376,7 +376,7 @@ export async function putSecret(
   label: string,
   data: unknown,
 ) {
-  const sealed = seal(data);
+  const sealed = sealAccount(data);
   await db
     .insert(schema.storeSecret)
     .values({

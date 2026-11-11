@@ -52,7 +52,7 @@ let wizards: typeof import("../src/services/wizards");
 let watch: typeof import("../src/engine/mail-watch");
 let connections: typeof import("../src/connectors/space-connections");
 let services: typeof import("../src/services/signals");
-let crypto: typeof import("../src/secrets/crypto");
+let accounts: typeof import("../src/secrets/accounts");
 let connector: ConnectorDefinition;
 let realPull: NonNullable<ConnectorDefinition["stream"]>["pull"];
 
@@ -153,7 +153,7 @@ const mailbox = (
       signIn: "space",
       audience: "members",
       rules: { read: "allow", write: "ask", send: "ask", destructive: "deny", ...options.rules },
-      secret: crypto.seal({ accessToken: "fake", refreshToken: null, expiresAt: null, scopes: [] }),
+      secret: accounts.sealAccount({ accessToken: "fake", refreshToken: null, expiresAt: null, scopes: [] }),
       autonomousMode: options.on === false ? "off" : "read_only",
     });
     if (options.on !== false) {
@@ -227,7 +227,7 @@ beforeAll(async () => {
   watch = await import("../src/engine/mail-watch");
   connections = await import("../src/connectors/space-connections");
   services = await import("../src/services/signals");
-  crypto = await import("../src/secrets/crypto");
+  accounts = await import("../src/secrets/accounts");
   const { googleConnectors } = await import("../src/engenty/connections-google/definitions");
   connector = googleConnectors.find((c) => c.id === "google-gmail") as ConnectorDefinition;
   const stream = connector.stream as NonNullable<ConnectorDefinition["stream"]>;

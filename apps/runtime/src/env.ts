@@ -214,8 +214,15 @@ export const env = {
   connectRedirectUrl: str("CONNECT_REDIRECT_URL"),
   /** Stand-ins for the services connectors reach, for tests: pairs `address=stand-in` (connectors/stand-ins.ts). */
   connectorStandIns: str("CONNECTOR_STAND_INS"),
-  /** Encrypts connected accounts and kept browser sessions; falls back to the app secret. */
+  /** Encrypts what `seal()` keeps (own model keys, sign-in states); falls back to the app secret. */
   storeKey: str("STORE_ENC_KEY"),
+  /**
+   * Opens connected accounts (secrets/accounts.ts): set on the broker alone. Empty, with no
+   * `ACCOUNTS_PUBLIC_KEY` either, the pair comes from `STORE_ENC_KEY`.
+   */
+  accountsKey: str("ACCOUNTS_KEY"),
+  /** Seals connected accounts in a process that opens none: every process of a cloud but the broker. */
+  accountsPublicKey: str("ACCOUNTS_PUBLIC_KEY"),
   devLogin: process.env.NODE_ENV !== "production" && str("DEV_LOGIN") === "1",
   /**
    * `1`: the studio assistant's developer mode may be switched on here (steps, tools, prompt,

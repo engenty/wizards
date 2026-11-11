@@ -23,6 +23,7 @@ import {
 } from "../engenty/connections-sdk/oauth2.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { managed } from "../manage.js";
+import { sealAccount } from "../secrets/accounts.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { currentTenant } from "../tenants/tenant.js";
 import {
@@ -152,7 +153,8 @@ async function keep(input: {
       audience: "all",
       rules: DEFAULT_CONNECTION_RULES,
       actions: input.actions,
-      secret: seal(input.stored),
+      secret: sealAccount(input.stored),
+      grantedScopes: input.stored.scopes,
       setUpBy: null,
     })
     .returning();
