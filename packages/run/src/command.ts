@@ -5,17 +5,28 @@
  * 1. The wizard comes from a folder, a `.wizard` file or an address (`resolveWizard`).
  * 2. The organization (or engenty wizards on this computer) starts the run: it checks the wizard,
  *    keeps the run's record and answers with the run's token and where its services are
- *    (`POST /api/v1/spaces/:spaceId/runs`, host `node`).
+ *    (`POST /api/v1/spaces/:spaceId/runs`, host `node`). With neither (`where` null), the run
+ *    starts here alone: only a wizard that needs nothing but a model, which Ollama or an own API
+ *    key gives (`alone.ts`). Its folder is its only record.
  * 3. `nodeHost` drives the run in a folder of its own, `<runs>/<run id>/`, which also keeps what
  *    `--continue` needs to go on with it in another process (`start.json`, the token among it).
  * 4. The terminal asks the pages and reviews (`terminal.ts`); the result goes to stdout or a folder.
  */
+import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { handOverSchema } from "@engenty/wizards-engine/host-api";
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { z } from "zod";
+import {
+  type AloneModel,
+  aloneMissing,
+  aloneServices,
+  findModel,
+  keepWorkspace,
+  modelWords,
+} from "./alone.js";
 import { type NodeHost, nodeHost } from "./node-host.js";
 import { type ResolvedWizard, resolveWizard, WizardRefused } from "./resolve.js";
 import {
@@ -45,12 +56,19 @@ export interface RunArgs {
   runtime: string | null;
   key: string | null;
   space: string | null;
+  /** Without an organization: the model to run with; left out, Ollama’s first. */
+  model: string | null;
   help: boolean;
 }
 
 /** Options of the command itself; any other `--name` is an answer. */
 const VALUED = { "--out": "out", "--continue": "continue", "--answers": "answersFile" } as const;
-const WHERE = { "--runtime": "runtime", "--key": "key", "--space": "space" } as const;
+const WHERE = {
+  "--runtime": "runtime",
+  "--key": "key",
+  "--space": "space",
+  "--model": "model",
+} as const;
 const SWITCHES = { "--json": "json", "--accept": "accept", "--open": "open" } as const;
 
 /** The arguments after `run`; a string says what is wrong with them. */
@@ -67,6 +85,7 @@ export function parseRunArgs(argv: string[]): RunArgs | string {
     runtime: null,
     key: null,
     space: null,
+    model: null,
     help: false,
   };
   const answer = (id: string, value: string | boolean) => {
@@ -141,7 +160,13 @@ export interface Where {
 }
 
 export interface RunDeps {
-  where: Where;
+  /**
+   * Null: no organization and no engenty wizards here. The run lives on this computer only, with
+   * a model reached by fetch (`alone.ts`), and only a wizard that needs nothing more starts.
+   */
+  where: Where | null;
+  /** Left out: `process.env`. Where Ollama answers, an own API key (`findModel`). */
+  env?: Record<string, string | undefined>;
   /** The folder the runs' folders go in. */
   runsDir: string;
   io: TerminalIO;
@@ -177,6 +202,11 @@ interface StartFile {
   files: WorkspaceFile[];
   /** The revision of the run's record when it started: the host's writes go on from it. */
   rev: number;
+  /**
+   * A run without an organization: the model it runs with, its API key left out. Such a run has
+   * no token, tenant, wizard or space (empty strings) and no services' address.
+   */
+  alone?: Omit<AloneModel, "key">;
 }
 
 const START_FILE = "start.json";
@@ -191,13 +221,20 @@ class Refused extends Error {}
 export async function runCommand(args: RunArgs, deps: RunDeps): Promise<number> {
   const { io } = deps;
   const fetchOf = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  const env = deps.env ?? process.env;
   let answers: Record<string, unknown>;
   let start: StartFile;
+  let model: AloneModel | null = null;
   try {
     answers = await answersOf(args, deps);
-    start = args.continue
-      ? await readStart(deps.runsDir, args.continue)
-      : await startRun(args, deps, fetchOf);
+    if (args.continue) {
+      start = await readStart(deps.runsDir, args.continue);
+      model = start.alone ? keyOf(start.alone, env) : null;
+    } else if (deps.where) {
+      start = await startRun(args, deps.where, deps, fetchOf);
+    } else {
+      ({ start, model } = await startAlone(args, deps, env, fetchOf));
+    }
   } catch (err) {
     if (err instanceof Refused || err instanceof WizardRefused) {
       io.say(err.message);
@@ -210,7 +247,17 @@ export async function runCommand(args: RunArgs, deps: RunDeps): Promise<number> 
   let node: NodeHost | null = null;
   node = await nodeHost({
     dir,
-    services: { url: start.services, token: start.token, fetch: fetchOf },
+    services: model
+      ? {
+          alone: aloneServices({
+            model,
+            dir,
+            def: start.definition,
+            say: (line) => io.say(line),
+            fetch: fetchOf,
+          }),
+        }
+      : { url: start.services, token: start.token, fetch: fetchOf },
     def: start.definition,
     files: start.files,
     run: { id: start.runId, rev: start.rev },
@@ -227,9 +274,17 @@ export async function runCommand(args: RunArgs, deps: RunDeps): Promise<number> 
     },
   });
   try {
-    const page = `${start.services.replace(/\/+$/, "")}/studio/edit/${start.wizardId}?run=${start.runId}`;
-    if (args.open && !deps.openBrowser?.(page)) {
-      io.say(`The run’s page: ${page}`);
+    if (model) {
+      // No organization keeps the run or tells anyone of it: its folder is all there is.
+      io.say(`This run is on this computer only, with ${modelWords(model)}.`);
+      if (args.open) {
+        io.say("It has no page to open.");
+      }
+    } else if (args.open) {
+      const page = `${start.services.replace(/\/+$/, "")}/studio/edit/${start.wizardId}?run=${start.runId}`;
+      if (!deps.openBrowser?.(page)) {
+        io.say(`The run’s page: ${page}`);
+      }
     }
     io.say(`${args.continue ? "Going on with" : "Running"} “${start.title}” (run ${start.runId})`);
     const end = await terminalDoor(node, start.definition, io, {
@@ -281,33 +336,97 @@ async function readStart(runsDir: string, runId: string): Promise<StartFile> {
   }
 }
 
+/**
+ * A run without an organization: the wizard if it needs nothing but a model, the model if one
+ * answers, and a folder of its own with the workspace in it. Nothing is asked of anyone else.
+ */
+async function startAlone(
+  args: RunArgs,
+  deps: RunDeps,
+  env: Record<string, string | undefined>,
+  fetchOf: typeof fetch,
+): Promise<{ start: StartFile; model: AloneModel }> {
+  const wizard: ResolvedWizard = await resolveWizard(args.source ?? "");
+  const missing = aloneMissing(
+    wizard.definition,
+    wizard.files.map((f) => f.path),
+  );
+  if (missing.length) {
+    throw new Refused(
+      [
+        `${wizard.source.where} can’t run on this computer alone:`,
+        ...missing.map((line) => `  ${line}`),
+        "It runs with engenty wizards, or at your organization with --runtime.",
+      ].join("\n"),
+    );
+  }
+  const model = await findModel({ env, model: args.model, fetch: fetchOf });
+  if (typeof model === "string") {
+    throw new Refused(model);
+  }
+  const { key: _, ...kept } = model;
+  const start: StartFile = {
+    runId: randomBytes(8).toString("hex"),
+    wizardId: "",
+    token: "",
+    services: "",
+    runtime: "",
+    spaceId: "",
+    title: wizard.definition.title,
+    definition: wizard.definition,
+    files: wizard.files.map(({ data: _data, ...f }) => f),
+    rev: 1,
+    alone: kept,
+  };
+  const dir = join(deps.runsDir, start.runId);
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  await keepWorkspace(dir, wizard.files);
+  await writeFile(join(dir, START_FILE), JSON.stringify(start), { mode: 0o600 });
+  return { start, model };
+}
+
+/** The model a run without an organization goes on with: an API key comes from the environment again. */
+function keyOf(
+  model: Omit<AloneModel, "key">,
+  env: Record<string, string | undefined>,
+): AloneModel {
+  if (model.way !== "key") {
+    return model;
+  }
+  const key = env.OPENAI_API_KEY?.trim();
+  if (!key) {
+    throw new Refused("The run uses your own API key. Set OPENAI_API_KEY again to go on with it.");
+  }
+  return { ...model, key };
+}
+
 /** Calls the API of `where`; answers its status and JSON body. */
 async function api(
-  deps: RunDeps,
+  where: Where,
   fetchOf: typeof fetch,
   path: string,
   init: { method?: string; body?: unknown } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   let res: Response;
   try {
-    res = await fetchOf(`${deps.where.url.replace(/\/+$/, "")}/api/v1${path}`, {
+    res = await fetchOf(`${where.url.replace(/\/+$/, "")}/api/v1${path}`, {
       method: init.method ?? "GET",
       headers: {
-        ...deps.where.headers(),
+        ...where.headers(),
         "x-wizards-client": "cli",
         ...(init.body === undefined ? {} : { "content-type": "application/json" }),
       },
       ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     });
   } catch (err) {
-    throw new Refused(`Couldn’t reach ${deps.where.url}: ${(err as Error).message}`);
+    throw new Refused(`Couldn’t reach ${where.url}: ${(err as Error).message}`);
   }
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { status: res.status, body };
 }
 
 /** What a refusal of the API says: its own words, or what its status means. */
-function refusal(deps: RunDeps, status: number, body: Record<string, unknown>): string {
+function refusal(where: Where, status: number, body: Record<string, unknown>): string {
   const said = typeof body.error === "string" ? body.error : "";
   if (status === 401) {
     return "The API key isn’t valid. Give one with --key or WIZARDS_API_KEY.";
@@ -315,21 +434,26 @@ function refusal(deps: RunDeps, status: number, body: Record<string, unknown>): 
   if (body.code === "insufficient_scope") {
     return "This API key may not run wizards from the command line. Make a key that may.";
   }
-  return said || `${deps.where.url} answered ${status}.`;
+  return said || `${where.url} answered ${status}.`;
 }
 
-async function startRun(args: RunArgs, deps: RunDeps, fetchOf: typeof fetch): Promise<StartFile> {
+async function startRun(
+  args: RunArgs,
+  where: Where,
+  deps: RunDeps,
+  fetchOf: typeof fetch,
+): Promise<StartFile> {
   const wizard: ResolvedWizard = await resolveWizard(args.source ?? "");
   let spaceId = args.space;
   if (!spaceId) {
-    const space = await api(deps, fetchOf, "/space");
+    const space = await api(where, fetchOf, "/space");
     if (space.status !== 200 || typeof space.body.id !== "string") {
-      throw new Refused(refusal(deps, space.status, space.body));
+      throw new Refused(refusal(where, space.status, space.body));
     }
     spaceId = space.body.id;
   }
   const known = await readKnown(deps.runsDir);
-  const key = `${deps.where.url} ${spaceId} ${wizard.source.where}`;
+  const key = `${where.url} ${spaceId} ${wizard.source.where}`;
   const body = {
     host: "node",
     definition: wizard.definition,
@@ -340,20 +464,20 @@ async function startRun(args: RunArgs, deps: RunDeps, fetchOf: typeof fetch): Pr
     })),
   };
   const path = `/spaces/${encodeURIComponent(spaceId)}/runs`;
-  let res = await api(deps, fetchOf, path, {
+  let res = await api(where, fetchOf, path, {
     method: "POST",
     body: known[key] ? { ...body, wizardId: known[key] } : body,
   });
   if (res.status === 404 && known[key]) {
     // The wizard it ran as before is gone: a new one holds it.
-    res = await api(deps, fetchOf, path, { method: "POST", body });
+    res = await api(where, fetchOf, path, { method: "POST", body });
   }
   if (res.status === 404) {
-    const space = await api(deps, fetchOf, `/space?space=${encodeURIComponent(spaceId)}`);
+    const space = await api(where, fetchOf, `/space?space=${encodeURIComponent(spaceId)}`);
     throw new Refused(
       space.status === 404
-        ? `There’s no space ${spaceId} at ${deps.where.url}.`
-        : `Running wizards from the command line isn’t available for ${deps.where.name} yet.`,
+        ? `There’s no space ${spaceId} at ${where.url}.`
+        : `Running wizards from the command line isn’t available for ${where.name} yet.`,
     );
   }
   if (res.status === 400 && Array.isArray(res.body.issues)) {
@@ -366,7 +490,7 @@ async function startRun(args: RunArgs, deps: RunDeps, fetchOf: typeof fetch): Pr
     );
   }
   if (res.status !== 200) {
-    throw new Refused(refusal(deps, res.status, res.body));
+    throw new Refused(refusal(where, res.status, res.body));
   }
   const started = startedSchema.parse(res.body);
   await writeKnown(deps.runsDir, { ...known, [key]: started.wizardId });
@@ -375,7 +499,7 @@ async function startRun(args: RunArgs, deps: RunDeps, fetchOf: typeof fetch): Pr
     wizardId: started.wizardId,
     token: started.token,
     services: started.services,
-    runtime: deps.where.url,
+    runtime: where.url,
     spaceId,
     title: started.definition.title,
     definition: started.definition,

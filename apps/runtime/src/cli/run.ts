@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { createInterface, type Interface } from "node:readline/promises";
 import { parseRunArgs, type RunArgs, runCommand, type Where } from "@engenty/wizards-run/command";
 import { LOCAL_MCP_HEADER, mintLocalTicket } from "../auth/local-ticket.js";
+import { feature } from "../features.js";
 import type { Layout } from "./home.js";
 import { openBrowser, readSecret, runningRuntime, settings } from "./start.js";
 import { cmd, cyan } from "./ui.js";
@@ -9,8 +10,9 @@ import { cmd, cyan } from "./ui.js";
 /**
  * `wizards run <wizard>`: runs a wizard in this terminal (`@engenty/wizards-run/command`). The run
  * starts at the organization `--runtime`/`WIZARDS_URL` names with `--key`/`WIZARDS_API_KEY`, else
- * at engenty wizards on this computer, signed with the data folder's secret as `wizards mcp` is.
- * Its folder is `runs/<run id>` in this install's home.
+ * at engenty wizards on this computer, signed with the data folder's secret as `wizards mcp` is,
+ * else on this computer alone with a model reached by fetch. Its folder is `runs/<run id>` in
+ * this install's home.
  */
 
 export const RUN_HELP = (command: string) => `Usage
@@ -35,12 +37,20 @@ Options
   --runtime <url>     where the run starts (WIZARDS_URL); default: engenty wizards on this computer
   --key <key>         an API key there that may run wizards from the command line (WIZARDS_API_KEY)
   --space <id>        the space the run belongs to; default: your first space
+  --model <name>      without engenty wizards: the model to run with; default: Ollama’s first
+
+Without engenty wizards running and without --runtime, a wizard that needs only a model runs on
+this computer alone: with Ollama (OLLAMA_URL), else with your own API key (OPENAI_API_KEY).
+Nothing about the run leaves this computer.
 
 Exit codes: 0 done, 1 failed, 2 wrong arguments, 3 waits (--continue goes on with it).
 `;
 
-/** Where the run starts: the address given, else the runtime running on this install. */
-async function whereOf(args: RunArgs, paths: Layout): Promise<Where | string> {
+/**
+ * Where the run starts: the address given, else the runtime running on this install, else
+ * nowhere (null): the run lives on this computer alone, with Ollama or an own API key.
+ */
+async function whereOf(args: RunArgs, paths: Layout): Promise<Where | null | string> {
   const url = (args.runtime ?? process.env.WIZARDS_URL ?? "").trim().replace(/\/+$/, "");
   const key = (args.key ?? process.env.WIZARDS_API_KEY ?? "").trim();
   const byKey = (): Record<string, string> => (key ? { "x-api-key": key } : {});
@@ -49,7 +59,10 @@ async function whereOf(args: RunArgs, paths: Layout): Promise<Where | string> {
   }
   const running = await runningRuntime(settings(paths).dataDir);
   if (!running) {
-    return `engenty wizards isn’t running. To start it: ${cmd("start")}`;
+    // This machine's word on the switch: there is nobody else to ask.
+    return feature("wizardsRun")
+      ? null
+      : `engenty wizards isn’t running. To start it: ${cmd("start")}`;
   }
   const secret = readSecret(paths);
   if (!(key || secret)) {

@@ -108,4 +108,38 @@ describe("hostFit", () => {
     });
     expect(hostFit(thinks, HOST_OFFERS.node, { standard: "credits" })).toEqual({ fits: true });
   });
+
+  it("a host without the run's services lacks what they give: tools, connections, data …", () => {
+    const alone = { ways: ["ollama", "key"] as const, services: false };
+    const requires: Requires = {
+      models: ["standard"],
+      tools: ["web_search"],
+      sandbox: "shell",
+      plugins: ["contacts"],
+      connections: ["mail"],
+      data: "person",
+      makers: ["anthropic"],
+      run: ["code"],
+    };
+    expect(hostFit(requires, alone, { standard: "ollama" })).toEqual({
+      fits: false,
+      missing: [],
+      lacks: [
+        { need: "tools", names: ["web_search"] },
+        { need: "sandbox", names: ["shell"] },
+        { need: "plugins", names: ["contacts"] },
+        { need: "connections", names: ["mail"] },
+        { need: "data", names: ["person"] },
+        { need: "makers", names: ["anthropic"] },
+      ],
+    });
+    // The wizard's own code runs in the engine, which every host has.
+    expect(hostFit({ models: ["standard"], run: ["code"] }, alone, { standard: "ollama" })).toEqual(
+      { fits: true },
+    );
+    expect(hostFit({ models: ["image"] }, alone, { standard: "ollama" })).toEqual({
+      fits: false,
+      missing: [{ cls: "image", way: null }],
+    });
+  });
 });
