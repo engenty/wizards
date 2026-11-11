@@ -13,6 +13,7 @@
       "packages/shared/src/**",
       "packages/engine/src/**",
       "!packages/engine/src/step-prompts.ts",
+      "packages/run/src/**",
       "packages/wizards/src/**",
       "packages/wizards/*.ts",
       "packages/wizards/scripts/**",

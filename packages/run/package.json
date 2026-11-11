@@ -1,0 +1,30 @@
+{
+  "name": "@engenty/wizards-run",
+  "version": "0.1.0",
+  "description": "A host for one run of engenty wizards in a Node process: its state in a folder, its clock, its services over HTTP.",
+  "license": "FSL-1.1-MIT",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": {
+      "wizards-source": "./src/*.ts",
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@engenty/wizards-engine": "workspace:*",
+    "@engenty/wizards-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "~7.0.2"
+  }
+}
