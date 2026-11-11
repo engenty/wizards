@@ -29,6 +29,8 @@ import {
   type FileSave,
   RUN_ACTED_HEADER,
   RUN_SERVICES_PATH,
+  type RunReport,
+  type RunReportAnswer,
   ServiceError,
   type StepToolsAnswer,
   type StepToolsAt,
@@ -71,7 +73,17 @@ interface Bound {
   set: StepToolSet;
 }
 
-export function httpServices(options: HttpServicesOptions): StepServices {
+/**
+ * The run's services, and what only a host calls: `run.report` posts a copy of the run's state to
+ * its tenant as each step starts, at each person's step and at the end. Step code never sees it.
+ */
+export interface HttpServices extends StepServices {
+  run: {
+    report(report: RunReport, signal?: AbortSignal): Promise<RunReportAnswer>;
+  };
+}
+
+export function httpServices(options: HttpServicesOptions): HttpServices {
   const base = `${options.url.replace(/\/+$/, "")}${RUN_SERVICES_PATH}`;
   const fetchOf = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
 
@@ -302,6 +314,9 @@ export function httpServices(options: HttpServicesOptions): StepServices {
     },
     people: {
       tell: (notice) => done("people/tell", notice),
+    },
+    run: {
+      report: (report, signal) => call<RunReportAnswer>("run/report", report, signal),
     },
   };
 }
