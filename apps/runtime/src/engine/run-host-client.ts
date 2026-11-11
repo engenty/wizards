@@ -10,8 +10,10 @@ import {
 } from "@engenty/wizards-engine/host-api";
 import type { InputError } from "@engenty/wizards-engine/input";
 import type { RunHostKind, RunHostRef, StepOutput } from "@engenty/wizards-shared/run";
+import { withTenant } from "../db/client.js";
 import { feature, remoteFeatures } from "../features.js";
 import { peerTicket } from "../secrets/signing.js";
+import { dueElsewhere, putWakeBack, wakeRun } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { answerAsk } from "./asks.js";
 import { eventsAfter, type RunSignal, signalChanged, watchChanges, watchRun } from "./events.js";
@@ -22,6 +24,7 @@ import {
   editOutput,
   flowRun,
   goBack,
+  kick,
   loadRun,
   type ReviewAction,
   RunConflict,
@@ -301,9 +304,8 @@ export class NotTaken extends Error {}
  * Takes an event the way the doors take it, through the runner's own functions: a page's answer
  * (true: its number had come before), a review, back, try again, "Continue now", cancel, "Stop",
  * the answer to what a step asks, and what a door keeps in the run's state (a view's state, an
- * edited output, a translated result). What the host makes itself while it drives (`start`,
- * `stepDone`, `stepFailed`, `decided`) and a signal (stored at the tenant first, then taken by the
- * wait) are not taken here.
+ * edited output, a translated result), a signal the tenant kept for the run's wait. What the host
+ * makes itself while it drives (`start`, `stepDone`, `stepFailed`, `decided`) is not taken here.
  */
 export async function takeEvent(
   runId: string,
@@ -359,6 +361,12 @@ export async function takeEvent(
       return false;
     case "turnAnswered":
       await answerTurn(runId, event.answer);
+      return false;
+    case "signal":
+      // Kept in the tenant's database first (`sendSignal`), which this runtime shares: the run
+      // goes in line and its wait takes it from there, as when a signal wakes a run of this
+      // runtime. Also while the wait is still being written: the run looks again.
+      kick(runId);
       return false;
     case "viewKept": {
       // Only while the run waits or is done, and on the state the door read: a running step
@@ -457,4 +465,86 @@ function refusalOf(err: unknown): unknown {
     return new RunInputError(errors as InputError[]);
   }
   return err;
+}
+
+// --- what the tenant sends a run on its own ------------------------------------
+
+/**
+ * A signal the tenant kept goes to the run whose wait it fits: a run of this runtime goes in line,
+ * a run on another host hears it as the event `signal`. Called in the run's tenant. A host that
+ * does not hear it now still finds the signal kept when its run looks next.
+ */
+export async function signalWaiting(
+  runId: string,
+  signal: { id: string; data: Record<string, unknown> | null },
+): Promise<void> {
+  const run = await runStore.pick(runId, "host", "cursor");
+  if (!run?.host) {
+    await wakeRun(runId);
+    return;
+  }
+  try {
+    const client = await hostClientOf({ id: runId, host: run.host });
+    if (!client.host) {
+      await wakeRun(runId);
+      return;
+    }
+    if (run.cursor) {
+      await client.send({ kind: "signal", stepId: run.cursor, id: signal.id, data: signal.data });
+    }
+  } catch (err) {
+    console.warn(
+      `[run ${runId}] signal ${signal.id} not sent to its host:`,
+      (err as Error).message,
+    );
+  }
+}
+
+/**
+ * The clock for runs on other hosts: each whose time came hears `woke` from its host. A run that
+ * already went on (its host's own clock, "Continue now") refuses it, which changes nothing; a host
+ * that does not answer gets the wake again with the clock's next look.
+ */
+export async function wakeElsewhere(now = new Date()): Promise<void> {
+  for (const due of await dueElsewhere(now)) {
+    await withTenant(due.tenantId, () => wakeOnHost(due.runId, due.wakeAt)).catch((err) =>
+      console.warn(`[clock ${due.runId}]`, (err as Error).message),
+    );
+  }
+}
+
+async function wakeOnHost(runId: string, wakeAt: Date) {
+  const host = await runStore.hostOf(runId);
+  if (host === undefined) {
+    return;
+  }
+  let client: RunHostClient;
+  try {
+    client = await hostClientOf({ id: runId, host });
+  } catch (err) {
+    if (err instanceof HostUnreachable) {
+      console.warn(`[clock ${runId}] ${err.message}`);
+      return;
+    }
+    throw err;
+  }
+  if (!client.host) {
+    // Other hosts are off: the line has it, as the clock here does for its own runs.
+    await wakeRun(runId);
+    return;
+  }
+  try {
+    await client.send({ kind: "woke" });
+  } catch (err) {
+    // Nothing waits any more: the run went on.
+    if (err instanceof RunConflict) {
+      return;
+    }
+    // A host that refuses the wake keeps the run's time itself; one that did not hear it gets it
+    // again.
+    if (!(err instanceof HostApiError && err.status >= 400 && err.status < 500)) {
+      await putWakeBack(runId, wakeAt);
+    }
+    throw err;
+  }
 }

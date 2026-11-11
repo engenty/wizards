@@ -1,6 +1,6 @@
 import type { Lang } from "@engenty/wizards-shared/definition";
 import type { MarketplaceExport } from "@engenty/wizards-shared/marketplace";
-import type { UiTexts } from "@engenty/wizards-shared/run";
+import type { RunHostRef, UiTexts } from "@engenty/wizards-shared/run";
 import { sql } from "drizzle-orm";
 import {
   index,
@@ -79,6 +79,11 @@ export const runIndex = sqliteTable(
     }>(),
     /** The run's own person last had its page in view (`POST /api/runs/:id/seen`). */
     viewedAt: integer("viewed_at", { mode: "timestamp_ms" }),
+    /**
+     * A copy of the run's `host`: null, any runner of this runtime drives it. Else only the runner
+     * at that address does (a runtime host), or none here, and the clock sends its wake there.
+     */
+    host: text("host", { mode: "json" }).$type<RunHostRef>(),
     createdAt: createdAt(),
   },
   (t) => [

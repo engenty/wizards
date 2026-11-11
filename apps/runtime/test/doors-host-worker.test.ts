@@ -1,8 +1,8 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { describe, it, vi } from "vitest";
 
-// The second runtime process of doors-host-process.test.ts: a runner that serves its routes over
-// HTTP and holds the runs placed on it. Run without HOST_PORT_FILE, as a test file like any
+// The second runtime process of doors-host-process.test.ts and wake-signal-host-process.test.ts:
+// a runner that serves its routes over HTTP and holds the runs placed on it. Run without HOST_PORT_FILE, as a test file like any
 // other, it does nothing.
 const PORT_FILE = process.env.HOST_PORT_FILE;
 
@@ -47,12 +47,15 @@ describe.runIf(PORT_FILE)("the runtime process a run is placed on", () => {
     const client = await import("../src/db/client");
     await client.migrateControlDb();
     const runner = await import("../src/engine/runner");
+    const { env } = await import("../src/env");
     const app = (await import("../src/app")).default;
     const { serve } = await import("@hono/node-server");
-    runner.startRunner();
-    const server = serve({ fetch: app.fetch, port: 0, hostname: "127.0.0.1" }, (info) =>
-      writeFileSync(PORT_FILE ?? "", String(info.port)),
-    );
+    const server = serve({ fetch: app.fetch, port: 0, hostname: "127.0.0.1" }, (info) => {
+      // The address the host list names: the line gives this runner the runs placed there.
+      env.runner.url = `http://127.0.0.1:${info.port}`;
+      runner.startRunner();
+      writeFileSync(PORT_FILE ?? "", String(info.port));
+    });
     const stop = `${PORT_FILE}.stop`;
     while (!existsSync(stop)) {
       await new Promise((r) => setTimeout(r, 100));
