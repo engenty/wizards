@@ -8,7 +8,7 @@ import type {
 } from "@engenty/wizards-shared/sharing";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import type { Gap } from "@engenty/wizards-shared/texts";
-import type { Account, ActionKind } from "../broker/index.js";
+import type { Account, ActionKind, NamedCall } from "../broker/index.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import type { RunRow } from "../engine/types.js";
 import { NotedError, type ServerLine } from "../model-errors.js";
@@ -125,12 +125,13 @@ export interface ShareContext extends TargetScope {
   connected(): Promise<{ connector: ConnectorDefinition; label: string } | null>;
   /**
    * Runs one of the account's actions through the broker, as the person who asked for this
-   * share. `run` does the work where the connector has no action for it (an upload, a mail).
+   * share. `run` does the work where the connector has no action for it (an upload, a mail):
+   * code here, or a call the broker knows by name.
    */
   call<T = unknown>(
     action: { id: string; kind: ActionKind },
     input: unknown,
-    run?: (account: Account) => Promise<T>,
+    run?: ((account: Account) => Promise<T>) | NamedCall,
   ): Promise<T>;
   /**
    * Sends from the server's own address, which no account holds, through the broker: a guest's

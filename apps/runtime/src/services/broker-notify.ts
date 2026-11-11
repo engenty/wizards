@@ -1,14 +1,8 @@
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { linkedAccount } from "../auth/account.js";
-import { brokerCall, type LoggedRow } from "../broker/index.js";
-import {
-  MAIL_SENDERS,
-  type MailToSend,
-  sendAsAccount,
-  sendFromServer,
-  serverSender,
-} from "../connectors/smtp.js";
+import { brokerCall, type LoggedRow, mailWire } from "../broker/index.js";
+import { MAIL_SENDERS, type MailToSend, sendFromServer, serverSender } from "../connectors/smtp.js";
 import { connectorOfRow } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
@@ -104,7 +98,7 @@ async function deliver(
       action: { id: "send_message", kind: "send" },
       input: { to: message.to, subject: message.subject },
       ctx: { approved: true, confirmed: true },
-      handler: (held) => sendAsAccount(held.connector, held.ctx, message),
+      named: { name: "send_mail", message: mailWire(message) },
     }).catch((err: Error) => {
       console.warn(`[broker] the mail through ${row.name} failed:`, err.message);
       return null;

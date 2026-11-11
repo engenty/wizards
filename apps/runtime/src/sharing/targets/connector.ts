@@ -1,5 +1,5 @@
 import { reachesOutside } from "../../broker/index.js";
-import { refreshConnector, resolveConnector } from "../../connectors/external.js";
+import { resolveConnector } from "../../connectors/external.js";
 import type { ConnectorDefinition } from "../../engenty/connections-sdk/types.js";
 import { toolsOf } from "../../tools/connector.js";
 import { runShareAgent } from "../agent.js";
@@ -52,8 +52,14 @@ export function connectorTarget(connector: ConnectorDefinition, imported: boolea
       // An MCP server that lists its tools only to a signed-in account: ask it now.
       if (imported && !connector.actions.length) {
         await ctx
-          .call({ id: "list_tools", kind: "read" }, {}, (account) =>
-            refreshConnector(ctx.spaceId, connector.id, account.ctx.accessToken),
+          .call(
+            { id: "list_tools", kind: "read" },
+            {},
+            {
+              name: "refresh_tools",
+              spaceId: ctx.spaceId,
+              connectorId: connector.id,
+            },
           )
           .catch(() => undefined);
       }

@@ -45,6 +45,7 @@ import {
   takePlace,
   writeLog,
 } from "./log.js";
+import { type NamedCall, quietOf, runNamed } from "./named.js";
 import { runOver } from "./over.js";
 import { channelOf, guestSendCheck, postsToChannel, recipientsOf } from "./send.js";
 
@@ -142,6 +143,8 @@ export interface BrokerCallInput<T = unknown> {
   quietWhen?: (result: T) => boolean;
   /** What runs with the account; left out: the connector's action of that id, with `input`. */
   handler?: (account: Account) => Promise<T>;
+  /** What runs with the account, by its name (named.ts): what a process without the key sends. */
+  named?: NamedCall;
 }
 
 /**
@@ -453,6 +456,9 @@ export async function brokerConnected(
   connection: BrokerConnection,
   who: Who = NOBODY,
 ): Promise<{ connector: ConnectorDefinition; label: string } | null> {
+  if (!opensAccounts()) {
+    return (await import("./remote.js")).remoteConnected(connection, who);
+  }
   const account = await accountOf(connection, who);
   return account ? { connector: account.connector, label: account.label } : null;
 }
@@ -583,7 +589,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     await line(kind, "deny", null, reason, "not_connected");
     return { ok: false, refused: "not_connected", reason };
   }
-  if (!(found || call.handler)) {
+  if (!(found || call.handler || call.named)) {
     const reason = `${account.connector.name} has no action "${call.action.id}".`;
     await line(kind, "deny", null, reason, "no_action");
     return { ok: false, refused: "no_action", reason };
@@ -753,12 +759,14 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
   try {
     const result = call.handler
       ? await call.handler(acting)
-      : ((await (found as ConnectorAction).handler(call.input ?? {}, acting.ctx)) as T);
+      : call.named
+        ? ((await runNamed(call.named, acting)) as T)
+        : ((await (found as ConnectorAction).handler(call.input ?? {}, acting.ctx)) as T);
     if (effectId) {
       await effectDone(effectId, result);
     }
     // A line that took its place is always closed; else a pull that found nothing says nothing.
-    if (open || !call.quietWhen?.(result)) {
+    if (open || !(call.quietWhen ?? quietOf(call.named))?.(result)) {
       await end("ok", sizeOf(result), { firstUse });
     }
     if (connection.kind === "space_connection") {
@@ -815,14 +823,8 @@ export function brokerPullStream(input: {
     connection,
     action: { id: "pull_stream", kind: "read" },
     input: { since: since.toISOString(), limit },
-    // A read every minute that found nothing says nothing. What it found and what failed stay.
-    quietWhen: (result) => (result as StreamPullResult).items.length === 0,
-    handler: ({ connector, ctx }) => {
-      if (!connector.stream) {
-        throw new Error(`${connector.name} has no stream.`);
-      }
-      return connector.stream.pull({ ...ctx, since: since.toISOString(), limit }, cursor);
-    },
+    // A read every minute that found nothing says nothing (named.ts). What it found and what failed stay.
+    named: { name: "pull_stream", cursor, since: since.toISOString(), limit },
   });
 }
 
@@ -838,12 +840,7 @@ export function brokerReadMessage(input: {
     connection,
     action: { id: "read_message", kind: "read" },
     input: { message },
-    handler: ({ connector, ctx }) => {
-      if (!connector.stream?.read) {
-        throw new Error(`${connector.name} can't read one message.`);
-      }
-      return connector.stream.read({ ...ctx, since: new Date(0).toISOString(), limit: 1 }, message);
-    },
+    named: { name: "read_message", message },
   });
 }
 

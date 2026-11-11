@@ -16,7 +16,7 @@ import {
   type Who,
   whereOf,
 } from "../broker/index.js";
-import { refreshConnector, resolveConnector } from "../connectors/external.js";
+import { resolveConnector } from "../connectors/external.js";
 import { spaceConnectionOf } from "../connectors/space-connections.js";
 import type { ConnectorAction } from "../engenty/connections-sdk/types.js";
 import { SignInNeeded } from "../engine/types.js";
@@ -205,7 +205,7 @@ async function heldOf(
       connection: held,
       action: { id: "list_tools", kind: "read" },
       input: {},
-      handler: (account) => refreshConnector(spaceId, id, account.ctx.accessToken),
+      named: { name: "refresh_tools", spaceId, connectorId: id },
     }).catch(() => null);
     if (refreshed?.ok) {
       resolved = (await resolveConnector(spaceId, id)) ?? resolved;

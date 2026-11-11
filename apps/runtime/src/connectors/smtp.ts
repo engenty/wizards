@@ -187,7 +187,12 @@ export async function sendAsAccount(
 }
 
 /** The attachments are more than the account's provider takes in one mail. */
-export class MailTooLarge extends Error {}
+export class MailTooLarge extends Error {
+  override name = "MailTooLarge";
+}
+
+/** Too large for the mailbox, here or as the broker's answer (broker/remote.ts keeps the name). */
+export const tooLarge = (err: unknown) => (err as Error | null)?.name === "MailTooLarge";
 
 // --- the connector ----------------------------------------------------------------
 

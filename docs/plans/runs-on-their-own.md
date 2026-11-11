@@ -74,8 +74,9 @@ full: what was decided on the way, what is open, which tests passed on which tip
 | 6.4 | open | Edge tests: waits, deploys, stops; under way |
 | fix | merged #664 | A woken run says so once (the runtime host); node and edge hosts need the same rule |
 | 7.1 | step 1 merged #671 | Connected accounts sealed with a public key, opened with `ACCOUNTS_KEY` on the broker; `wizards reseal-accounts`; step 2 (own model keys and the rest) open |
-| 7.5a | in a pull request | A process without the key hands `brokerCall` to the broker (`BROKER_URL`, `/api/broker/v1/call`); asks come back to the caller |
-| 7.5b, 7.5c | open | Calls with code of their own as named calls; work that reads accounts in the background where the key is |
+| 7.5a | merged #673 | A process without the key hands `brokerCall` to the broker (`BROKER_URL`, `/api/broker/v1/call`); asks come back to the caller |
+| 7.5b | in a pull request | Named calls (`broker/named.ts`): tools of an MCP server, a mailbox's stream, mail as the account, a plugin's request, a share's upload; `brokerConnected` |
+| 7.5c | open | The connector share target's agent: its tools still run code with the account |
 | 7.2a | merged #661 | `apps/documents`: reading documents as a service of its own; `DOCUMENTS_URL` |
 | 7.2b, 7.2c | open | Render (Chromium) and media (ffmpeg) as services of their own |
 | 7.3 | merged #667 | A minimal install 536 → 394 MB: the document readers and the OpenAPI importer on demand; installers and install docs state the sizes. Then the PDF reader back in every install (Matthias, 11 November): 426 MB |
@@ -124,12 +125,19 @@ process without the private key never opens an account, so it can't run a call i
   call's line. What the person allowed for the rest comes back to the caller's set. A call that
   brings code to run with the account (`handler`, `quietWhen`) is refused. That covers Work
   chats, Goose, MCP's elements and a plugin's actions.
-- **7.5b, calls with code of their own** become calls the broker knows by name: refreshing a
-  connector's tools (`reload.ts`, `tools/connector.ts`), a plugin's own request with the account
-  (`plugin-connections.ts`), `brokerConnected`.
-- **7.5c, background work that reads accounts runs where the key is:** mail watching
-  (`brokerPullStream`, `brokerReadMessage`), the broker's notices sent as an account
-  (`broker-notify.ts`), share jobs. A process without the key leaves them to the broker.
+- **7.5b, calls with code of their own** become calls the broker knows by name
+  (`broker/named.ts`), in every process, so there is one path: `refresh_tools` (`reload.ts`,
+  `tools/connector.ts`, the connector share target), `pull_stream` and `read_message` (mail
+  watching; a pull that found nothing still leaves no line), `send_mail` (a share by mail, the
+  broker's notices), `request` (a plugin's own request: the broker checks the origin, signs it
+  and sends it; the plugin gets a `Response` back) and `upload` (a share into cloud storage).
+  Bytes travel as base64. `brokerConnected` asks the broker too. A share's upload
+  names each file it uploads before the upload starts, no longer one by one as it goes.
+- **7.5c, left:** the connector share target hands a result to an agent whose tools
+  (`tools/connector.ts`) run code with the account: a line in the run's log, files put into the
+  input. In a run that code runs in the broker; a share job runs in the studio's process, where
+  a process without the key refuses those calls. Moving share jobs to the broker, or naming that
+  code, closes it.
 
 ## In short
 

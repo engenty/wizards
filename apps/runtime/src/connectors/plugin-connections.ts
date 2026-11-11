@@ -12,7 +12,10 @@ import {
   currentCaller,
   grantedScopes,
   kindOf,
+  type ResponseWire,
   reachesOutside,
+  requestWire,
+  responseOf,
 } from "../broker/index.js";
 import { db, schema } from "../db/client.js";
 import {
@@ -433,46 +436,19 @@ export function pluginConnections(plugin: string): PluginConnections {
         where: { spaceId: row.spaceId },
       };
       reachesOutside(`plugin:${plugin}`, { connection: row.connectorId, action: REQUEST, kind });
-      const out = await brokerCall<Response>({
+      const out = await brokerCall<ResponseWire>({
         who: caller.who,
         where: { ...caller.where, spaceId: caller.where.spaceId ?? row.spaceId },
         connection: { kind: "space_connection", row, connector },
         action: { id: REQUEST, kind },
         input: { method: request.method ?? "GET", url: request.url.split("?")[0] },
-        handler: async (account) => {
-          const url = new URL(request.url);
-          if (!capability.origins(account.ctx).includes(url.origin)) {
-            throw new Error(`${connector.name} takes no requests to ${url.origin}.`);
-          }
-          const body = request.body as BodyInit | undefined;
-          const unsigned = new Request(url, {
-            method: request.method ?? "GET",
-            headers: request.headers,
-            body,
-          });
-          if (!capability.sign) {
-            unsigned.headers.set("authorization", `Bearer ${account.ctx.accessToken}`);
-          }
-          const signed = capability.sign ? await capability.sign(account.ctx, unsigned) : unsigned;
-          const res = await pluginFetch(signed.url, {
-            method: signed.method,
-            headers: signed.headers,
-            body,
-            signal: request.signal,
-          });
-          // The service turned the sign-in down: the broker hears of it, as of an action's.
-          if (res.status === 401) {
-            throw Object.assign(new Error(`${connector.name} refused the sign-in (401).`), {
-              status: 401,
-            });
-          }
-          return res;
-        },
+        // The broker checks the origin, signs it with the account and sends it (broker/named.ts).
+        named: { name: "request", request: await requestWire(request) },
       });
       if (!out.ok) {
         throw new Error(out.reason);
       }
-      return out.result;
+      return responseOf(out.result);
     },
 
     async scopes(id) {

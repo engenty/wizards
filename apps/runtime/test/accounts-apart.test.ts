@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
 import { existsSync, mkdtempSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -83,12 +84,19 @@ let broker: ReturnType<typeof spawn> | null = null;
 let client: typeof import("../src/db/client");
 let runner: typeof import("../src/engine/runner");
 let connection = "";
+/** The service a plugin's request reaches: it answers with the authorization it got. */
+const service = createHttpServer((req, res) => {
+  res.writeHead(201, { "content-type": "text/plain", "x-seen": req.method ?? "" });
+  res.end(`auth=${req.headers.authorization ?? ""}`);
+});
 
 const brokerSaid = () =>
   existsSync(join(DIR, "broker.log")) ? readFileSync(join(DIR, "broker.log"), "utf8") : "";
 
 beforeAll(async () => {
   const port = await freePort();
+  await new Promise<void>((done) => service.listen(0, "127.0.0.1", done));
+  const origin = `http://127.0.0.1:${(service.address() as { port: number }).port}`;
   process.env.RUN_SERVICES_URL = `http://127.0.0.1:${port}`;
   process.env.BROKER_URL = `http://127.0.0.1:${port}`;
   client = await import("../src/db/client");
@@ -113,6 +121,7 @@ beforeAll(async () => {
         ...shared,
         ACCOUNTS_BROKER_PORT: String(port),
         ACCOUNTS_KEY: jwk.d,
+        ACCOUNTS_REQUEST_ORIGIN: origin,
         RUN_SERVICES_URL: "",
         BROKER_URL: "",
       },
@@ -128,6 +137,7 @@ beforeAll(async () => {
 }, 150_000);
 
 afterAll(async () => {
+  service.close();
   await runner?.stopRunner();
   writeFileSync(join(DIR, "stop"), "");
   await until(() => broker?.exitCode !== null, 20_000);
@@ -339,5 +349,91 @@ describe("a connection call from a process without the key", () => {
         }),
       ),
     ).rejects.toThrow(/can't go to the broker/);
+  });
+});
+
+describe("named calls from a process without the key", () => {
+  async function slackHere() {
+    const connections = await import("../src/connectors/space-connections");
+    return client.withTenant(TENANT, async () => {
+      const row = await connections.spaceConnectionById(connection);
+      return { row, connector: await connections.connectorOfRow(row) };
+    });
+  }
+
+  it("says whose account is there, without opening it here", async () => {
+    const { brokerConnected } = await import("../src/broker/call");
+    const { row, connector } = await slackHere();
+    const found = await client.withTenant(TENANT, () =>
+      brokerConnected({ kind: "space_connection", row, connector }),
+    );
+    expect(found).toMatchObject({ label: "Firma / bot", connector: { id: "slack" } });
+  });
+
+  it("reads the mailbox's stream, and a pull that found nothing leaves no line", {
+    timeout: 30_000,
+  }, async () => {
+    const { brokerPullStream, brokerReadMessage } = await import("../src/broker/call");
+    // An admin agreed that the mailbox is read for nobody in particular.
+    await client.withTenant(TENANT, () =>
+      client.db
+        .update(client.schema.spaceConnection)
+        .set({ autonomousMode: "read_only" })
+        .where(eq(client.schema.spaceConnection.id, connection)),
+    );
+    const { row, connector } = await slackHere();
+    const held = { kind: "space_connection" as const, row, connector };
+    const token = JSON.stringify({ access_token: "xoxb-7" });
+    const first = await client.withTenant(TENANT, () =>
+      brokerPullStream({ connection: held, cursor: null, since: new Date(0), limit: 5 }),
+    );
+    expect(first).toMatchObject({
+      ok: true,
+      result: { nextCursor: "c1", items: [{ subject: `read with ${token}` }] },
+    });
+    const empty = await client.withTenant(TENANT, () =>
+      brokerPullStream({ connection: held, cursor: "c1", since: new Date(0), limit: 5 }),
+    );
+    expect(empty).toMatchObject({ ok: true, result: { items: [] } });
+    const one = await client.withTenant(TENANT, () =>
+      brokerReadMessage({ connection: held, message: "m1" }),
+    );
+    expect(one).toMatchObject({ ok: true, result: { provider_message_id: "m1" } });
+    const lines = await client.withTenant(TENANT, () =>
+      client.db.query.brokerLog.findMany({
+        where: eq(client.schema.brokerLog.connectionId, connection),
+      }),
+    );
+    expect(lines.filter((l) => l.actionId === "pull_stream")).toHaveLength(1);
+    expect(lines.filter((l) => l.actionId === "read_message")).toHaveLength(1);
+  });
+
+  it("sends a plugin's own request, signed by the broker", { timeout: 30_000 }, async () => {
+    const { brokerCall, requestWire, responseOf } = await import("../src/broker/index");
+    const { row, connector } = await slackHere();
+    const address = service.address() as { port: number };
+    const out = await client.withTenant(TENANT, async () =>
+      brokerCall<import("../src/broker/index").ResponseWire>({
+        who: { kind: "plugin", id: "crm" },
+        where: { spaceId: row.spaceId },
+        connection: { kind: "space_connection", row, connector },
+        action: { id: "request", kind: "write" },
+        input: { method: "POST", url: `http://127.0.0.1:${address.port}/contacts` },
+        named: {
+          name: "request",
+          request: await requestWire({
+            url: `http://127.0.0.1:${address.port}/contacts`,
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ name: "Kim" }),
+          }),
+        },
+      }),
+    );
+    expect(out.ok).toBe(true);
+    const res = responseOf((out as { result: import("../src/broker/index").ResponseWire }).result);
+    expect(res.status).toBe(201);
+    expect(res.headers.get("x-seen")).toBe("POST");
+    expect(await res.text()).toBe(`auth=Bearer ${JSON.stringify({ access_token: "xoxb-7" })}`);
   });
 });

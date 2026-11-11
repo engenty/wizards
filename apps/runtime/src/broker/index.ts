@@ -69,6 +69,13 @@ export {
   SIGN_IN_FAILED,
   summarizeInput,
 } from "./log.js";
+export {
+  mailWire,
+  type NamedCall,
+  type ResponseWire,
+  requestWire,
+  responseOf,
+} from "./named.js";
 export { type RunOver, runOver } from "./over.js";
 export {
   descriptorOf,

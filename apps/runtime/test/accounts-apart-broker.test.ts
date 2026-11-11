@@ -34,6 +34,17 @@ vi.mock("../src/engenty/connections-slack/connector", async (importOriginal) => 
           verify: async () => ({ label: "Firma / bot" }),
         },
       },
+      // A plugin's own requests go to the runner test's server; the stream is a mailbox of one.
+      request: { origins: () => [process.env.ACCOUNTS_REQUEST_ORIGIN ?? ""] },
+      stream: {
+        kind: "messages",
+        pull: async (ctx: { accessToken: string }, cursor: string | null) => ({
+          items: cursor ? [] : [mail(ctx.accessToken)],
+          nextCursor: "c1",
+          hasMore: false,
+        }),
+        read: async (ctx: { accessToken: string }) => mail(ctx.accessToken),
+      },
       actions: mod.slackConnector.actions.map((action) =>
         action.id === "post_message"
           ? {
@@ -54,6 +65,22 @@ vi.mock("../src/engenty/connections-slack/connector", async (importOriginal) => 
     },
   };
 });
+
+function mail(token: string) {
+  return {
+    attachments: [],
+    body_html: null,
+    body_text: "Hallo",
+    cc: [],
+    from_email: "kim@example.com",
+    from_name: null,
+    provider_message_id: "m1",
+    provider_thread_id: null,
+    received_at: null,
+    subject: `read with ${token}`,
+    to: [],
+  };
+}
 
 describe.runIf(PORT)("the broker that opens the accounts", () => {
   it("serves the runs' services until the runner is done", { timeout: 300_000 }, async () => {

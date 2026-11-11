@@ -43,7 +43,7 @@ export async function reloadConnector(
   let refused: string | null = null;
   for (const row of signedIn) {
     try {
-      const out = await brokerCall({
+      const out = await brokerCall<Awaited<ReturnType<typeof refreshConnector>>>({
         who: { kind: "admin", id: userId },
         where: { spaceId },
         // Listing the tools is none of the connector's actions, so a connection that is for a
@@ -55,7 +55,7 @@ export async function reloadConnector(
         },
         action: { id: "list_tools", kind: "read" },
         input: {},
-        handler: (account) => refreshConnector(spaceId, id, account.ctx.accessToken),
+        named: { name: "refresh_tools", spaceId, connectorId: id },
       });
       if (out.ok) {
         return out.result;
