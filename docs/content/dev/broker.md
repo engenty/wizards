@@ -616,10 +616,10 @@ in the sync of a local space.
 - **Isolated instances.** Guest runs share the runner process with test runs; the plan’s separate
   runner role for guests doesn’t exist. Connected accounts are sealed with a public key and opened
   with a private key (`secrets/accounts.ts`, `ACCOUNTS_KEY`). A process without it hands its
-  connection calls to the broker at `BROKER_URL` (`broker/remote.ts`, `broker/named.ts`), except
-  the tools of the agent that shares a result into a connector. Every process of a cloud still
-  holds the key until that is closed and the cloud’s env is changed. Other secrets use one
-  symmetric key every process holds.
+  connection calls to the broker at `BROKER_URL` (`broker/remote.ts`, `broker/named.ts`), and
+  its share jobs too (`sharing/jobs.ts`, `POST /api/broker/v1/share`). Every process of a cloud
+  still holds the key until the cloud’s env is changed. Other secrets use one symmetric key every
+  process holds.
 - **The company sign-in.** A third way to sign in, through the organization’s SSO (MCP
   Enterprise-Managed Authorization), is not built.
 - **Plans.** Each person signing in is the plan switch `personSignIn`, meant for the Pro and Team
