@@ -636,6 +636,8 @@ export interface KeyInfo {
   userName?: string;
   tenantId?: string;
   role?: Role;
+  /** What the key may do, where it names it; a key without the list has `KEY_SCOPES`. */
+  scopes?: string[];
 }
 
 export function verifyKey(key: string): Promise<KeyInfo> {

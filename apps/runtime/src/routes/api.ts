@@ -1,12 +1,21 @@
-import { note } from "@engenty/wizards-shared/run";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import { note, noteText, RUN_HOST_KINDS, runHostRefSchema } from "@engenty/wizards-shared/run";
 import { blobHash, missingBlobsSchema, pushSchema } from "@engenty/wizards-shared/sync";
 import { PACKAGE_MIME } from "@engenty/wizards-shared/wizard-package";
+import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
+import { and, eq } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
-import { balanceCredits } from "../credits/credits.js";
-import { withTenant } from "../db/client.js";
+import { tokenOf } from "../broker/token.js";
+import { checkWizard } from "../cli/validate.js";
+import { clientOf, clientRefused } from "../clients.js";
+import { balanceCredits, canSpend } from "../credits/credits.js";
+import { db, schema, withTenant } from "../db/client.js";
+import { HostUnfit } from "../engine/hosts.js";
+import { runStore } from "../engine/run-store.js";
+import { createRun, NoCreditsError } from "../engine/runner.js";
 import { env } from "../env.js";
 import { feature, remoteFeatures } from "../features.js";
 import { allowed } from "../limits.js";
@@ -16,10 +25,11 @@ import { followFor, notePush } from "../live/origin.js";
 import { managed, tenantInfo } from "../manage.js";
 import { authenticate, type Principal, principalOf } from "../mcp/auth.js";
 import type { Scope } from "../mcp/scopes.js";
+import { ModelUnavailableError, saidOf } from "../model-errors.js";
 import { loadedPlugin, pluginIdsOf } from "../plugins/registry.js";
 import { asRole, mayBuild, mayCreate } from "../services/access.js";
 import { apiRun, apiRuns, apiSpaceDetails, apiSpaces, apiWizards } from "../services/api.js";
-import { ServiceError } from "../services/errors.js";
+import { notFound, ServiceError } from "../services/errors.js";
 import { deleteFile, draftFiles, writeFile } from "../services/files.js";
 import { asLang, searchMarketplace } from "../services/marketplace.js";
 import { requireStudio } from "../services/members-studio.js";
@@ -39,7 +49,13 @@ import {
   syncWizard,
   syncWizardSchema,
 } from "../services/synced-spaces.js";
-import { createWizard, ownedWizard, publishWizard, writeDraft } from "../services/wizards.js";
+import {
+  createWizard,
+  ownedWizard,
+  publishWizard,
+  requireClean,
+  writeDraft,
+} from "../services/wizards.js";
 import {
   adoptSpace,
   blobBytes,
@@ -53,20 +69,161 @@ import {
   takeBlob,
 } from "../sync/hub.js";
 import { codeOf, tenantStatus } from "../tenants/control.js";
-import { notFoundAnswer, say } from "./lang.js";
+import { notFoundAnswer, requestLang, say } from "./lang.js";
 import { dispatchAs } from "./plugins.js";
+
+/** A wizard's workspace as a request carries it: each file's bytes as base64. */
+const importFilesSchema = z
+  .array(z.object({ path: z.string(), mime: z.string().optional(), data: z.string() }))
+  .max(200)
+  .default([]);
+type ImportFile = z.infer<typeof importFilesSchema>[number];
 
 const importSchema = z.object({
   /** An earlier import's wizard: it is updated instead of a new one being made. */
   wizardId: z.string().optional(),
   spaceId: z.string().optional(),
   definition: z.unknown(),
-  files: z
-    .array(z.object({ path: z.string(), mime: z.string().optional(), data: z.string() }))
-    .max(200)
-    .default([]),
+  files: importFilesSchema,
   publish: z.boolean().default(false),
 });
+
+/**
+ * A run the caller drives on its own machine (`wizards run`): the wizard by its id, its published
+ * version; or a definition with its workspace, written as the draft of `wizardId` (or of a new
+ * wizard of the space) and started as a test run of it.
+ */
+const hostStartSchema = z
+  .object({
+    host: z.enum(RUN_HOST_KINDS),
+    /** Where the host answers; without it the host is not reached from here. */
+    url: runHostRefSchema.shape.url.optional(),
+    wizardId: z.string().min(1).max(200).optional(),
+    definition: z.unknown().optional(),
+    files: importFilesSchema,
+  })
+  .refine((body) => body.wizardId !== undefined || body.definition !== undefined, {
+    message: "Give a wizardId or a definition.",
+  });
+
+/** The host's address on a run whose host this runtime does not reach. */
+const UNREACHED_HOST = "local";
+
+/**
+ * A whole wizard from outside as the draft of a wizard of the tenant: `wizardId`'s, when it is
+ * one, else a new one in `spaceId` (the default space without). Its workspace is replaced by
+ * `files`. In the caller's tenant.
+ */
+async function importDraft(
+  who: Principal,
+  input: { wizardId?: string; spaceId?: string; definition: unknown; files: ImportFile[] },
+) {
+  const writer = { source: "mcp" as const, client: who.client };
+  let wizardId = input.wizardId;
+  if (wizardId) {
+    await requireStudio("wizards", wizardId);
+    const existing = await ownedWizard(who.userId, wizardId).catch(() => null);
+    wizardId = existing?.id;
+  }
+  if (!wizardId) {
+    // The workspace must be there before the definition is checked against it.
+    const created = await createWizard(who.userId, { spaceId: input.spaceId }, writer);
+    wizardId = created.id;
+  }
+  const incoming = new Set(input.files.map((f) => f.path));
+  for (const old of await draftFiles(wizardId)) {
+    if (!incoming.has(old.path)) {
+      await deleteFile(who.userId, wizardId, old.path);
+    }
+  }
+  for (const file of input.files) {
+    await writeFile(who.userId, wizardId, file.path, Buffer.from(file.data, "base64"), file.mime);
+  }
+  const current = await ownedWizard(who.userId, wizardId);
+  const written = await writeDraft(
+    who.userId,
+    wizardId,
+    { definition: input.definition, baseRevision: current.revision },
+    writer,
+  );
+  return { wizardId, written, current };
+}
+
+/** Whether the tenant's runs may be driven elsewhere: they need their services over HTTP. */
+async function wizardsRunOn(): Promise<boolean> {
+  const switches = await remoteFeatures().catch(() => null);
+  return feature("wizardsRun", switches) && feature("runServices", switches);
+}
+
+/** What `createRun` starts with, but for who starts it and where. */
+interface Start {
+  wizardId: string;
+  definition: WizardDefinition;
+  files: WorkspaceFile[];
+  version: number | null;
+  mode: "test" | "live";
+}
+
+/** A wizard of the space by its id: its published version, as a live run. */
+async function publishedStart(who: Principal, spaceId: string, wizardId: string): Promise<Start> {
+  await requireStudio("wizards", wizardId);
+  const w = await ownedWizard(who.userId, wizardId);
+  if (w.spaceId !== spaceId) {
+    throw notFound();
+  }
+  const version =
+    w.publishedVersion === null
+      ? undefined
+      : await db.query.wizardVersion.findFirst({
+          where: and(
+            eq(schema.wizardVersion.wizardId, w.id),
+            eq(schema.wizardVersion.version, w.publishedVersion),
+          ),
+        });
+  if (!version) {
+    throw new ServiceError(
+      "refused",
+      "This wizard isn’t published yet. Publish it, or send its definition to try the draft.",
+    );
+  }
+  return {
+    wizardId: w.id,
+    definition: version.definition,
+    files: version.files,
+    version: w.publishedVersion,
+    mode: "live",
+  };
+}
+
+/**
+ * A definition with its workspace: checked as `wizards validate` checks it, written as the draft
+ * of `wizardId` (or of a new wizard of the space), checked against the space as the studio checks
+ * a draft, and started as a test run of that draft.
+ */
+async function draftStart(
+  who: Principal,
+  spaceId: string,
+  input: { wizardId?: string; definition: unknown; files: ImportFile[] },
+): Promise<Start> {
+  const bytes = new Map(input.files.map((f) => [f.path, Buffer.from(f.data, "base64")]));
+  const checked = await checkWizard({
+    definition: input.definition,
+    files: [...bytes.keys()],
+    read: async (path) => bytes.get(path)?.toString("utf8") ?? null,
+  });
+  if (!checked.ok) {
+    throw new ServiceError("has_issues", note("wizardStillErrors"), { issues: checked.issues });
+  }
+  if (input.wizardId) {
+    await requireStudio("wizards", input.wizardId);
+    if ((await ownedWizard(who.userId, input.wizardId)).spaceId !== spaceId) {
+      throw notFound();
+    }
+  }
+  const { wizardId } = await importDraft(who, { ...input, spaceId });
+  const { definition, files } = await requireClean(await ownedWizard(who.userId, wizardId));
+  return { wizardId, definition, files, version: null, mode: "test" };
+}
 
 /** Runs a call in the caller's tenant, as the caller's role. */
 export const inTenantAs = async <T>(who: Principal, fn: () => T | Promise<T>) => {
@@ -121,11 +278,9 @@ export async function caller(
   if (who.role === "client" && !clients) {
     return c.json({ error: "This isn’t open to clients.", code: "forbidden" }, 403);
   }
-  if (scopes.some((scope) => !who.scopes.includes(scope))) {
-    return c.json(
-      { error: "This token isn’t allowed to do that.", code: "insufficient_scope" },
-      403,
-    );
+  const lacking = lacksScopes(c, who, scopes);
+  if (lacking) {
+    return lacking;
   }
   if ((await tenantStatus(who.tenantId)) === "suspended") {
     return c.json(
@@ -137,6 +292,13 @@ export async function caller(
     );
   }
   return who;
+}
+
+/** The answer that turns a caller away who lacks one of `scopes`; null when it has them all. */
+function lacksScopes(c: Context, who: Principal, scopes: Scope[]): Response | null {
+  return scopes.some((scope) => !who.scopes.includes(scope))
+    ? c.json({ error: "This token isn’t allowed to do that.", code: "insufficient_scope" }, 403)
+    : null;
 }
 
 /**
@@ -444,6 +606,99 @@ export const apiRoutes = new Hono()
     const body = checkSchema.parse(await c.req.json());
     return inTenantAs(who, async () => c.json({ problems: await checkOnServer(body) }));
   })
+  // A run the caller drives on its own machine (`wizards run`): the record, the checks and the
+  // token here, the run there (docs/plans/runs-on-their-own.md, phase 5).
+  .post("/spaces/:spaceId/runs", tooLarge, async (c) => {
+    const who = await caller(c, []);
+    if (who instanceof Response) {
+      return who;
+    }
+    // While the tenant has it off, the route isn't there.
+    if (!(await inTenantAs(who, wizardsRunOn))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const lacking = lacksScopes(c, who, ["runs:host"]);
+    if (lacking) {
+      return lacking;
+    }
+    const body = hostStartSchema.parse(await c.req.json());
+    const writes = body.definition !== undefined && lacksScopes(c, who, ["wizards:write"]);
+    if (writes) {
+      return writes;
+    }
+    if (body.host !== "node") {
+      return c.json(
+        {
+          error: `A run can’t live on a "${body.host}" host yet. Start it on "node".`,
+          code: "host",
+        },
+        400,
+      );
+    }
+    const client = clientOf(c);
+    const spaceId = c.req.param("spaceId");
+    return inSpaceAs(who, spaceId, async () => {
+      // The client that starts it: on a managed runtime the Manage-App's list says which may.
+      const refused = clientRefused(client);
+      if (refused) {
+        return c.json(
+          { error: noteText({ code: refused.note }, requestLang(c)), code: refused.code },
+          refused.status,
+        );
+      }
+      const start =
+        body.definition === undefined
+          ? await publishedStart(who, spaceId, body.wizardId ?? "")
+          : await draftStart(who, spaceId, { ...body, definition: body.definition });
+      if (!(await canSpend())) {
+        throw new ServiceError("no_credits", note("creditsUsedUp"));
+      }
+      let runId: string;
+      try {
+        runId = await createRun({
+          ...start,
+          userId: who.userId,
+          client,
+          drivenOn: { kind: body.host, url: body.url ?? UNREACHED_HOST },
+        });
+      } catch (err) {
+        if (err instanceof HostUnfit) {
+          return c.json({ error: err.message, code: "host_unfit", missing: err.missing }, 409);
+        }
+        if (err instanceof ModelUnavailableError) {
+          throw new ServiceError("refused", saidOf(err));
+        }
+        if (err instanceof NoCreditsError) {
+          throw new ServiceError("no_credits", note("creditsUsedUp"));
+        }
+        throw err;
+      }
+      // Signed from the record, which names the caller's host now.
+      const run = await runStore.get(runId);
+      const token = run && (await tokenOf(run));
+      if (!(run && token)) {
+        throw new Error(`The run ${runId} has no token.`);
+      }
+      return c.json({
+        runId,
+        wizardId: run.wizardId,
+        token,
+        /** Where the run's services answer, under `/api/run-services/v1`. */
+        services: env.appUrl,
+        host: run.host,
+        definition: run.definition,
+        files: run.files,
+        /** The run as `createRun` left it: where the host's own start finds it too. */
+        run: {
+          cursor: run.cursor,
+          status: run.status,
+          state: run.state,
+          wakeAt: run.wakeAt?.getTime() ?? null,
+          rev: run.rev,
+        },
+      });
+    });
+  })
   .put("/spaces/:spaceId/wizards/:wizardId", tooLarge, async (c) => {
     const who = await caller(c, ["wizards:write", "wizards:publish"]);
     if (who instanceof Response) {
@@ -710,40 +965,7 @@ export const apiRoutes = new Hono()
       );
     }
     return inTenantAs(who, async () => {
-      const writer = { source: "mcp" as const, client: who.client };
-      let wizardId = body.wizardId;
-      if (wizardId) {
-        await requireStudio("wizards", wizardId);
-        const existing = await ownedWizard(who.userId, wizardId).catch(() => null);
-        wizardId = existing?.id;
-      }
-      if (!wizardId) {
-        // The workspace must be there before the definition is checked against it.
-        const created = await createWizard(who.userId, { spaceId: body.spaceId }, writer);
-        wizardId = created.id;
-      }
-      const incoming = new Set(body.files.map((f) => f.path));
-      for (const old of await draftFiles(wizardId)) {
-        if (!incoming.has(old.path)) {
-          await deleteFile(who.userId, wizardId, old.path);
-        }
-      }
-      for (const file of body.files) {
-        await writeFile(
-          who.userId,
-          wizardId,
-          file.path,
-          Buffer.from(file.data, "base64"),
-          file.mime,
-        );
-      }
-      const current = await ownedWizard(who.userId, wizardId);
-      const written = await writeDraft(
-        who.userId,
-        wizardId,
-        { definition: body.definition, baseRevision: current.revision },
-        writer,
-      );
+      const { wizardId, written, current } = await importDraft(who, body);
       if (!body.publish) {
         return c.json({ wizardId, revision: written.revision, issues: written.issues });
       }

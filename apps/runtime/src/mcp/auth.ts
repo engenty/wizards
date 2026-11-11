@@ -4,7 +4,7 @@ import { LOCAL_CLIENT_HEADER, LOCAL_MCP_HEADER, localTicketExpiry } from "../aut
 import { env } from "../env.js";
 import { grantActive, managed, type Role, verifyKey, verifyToken } from "../manage.js";
 import { LOCAL_TENANT } from "../tenants/tenant.js";
-import { MCP_RESOURCE, SCOPES, type Scope } from "./scopes.js";
+import { KEY_SCOPES, keyScopes, MCP_RESOURCE, SCOPES, type Scope } from "./scopes.js";
 
 /** The admin an MCP request acts for, their tenant, and the client acting (shown in the studio thread). */
 export interface Principal {
@@ -60,7 +60,10 @@ function challenge(status: 401 | 429, error: string, description: string): Respo
 
 const keyCache = new Map<string, { at: number; who: Principal; keyId: string }>();
 
-/** An API key acts as its owner, in the key's tenant, with every scope. */
+/**
+ * An API key acts as its owner, in the key's tenant, with the scopes it names; a key that names
+ * none has every scope but those granted by name (`KEY_SCOPES`).
+ */
 async function apiKeyAuth(key: string): Promise<AuthInfo | Response> {
   if (!managed) {
     const found = await verifyLocalKey(key);
@@ -72,7 +75,7 @@ async function apiKeyAuth(key: string): Promise<AuthInfo | Response> {
       tenantId: LOCAL_TENANT,
       role: "owner",
       client: found.name || "MCP",
-      scopes: [...SCOPES],
+      scopes: keyScopes(found.scopes),
     };
     return authInfoFor(who, key, found.id);
   }
@@ -90,7 +93,7 @@ async function apiKeyAuth(key: string): Promise<AuthInfo | Response> {
     tenantId: result.tenantId,
     role: result.role ?? "member",
     client: result.name || "MCP",
-    scopes: [...SCOPES],
+    scopes: keyScopes(result.scopes),
     name: result.userName ?? "",
   };
   keyCache.set(key, { at: Date.now(), who, keyId: result.keyId ?? "" });
@@ -166,7 +169,7 @@ function localAuth(request: Request, ticket: string): AuthInfo | Response {
     tenantId: LOCAL_TENANT,
     role: "owner",
     client,
-    scopes: [...SCOPES],
+    scopes: [...KEY_SCOPES],
   };
   return authInfoFor(who, ticket, "local");
 }

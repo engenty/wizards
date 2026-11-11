@@ -16,6 +16,8 @@ interface StoredKey {
   hash: string;
   createdAt: string;
   lastRequest: string | null;
+  /** What the key may do, where it names it; a key without the list has `KEY_SCOPES`. */
+  scopes?: string[];
 }
 
 const hashOf = (key: string) => createHash("sha256").update(key).digest("hex");
@@ -45,7 +47,7 @@ export async function listLocalKeys() {
   return (await all()).map(({ hash: _hash, ...rest }) => rest);
 }
 
-export async function createLocalKey(name: string) {
+export async function createLocalKey(name: string, scopes?: string[]) {
   const key = `${API_KEY_PREFIX}${randomBytes(24).toString("base64url")}`;
   const row: StoredKey = {
     id: nanoid(12),
@@ -54,6 +56,7 @@ export async function createLocalKey(name: string) {
     hash: hashOf(key),
     createdAt: new Date().toISOString(),
     lastRequest: null,
+    ...(scopes ? { scopes } : {}),
   };
   await writeSetting("apiKeys", [...(await all()), row]);
   return { id: row.id, name, key };
@@ -66,7 +69,9 @@ export async function deleteLocalKey(id: string) {
   );
 }
 
-export async function verifyLocalKey(key: string): Promise<{ id: string; name: string } | null> {
+export async function verifyLocalKey(
+  key: string,
+): Promise<{ id: string; name: string; scopes?: string[] } | null> {
   const own = internal.get(key);
   if (own) {
     return { id: "internal", name: own };
@@ -81,5 +86,5 @@ export async function verifyLocalKey(key: string): Promise<{ id: string; name: s
     found.lastRequest = new Date().toISOString();
     await writeSetting("apiKeys", keys);
   }
-  return { id: found.id, name: found.name };
+  return { id: found.id, name: found.name, scopes: found.scopes };
 }
