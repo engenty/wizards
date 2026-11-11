@@ -4,7 +4,7 @@
  * No external API calls needed. Good as fallback.
  */
 
-import { htmlToMarkdown } from "../../../shims/web-ingest.js";
+import { htmlToMarkdown } from "../../../../render/markdown.js";
 import type {
   ConversionOptions,
   ConversionResult,
