@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:crypto";
 import { env } from "../env.js";
 
-/** AES-256-GCM for what the store keeps secret (account tokens, passwords, browser sessions). */
+/** AES-256-GCM for secrets that are no connected account (secrets/accounts.ts seals those). */
 const key = Buffer.from(
   hkdfSync("sha256", env.storeKey || env.authSecret, "engenty-wizards", "store-secrets", 32),
 );

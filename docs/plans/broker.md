@@ -4,7 +4,8 @@ Status: built in parts. Written on 2026-10-31 against `feat/work-mode` as a plan
 are built (RWX with its page Fähigkeiten › Rechte, the broker's call and log, the Audit, the
 notifications, „Was darf …?“). Phase 3 (its own process) is built in part on the branch
 `feat/runs-on-their-own` (phase 3 of `docs/plans/runs-on-their-own.md`): the role, the run's
-services over HTTP and the run's token are in, the vault and its key on the broker alone are not.
+services over HTTP and the run's token are in; connected accounts are sealed with a public key and
+opened with a private key that a cloud can give the broker alone (package 7.1, step 1).
 What the code does is in
 `docs/content/dev/broker.md`; what comes next in `docs/plans/capabilities-next.md`. Part A of
 `docs/plans/capabilities.md` built it; the connections plan (artifact “Verbindungen in Quellen”,
@@ -238,12 +239,15 @@ same function the broker uses, with no side effect. The same shows on a wizard's
      run, wizard, space, data space, mode, holder, host kind, expiry. The route opens the tenant
      and sets the caller from it; the grant stays on the run. Every tool has a descriptor
      (`broker/registry.ts`, #641), and every acting call an effect id (#645).
-   - **Not built:** the vault and its key only in the broker. Today `seal`/`unseal` is one
-     symmetric key that studio, doors and runner hold too, and fourteen modules unseal. That is
-     package 7.1 of `docs/plans/runs-on-their-own.md`, an open question with a proposed answer
-     (asymmetric sealing, connection accounts first). Also not built: the guest instance that
-     opens only „alle“, and the studio calling the broker over the network. Cedar or OPA: not
-     started.
+   - **Connected accounts sealed for the broker** (package 7.1, step 1, of
+     `docs/plans/runs-on-their-own.md`): `secrets/accounts.ts` seals them with a public key and
+     opens them with `ACCOUNTS_KEY`; every other process of a cloud gets `ACCOUNTS_PUBLIC_KEY`.
+     `wizards reseal-accounts` converts what the store key sealed.
+   - **Not built:** the studio calling the broker over the network. Until it does, the studio's
+     chats, Goose, MCP, sharing, mail watching and plugins open accounts in their own process, so
+     a cloud can't take the private key off them yet. Own model keys and the other secrets still
+     use the one symmetric key (7.1, step 2). Also not built: the guest instance that opens only
+     „alle“. Cedar or OPA: not started.
 
 ## Open
 

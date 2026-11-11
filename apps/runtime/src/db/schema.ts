@@ -1763,6 +1763,8 @@ export const spaceConnection = sqliteTable(
     actions: text("actions", { mode: "json" }).$type<string[]>().notNull().default([]),
     /** A `space` sign-in's tokens or keys, sealed; the broker alone unseals them. */
     secret: text("secret"),
+    /** The rights the provider granted the `space` sign-in, kept beside `secret` for who can't open it. */
+    grantedScopes: text("granted_scopes", { mode: "json" }).$type<string[]>(),
     /**
      * How far the runtime may use the account for nobody in particular. `read_only`: an admin
      * agreed that its mailbox is read while a run waits for mail. Off until then.

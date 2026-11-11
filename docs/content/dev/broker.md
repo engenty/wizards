@@ -613,9 +613,12 @@ in the sync of a local space.
 
 ## Not built
 
-- **Isolated instances.** Guest runs share the runner process with test runs, and every process
-  can open every secret. The plan’s separate runner role for guests and a broker process that
-  alone holds the sealing key don’t exist.
+- **Isolated instances.** Guest runs share the runner process with test runs; the plan’s separate
+  runner role for guests doesn’t exist. Connected accounts are sealed with a public key and opened
+  with a private key (`secrets/accounts.ts`, `ACCOUNTS_KEY`), but only a run reaches the broker
+  over HTTP: the studio’s chats, Goose, MCP, sharing, mail watching and plugins open accounts in
+  their own process, so every process still holds the private key. Other secrets use one
+  symmetric key every process holds.
 - **The company sign-in.** A third way to sign in, through the organization’s SSO (MCP
   Enterprise-Managed Authorization), is not built.
 - **Plans.** Each person signing in is the plan switch `personSignIn`, meant for the Pro and Team

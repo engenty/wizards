@@ -1,0 +1,1 @@
+ALTER TABLE `space_connection` ADD `granted_scopes` text;

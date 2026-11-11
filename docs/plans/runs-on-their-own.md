@@ -73,7 +73,7 @@ full: what was decided on the way, what is open, which tests passed on which tip
 | 6.3 | open | Deploy, in the Manage repo: not done. Needs D4 (provider, sub-processor, region), the Worker with `SERVICES_URL`, the runtime's `EDGE_URL`, the run services at a public origin |
 | 6.4 | open | Edge tests: waits, deploys, stops; under way |
 | fix | merged #664 | A woken run says so once (the runtime host); node and edge hosts need the same rule |
-| 7.1 | question | Needs a decision; the question and the proposed answer are below the table |
+| 7.1 | step 1 in a pull request | Connected accounts sealed with a public key, opened with `ACCOUNTS_KEY` on the broker; `wizards reseal-accounts`; step 2 (own model keys and the rest) open |
 | 7.2a | merged #661 | `apps/documents`: reading documents as a service of its own; `DOCUMENTS_URL` |
 | 7.2b, 7.2c | open | Render (Chromium) and media (ffmpeg) as services of their own |
 | 7.3 | merged #667 | A minimal install 536 → 394 MB: the document readers and the OpenAPI importer on demand; installers and install docs state the sizes |
@@ -81,23 +81,31 @@ full: what was decided on the way, what is open, which tests passed on which tip
 
 **By phase.** Phases 0 to 5 are built. Phase 6 is built and tested on a local workerd; its deploy
 (6.3) and its tests of waits, deploys and stops (6.4) are open. Phase 7 is built in part: 7.2a and
-7.3 are in, 7.1 waits for a decision, 7.2b and 7.2c are open. No switch of this plan is on by
+7.3 are in, 7.1's first step is in a pull request, 7.2b and 7.2c are open. No switch of this plan is on by
 default yet (`runServices`, `runHosts`, `wizardsRun`, `edgeRuns` are all off), so 7.4 removed none.
 
-**7.1, the open question.** `seal`/`unseal` (`secrets/crypto.ts`) is one AES-256-GCM key from
-`STORE_KEY` (or `authSecret`). Fourteen modules unseal, not only the broker: `models.ts` (own API
-keys), `auth/*`, `store/index.ts`, `routes/signals.ts`, `plugins/loader.ts`, `upstreams.ts`, the
-connectors, the vault; and the studio and doors seal (an OAuth callback stores a token). With one
-symmetric key, whoever seals can unseal, so "only the broker opens secrets" needs (a) sealing with a
-public key everywhere and opening with a private key on the broker alone, (b) every reader of a
-secret (own model keys for Goose and the architect too) going through the broker, and (c) a hidden
-`wizards` command that seals every stored secret again.
+**7.1, decided on 11 November 2026: two steps.** `seal`/`unseal` (`secrets/crypto.ts`) is one
+AES-256-GCM key from `STORE_ENC_KEY` (or the app secret), and fourteen modules unseal with it. With
+one symmetric key whoever seals can unseal, so the first step takes connected accounts off it:
 
-**Proposed:** two steps. First connection accounts only (`broker/account.ts`, the vault):
-asymmetric seal (X25519 + AES-GCM, `v2.` prefix), the private key only where
-`serves.runServices`, a one-off `wizards reseal-accounts`. Own model keys and the rest later, once
-the studio's assistants call models through the broker too. The cloud's env (a new key on the
-broker only) is a deploy step. Phase 7.2 doesn't depend on it.
+- **Step 1, connected accounts** (`store_secret`, a space connection's `secret`, a person's sign-in
+  to one). `secrets/accounts.ts` seals them with a public key (X25519, then AES-256-GCM, `v2.`)
+  and opens them with the private key. A cloud sets `ACCOUNTS_KEY` on the broker alone and
+  `ACCOUNTS_PUBLIC_KEY` on every other process (`wizards new-accounts-key` makes a pair); a
+  process with the public key alone seals a new sign-in and opens none. A runtime that sets
+  neither derives the pair from `STORE_ENC_KEY`. A space connection's granted rights sit beside
+  the secret (`granted_scopes`, tenant migration 0079), so a plugin reads them without opening
+  it. `wizards reseal-accounts` seals every account `seal()` sealed once more, in every tenant;
+  twice is harmless. No switch: a switch would keep the old format as a second path.
+- **Not yet in step 1:** a run reaches the broker over HTTP (3.8), but the studio's chats,
+  Goose, MCP's connection calls, sharing, mail watching and plugins call the broker in their own
+  process. Until they ask the broker over the network too, a cloud can't take the private key off
+  the studio, doors and runner processes; the format and the command are ready for it.
+- **Step 2:** own model keys and the rest, once the studio's assistants call models through the
+  broker too.
+
+The cloud's env is a deploy step: set the pair first, then run `wizards reseal-accounts` on the
+broker.
 
 ## In short
 
@@ -463,7 +471,7 @@ publish it; the Release workflow packs and tests it and leaves it out of the rel
 
 ### Phase 7 · Services apart, smaller installs
 
-**In part.** 7.1 is an open question (Progress has it with the proposed answer). 7.2 is in part: documents (7.2a, #661) are a service of their own, render and media (7.2b, 7.2c) are not. 7.3 merged (#667). 7.4 is this file's update.
+**In part.** 7.1's first step (connected accounts) is in a pull request; Progress says what it leaves. 7.2 is in part: documents (7.2a, #661) are a service of their own, render and media (7.2b, 7.2c) are not. 7.3 merged (#667). 7.4 is this file's update.
 
 **Goal:** the size and the secrets sit where they are needed. Can start once phase 3 is in, beside phases 4 to 6.
 

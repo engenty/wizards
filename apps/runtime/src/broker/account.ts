@@ -16,7 +16,7 @@ import type {
   ConnectorActionContext,
   ConnectorDefinition,
 } from "../engenty/connections-sdk/types.js";
-import { seal, unseal } from "../secrets/crypto.js";
+import { sealAccount, unsealAccount } from "../secrets/accounts.js";
 import { getSecret, putSecret, type StoredSecret, type StoreScope } from "../store/index.js";
 import { currentTenant } from "../tenants/tenant.js";
 import type { Who } from "./call.js";
@@ -144,15 +144,15 @@ export async function spaceAccount(
   let sealed: string | null;
   let label: string;
   let signedInAt: Date;
-  let write: (secret: string) => Promise<unknown>;
+  let write: (data: StoredTokens) => Promise<unknown>;
   if (row.signIn === "space") {
     sealed = row.secret;
     label = row.label ?? connector.name;
     signedInAt = row.setUpAt;
-    write = (secret) =>
+    write = (data) =>
       db
         .update(schema.spaceConnection)
-        .set({ secret, updatedAt: new Date() })
+        .set({ secret: sealAccount(data), grantedScopes: data.scopes, updatedAt: new Date() })
         .where(eq(schema.spaceConnection.id, row.id));
   } else {
     if (!signsInThemselves(who)) {
@@ -170,10 +170,10 @@ export async function spaceAccount(
     sealed = own.secret;
     label = own.label;
     signedInAt = own.signedInAt;
-    write = (secret) =>
+    write = (data) =>
       db
         .update(schema.spaceConnectionSignIn)
-        .set({ secret, updatedAt: new Date() })
+        .set({ secret: sealAccount(data), updatedAt: new Date() })
         .where(
           and(
             eq(schema.spaceConnectionSignIn.connectionId, row.id),
@@ -184,14 +184,14 @@ export async function spaceAccount(
   if (!sealed) {
     return null;
   }
-  let data = unseal<StoredTokens>(sealed);
+  let data = unsealAccount<StoredTokens>(sealed);
   if (!data) {
     throw new Error("The connection's keys cannot be read here. Sign in again.");
   }
   const fresh = await refreshed(connector, data);
   if (fresh) {
     data = fresh;
-    await write(seal(data));
+    await write(data);
   }
   const ctx: ConnectorActionContext = {
     accessToken: data.accessToken,
@@ -244,8 +244,7 @@ export async function stateOf(
 
 /** The rights the provider granted a connection of the space at its sign-in; none for keys. */
 export function grantedScopes(row: SpaceConnectionRow): string[] {
-  const data = row.secret ? unseal<StoredTokens>(row.secret) : null;
-  return data?.scopes ?? [];
+  return row.grantedScopes ?? [];
 }
 
 /** „Letzte Nutzung“: the connection was just used. */

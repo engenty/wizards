@@ -46,6 +46,9 @@ const COMMANDS = [
   "move-folder-sources",
   // Once after 2.5 of docs/plans/runs-on-their-own.md; not in the help.
   "drop-turn-snapshots",
+  // Once after 7.1 of docs/plans/runs-on-their-own.md, and a cloud's key pair; not in the help.
+  "reseal-accounts",
+  "new-accounts-key",
   "validate",
   "run",
   "uninstall",
@@ -293,6 +296,10 @@ async function main(argv: string[]): Promise<number> {
       return (await import("./move-folder-sources.js")).moveFolderSources();
     case "drop-turn-snapshots":
       return (await import("./drop-turn-snapshots.js")).dropTurnSnapshots();
+    case "reseal-accounts":
+      return (await import("./reseal-accounts.js")).resealAccounts();
+    case "new-accounts-key":
+      return (await import("./reseal-accounts.js")).printNewAccountsKey();
     case "validate":
       // The paths are the person's, from where they typed the command (install-env.ts).
       process.chdir(startedIn);
