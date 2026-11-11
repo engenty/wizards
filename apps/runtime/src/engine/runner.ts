@@ -134,7 +134,7 @@ import { editedJson } from "./edits.js";
 import { emitEvent, recentEvents, signalChanged } from "./events.js";
 import { classifyFailure } from "./failures.js";
 import { runtimeHost } from "./host.js";
-import { handOver, hostFor } from "./hosts.js";
+import { handOver, hostFor, requireFit } from "./hosts.js";
 import {
   type Actor,
   type NoticeKind,
@@ -561,6 +561,11 @@ export async function createRun(input: {
   fill?: Record<string, unknown>;
   /** Which time of the start this is (`occurrenceKey`): a second run of it is refused. */
   occurrence?: string;
+  /**
+   * The host the caller drives the run on (`POST /api/v1/spaces/:id/runs`): it must fit the
+   * wizard, no other is picked, nothing is handed over and no runner here drives it.
+   */
+  drivenOn?: RunHostRef;
 }): Promise<string> {
   const id = nanoid(18);
   const first = input.definition.steps[0];
@@ -612,8 +617,12 @@ export async function createRun(input: {
   if (blocked) {
     throw new ModelUnavailableError(blocked);
   }
-  // Where the run lives: another host that can run the wizard, else this runtime (null).
-  const host = await hostFor(input.definition);
+  // Where the run lives: the caller's host, another host that can run the wizard, else this
+  // runtime (null).
+  if (input.drivenOn) {
+    await requireFit(input.definition, input.drivenOn.kind);
+  }
+  const host = input.drivenOn ?? (await hostFor(input.definition));
   // The run's expected cost is held before it starts; what it really costs is booked per call.
   const estimate = await estimateRun(
     input.wizardId,
@@ -737,12 +746,16 @@ export async function createRun(input: {
     runId: id,
     visitorId: input.visitorId,
     ipHash: input.ipHash,
-    wakeAt: deadline.wakeAt,
+    // The caller's host keeps the run's time itself: the clock here never puts it in line.
+    wakeAt: input.drivenOn ? null : deadline.wakeAt,
   });
   if (waits) {
     await waitsForAnswer(id, first, deadline.wakeAt);
   }
   reportRun(id, waits ? "waiting_input" : "running");
+  if (input.drivenOn) {
+    return id;
+  }
   // A run its host took is driven there.
   if (host && (await placeRun(id, host))) {
     return id;
@@ -1731,6 +1744,11 @@ function eventOf(run: RunRow): FlowEvent | null {
 
 /** Takes the run to its next wait or its end: the engine on this runtime as its host. */
 async function drive(runId: string, signal: AbortSignal) {
+  // A run that lives outside any runtime (`wizards run`, an object) is driven there only.
+  const kind = (await runStore.hostOf(runId))?.kind;
+  if (kind && kind !== "runtime") {
+    return;
+  }
   // The step starts afresh here: a question or a device call another process left has no one
   // waiting.
   await clearStaleAsk(runId);

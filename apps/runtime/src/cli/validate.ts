@@ -56,7 +56,7 @@ function workspace(folder: string): string[] {
 const isSkillMd = (path: string) =>
   path.startsWith(WIZARD_SKILLS_DIR) && path.endsWith("/SKILL.md");
 
-interface Given {
+export interface Given {
   definition: unknown;
   files: string[];
   /** A workspace file's text, or null where it isn't there. */
@@ -114,6 +114,14 @@ export async function validatePath(path: string): Promise<Checked> {
         : (err as Error).message;
     return { path, ok: false, issues: [{ message }] };
   }
+  return { path, ...(await checkWizard(given)) };
+}
+
+/**
+ * A wizard and its workspace checked as the studio checks it on import, wherever they come
+ * from: a path here, or a definition sent to start a run (`POST /api/v1/spaces/:id/runs`).
+ */
+export async function checkWizard(given: Given): Promise<Omit<Checked, "path">> {
   const parsed = parseWizard(given.definition, given.files);
   const agents = await wizardAgentFiles(given.files, given.read);
   // `requires` says what the steps and the agents' files need: a file that says otherwise is out
@@ -143,7 +151,6 @@ export async function validatePath(path: string): Promise<Checked> {
     ...(parsed.ok ? await dataIssues(parsed.wizard, given) : []),
   ];
   return {
-    path,
     ok: parsed.ok && issues.length === 0,
     steps: parsed.ok ? parsed.wizard.steps.length : undefined,
     files: given.files.length,
