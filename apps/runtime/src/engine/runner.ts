@@ -1177,7 +1177,8 @@ export async function makeContext(
 /**
  * A step's question to the person. An autopilot's test run asks nobody. A started run answers a
  * confirm itself when its start allows changes; otherwise nobody is there and the tool leaves
- * the change open. A sign-in it puts to the owner, who is told.
+ * the change open. A sign-in it puts to the owner, who is told. Extra goes to a person of the
+ * organization only.
  */
 async function askOf(
   run: RunRow,
@@ -1186,6 +1187,10 @@ async function askOf(
   signal: AbortSignal,
 ): Promise<AskResult | null> {
   if (run.unattended) {
+    return null;
+  }
+  // Extra costs the organization: only a person of it says yes, never a guest or a start.
+  if (ask.kind === "extra" && (run.startedBy || !run.userId)) {
     return null;
   }
   if (run.startedBy && ask.kind === "confirm") {

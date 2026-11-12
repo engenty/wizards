@@ -13,6 +13,20 @@ returns and when to use it.
 <!-- section: tool.ask_person -->
 Ask the person running the wizard a question and go on with their answer. The step stops until they answer, which can take days, and costs nothing meanwhile. Ask only what you cannot find out or decide yourself. One clear question at a time, in the language of the wizard. Returns { answer }.
 
+<!-- Extra: a stronger model for the rest of the run (engine/extra.ts) -->
+
+<!-- section: tool.need_extra -->
+Ask for a stronger model and more effort for the rest of this run. Use it only when you can't get the task right as you are: a tool whose calls keep failing, a task much harder than it looked. Say why in one short sentence, in the language of the wizard; the person may read it. Returns { extra }: "on" (the next call runs on the stronger model), "off" (the person said no for this run) or "stays" (no switch here). Either way, go on with the task.
+
+<!-- section: note.extra_on -->
+Extra is on: from your next call you run on a stronger model.
+
+<!-- section: note.extra_off -->
+The person said no to Extra for this run. Go on as you are.
+
+<!-- section: note.extra_stays -->
+No switch here. Go on as you are.
+
 <!-- Web: search, fetch, HTTP (tools/index.ts) -->
 
 <!-- section: tool.web_search -->

@@ -1,4 +1,5 @@
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { ExtraBy } from "@engenty/wizards-shared/extra";
 import type { AskInput, AssetRef, RunNote, RunState } from "@engenty/wizards-shared/run";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import type { schema } from "../db/client.js";
@@ -8,6 +9,7 @@ import { NotedError } from "../model-errors.js";
 import type { CallMeta } from "../models.js";
 import type { StoreScope } from "../store/index.js";
 import type { AskResult } from "./asks.js";
+import type { ExtraOutcome } from "./extra.js";
 import type { RunResources } from "./resources.js";
 import type { TemplateScope } from "./template.js";
 
@@ -59,6 +61,11 @@ export interface StepContext {
    * MCP client drives).
    */
   ask(ask: AskInput): Promise<AskResult | null>;
+  /**
+   * A skill, a tool or the model asks for Extra for the rest of the run (engine/extra.ts); only in
+   * an AI step.
+   */
+  askExtra?(reason: string, by: ExtraBy): Promise<ExtraOutcome>;
   /** Run and step every model call of this step is made for. */
   call: CallMeta;
   /** A share job's step: the run is done and the person sends its result on (broker/over.ts). */

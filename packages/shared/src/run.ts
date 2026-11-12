@@ -10,6 +10,7 @@ import {
   type Step,
   type WizardDefinition,
 } from "./definition.js";
+import type { ExtraBy, RunExtra } from "./extra.js";
 import type { ShareJobView } from "./sharing.js";
 import type { StartEvent } from "./starts.js";
 import type { ConnectionView, ListDef, ListRow } from "./store.js";
@@ -104,6 +105,8 @@ export interface RunState {
   decisions?: Record<string, BranchDecision>;
   /** The signals this run took, by id: each only once. */
   signals?: string[];
+  /** Extra for the rest of the run, or a person's no to it (docs/plans/extra.md). */
+  extra?: RunExtra;
   /** What the result step's `data` names, filled as the run reaches it: the data the run gives back. */
   data?: Record<string, unknown>;
   /** Pages whose fields a decision chose: the field ids kept, by page. */
@@ -230,13 +233,24 @@ export interface ConfirmAsk extends AskBase {
   again?: boolean;
 }
 
+/**
+ * A skill, a tool or the model asks for Extra, a stronger model and more effort, for the rest of
+ * the run, and the step's rule wants a person's yes (docs/plans/extra.md). `reason` is in the
+ * asker's words.
+ */
+export interface ExtraAsk extends AskBase {
+  kind: "extra";
+  by: ExtraBy;
+}
+
 /** What a running step asks the person; the step waits for the answer. */
-export type RunAsk = LoginAsk | ConfirmAsk;
+export type RunAsk = LoginAsk | ConfirmAsk | ExtraAsk;
 
 /** A question as a step puts it; the runner adds id, step and time. */
 export type AskInput =
   | Omit<LoginAsk, "id" | "stepId" | "at">
-  | Omit<ConfirmAsk, "id" | "stepId" | "at">;
+  | Omit<ConfirmAsk, "id" | "stepId" | "at">
+  | Omit<ExtraAsk, "id" | "stepId" | "at">;
 
 /**
  * `fill` and `done` answer a sign-in (remember = keep the sign-in); `done` also allows a change
@@ -312,6 +326,11 @@ const NOTES_EN = {
   runs: "Running: {command}",
   noSandbox: "Working without the sandbox – this run can’t run code",
   noDurable: "This step starts over after an interruption: its model can’t go on where it stopped",
+  extraOn: "Extra · {reason}",
+  extraStays: "Asked for Extra: {reason}. The step allows no switch here.",
+  extraNobody: "Asked for Extra: {reason}. Nobody here can say yes, so the run stays as it is.",
+  extraDeclined: "Stays without Extra for this run.",
+  extraTop: "Asked for Extra: {reason}. The step already runs on the strongest model it may use.",
   turnWentOn: "Went on after an interruption",
   turnAsked: "Asks you: {question}",
   turnAnswered: "Goes on with your answer",
@@ -837,6 +856,12 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   noSandbox: "Arbeitet ohne Sandbox – dieser Lauf kann keinen Code ausführen",
   noDurable:
     "Dieser Schritt beginnt nach einer Unterbrechung neu: sein Modell kann nicht dort weitermachen",
+  extraOn: "Extra · {reason}",
+  extraStays: "Wollte Extra: {reason}. Der Schritt erlaubt hier keinen Wechsel.",
+  extraNobody: "Wollte Extra: {reason}. Niemand hier kann zustimmen, der Lauf bleibt, wie er ist.",
+  extraDeclined: "Bleibt in diesem Lauf ohne Extra.",
+  extraTop:
+    "Wollte Extra: {reason}. Der Schritt läuft schon auf dem stärksten Modell, das er nutzen darf.",
   turnWentOn: "Nach einer Unterbrechung weitergemacht",
   turnAsked: "Fragt dich: {question}",
   turnAnswered: "Macht mit deiner Antwort weiter",

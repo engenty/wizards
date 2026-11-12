@@ -163,6 +163,9 @@ No times are free right now: tell the person.
 <!-- section: hint.confirm -->
 Ask the person, then answer_ask with allow or skip.
 
+<!-- section: hint.extra -->
+The wizard asks for Extra: a stronger model and more effort for the rest of the run, at a higher price in credits. Ask the person, then answer_ask with allow or skip.
+
 <!-- section: reason.confirm_again -->
 This was interrupted and may have happened in ${service} already. Do it again?
 

@@ -324,6 +324,14 @@ async function waitingFor(
   }
   if (run.status === "running" && run.ask) {
     const ask = run.ask;
+    if (ask.kind === "extra") {
+      return {
+        ask: ask.id,
+        kind: ask.kind,
+        reason: ask.reason,
+        hint: prompt("mcp", "hint.extra"),
+      };
+    }
     return ask.kind === "confirm"
       ? {
           ask: ask.id,

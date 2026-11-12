@@ -57,11 +57,13 @@ export function stateText(view: RunView, page: PageBinding | null, camera = fals
   const lines: string[] = [`status: ${view.status}`, `camera: ${camera ? "on" : "off"}`];
   if (view.ask) {
     lines.push(
-      view.ask.kind === "confirm"
-        ? view.ask.again
-          ? `question: "${view.ask.action.summary}" in ${view.ask.service} was interrupted and may have happened already; answer_ask allows doing it again or skips it`
-          : `question: the step wants to "${view.ask.action.summary}" in ${view.ask.service}; answer_ask allows or skips it`
-        : `question: a sign-in at ${view.ask.site.host}; the person types it on the screen, wait`,
+      view.ask.kind === "extra"
+        ? `question: the step asks for Extra, a stronger model for the rest of the run, because "${view.ask.reason}"; it costs more credits; answer_ask allows or skips it`
+        : view.ask.kind === "confirm"
+          ? view.ask.again
+            ? `question: "${view.ask.action.summary}" in ${view.ask.service} was interrupted and may have happened already; answer_ask allows doing it again or skips it`
+            : `question: the step wants to "${view.ask.action.summary}" in ${view.ask.service}; answer_ask allows or skips it`
+          : `question: a sign-in at ${view.ask.site.host}; the person types it on the screen, wait`,
     );
     return lines.join("\n");
   }

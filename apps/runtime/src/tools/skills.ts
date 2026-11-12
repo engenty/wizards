@@ -1,3 +1,4 @@
+import { skillExtra } from "@engenty/wizards-shared/extra";
 import { skillMd } from "@engenty/wizards-shared/skills";
 import { createTool } from "@mastra/core/tools";
 import { readableIds } from "../broker/rwx.js";
@@ -46,6 +47,15 @@ export function skillsOf(ctx: StepContext): Promise<Skills> {
     found.set(ctx, skills);
   }
   return skills;
+}
+
+/** A copy of a step's context, with the skills found for the step it copies. */
+export function withSkillsOf<T extends StepContext>(from: StepContext, to: T): T {
+  const skills = found.get(from);
+  if (skills) {
+    found.set(to, skills);
+  }
+  return to;
 }
 
 /** The run's sandbox, for a step that has the sandbox tool on a server where it is on. */
@@ -233,6 +243,11 @@ export function skillToolsOf(skills: Skills, caller: ElementCaller): Record<stri
               const placed = await place(k);
               // In the sandbox, the files for its scripts are there too.
               const files = placed?.folder ? [...k.files, ...k.blobFiles] : k.files;
+              // A skill that needs a stronger model asks for Extra as it loads (docs/plans/extra.md).
+              const reason = caller.askExtra ? skillExtra(k) : null;
+              const extra = reason
+                ? await caller.askExtra?.(reason, { kind: "skill", name: k.name })
+                : undefined;
               // A plugin brought it together with a connector: the step hears which one.
               const connectors = await skillConnectors(k);
               return {
@@ -240,6 +255,7 @@ export function skillToolsOf(skills: Skills, caller: ElementCaller): Record<stri
                 instructions: clip(k.body, 60_000),
                 files: files.map((f) => f.path).sort(),
                 ...placed,
+                ...(extra ? { extra: prompt("tools", `note.extra_${extra}`) } : {}),
                 ...(connectors.length
                   ? {
                       connector: prompt("tools", "note.skill_connector", {

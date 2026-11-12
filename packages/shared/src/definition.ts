@@ -477,6 +477,9 @@ function makersWith(model: StepClass): Maker[] {
 /** How hard the model should think, where the bound model can be told. */
 export const EFFORTS = ["low", "medium", "high"] as const;
 export type Effort = (typeof EFFORTS)[number];
+/** What a step does when something asks for Extra: the words of a connection's rules. */
+export const EXTRA_RULES = ["allow", "ask", "deny"] as const;
+export type ExtraRule = (typeof EXTRA_RULES)[number];
 export type ToolId = (typeof TOOL_IDS)[number];
 
 export const ASSET_KINDS = ["image", "video", "voice", "document", "dashboard"] as const;
@@ -882,6 +885,12 @@ export const agentStepSchema = z.object({
   /** The maker whose model runs the class; without one the organization's tier picks it. */
   maker: z.enum(MAKERS).optional(),
   effort: z.enum(EFFORTS).optional(),
+  /**
+   * When a skill or the model asks for Extra (a stronger model, more effort) during the run:
+   * `allow` switches and says so, `ask` asks a person of the organization in the runner (the
+   * default), `deny` stays (docs/plans/extra.md).
+   */
+  extra: z.enum(EXTRA_RULES).optional(),
   /**
    * One run of the step per entry, at most twenty: the rows of a table output
    * ("steps.<id>.<key>"), the entries of a list output, or the rows of a stored list

@@ -1,10 +1,17 @@
-import type { AskAnswer, ConfirmAsk, LoginAsk, RunAsk } from "@engenty/wizards-shared/run";
+import type {
+  AskAnswer,
+  ConfirmAsk,
+  ExtraAsk,
+  LoginAsk,
+  RunAsk,
+} from "@engenty/wizards-shared/run";
 import {
   ArrowRight,
   LockKeyhole,
   MessageCircleQuestion,
   PencilLine,
   ShieldCheck,
+  Sparkles,
   TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
@@ -67,12 +74,71 @@ export function QuestionPanel({ runId, question }: { runId: string; question: st
   );
 }
 
-/** What a running step asks the person: a sign-in, or leave to change something. */
+/** What a running step asks the person: a sign-in, leave to change something, or Extra. */
 export function AskPanel({ runId, ask }: { runId: string; ask: RunAsk }) {
+  if (ask.kind === "extra") {
+    return <ExtraPanel runId={runId} ask={ask} />;
+  }
   return ask.kind === "confirm" ? (
     <ConfirmPanel runId={runId} ask={ask} />
   ) : (
     <LoginPanel runId={runId} ask={ask} />
+  );
+}
+
+/**
+ * A skill, a tool or the model asks for Extra: a stronger model and more effort for the rest of
+ * the run (docs/plans/extra.md). The person reads why and who asks, and decides for the run.
+ */
+function ExtraPanel({ runId, ask }: { runId: string; ask: ExtraAsk }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const answer = async (body: AskAnswer) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`${runBase(runId)}/ask/${ask.id}`, body);
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  };
+  const who =
+    ask.by.kind === "skill"
+      ? t("extra.bySkill", { name: ask.by.name })
+      : ask.by.kind === "tool"
+        ? t("extra.byTool", { name: ask.by.name })
+        : t("extra.byModel");
+  return (
+    <div className="animate-rise">
+      <div className="mb-5 flex items-start gap-3">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-ember-tint text-ember-strong">
+          <Sparkles className="size-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[0.8125rem] text-ink-3">
+            {t("extra.asks")} · {who}
+          </p>
+          <h2 className="wizard-heading font-display font-semibold text-[1.25rem] leading-snug tracking-tight">
+            {ask.reason}
+          </h2>
+        </div>
+      </div>
+      <p className="text-[0.875rem] text-ink-2">{t("extra.what")}</p>
+      {error ? (
+        <div className="mt-3 rounded-lg bg-rose-tint px-4 py-3 text-[0.875rem] text-rose">
+          {error}
+        </div>
+      ) : null}
+      <div className="action-bar mt-6 flex items-center justify-between gap-3">
+        <Button variant="ghost" disabled={busy} onClick={() => void answer({ type: "skip" })}>
+          {t("extra.no")}
+        </Button>
+        <Button busy={busy} onClick={() => void answer({ type: "done" })}>
+          {t("extra.yes")}
+        </Button>
+      </div>
+    </div>
   );
 }
 

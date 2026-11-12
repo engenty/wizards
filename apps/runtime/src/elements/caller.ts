@@ -25,6 +25,8 @@ export interface ElementCaller {
   note?: (note: ElementNote) => Promise<void> | void;
   /** Where the scripts of skills that may run go; none: they stay text. */
   sandbox?: SkillSandbox | null;
+  /** A skill that asks for Extra as it loads asks here; only an AI step of a run has it. */
+  askExtra?: StepContext["askExtra"];
 }
 
 /** What a tool says it does, as a run's event code with its params. */
@@ -44,6 +46,7 @@ export function stepCaller(ctx: StepContext, sandbox: SkillSandbox | null = null
     signal: ctx.signal,
     note: (note) => ctx.emit("tool", note),
     sandbox,
+    askExtra: ctx.askExtra,
   };
 }
 

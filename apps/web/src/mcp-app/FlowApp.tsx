@@ -104,6 +104,7 @@ interface RunReport {
     | { review: string; title: string; show: string[]; editable: boolean; approve?: boolean }
     | { ask: string; kind: "confirm"; reason: string; service: string; action: string }
     | { ask: string; kind: "login"; reason: string; site: string }
+    | { ask: string; kind: "extra"; reason: string }
     | { question: string; title: string };
   error: string | null;
   credits: number;
@@ -744,11 +745,15 @@ function RunPanel({
     );
   } else if (waiting && "ask" in waiting) {
     body =
-      waiting.kind === "confirm" ? (
+      waiting.kind === "confirm" || waiting.kind === "extra" ? (
         <div className="flex flex-col gap-2">
-          <div className="font-medium text-[0.8125rem]">{t("flowApp.ask")}</div>
+          <div className="font-medium text-[0.8125rem]">
+            {t(waiting.kind === "extra" ? "extra.asks" : "flowApp.ask")}
+          </div>
           <p className="text-[0.8125rem] text-ink-2">
-            {waiting.reason} — {waiting.service}: {waiting.action}
+            {waiting.kind === "extra"
+              ? `${waiting.reason} · ${t("extra.what")}`
+              : `${waiting.reason} — ${waiting.service}: ${waiting.action}`}
           </p>
           <div className="flex gap-2">
             <Button
@@ -756,7 +761,7 @@ function RunPanel({
               busy={busy}
               onClick={() => act("answer_ask", { askId: waiting.ask, answer: "allow" })}
             >
-              {t("flowApp.allow")}
+              {t(waiting.kind === "extra" ? "extra.yes" : "flowApp.allow")}
             </Button>
             <Button
               size="sm"
@@ -764,7 +769,7 @@ function RunPanel({
               disabled={busy}
               onClick={() => act("answer_ask", { askId: waiting.ask, answer: "skip" })}
             >
-              {t("flowApp.skip")}
+              {t(waiting.kind === "extra" ? "extra.no" : "flowApp.skip")}
             </Button>
           </div>
         </div>

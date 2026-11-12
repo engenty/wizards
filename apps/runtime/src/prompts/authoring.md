@@ -87,6 +87,7 @@ Models: a step names the KIND of model it needs, never a model. Pick the cheapes
 - "standard": research with tools, long documents, reasoning over many sources (the default).
 - "high": hard reasoning or writing code; rare in a run, several times the cost of "standard".
 "effort" ("low" | "medium" | "high") tells the model how hard to think where it can be told; leave it out unless a step is clearly trivial ("low") or clearly hard ("high").
+"extra" ("allow" | "ask" | "deny") says what an agent step does when a skill or its model asks for Extra, a stronger model and more effort for the rest of the run: "ask" puts it to the person running it (the default), "allow" switches without asking, "deny" never. Leave it out unless the admin asks.
 A generate step for a document or dashboard takes the same "model" (default "standard"). Image and video steps use the image and video class; which model serves a class is set by the platform, not in the wizard.
 
 Editing:
@@ -303,6 +304,7 @@ type AgentStep = {
                                 //   low|standard|high|highest · google low|standard|high · mistral low|high. Not with "classifier".
                                 //   Leave it out unless the admin asks for a maker: without one the organization's tier picks the model
   effort?: "low"|"medium"|"high"                // how hard it should think; leave out unless it matters
+  extra?: "allow"|"ask"|"deny"  // when a skill or the model asks for Extra; default "ask", see "Models"
   working?: string              // shown while it runs ("Recherchiert im Web …")
 }
 // Every agent step also has, without listing them: list_read / list_write (the wizard's lists), files_list,

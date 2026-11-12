@@ -16,6 +16,7 @@ import {
   textClassOf,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
+import { skillExtra } from "@engenty/wizards-shared/extra";
 import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
 import {
@@ -68,13 +69,14 @@ import { agentTools, stepOfAgent } from "../tools/agent.js";
 import { callConnection } from "../tools/connector.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool, spaceContextOf } from "../tools/plugin.js";
-import { skillsBlock, skillsOf } from "../tools/skills.js";
+import { skillsBlock, skillsOf, withSkillsOf } from "../tools/skills.js";
 import { personUploads, type UploadRef } from "../tools/store.js";
 import { runWidgetStep } from "../widgets/step.js";
 import { runCodeStep } from "./code-step.js";
 import { runStepData } from "./data-step.js";
 import { decide } from "./decide.js";
 import { durableTurn, turnContext, turnOf } from "./durable-turn.js";
+import { decideExtra, extraSwitch, needExtraTool, resolveStepModel, stepModelOf } from "./extra.js";
 import { prepareInputs } from "./prepare.js";
 import { runSurfaceStep } from "./surface.js";
 import {
@@ -300,16 +302,23 @@ function foundLines(step: AgentStep, ctx: StepContext) {
   };
 }
 
+/** What an agent step's call takes: its limit, its cancel, and Extra's switch per model call. */
+interface StepCallOptions {
+  maxSteps: number;
+  abortSignal: AbortSignal;
+  prepareStep?: (args: { stepNumber: number }) => Promise<unknown>;
+}
+
 /** Runs a json step's agent as a stream, with `foundLines`. Returns what `generate` would: the text, the steps and the usage. */
 async function streamWithProgress(
   agent: Agent,
   message: Parameters<Agent["stream"]>[0],
-  options: { maxSteps: number; abortSignal: AbortSignal },
+  options: StepCallOptions,
   step: AgentStep,
   ctx: StepContext,
 ): Promise<{ text: string; steps?: { text?: string }[]; usage?: unknown; totalUsage?: unknown }> {
   const found = foundLines(step, ctx);
-  const stream = await agent.stream(message, options);
+  const stream = await agent.stream(message, options as never);
   for await (const chunk of stream.fullStream as AsyncIterable<any>) {
     const payload = chunk.payload ?? chunk;
     if (chunk.type === "text-delta") {
@@ -641,10 +650,11 @@ function callPluginToolOnce(tool: string, input: unknown, ctx: StepContext) {
  */
 export async function runAgentStep(
   step: AgentStep,
-  ctx: StepContext,
+  outer: StepContext,
   decision = false,
   agentPart?: string,
 ): Promise<StepOutput> {
+  let ctx = outer;
   if (step.agent) {
     // An agent of the wizard runs the step: its file gives the model and the tools.
     const ran = await stepOfAgent({ ...step, agent: step.agent }, ctx);
@@ -653,16 +663,27 @@ export async function runAgentStep(
   if (step.foreach) {
     return runAgentEach(step, ctx, agentPart);
   }
-  const resolved = await textModel(textClassOf(step.model ?? "standard"), {
-    ...ctx.call,
-    effort: step.effort,
-    makerClass: step.maker ? classIdOf(step, "standard") : undefined,
-  });
+  // A run on Extra runs each AI step one step up (docs/plans/extra.md). A skill always on that
+  // needs a stronger model asks before the step picks its model.
+  if (!decision) {
+    for (const k of (await skillsOf(ctx)).always) {
+      const reason = skillExtra(k);
+      if (reason) {
+        await decideExtra(step, ctx, reason, { kind: "skill", name: k.name });
+      }
+    }
+  }
+  const resolved = await resolveStepModel(await stepModelOf(step, ctx), ctx);
   const uploads = await personUploads(ctx);
   // An installed client or the run's device keeps its tool loop in a process of its own: nothing
   // of it could go on elsewhere, so such a step runs as a step without `durable`.
   const going = turnOf(ctx.state, step.id);
   const turn = going && !keepsOwnLoop(resolved) ? going : undefined;
+  // A skill or the model may ask for Extra; a durable turn takes it from the next AI step.
+  const extra = decision ? null : extraSwitch(step, ctx, resolved, { mid: !turn });
+  if (extra) {
+    ctx = withSkillsOf(outer, { ...outer, askExtra: extra.ask });
+  }
   const { tools, assets, instructions } = await buildStepTools(
     step,
     turn ? turnContext(ctx, turn) : ctx,
@@ -671,6 +692,9 @@ export async function runAgentStep(
   );
   // The wizard's agents the step lists, each a tool that runs an agent step of its own.
   Object.assign(tools, await agentTools(step, ctx, (sub, c) => runAgentStep(sub, c)));
+  if (extra && step.extra !== "deny") {
+    Object.assign(tools, needExtraTool(extra.ask));
+  }
   // A step written for the sandbox on a run without one works on in text: said in the run's log.
   if (step.tools.includes("sandbox") && !ctx.resources.sandboxCapabilities()) {
     await ctx.emit("info", { code: "noSandbox" });
@@ -793,11 +817,21 @@ export async function runAgentStep(
       tools,
     });
     // A json step streams, so the person sees its entries as they are written (`found`).
+    // Extra granted in the middle of the step switches its next model call.
+    const options: StepCallOptions = {
+      maxSteps,
+      abortSignal: ctx.signal,
+      ...(extra ? { prepareStep: extra.prepareStep } : {}),
+    };
     result =
       step.output.format === "json"
-        ? await streamWithProgress(agent, message, { maxSteps, abortSignal: ctx.signal }, step, ctx)
-        : await agent.generate(message, { maxSteps, abortSignal: ctx.signal });
-    await ctx.chargeUsd(costOf(resolved, await totalUsage(result)));
+        ? await streamWithProgress(agent, message, options, step, ctx)
+        : await agent.generate(message, options as never);
+    if (extra) {
+      await extra.charge(result);
+    } else {
+      await ctx.chargeUsd(costOf(resolved, await totalUsage(result)));
+    }
   }
   // `result.text` strings together what the model said between tool calls ("I open the page …").
   // A written result is its last message; structuring keeps everything, numbers may sit anywhere.
