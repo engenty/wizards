@@ -115,7 +115,9 @@ export const runStore = {
       .select({ at: min(schema.run.createdAt) })
       .from(schema.run)
       .innerJoin(schema.wizard, eq(schema.run.wizardId, schema.wizard.id))
-      .where(and(eq(schema.wizard.spaceId, spaceId), notInArray(schema.run.status, [...RUN_ENDED])));
+      .where(
+        and(eq(schema.wizard.spaceId, spaceId), notInArray(schema.run.status, [...RUN_ENDED])),
+      );
     return oldest?.at ?? null;
   },
 
