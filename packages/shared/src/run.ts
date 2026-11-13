@@ -27,6 +27,9 @@ export type RunStatus =
   | "failed"
   | "cancelled";
 
+/** The statuses a run stays in once it is over; any other is still going, a wait included. */
+export const RUN_ENDED: ReadonlySet<RunStatus> = new Set(["done", "failed", "cancelled"]);
+
 /** A person can step back from these; `RunView.canBack` and `goBack` read this one list. */
 export const CAN_GO_BACK: ReadonlySet<RunStatus> = new Set(["waiting_input", "done", "failed"]);
 

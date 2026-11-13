@@ -1,9 +1,10 @@
-import type {
-  AskAnswer,
-  RunAsk,
-  RunHostRef,
-  RunState,
-  RunStatus,
+import {
+  type AskAnswer,
+  RUN_ENDED,
+  type RunAsk,
+  type RunHostRef,
+  type RunState,
+  type RunStatus,
 } from "@engenty/wizards-shared/run";
 import { and, eq, inArray, isNull, lt, min, ne, notInArray, or, type SQL, sql } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
@@ -23,13 +24,11 @@ export interface RunGuard {
   rev?: number;
   status?: RunStatus;
   below?: number;
+  open?: boolean;
 }
 
 /** Statements that go into one batch with a write, built on the write's condition. */
 type Alongside = (where: SQL) => unknown[];
-
-/** The statuses a run stays in once it is over; any other is still going, a wait included. */
-const ENDED = ["done", "failed", "cancelled"] as const;
 
 /**
  * The one way to the run's row (`schema.run`) for a run under way: every read and write of it goes
@@ -44,6 +43,7 @@ export const runStore = {
       guard.rev === undefined ? undefined : eq(schema.run.rev, guard.rev),
       guard.status === undefined ? undefined : eq(schema.run.status, guard.status),
       guard.below === undefined ? undefined : lt(schema.run.rev, guard.below),
+      guard.open ? notInArray(schema.run.status, [...RUN_ENDED]) : undefined,
     ) as SQL;
   },
 
@@ -115,7 +115,7 @@ export const runStore = {
       .select({ at: min(schema.run.createdAt) })
       .from(schema.run)
       .innerJoin(schema.wizard, eq(schema.run.wizardId, schema.wizard.id))
-      .where(and(eq(schema.wizard.spaceId, spaceId), notInArray(schema.run.status, [...ENDED])));
+      .where(and(eq(schema.wizard.spaceId, spaceId), notInArray(schema.run.status, [...RUN_ENDED])));
     return oldest?.at ?? null;
   },
 
@@ -126,7 +126,7 @@ export const runStore = {
       where: and(
         eq(schema.run.wizardId, wizardId),
         sql`json_extract(${schema.run.startedBy}, '$.startId') = ${startId}`,
-        notInArray(schema.run.status, [...ENDED]),
+        notInArray(schema.run.status, [...RUN_ENDED]),
         // This time's own run is not an overlap: the same look by another runner, or before a crash.
         or(isNull(schema.run.occurrence), ne(schema.run.occurrence, occurrence)),
       ),

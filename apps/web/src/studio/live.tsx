@@ -117,7 +117,14 @@ export function useLiveDraft(wizardId: string | undefined) {
           return;
         }
         // Written elsewhere meanwhile: put the studio's edits on top of that version, save again.
-        const fresh = await api.get<WizardDetail>(path);
+        const fresh = await api.get<WizardDetail>(path).catch((e) => {
+          console.error("[draft] reading the saved version failed", e);
+          return null;
+        });
+        if (!fresh) {
+          pending.current ??= local;
+          return;
+        }
         const draft = mergeDrafts(
           base.current ?? fresh.draft,
           pending.current ?? local,
@@ -133,6 +140,8 @@ export function useLiveDraft(wizardId: string | undefined) {
         setSaving(false);
       }
     });
+    // One save that throws leaves the next ones their turn.
+    queue.current = queue.current.catch((e) => console.error("[draft] save failed", e));
   }, [qc, key, path]);
 
   const save = useCallback(

@@ -73,9 +73,9 @@ import { useNavigate } from "react-router";
 import { Mascot } from "../brand";
 import { ENGENTY_FILL, ENGENTY_KIND_FILL, type EngentyKind } from "../engenty/colors";
 import { api } from "../lib/api";
-import { lang, t } from "../lib/i18n";
+import { type Key, lang, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
-import { useCurrentSpace, useMayCreate } from "../lib/session";
+import { useCurrentSpace, useMayCreate, useMe } from "../lib/session";
 import { useTheme } from "../lib/theme";
 import { Button, Card, Chip, cn, Dialog, Spinner } from "../ui";
 import { TYPE_TONE } from "./editor/meta";
@@ -202,6 +202,8 @@ function EntryCard({
   /** Why it stands where it does for the organization: its sector, its wishes. */
   why?: string | null;
 }) {
+  // Only a setup is missing here: the card is dimmed but its button to that setup is not.
+  const lacking = entry.usable && entry.missing.length > 0 && !entry.needs?.length;
   return (
     <Card
       role="button"
@@ -215,14 +217,15 @@ function EntryCard({
       }}
       className={cn(
         "relative flex min-h-[124px] cursor-pointer flex-col gap-5 p-4 text-left transition sm:min-h-[136px] sm:p-5 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
-        (!entry.usable || entry.missing.length > 0 || Boolean(entry.needs?.length)) && "opacity-60",
+        // A card that only lacks a setup dims its parts, not its button to that setup.
+        (!entry.usable || Boolean(entry.needs?.length)) && "opacity-60",
       )}
     >
       {/* engenty sits on the card's corner, a little over its edge. */}
-      <span className="-top-4 pointer-events-none absolute right-4">
+      <span className={cn("-top-4 pointer-events-none absolute right-4", lacking && "opacity-60")}>
         <Mascot kind={entry.avatar} costume={entry.costume} size={68} />
       </span>
-      <div className="min-w-0 pr-20">
+      <div className={cn("min-w-0 pr-20", lacking && "opacity-60")}>
         {/* A block, not a flex row: Safari sizes a card too short for a title that wraps in a flex row. */}
         <div className="font-display font-semibold text-[0.9375rem]">
           {entry.title}
@@ -251,7 +254,7 @@ function EntryCard({
         {entry.needs?.length ? (
           <Chip tone="warn">{t("market.needsPro", { list: entry.needs.join(", ") })}</Chip>
         ) : entry.usable && entry.missing.length ? (
-          <Chip tone="warn">{t("market.missing", { list: capabilityList(entry.missing) })}</Chip>
+          <MissingNotice missing={entry.missing} />
         ) : entry.usable ? (
           <>
             <span className="inline-flex items-center gap-1">
@@ -291,6 +294,78 @@ function Fact({ title, children }: { title: string; children: ReactNode }) {
 /** Capabilities by name, as one says them in a sentence. */
 const capabilityList = (capabilities: Capability[]) =>
   capabilities.map((c) => label("capability", c)).join(", ");
+
+/** The page of Settings → Models that sets up a capability the runtime has no model for. */
+const SETUP_PAGE: Partial<Record<Capability, string>> = {
+  text: "text",
+  documents: "text",
+  image: "image",
+  video: "video",
+  speech: "speech",
+  listening: "listening",
+  // Motion graphics run in Claude Code, chosen as the AI subscription for text.
+  "motion-graphics": "claude",
+};
+
+/**
+ * Where the missing capabilities are set up, and what the button and the hint say. The cloud
+ * has no Claude Code: there motion graphics have no setup, only the hint.
+ */
+function setupOf(
+  missing: Capability[],
+  cloud: boolean,
+): { path: string | null; action: Key; hint: string } {
+  const list = capabilityList(missing);
+  const motion = missing.includes("motion-graphics");
+  const models = missing.filter((c) => c !== "motion-graphics");
+  if (motion && cloud && !models.length) {
+    return { path: null, action: "market.setUpModels", hint: t("market.motionCloud") };
+  }
+  const first = motion && !cloud ? "motion-graphics" : models[0];
+  const page = first ? SETUP_PAGE[first] : undefined;
+  return {
+    path: page ? `/settings/models?show=${page}` : "/settings/models",
+    action: first === "motion-graphics" ? "market.setUpClaude" : "market.setUpModels",
+    hint: first === "motion-graphics" ? t("market.motionHint") : t("market.missingHint", { list }),
+  };
+}
+
+function useSetup(missing: Capability[]) {
+  const me = useMe();
+  return setupOf(missing, me.data?.mode === "managed");
+}
+
+/** What a card lacks here, in words that wrap inside the card, with a button to its setup. */
+function MissingNotice({ missing }: { missing: Capability[] }) {
+  const navigate = useNavigate();
+  const setup = useSetup(missing);
+  return (
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+      <span
+        title={setup.hint}
+        className="min-w-0 rounded-xl bg-amber-tint px-2.5 py-1 font-medium text-[0.75rem] text-ink-2 leading-snug [overflow-wrap:anywhere]"
+      >
+        {setup.path
+          ? t("market.missing", { list: capabilityList(missing) })
+          : t("market.motionCloudShort")}
+      </span>
+      {setup.path ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={(e) => {
+            // The card opens the template; the button goes to the setup instead.
+            e.stopPropagation();
+            navigate(setup.path as string);
+          }}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          {t(setup.action)}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
 
 const CAPABILITY_ICONS: Record<Capability, LucideIcon> = {
   text: PenLine,
@@ -437,6 +512,9 @@ function FadeScroll({ className, children }: { className?: string; children: Rea
   );
 }
 
+/** How long the dialog waits for an entry's details before it says they did not come. */
+const DETAIL_TIMEOUT_MS = 20_000;
+
 /** `fallback`: the entry as the list has it, shown until the marketplace has answered. */
 export function EntryDialog({
   id,
@@ -456,12 +534,17 @@ export function EntryDialog({
   const navigate = useNavigate();
   const detail = useQuery({
     queryKey: ["marketplace-entry", id, lang],
-    queryFn: () =>
-      api.get<EntryDetail>(`/api/studio/marketplace/${encodeURIComponent(id!)}?lang=${lang}`),
+    // A call that gets no answer ends: the dialog says so instead of waiting on.
+    queryFn: ({ signal }) =>
+      api.get<EntryDetail>(
+        `/api/studio/marketplace/${encodeURIComponent(id!)}?lang=${lang}`,
+        AbortSignal.any([signal, AbortSignal.timeout(DETAIL_TIMEOUT_MS)]),
+      ),
     enabled: Boolean(id),
     retry: false,
   });
   const entry = detail.data ?? fallback;
+  const setup = useSetup(entry?.missing ?? []);
   // A starred entry is kept on this machine, for use without a connection.
   const star = useMutation({
     mutationFn: (on: boolean) => {
@@ -583,6 +666,7 @@ export function EntryDialog({
                 </Fact>
                 <Fact title={t("market.result")}>
                   <div className="flex flex-col gap-2">
+                    {detail.isLoading ? <Spinner className="size-4 text-ink-3" /> : null}
                     {(detail.data?.results ?? []).map((r) => (
                       <Detail
                         key={r.title}
@@ -628,6 +712,9 @@ export function EntryDialog({
                       );
                     })}
                   </ul>
+                  {entry.missing.length ? (
+                    <p className="mt-2.5 text-[0.8125rem] text-ink-3 leading-snug">{setup.hint}</p>
+                  ) : null}
                 </Fact>
               </div>
               <div className="flex flex-col sm:min-h-0">
@@ -637,6 +724,18 @@ export function EntryDialog({
                 <FadeScroll className="-mr-2 overscroll-contain pt-1 pr-2 pl-1 sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
                   {detail.isLoading ? (
                     <Spinner className="size-5 text-ink-3" />
+                  ) : detail.isError ? (
+                    <div className="flex flex-col items-start gap-2 text-[0.875rem] text-ink-2">
+                      <p>{t("market.detailFailed")}</p>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        busy={detail.isFetching}
+                        onClick={() => void detail.refetch()}
+                      >
+                        {t("market.retry")}
+                      </Button>
+                    </div>
                   ) : (
                     <Suspense fallback={<Spinner className="size-5 text-ink-3" />}>
                       <FlowPreview steps={previewSteps(detail.data?.outline ?? [])} />
@@ -652,7 +751,7 @@ export function EntryDialog({
               </p>
             </div>
           )}
-          <div className="flex shrink-0 justify-end gap-2 px-5 pt-4 pb-5 max-sm:border-border-soft max-sm:border-t sm:px-7 sm:pb-6">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2 px-5 pt-4 pb-5 max-sm:border-border-soft max-sm:border-t sm:px-7 sm:pb-6">
             {/* A plugin's starter is always here: there is nothing to keep for offline use. */}
             {entry.plugin ? (
               <span className="mr-auto flex items-center">
@@ -676,9 +775,9 @@ export function EntryDialog({
             <Button variant="secondary" onClick={onClose}>
               {t("common.close")}
             </Button>
-            {entry.usable && entry.missing.length ? (
-              <Button variant="secondary" onClick={() => navigate("/settings/models")}>
-                {t("editor.models.settings")}
+            {entry.usable && entry.missing.length && setup.path ? (
+              <Button variant="secondary" onClick={() => navigate(setup.path as string)}>
+                {t(setup.action)}
               </Button>
             ) : null}
             {onUse ? (
@@ -688,7 +787,7 @@ export function EntryDialog({
                   entry.needs?.length
                     ? t("market.needsProHint", { list: entry.needs.join(", ") })
                     : entry.missing.length
-                      ? t("market.missingHint", { list: capabilityList(entry.missing) })
+                      ? setup.hint
                       : entry.optional?.length
                         ? t("market.optionalHint", { list: capabilityList(entry.optional) })
                         : undefined

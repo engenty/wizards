@@ -76,6 +76,8 @@ export function VoiceField({
   const picker = useRef<HTMLInputElement>(null);
   const type = recordingType();
   const canRecord = canUseMedia && Boolean(type);
+  const busy = useRef(onBusy);
+  busy.current = onBusy;
 
   useEffect(
     () => () => {
@@ -83,6 +85,7 @@ export function VoiceField({
       if (session.current) {
         session.current.recorder.onstop = null;
         session.current.stop();
+        busy.current?.(false);
       }
     },
     [],
@@ -175,6 +178,8 @@ export function VoiceField({
       const ext = mime === "audio/mp4" ? "m4a" : mime === "audio/ogg" ? "ogg" : "webm";
       const length = Math.max(1, Math.round((Date.now() - began) / 1000));
       void keep(new File(chunks, `sprachnotiz-${stamp()}.${ext}`, { type: mime }), length);
+      // The recording is over; the upload that began just now holds the field busy from here.
+      onBusy?.(false);
     };
     session.current = { recorder, stop };
     onBusy?.(true);

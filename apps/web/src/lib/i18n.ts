@@ -2406,8 +2406,17 @@ const de: Record<Key, Line> = {
   "market.needsProHint":
     "Diese Vorlage braucht {list}. Die Plugins sind mit Pro und Team auf engenty.ai dabei.",
   "market.missingHint": "Dafür fehlt hier ein Modell: {list}. Richte es unter Modelle ein.",
+  "market.setUpModels": "Modell einrichten",
+  "market.setUpClaude": "Claude Code einrichten",
+  "market.motionHint":
+    "Motion-Grafik macht Claude Code auf diesem Computer mit deinem Abo. Melde dich dort an und verwende es für Text & Denken.",
+  "market.motionCloud":
+    "Motion-Grafik macht Claude Code auf deinem Computer. In der Cloud läuft diese Vorlage nicht.",
+  "market.motionCloudShort": "Läuft nur auf deinem Computer",
   "market.none": "Keine Vorlage passt zu dieser Auswahl.",
   "market.notFound": "Diese Vorlage gibt es nicht, oder sie wurde entfernt.",
+  "market.detailFailed": "Der Ablauf ließ sich gerade nicht laden.",
+  "market.retry": "Noch einmal laden",
   "market.star": "Merken",
   "market.starred": "Gemerkt",
   "market.starHint": "Gemerkte Vorlagen liegen auf diesem Computer bereit, auch ohne Verbindung.",
@@ -7423,8 +7432,17 @@ const en = {
     "This template needs {list}. The plugins come with Pro and Team on engenty.ai.",
   "market.missingHint":
     "This needs a model that isn’t set up here: {list}. Set it up under Models.",
+  "market.setUpModels": "Set up a model",
+  "market.setUpClaude": "Set up Claude Code",
+  "market.motionHint":
+    "Claude Code makes the motion graphics on this computer, using your subscription. Sign in there and use it for Text & reasoning.",
+  "market.motionCloud":
+    "Claude Code makes motion graphics on your computer. This template doesn’t run in the cloud.",
+  "market.motionCloudShort": "Runs only on your computer",
   "market.none": "No matches.",
   "market.notFound": "This template doesn’t exist or was removed.",
+  "market.detailFailed": "The steps couldn’t be loaded right now.",
+  "market.retry": "Load again",
   "market.star": "Star",
   "market.starred": "Starred",
   "market.starHint": "Starred templates are kept on this computer, ready without a connection.",

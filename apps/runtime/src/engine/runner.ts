@@ -370,12 +370,18 @@ const standsStill = (copy: CopySeen | null, status: RunStatus | undefined, curso
 /**
  * Writes the run. Inside its drive the write needs the drive's claim; with `seen`, a person's write
  * needs the `rev` it read, and a wait's write the status it came from: a cancel wins over either. A
- * step may start or answer other runs: only its own run's claim counts.
+ * step may start or answer other runs: only its own run's claim counts. With `"open"` the write
+ * holds only on a run that has not ended, and says with `false` that it found none.
  */
-async function updateRun(runId: string, patch: RunPatch, seen?: Seen, by?: Actor) {
+async function updateRun(
+  runId: string,
+  patch: RunPatch,
+  seen?: Seen | "open",
+  by?: Actor,
+): Promise<boolean> {
   const holder = driving.getStore();
   const held = holder?.runId === runId ? holder : undefined;
-  const copy = seen && "copy" in seen ? seen.copy : null;
+  const copy = seen && seen !== "open" && "copy" in seen ? seen.copy : null;
   // The notices go in with the status: all of it happens, or none.
   const notices = standsStill(copy, patch.status, patch.cursor)
     ? []
@@ -385,13 +391,20 @@ async function updateRun(runId: string, patch: RunPatch, seen?: Seen, by?: Actor
     patch,
     {
       claim: held?.generation,
-      ...(copy ? { status: copy.status, below: copy.below } : seen),
+      ...(copy
+        ? { status: copy.status, below: copy.below }
+        : seen === "open"
+          ? { open: true }
+          : seen),
     },
     notices.length ? (where) => noticeWrites(notices, where) : undefined,
   );
   if (changed === 0) {
     if (held) {
       throw new LostClaim();
+    }
+    if (seen === "open") {
+      return false;
     }
     if (seen) {
       throw new RunConflict({ code: "runBusy" });
@@ -403,6 +416,7 @@ async function updateRun(runId: string, patch: RunPatch, seen?: Seen, by?: Actor
     await statusMoved(runId, copy?.status ?? null, patch.status);
   }
   signalChanged(runId);
+  return true;
 }
 
 const isOver = (status: RunStatus) =>
@@ -977,7 +991,12 @@ async function driveClaimed(
         await withTenant(tenant, async () => {
           const run = await loadRun(runId);
           const lang = run ? textLang(wizardLang(run.definition)) : "en";
-          await updateRun(runId, { status: "failed", error: saidText(friendly(err), lang) });
+          // A run that ended meanwhile, a cancel among them, stays as it ended.
+          await updateRun(
+            runId,
+            { status: "failed", error: saidText(friendly(err), lang) },
+            "open",
+          );
         }).catch((e) => console.error(`[run ${runId}] marking it failed:`, e));
       }),
     )
@@ -1216,7 +1235,9 @@ async function stepContext(
     emit:
       own.emit ?? ((type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset)),
     ...(own.share ? { share: true } : {}),
-    saveState: () => updateRun(run.id, { state }),
+    saveState: async () => {
+      await updateRun(run.id, { state });
+    },
     turns: runTurns(run.id),
     durable: await effectsOn(),
   };
@@ -2139,7 +2160,10 @@ export async function retry(runId: string) {
 
 export async function cancel(runId: string) {
   active.get(runId)?.abort();
-  await updateRun(runId, { status: "cancelled", wakeAt: null });
+  // A run that is over already stays as it ended.
+  if (!(await updateRun(runId, { status: "cancelled", wakeAt: null }, "open"))) {
+    return;
+  }
   // After the row: a crash in between gives a wake that finds the run over, never a lost cancel.
   await setWake(runId, null);
 }

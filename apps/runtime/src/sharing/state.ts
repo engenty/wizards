@@ -63,11 +63,17 @@ async function settled(row: JobRow): Promise<JobRow> {
     return row;
   }
   const error = serverText(row.request.lang ?? "en", "shareInterrupted");
-  await db
+  const ended = await db
     .update(schema.shareJob)
     .set({ status: "failed", error, updatedAt: new Date() })
-    .where(eq(schema.shareJob.id, row.id));
-  return { ...row, status: "failed", error };
+    .where(and(eq(schema.shareJob.id, row.id), eq(schema.shareJob.status, "running")))
+    .returning();
+  // Ended meanwhile: it stays as it ended.
+  return (
+    ended[0] ??
+    (await db.query.shareJob.findFirst({ where: eq(schema.shareJob.id, row.id) })) ??
+    row
+  );
 }
 
 export async function createJob(input: {
