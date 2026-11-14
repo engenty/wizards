@@ -1722,13 +1722,15 @@ export const runRoutes = new Hono()
     }
     const space = await spaceSignIn(c, run, connection);
     if (space) {
-      return c.json({ url: await startSpaceConnectionOAuth(space.id, space.as, requestLang(c)) });
+      return c.json({
+        url: await startSpaceConnectionOAuth(space.id, space.as, requestLang(c), run.id),
+      });
     }
     if ((await wantsForSpace(c)).forSpace) {
       try {
         const made = await spaceConnectionFromRun(c, run, connection);
         const url = await asRole(made.role, () =>
-          startSpaceConnectionOAuth(made.id, { as: "space" }, requestLang(c)),
+          startSpaceConnectionOAuth(made.id, { as: "space" }, requestLang(c), run.id),
         );
         return c.json({ url });
       } catch (err) {
@@ -2200,7 +2202,15 @@ export const connectCallback = new Hono().get("/callback", async (c) => {
       if (pluginTenant) {
         await withTenant(tenant, () => finishPluginOAuth(answer, state));
       } else if (spaceTenant) {
-        await withTenant(tenant, () => finishSpaceConnectionOAuth(answer, state));
+        const done = await withTenant(tenant, () => finishSpaceConnectionOAuth(answer, state));
+        // Signed in from a run's connect card: the run looks again now.
+        if (done.runId) {
+          const runId = done.runId;
+          signalChanged(runId);
+          await withTenant(tenant, () => signedIn(runId)).catch((err) =>
+            console.error("[connect] wake", err),
+          );
+        }
       } else {
         const done = await withTenant(tenant, () => finishOAuth(answer, state));
         signalChanged(done.runId);

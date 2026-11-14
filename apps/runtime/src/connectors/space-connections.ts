@@ -691,6 +691,8 @@ interface SpaceConnectionOAuthState {
   verifier: string;
   exp: number;
   lang?: Lang;
+  /** Started from a run's connect card: the run hears of it and looks again. */
+  runId?: string;
 }
 
 /** The provider rights the connection's actions need, and the connector's base rights. */
@@ -712,6 +714,8 @@ export async function startSpaceConnectionOAuth(
   id: string,
   as: SignInAs,
   lang?: Lang,
+  /** The run whose connect card started it. */
+  runId?: string,
 ): Promise<string> {
   const row = await spaceConnectionById(id);
   await allowSignIn(row, as);
@@ -726,6 +730,7 @@ export async function startSpaceConnectionOAuth(
     userId: as.as === "person" ? as.userId : null,
     exp: Date.now() + 15 * 60_000,
     lang,
+    ...(runId ? { runId } : {}),
   };
   if (await viaAccount(connector)) {
     // The Manage-App keeps the PKCE verifier; ours stays empty.
@@ -763,7 +768,7 @@ export function spaceConnectionStateTenant(rawState: string): string | null {
 export async function finishSpaceConnectionOAuth(
   answer: { code: string } | { ticket: string },
   rawState: string,
-): Promise<{ connectionId: string }> {
+): Promise<{ connectionId: string; runId: string | null }> {
   const state = unseal<SpaceConnectionOAuthState>(rawState);
   if (!state?.spaceConnection || state.exp < Date.now()) {
     throw new Error("The sign-in has expired. Sign in again.");
@@ -812,7 +817,7 @@ export async function finishSpaceConnectionOAuth(
     throw new Error("The connection no longer signs in per person.");
   }
   await keepSignIn(row, as, account.label, stored);
-  return { connectionId: row.id };
+  return { connectionId: row.id, runId: state.runId ?? null };
 }
 
 /** Forgets a sign-in: the space's (admins) or the person's own. */
