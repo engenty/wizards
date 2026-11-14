@@ -353,7 +353,7 @@ describe("a run a start began, with no person", () => {
     const id = await spaceConnection({ audience: "members" });
     try {
       const run = await runRow();
-      const started = { kind: "store_secret" as const, def: crm, scope: { wizardId, holder: `r:${run}`, started: true as const }, spaceId: space };
+      const started = { kind: "store_secret" as const, def: crm, scope: { wizardId, holder: `r:${run}`, unwatched: true as const }, spaceId: space };
       // Nobody is there: the step calls for a guest, as the run's holder says.
       const step = { kind: "step" as const, id: "read", for: { kind: "guest" as const, id: run } };
       const call = (connection: typeof started | Omit<typeof started, "scope"> & { scope: { wizardId: string; holder: string } }) =>

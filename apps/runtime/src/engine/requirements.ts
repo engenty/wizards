@@ -528,7 +528,7 @@ export async function missingConnectionsSaid(
 }
 
 /**
- * The needs a run a start began (`scope.started`) has no account for: one a step every run passes
+ * The needs a run nobody watches (`scope.unwatched`: a start's, a channel's) has no account for: one a step every run passes
  * through uses, where the space's admins chose no connection for runs nobody watches
  * (`spaceHolder`). Nobody is there to connect or choose one, so such a run does not start. With
  * `runConnections` off the space's connections aren't offered, and nothing is said here. A need
@@ -540,7 +540,7 @@ export async function unwatchedConnectionsSaid(
   scope: StoreScope,
   spaceId: string,
 ): Promise<MissingConnectionSaid[]> {
-  if (!scope.started || !def.connections?.length || !(await runConnectionsOn())) {
+  if (!scope.unwatched || !def.connections?.length || !(await runConnectionsOn())) {
     return [];
   }
   const unavoidable = unavoidableSteps(def);
