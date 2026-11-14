@@ -1,0 +1,28 @@
+{
+  "name": "@engenty/wizards-kernel",
+  "version": "0.0.0",
+  "description": "A spike: a wizard as a file of edges and one function per step, moved by a cursor. Runs in Node and in a Durable Object.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "wizards-source": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@jitl/quickjs-wasmfile-release-sync": "0.31.0",
+    "quickjs-emscripten-core": "0.31.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "esbuild": "0.28.2",
+    "miniflare": "^4.20251011.0",
+    "typescript": "~7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
