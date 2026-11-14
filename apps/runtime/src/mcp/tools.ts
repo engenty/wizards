@@ -3,7 +3,7 @@ import { signalNameSchema } from "@engenty/wizards-shared/definition";
 import { describeStart, startInputSchema } from "@engenty/wizards-shared/starts";
 import type { CallToolResult, McpServer, ToolCallback } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { authoringGuide } from "../authoring/guide.js";
+import { authoringGuide, guideMail } from "../authoring/guide.js";
 import { wizardOpSchema } from "../authoring/ops.js";
 import { importFromRegistry, listConnectors, searchRegistry } from "../connectors/external.js";
 import { guideSpaceConnections } from "../connectors/space-connections.js";
@@ -305,6 +305,7 @@ export function registerTools(server: McpServer, who: Principal) {
       const space = await studioSpace(spaceId);
       return authoringGuide(
         await listConnectors(space.id),
+        await guideMail(),
         await pluginToolsOf(who.tenantId),
         await guideSpaceConnections(space.id),
         await currentFeatures(),

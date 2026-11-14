@@ -144,7 +144,7 @@ type List = {
 
 type Connection =
   | { id, kind: "mail", title?, description? }
-      // the person picks how to connect (Gmail, Outlook, or any mailbox over IMAP); steps only ever READ it
+      // the person picks how to connect, from the mail connectors listed below that connect here; steps only ever READ it
   | { id, spaceConnection: spaceConnectionId, actions?: actionId[], title?, description? }
       // a connection of the SPACE (listed below), set up by its admins, who chose how it signs in, who may use it and
       //   what each kind of action may do; the wizard holds no account and "policy" has no say. Where it signs in as
@@ -706,8 +706,18 @@ Connectors a wizard of this space can use (built in, or imported from the integr
 ${connectors}
 
 <!-- section: line.connectors.not_set_up -->
-<!-- After a connector's name, behind " — ", when people cannot connect an account on this server. -->
-NOT SET UP on this server: tell the admin before you build on it
+<!-- After a connector's name, behind " — ", when people cannot connect an account on this server; line.connectors.settings may follow. -->
+CAN'T CONNECT on this server yet: don't build on it, and don't name it as a way to connect
+
+<!-- section: line.connectors.settings -->
+<!-- After line.connectors.not_set_up where the settings are known; settings: the environment variables, comma-separated. -->
+(the server's owner sets ${settings})
+
+<!-- section: line.connectors.mail -->
+<!-- connectors: one "- name" line per connector behind kind "mail", with line.connectors.not_set_up where it can't connect. -->
+A connection of kind "mail" connects a mailbox here with these connectors; the person picks one:
+${connectors}
+Name only connectors that connect here: a title, label or description that says Gmail where only IMAP connects promises what the page can't do. Where the wish names a service that can't connect here yet (a mail provider above, or a connector marked CAN'T CONNECT), build with what connects, and tell the person in your reply that this service can't connect here yet and what the server's owner sets for it.
 
 <!-- section: line.connectors.no_actions -->
 actions appear once an account is connected

@@ -7,7 +7,10 @@ import { fillRequires } from "../scripts/definition-v1.mjs";
 const wizard = () =>
   wizardSchema.parse({
     title: "Alles",
-    connections: [{ id: "inbox", kind: "mail" }],
+    connections: [
+      { id: "inbox", kind: "mail" },
+      { id: "crm", connector: "hubspot" },
+    ],
     steps: [
       {
         id: "ask",
@@ -57,6 +60,7 @@ describe("requires", () => {
       sandbox: "shell",
       plugins: ["appointments", "contacts"],
       connections: ["mail"],
+      connectors: ["hubspot"],
       features: ["codeSteps", "durableRuns"],
       // Only runs that take the branch to the research step need its class.
       optional: { models: ["high"] },

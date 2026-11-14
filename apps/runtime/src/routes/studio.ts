@@ -69,7 +69,7 @@ import { reloadConnector } from "../connectors/reload.js";
 import { balanceCredits, canSpend } from "../credits/credits.js";
 import { estimateRun } from "../credits/estimate.js";
 import { listNotices, markNoticesRead } from "../engine/notices.js";
-import { missingModels, stepsWithoutModel } from "../engine/requirements.js";
+import { missingConnections, missingModels, stepsWithoutModel } from "../engine/requirements.js";
 import { env } from "../env.js";
 import { feature, features, forgetAccountFeatures } from "../features.js";
 import { appleStatus } from "../harness/apple.js";
@@ -1800,10 +1800,17 @@ export const studio = new Hono<Vars>()
     const w = await ownedWizard(c.get("user").id, c.req.param("id"));
     return c.json(await wizardRunners(w));
   })
-  // The models the draft needs that this runtime cannot serve, by class, with the steps that call them.
+  // The models the draft needs that this runtime cannot serve, by class, with the steps that call
+  // them; and its connections whose connectors can't connect here. An admin reads what the
+  // server's owner has to set.
   .get("/wizards/:id/models", async (c) => {
-    const w = await ownedWizard(c.get("user").id, c.req.param("id"));
-    return c.json({ missing: await missingModels(w.draft, requestLang(c)) });
+    const user = c.get("user");
+    const w = await ownedWizard(user.id, c.req.param("id"));
+    const lang = requestLang(c);
+    return c.json({
+      missing: await missingModels(w.draft, lang),
+      connections: await missingConnections(w.draft, w.spaceId, lang, isAdminRole(user.role)),
+    });
   })
   // A runtime that runs alone: the wizard's copy in the cloud of the linked account.
   .get("/wizards/:id/cloud", async (c) => {

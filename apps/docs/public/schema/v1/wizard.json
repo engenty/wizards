@@ -655,6 +655,13 @@
             ]
           }
         },
+        "connectors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "features": {
           "type": "array",
           "items": {

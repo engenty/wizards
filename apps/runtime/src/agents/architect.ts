@@ -8,8 +8,10 @@ import { z } from "zod";
 import {
   exampleWizard,
   type GuideConnector,
+  type GuideMail,
   type GuideSpaceConnection,
   type GuideTool,
+  guideMail,
   spaceLines,
 } from "../authoring/guide.js";
 import { wizardOpSchema } from "../authoring/ops.js";
@@ -88,6 +90,7 @@ export interface ArchitectResult {
 
 function systemPrompt(
   connectors: GuideConnector[],
+  mail: GuideMail[],
   pluginTools: GuideTool[],
   connections: GuideSpaceConnection[],
   startsOn: boolean,
@@ -102,7 +105,7 @@ function systemPrompt(
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
-    space_tools: spaceLines(connectors, pluginTools, connections),
+    space_tools: spaceLines(connectors, mail, pluginTools, connections),
     example: exampleWizard(),
     how_you_work: prompt("architect", "how_you_work"),
   })}\n\n${contentPolicy()}`;
@@ -456,6 +459,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
       role: "system",
       content: systemPrompt(
         input.connectors,
+        await guideMail(),
         await pluginToolsOf(currentTenant()),
         await guideSpaceConnections(w.spaceId),
         startsOn,

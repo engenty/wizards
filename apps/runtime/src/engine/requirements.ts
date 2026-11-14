@@ -30,6 +30,7 @@ import { CLASS_NAMES } from "@engenty/wizards-shared/providers";
 import { optionalStepClasses, stepClasses } from "@engenty/wizards-shared/requires";
 import type {
   ClosedChoice,
+  MissingConnection,
   MissingModel,
   NoteGap,
   RunNote,
@@ -42,6 +43,8 @@ import {
   type ModelTier,
   splitClassId,
 } from "@engenty/wizards-shared/tiers";
+import { missingSetup, usable } from "../connectors/builtin.js";
+import { candidates } from "../connectors/index.js";
 import { classProblem, currentTier, motionClient, tierRefusal } from "../models.js";
 
 // The steps every run passes through, and the choices that lead around a missing model, are
@@ -432,12 +435,104 @@ export async function missingModelsSaid(def: WizardDefinition): Promise<MissingM
   return missing;
 }
 
+/** A missing connection whose problem is said in both languages, until it is read in one. */
+export type MissingConnectionSaid = Omit<MissingConnection, "problem"> & { problem: Said };
+
+/** The steps that use a connection: an agent step that lists it, a tool step that calls it, a page that connects it. */
+function stepsUsing(def: WizardDefinition, id: string): Step[] {
+  return def.steps.filter(
+    (s) =>
+      (s.type === "agent" && s.connections?.includes(id)) ||
+      (s.type === "tool" && s.call && "connection" in s.call && s.call.connection === id) ||
+      (s.type === "form" && s.fields.some((f) => f.kind === "connection" && f.connection === id)),
+  );
+}
+
 /**
- * The message a run that cannot start gives, naming the steps and why. Classes with the same
- * problem (a step that thinks and writes on one client that is not installed) say it once, and
- * name each of their steps once.
+ * The connections this wizard needs where a connector can't connect here, in a language; empty =
+ * every connector can. `setup`: the reader may hear what the server's owner has to set.
  */
-export function blockingMessage(missing: MissingModelSaid[]): RunNote | null {
+export async function missingConnections(
+  def: WizardDefinition,
+  spaceId: string,
+  lang: Lang = "en",
+  setup = false,
+): Promise<MissingConnection[]> {
+  return (await missingConnectionsSaid(def, spaceId, setup)).map((m) => ({
+    ...m,
+    problem: saidText(m.problem, lang),
+  }));
+}
+
+/**
+ * The connections this wizard needs where a connector can't connect here (`usable`): one that
+ * names a connector, or a kind where some of its connectors can't. A need none of whose
+ * connectors connects blocks the start where a step every run passes through uses it; kind
+ * `mail` with one connector that connects only says which ones don't. A connection of the
+ * space is an account the space has already. `setup`: the problem names what the server's
+ * owner has to set (`missingSetup`), for an admin.
+ */
+export async function missingConnectionsSaid(
+  def: WizardDefinition,
+  spaceId: string,
+  setup = false,
+): Promise<MissingConnectionSaid[]> {
+  const unavoidable = unavoidableSteps(def);
+  const missing: MissingConnectionSaid[] = [];
+  for (const connection of def.connections ?? []) {
+    if (connection.spaceConnection) {
+      continue;
+    }
+    const found = await candidates(connection, spaceId);
+    const can: typeof found = [];
+    const cannot: typeof found = [];
+    for (const c of found) {
+      ((await usable(c)) ? can : cannot).push(c);
+    }
+    if (found.length && !cannot.length) {
+      continue;
+    }
+    const said: RunNote[] = [];
+    if (!found.length) {
+      said.push(note("connectorNotInSpace", { connector: connection.connector ?? connection.id }));
+    } else {
+      const names = cannot.map((c) => c.name);
+      said.push(note("connectorsCantConnect", { connectors: names, count: names.length }));
+      for (const c of setup ? cannot : []) {
+        const settings = missingSetup(c);
+        if (settings) {
+          said.push(note("connectorNeedsSettings", { connector: c.name, settings }));
+        }
+      }
+      if (can.length) {
+        const instead = can.map((c) => c.name);
+        said.push(note("connectorsInstead", { connectors: instead, count: instead.length }));
+      }
+    }
+    const steps = stepsUsing(def, connection.id);
+    missing.push({
+      id: connection.id,
+      name:
+        connection.title ??
+        (connection.connector ? (found[0]?.name ?? connection.connector) : null),
+      kind: connection.kind ?? null,
+      connectors: found.length ? cannot.map((c) => c.id) : [connection.connector ?? connection.id],
+      problem: said.reduce((first, second) => note("joined", { first, second })),
+      steps: steps.map((s) => ({ id: s.id, title: s.title })),
+      blocking: !can.length && steps.some((s) => unavoidable.has(s.id)),
+    });
+  }
+  return missing;
+}
+
+/**
+ * The message a run that cannot start gives, naming the steps and why: missing models and
+ * connections alike. Needs with the same problem (a step that thinks and writes on one client
+ * that is not installed) say it once, and name each of their steps once.
+ */
+export function blockingMessage(
+  missing: (MissingModelSaid | MissingConnectionSaid)[],
+): RunNote | null {
   const byProblem = new Map<string, { problem: Said; steps: Map<string, string> }>();
   for (const m of missing) {
     if (!m.blocking) {

@@ -1,7 +1,7 @@
 ---
 title: The wizard format
 description: A wizard as one JSON document, what its keys mean, and where each part is described.
-version: 0.18.0
+version: 0.19.1
 ---
 
 A wizard is one JSON document, its **definition**. The studio exports it as a `.wizard` file
@@ -147,6 +147,7 @@ written by hand: the studio, the architect and the AI clients’ tools write it 
   "sandbox": "shell",
   "plugins": ["appointments"],
   "connections": ["mail"],
+  "connectors": ["hubspot"],
   "features": ["codeSteps", "durableRuns"],
   "data": "shared",
   "optional": { "models": ["image"] }
@@ -162,6 +163,7 @@ written by hand: the studio, the architect and the AI clients’ tools write it 
 | `sandbox` | `shell` when a step works in a sandbox |
 | `plugins` | The plugins whose tools a step lists or a tool step calls |
 | `connections` | The kinds of the wizard’s connections |
+| `connectors` | The connectors the wizard’s connections name |
 | `features` | The switches that must be on: `durableRuns` for a wait step, `codeSteps` for a code step or a function tool |
 | `data` | The wizard’s own database, `person` or `shared`, as `data.scope` says. See [A wizard’s own data](./data.md) |
 | `optional` | Classes only steps on some branches call: a run can go around them |

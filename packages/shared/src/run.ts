@@ -12,7 +12,7 @@ import {
 } from "./definition.js";
 import type { ShareJobView } from "./sharing.js";
 import type { StartEvent } from "./starts.js";
-import type { ConnectionView, ListDef, ListRow } from "./store.js";
+import type { ConnectionKind, ConnectionView, ListDef, ListRow } from "./store.js";
 import type { Surface } from "./surface.js";
 import { type Gap, type Line, lineText, type Texts, type TextTable, textOf } from "./texts.js";
 import type { ThemeColours, ThemeEffect, ThemeShape } from "./theme.js";
@@ -383,6 +383,13 @@ const NOTES_EN = {
   waitsOff: "This wizard has a wait step, and those aren’t turned on here yet.",
   codeStepsOff: "This wizard runs code of its own, and that isn’t turned on here yet.",
   pluginsMissing: "This wizard needs {plugins}, which isn’t installed here.",
+  connectorsCantConnect: "{connectors} can’t connect here yet.",
+  connectorNeedsSettings: "To connect {connector}, engenty wizards needs {settings} here.",
+  connectorNotInSpace: "This space has no connector “{connector}”.",
+  connectorsInstead: {
+    one: "{connectors} connects instead.",
+    other: "{connectors} connect instead.",
+  },
   codeMissing: "The code “{entry}” isn’t in the wizard’s files.",
   codeFailed: "The code stopped with an error: {detail}",
   codeOutputUnfit: "The code returned something other than this step declares: {detail}",
@@ -911,6 +918,16 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   waitsOff: "Dieser Wizard hat einen Warten-Schritt, und die sind hier noch nicht eingeschaltet.",
   codeStepsOff: "Dieser Wizard führt eigenen Code aus, und das ist hier noch nicht eingeschaltet.",
   pluginsMissing: "Dieser Wizard braucht {plugins}, und das ist hier nicht installiert.",
+  connectorsCantConnect: {
+    one: "{connectors} lässt sich hier noch nicht verbinden.",
+    other: "{connectors} lassen sich hier noch nicht verbinden.",
+  },
+  connectorNeedsSettings: "Um {connector} zu verbinden, braucht engenty wizards hier {settings}.",
+  connectorNotInSpace: "Diesem Space fehlt der Connector „{connector}“.",
+  connectorsInstead: {
+    one: "Stattdessen lässt sich {connectors} verbinden.",
+    other: "Stattdessen lassen sich {connectors} verbinden.",
+  },
   codeMissing: "Der Code „{entry}“ fehlt in den Dateien des Wizards.",
   codeFailed: "Der Code ist mit einem Fehler stehen geblieben: {detail}",
   codeOutputUnfit: "Der Code hat etwas anderes zurückgegeben, als dieser Schritt angibt: {detail}",
@@ -1722,6 +1739,25 @@ export interface MissingModel {
   problem: string;
   steps: { id: string; title: string }[];
   /** A step that needs it lies on every path: the run cannot start. */
+  blocking: boolean;
+}
+
+/**
+ * A connection a wizard needs where some of its connectors can't connect here, with the steps
+ * that use it. Kind `mail` is served as long as one of its connectors connects.
+ */
+export interface MissingConnection {
+  /** The connection's id in the definition. */
+  id: string;
+  /** Its title, else the name of the one connector it names; null: its `kind` names it. */
+  name: string | null;
+  kind: ConnectionKind | null;
+  /** The connectors that can't connect here, by id. */
+  connectors: string[];
+  /** Why, as the person reads it: which connectors can't connect, and what they need. */
+  problem: string;
+  steps: { id: string; title: string }[];
+  /** No connector of it connects, and a step on every path uses it: the run cannot start. */
   blocking: boolean;
 }
 
