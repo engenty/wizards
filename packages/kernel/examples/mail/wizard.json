@@ -6,9 +6,9 @@
   },
   "connections": {
     "gmail": {
-      "search_threads": "allow",
-      "read_thread": "allow",
-      "send": "ask"
+      "users.threads.list": "allow",
+      "users.threads.get": "allow",
+      "users.messages.send": "ask"
     }
   },
 
