@@ -65,24 +65,6 @@ export const FEATURES = {
     label: "Organization settings in the studio",
     hint: "Settings › Organisation in the cloud studio: the organization's name, its members and invitations, changed there instead of on the account pages.",
   },
-  brandSections: {
-    kind: "release",
-    default: true,
-    label: "Sections in Brand",
-    hint: "Sections of logos and of colours, gradients and patterns among them.",
-  },
-  brandRules: {
-    kind: "release",
-    default: true,
-    label: "Rules in Brand",
-    hint: "Rules for how the logos, the colours and the type may be used.",
-  },
-  typography: {
-    kind: "release",
-    default: true,
-    label: "Typography in Brand",
-    hint: "The brand's fonts, their licences and a type scale.",
-  },
   channelVoice: {
     kind: "release",
     default: false,
@@ -120,7 +102,7 @@ export const FEATURES = {
     hint: "Settings › Plugins, also before any plugin is installed. Installing a plugin turns it on.",
   },
   goose: {
-    kind: "release",
+    kind: "plan",
     default: true,
     label: "Goose",
     hint: "The studio's assistant: its chat at the foot of the page and in the sidebar.",
@@ -186,7 +168,7 @@ export const FEATURES = {
     hint: "The organization's own space as the root, Mein Space per person, every other space under the root; the path bar with the space menu instead of the space tile; Ordner in Work (docs/plans/org-spaces.md).",
   },
   knowledgeTree: {
-    kind: "release",
+    kind: "plan",
     default: true,
     label: "Knowledge as a knowledge base",
     hint: "Knowledge's start page with one Add menu, folders in its menu and categories as a tab, the block editor for pages (docs/plans/knowledge-base.md).",

@@ -302,19 +302,7 @@ async function spaceState(userId: string, role: Role, spaceId: string) {
   };
 }
 
-/** Parts of the brand that wait behind their switches: their tools are left out while off. */
-export interface BrandSwitches {
-  brandSections: boolean;
-  brandRules: boolean;
-  typography: boolean;
-}
-
-export function gooseSpaceTools(
-  input: AssistantInput,
-  space: SpaceRow,
-  wrote: () => void,
-  on: BrandSwitches,
-) {
+export function gooseSpaceTools(input: AssistantInput, space: SpaceRow, wrote: () => void) {
   const { signal } = input;
   const userId = input.user.id;
   const spaceId = space.id;
@@ -481,11 +469,6 @@ export function gooseSpaceTools(
         attempt(() =>
           inTurn(async () => {
             doing("set_colors");
-            if (!on.brandSections && (sections || colors.some((c) => c.section))) {
-              throw new Error(
-                "Colour sections are not available in this studio: pass the colours without them.",
-              );
-            }
             const p = await ownedSpace(userId, spaceId);
             const groups = sections
               ? sections.map((s) => ({
@@ -858,16 +841,6 @@ export function gooseSpaceTools(
       toModelOutput: imageOutput("image", (rest) => String(rest.name)),
     }),
   };
-  if (!on.brandSections) {
-    delete tools.set_logo_sections;
-    delete tools.set_gradients;
-  }
-  if (!on.brandRules) {
-    delete tools.set_rules;
-  }
-  if (!on.typography) {
-    delete tools.set_typography;
-  }
   // Every write to the space's setup is the broker's: `w` on it, for Goose for its person
   // (docs/plans/modular.md, B4). An admin's deny for Goose stops it; each write is a log line.
   for (const name of SETUP_WRITES) {
@@ -1029,11 +1002,6 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   const { space } = input;
   const writable = space && input.writable ? space : null;
   const switches = await currentFeatures();
-  const brandOn: BrandSwitches = {
-    brandSections: switches.brandSections === true,
-    brandRules: switches.brandRules === true,
-    typography: switches.typography === true,
-  };
   const tools: Record<string, any> = {
     ...knowsTools({
       user: input.user,
@@ -1046,7 +1014,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
         input.onCard?.(card);
       },
     }),
-    ...(writable ? gooseSpaceTools(input, writable, wrote, brandOn) : {}),
+    ...(writable ? gooseSpaceTools(input, writable, wrote) : {}),
   };
   // On everyday effort the chat can offer extra effort for work that asks for more: a card with
   // a button, while it goes on answering.
@@ -1267,17 +1235,6 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
       : part === "skills"
         ? prompt("goose", "turn.skills_empty")
         : "",
-    writable && !(brandOn.brandSections && brandOn.brandRules && brandOn.typography)
-      ? prompt("goose", "turn.off", {
-          missing: [
-            brandOn.brandSections ? "" : "sections of logos and colours, gradients and patterns",
-            brandOn.brandRules ? "" : "rules for logos, colours and type",
-            brandOn.typography ? "" : "typography (fonts, type scale)",
-          ]
-            .filter(Boolean)
-            .join("; "),
-        })
-      : "",
     input.message,
   ]
     .filter(Boolean)

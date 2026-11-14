@@ -412,11 +412,7 @@ describe("„B darf Dokument D nicht lesen“", () => {
         lang: "en",
         signal: new AbortController().signal,
       } as never;
-      const tools = gooseSpaceTools(input, space, () => {}, {
-        brandSections: false,
-        brandRules: false,
-        typography: false,
-      });
+      const tools = gooseSpaceTools(input, space, () => {});
       const looked = await tools.look_at_file.execute({ id: fixture.D });
       expect(looked).toMatchObject({ error: expect.stringContaining("permission"), id: fixture.D });
       expect(JSON.stringify(looked)).not.toContain("Hollunder");
