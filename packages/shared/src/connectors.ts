@@ -446,5 +446,59 @@ export interface PersonConnectionView {
 
 /** The person's menu › „Verbindungen“: per space they belong to, the connections they may use. */
 export interface PersonSignIns {
+  /** The person's own connections. */
+  own: OwnConnectionView[];
   spaces: { id: string; name: string; connections: PersonConnectionView[] }[];
+}
+
+/** A connection a person owns, as their menu › „Verbindungen“ lists it: in every space of theirs. */
+export interface OwnConnectionView {
+  id: string;
+  connectorId: string;
+  /** The connector's name; null where no space of theirs has the connector any more. */
+  connectorName: string | null;
+  /** The address the account signed in with. */
+  label: string;
+  createdAt: string;
+  /** The wizards that chose it. */
+  wizards: { id: string; title: string }[];
+}
+
+/**
+ * A need of a wizard as its settings in the studio list it (docs/plans/run-connections.md, step 4):
+ * what it names, the steps that use it, and how it resolves for the person looking.
+ */
+export interface WizardNeedView {
+  id: string;
+  /** The service it names: the connector's name, or the need's title. Null: a kind. */
+  name: string | null;
+  kind: string | null;
+  steps: { id: string; title: string }[];
+  /** A step every run passes through uses it. */
+  unavoidable: boolean;
+  /**
+   * How it resolves here: `named`, the definition names a connection of the space; `cannot`, no
+   * connector connects here (`problem` says why); `chosen` or `only`, the account in use;
+   * `choose`, several the person chooses among once; `connect`, the person connects one.
+   */
+  here:
+    | { state: "named" | "chosen" | "only"; account: NeedAccountView }
+    | { state: "cannot"; problem: string }
+    | { state: "choose"; count: number }
+    | { state: "connect" };
+  /**
+   * For admins, with `runConnections`: the space's choice for runs nobody watches, among the
+   * space's connections that fit. Absent for members.
+   */
+  space?: { chosen: string | null; options: NeedAccountView[] };
+}
+
+/** An account a need may use. */
+export interface NeedAccountView {
+  id: string;
+  /** `person`: the person's own; `space`: a connection of the space. */
+  owner: "person" | "space";
+  connectorName: string;
+  /** The address or the connection's name. */
+  label: string;
 }
