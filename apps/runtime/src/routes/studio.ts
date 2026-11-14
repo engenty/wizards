@@ -65,7 +65,7 @@ import {
   searchRegistry,
   setActionKinds,
 } from "../connectors/external.js";
-import { startedScope } from "../connectors/person-connections.js";
+import { unwatchedScope } from "../connectors/person-connections.js";
 import { reloadConnector } from "../connectors/reload.js";
 import { chooseForSpace, clearForSpace, wizardNeeds } from "../connectors/space-choice.js";
 import { balanceCredits, canSpend } from "../credits/credits.js";
@@ -1817,7 +1817,7 @@ export const studio = new Hono<Vars>()
     const lang = requestLang(c);
     // A start nobody owns runs with nobody there: it needs the space's choice for each need.
     const unwatched = w.starts.some((s) => s.on && !s.owner)
-      ? await unwatchedConnectionsSaid(w.draft, startedScope(w.id), w.spaceId)
+      ? await unwatchedConnectionsSaid(w.draft, unwatchedScope(w.id), w.spaceId)
       : [];
     return c.json({
       missing: await missingModels(w.draft, lang),

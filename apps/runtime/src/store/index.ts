@@ -32,14 +32,17 @@ export interface StoreScope {
    */
   clientSpaceId?: string | null;
   /**
-   * A run one of the wizard's starts began, with no person behind it: the space's choice is its
-   * account for a need (docs/plans/run-connections.md). A link visitor without a cookie also has
-   * an `r:` holder and is not this.
+   * A run nobody of the team watches (docs/plans/run-connections.md): one of the wizard's starts
+   * began it with no person, or it came through a channel (WhatsApp, SMS, a call). The space's
+   * choice is its account for a need. A link visitor in a browser is not this.
    */
-  started?: true;
+  unwatched?: true;
 }
 
 export { StoreError };
+
+/** How a channel's person is the run's visitor (plugins/runs.ts): `p:` and a hash of who they are. */
+export const CHANNEL_VISITOR = "p:";
 
 /** The person a run belongs to: the signed-in admin, else the visitor of the shared link. */
 export function holderOf(run: { id: string; userId: string | null; visitorId: string | null }) {
@@ -61,8 +64,16 @@ export function scopeOf(run: {
     wizardId: run.wizardId,
     holder: holderOf(run),
     ...(run.clientSpaceId ? { clientSpaceId: run.clientSpaceId } : {}),
-    ...(run.startedBy && !run.userId && !run.visitorId ? { started: true as const } : {}),
+    ...(unwatched(run) ? { unwatched: true as const } : {}),
   };
+}
+
+/** A run a start began with no person, or one a channel's person runs. */
+function unwatched(run: { userId: string | null; visitorId: string | null; startedBy?: unknown }) {
+  if (run.userId) {
+    return false;
+  }
+  return run.visitorId ? run.visitorId.startsWith(CHANNEL_VISITOR) : Boolean(run.startedBy);
 }
 
 /** Marks the store as in use; stores nobody came back to are cleaned up. */

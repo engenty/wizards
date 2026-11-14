@@ -202,7 +202,7 @@ describe("a start nobody watches", () => {
     const w = await newWizard();
     const sc = await spaceConnection();
     const said = await inTenant(() =>
-      requirements.unwatchedConnectionsSaid(w.draft, own.startedScope(w.id), space),
+      requirements.unwatchedConnectionsSaid(w.draft, own.unwatchedScope(w.id), space),
     );
     expect(said).toMatchObject([
       { id: "hub", blocking: true, steps: [{ id: "contacts" }], problem: { code: "unwatchedNeedsChoice" } },
@@ -223,9 +223,10 @@ describe("a start nobody watches", () => {
     const w = await newWizard();
     await spaceConnection("members");
     const found = await inTenant(() =>
-      own.connectionsFor({ ...own.startedScope(w.id), holder: "r:run-1" }, space, { id: "hub", connector: "hubspot" }),
+      own.connectionsFor({ ...own.unwatchedScope(w.id), holder: "r:run-1" }, space, { id: "hub", connector: "hubspot" }),
     );
-    expect(found.candidates.some((c) => c.kind === "space")).toBe(true);
+    // It isn't even shown the space's connections: the admin chooses, it doesn't.
+    expect(found.candidates).toEqual([]);
     expect(found.chosen).toBeNull();
   });
 
@@ -236,7 +237,7 @@ describe("a start nobody watches", () => {
     await inTenant(() => choice.chooseForSpace(w, "hub", sc));
     const need = { id: "hub", connector: "hubspot" };
     const started = await inTenant(() =>
-      own.connectionsFor({ ...own.startedScope(w.id), holder: "r:run-2" }, space, need),
+      own.connectionsFor({ ...own.unwatchedScope(w.id), holder: "r:run-2" }, space, need),
     );
     expect(started).toMatchObject({ by: "choice", chosen: { kind: "space", row: { id: sc } } });
     const visitor = await inTenant(() =>
@@ -247,11 +248,37 @@ describe("a start nobody watches", () => {
     expect(visitor.candidates.map((c) => c.row.id)).not.toContain(sc);
   });
 
+  it("counts a channel's person as one, never a link visitor in a browser", async () => {
+    const store = await import("../src/store/index");
+    const run = { id: "run-c", wizardId: "w", userId: null, startedBy: null };
+    expect(store.scopeOf({ ...run, visitorId: `${store.CHANNEL_VISITOR}abc` }).unwatched).toBe(true);
+    expect(store.scopeOf({ ...run, visitorId: "cookie-1" }).unwatched).toBeUndefined();
+    expect(store.scopeOf({ ...run, visitorId: null }).unwatched).toBeUndefined();
+    expect(store.scopeOf({ ...run, visitorId: null, startedBy: { startId: "s" } }).unwatched).toBe(true);
+    expect(store.scopeOf({ ...run, userId: "u", visitorId: null, startedBy: { startId: "s" } }).unwatched).toBeUndefined();
+  });
+
+  it("lets a channel's person use the space's choice, never pick one of the space's for itself", async () => {
+    switchOn();
+    const w = await newWizard();
+    const sc = await spaceConnection("members");
+    const other = await spaceConnection("members");
+    const need = { id: "hub", connector: "hubspot" };
+    const caller = { ...own.unwatchedScope(w.id), holder: "v:p:caller-1" };
+    // The caller's own pick of the space's connection doesn't count.
+    await inTenant(() => own.remember(w.id, "hub", caller.holder, { kind: "space", row: { id: other } }));
+    expect((await inTenant(() => own.connectionsFor(caller, space, need))).chosen).toBeNull();
+    await inTenant(() => choice.chooseForSpace(w, "hub", sc));
+    const found = await inTenant(() => own.connectionsFor(caller, space, need));
+    expect(found).toMatchObject({ by: "choice", chosen: { kind: "space", row: { id: sc } } });
+    expect(found.candidates.map((c) => c.row.id)).toEqual([sc]);
+  });
+
   it("is not checked for a start with an owner, nor without runConnections", async () => {
     const w = await newWizard();
     expect(
       await inTenant(() =>
-        requirements.unwatchedConnectionsSaid(w.draft, own.startedScope(w.id), space),
+        requirements.unwatchedConnectionsSaid(w.draft, own.unwatchedScope(w.id), space),
       ),
     ).toEqual([]);
     switchOn();

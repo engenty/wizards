@@ -126,10 +126,10 @@ export type BrokerConnection =
       connector: ConnectorDefinition;
       need?: ConnectionDef;
       /**
-       * The space's choice for a run a start began (`heldConnection`): an admin chose it for such
-       * runs, so its audience doesn't count the run, which has no person, as a guest.
+       * The space's choice for a run nobody of the team watches (`heldConnection`): an admin chose it
+       * for such runs, so its audience doesn't count the run as a guest.
        */
-      chosenForStarts?: true;
+      chosenForUnwatched?: true;
     };
 
 /** A connection of the space as a decision names it: its id and what people call it. */
@@ -342,7 +342,7 @@ export function decide(call: {
     if (ownJob) {
       return { outcome: "allow", rule: "own_job", reason: "The plugin's own connection." };
     }
-    const chosen = connection.chosenForStarts === true && row.audience !== "admins";
+    const chosen = connection.chosenForUnwatched === true && row.audience !== "admins";
     if (!chosen && !inAudience(row.audience, who)) {
       return {
         outcome: "deny",

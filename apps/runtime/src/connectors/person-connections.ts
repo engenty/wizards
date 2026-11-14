@@ -11,7 +11,11 @@ import { roleOf } from "../services/access.js";
 import type { StoreScope } from "../store/index.js";
 import { candidates } from "./index.js";
 import { sameService } from "./same-service.js";
-import { listSpaceConnections, type SpaceConnectionRow } from "./space-connections.js";
+import {
+  listSpaceConnections,
+  type SpaceConnectionRow,
+  spaceConnectionOf,
+} from "./space-connections.js";
 
 /*
  * The connections a run may use (docs/plans/run-connections.md): the wizard names the service,
@@ -54,20 +58,54 @@ export async function runConnectionsOn(): Promise<boolean> {
 /** For whom the space remembers a choice: the runs nobody watches. */
 export const spaceHolder = (spaceId: string) => `s:${spaceId}`;
 
-/** A run of a wizard that one of its starts began, as the lookup and the checks read it. */
-export const startedScope = (wizardId: string): StoreScope => ({
+/** A run nobody of the team watches (a start's, a channel's), as the checks and the studio read it. */
+export const unwatchedScope = (wizardId: string): StoreScope => ({
   wizardId,
   holder: "r:",
-  started: true,
+  unwatched: true,
 });
 
 /**
- * A connection of the space a started run may use: one that signs in as the space, is signed in,
- * and is not the admins' alone. Nobody is there to sign in for themselves. The admin's choice for
- * the space is what lets the run use it; its audience would count the run as a guest.
+ * A connection of the space an admin may choose for the runs nobody watches: one that signs in
+ * as the space, is signed in, and is not the admins' alone. Nobody there signs in for themselves.
+ * The admin's choice is what lets such a run use it; its audience would count the run as a guest.
  */
-const startedUsable = (row: SpaceConnectionRow) =>
+const unwatchedUsable = (row: SpaceConnectionRow) =>
   row.signIn === "space" && row.secret !== null && row.audience !== "admins";
+
+/** The need's connectors by id, with the ones of the same service read as the need's. */
+async function needConnectors(need: ConnectionDef, spaceId: string) {
+  const connectors = await candidates(need, spaceId);
+  const asNeed = new Map<string, ConnectorDefinition>(connectors.map((c) => [c.id, c]));
+  for (const c of connectors) {
+    for (const id of sameService(c.id)) {
+      if (!asNeed.has(id)) {
+        asNeed.set(id, c);
+      }
+    }
+  }
+  return asNeed;
+}
+
+/**
+ * The connections of the space an admin may choose for a need, for the runs nobody watches
+ * (`unwatchedUsable`). Only the admin sees these; such a run sees the one chosen.
+ */
+export async function unwatchedOptions(
+  scope: StoreScope,
+  spaceId: string,
+  need: ConnectionDef,
+): Promise<Usable[]> {
+  const asNeed = await needConnectors(need, spaceId);
+  const out: Usable[] = [];
+  for (const row of await listSpaceConnections(homeOf(scope, spaceId))) {
+    const connector = asNeed.get(row.connectorId);
+    if (connector && unwatchedUsable(row)) {
+      out.push({ kind: "space", row, connector });
+    }
+  }
+  return out;
+}
 
 /** The space a run is in: the one it carries, else the wizard's. */
 const homeOf = (scope: StoreScope, spaceId: string) => scope.clientSpaceId ?? spaceId;
@@ -106,24 +144,15 @@ export async function connectionsFor(
   spaceId: string,
   need: ConnectionDef,
 ): Promise<Found> {
-  const connectors = await candidates(need, spaceId);
-  if (!connectors.length) {
+  const asNeed = await needConnectors(need, spaceId);
+  if (!asNeed.size) {
     return NONE;
-  }
-  // The need's own connectors first; a sibling of the same service reads as the need's.
-  const asNeed = new Map<string, ConnectorDefinition>(connectors.map((c) => [c.id, c]));
-  for (const c of connectors) {
-    for (const id of sameService(c.id)) {
-      if (!asNeed.has(id)) {
-        asNeed.set(id, c);
-      }
-    }
   }
   const home = homeOf(scope, spaceId);
   const holders = [
     scope.holder,
-    // A run a start began uses what an admin chose for the space.
-    ...(scope.started ? [spaceHolder(home)] : []),
+    // A run nobody watches uses what an admin chose for the space.
+    ...(scope.unwatched ? [spaceHolder(home)] : []),
   ];
   const choices = await db.query.connectionChoice.findMany({
     where: and(
@@ -132,10 +161,11 @@ export async function connectionsFor(
       inArray(schema.connectionChoice.holder, holders),
     ),
   });
-  const choice =
-    choices.find((c) => c.holder === scope.holder) ??
-    choices.find((c) => c.holder !== scope.holder);
   const reach = await runConnectionsOn();
+  if (scope.unwatched) {
+    return unwatchedFor(scope, home, asNeed, choices, reach);
+  }
+  const choice = choices.find((c) => c.holder === scope.holder);
 
   const found: Usable[] = [];
   const own = await db
@@ -154,10 +184,10 @@ export async function connectionsFor(
     }
   }
   if (reach) {
-    const who = scope.started ? null : await whoOfHolder(scope.holder);
+    const who = await whoOfHolder(scope.holder);
     for (const row of await listSpaceConnections(home)) {
       const connector = asNeed.get(row.connectorId);
-      if (connector && (who ? await spaceUsable(row, who) : startedUsable(row))) {
+      if (connector && (await spaceUsable(row, who))) {
         found.push({ kind: "space", row, connector });
       }
     }
@@ -172,9 +202,54 @@ export async function connectionsFor(
   if (remembered) {
     return { candidates: found, chosen: remembered, by: "choice" };
   }
-  // A started run uses the space's choice or nothing: no admin chose an only candidate for it.
-  return found.length === 1 && !scope.started
+  return found.length === 1
     ? { candidates: found, chosen: found[0], by: "only" }
+    : { candidates: found, chosen: null, by: null };
+}
+
+type Choice = typeof schema.connectionChoice.$inferSelect;
+
+/**
+ * A run nobody of the team watches: its own accounts where it has any (a channel's person may
+ * have connected one), and of the space's connections only the one an admin chose for such runs,
+ * which it sees and uses but cannot choose itself. No only candidate is taken: nobody chose it.
+ */
+async function unwatchedFor(
+  scope: StoreScope,
+  home: string,
+  asNeed: Map<string, ConnectorDefinition>,
+  choices: Choice[],
+  reach: boolean,
+): Promise<Found> {
+  const own = choices.find((c) => c.holder === scope.holder && c.personConnectionId);
+  const forSpace = choices.find((c) => c.holder === spaceHolder(home) && c.spaceConnectionId);
+  const found: Usable[] = [];
+  const rows = await db
+    .select(PUBLIC)
+    .from(schema.personConnection)
+    .where(
+      and(
+        eq(schema.personConnection.holder, scope.holder),
+        inArray(schema.personConnection.connectorId, [...asNeed.keys()]),
+      ),
+    );
+  for (const row of rows) {
+    const connector = asNeed.get(row.connectorId);
+    if (connector && (reach || row.id === own?.personConnectionId)) {
+      found.push({ kind: "person", row, connector });
+    }
+  }
+  const space =
+    reach && forSpace ? await spaceConnectionOf(home, forSpace.spaceConnectionId ?? "") : null;
+  const spaceConnector = space ? asNeed.get(space.connectorId) : undefined;
+  if (space && spaceConnector && unwatchedUsable(space)) {
+    found.push({ kind: "space", row: space, connector: spaceConnector });
+  }
+  const chosen =
+    found.find((u) => u.kind === "person" && u.row.id === own?.personConnectionId) ??
+    found.find((u) => u.kind === "space");
+  return chosen
+    ? { candidates: found, chosen, by: "choice" }
     : { candidates: found, chosen: null, by: null };
 }
 
