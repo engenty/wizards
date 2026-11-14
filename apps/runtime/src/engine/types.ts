@@ -78,6 +78,8 @@ export class SignInNeeded extends StepError {
   constructor(
     readonly service: string,
     said: RunNote,
+    /** The wizard's connection, by its id in `connections`, the sign-in is for. */
+    readonly connection?: string,
   ) {
     super(said);
   }

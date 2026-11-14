@@ -269,6 +269,7 @@ export async function callConnection(
           action: action.id,
           reason: (err as Error).message.slice(0, 200),
         }),
+        connection.id,
       );
     }
     throw err;
@@ -287,7 +288,9 @@ export async function callConnection(
           : out.refused === "calls_per_day"
             ? note("stepCallsPerDay", { service })
             : note("stepCallRefused", { service, action: action.id, reason: out.reason });
-    throw out.refused === "not_connected" ? new SignInNeeded(service, said) : new StepError(said);
+    throw out.refused === "not_connected"
+      ? new SignInNeeded(service, said, connection.id)
+      : new StepError(said);
   }
   return out.result;
 }

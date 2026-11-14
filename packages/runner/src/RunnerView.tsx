@@ -7,7 +7,13 @@ import {
   shownFields,
   stepShape,
 } from "@engenty/wizards-shared/definition";
-import { note, type RunPause, type RunView, type StepOutput } from "@engenty/wizards-shared/run";
+import {
+  note,
+  type RunPause,
+  type RunSignIn,
+  type RunView,
+  type StepOutput,
+} from "@engenty/wizards-shared/run";
 import {
   ArrowLeft,
   ArrowRight,
@@ -35,7 +41,7 @@ import { api, runBase, runnerEnv, standalone, withBase } from "./env.js";
 import { FieldInput, type Values } from "./fields";
 import { eventText, noteLine, runnerLangCode, setChoiceLabels, t } from "./i18n.js";
 import { DownloadButtons, OutputView } from "./outputs";
-import { ListCheck, ListDownloads, ListTable, StoreButton } from "./store";
+import { ListCheck, ListDownloads, ListTable, SignInCard, StoreButton } from "./store";
 import { SurfaceView } from "./surface.js";
 import { Button, Card, cn, LinkedText, Spinner, Textarea } from "./ui.js";
 
@@ -433,13 +439,22 @@ function NotifyToggle() {
   );
 }
 
-/** The heading of a run that waits for a time: the day and the hour it goes on, as the person reads them. */
-export function goesOnText(wakeAt: string | null, pause?: RunPause | null): string {
+/**
+ * The heading of a run that waits for a time: the day and the hour it goes on, as the person reads
+ * them. `signIn`: what the run's view says about a sign-in it waits for.
+ */
+export function goesOnText(
+  wakeAt: string | null,
+  pause?: RunPause | null,
+  signIn?: RunSignIn | null,
+): string {
   if (pause?.kind === "credits") {
     return t("run.waitsCredits");
   }
   if (pause?.kind === "sign_in") {
-    return t("run.waitsSignIn", { service: pause.service });
+    return t(signIn && "admin" in signIn ? "run.waitsAdminSignIn" : "run.waitsSignIn", {
+      service: pause.service,
+    });
   }
   if (!wakeAt) {
     return t("run.goesOnSoon");
@@ -489,7 +504,10 @@ export function waitsSignalText(waitsFor: string | null, until: string | null): 
   return t("run.waitsAtMost", { waits, date });
 }
 
-/** The run waits for a time or a signal: nothing to do, and nobody has to stay. */
+/**
+ * The run waits for a time or a signal: nothing to do, and nobody has to stay. One that waits for
+ * the viewer's sign-in shows the connect card.
+ */
 function Sleeping({ view, compact }: { view: RunView; compact?: boolean }) {
   const { Mascot } = runnerEnv();
   return (
@@ -498,9 +516,14 @@ function Sleeping({ view, compact }: { view: RunView; compact?: boolean }) {
       <h2 className="wizard-heading mt-4 font-display font-semibold text-[1.375rem] tracking-tight">
         {view.status === "waiting_signal"
           ? waitsSignalText(view.waitsFor, view.wakeAt)
-          : goesOnText(view.wakeAt, view.pause)}
+          : goesOnText(view.wakeAt, view.pause, view.signIn)}
       </h2>
-      <p className="mt-2 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
+      {view.signIn && "connection" in view.signIn ? (
+        <div className="mt-5 w-full max-w-md">
+          <SignInCard view={view} center />
+        </div>
+      ) : null}
+      <p className="mt-4 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
     </div>
   );
 }
