@@ -1,12 +1,12 @@
 import { createKernel } from "./kernel";
 import { memoryStore } from "./memory";
-import type { AskRow, Battery, Row, Run, Sandbox, Score, Wizard } from "./types";
+import type { AskRow, Battery, Row, Run, Score, Wizard } from "./types";
 
 /**
  * Tooling for evals beyond a run's own: a wizard over a dataset, and one ask of a past run asked
  * again. Evals on a real run need none of this: a host calls `kernel.judge`.
  */
-export type EvalOptions = { wizard: Wizard; sandbox: Sandbox; batteries: Record<string, Battery> };
+export type EvalOptions = { wizard: Wizard; batteries: Record<string, Battery> };
 
 /** One entry of a dataset: an input, and the answers of the people, by step, in order. */
 export type Entry = {
@@ -38,12 +38,11 @@ export function summary(scores: Score[]) {
  * people's asks from the entry, and judges each run. To compare two models, two prompts or two
  * versions of a step, run it twice.
  */
-export async function evaluate({ wizard, sandbox, batteries }: EvalOptions, dataset: Entry[]) {
+export async function evaluate({ wizard, batteries }: EvalOptions, dataset: Entry[]) {
   const runs: { name: string; run: Run }[] = [];
   for (const entry of dataset) {
     const kernel = createKernel({
       store: memoryStore(),
-      sandbox,
       wizards: () => wizard,
       batteries,
     });
@@ -69,9 +68,9 @@ export async function evaluate({ wizard, sandbox, batteries }: EvalOptions, data
  * a new model. Gives the scores of that step's evals, as it was and as it is now, both judged
  * with the batteries given.
  */
-export async function reask({ wizard, sandbox, batteries }: EvalOptions, past: Run, n: number) {
+export async function reask({ wizard, batteries }: EvalOptions, past: Run, n: number) {
   const store = memoryStore();
-  const kernel = createKernel({ store, sandbox, wizards: () => wizard, batteries });
+  const kernel = createKernel({ store, wizards: () => wizard, batteries });
   const copy = (id: string): Run => ({ ...structuredClone(past), id, scores: [], rev: 0 });
   await store.save(copy("before"));
   await store.save(copy("after"));
