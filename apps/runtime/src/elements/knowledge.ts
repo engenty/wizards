@@ -33,9 +33,9 @@ import { ELEMENT_SPECS } from "./specs.js";
 export { pageReadInput } from "./specs.js";
 
 /**
- * Where the caller's Knowledge is read: the space, and for a client space its parent too
- * (docs/plans/client-spaces.md). The rules decide each item of the parent as for any reader: a
- * client reads only what the parent opened to clients, the firm reads all of it.
+ * Where the caller's Knowledge is read: the space, and for a space under the organization's root
+ * the root too (docs/plans/org-spaces.md). The rules decide each item as for any reader: a client
+ * reads only what was opened to clients, the firm reads all of it.
  */
 async function readsFrom(spaceId: string): Promise<{ id: string; name: string; own: boolean }[]> {
   const space = await db.query.space.findFirst({
@@ -58,7 +58,7 @@ async function readsFrom(spaceId: string): Promise<{ id: string; name: string; o
   ];
 }
 
-/** The first space that has it: the client space before its parent. A refusal stands. */
+/** The first space that has it: the space before the root. A refusal stands. */
 async function firstFound<T>(
   spaces: { id: string }[],
   read: (spaceId: string) => Promise<T>,
@@ -339,7 +339,7 @@ async function writableMountIds(spaceId: string, ids: string[]): Promise<string[
   return rows.map((r) => r.id);
 }
 
-/** A search over the client space and its parent, the best of both by relevance. */
+/** A search over the space and the root, the best of both by relevance. */
 async function searchAll(
   spaces: { id: string; name: string; own: boolean }[],
   query: string,

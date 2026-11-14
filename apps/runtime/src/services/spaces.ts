@@ -43,7 +43,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
 import { currentRole, mayBuild, requireAdmin, requireBuild, requireWritable } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
-import { forgetWizardLinks, removeClientSpaceRuns } from "./links.js";
+import { forgetWizardLinks, removeRunsIn } from "./links.js";
 import { pushPages } from "./pages.js";
 import { removeSpaceFiles } from "./space-files.js";
 
@@ -266,9 +266,8 @@ export async function ownedSpace(userId: string, spaceId: string): Promise<Space
   if (!p) {
     throw notFound();
   }
-  // A client of the organization reaches only the client spaces they are in
-  // (docs/plans/client-spaces.md); every other space is not there for them.
-  // With `orgSpaces` any space may have clients: being in it decides (docs/plans/org-spaces.md).
+  // A client of the organization reaches only the spaces they are in (docs/plans/org-spaces.md);
+  // every other space is not there for them.
   if (currentRole() === "client" && !(await inSpace(userId, p.id))) {
     throw notFound();
   }
@@ -379,7 +378,7 @@ async function ensureSpace(lang: Lang = "en"): Promise<void> {
  */
 export async function defaultSpace(userId: string): Promise<SpaceRow> {
   if (currentRole() === "client") {
-    const [first] = await clientSpacesOf(userId);
+    const [first] = await spacesOfClient(userId);
     if (!first) {
       throw notFound();
     }
@@ -417,20 +416,13 @@ export async function rootSpace(): Promise<SpaceRow | undefined> {
 
 /**
  * Puts the spaces that stand beside the root under it, once: a space made before the switch,
- * or before the root was the root. Client spaces keep their parent.
+ * or before the root was the root.
  */
 async function underRoot(root: SpaceRow): Promise<void> {
   await db
     .update(schema.space)
     .set({ parentId: root.id, updatedAt: new Date() })
-    .where(
-      and(
-        madeHere(),
-        isNull(schema.space.parentId),
-        ne(schema.space.id, root.id),
-        inArray(schema.space.kind, ["space", "personal"]),
-      ),
-    );
+    .where(and(madeHere(), isNull(schema.space.parentId), ne(schema.space.id, root.id)));
 }
 
 /** How many people an organization has, kept a minute: the Manage-App is asked at most that often. */
@@ -526,7 +518,7 @@ export function spaceIs(p: {
   if (p.kind === "personal") {
     return "personal";
   }
-  return p.kind === "client" || (p.clients ?? 0) > 0 ? "client" : "space";
+  return (p.clients ?? 0) > 0 ? "client" : "space";
 }
 
 /** Whether a space holds nothing yet: no wizard, no page, no chat. */
@@ -674,9 +666,9 @@ async function listOrgSpaces(userId: string, build: boolean) {
  * its number. One that does not: only what its local install synced — possibly nothing yet.
  */
 export async function listSpaces(userId: string, lang?: Lang) {
-  // A client sees the client spaces they are in, nothing else (docs/plans/client-spaces.md).
+  // A client sees the spaces they are in, nothing else (docs/plans/org-spaces.md).
   if (currentRole() === "client") {
-    return clientSpacesOf(userId);
+    return spacesOfClient(userId);
   }
   const build = await mayBuild();
   if (build) {
@@ -707,8 +699,8 @@ export async function listSpaces(userId: string, lang?: Lang) {
   }));
 }
 
-/** The client spaces a client is in, as the space list shows them. */
-async function clientSpacesOf(userId: string) {
+/** The spaces a client is in, as the space list shows them. */
+async function spacesOfClient(userId: string) {
   const rows = await db
     .select({ space: schema.space })
     .from(schema.spaceMember)
@@ -730,7 +722,7 @@ export async function createSpace(
 ): Promise<{ id: string }> {
   await requireBuild();
   await requireAdmin();
-  // Client spaces, Mein Space and spaces with Kund:innen do not count as spaces of the plan.
+  // Mein Space and spaces with clients do not count as spaces of the plan.
   const withClients = await spacesWithClients();
   const n = (
     await db.query.space.findMany({
@@ -789,7 +781,7 @@ export async function updateSpace(
   }
   const page = patch.page ? await checkedPage(p, patch.page) : undefined;
   // Who sees it and whose brand it shows are a space's under the root, never the root's own.
-  const under = Boolean(p.parentId) && p.kind !== "client" && (await orgSpacesOn());
+  const under = Boolean(p.parentId) && (await orgSpacesOn());
   if ((patch.access || patch.brandFrom) && !under) {
     throw new ServiceError("invalid", note("spaceChoiceNotHere"));
   }
@@ -1117,13 +1109,13 @@ export async function deleteSpace(userId: string, spaceId: string) {
   await removeSpace(spaceId);
 }
 
-/** Takes a space away with its wizards' links and its files, and its client spaces first. */
+/** Takes a space away with its wizards' links, its runs and its files, and the spaces under it first. */
 export async function removeSpace(spaceId: string) {
-  const clients = await db
+  const under = await db
     .select({ id: schema.space.id })
     .from(schema.space)
     .where(and(eq(schema.space.parentId, spaceId), eq(schema.space.tenantId, currentTenant())));
-  for (const c of clients) {
+  for (const c of under) {
     await removeSpace(c.id);
   }
   const wizards = await db
@@ -1133,7 +1125,7 @@ export async function removeSpace(spaceId: string) {
   for (const w of wizards) {
     await forgetWizardLinks(w.id);
   }
-  await removeClientSpaceRuns(spaceId);
+  await removeRunsIn(spaceId);
   await removeSpaceFiles(spaceId);
   await db
     .delete(schema.space)

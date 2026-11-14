@@ -1,153 +1,55 @@
 import { note } from "@engenty/wizards-shared/run";
-import { and, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { openToClients, seedClientRules } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { currentFeatures } from "../features.js";
 import { inviteMember, managed } from "../manage.js";
-import { spaceChanged } from "../plugins/events.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { currentRole, requireAdmin, requireBuild } from "./access.js";
+import { currentRole, requireAdmin } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
-import { ownedSpace, removeSpace } from "./spaces.js";
+import { ownedSpace } from "./spaces.js";
 
 /*
- * Client spaces (docs/plans/client-spaces.md): a space's clients, each in a client space under it.
- * The firm makes them in its space; who is in one (`space_member`) decides which client spaces a
- * client of the organization sees. Behind the `clientSpaces` switch.
+ * The clients of a space (docs/plans/org-spaces.md): any space under the organization's root may
+ * be shared with clients of the organization, who are in it (`space_member`, role `client`) and
+ * see only the spaces they are in. Inviting clients is behind the `clientSpaces` switch and needs
+ * `orgSpaces`; who is in a space shared with its members only needs `orgSpaces` alone.
  */
 
-/** Client spaces are behind their switch: while it is off, they are not there. */
+/** Clients are behind their switch, and in the organization's spaces: else they are not there. */
 export async function requireClientSpaces(): Promise<void> {
-  if ((await currentFeatures()).clientSpaces !== true) {
+  const features = await currentFeatures();
+  if (features.clientSpaces !== true || features.orgSpaces !== true) {
+    throw notFound();
+  }
+}
+
+/** Who is in a space is kept with `orgSpaces`; a client in it needs `clientSpaces` too. */
+async function requireSpaceMembers(role?: "member" | "client"): Promise<void> {
+  if (role === "client") {
+    await requireClientSpaces();
+    return;
+  }
+  if ((await currentFeatures()).orgSpaces !== true) {
     throw notFound();
   }
 }
 
 /**
- * Who is in a space is kept where there are client spaces, and with `orgSpaces`, where a space
- * may be shared with its members only (docs/plans/org-spaces.md). Kund:innen need client spaces.
+ * A space the organization shares with people: any space under its root (docs/plans/org-spaces.md)
+ * — not the root, not someone's Mein Space.
  */
-async function requireSpaceMembers(role?: "member" | "client"): Promise<void> {
-  const features = await currentFeatures();
-  if (features.clientSpaces === true || (role !== "client" && features.orgSpaces === true)) {
-    return;
-  }
-  throw notFound();
-}
-
-/** A space of the firm that may hold client spaces: not a client space itself. */
-async function firmSpace(userId: string, spaceId: string) {
+async function sharedSpace(userId: string, spaceId: string) {
   const space = await ownedSpace(userId, spaceId);
-  if (space.kind !== "space" || currentRole() === "client") {
+  if (currentRole() === "client" || space.kind !== "space" || !space.parentId) {
     throw notFound();
   }
   return space;
 }
 
 /**
- * A space the firm shares with people: a client space, and with `orgSpaces` any space under the
- * organization's root (docs/plans/org-spaces.md) — not the root, not someone's Mein Space.
- */
-async function clientSpace(userId: string, spaceId: string) {
-  const space = await ownedSpace(userId, spaceId);
-  if (currentRole() === "client") {
-    throw notFound();
-  }
-  if (space.kind === "client") {
-    return space;
-  }
-  if (space.kind === "space" && space.parentId && (await currentFeatures()).orgSpaces === true) {
-    return space;
-  }
-  throw notFound();
-}
-
-/** A space that is not a client space gets the clients' rules with its first client. */
-async function openToItsClients(space: { id: string; kind: string }) {
-  if (space.kind !== "client") {
-    await seedClientRules(space.id);
-  }
-}
-
-/** The client spaces of a space, with how many people are in each, newest first. */
-export async function listClientSpaces(userId: string, spaceId: string) {
-  await requireClientSpaces();
-  const space = await firmSpace(userId, spaceId);
-  const rows = await db.query.space.findMany({
-    where: and(eq(schema.space.parentId, space.id), eq(schema.space.tenantId, currentTenant())),
-    orderBy: (s, { desc }) => [desc(s.createdAt)],
-  });
-  const counts = rows.length
-    ? await db
-        .select({ spaceId: schema.spaceMember.spaceId, role: schema.spaceMember.role, n: count() })
-        .from(schema.spaceMember)
-        .where(
-          inArray(
-            schema.spaceMember.spaceId,
-            rows.map((r) => r.id),
-          ),
-        )
-        .groupBy(schema.spaceMember.spaceId, schema.spaceMember.role)
-    : [];
-  const people = (id: string, role: "member" | "client") =>
-    counts.find((c) => c.spaceId === id && c.role === role)?.n ?? 0;
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    createdAt: r.createdAt.toISOString(),
-    clients: people(r.id, "client"),
-    members: people(r.id, "member"),
-  }));
-}
-
-/** A new client space under a space of the firm. Its admins make them. */
-export async function createClientSpace(
-  userId: string,
-  spaceId: string,
-  name: string,
-): Promise<{ id: string }> {
-  await requireClientSpaces();
-  await requireBuild();
-  await requireAdmin();
-  const space = await firmSpace(userId, spaceId);
-  const trimmed = name.trim();
-  if (!trimmed) {
-    throw new ServiceError("invalid", "A client space needs a name.");
-  }
-  const id = nanoid(12);
-  await db.insert(schema.space).values({
-    id,
-    tenantId: currentTenant(),
-    name: trimmed,
-    brand: {},
-    kind: "client",
-    parentId: space.id,
-  });
-  spaceChanged("space.created", id);
-  return { id };
-}
-
-/** Renames a client space. Its admins do. */
-export async function renameClientSpace(
-  userId: string,
-  spaceId: string,
-  name: string,
-): Promise<{ name: string }> {
-  await requireClientSpaces();
-  await requireAdmin();
-  const space = await clientSpace(userId, spaceId);
-  const trimmed = name.trim() || space.name;
-  await db
-    .update(schema.space)
-    .set({ name: trimmed, updatedAt: new Date() })
-    .where(eq(schema.space.id, space.id));
-  spaceChanged("space.updated", space.id);
-  return { name: trimmed };
-}
-
-/**
- * Shares a run of a client space with its clients, on purpose, or takes it back
+ * Shares a run of a space with its clients, on purpose, or takes it back
  * (docs/plans/client-portal.md): until then a run the firm makes there stays the firm's.
  */
 export async function shareWithClient(
@@ -159,34 +61,38 @@ export async function shareWithClient(
   if (currentRole() === "client") {
     throw notFound();
   }
-  const run = await db.query.run.findFirst({
-    columns: { id: true, clientSpaceId: true, status: true },
-    where: and(eq(schema.run.id, runId), eq(schema.run.tenantId, currentTenant())),
-  });
-  if (!run?.clientSpaceId) {
+  const [run] = await db
+    .select({
+      id: schema.run.id,
+      clientSpaceId: schema.run.clientSpaceId,
+      status: schema.run.status,
+      wizardSpaceId: schema.wizard.spaceId,
+    })
+    .from(schema.run)
+    .innerJoin(schema.wizard, eq(schema.wizard.id, schema.run.wizardId))
+    .where(and(eq(schema.run.id, runId), eq(schema.run.tenantId, currentTenant())))
+    .limit(1);
+  if (!run) {
     throw notFound();
   }
-  await clientSpace(userId, run.clientSpaceId);
+  // The space the run is in: the one it carries, else its wizard's.
+  const space = await sharedSpace(userId, run.clientSpaceId ?? run.wizardSpaceId);
   if (shared && run.status !== "done") {
     throw new ServiceError("refused", note("onlyFinishedResultsShared"));
   }
   const sharedAt = shared ? new Date() : null;
-  await db.update(schema.run).set({ clientSharedAt: sharedAt }).where(eq(schema.run.id, run.id));
+  // Shared, it carries its space, where the clients look for it.
+  await db
+    .update(schema.run)
+    .set({ clientSharedAt: sharedAt, clientSpaceId: space.id })
+    .where(eq(schema.run.id, run.id));
   return { sharedAt: sharedAt?.toISOString() ?? null };
 }
 
-/** Closes a client space: its data, results and chats go with it. */
-export async function deleteClientSpace(userId: string, spaceId: string): Promise<void> {
-  await requireClientSpaces();
-  await requireAdmin();
-  const space = await clientSpace(userId, spaceId);
-  await removeSpace(space.id);
-}
-
-/** Who is in a client space: the client's people and the firm's assigned members. */
+/** Who is in a space: its clients and the people of the organization chosen for it. */
 export async function listSpaceMembers(userId: string, spaceId: string) {
   await requireSpaceMembers();
-  const space = await clientSpace(userId, spaceId);
+  const space = await sharedSpace(userId, spaceId);
   const rows = await db.query.spaceMember.findMany({
     where: eq(schema.spaceMember.spaceId, space.id),
     orderBy: (m, { asc }) => [asc(m.createdAt)],
@@ -199,7 +105,7 @@ export async function listSpaceMembers(userId: string, spaceId: string) {
   }));
 }
 
-/** Puts a person of the organization into a client space, as a client or as the firm's. */
+/** Puts a person of the organization into a space, as a client or as one of its people. */
 export async function addSpaceMember(
   userId: string,
   spaceId: string,
@@ -207,7 +113,7 @@ export async function addSpaceMember(
 ): Promise<void> {
   await requireSpaceMembers(member.role);
   await requireAdmin();
-  const space = await clientSpace(userId, spaceId);
+  const space = await sharedSpace(userId, spaceId);
   await db
     .insert(schema.spaceMember)
     .values({
@@ -223,11 +129,11 @@ export async function addSpaceMember(
       set: { role: member.role },
     });
   if (member.role === "client") {
-    await openToItsClients(space);
+    await seedClientRules(space.id);
   }
 }
 
-/** Takes a person out of a client space. */
+/** Takes a person out of a space. */
 export async function removeSpaceMember(
   userId: string,
   spaceId: string,
@@ -235,7 +141,7 @@ export async function removeSpaceMember(
 ): Promise<void> {
   await requireSpaceMembers();
   await requireAdmin();
-  const space = await clientSpace(userId, spaceId);
+  const space = await sharedSpace(userId, spaceId);
   await db
     .delete(schema.spaceMember)
     .where(and(eq(schema.spaceMember.spaceId, space.id), eq(schema.spaceMember.userId, memberId)));
@@ -244,14 +150,17 @@ export async function removeSpaceMember(
 /** What of a space its clients reach: the items of each kind opened to them. */
 export async function clientOpenOf(userId: string, spaceId: string) {
   await requireClientSpaces();
-  const space = await firmSpace(userId, spaceId);
+  const space = await ownedSpace(userId, spaceId);
+  if (currentRole() === "client") {
+    throw notFound();
+  }
   return openToClients(space.id);
 }
 
 /**
- * Invites a client into a client space by their address: the Manage-App invites them into the
- * organization as a `client` (taking no seat), and the client space keeps the address until they
- * sign in for the first time (`claimClientInvites`). Cloud only: a local install has no accounts.
+ * Invites a client into a space by their address: the Manage-App invites them into the
+ * organization as a `client` (taking no seat), and the space keeps the address until they sign in
+ * for the first time (`claimClientInvites`). Cloud only: a local install has no accounts.
  */
 export async function inviteClient(
   userId: string,
@@ -260,7 +169,7 @@ export async function inviteClient(
 ): Promise<void> {
   await requireClientSpaces();
   await requireAdmin();
-  const space = await clientSpace(userId, spaceId);
+  const space = await sharedSpace(userId, spaceId);
   if (!managed) {
     throw new ServiceError("refused", note("clientsInCloud"));
   }
@@ -275,12 +184,12 @@ export async function inviteClient(
     role: "client",
     addedBy: userId,
   });
-  await openToItsClients(space);
+  await seedClientRules(space.id);
 }
 
 /**
- * A person's first sign-in: the client spaces that invited their address take them in. Called
- * where the runtime signs a person in.
+ * A person's first sign-in: the spaces that invited their address take them in. Called where the
+ * runtime signs a person in.
  */
 export async function claimClientInvites(userId: string, email: string): Promise<void> {
   const address = email.trim().toLowerCase();

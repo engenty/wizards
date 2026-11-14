@@ -16,8 +16,8 @@ import { listSpaceConnections, type SpaceConnectionRow } from "./space-connectio
 /*
  * The connections a run may use (docs/plans/run-connections.md): the wizard names the service,
  * the run finds the account. A person's own connection (`person_connection`) counts in every
- * space they are in; a connection of the space stays in its space, and a run in a client space
- * sees that client space's alone. Which one a wizard uses is remembered per need and holder
+ * space they are in; a connection of the space stays in its space, and a run that carries a space
+ * sees that space's alone. Which one a wizard uses is remembered per need and holder
  * (`connection_choice`).
  *
  * Behind `runConnections`: a person's account reaches a wizard that did not connect it, and the
@@ -54,7 +54,7 @@ export async function runConnectionsOn(): Promise<boolean> {
 /** For whom the space remembers a choice: the runs nobody watches. */
 export const spaceHolder = (spaceId: string) => `s:${spaceId}`;
 
-/** The space a run is in: its client space, else the wizard's. */
+/** The space a run is in: the one it carries, else the wizard's. */
 const homeOf = (scope: StoreScope, spaceId: string) => scope.clientSpaceId ?? spaceId;
 
 async function whoOfHolder(holder: string): Promise<Who> {

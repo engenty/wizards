@@ -100,7 +100,7 @@ export function answerOf(
 export async function dispatchAs(c: Context, user: Principal): Promise<Response> {
   const id = c.req.param("id") ?? "";
   const plugin = (await pluginIdsOf(user.tenantId)).has(id) ? loadedPlugin(id) : undefined;
-  // A client of the organization reaches no plugin's studio routes (docs/plans/client-spaces.md).
+  // A client of the organization reaches no plugin's studio routes (docs/plans/org-spaces.md).
   if (!plugin || user.role === "client") {
     return c.json(notFoundAnswer(c), 404);
   }

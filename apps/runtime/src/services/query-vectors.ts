@@ -5,7 +5,7 @@ import { embeddingModel } from "../models.js";
 /**
  * The vector of a search's query. The embedding model is the index's too: in an Ollama that is
  * embedding a folder, a query's call waits behind every passage sent before it (36 s measured).
- * So a query is embedded once (the palette asks twice, a client space's search once per space),
+ * So a query is embedded once (the palette asks twice, a client's search once per space),
  * the indexers send nothing new while one is on its way (`searchesFirst`), and a search waits
  * only as long as it is given.
  */

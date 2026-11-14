@@ -284,7 +284,7 @@ export async function loadSpace(run: RunRow): Promise<SpaceRow> {
   return p;
 }
 
-/** Where a run's data is: the client space it was started in, else its wizard's space. */
+/** Where a run's data is: the space it carries, else its wizard's space. */
 async function dataSpaceOf(run: RunRow, space: SpaceRow): Promise<{ id: string; name: string }> {
   if (!run.clientSpaceId) {
     return { id: space.id, name: space.name };
@@ -294,7 +294,7 @@ async function dataSpaceOf(run: RunRow, space: SpaceRow): Promise<{ id: string; 
     where: eq(schema.space.id, run.clientSpaceId),
   });
   if (!client) {
-    throw new Error("client space missing");
+    throw new Error("space missing");
   }
   return client;
 }
@@ -579,7 +579,7 @@ export async function createRun(input: {
   lang?: string | null;
   /** The client that starts it over the public API; null for the studio and the AI apps. */
   client?: string | null;
-  /** The client space it runs in, with its parent's wizard (docs/plans/client-portal.md). */
+  /** The space it runs in where that is not its wizard's, or a client's (docs/plans/org-spaces.md). */
   clientSpaceId?: string | null;
   /** The Work chat it was started from (docs/plans/org-spaces.md). */
   chatId?: string | null;
@@ -667,8 +667,8 @@ export async function createRun(input: {
   }
   // What the run may reach outside, from the definition it starts on: fixed here, never widened.
   const grant = grantOf(input.definition);
-  // Without an account nobody can come back for a result later: it is kept a week. A run of a
-  // client space is the client's, kept with it.
+  // Without an account nobody can come back for a result later: it is kept a week. A run that
+  // carries its space is kept with that space.
   const expiresAt =
     input.mode === "live" && !input.clientSpaceId
       ? new Date(Date.now() + env.limits.resultTtlDays * 24 * 60 * 60 * 1000)

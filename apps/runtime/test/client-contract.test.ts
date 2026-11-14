@@ -157,13 +157,22 @@ beforeAll(async () => {
     expect(res.status, await res.clone().text()).toBe(200);
     wizards[k] = ((await res.json()) as any).wizardId ?? ((await res.json()) as any).id;
   }
-  wagner = (await studio("POST", `/api/studio/spaces/${spaceId}/clients`, { name: "Wagner GmbH" })).id;
-  berger = (await studio("POST", `/api/studio/spaces/${spaceId}/clients`, { name: "Berger & Söhne" })).id;
+  // Two spaces under the organization's root, one for each client; a local install makes one
+  // space, these are written here directly.
+  wagner = "space-wagner";
+  berger = "space-berger";
+  await local(() =>
+    db.db.insert(db.schema.space).values([
+      { id: wagner, tenantId: "local", name: "Wagner GmbH", brand: {}, parentId: spaceId },
+      { id: berger, tenantId: "local", name: "Berger & Söhne", brand: {}, parentId: spaceId },
+    ]),
+  );
   await studio("PUT", `/api/studio/spaces/${wagner}/members/wagner`, { role: "client" });
   await studio("PUT", `/api/studio/spaces/${berger}/members/berger`, { role: "client" });
   await studio("PUT", `/api/studio/spaces/${spaceId}/open-to-clients`, { kind: "page", id: pages.open, open: true });
   await studio("PUT", `/api/studio/spaces/${spaceId}/open-to-clients`, { kind: "wizard", id: wizards.open, open: true });
-  await local(() => data.createPage("local", wagner, { title: "Unterlagen Wagner", markdown: "Vertrag liegt bei." }));
+  const theirs = await local(() => data.createPage("local", wagner, { title: "Unterlagen Wagner", markdown: "Vertrag liegt bei." }));
+  await studio("PUT", `/api/studio/spaces/${wagner}/open-to-clients`, { kind: "page", id: theirs.id, open: true });
 }, 60_000);
 
 describe("the client contract", () => {
@@ -212,7 +221,7 @@ describe("the client contract", () => {
     const { eq } = await import("drizzle-orm");
     const run = await local(() => db.db.query.run.findFirst({ where: eq(db.schema.run.id, runId) }));
     expect(run).toMatchObject({ clientSpaceId: wagner, userId: "wagner", expiresAt: null });
-    // Its data is the client space's, its setup the parent's.
+    // Its data is the space's, its setup the root's, where the wizard is.
     const runner = await import("../src/engine/runner");
     const ctx = await local(async () =>
       runner.makeContext(run as any, await runner.loadSpace(run as any), run!.state, new AbortController().signal),
@@ -236,7 +245,7 @@ describe("the client contract", () => {
     await local(() => db.db.update(db.schema.run).set({ status: "done" }).where(eq(db.schema.run.id, runId)));
     expect((await call("tok-wagner", "results", wagner)).result).toEqual([]);
     expect((await call("tok-wagner", "run_open", undefined, { runId })).status).toBe(404);
-    // The firm's results of the client space show it, the parent's do not.
+    // The firm's results of the space show it, the root's do not.
     const inClient = await studio("GET", `/api/studio/spaces/${wagner}/results`);
     expect(inClient.runs).toEqual([expect.objectContaining({ id: runId, clientShared: false })]);
     expect((await studio("GET", `/api/studio/spaces/${spaceId}/results`)).runs).toEqual([]);

@@ -84,7 +84,7 @@ export function SpacePath({ me }: { me: Me }) {
   }
   const name = spaceLabel(me, space);
   const limit = me.limits.spaces;
-  // Mein Space and spaces with Kund:innen do not count against the plan's number.
+  // Mein Space and spaces with clients do not count against the plan's number.
   const full = limit !== null && spaces.filter((s) => !s.personal && !s.clients).length >= limit;
   // Alone, there is nothing to switch to: the name stands without a menu.
   const alone = spaces.length <= 1 && !(mayCreate && !full);

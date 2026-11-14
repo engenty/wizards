@@ -1,12 +1,13 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
-// Client spaces (docs/plans/client-spaces.md): a space's clients, each in a client space under
-// it, kept out of the space menu, seeded with rules for its clients; Knowledge read through to
-// the space, where a client reads only what the space opened to clients; a client reaches only
-// the client spaces they are in.
+// Clients in spaces (docs/plans/org-spaces.md): a space under the organization's root is shared
+// with clients; the root and a Mein Space never are. A client gets the space's skills and the
+// wizard's own data by the seed, and of the space's and the root's Knowledge only what was opened
+// to clients; a client reaches only the spaces they are in. A client space of before became such
+// a space by tenant migration 0076.
 
 const dir = mkdtempSync(join(tmpdir(), "wizards-client-spaces-"));
 process.env.DATA_DIR = dir;
@@ -14,13 +15,13 @@ process.env.APP_URL = "http://localhost:5181";
 process.env.LOCAL_ACCESS_KEY = "test-key";
 process.env.PLUGINS_WATCH = "0";
 process.env.PLUGIN_JOBS = "0";
-process.env.FEATURES = "clientSpaces=on";
+process.env.FEATURES = "clientSpaces=on,orgSpaces=on";
 
 type App = { fetch: (req: Request) => Response | Promise<Response> };
 let app: App;
 let cookie = "";
-let spaceId = "";
-let clientId = "";
+let rootId = "";
+const shared = "wagner-space";
 const pages: Record<string, string> = {};
 let db: typeof import("../src/db/client");
 
@@ -39,11 +40,11 @@ const json = async (res: Response | Promise<Response>) => {
 };
 const local = <T>(fn: () => T | Promise<T>) => db.withTenant("local", fn);
 
-/** A caller of the catalogue in the client space, as a client or as the firm. */
+/** A caller of the catalogue in the shared space, as a client or as the firm. */
 async function caller(userId: string, role: "client" | "member") {
   const { personCaller } = await import("../src/elements/caller");
   return personCaller({
-    space: { id: clientId, name: "Wagner GmbH" },
+    space: { id: shared, name: "Wagner GmbH" },
     userId,
     role,
     signal: new AbortController().signal,
@@ -58,43 +59,51 @@ beforeAll(async () => {
   const entered = await app.fetch(new Request("http://localhost:5181/api/local/enter?k=test-key"));
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
   const spaces = await import("../src/services/spaces");
-  spaceId = (await local(() => spaces.defaultSpace("local"))).id;
+  rootId = (await local(() => spaces.defaultSpace("local"))).id;
+  // A local install makes one space; a second one under the root, written here directly.
+  await local(() =>
+    db.db
+      .insert(db.schema.space)
+      .values({ id: shared, tenantId: "local", name: "Wagner GmbH", brand: {}, parentId: rootId }),
+  );
   const data = await import("../src/services/space-data");
-  for (const [key, title, markdown] of [
-    ["internal", "Honorare", "Unser Stundensatz für Wagner ist 180 Euro."],
-    ["open", "Ablauf", "So läuft eine Beratung bei uns ab: drei Termine."],
+  for (const [key, space, title, markdown] of [
+    ["internal", rootId, "Honorare", "Unser Stundensatz für Wagner ist 180 Euro."],
+    ["open", rootId, "Ablauf", "So läuft eine Beratung bei uns ab: drei Termine."],
+    ["theirs", shared, "Unterlagen Wagner", "Vertrag liegt bei."],
   ]) {
-    pages[key] = (await local(() => data.createPage("local", spaceId, { title, markdown }))).id;
+    pages[key] = (await local(() => data.createPage("local", space, { title, markdown }))).id;
   }
 }, 60_000);
 
-describe("client spaces", () => {
-  it("are made under a space and stay out of the space list", async () => {
-    clientId = (await json(send("POST", `/api/studio/spaces/${spaceId}/clients`, { name: "Wagner GmbH" }))).id;
-    const { clients } = await json(send("GET", `/api/studio/spaces/${spaceId}/clients`));
-    expect(clients).toEqual([expect.objectContaining({ id: clientId, name: "Wagner GmbH", clients: 0 })]);
-    const spaces = await import("../src/services/spaces");
-    const listed = await local(() => spaces.listSpaces("local"));
-    expect(listed.map((s) => s.id)).not.toContain(clientId);
-    // A client space holds no client spaces.
-    expect((await send("POST", `/api/studio/spaces/${clientId}/clients`, { name: "x" })).status).toBe(404);
+describe("clients in spaces", () => {
+  it("are let into a space under the root; never into the root", async () => {
+    await json(send("PUT", `/api/studio/spaces/${shared}/members/wagner`, { role: "client" }));
+    const { members } = await json(send("GET", `/api/studio/spaces/${shared}/members`));
+    expect(members).toEqual([expect.objectContaining({ userId: "wagner", role: "client" })]);
+    expect(
+      (await send("PUT", `/api/studio/spaces/${rootId}/members/wagner`, { role: "client" })).status,
+    ).toBe(404);
   });
 
-  it("are seeded with rules for their clients; the space has none for them", async () => {
+  it("get the clients' seed after the space's own: skills, never its Knowledge or setup", async () => {
     const rwx = await import("../src/broker/rwx");
+    const client = [{ kind: "role" as const, id: "client" }];
     await local(async () => {
-      const page = { kind: "page" as const, id: "p" };
-      expect((await rwx.decide(clientId, [{ kind: "role", id: "client" }], page, "w")).ok).toBe(true);
-      expect((await rwx.decide(clientId, [{ kind: "role", id: "client" }], { kind: "setup", id: clientId }, "w")).ok).toBe(false);
-      expect((await rwx.decide(spaceId, [{ kind: "role", id: "client" }], page, "r")).ok).toBe(false);
+      const page = { kind: "page" as const, id: pages.theirs };
+      expect((await rwx.decide(shared, client, page, "r")).ok).toBe(false);
+      expect((await rwx.decide(shared, client, { kind: "skill", id: "s" }, "x")).ok).toBe(true);
+      expect((await rwx.decide(shared, client, { kind: "setup", id: shared }, "w")).ok).toBe(false);
+      // The space's own seed is there too: its admins and members work as before.
+      expect((await rwx.decide(shared, [{ kind: "role", id: "admin" }], page, "w")).ok).toBe(true);
+      expect((await rwx.decide(rootId, client, page, "r")).ok).toBe(false);
     });
   });
 
-  it("read the space's Knowledge: a client only what is open to clients, the firm all of it", async () => {
-    const data = await import("../src/services/space-data");
-    await local(() => data.createPage("local", clientId, { title: "Unterlagen Wagner", markdown: "Vertrag liegt bei." }));
-    await json(send("PUT", `/api/studio/spaces/${spaceId}/open-to-clients`, { kind: "page", id: pages.open, open: true }));
-    const { open } = await json(send("GET", `/api/studio/spaces/${spaceId}/open-to-clients`));
+  it("read of the space's and the root's Knowledge what was opened to clients; the firm all", async () => {
+    await json(send("PUT", `/api/studio/spaces/${rootId}/open-to-clients`, { kind: "page", id: pages.open, open: true }));
+    await json(send("PUT", `/api/studio/spaces/${shared}/open-to-clients`, { kind: "page", id: pages.theirs, open: true }));
+    const { open } = await json(send("GET", `/api/studio/spaces/${rootId}/open-to-clients`));
     expect(open.page).toEqual([pages.open]);
     const { elementTools } = await import("../src/elements/catalogue");
     await local(async () => {
@@ -109,47 +118,30 @@ describe("client spaces", () => {
     });
   });
 
-  it("are all a client reaches: their own, never the space", async () => {
-    await json(send("PUT", `/api/studio/spaces/${clientId}/members/wagner`, { role: "client" }));
-    const { members } = await json(send("GET", `/api/studio/spaces/${clientId}/members`));
-    expect(members).toEqual([expect.objectContaining({ userId: "wagner", role: "client" })]);
+  it("reach only the spaces they are in", async () => {
     const spaces = await import("../src/services/spaces");
     const { asRole } = await import("../src/services/access");
     await local(() =>
       asRole("client", async () => {
-        expect((await spaces.listSpaces("wagner")).map((s) => s.id)).toEqual([clientId]);
-        expect((await spaces.defaultSpace("wagner")).id).toBe(clientId);
-        await expect(spaces.ownedSpace("wagner", spaceId)).rejects.toThrow();
-        await expect(spaces.ownedSpace("huber", clientId)).rejects.toThrow();
+        expect((await spaces.listSpaces("wagner")).map((s) => s.id)).toEqual([shared]);
+        expect((await spaces.defaultSpace("wagner")).id).toBe(shared);
+        await expect(spaces.ownedSpace("wagner", rootId)).rejects.toThrow();
+        await expect(spaces.ownedSpace("huber", shared)).rejects.toThrow();
       }),
     );
   });
 
-  it("go with their space", async () => {
-    // A local install makes one space; the cloud's second one, written here directly.
-    await local(() =>
-      db.db.insert(db.schema.space).values({ id: "steuern", tenantId: "local", name: "Steuern", brand: {} }),
-    );
-    const sub = (await json(send("POST", "/api/studio/spaces/steuern/clients", { name: "Huber" }))).id;
-    const spaces = await import("../src/services/spaces");
-    await local(() => spaces.removeSpace("steuern"));
-    const row = await local(() =>
-      db.db.query.space.findFirst({ where: (s, { eq }) => eq(s.id, sub) }),
-    );
-    expect(row).toBeUndefined();
-  });
-
-  it("invite clients by address in the cloud only, and take them in at their first sign-in", async () => {
+  it("are invited by address in the cloud only, and taken in at their first sign-in", async () => {
     // A local install has no accounts to invite.
     expect(
-      (await send("POST", `/api/studio/spaces/${clientId}/invite`, { email: "x@wagner.at" })).status,
+      (await send("POST", `/api/studio/spaces/${shared}/invite`, { email: "x@wagner.at" })).status,
     ).toBe(400);
     const clients = await import("../src/services/client-spaces");
     await local(async () => {
       await db.db.insert(db.schema.spaceMember).values({
         id: "pending1",
         tenantId: "local",
-        spaceId: clientId,
+        spaceId: shared,
         userId: null,
         email: "eva@wagner.at",
         role: "client",
@@ -161,7 +153,7 @@ describe("client spaces", () => {
       });
       expect(row).toMatchObject({ userId: "eva", email: "eva@wagner.at" });
     });
-    const { members } = await json(send("GET", `/api/studio/spaces/${clientId}/members`));
+    const { members } = await json(send("GET", `/api/studio/spaces/${shared}/members`));
     expect(members).toEqual(
       expect.arrayContaining([expect.objectContaining({ userId: "eva", role: "client" })]),
     );
@@ -186,9 +178,42 @@ describe("client spaces", () => {
     expect(names).not.toContain("create_wizard");
   });
 
-  it("are not there while the switch is off", async () => {
-    process.env.FEATURES = "clientSpaces=off";
-    expect((await send("GET", `/api/studio/spaces/${spaceId}/clients`)).status).toBe(404);
-    process.env.FEATURES = "clientSpaces=on";
+  it("are not there while either switch is off", async () => {
+    for (const off of ["clientSpaces=off,orgSpaces=on", "clientSpaces=on,orgSpaces=off"]) {
+      process.env.FEATURES = off;
+      expect(
+        (await send("PUT", `/api/studio/spaces/${shared}/members/huber`, { role: "client" })).status,
+      ).toBe(404);
+      expect((await send("GET", `/api/studio/spaces/${shared}/open-to-clients`)).status).toBe(404);
+    }
+    process.env.FEATURES = "clientSpaces=on,orgSpaces=on";
+  });
+
+  it("migration 0076 makes a client space of before a space under the root, its clients in it", async () => {
+    const { sql } = await import("drizzle-orm");
+    await local(async () => {
+      await db.db.run(
+        sql`INSERT INTO space (id, tenant_id, name, brand, kind, parent_id) VALUES ('old-client', 'local', 'Huber', '{}', 'client', ${shared})`,
+      );
+      await db.db.insert(db.schema.spaceMember).values({
+        id: "huber1",
+        tenantId: "local",
+        spaceId: "old-client",
+        userId: "huber",
+        role: "client",
+        addedBy: "local",
+      });
+      const migration = readFileSync(
+        join(import.meta.dirname, "../src/db/migrations/tenant/0076_clients_in_spaces.sql"),
+        "utf8",
+      );
+      await db.db.run(sql.raw(migration));
+      const row = await db.db.query.space.findFirst({ where: (s, { eq }) => eq(s.id, "old-client") });
+      expect(row).toMatchObject({ kind: "space", parentId: rootId, brandFrom: "root", access: "all" });
+      const member = await db.db.query.spaceMember.findFirst({
+        where: (m, { eq }) => eq(m.id, "huber1"),
+      });
+      expect(member).toMatchObject({ spaceId: "old-client", role: "client" });
+    });
   });
 });

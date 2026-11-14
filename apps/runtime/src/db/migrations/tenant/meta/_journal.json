@@ -533,6 +533,13 @@
       "when": 1794650059999,
       "tag": "0075_person_connection",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "6",
+      "when": 1794661909758,
+      "tag": "0076_clients_in_spaces",
+      "breakpoints": true
     }
   ]
 }

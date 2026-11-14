@@ -14,8 +14,8 @@ only the space you are in.
 |---|---|
 | The root | Every organization has one root space (`parentId` null). It carries the organization's name and holds what everyone uses: brand, Info, Wissen, Daten, wizards. It is the first entry of the space menu ("alle") and its page is behind the house |
 | Mein Space | One per person and organization (`kind: "personal"`, one member). Only that person sees it. Alone (Free, a local install) the root is the one space and shows as the person's own |
-| Spaces | The boundaries. Every space other than the root has the root as parent and reads it, as client spaces read their parent today. Two levels, never more |
-| Sharing | Any space is shared with members (`space_member` role `member`) and with outside people as Kund:in (role `client`). A space with Kund:innen shows violet. `kind: "client"` folds into this |
+| Spaces | The boundaries. Every space other than the root has the root as parent and reads it. Two levels, never more |
+| Sharing | Any space under the root is shared with members (`space_member` role `member`) and with outside people as Kund:innen (role `client`); the root and a Mein Space never. A space with Kund:innen shows violet. Client spaces folded into this on 2026-11-14 (migration 0076) |
 | Ordner | Work only. Work's sections (`chat_section`) become folders: they sort chats and hold Infos, Dateien and Ergebnisse, and may link a drive. Not a boundary |
 | Frame | The app bar on the edge stays. The top bar is the path: the sidebar toggle, the space (its menu switches) and the folder, two steps at most, then search. A single space shows the organization's name and no menu |
 | The space menu | The organization's root ("alle"), Mein Space ("nur du"), the spaces used last, "Alle n Spaces", "Neuer Space" |
@@ -38,11 +38,11 @@ only the space you are in.
 ## Steps
 
 1. **Root and Mein Space** (runtime, built: `services/spaces.ts`, `services/space-parent.ts`): the root per organization, Mein Space per person, every
-   other space under the root and reading it; existing spaces and client spaces move under the
-   root once.
+   other space under the root and reading it; existing spaces move under the root once, client
+   spaces by tenant migration 0076.
 2. **Frame** (studio, built: `studio/SpacePath.tsx`): the path bar with the space menu; the space tile and the organization menu
    go; "Wizards" in the app bar.
-3. **Teilen** (built: `services/client-spaces.ts`, `studio/work/ShareSpace.tsx`): the share dialog with Mitglied and Kund:in for any space.
+3. **Teilen** (built: `services/client-spaces.ts`, `studio/work/ShareSpace.tsx`): the share dialog with Mitglied and Kund:in for any space under the root. A client gets skills and the wizard's own data by the seed; the space's Knowledge and wizards, and the root's, only item by item (Space › Kund:innen: Wizards für Kund:innen, „Für Kund:innen sichtbar“). A client's run carries the space it was started in (`run.client_space_id`), whichever space its wizard is in.
 4. **Ordner** (built: Infos the AI reads; Dateien from its chats and a linked mount, `chat_section.mountId`, behind `dateien`; Ergebnisse of the runs started in them, `run.chatId`; the folder page, `studio/work/FolderPage.tsx`):
    sections become folders with Infos, Dateien, Ergebnisse and a linked drive; the folder page.
 5. **Your computer** (built: `placeArrivingSpace` in `services/spaces.ts`): the sync rule above.

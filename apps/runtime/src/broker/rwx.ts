@@ -566,10 +566,6 @@ export async function readsEverything(spaceId: string, subjects: Subject[]): Pro
  */
 export async function seedRwx(spaceId: string): Promise<void> {
   const seeded: RwxRuleInput[] = [];
-  const space = await db.query.space.findFirst({
-    columns: { kind: true },
-    where: eq(schema.space.id, spaceId),
-  });
   for (const kind of ENFORCED) {
     for (const role of ["admin", "owner"] as const) {
       seeded.push(rule("role", role, kind, { r: "allow", w: "allow", x: "allow" }));
@@ -579,12 +575,6 @@ export async function seedRwx(spaceId: string): Promise<void> {
     if (guest) {
       seeded.push(rule("guest", null, kind, guest));
     }
-    // A client space's clients work with their own data, and run what the space lets them. A
-    // space gets no rule for clients: what of it a client reads, a rule opens item by item.
-    const client = space?.kind === "client" ? CLIENT_SEED[kind] : undefined;
-    if (client) {
-      seeded.push(rule("role", "client", kind, client));
-    }
   }
   await db
     .insert(schema.rwxRule)
@@ -593,10 +583,13 @@ export async function seedRwx(spaceId: string): Promise<void> {
 }
 
 /**
- * Opens a space to its Kund:innen as a client space is (docs/plans/org-spaces.md): with
- * `orgSpaces` any space may be shared with clients; the first one shared writes these rules.
+ * Opens a space to its clients (docs/plans/org-spaces.md): the first client let in writes these
+ * rules. Before that a space has no rule for clients; what of it a client reads, a rule opens
+ * item by item.
  */
 export async function seedClientRules(spaceId: string): Promise<void> {
+  // The space's own seed first: rules for clients alone would keep it from ever being written.
+  await rulesOf(spaceId);
   const seeded: RwxRuleInput[] = [];
   for (const kind of ENFORCED) {
     const client = CLIENT_SEED[kind];
@@ -624,14 +617,11 @@ const MEMBER_SEED: Partial<Record<RwxResourceKind, Flags>> = {
 };
 
 /**
- * A client's seed in their client space (docs/plans/client-spaces.md): its data read and written,
- * wizards and skills read and run; never its setup.
+ * A client's seed in a space shared with them (docs/plans/org-spaces.md): skills read and run in
+ * their runs, a wizard's own database read and written by its run. The space's Knowledge and
+ * wizards stay the firm's until it opens an item to its clients (`setOpenToClients`).
  */
 const CLIENT_SEED: Partial<Record<RwxResourceKind, Flags>> = {
-  document: { r: "allow", w: "allow", x: null },
-  table: { r: "allow", w: "allow", x: null },
-  page: { r: "allow", w: "allow", x: null },
-  wizard: { r: "allow", w: null, x: "allow" },
   skill: { r: "allow", w: null, x: "allow" },
   data: MEMBER_DATA,
 };
@@ -1099,9 +1089,9 @@ export async function askRule(
 export type ClientOpenKind = "document" | "table" | "page" | "wizard";
 
 /**
- * Opens one item of a space to the clients of its client spaces, or closes it again
- * (docs/plans/client-spaces.md): a rule for the role `client` on that item, read (and run for a
- * wizard). Its admins decide; the change is a line of the log.
+ * Opens one item of a space to its clients, or closes it again (docs/plans/org-spaces.md): a rule
+ * for the role `client` on that item, read (and run for a wizard). Its admins decide; the change
+ * is a line of the log.
  */
 export async function setOpenToClients(
   userId: string,

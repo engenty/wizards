@@ -1,6 +1,6 @@
 # Plan: client spaces
 
-Status: decided on 2026-10-31. Step 1 built (#411), inviting clients built; the rest of steps 2 and 3 open. Phase 2b of `docs/plans/modular.md` (decision 8). The
+Status: replaced on 2026-11-14 by `docs/plans/org-spaces.md`: clients are in spaces under the organization's own space, shared through Teilen; `kind: "client"`, the list of client spaces and their routes are gone, and tenant migration 0076 made each client space of before a space under the root with its clients in it. What follows is the decision of 2026-10-31, kept for its reasons. Decided on 2026-10-31. Step 1 built (#411), inviting clients built. Phase 2b of `docs/plans/modular.md` (decision 8). The
 proposal and its mockups: the artifact "How a Space Works", question 8
 (claude.ai/artifact/RwejkjT7hj7BwuWYcooVsw).
 

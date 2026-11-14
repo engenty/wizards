@@ -42,8 +42,8 @@ import { useRun } from "./useRun";
 /*
  * The client portal (docs/plans/client-portal.md): the firm's AI, opened to its clients. Before
  * sign-in the firm's own page with one button; then three places in the firm's frame: the chat
- * (the home), Wizards and Results. No address names a client space (server/paths.ts): Wizards
- * and Results have a word each, a deep link names its item, the tab keeps its client space.
+ * (the home), Wizards and Results. No address names a space (server/paths.ts): Wizards and
+ * Results have a word each, a deep link names its item, the tab keeps its space.
  */
 
 type Part = "chat" | PartName;
@@ -124,7 +124,7 @@ function useLoad<T>(load: () => Promise<T>, key: string) {
 const Loading = () => <p className="quiet">{t("loading")}</p>;
 const Failed = ({ error }: { error: string }) => <p className="quiet">{t("error", { error })}</p>;
 
-/** The firm as its brand names it, else its space's name. */
+/** The firm as its brand names it, else the organization's name. */
 const firmName = (space: ClientSpace) => space.firm.brand.name || space.firm.name;
 
 const dateOf = (iso: string) =>

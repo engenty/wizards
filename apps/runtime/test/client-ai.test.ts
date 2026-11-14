@@ -186,11 +186,13 @@ beforeAll(async () => {
   expect(res.status, await res.clone().text()).toBe(200);
   const imported = (await res.json()) as any;
   wizardId = imported.wizardId ?? imported.id;
-  wagner = (
-    (await (
-      await studio("POST", `/api/studio/spaces/${spaceId}/clients`, { name: "Wagner GmbH" })
-    ).json()) as any
-  ).id;
+  // A space under the organization's root for the client, written here directly.
+  wagner = "space-wagner";
+  await local(() =>
+    db.db
+      .insert(db.schema.space)
+      .values({ id: wagner, tenantId: "local", name: "Wagner GmbH", brand: {}, parentId: spaceId }),
+  );
   await studio("PUT", `/api/studio/spaces/${wagner}/members/wagner`, { role: "client" });
   await studio("PUT", `/api/studio/spaces/${spaceId}/open-to-clients`, {
     kind: "wizard",

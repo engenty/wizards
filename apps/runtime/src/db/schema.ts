@@ -179,15 +179,17 @@ export const space = sqliteTable(
     origin: text("origin", { enum: ["local"] }),
     syncedAt: integer("synced_at", { mode: "timestamp_ms" }),
     /**
-     * `client`: a client space under `parentId` (docs/plans/client-spaces.md): one client's data,
-     * results and chats, reading the parent's setup. `space`: a space of the organization.
-     * `personal`: one person's own space, Mein Space (docs/plans/org-spaces.md): its one member
-     * is that person, nobody else sees it.
+     * `space`: a space of the organization, shared with its members and, where `space_member`
+     * says so, with clients (docs/plans/org-spaces.md). `personal`: one person's own space, Mein
+     * Space: its one member is that person, nobody else sees it.
      */
-    kind: text("kind", { enum: ["space", "client", "personal"] })
+    kind: text("kind", { enum: ["space", "personal"] })
       .notNull()
       .default("space"),
-    /** The space a client space belongs to; null for a space. Two levels, never more. */
+    /**
+     * The organization's own space, the root, for every other space; null for the root and for a
+     * space a local install synced. Two levels, never more.
+     */
     parentId: text("parent_id").references((): AnySQLiteColumn => space.id, {
       onDelete: "cascade",
     }),
@@ -198,10 +200,9 @@ export const space = sqliteTable(
 );
 
 /**
- * Who of the organization is in a client space (docs/plans/client-spaces.md): `client`, the
- * client's own people, who see only the client spaces they are in; `member`, the firm's people
- * assigned to it. The firm's members see every client space of their space all the same until a
- * space turns "assigned only" on.
+ * Who is in a space (docs/plans/org-spaces.md): `client`, a client of the organization, who sees
+ * only the spaces they are in; `member`, the organization's people chosen for a space shared with
+ * its members only (`space.access`), and the one person of a Mein Space.
  */
 export const spaceMember = sqliteTable(
   "space_member",
@@ -431,9 +432,9 @@ export const run = sqliteTable(
     } | null>(),
     costMicros: integer("cost_micros").notNull().default(0),
     /**
-     * The client space a run was started in (docs/plans/client-portal.md): the wizard is its
-     * parent's, the run's data and results belong to the client space. Null: a run of its
-     * wizard's space.
+     * The space a run is in where that is not plainly its wizard's (docs/plans/org-spaces.md): a
+     * run of the root's wizard started in a space under it, or a client's run in the space they
+     * are in. Its data and results belong to that space. Null: a run of its wizard's space.
      */
     clientSpaceId: text("client_space_id").references((): AnySQLiteColumn => space.id, {
       onDelete: "cascade",
@@ -444,7 +445,7 @@ export const run = sqliteTable(
      */
     chatId: text("chat_id"),
     /**
-     * When the firm shared the run with the client space's clients, on purpose; null: it stays
+     * When the firm shared the run with the clients of its space, on purpose; null: it stays
      * the firm's. A client's own runs need none.
      */
     clientSharedAt: integer("client_shared_at", { mode: "timestamp_ms" }),

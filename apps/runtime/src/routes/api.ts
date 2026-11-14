@@ -121,8 +121,8 @@ export async function caller(
     return authInfo;
   }
   const who = principalOf(authInfo);
-  // A client of the organization uses its client spaces' elements, nothing else of the API
-  // (docs/plans/client-spaces.md).
+  // A client of the organization uses the elements of the spaces shared with them, nothing else
+  // of the API (docs/plans/org-spaces.md).
   if (who.role === "client" && !clients) {
     return c.json({ error: "This isn’t open to clients.", code: "forbidden" }, 403);
   }

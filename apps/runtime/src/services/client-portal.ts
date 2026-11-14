@@ -16,17 +16,19 @@ import { claimClientInvites } from "./client-spaces.js";
 import { notFound, ServiceError } from "./errors.js";
 import { startRun } from "./runs.js";
 import { spaceFileContent, spaceFiles } from "./space-files.js";
+import { brandSpaceId } from "./space-parent.js";
 import { listSpaces } from "./spaces.js";
 import { listWizards } from "./wizards.js";
 import { createChat, readChat, sendMessage } from "./work-chats.js";
 
 /*
  * The client contract (docs/plans/client-portal.md): what a client of the organization reaches
- * of their client spaces, for the client portal and any app built on the same contract. Every
- * call acts as the token's person with the role `client` (I1); a space is one of their client
- * spaces, else not found (I2, `ownedSpace`); the broker decides each item as that client, so the
- * parent's Knowledge and wizards come back only where the firm opened them. Behind the
- * `clientSpaces` switch, and only with the broker on: without it every rule says yes.
+ * of the spaces they are in, for the client portal and any app built on the same contract. Every
+ * call acts as the token's person with the role `client` (I1); a space is one they are in, else
+ * not found (I2, `ownedSpace`); the broker decides each item as that client, so the space's and
+ * the organization's Knowledge and wizards come back only where the firm opened them. Behind the
+ * `clientSpaces` and `orgSpaces` switches, and only with the broker on: without it every rule
+ * says yes.
  */
 
 /** Who calls: the token's person, as the work chats know a person. */
@@ -37,10 +39,14 @@ type RunRow = typeof schema.run.$inferSelect;
 
 const clientSubjects = (who: { id: string }) => subjectsOfPerson(who.id, "client");
 
-/** The contract is there for clients of an organization with client spaces and the broker on. */
+/** The contract is there for clients of an organization with clients and the broker on. */
 async function requirePortal(who: ClientWho): Promise<void> {
   const features = await currentFeatures();
-  if (features.clientSpaces !== true || !featureOn(features, "broker")) {
+  if (
+    features.clientSpaces !== true ||
+    features.orgSpaces !== true ||
+    !featureOn(features, "broker")
+  ) {
     throw notFound();
   }
   if (who.role !== "client") {
@@ -60,11 +66,14 @@ const asClient = (who: { id: string }) =>
     eq(schema.space.tenantId, currentTenant()),
   );
 
-/** One of the client's client spaces, with its parent. */
+/**
+ * One of the spaces the client is in, with the spaces whose wizards it runs: its own and the
+ * organization's root.
+ */
 async function clientSpace(
   who: ClientWho,
   spaceId: string,
-): Promise<{ space: SpaceRow; parent: SpaceRow }> {
+): Promise<{ space: SpaceRow; sources: string[] }> {
   await requirePortal(who);
   const [row] = await db
     .select({ space: schema.space })
@@ -72,16 +81,13 @@ async function clientSpace(
     .innerJoin(schema.spaceMember, eq(schema.spaceMember.spaceId, schema.space.id))
     .where(and(eq(schema.space.id, spaceId), asClient(who)))
     .limit(1);
-  const parent = row?.space.parentId
-    ? await db.query.space.findFirst({ where: eq(schema.space.id, row.space.parentId) })
-    : undefined;
-  if (!(row && parent)) {
+  if (!row?.space.parentId) {
     throw notFound();
   }
-  return { space: row.space, parent };
+  return { space: row.space, sources: [row.space.id, row.space.parentId] };
 }
 
-/** Whether the person is one of the client space's clients. */
+/** Whether the person is one of the space's clients. */
 async function isClientOf(userId: string, spaceId: string): Promise<boolean> {
   const row = await db.query.spaceMember.findFirst({
     columns: { id: true },
@@ -95,8 +101,8 @@ async function isClientOf(userId: string, spaceId: string): Promise<boolean> {
 }
 
 /**
- * Whether a client opens a run: one of their client space's, started by them or shared with them
- * by the firm. The run's own routes ask it too (routes/runs.ts).
+ * Whether a client opens a run: one of their space's, started by them or shared with them by the
+ * firm. The run's own routes ask it too (routes/runs.ts).
  */
 export async function clientMayOpen(
   userId: string,
@@ -111,9 +117,9 @@ export async function clientMayOpen(
 /** A logo's address on the runtime, for a page on another origin. */
 const absolute = (path: string | null) => (path ? `${env.publicUrl}${path}` : null);
 
-/** The firm's brand, as its space shows it: the client portal wears it. */
-async function firmBrand(parentId: string) {
-  const brand = await brandView(parentId);
+/** The space's brand, its own or the organization's it takes: the client portal wears it. */
+async function firmBrand(spaceId: string) {
+  const brand = await brandView(await brandSpaceId(spaceId));
   return { ...brand, logoUrl: absolute(brand.logoUrl) };
 }
 
@@ -136,51 +142,54 @@ export async function clientMe(who: ClientWho) {
   };
 }
 
-/** The client's client spaces, each with the firm's space and brand. */
+/** The spaces the client is in, each with the organization's name and the brand it wears. */
 export async function clientSpaces(who: ClientWho) {
   await requirePortal(who);
   await claimClientInvites(who.id, who.email);
-  // A client space, or with `orgSpaces` any space under the root shared with them: both have a
-  // parent whose brand the portal wears.
+  // Spaces under the organization's root: the root and a Mein Space never have clients.
   const spaces = (await listSpaces(who.id)).filter((s) => s.parentId);
-  const parents = spaces.length
-    ? await db.query.space.findMany({
-        columns: { id: true, name: true },
-        where: inArray(
-          schema.space.id,
-          spaces.map((s) => s.parentId as string),
-        ),
-      })
-    : [];
+  const org = spaces.length ? await tenantInfo(who.tenantId).catch(() => null) : null;
   return Promise.all(
     spaces.map(async (s) => ({
       id: s.id,
       name: s.name,
-      firm: {
-        name: parents.find((p) => p.id === s.parentId)?.name ?? "",
-        brand: await firmBrand(s.parentId as string),
-      },
+      firm: { name: org?.name ?? "", brand: await firmBrand(s.id) },
     })),
   );
 }
 
 // --- wizards ---------------------------------------------------------------------------------
 
-/** The parent's published wizards the firm opened to its clients: read and run. */
-async function openWizards(who: ClientWho, parent: SpaceRow) {
-  const published = (await listWizards(who.id, parent.id)).filter((w) => w.published);
-  const ids = published.map((w) => w.id);
-  const readable = new Set(await readableIds(parent.id, clientSubjects(who), "wizard", ids));
-  const open: typeof published = [];
-  for (const w of published) {
-    if (
-      readable.has(w.id) &&
-      (await decide(parent.id, clientSubjects(who), { kind: "wizard", id: w.id }, "x")).ok
-    ) {
-      open.push(w);
+type PublishedWizard = Awaited<ReturnType<typeof listWizards>>[number];
+
+/**
+ * The published wizards the firm opened to its clients, of the space and of the organization's
+ * root, each with the space whose rules decide it: read and run.
+ */
+async function openedWizards(
+  who: ClientWho,
+  sources: string[],
+): Promise<{ spaceId: string; wizard: PublishedWizard }[]> {
+  const open: { spaceId: string; wizard: PublishedWizard }[] = [];
+  for (const spaceId of sources) {
+    const published = (await listWizards(who.id, spaceId)).filter((w) => w.published);
+    const ids = published.map((w) => w.id);
+    const readable = new Set(await readableIds(spaceId, clientSubjects(who), "wizard", ids));
+    for (const wizard of published) {
+      if (
+        readable.has(wizard.id) &&
+        (await decide(spaceId, clientSubjects(who), { kind: "wizard", id: wizard.id }, "x")).ok
+      ) {
+        open.push({ spaceId, wizard });
+      }
     }
   }
-  return open.map((w) => ({
+  return open;
+}
+
+/** The opened wizards as the contract lists them. */
+async function openWizards(who: ClientWho, sources: string[]) {
+  return (await openedWizards(who, sources)).map(({ wizard: w }) => ({
     id: w.id,
     title: w.title,
     description: w.description ?? "",
@@ -190,16 +199,17 @@ async function openWizards(who: ClientWho, parent: SpaceRow) {
 }
 
 export async function clientWizards(who: ClientWho, spaceId: string) {
-  const { parent } = await clientSpace(who, spaceId);
-  return openWizards(who, parent);
+  const { sources } = await clientSpace(who, spaceId);
+  return openWizards(who, sources);
 }
 
 /**
- * Starts one of the opened wizards in the client space: the wizard is the parent's, the run the
- * client space's. A line of the audit like every element call.
+ * Starts one of the opened wizards in the space: the run is the space's, whichever space the
+ * wizard is in. A line of the audit like every element call.
  */
 export async function clientStartWizard(who: ClientWho, spaceId: string, wizardId: string) {
-  const { space, parent } = await clientSpace(who, spaceId);
+  const { space, sources } = await clientSpace(who, spaceId);
+  const opened = (await openedWizards(who, sources)).find((o) => o.wizard.id === wizardId);
   const caller = personCaller({
     space: { id: space.id, name: space.name },
     userId: who.id,
@@ -212,12 +222,12 @@ export async function clientStartWizard(who: ClientWho, spaceId: string, wizardI
     {
       action: "wizard_start",
       resource: { kind: "wizard", id: wizardId },
-      rulesIn: parent.id,
+      rulesIn: opened?.spaceId ?? space.id,
       perm: "x",
       input: { wizardId },
     },
     async () => {
-      if (!(await openWizards(who, parent)).some((w) => w.id === wizardId)) {
+      if (!opened) {
         throw notFound();
       }
       const { runId } = await startRun(who.id, wizardId, {}, { clientSpaceId: space.id });
@@ -228,7 +238,7 @@ export async function clientStartWizard(who: ClientWho, spaceId: string, wizardI
 
 // --- runs and results ------------------------------------------------------------------------
 
-/** The runs of the client space the client sees: their own, and those shared with them. */
+/** The runs of the space the client sees: their own, and those shared with them. */
 const seenRuns = (who: ClientWho, spaceId: string) =>
   and(
     eq(schema.run.clientSpaceId, spaceId),
@@ -256,7 +266,7 @@ const resultOf = (who: ClientWho, titles: Map<string, string>) => (r: RunRow) =>
   updatedAt: r.updatedAt.toISOString(),
 });
 
-/** The results of the client space the client sees, newest first. */
+/** The results of the space the client sees, newest first. */
 export async function clientResults(who: ClientWho, spaceId: string) {
   const { space } = await clientSpace(who, spaceId);
   const rows = await db.query.run.findMany({
@@ -270,7 +280,7 @@ export async function clientResults(who: ClientWho, spaceId: string) {
 
 /**
  * A ticket for one run the client sees, by the run alone (a deep link, `/portal/r/<run>`): the
- * run's own routes open with it (`?rt=`); its client space comes along. A run the firm shared
+ * run's own routes open with it (`?rt=`); its space comes along. A run the firm shared
  * gets a ticket that only reads it.
  */
 export async function clientOpenRun(who: ClientWho, runId: string) {
@@ -306,7 +316,7 @@ export async function clientOpenRun(who: ClientWho, runId: string) {
  * firm shared, the wizards they can start.
  */
 export async function clientForYou(who: ClientWho, spaceId: string) {
-  const { space, parent } = await clientSpace(who, spaceId);
+  const { space, sources } = await clientSpace(who, spaceId);
   const [waiting, shared, wizards] = await Promise.all([
     db.query.run.findMany({
       where: and(
@@ -329,7 +339,7 @@ export async function clientForYou(who: ClientWho, spaceId: string) {
       orderBy: [desc(schema.run.clientSharedAt)],
       limit: 10,
     }),
-    openWizards(who, parent),
+    openWizards(who, sources),
   ]);
   const titles = await titlesOf([...waiting, ...shared].map((r) => r.wizardId));
   // What the firm's team is asked waits for them, not for the client.
@@ -344,7 +354,7 @@ export async function clientForYou(who: ClientWho, spaceId: string) {
 
 // --- chats -----------------------------------------------------------------------------------
 
-/** The client space's chats the client is a member of: the firm's other chats stay internal. */
+/** The space's chats the client is a member of: the firm's other chats stay internal. */
 async function memberChats(who: ClientWho, spaceId: string) {
   const mine = await db
     .select({ chatId: schema.chatMember.chatId })
@@ -376,7 +386,7 @@ export async function clientChats(who: ClientWho, spaceId: string) {
   }));
 }
 
-/** One chat the client is a member of, in one of their client spaces, by the chat alone. */
+/** One chat the client is a member of, in one of their spaces, by the chat alone. */
 async function memberChat(who: ClientWho, chatId: string) {
   await requirePortal(who);
   const [row] = await db
@@ -527,7 +537,7 @@ export async function clientChatPost(
 
 // --- files -----------------------------------------------------------------------------------
 
-/** The client space's documents and files, to download: one still being read is there already. */
+/** The space's documents and files, to download: one still being read is there already. */
 export async function clientFiles(who: ClientWho, spaceId: string) {
   const { space } = await clientSpace(who, spaceId);
   const rows = (await spaceFiles(space.id)).filter(
@@ -552,7 +562,7 @@ export async function clientFiles(who: ClientWho, spaceId: string) {
     }));
 }
 
-/** One file of the client's client spaces, by the file alone (a deep link, `/portal/f/<file>`). */
+/** One file of the client's spaces, by the file alone (a deep link, `/portal/f/<file>`). */
 async function clientFileRow(who: ClientWho, fileId: string) {
   await requirePortal(who);
   const [row] = await db
@@ -580,7 +590,7 @@ async function clientFileRow(who: ClientWho, fileId: string) {
   return file;
 }
 
-/** What a file is, and its client space. */
+/** What a file is, and its space. */
 export async function clientFileInfo(who: ClientWho, fileId: string) {
   const f = await clientFileRow(who, fileId);
   return {

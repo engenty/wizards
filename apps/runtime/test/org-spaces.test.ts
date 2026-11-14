@@ -101,9 +101,10 @@ describe("the organization's spaces", () => {
     const rwx = await import("../src/broker/rwx");
     const { asRole } = await import("../src/services/access");
     await local(async () => {
-      expect(
-        (await rwx.decide(shared, [{ kind: "role", id: "client" }], { kind: "page", id: "p" }, "w")).ok,
-      ).toBe(true);
+      // The clients' seed: skills, never the space's Knowledge until an item is opened to them.
+      const client = [{ kind: "role" as const, id: "client" }];
+      expect((await rwx.decide(shared, client, { kind: "skill", id: "s" }, "x")).ok).toBe(true);
+      expect((await rwx.decide(shared, client, { kind: "page", id: "p" }, "r")).ok).toBe(false);
       await asRole("client", async () => {
         expect((await spaces.listSpaces("wagner")).map((s) => s.id)).toEqual([shared]);
         const root = await spaces.rootSpace();

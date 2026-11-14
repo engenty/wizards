@@ -27,8 +27,8 @@ export interface StoreScope {
   wizardId: string;
   holder: string;
   /**
-   * The client space the run belongs to (docs/plans/client-portal.md): its shared lists are the
-   * client space's, never the parent's or another client's. Absent: the wizard's space.
+   * The space the run carries (docs/plans/org-spaces.md): its shared lists are that space's,
+   * never the root's or another space's. Absent: the wizard's space.
    */
   clientSpaceId?: string | null;
 }

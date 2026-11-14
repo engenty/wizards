@@ -5,21 +5,17 @@ import { setOpenToClients } from "../broker/rwx.js";
 import {
   addSpaceMember,
   clientOpenOf,
-  createClientSpace,
-  deleteClientSpace,
   inviteClient,
-  listClientSpaces,
   listSpaceMembers,
   removeSpaceMember,
-  renameClientSpace,
   requireClientSpaces,
   shareWithClient,
 } from "../services/client-spaces.js";
 
 /**
- * Client spaces for the studio (docs/plans/client-spaces.md), under `/api/studio`: a space's
- * client spaces, who is in each, and what of the space its clients reach. "Not found" while the
- * `clientSpaces` switch is off.
+ * Who is in a space and what of it its clients reach, for the studio, under `/api/studio`
+ * (docs/plans/org-spaces.md): the share dialog's people, a client's invitation, the results
+ * shared with clients. Clients are "not found" while the `clientSpaces` switch is off.
  */
 
 type Vars = { Variables: { user: SessionUser } };
@@ -27,27 +23,10 @@ type Vars = { Variables: { user: SessionUser } };
 const OPEN_KINDS = ["document", "table", "page", "wizard"] as const;
 
 export const clientSpaceRoutes = new Hono<Vars>()
-  .get("/spaces/:id/clients", async (c) =>
-    c.json({ clients: await listClientSpaces(c.get("user").id, c.req.param("id")) }),
-  )
-  .post("/spaces/:id/clients", async (c) => {
-    const { name } = z.object({ name: z.string().min(1).max(200) }).parse(await c.req.json());
-    return c.json(await createClientSpace(c.get("user").id, c.req.param("id"), name));
-  })
-  .patch("/spaces/:id/client", async (c) => {
-    const { name } = z
-      .object({ name: z.string().trim().min(1).max(200) })
-      .parse(await c.req.json());
-    return c.json(await renameClientSpace(c.get("user").id, c.req.param("id"), name));
-  })
-  // A run of a client space shared with its clients on purpose, or taken back.
+  // A run of a space shared with its clients on purpose, or taken back.
   .put("/runs/:id/client-share", async (c) => {
     const { shared } = z.object({ shared: z.boolean() }).parse(await c.req.json());
     return c.json(await shareWithClient(c.get("user").id, c.req.param("id"), shared));
-  })
-  .delete("/spaces/:id/client", async (c) => {
-    await deleteClientSpace(c.get("user").id, c.req.param("id"));
-    return c.json({ ok: true });
   })
   .get("/spaces/:id/members", async (c) =>
     c.json({ members: await listSpaceMembers(c.get("user").id, c.req.param("id")) }),
