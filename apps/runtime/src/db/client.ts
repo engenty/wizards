@@ -9,6 +9,7 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 import { env } from "../env.js";
 import { currentTenant, inTenant } from "../tenants/tenant.js";
 import * as control from "./control-schema.js";
+import { moveKeptAccounts } from "./kept-accounts.js";
 import * as schema from "./schema.js";
 
 mkdirSync(join(env.dataDir, "tenants"), { recursive: true });
@@ -326,6 +327,19 @@ async function openTenantNow(id: string): Promise<Db> {
     client.close();
     throw err;
   }
+  // The accounts wizards kept become their holders' connections; a failure keeps them where
+  // they are until the next start, and the tenant opens anyway.
+  await whileBusy(() => moveKeptAccounts(db)).then(
+    (moved) => {
+      if (moved.choices) {
+        console.log(
+          `[accounts ${id}] ${moved.choices} kept accounts moved: ${moved.accounts} new connections, ${moved.reused} already there`,
+        );
+      }
+    },
+    (err) =>
+      console.error(`[accounts ${id}] kept accounts stay in the store until the next start:`, err),
+  );
   for (const hook of openHooks) {
     await hook(id, client);
   }

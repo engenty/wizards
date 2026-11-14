@@ -233,6 +233,12 @@ export const FEATURES = {
     label: "Code steps",
     hint: "A step that runs a function from the wizard's files with no model: maths, reshaping, scoring. With it, function tools in the wizard's files that a step's model calls (docs/plans/wizard-code.md). The architect knows both, and a run with them starts (docs/plans/code-step.md).",
   },
+  runConnections: {
+    kind: "release",
+    default: false,
+    label: "Connections a run finds",
+    hint: "A run finds the account for what its wizard needs: a person's own account from another wizard, and the space's connections for the need (docs/plans/run-connections.md).",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

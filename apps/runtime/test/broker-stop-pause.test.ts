@@ -191,9 +191,9 @@ beforeAll(async () => {
   wizardId = (await inTenant(() => wizards.createWizard("user-a", { definition, spaceId: space })))
     .id;
   store.wizardId = wizardId;
-  const { putSecret } = await import("../src/store/index");
+  const { keepAccount } = await import("../src/connectors/index");
   await inTenant(() =>
-    putSecret(store, "connection:hub", "hubspot", "HubSpot", {
+    keepAccount(store, "hub", "hubspot", "HubSpot", {
       accessToken: JSON.stringify({ access_token: TOKEN }),
       refreshToken: null,
       expiresAt: null,

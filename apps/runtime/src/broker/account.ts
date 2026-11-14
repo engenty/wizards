@@ -1,13 +1,8 @@
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import { and, eq } from "drizzle-orm";
 import { connectorFetch, resolveEnv, signInFetch } from "../connectors/builtin.js";
-import {
-  candidates,
-  connectorFor,
-  open,
-  type StoredConnection,
-  slot,
-} from "../connectors/index.js";
+import { candidates, open, type StoredConnection } from "../connectors/index.js";
+import { connectionsFor, remember, runConnectionsOn } from "../connectors/person-connections.js";
 import type { SpaceConnectionRow, StoredTokens } from "../connectors/space-connections.js";
 import { refreshThroughAccount } from "../connectors/via-account.js";
 import { db, schema } from "../db/client.js";
@@ -17,9 +12,9 @@ import type {
   ConnectorDefinition,
 } from "../engenty/connections-sdk/types.js";
 import { seal, unseal } from "../secrets/crypto.js";
-import { getSecret, putSecret, type StoredSecret, type StoreScope } from "../store/index.js";
+import { getSecret, type StoredSecret, type StoreScope } from "../store/index.js";
 import { currentTenant } from "../tenants/tenant.js";
-import type { Who } from "./call.js";
+import type { BrokerConnection, Who } from "./call.js";
 
 /*
  * The one reader of a connection's secret (docs/plans/broker.md, "One reader"). Nothing outside
@@ -35,33 +30,71 @@ export interface Account {
 }
 
 /**
- * The account a wizard's connection (or a share target's) holds for this store: the person who
- * runs the wizard connected it. `null` when nothing is connected.
+ * The account a wizard's connection (or a share target's) uses in this run: the person's own
+ * connection the lookup finds (`connectionsFor`). The only candidate is remembered once used.
+ * `null` when there is none to use. A connection of the space is resolved before
+ * (`heldConnection`), so that its rules count.
  */
 export async function wizardAccount(
   scope: StoreScope,
   connection: ConnectionDef,
   spaceId: string,
 ): Promise<Account | null> {
-  const stored = await getSecret<StoredConnection>(scope, slot(connection.id));
-  if (!stored) {
+  const found = await connectionsFor(scope, spaceId, connection);
+  const chosen = found.chosen?.kind === "person" ? found.chosen : null;
+  if (!chosen) {
     const only = connection.connector ? (await candidates(connection, spaceId))[0] : undefined;
-    return only && open(only)
+    return !found.chosen && only && open(only)
       ? { connector: only, label: only.name, ctx: actionContext(scope, connection, only, "{}", []) }
       : null;
   }
-  const connector = await connectorFor(connection, stored.provider, spaceId);
-  let data = stored.data;
+  const row = await db.query.personConnection.findFirst({
+    where: eq(schema.personConnection.id, chosen.row.id),
+  });
+  let data = row ? unseal<StoredConnection>(row.secret) : null;
+  if (!data) {
+    throw new Error("The connection's keys cannot be read here. Connect it again.");
+  }
+  if (found.by === "only") {
+    await remember(scope.wizardId, connection.id, scope.holder, chosen);
+  }
+  const { connector } = chosen;
   const fresh = await refreshed(connector, data);
   if (fresh) {
     data = fresh;
-    await putSecret(scope, slot(connection.id), connector.id, stored.label, data);
+    await db
+      .update(schema.personConnection)
+      .set({ secret: seal(data), updatedAt: new Date() })
+      .where(eq(schema.personConnection.id, chosen.row.id));
   }
   return {
     connector,
-    label: stored.label,
-    ctx: actionContext(scope, connection, connector, data.accessToken, data.scopes, stored),
+    label: chosen.row.label,
+    ctx: actionContext(scope, connection, connector, data.accessToken, data.scopes, chosen.row),
   };
+}
+
+/**
+ * A wizard's connection as the broker holds it: where the run uses a connection of the space for
+ * the need (behind `runConnections`), that connection, under the space's rules.
+ */
+export async function heldConnection(connection: BrokerConnection): Promise<BrokerConnection> {
+  if (connection.kind !== "store_secret" || !(await runConnectionsOn())) {
+    return connection;
+  }
+  const found = await connectionsFor(connection.scope, connection.spaceId, connection.def);
+  if (found.chosen?.kind !== "space") {
+    return connection;
+  }
+  if (found.by === "only") {
+    await remember(
+      connection.scope.wizardId,
+      connection.def.id,
+      connection.scope.holder,
+      found.chosen,
+    );
+  }
+  return { kind: "space_connection", row: found.chosen.row, connector: found.chosen.connector };
 }
 
 function actionContext(

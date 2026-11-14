@@ -16,6 +16,7 @@ import type { Role } from "../manage.js";
 import type { StoreScope } from "../store/index.js";
 import {
   type Account,
+  heldConnection,
   keptSecret,
   markUsed,
   spaceAccount,
@@ -452,7 +453,7 @@ export async function brokerConnected(
   connection: BrokerConnection,
   who: Who = NOBODY,
 ): Promise<{ connector: ConnectorDefinition; label: string } | null> {
-  const account = await accountOf(connection, who);
+  const account = await accountOf(await heldConnection(connection), who);
   return account ? { connector: account.connector, label: account.label } : null;
 }
 
@@ -471,7 +472,8 @@ const MAY_HAVE_HAPPENED = "It was interrupted before and may have happened alrea
 export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise<BrokerResult<T>> {
   const started = Date.now();
   const { who, where, ctx = {} } = call;
-  let { connection } = call;
+  // The run may use a connection of the space for a wizard's need: its rules count then.
+  let connection = await heldConnection(call.connection);
   const connectionId = connectionIdOf(connection);
   /** What every line of this call says, whatever came of it. */
   const lineOf = (

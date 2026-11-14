@@ -148,9 +148,9 @@ beforeAll(async () => {
   space = (await inTenant(() => spaces.createSpace("user-b", "Vertrieb"))).id;
   wizardId = (await inTenant(() => wizards.createWizard("user-b", { definition }))).id;
   member.wizardId = wizardId;
-  const { putSecret } = await import("../src/store/index");
+  const { keepAccount } = await import("../src/connectors/index");
   await inTenant(() =>
-    putSecret(member, "connection:hub", "hubspot", "HubSpot", {
+    keepAccount(member, "hub", "hubspot", "HubSpot", {
       accessToken: JSON.stringify({ access_token: TOKEN }),
       refreshToken: null,
       expiresAt: null,
