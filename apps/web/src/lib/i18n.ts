@@ -1122,6 +1122,7 @@ const de: Record<Key, Line> = {
   "shared.noneToShow":
     "Noch kein Wizard veröffentlicht und geteilt. Teile einen im Studio, dann steht er hier.",
   "shared.pickOne": "Schalte mindestens einen Wizard ein. Bis dahin zeigt die Seite nichts.",
+  "shared.previewEmpty": "Hier stehen die Wizards, die du links einschaltest.",
   "nav.more": "Mehr",
   "nav.sources": "Ressourcen",
   "nav.space": "Space",
@@ -6219,6 +6220,7 @@ const en = {
   "shared.noneToShow":
     "No wizard is published and shared yet. Share one in Studio and it shows here.",
   "shared.pickOne": "Switch on at least one wizard. Until then the page shows nothing.",
+  "shared.previewEmpty": "The wizards you switch on at the left show here.",
   "nav.more": "More",
   "nav.sources": "Resources",
   "nav.space": "Space",

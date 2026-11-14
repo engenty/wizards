@@ -921,6 +921,24 @@ export function UserMenu({
  */
 const BarSlot = createContext<HTMLElement | null>(null);
 
+/**
+ * Where a page puts a pane of its own beside its card, as Goose's sidebar stands on the other
+ * side (Shared's panel): on the frame's ground, a card of its own. Null on a phone and in a page
+ * that fills the frame: the pane then stands at the top of the page.
+ */
+const PaneSlot = createContext<HTMLElement | null>(null);
+
+/** A page's pane beside its card, on the frame's ground (`PaneSlot`). */
+export function SidePane({ children }: { children: ReactNode }) {
+  const slot = useContext(PaneSlot);
+  const pane = (
+    <div className="flex w-full min-w-0 flex-col overflow-hidden bg-background md:w-[17rem] md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
+      {children}
+    </div>
+  );
+  return slot ? createPortal(pane, slot) : pane;
+}
+
 export function TopBar({
   me,
   sidebar,
@@ -1028,6 +1046,7 @@ export function AppFrame({
   // With `orgSpaces` the top bar stands on the ground above the page; a phone keeps it inside.
   const onGround = useFeature("orgSpaces") && !phone;
   const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const [paneSlot, setPaneSlot] = useState<HTMLElement | null>(null);
   return (
     <div className={cn("flex h-dvh overflow-hidden bg-sidebar", DIRECTION[position])}>
       {phone ? (
@@ -1038,69 +1057,74 @@ export function AppFrame({
         <AppRail me={me} labels={labels.shown} room={labels.room} />
       )}
       <BarSlot.Provider value={onGround ? slot : null}>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {onGround ? <div ref={setSlot} className={cn("shrink-0", BAR_INSET[position])} /> : null}
-          {/* The page's card, and beside it Goose's sidebar as a pane of its own. */}
-          <div
-            className={cn(
-              "flex min-h-0 min-w-0 flex-1 md:gap-2",
-              INSET[position],
-              onGround && "md:pt-0",
-            )}
-          >
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
-              {me.impersonation ? (
-                <ImpersonationBanner
-                  name={me.user.name || me.user.email}
-                  until={me.impersonation.until}
-                />
-              ) : null}
-              <UpdateBanner />
-              <ConfirmHost />
-              <InstallBanner me={me} />
-              <CloudSyncBar me={me} />
-              {full ? (
-                <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-                  {children}
-                </main>
-              ) : (
-                <div className="flex min-h-0 flex-1 flex-col">
-                  <TopBar me={me} />
-                  <div ref={column} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-                    {/* `relative`: what a page places out of flow without a positioned parent (a
+        <PaneSlot.Provider value={phone || full ? null : paneSlot}>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {onGround ? (
+              <div ref={setSlot} className={cn("shrink-0", BAR_INSET[position])} />
+            ) : null}
+            {/* A page's own pane, the page's card, and beside it Goose's sidebar as a pane of its own. */}
+            <div
+              className={cn(
+                "flex min-h-0 min-w-0 flex-1 md:gap-2",
+                INSET[position],
+                onGround && "md:pt-0",
+              )}
+            >
+              <div ref={setPaneSlot} className="hidden min-h-0 shrink-0 md:flex md:empty:hidden" />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
+                {me.impersonation ? (
+                  <ImpersonationBanner
+                    name={me.user.name || me.user.email}
+                    until={me.impersonation.until}
+                  />
+                ) : null}
+                <UpdateBanner />
+                <ConfirmHost />
+                <InstallBanner me={me} />
+                <CloudSyncBar me={me} />
+                {full ? (
+                  <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+                    {children}
+                  </main>
+                ) : (
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    <TopBar me={me} />
+                    <div ref={column} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+                      {/* `relative`: what a page places out of flow without a positioned parent (a
                     hidden file field) stays in the page's own scroll, not in a frame around it,
                     which a jump to a section would scroll as well. The page runs to the frame's
                     edge and scrolls under the assistant's docked card; it keeps that card's
                     height (`--assistant-dock`) free below its last section, or the phone's bar,
                     whichever is higher. */}
-                    <main
-                      id={SCROLL_ROOT_ID}
-                      className="relative min-h-0 flex-1 overflow-y-auto"
-                      style={{ paddingBottom: `max(var(--assistant-dock, 0px), ${clear})` }}
-                    >
-                      <div
-                        className={cn(
-                          "mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6",
-                          wide ? "max-w-[88rem]" : "max-w-5xl",
-                        )}
+                      <main
+                        id={SCROLL_ROOT_ID}
+                        className="relative min-h-0 flex-1 overflow-y-auto"
+                        style={{ paddingBottom: `max(var(--assistant-dock, 0px), ${clear})` }}
                       >
-                        {children}
-                      </div>
-                    </main>
-                    {goose && (
-                      <>
-                        <AssistantDock column={column} />
-                        <HighlightLayer />
-                      </>
-                    )}
-                    <KnowledgePalette />
+                        <div
+                          className={cn(
+                            "mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6",
+                            wide ? "max-w-[88rem]" : "max-w-5xl",
+                          )}
+                        >
+                          {children}
+                        </div>
+                      </main>
+                      {goose && (
+                        <>
+                          <AssistantDock column={column} />
+                          <HighlightLayer />
+                        </>
+                      )}
+                      <KnowledgePalette />
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              {goose && !full ? <AssistantSidebar /> : null}
             </div>
-            {goose && !full ? <AssistantSidebar /> : null}
           </div>
-        </div>
+        </PaneSlot.Provider>
       </BarSlot.Provider>
     </div>
   );
