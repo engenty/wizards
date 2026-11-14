@@ -16,7 +16,7 @@ only the space you are in.
 | Mein Space | One per person and organization (`kind: "personal"`, one member). Only that person sees it. Alone (Free, a local install) the root is the one space and shows as the person's own |
 | Spaces | The boundaries. Every space other than the root has the root as parent and reads it. Two levels, never more |
 | Sharing | A team space is the team's: everyone, or only the members chosen (`space_member` role `member`). It never takes outside people |
-| Clients (2026-11-14) | A client is a client space (`kind: "client"`): one per client of the firm, beside the team spaces under the root, violet. Made with „Kund:in anlegen“ in the space menu; its client's people are invited in it under Teilen (`space_member` role `client`), sign in on the organization's page (`<team>.wizards.page/portal`) and see that client space alone. It reads the root like any space; of the root a client reaches only what is opened to clients (Space › Kund:innen on the root: „Wizards für Kund:innen“, „Für Kund:innen sichtbar“). Behind `clientSpaces` (Team plan). Migration 0077 made every space under the root with clients in it a client space again |
+| Clients (2026-11-14) | A client is a client space (`kind: "client"`): one per client of the firm, beside the team spaces under the root, violet. Made with „Kund:in anlegen“ in the space menu; its client's people are invited in it under Teilen (`space_member` role `client`), sign in on the organization's page (`<team>.wizards.page/portal`) and see that client space alone. It reads the root like any space; of the root a client reaches only what is opened to clients (Space › Kund:innen on the root: „Wizards für Kund:innen“, „Für Kund:innen sichtbar“). Behind `clientSpaces` (Team plan). Migrations 0076 and 0077 put every client space, and every space with clients in it, beside the team spaces |
 | Ordner | Work only. Work's sections (`chat_section`) become folders: they sort chats and hold Infos, Dateien and Ergebnisse, and may link a drive. Not a boundary |
 | Frame | The app bar on the edge stays. The top bar is the path: the sidebar toggle, the space (its menu switches) and the folder, two steps at most, then search. A single space shows the organization's name and no menu |
 | The space menu | The organization's root ("alle"), Mein Space ("nur du"), the spaces used last, "Alle n Spaces", "Neuer Space" |
@@ -40,7 +40,7 @@ only the space you are in.
 
 1. **Root and Mein Space** (runtime, built: `services/spaces.ts`, `services/space-parent.ts`): the root per organization, Mein Space per person, every
    other space under the root and reading it; existing spaces move under the root once, client
-   spaces by tenant migration 0076, made client spaces again beside them by 0077.
+   spaces beside them by tenant migration 0076; 0077 makes a space with clients in it a client space.
 2. **Frame** (studio, built: `studio/SpacePath.tsx`): the path bar with the space menu; the space tile and the organization menu
    go; "Wizards" in the app bar.
 3. **Teilen** (built: `services/client-spaces.ts`, `studio/work/ShareSpace.tsx`): the share dialog, for a team space with its members, for a client space with its client's people too. In a client space its clients work with its data and run its wizards (the clients' seed); a client's run carries the client space (`run.client_space_id`), whichever space its wizard is in.

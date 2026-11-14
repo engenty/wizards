@@ -227,7 +227,21 @@ describe("client spaces", () => {
       }
       const row = await db.db.query.space.findFirst({ where: (s, { eq }) => eq(s.id, "old-client") });
       expect(row).toMatchObject({ kind: "client", parentId: rootId, brandFrom: "root", access: "all" });
-      // A team space without clients stays one.
+      // A client space without its people yet stays one; a team space without clients too.
+      await db.db.run(
+        sql`INSERT INTO space (id, tenant_id, name, brand, kind, parent_id) VALUES ('empty-client', 'local', 'Gruber', '{}', 'client', 'team')`,
+      );
+      for (const name of ["0076_clients_in_spaces", "0077_client_spaces_at_root"]) {
+        const migration = readFileSync(
+          join(import.meta.dirname, `../src/db/migrations/tenant/${name}.sql`),
+          "utf8",
+        );
+        for (const statement of migration.split("--> statement-breakpoint")) {
+          await db.db.run(sql.raw(statement));
+        }
+      }
+      const empty = await db.db.query.space.findFirst({ where: (s, { eq }) => eq(s.id, "empty-client") });
+      expect(empty).toMatchObject({ kind: "client", parentId: rootId });
       const team = await db.db.query.space.findFirst({ where: (s, { eq }) => eq(s.id, "team") });
       expect(team).toMatchObject({ kind: "space" });
       const member = await db.db.query.spaceMember.findFirst({
