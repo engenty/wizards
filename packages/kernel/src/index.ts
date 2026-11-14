@@ -14,3 +14,4 @@ export {
 export { memoryStore } from "./memory.js";
 export { quickjsTurn } from "./quickjs.js";
 export type * from "./types.js";
+export { typesOf } from "./types-of.js";

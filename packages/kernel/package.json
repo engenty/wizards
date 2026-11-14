@@ -19,6 +19,11 @@
       "wizards-source": "./src/executor.ts",
       "types": "./dist/executor.d.ts",
       "default": "./dist/executor.js"
+    },
+    "./check": {
+      "wizards-source": "./src/check-dir.ts",
+      "types": "./dist/check-dir.d.ts",
+      "default": "./dist/check-dir.js"
     }
   },
   "scripts": {
