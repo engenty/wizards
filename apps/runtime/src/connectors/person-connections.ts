@@ -54,6 +54,21 @@ export async function runConnectionsOn(): Promise<boolean> {
 /** For whom the space remembers a choice: the runs nobody watches. */
 export const spaceHolder = (spaceId: string) => `s:${spaceId}`;
 
+/** A run of a wizard that one of its starts began, as the lookup and the checks read it. */
+export const startedScope = (wizardId: string): StoreScope => ({
+  wizardId,
+  holder: "r:",
+  started: true,
+});
+
+/**
+ * A connection of the space a started run may use: one that signs in as the space, is signed in,
+ * and is not the admins' alone. Nobody is there to sign in for themselves. The admin's choice for
+ * the space is what lets the run use it; its audience would count the run as a guest.
+ */
+const startedUsable = (row: SpaceConnectionRow) =>
+  row.signIn === "space" && row.secret !== null && row.audience !== "admins";
+
 /** The space a run is in: the one it carries, else the wizard's. */
 const homeOf = (scope: StoreScope, spaceId: string) => scope.clientSpaceId ?? spaceId;
 
@@ -107,8 +122,8 @@ export async function connectionsFor(
   const home = homeOf(scope, spaceId);
   const holders = [
     scope.holder,
-    // A run nobody watches uses what an admin chose for the space.
-    ...(scope.holder.startsWith("r:") ? [spaceHolder(home)] : []),
+    // A run a start began uses what an admin chose for the space.
+    ...(scope.started ? [spaceHolder(home)] : []),
   ];
   const choices = await db.query.connectionChoice.findMany({
     where: and(
@@ -139,10 +154,10 @@ export async function connectionsFor(
     }
   }
   if (reach) {
-    const who = await whoOfHolder(scope.holder);
+    const who = scope.started ? null : await whoOfHolder(scope.holder);
     for (const row of await listSpaceConnections(home)) {
       const connector = asNeed.get(row.connectorId);
-      if (connector && (await spaceUsable(row, who))) {
+      if (connector && (who ? await spaceUsable(row, who) : startedUsable(row))) {
         found.push({ kind: "space", row, connector });
       }
     }
@@ -157,7 +172,8 @@ export async function connectionsFor(
   if (remembered) {
     return { candidates: found, chosen: remembered, by: "choice" };
   }
-  return found.length === 1
+  // A started run uses the space's choice or nothing: no admin chose an only candidate for it.
+  return found.length === 1 && !scope.started
     ? { candidates: found, chosen: found[0], by: "only" }
     : { candidates: found, chosen: null, by: null };
 }

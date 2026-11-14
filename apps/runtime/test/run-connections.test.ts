@@ -218,10 +218,10 @@ describe("the space's connections", () => {
     expect((await inTenant(() => own.connectionsFor(scope, space, hub))).by).toBe("choice");
   });
 
-  it("serve a run nobody watches by the space's choice", async () => {
+  it("serve a run a start began by the space's choice", async () => {
     switchOn();
     const two = await spaceConnection(clientA);
-    const scope = { wizardId: wizards.start, holder: "r:run-2", clientSpaceId: clientA };
+    const scope = { ...own.startedScope(wizards.start), holder: "r:run-2", clientSpaceId: clientA };
     expect((await inTenant(() => own.connectionsFor(scope, space, hub))).chosen).toBeNull();
     await inTenant(() =>
       own.remember(wizards.start, "hub", own.spaceHolder(clientA), { kind: "space", row: { id: two } }),
