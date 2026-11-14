@@ -1,0 +1,39 @@
+{
+  "title": "Offer",
+  "roles": { "legal": "Legal" },
+  "tools": [],
+  "input": {
+    "fields": [
+      { "id": "customer", "kind": "text", "required": true },
+      { "id": "email", "kind": "text", "required": true },
+      { "id": "budget", "kind": "number" },
+      {
+        "id": "items",
+        "kind": "list",
+        "fields": [
+          { "id": "name", "kind": "text" },
+          { "id": "price", "kind": "number" },
+          { "id": "quantity", "kind": "number" }
+        ]
+      }
+    ]
+  },
+
+  "start": "offer",
+  "edges": {
+    "offer": ["check", "legal", "offer"],
+    "legal": ["check", "offer"],
+    "check": ["accept", "offer"],
+    "accept": ["signed", "end"],
+    "signed": ["end", "chase"],
+    "chase": ["end"]
+  },
+  "limits": { "legal": 3, "check": 3 },
+
+  "output": {
+    "offer": "offer.text",
+    "price": "offer.price",
+    "signed": "signed.came",
+    "reminder": "chase.mail"
+  }
+}
