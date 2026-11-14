@@ -271,6 +271,8 @@ const DOORS: [string, string, string, unknown][] = [
   ["a connection's key", "POST", "/connections/c/credentials/k", {}],
   ["a connection's removal", "DELETE", "/connections/c", {}],
   ["a sign-in's return", "POST", "/signed-in", {}],
+  // Only the person whose run it is: an admin reading along changes nobody's choice.
+  ["the account a need uses", "PUT", "/connections/c/choice", { owner: "person", id: "a1" }],
   ["a list's new row", "POST", "/lists/l/rows", { rows: [] }],
   ["a list's row", "PATCH", "/lists/l/rows/r", {}],
   ["a list's row gone", "DELETE", "/lists/l/rows/r", {}],
