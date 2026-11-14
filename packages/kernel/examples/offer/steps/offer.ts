@@ -15,6 +15,7 @@ const offer: OfferStep<"offer"> = async (run, ask) => {
 
   const draft = await ask<{ text: string; price: number }>({
     type: "agent",
+    model: "standard",
     asks: "operator",
     instructions: `Write an offer for ${customer}.
 Items: ${items.map((item) => `${item.quantity} x ${item.name}`).join(", ")}

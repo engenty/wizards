@@ -1,7 +1,9 @@
 {
   "title": "Offer",
-  "roles": { "legal": "Legal" },
-  "tools": [],
+  "requires": {
+    "models": ["standard"],
+    "roles": { "legal": "Legal" }
+  },
   "input": {
     "fields": [
       { "id": "customer", "kind": "text", "required": true },
