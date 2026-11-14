@@ -36,6 +36,8 @@ import { currentTenant } from "../tenants/tenant.js";
 import { connectorFetch, resolveEnv, signInFetch, viaAccount } from "./builtin.js";
 import { resolveConnector } from "./external.js";
 import { connectRedirectUri as redirectUri } from "./index.js";
+import { remember, spaceHolder } from "./person-connections.js";
+import { sameService } from "./same-service.js";
 import { standInUrl } from "./stand-ins.js";
 import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-account.js";
 
@@ -358,6 +360,57 @@ export async function createSpaceConnection(
       setUpBy: userId,
     })
     .returning();
+  return row;
+}
+
+/**
+ * The connector a connection of the space uses for an account a run connects with `connectorId`:
+ * itself, or the service's own (kind `mail` signs in to Gmail as `mail-gmail`, the space keeps
+ * `google-gmail`). Null: the space can't keep it as a connection (a mailbox over IMAP).
+ */
+export async function spaceConnectorFor(
+  spaceId: string,
+  connectorId: string,
+): Promise<string | null> {
+  for (const id of sameService(connectorId)) {
+    const found = await resolveConnector(spaceId, id);
+    if (found && found.connector.auth.kind !== "browser") {
+      return found.connector.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * An admin connects an account for the space from inside a run (docs/plans/run-connections.md,
+ * decision 2): a connection of the space that signs in as the space, under the space's default
+ * rules, and the space's choice for the wizard's need, and the admin's own. One the admin began
+ * here and never signed in is taken again, not set up twice. The sign-in follows, as the space:
+ * `startSpaceConnectionOAuth` or `signInWithCredentials`.
+ */
+export async function spaceConnectionForNeed(
+  userId: string,
+  spaceId: string,
+  need: { wizardId: string; id: string; name: string; holder: string },
+  connectorId: string,
+): Promise<SpaceConnectionRow> {
+  const begun = (await listSpaceConnections(spaceId)).find(
+    (r) =>
+      r.connectorId === connectorId &&
+      r.signIn === "space" &&
+      r.secret === null &&
+      r.setUpBy === userId,
+  );
+  const row =
+    begun ??
+    (await createSpaceConnection(
+      userId,
+      spaceId,
+      newConnectionSchema.parse({ connectorId, name: need.name, signIn: "space" }),
+    ));
+  for (const holder of [spaceHolder(spaceId), need.holder]) {
+    await remember(need.wizardId, need.id, holder, { kind: "space", row });
+  }
   return row;
 }
 

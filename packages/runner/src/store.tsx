@@ -4,6 +4,7 @@ import { formatTableCell } from "@engenty/wizards-shared/engenty/data-tables/col
 import { formatBytes } from "@engenty/wizards-shared/numbers";
 import type { RunView, ShownList } from "@engenty/wizards-shared/run";
 import {
+  type ConnectionCandidate,
   type ConnectionView,
   type ConnectorOption,
   cellValue,
@@ -22,12 +23,15 @@ function CredentialsForm({
   runId,
   connectionId,
   connector,
+  forSpace,
   onCancel,
   onSignedIn,
 }: {
   runId: string;
   connectionId: string;
   connector: ConnectorOption;
+  /** An admin connects it for the space. */
+  forSpace?: boolean;
   onCancel: () => void;
   onSignedIn?: () => void;
 }) {
@@ -40,6 +44,7 @@ function CredentialsForm({
     try {
       await api.post(`${runBase(runId)}/connections/${connectionId}/credentials/${connector.id}`, {
         values,
+        ...(forSpace ? { forSpace } : {}),
       });
       onSignedIn?.();
     } catch (err) {
@@ -106,6 +111,8 @@ export function ConnectCard({
   const [form, setForm] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [forSpace, setForSpace] = useState(false);
+  const body = forSpace ? { forSpace } : undefined;
   // The provider's window tells the page when the person is back (`/api/connect/callback`).
   useEffect(() => {
     if (!onSignedIn) {
@@ -128,6 +135,7 @@ export function ConnectCard({
       try {
         const { url } = await api.post<{ url: string }>(
           `${runBase(runId)}/connections/${connection.id}/oauth/${connector.id}`,
+          body,
         );
         await appCall("signIn", { url });
         onSignedIn?.();
@@ -141,6 +149,7 @@ export function ConnectCard({
     try {
       const { url } = await api.post<{ url: string }>(
         `${runBase(runId)}/connections/${connection.id}/oauth/${connector.id}`,
+        body,
       );
       if (popup) {
         popup.location.replace(url);
@@ -152,14 +161,18 @@ export function ConnectCard({
       setError((err as Error).message);
     }
   };
-  const open = connection.connectors.find((c) => c.id === form);
+  // For the space: only the connectors the space can keep as a connection.
+  const connectors = forSpace
+    ? connection.connectors.filter((c) => connection.forSpace?.includes(c.id))
+    : connection.connectors;
+  const open = connectors.find((c) => c.id === form);
   if (!connection.connectors.length) {
     return <p className="text-[0.875rem] text-ink-3">{t("connect.none")}</p>;
   }
   return (
     <div className="flex flex-col gap-3">
       <div className={cn("flex flex-wrap gap-2", center && "justify-center")}>
-        {connection.connectors.map((c) => (
+        {connectors.map((c) => (
           <button
             key={c.id}
             type="button"
@@ -177,11 +190,34 @@ export function ConnectCard({
           </button>
         ))}
       </div>
+      {connection.forSpace?.length ? (
+        <label
+          className={cn(
+            "flex cursor-pointer items-start gap-2.5 text-left text-[0.8125rem] coarse:min-h-11",
+            center && "self-center",
+          )}
+        >
+          <input
+            type="checkbox"
+            checked={forSpace}
+            onChange={(e) => {
+              setForSpace(e.target.checked);
+              setForm(null);
+            }}
+            className="mt-0.5 size-4 accent-[var(--ember)]"
+          />
+          <span>
+            <span className="block font-medium text-ink-2">{t("connect.forSpace")}</span>
+            <span className="block text-ink-3">{t("connect.forSpaceWhy")}</span>
+          </span>
+        </label>
+      ) : null}
       {open ? (
         <CredentialsForm
           runId={runId}
           connectionId={connection.id}
           connector={open}
+          forSpace={forSpace}
           onCancel={() => setForm(null)}
           onSignedIn={onSignedIn}
         />
@@ -223,6 +259,122 @@ export function SignInCard({ view, center }: { view: RunView; center?: boolean }
       center={center}
       onSignedIn={onSignedIn}
     />
+  );
+}
+
+/** What a need is called on the card: its title, else the mailbox. */
+export const needName = (connection: ConnectionView) => connection.title ?? t("connect.mailbox");
+
+/**
+ * The accounts a run may use for a need, to pick the one the wizard uses: the person's own and
+ * the space's connections by name, the one in use marked. "Connect another" opens the card.
+ */
+export function AccountChoice({
+  runId,
+  connection,
+  onChosen,
+}: {
+  runId: string;
+  connection: ConnectionView;
+  onChosen?: () => void;
+}) {
+  const [another, setAnother] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const pick = async (c: ConnectionCandidate) => {
+    setBusy(c.id);
+    setError(null);
+    try {
+      await api.put(`${runBase(runId)}/connections/${connection.id}/choice`, {
+        owner: c.owner,
+        id: c.id,
+      });
+      onChosen?.();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-2 text-left">
+      <ul className="flex flex-col gap-2">
+        {connection.candidates.map((c) => (
+          <li key={`${c.owner}:${c.id}`}>
+            <button
+              type="button"
+              aria-pressed={c.chosen}
+              disabled={busy !== null}
+              onClick={() => void pick(c)}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left ring-1 transition coarse:min-h-11",
+                c.chosen
+                  ? "bg-ember-veil ring-ember"
+                  : "bg-card ring-input hover:ring-ember disabled:opacity-60",
+              )}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium text-[0.9375rem]">{c.label}</span>
+                <span className="block truncate text-[0.8125rem] text-ink-3">
+                  {c.owner === "person"
+                    ? t("connect.yours")
+                    : t("connect.ofSpace", { name: c.name ?? "" })}
+                </span>
+              </span>
+              {busy === c.id ? (
+                <Spinner />
+              ) : c.chosen ? (
+                <Check className="size-4 shrink-0 text-ember" />
+              ) : null}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {another ? (
+        <ConnectCard runId={runId} connection={connection} onSignedIn={onChosen} />
+      ) : (
+        <Button variant="ghost" size="sm" className="self-start" onClick={() => setAnother(true)}>
+          <Plus className="size-4" /> {t("connect.another")}
+        </Button>
+      )}
+      {error ? <p className="text-[0.8125rem] text-rose">{error}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Before the run goes on: one card per need it has no account to use for (`RunView.connect`).
+ * None yet: connect one. Several and none chosen: pick one, or connect another. Once each has
+ * one, the run looks again and goes on.
+ */
+export function StartCard({ view, center }: { view: RunView; center?: boolean }) {
+  const runId = view.id;
+  const onDone = useCallback(
+    () => void api.post(`${runBase(runId)}/signed-in`).catch(() => undefined),
+    [runId],
+  );
+  return (
+    <div className="flex w-full flex-col gap-8">
+      {view.connect.map((c) => (
+        <section key={c.id} className="flex flex-col gap-3">
+          <div className={cn(center && "text-center")}>
+            <h3 className="font-medium text-[1.0625rem] text-ink">
+              {c.candidates.length
+                ? t("connect.choose", { name: needName(c) })
+                : t("connect.first", { name: needName(c) })}
+            </h3>
+            <p className="mt-1 text-[0.875rem] text-ink-3">
+              {c.description ?? t("connect.firstWhy")}
+            </p>
+          </div>
+          {c.candidates.length ? (
+            <AccountChoice runId={runId} connection={c} onChosen={onDone} />
+          ) : (
+            <ConnectCard runId={runId} connection={c} center={center} onSignedIn={onDone} />
+          )}
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -812,6 +964,70 @@ interface StoreSummary {
   keepsSignIns: boolean;
 }
 
+/**
+ * One need under „Was dieser Wizard sich merkt“: the account in use, a way to change it (the same
+ * list as the card) and to disconnect it.
+ */
+function KeptConnection({
+  runId,
+  connection,
+  onChanged,
+}: {
+  runId: string;
+  connection: ConnectionView;
+  onChanged: () => void;
+}) {
+  const [changing, setChanging] = useState(false);
+  const inUse = connection.candidates.some((c) => c.chosen);
+  const changeable = connection.candidates.length > 0 || connection.connectors.length > 0;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Link2 className="size-4 shrink-0 text-ink-3" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate">
+            {connection.account?.label ?? t("connect.notChosen")}
+          </span>
+          {connection.candidates.length ? (
+            <span className="block truncate text-[0.8125rem] text-ink-3">
+              {needName(connection)}
+            </span>
+          ) : null}
+        </span>
+        {changeable ? (
+          <Button variant="ghost" size="sm" onClick={() => setChanging((v) => !v)}>
+            {t("connect.change")}
+          </Button>
+        ) : null}
+        {inUse ? (
+          <IconButton
+            label={t("connect.disconnect")}
+            onClick={async () => {
+              await api.del(`${runBase(runId)}/connections/${connection.id}`);
+              setChanging(false);
+              onChanged();
+            }}
+          >
+            <Unplug className="size-4" />
+          </IconButton>
+        ) : null}
+      </div>
+      {changing ? (
+        <div className="pl-6">
+          <AccountChoice
+            runId={runId}
+            connection={connection}
+            onChosen={() => {
+              setChanging(false);
+              onChanged();
+            }}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** Everything the wizard keeps for this person between runs, and the way to delete it. */
 export function StoreButton({ runId }: { runId: string }) {
   const [open, setOpen] = useState(false);
@@ -862,9 +1078,14 @@ export function StoreButton({ runId }: { runId: string }) {
               </ul>
             ) : null}
             {data.connections.map((c) => (
-              <div key={c.id} className="flex items-center gap-2">
-                <Link2 className="size-4 text-ink-3" /> {c.account?.label}
-              </div>
+              <KeptConnection
+                key={c.id}
+                runId={runId}
+                connection={c}
+                onChanged={() =>
+                  void api.get<StoreSummary>(`${runBase(runId)}/store`).then(setData)
+                }
+              />
             ))}
             {data.keepsSignIns ? (
               <div className="flex items-center gap-2">
