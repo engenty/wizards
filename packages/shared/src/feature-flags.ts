@@ -163,7 +163,7 @@ export const FEATURES = {
   },
   orgSpaces: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Organization, spaces and folders",
     hint: "The organization's own space as the root, Mein Space per person, every other space under the root; the path bar with the space menu instead of the space tile; Ordner in Work (docs/plans/org-spaces.md).",
   },
