@@ -73,3 +73,13 @@ describe("a runner that serves one tenant", () => {
     expect((await control.otherRunners("tenant-c")).map((r) => r.id)).toEqual(["shared"]);
   });
 });
+
+describe("the authoring guide", () => {
+  it("tells of wizards made of step files only while the switch is on", async () => {
+    const { authoringGuide } = await import("../src/authoring/guide");
+    const on = authoringGuide([], [], [], [], { kernel: true });
+    expect(on).toContain('Each step is a workspace file "steps/<id>.ts"');
+    expect(on).toContain("${run.input.customer}"); // the example's own text, not a gap of the guide
+    expect(authoringGuide([], [], [], [], {})).not.toContain("steps/<id>.ts");
+  });
+});
