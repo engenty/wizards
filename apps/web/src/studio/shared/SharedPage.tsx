@@ -167,7 +167,12 @@ function SetupDialog({
   wizards: WizardSummary[];
 }) {
   const qc = useQueryClient();
-  const name0 = space.page?.title || space.brand.name?.trim() || space.name;
+  const organization = useMe().data?.tenant.name ?? "";
+  // The organization's own space is named after the organization, not by its stored name.
+  const name0 =
+    space.page?.title ||
+    space.brand.name?.trim() ||
+    (space.root && organization ? organization : space.name);
   const [title, setTitle] = useState(name0);
   const [slug, setSlug] = useState(space.page?.slug || pageSlugOf(name0) || "page");
   const turnOn = useMutation({
