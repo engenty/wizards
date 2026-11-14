@@ -16,7 +16,7 @@ let cases: Case[];
 beforeAll(async () => {
   wizard = await loadWizard(dir);
   sandbox = nodeSandbox();
-  cases = JSON.parse(await readFile(`${dir}cases.json`, "utf8"));
+  cases = JSON.parse(await readFile(new URL("../test/offer.cases.json", import.meta.url), "utf8"));
 });
 
 const named = (name: string) => cases.find((c) => c.name === name) as Case;

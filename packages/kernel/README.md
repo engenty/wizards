@@ -1,6 +1,6 @@
 # The wizard kernel, a spike
 
-A wizard as a file and a folder of steps, moved by a cursor. Nothing in the runtime uses this
+A wizard as a file and a folder of steps, moved by a cursor. That is all a wizard is. Nothing in the runtime uses this
 package. It exists to find out whether the design holds: see what was tried at the end.
 
 ## A wizard
@@ -12,7 +12,6 @@ offer/
     offer.ts      one function per step, always the same interface
     legal.ts
     …
-  cases.json      an input, an answer for each ask, what to expect
 ```
 
 The file says what a wizard needs and may reach, and it is the map: `start` and the ways of each
@@ -34,7 +33,7 @@ export default async function (run, ask) {
 - `value` is what later steps read. `to` is one of the step's ways in the map; left out, the
   first way is taken.
 
-[examples/offer](examples/offer) is a full wizard with ten cases.
+[examples/offer](examples/offer) is a full wizard.
 
 ## How a run moves
 
@@ -57,7 +56,7 @@ its limit fails.
 | `src/kernel.ts` | `start`, `answer`, `wake`, `rewind`, `read`. Knows the file, the step interface and the rows. |
 | `src/sandbox.ts` | One turn of a step's code in QuickJS. |
 | `src/describe.ts` | Reads a wizard without running it: do the map and the step files fit. |
-| `src/check.ts` | Runs the cases and lists the edges none of them takes. |
+| `src/check.ts` | Tooling for tests of a wizard: answers every ask from a list, and lists the edges no test takes. Not part of a wizard. |
 | `src/compile.ts` | A wizard's folder to what the kernel takes. The save step; needs Node. |
 | `src/memory.ts`, `src/node.ts` | A store in memory, the sandbox in Node. |
 | `src/edge.ts` | A run as a Durable Object: its storage as the store, its alarm as the wake. |
@@ -69,7 +68,8 @@ that answer an ask at once, by its type. An ask without a battery waits for `ans
 
 `pnpm --filter @engenty/wizards-kernel test`
 
-- The offer wizard passes its ten cases in the sandbox, and the cases take all twelve edges.
+- The offer wizard passes ten tests in the sandbox ([test/offer.cases.json](test/offer.cases.json)), and they
+  take all twelve edges.
 - A run resumes from its cursor and rows on a kernel that never saw it.
 - Rewind, a timeout, asks side by side, a step that catches a failed ask.
 - A step that never ends is stopped. So is one that takes all its memory.
