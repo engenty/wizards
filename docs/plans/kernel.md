@@ -1,9 +1,15 @@
 # Plan: the kernel, a wizard as a file of edges and one function per step
 
-Status: plan. Not built. A spike ran: `packages/kernel` on the branch of #694, 43 tests, in Node
-and under workerd. The design and its reasons are in
+Status: partly built, behind the switch `kernel` (off by default), on the branch of #694. Built:
+the kernel as a package (A), the format (B.5), and the runtime as its host (C): a wizard in
+version 2 is made, runs in the engine's line, and is answered through the pages, reviews and MCP
+tools every run has. "What is built" below says what, and where it differs from this plan. The
+design and its reasons are in
 [The Smallest Wizard](https://claude.ai/artifact/S9Q6tXsn3VMvnTvFE8NvDQ). Decided by Matthias on
 2026-11-14.
+
+A word on numbers: today's format is version 1 (`DEFINITION_VERSION`). The new one is version 2.
+Where this plan says format 2 and format 3 below, read version 1 and version 2.
 
 Scope: a third format for a wizard, the engine that runs it, how it reaches models, tools and
 people, where its code runs, and how the studio shows it. Built beside today's engine, behind the
@@ -11,6 +17,40 @@ switch `kernel`.
 
 Not in scope: changing wizards in format 2 while they run, removing today's engine, a store other
 than the tenant's database, prices.
+
+## What is built
+
+| Item | State | Where |
+|---|---|---|
+| A.1 The package | Built | `packages/kernel`, with a build of its own |
+| A.2 Retries, stop, rows under an ask, a battery that asks for leave | Built. Pause and a wizard as an ask are not. | `kernel.ts` |
+| A.3 Answers checked against fields | A hook: the host passes its check. The runtime passes none yet, so only `required` is checked. | `kernel.ts` |
+| A.4 QuickJS as the second way | Built, with `btoa` and `atob`, which steps written for ordinary code expect | `quickjs.ts`, `compile.ts` |
+| B.5 The file's schema | Built | `packages/shared/src/definition.ts`, `kernel-file.ts` |
+| B.6 Compiling | Built, when a run is driven, kept in memory by the files' hash. No `wizard.d.ts` yet. | `apps/runtime/src/kernel/wizard.ts` |
+| B.7 The check | The file against its step files, in `validateWizard`. No `wizards check` yet. | `definition.ts` |
+| C.8 Tables and store | Built | `run_row`, `run_score`, `kernel/store.ts` |
+| C.9 Batteries | Built over today's step executors. A step that asks the person for a yes becomes a row. | `kernel/batteries.ts` |
+| C.10 Entry points | Built: start, the line, answers, back, retry, cancel, the clock, the report. Signals by address do not find such a run yet. | `kernel/host.ts`, `engine/runner.ts` |
+| C.11 A person answers | Built another way: see below | `kernel/page.ts` |
+| D.13 Judging runs | Built, by a share the runtime is told (`KERNEL_EVALS`). No setting of a space yet. | `kernel/host.ts` |
+| E Executor | In the package only, tested against the emulator. Not in the runtime. | `packages/kernel/src/executor.ts` |
+| F, G, H | See the items | |
+
+Where it differs from the plan:
+
+- **A wizard in version 2 is stored inside a definition of version 1.** The definition gains one
+  optional entry, `kernel`, that holds the file; its `steps` are one result step, so everything
+  that reads a definition finds a whole, small one. 97 places read a definition's steps; this way
+  none of them had to change. `kernelShell` makes that definition from a file.
+- **A run keeps what the kernel needs in `run.state.kernel`,** beside the columns the plan names.
+- **The run's page was not rebuilt.** A run of version 2 is shown to it as the small wizard it is
+  at that moment: the steps that returned with what they left behind, and the page it waits at,
+  a form, a review, or the leave for an action as a review of what is about to be done. So the
+  page, the pages and reviews routes and the MCP tools `answer_form` and `review_step` answer such
+  a run unchanged.
+- **How a step's code runs is told to the runner** (`KERNEL_STEPS=native`), QuickJS otherwise.
+  The rule of decision 6, by tenant and by where a wizard comes from, is not built.
 
 ## What is decided
 
