@@ -13,7 +13,7 @@ and change with notice. Everything else is the studio’s own and changes withou
 |---|---|---|
 | `/api/v1/…` | programs that build and publish wizards: the spaces of a local install, importing a wizard | an access token of the account, with scopes (`wizards:read`, `wizards:write`, `wizards:publish`, `runs:test`); see [the Manage-App contract](https://github.com/engenty/engenty-wizards/blob/main/docs/manage-contract.md) |
 | `/api/v1/spaces/:spaceId/elements` | programs that use a space: search its knowledge, read its skills, call its connections, run its wizards (see below) | the same tokens, with `data:read`, `elements:read`, `elements:run` |
-| `/api/v1/client/…` | apps for a firm’s clients, like the client portal: the spaces shared with them, what waits for them, chats, files, results, the wizards opened to them (see below) | a token of a person with the role `client`, with `data:read`, `elements:read`, `elements:run` |
+| `/api/v1/client/…` | apps for a firm’s clients, like the client portal: their client spaces, what waits for them, chats, files, results, the wizards opened to them (see below) | a token of a person with the role `client`, with `data:read`, `elements:read`, `elements:run` |
 | `/api/mcp` | AI apps: every tool of [the MCP server](../user-guide/ai-apps.md), the space’s elements among them | the same tokens, or the local ticket `wizards mcp` carries |
 | The public run API: `/api/public/wizards/:token`, `/api/public/wizards/:token/runs`, `/api/public/codes/:code`, `/api/runs/:id/…` | running a published wizard by its link: what the runner in a browser does | nobody; a visitor cookie, or the `x-wizards-visitor` header where a cookie does not survive |
 
@@ -38,28 +38,28 @@ name (`x-wizards-client`, or the MCP client’s). A space outside the token’s 
 refused. A write, a send or a delete on a connection runs only where the space allows it without a
 person’s yes.
 
-## A client’s spaces
+## A client’s client spaces
 
-A firm shares a space with its clients: any space under the organization’s own space. A client of
-the organization signs in with an account of their own and reaches only the spaces they are in. The client
+A firm works for each client in a client space, beside its team spaces. A client of the
+organization signs in with an account of their own and reaches only the client spaces they are in. The client
 portal (`<team>.wizards.page/portal`) is built on these calls alone, so another app can offer the
 same. `GET /api/v1/client` lists them with their inputs as JSON Schema. A call is
-`POST /api/v1/client/:name`, or `POST /api/v1/client/spaces/:spaceId/:name` for one space,
+`POST /api/v1/client/:name`, or `POST /api/v1/client/spaces/:spaceId/:name` for one client space,
 with `{ "input": { … } }`; it answers `{ "result": … }`, or an error with why.
 
 | Call | Scope | Gives |
 |---|---|---|
-| `me`, `spaces` | `data:read` | Who you are, your organization, your spaces with their address (`slug`) and the brand each wears |
+| `me`, `spaces` | `data:read` | Who you are, your organization, your client spaces with the organization’s name and the brand each wears |
 | `for_you` | `data:read` | Your runs waiting on a page or an answer, the results the firm shared, the wizards you can start |
-| `wizards`, `wizard_start` | `elements:read`, `elements:run` | The wizards opened to clients, of the space and of the organization’s own space, each with its engenty (`avatar`) and its number of steps; a start runs it in your space |
+| `wizards`, `wizard_start` | `elements:read`, `elements:run` | The client space’s wizards and those the organization opened to clients, each with its engenty (`avatar`) and its number of steps; a start runs it in your client space |
 | `results`, `run_open` | `data:read` | Your finished runs and those the firm shared; a ticket for one run’s own routes (`/api/runs/:id/…?rt=…`) |
-| `chats`, `chat_messages` | `data:read` | Your chats in the space and their messages: each message’s `parts` in the order they were written, its text and the views and runs of the firm’s AI as cards |
-| `chat_post` | `elements:run` | Writes in one of your chats, or starts one. The firm’s AI answers every message as you, with the Knowledge opened to clients, the wizards opened to you and views; the firm’s people read the chat too |
-| `files` | `data:read` | The space’s files. One file’s bytes: `GET /api/v1/client/spaces/:spaceId/files/:fileId` |
+| `chats`, `chat_messages` | `data:read` | Your chats in the client space and their messages: each message’s `parts` in the order they were written, its text and the views and runs of the firm’s AI as cards |
+| `chat_post` | `elements:run` | Writes in one of your chats, or starts one. The firm’s AI answers every message as you, with the client space’s Knowledge and what the organization opened to clients, the wizards and views; the firm’s people read the chat too |
+| `files` | `data:read` | The client space’s files. One file’s bytes: `GET /api/v1/client/spaces/:spaceId/files/:fileId` |
 
 Only a person with the role `client` gets an answer (`403 clients_only` otherwise). A space that is
 not one of yours answers `404`. The firm’s Knowledge and wizards reach you only where the firm
-opened them to clients, and a run the firm makes in your space only once it is shared with you.
+opened them to clients, and a run the firm makes in your client space only once it is shared with you.
 The calls need the organization’s `clientSpaces` and `orgSpaces` switches.
 
 ## Private

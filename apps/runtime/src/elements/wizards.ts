@@ -100,8 +100,8 @@ export async function wizardTools(caller: ElementCaller): Promise<Record<string,
                 throw new Error(`No published wizard "${input.wizardId}" in this space.`);
               }
               const { runId, refused } = await startRun(userId, input.wizardId, input.answers, {
-                // A wizard of the root runs with its data here; a client's run is kept in the
-                // space they are in, whichever wizard it is.
+                // A wizard of the root runs with its data here; a client's run is kept in
+                // their client space, whichever wizard it is.
                 clientSpaceId:
                   from === caller.space.id && currentRole() !== "client" ? null : caller.space.id,
                 // Started in a Work chat: its folder lists the result.

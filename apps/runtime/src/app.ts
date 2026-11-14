@@ -335,7 +335,7 @@ if (serves.studio) {
   // A member reaches a space's studio only where its admins opened it (behind `capabilities`).
   app.use("/api/studio/*", membersStudioGate);
   // A client of the organization reaches no Studio and no Work (docs/plans/org-spaces.md):
-  // who they are and the spaces shared with them, until the client portal brings its own routes.
+  // who they are and their client spaces, until the client portal brings its own routes.
   app.use("/api/studio/*", async (c, next) => {
     const user = c.get("user") as { role?: string } | undefined;
     if (user?.role !== "client" || (c.req.method === "GET" && CLIENT_OPEN.test(c.req.path))) {
@@ -349,7 +349,7 @@ if (serves.api) {
   const mcp = mcpHandler();
   app.on(["GET", "POST", "DELETE"], "/api/mcp", (c) => mcp(c.req.raw));
   app.route("/api/v1", elementRoutes);
-  // The client contract: the spaces shared with a client, for the client portal.
+  // The client contract: a client's client spaces, for the client portal.
   app.route("/api/v1", clientContractRoutes);
   app.route("/api/v1", apiRoutes);
 }

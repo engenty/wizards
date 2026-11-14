@@ -966,9 +966,10 @@ export const studio = new Hono<Vars>()
       .object({
         name: z.string().min(1).max(80),
         access: z.enum(["all", "members"]).default("all"),
+        kind: z.enum(["space", "client"]).default("space"),
       })
       .parse(await c.req.json());
-    return c.json(await createSpace(c.get("user").id, body.name, body.access));
+    return c.json(await createSpace(c.get("user").id, body.name, body.access, body.kind));
   })
   .patch("/spaces/:id", async (c) => {
     const patch = spacePatchSchema.parse(await c.req.json());

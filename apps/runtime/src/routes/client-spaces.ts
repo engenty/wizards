@@ -23,7 +23,7 @@ type Vars = { Variables: { user: SessionUser } };
 const OPEN_KINDS = ["document", "table", "page", "wizard"] as const;
 
 export const clientSpaceRoutes = new Hono<Vars>()
-  // A run of a space shared with its clients on purpose, or taken back.
+  // A run of a client space shared with its clients on purpose, or taken back.
   .put("/runs/:id/client-share", async (c) => {
     const { shared } = z.object({ shared: z.boolean() }).parse(await c.req.json());
     return c.json(await shareWithClient(c.get("user").id, c.req.param("id"), shared));

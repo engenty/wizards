@@ -11,9 +11,9 @@ import { spaceLabel } from "../SpacePath";
 
 /*
  * Sharing a space (docs/plans/org-spaces.md, behind `orgSpaces`): every member of the
- * organization sees a space under the root, or only the people chosen; a client is an outside
- * person who signs in on the firm's page and sees only the spaces shared with them. Inviting
- * clients needs `clientSpaces`.
+ * organization sees a space under the root, or only the people chosen. A client space takes its
+ * client's people too: they sign in on the organization's page and see only that client space.
+ * Client spaces need `clientSpaces`; a team space never takes clients.
  */
 
 interface Member {
@@ -149,7 +149,8 @@ function ShareSpaceDialog({
   open: boolean;
   onClose: () => void;
 }) {
-  const clientsOn = useFeature("clientSpaces");
+  // A team space is the team's alone; a client space takes its client's people too.
+  const client = useFeature("clientSpaces") && space.kind === "client";
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const organization = me.tenant.name || t("nav.space");
@@ -209,6 +210,7 @@ function ShareSpaceDialog({
     <Dialog open={open} onClose={onClose} title={t("share.dialogTitle", { name: space.name })}>
       <p className="-mt-2 text-[0.875rem] text-ink-2">
         {chosen ? t("share.membersOnlySee") : t("share.membersSee", { organization })}
+        {client ? ` ${t("share.clientSpace")}` : null}
       </p>
       <div className="mt-4">
         <WhoSees
@@ -244,7 +246,7 @@ function ShareSpaceDialog({
             ))}
         </ul>
       </div>
-      {clientsOn ? (
+      {client ? (
         <>
           <form onSubmit={submit} className="mt-4 flex gap-2">
             <Input

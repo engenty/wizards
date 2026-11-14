@@ -892,7 +892,7 @@ export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
   // wizard's, or a client's, carries that space (`clientSpaceId`).
   const reads = await readsOf(spaceId);
   const wizardSpaces = reads ? [spaceId, reads.parentId] : [spaceId];
-  // Where the space has clients, each result says whether it is shared with them.
+  // In a client space, each result says whether it is shared with its clients.
   const client = await db.query.spaceMember.findFirst({
     columns: { id: true },
     where: and(eq(schema.spaceMember.spaceId, spaceId), eq(schema.spaceMember.role, "client")),

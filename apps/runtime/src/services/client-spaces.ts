@@ -11,10 +11,11 @@ import { notFound, ServiceError } from "./errors.js";
 import { ownedSpace } from "./spaces.js";
 
 /*
- * The clients of a space (docs/plans/org-spaces.md): any space under the organization's root may
- * be shared with clients of the organization, who are in it (`space_member`, role `client`) and
- * see only the spaces they are in. Inviting clients is behind the `clientSpaces` switch and needs
- * `orgSpaces`; who is in a space shared with its members only needs `orgSpaces` alone.
+ * Client spaces and who is in a space (docs/plans/org-spaces.md): a client is a client space,
+ * beside the team spaces under the organization's root; its client's people are in it
+ * (`space_member`, role `client`) and see it alone. A team space takes no clients: who of the
+ * team is in it decides only where it is shared with its members only. Clients are behind the
+ * `clientSpaces` switch and need `orgSpaces`; a team space's members need `orgSpaces` alone.
  */
 
 /** Clients are behind their switch, and in the organization's spaces: else they are not there. */
@@ -37,19 +38,20 @@ async function requireSpaceMembers(role?: "member" | "client"): Promise<void> {
 }
 
 /**
- * A space the organization shares with people: any space under its root (docs/plans/org-spaces.md)
- * — not the root, not someone's Mein Space.
+ * A space with people of its own, under the organization's root: a team space or a client space,
+ * never the root or someone's Mein Space. `client`: only a client space.
  */
-async function sharedSpace(userId: string, spaceId: string) {
+async function sharedSpace(userId: string, spaceId: string, as?: "client") {
   const space = await ownedSpace(userId, spaceId);
-  if (currentRole() === "client" || space.kind !== "space" || !space.parentId) {
+  const fits = as === "client" ? space.kind === "client" : space.kind !== "personal";
+  if (currentRole() === "client" || !fits || !space.parentId) {
     throw notFound();
   }
   return space;
 }
 
 /**
- * Shares a run of a space with its clients, on purpose, or takes it back
+ * Shares a run of a client space with its clients, on purpose, or takes it back
  * (docs/plans/client-portal.md): until then a run the firm makes there stays the firm's.
  */
 export async function shareWithClient(
@@ -76,7 +78,7 @@ export async function shareWithClient(
     throw notFound();
   }
   // The space the run is in: the one it carries, else its wizard's.
-  const space = await sharedSpace(userId, run.clientSpaceId ?? run.wizardSpaceId);
+  const space = await sharedSpace(userId, run.clientSpaceId ?? run.wizardSpaceId, "client");
   if (shared && run.status !== "done") {
     throw new ServiceError("refused", note("onlyFinishedResultsShared"));
   }
@@ -105,7 +107,7 @@ export async function listSpaceMembers(userId: string, spaceId: string) {
   }));
 }
 
-/** Puts a person of the organization into a space, as a client or as one of its people. */
+/** Puts a person of the organization into a space: a client into a client space, a member into either. */
 export async function addSpaceMember(
   userId: string,
   spaceId: string,
@@ -113,7 +115,7 @@ export async function addSpaceMember(
 ): Promise<void> {
   await requireSpaceMembers(member.role);
   await requireAdmin();
-  const space = await sharedSpace(userId, spaceId);
+  const space = await sharedSpace(userId, spaceId, member.role === "client" ? "client" : undefined);
   await db
     .insert(schema.spaceMember)
     .values({
@@ -158,9 +160,10 @@ export async function clientOpenOf(userId: string, spaceId: string) {
 }
 
 /**
- * Invites a client into a space by their address: the Manage-App invites them into the
- * organization as a `client` (taking no seat), and the space keeps the address until they sign in
- * for the first time (`claimClientInvites`). Cloud only: a local install has no accounts.
+ * Invites one of a client's people into their client space by their address: the Manage-App
+ * invites them into the organization as a `client` (taking no seat), and the client space keeps
+ * the address until they sign in for the first time on the organization's page
+ * (`claimClientInvites`). Cloud only: a local install has no accounts.
  */
 export async function inviteClient(
   userId: string,
@@ -169,7 +172,7 @@ export async function inviteClient(
 ): Promise<void> {
   await requireClientSpaces();
   await requireAdmin();
-  const space = await sharedSpace(userId, spaceId);
+  const space = await sharedSpace(userId, spaceId, "client");
   if (!managed) {
     throw new ServiceError("refused", note("clientsInCloud"));
   }
@@ -188,8 +191,8 @@ export async function inviteClient(
 }
 
 /**
- * A person's first sign-in: the spaces that invited their address take them in. Called where the
- * runtime signs a person in.
+ * A person's first sign-in: the client spaces that invited their address take them in. Called
+ * where the runtime signs a person in.
  */
 export async function claimClientInvites(userId: string, email: string): Promise<void> {
   const address = email.trim().toLowerCase();

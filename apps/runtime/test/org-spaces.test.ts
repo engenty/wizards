@@ -94,17 +94,17 @@ describe("the organization's spaces", () => {
     });
   });
 
-  it("shares a space under the root with a Kund:in, who then reaches it and nothing else", async () => {
-    const { id: shared } = await local(() => spaces.createSpace("local", "Wagner GmbH"));
+  it("makes a client space for a Kund:in, who then reaches it and nothing else", async () => {
+    const { id: shared } = await local(() => spaces.createSpace("local", "Wagner GmbH", "all", "client"));
     const clients = await import("../src/services/client-spaces");
     await local(() => clients.addSpaceMember("local", shared, { userId: "wagner", role: "client" }));
     const rwx = await import("../src/broker/rwx");
     const { asRole } = await import("../src/services/access");
     await local(async () => {
-      // The clients' seed: skills, never the space's Knowledge until an item is opened to them.
+      // The clients' seed: the client space's data and wizards, never its setup.
       const client = [{ kind: "role" as const, id: "client" }];
-      expect((await rwx.decide(shared, client, { kind: "skill", id: "s" }, "x")).ok).toBe(true);
-      expect((await rwx.decide(shared, client, { kind: "page", id: "p" }, "r")).ok).toBe(false);
+      expect((await rwx.decide(shared, client, { kind: "page", id: "p" }, "w")).ok).toBe(true);
+      expect((await rwx.decide(shared, client, { kind: "setup", id: shared }, "w")).ok).toBe(false);
       await asRole("client", async () => {
         expect((await spaces.listSpaces("wagner")).map((s) => s.id)).toEqual([shared]);
         const root = await spaces.rootSpace();
@@ -113,7 +113,7 @@ describe("the organization's spaces", () => {
     });
     const listed = await local(() => spaces.listSpaces("local"));
     expect(listed.find((s) => s.id === shared)).toMatchObject({ clients: 1 });
-    // The root and Mein Space are not shared this way.
+    // The root, a team space and Mein Space take no clients.
     const root = await local(() => spaces.rootSpace());
     await expect(
       local(() => clients.addSpaceMember("local", root?.id ?? "", { userId: "wagner", role: "client" })),
@@ -147,7 +147,7 @@ describe("the organization's spaces", () => {
     const listed = await local(() => spaces.listSpaces("local"));
     expect(spaces.spaceIs(listed[0])).toBe("organization");
     expect(spaces.spaceIs({ kind: "personal" })).toBe("personal");
-    expect(spaces.spaceIs({ kind: "space", clients: 2 })).toBe("client");
+    expect(spaces.spaceIs({ kind: "client" })).toBe("client");
     expect(spaces.spaceIs({ kind: "space" })).toBe("space");
   });
 

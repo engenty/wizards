@@ -160,8 +160,8 @@ function presentNote(people: [string, string | null][]): string {
 }
 
 export function registerTools(server: McpServer, who: Principal) {
-  // A client of the organization authors nothing: only the elements of the spaces shared with
-  // them (mcp/elements.ts, docs/plans/org-spaces.md).
+  // A client of the organization authors nothing: only the elements of their client spaces
+  // (mcp/elements.ts, docs/plans/org-spaces.md).
   if (who.role === "client") {
     return;
   }

@@ -208,7 +208,7 @@ space, as long as no exception says otherwise.
 | Admins | The owner and the admins | No. What they may do is fixed |
 | Members | The people working in the space, also in Work | Yes, each right has a switch |
 | Guests | Someone at a shared link or a public page, without signing in | Yes, for the rights a guest can have |
-| Clients | Your clients, signed in to a space shared with them. Shown where clients are on | Yes |
+| Clients | Your clients, signed in to their client space. Shown where client spaces are on | Yes |
 
 Each row is one right. Rights names only what engenty wizards checks, and it words each right as
 far as the check goes.
@@ -217,7 +217,7 @@ far as the check goes.
 |---|---|
 | “Read documents”, “Read pages and folders”, “Read tables” | Reading Knowledge, wherever it is read: the studio, a wizard’s step, a Work chat, Goose, the search, a shared link |
 | “Have Goose change pages”, “Have Goose change the space’s setup” | Goose writes a page of Knowledge or the space’s info and brand for you only with this right. Someone who writes in the studio themselves doesn’t need it |
-| “Let the AI find wizards”, “Let the AI start wizards” | The AI in Work and in connected apps such as Claude or Codex lists and starts a wizard for you only with this right. A member starts any wizard themselves in Work and in the studio, and a guest reaches a wizard by its link. For clients the rights read “See wizards” and “Start wizards”, and hold in the spaces shared with them |
+| “Let the AI find wizards”, “Let the AI start wizards” | The AI in Work and in connected apps such as Claude or Codex lists and starts a wizard for you only with this right. A member starts any wizard themselves in Work and in the studio, and a guest reaches a wizard by its link. For clients the rights read “See wizards” and “Start wizards”, and hold in their client space |
 | “Use skills”, “Run the scripts of skills” | A wizard’s step, a Work chat and Goose read a skill for you, and a skill’s scripts run in your runs and chats |
 
 A switch that is off means that nothing allows it for the whole group. An exception can still

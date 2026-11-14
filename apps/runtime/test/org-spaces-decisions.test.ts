@@ -13,7 +13,7 @@ process.env.APP_URL = "http://localhost:5181";
 process.env.LOCAL_ACCESS_KEY = "test-key";
 process.env.PLUGINS_WATCH = "0";
 process.env.PLUGIN_JOBS = "0";
-process.env.FEATURES = "orgSpaces=on";
+process.env.FEATURES = "orgSpaces=on,clientSpaces=on";
 process.env.LIMIT_SPACES = "3";
 
 let db: typeof import("../src/db/client");
@@ -117,24 +117,12 @@ describe("brand and Info", () => {
 });
 
 describe("the number of spaces", () => {
-  it("counts the root and shared spaces, not spaces with Kund:innen", async () => {
-    // The root and two spaces: the plan's three.
+  it("counts the root and team spaces, not client spaces", async () => {
+    // The root and two team spaces: the plan's three.
     await expect(local(() => spaces.createSpace("local", "Lohn"))).rejects.toThrow();
-    const shared = (await local(() => spaces.listSpaces("local"))).find(
-      (s) => !s.root && !s.personal,
-    );
-    await local(() =>
-      db.db.insert(db.schema.spaceMember).values({
-        id: "c1",
-        tenantId: "local",
-        spaceId: shared?.id ?? "",
-        userId: "wagner",
-        role: "client",
-        addedBy: "local",
-      }),
-    );
-    const { id } = await local(() => spaces.createSpace("local", "Lohn"));
+    const { id } = await local(() => spaces.createSpace("local", "Wagner GmbH", "all", "client"));
     expect((await local(() => spaces.listSpaces("local"))).map((s) => s.id)).toContain(id);
-    expect((await local(() => spaces.listSpaces("local"))).map((s) => s.id)).toContain(shared?.id);
+    // A team space is still one too many.
+    await expect(local(() => spaces.createSpace("local", "Lohn"))).rejects.toThrow();
   });
 });

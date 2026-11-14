@@ -231,12 +231,12 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const pagesOn = useFeature("pages");
   // Skills wait behind theirs.
   const skillsOn = useFeature("skills");
-  // What clients reach waits behind their switch and the organization's spaces, and is the
-  // admins'; a Mein Space never has clients.
+  // What of the organization's own space its client spaces reach: behind their switch and the
+  // organization's spaces, the admins', on the root alone. A client space's own is its clients'.
   const admin = useIsAdmin();
   const clientSpaces = useFeature("clientSpaces");
   const orgSpaces = useFeature("orgSpaces");
-  const clientsOn = clientSpaces && orgSpaces && admin && !space?.personal;
+  const clientsOn = clientSpaces && orgSpaces && admin && Boolean(space?.root);
   // Wissen as a knowledge base waits behind its switch.
   const treeOn = useFeature("knowledgeTree");
   // Dateien waits behind its switch, and mounts a folder of this computer (a local install's) or

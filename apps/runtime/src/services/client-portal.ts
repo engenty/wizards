@@ -23,7 +23,7 @@ import { createChat, readChat, sendMessage } from "./work-chats.js";
 
 /*
  * The client contract (docs/plans/client-portal.md): what a client of the organization reaches
- * of the spaces they are in, for the client portal and any app built on the same contract. Every
+ * of their client spaces, for the client portal and any app built on the same contract. Every
  * call acts as the token's person with the role `client` (I1); a space is one they are in, else
  * not found (I2, `ownedSpace`); the broker decides each item as that client, so the space's and
  * the organization's Knowledge and wizards come back only where the firm opened them. Behind the
@@ -67,8 +67,8 @@ const asClient = (who: { id: string }) =>
   );
 
 /**
- * One of the spaces the client is in, with the spaces whose wizards it runs: its own and the
- * organization's root.
+ * One of the client spaces the client is in, with the spaces whose wizards it runs: its own and
+ * the organization's root.
  */
 async function clientSpace(
   who: ClientWho,
@@ -79,7 +79,7 @@ async function clientSpace(
     .select({ space: schema.space })
     .from(schema.space)
     .innerJoin(schema.spaceMember, eq(schema.spaceMember.spaceId, schema.space.id))
-    .where(and(eq(schema.space.id, spaceId), asClient(who)))
+    .where(and(eq(schema.space.id, spaceId), eq(schema.space.kind, "client"), asClient(who)))
     .limit(1);
   if (!row?.space.parentId) {
     throw notFound();
@@ -101,7 +101,7 @@ async function isClientOf(userId: string, spaceId: string): Promise<boolean> {
 }
 
 /**
- * Whether a client opens a run: one of their space's, started by them or shared with them by the
+ * Whether a client opens a run: one of their client space's, started by them or shared with them by the
  * firm. The run's own routes ask it too (routes/runs.ts).
  */
 export async function clientMayOpen(
@@ -146,8 +146,7 @@ export async function clientMe(who: ClientWho) {
 export async function clientSpaces(who: ClientWho) {
   await requirePortal(who);
   await claimClientInvites(who.id, who.email);
-  // Spaces under the organization's root: the root and a Mein Space never have clients.
-  const spaces = (await listSpaces(who.id)).filter((s) => s.parentId);
+  const spaces = (await listSpaces(who.id)).filter((s) => s.kind === "client" && s.parentId);
   const org = spaces.length ? await tenantInfo(who.tenantId).catch(() => null) : null;
   return Promise.all(
     spaces.map(async (s) => ({
@@ -210,6 +209,15 @@ export async function clientWizards(who: ClientWho, spaceId: string) {
 export async function clientStartWizard(who: ClientWho, spaceId: string, wizardId: string) {
   const { space, sources } = await clientSpace(who, spaceId);
   const opened = (await openedWizards(who, sources)).find((o) => o.wizard.id === wizardId);
+  // A wizard not opened is refused by the rules of the space it is in, as one opened is decided.
+  const home = opened
+    ? opened.spaceId
+    : ((
+        await db.query.wizard.findFirst({
+          columns: { spaceId: true },
+          where: and(eq(schema.wizard.id, wizardId), eq(schema.wizard.tenantId, currentTenant())),
+        })
+      )?.spaceId ?? space.id);
   const caller = personCaller({
     space: { id: space.id, name: space.name },
     userId: who.id,
@@ -222,7 +230,7 @@ export async function clientStartWizard(who: ClientWho, spaceId: string, wizardI
     {
       action: "wizard_start",
       resource: { kind: "wizard", id: wizardId },
-      rulesIn: opened?.spaceId ?? space.id,
+      rulesIn: sources.includes(home) ? home : space.id,
       perm: "x",
       input: { wizardId },
     },
@@ -238,7 +246,7 @@ export async function clientStartWizard(who: ClientWho, spaceId: string, wizardI
 
 // --- runs and results ------------------------------------------------------------------------
 
-/** The runs of the space the client sees: their own, and those shared with them. */
+/** The runs of the client space the client sees: their own, and those shared with them. */
 const seenRuns = (who: ClientWho, spaceId: string) =>
   and(
     eq(schema.run.clientSpaceId, spaceId),
@@ -266,7 +274,7 @@ const resultOf = (who: ClientWho, titles: Map<string, string>) => (r: RunRow) =>
   updatedAt: r.updatedAt.toISOString(),
 });
 
-/** The results of the space the client sees, newest first. */
+/** The results of the client space the client sees, newest first. */
 export async function clientResults(who: ClientWho, spaceId: string) {
   const { space } = await clientSpace(who, spaceId);
   const rows = await db.query.run.findMany({
@@ -280,7 +288,7 @@ export async function clientResults(who: ClientWho, spaceId: string) {
 
 /**
  * A ticket for one run the client sees, by the run alone (a deep link, `/portal/r/<run>`): the
- * run's own routes open with it (`?rt=`); its space comes along. A run the firm shared
+ * run's own routes open with it (`?rt=`); its client space comes along. A run the firm shared
  * gets a ticket that only reads it.
  */
 export async function clientOpenRun(who: ClientWho, runId: string) {
@@ -354,7 +362,7 @@ export async function clientForYou(who: ClientWho, spaceId: string) {
 
 // --- chats -----------------------------------------------------------------------------------
 
-/** The space's chats the client is a member of: the firm's other chats stay internal. */
+/** The client space's chats the client is a member of: the firm's other chats stay internal. */
 async function memberChats(who: ClientWho, spaceId: string) {
   const mine = await db
     .select({ chatId: schema.chatMember.chatId })
@@ -386,7 +394,7 @@ export async function clientChats(who: ClientWho, spaceId: string) {
   }));
 }
 
-/** One chat the client is a member of, in one of their spaces, by the chat alone. */
+/** One chat the client is a member of, in one of their client spaces, by the chat alone. */
 async function memberChat(who: ClientWho, chatId: string) {
   await requirePortal(who);
   const [row] = await db
@@ -537,7 +545,7 @@ export async function clientChatPost(
 
 // --- files -----------------------------------------------------------------------------------
 
-/** The space's documents and files, to download: one still being read is there already. */
+/** The client space's documents and files, to download: one still being read is there already. */
 export async function clientFiles(who: ClientWho, spaceId: string) {
   const { space } = await clientSpace(who, spaceId);
   const rows = (await spaceFiles(space.id)).filter(
@@ -562,7 +570,7 @@ export async function clientFiles(who: ClientWho, spaceId: string) {
     }));
 }
 
-/** One file of the client's spaces, by the file alone (a deep link, `/portal/f/<file>`). */
+/** One file of the client's client spaces, by the file alone (a deep link, `/portal/f/<file>`). */
 async function clientFileRow(who: ClientWho, fileId: string) {
   await requirePortal(who);
   const [row] = await db
@@ -590,7 +598,7 @@ async function clientFileRow(who: ClientWho, fileId: string) {
   return file;
 }
 
-/** What a file is, and its space. */
+/** What a file is, and its client space. */
 export async function clientFileInfo(who: ClientWho, fileId: string) {
   const f = await clientFileRow(who, fileId);
   return {

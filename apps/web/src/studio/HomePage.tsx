@@ -60,18 +60,34 @@ const SPACE_HOLDS: { icon: LucideIcon; name: () => string; what: Key }[] = [
   { icon: Inbox, name: () => t("space.results"), what: "space.holds.results" },
 ];
 
-/** Names a new space and makes it the one the studio looks at; says first what a space is. */
-export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+/**
+ * Names a new space and makes it the one the studio looks at; says first what a space is. With
+ * `client` it makes a client space (docs/plans/org-spaces.md): one client's own, beside the team
+ * spaces, its people invited in it under Teilen.
+ */
+export function NewSpaceDialog({
+  open,
+  onClose,
+  client = false,
+}: {
+  open: boolean;
+  onClose: () => void;
+  client?: boolean;
+}) {
   const { select } = useCurrentSpace();
   const qc = useQueryClient();
   const me = useMe().data;
-  // In an organization the dialog asks who sees the new space (docs/plans/org-spaces.md).
-  const asks = useFeature("orgSpaces") && me?.mode === "managed";
+  // In an organization the dialog asks who of the team sees a new team space.
+  const asks = useFeature("orgSpaces") && me?.mode === "managed" && !client;
   const [name, setName] = useState("");
   const [access, setAccess] = useState<"all" | "members">("all");
   const create = useMutation({
     mutationFn: () =>
-      api.post<{ id: string }>("/api/studio/spaces", { name, ...(asks ? { access } : {}) }),
+      api.post<{ id: string }>("/api/studio/spaces", {
+        name,
+        ...(asks ? { access } : {}),
+        ...(client ? { kind: "client" } : {}),
+      }),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: keys.spaces() });
       select(id);
@@ -80,18 +96,24 @@ export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () =
     },
   });
   return (
-    <Dialog open={open} onClose={onClose} title={t("home.newSpace")}>
-      <p className="-mt-2 text-[0.875rem] text-ink-2">{t("space.holds.intro")}</p>
-      <dl className="mt-4 flex flex-col gap-2.5 text-[0.8125rem]">
-        {SPACE_HOLDS.map((row) => (
-          <div key={row.what} className="flex items-start gap-2.5">
-            <row.icon className="mt-0.5 size-4 shrink-0 text-ink-3" />
-            <dt className="w-28 shrink-0 font-medium text-ink">{row.name()}</dt>
-            <dd className="min-w-0 text-ink-3">{t(row.what)}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="mt-3 text-[0.8125rem] text-ink-4">{t("space.holds.shared")}</p>
+    <Dialog open={open} onClose={onClose} title={t(client ? "home.newClient" : "home.newSpace")}>
+      {client ? (
+        <p className="-mt-2 text-[0.875rem] text-ink-2">{t("home.clientIntro")}</p>
+      ) : (
+        <>
+          <p className="-mt-2 text-[0.875rem] text-ink-2">{t("space.holds.intro")}</p>
+          <dl className="mt-4 flex flex-col gap-2.5 text-[0.8125rem]">
+            {SPACE_HOLDS.map((row) => (
+              <div key={row.what} className="flex items-start gap-2.5">
+                <row.icon className="mt-0.5 size-4 shrink-0 text-ink-3" />
+                <dt className="w-28 shrink-0 font-medium text-ink">{row.name()}</dt>
+                <dd className="min-w-0 text-ink-3">{t(row.what)}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-3 text-[0.8125rem] text-ink-4">{t("space.holds.shared")}</p>
+        </>
+      )}
       <form
         className="mt-5"
         onSubmit={(e) => {
@@ -103,7 +125,7 @@ export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () =
       >
         <Input
           autoFocus
-          placeholder={t("home.spaceName")}
+          placeholder={t(client ? "home.clientName" : "home.spaceName")}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
@@ -124,7 +146,7 @@ export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () =
             {t("common.cancel")}
           </Button>
           <Button type="submit" busy={create.isPending} disabled={!name.trim()}>
-            {t("home.newSpace")}
+            {t(client ? "home.newClient" : "home.newSpace")}
           </Button>
         </div>
       </form>
