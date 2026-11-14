@@ -31,6 +31,15 @@ vi.mock("../src/engine/steps.js", async (original) => ({
     ctx: { def: { connections?: unknown } },
   ) => {
     worked.push({ step: step.id, type: step.type, instructions: step.instructions, tools: step.tools, connections: ctx.def.connections });
+    if (step.id === "offer/tone") {
+      return { json: { score: 0.8, why: "Clear." }, at: new Date().toISOString() };
+    }
+    if (step.type === "tool") {
+      return { json: { id: "msg_9" }, at: new Date().toISOString() };
+    }
+    if (step.id === "work") {
+      return { json: { to: "einkauf@nordlicht.example", subject: "Re: Workshop", threadId: "thr_1", draft: "Dear Nordlicht" }, at: new Date().toISOString() };
+    }
     if (step.id === "offer") {
       return { json: { text: "An offer", price: price.next.shift() ?? 3000 }, at: new Date().toISOString() };
     }
@@ -40,6 +49,7 @@ vi.mock("../src/engine/steps.js", async (original) => ({
 vi.mock("../src/engine/requirements.js", async (original) => ({
   ...(await original<typeof import("../src/engine/requirements.js")>()),
   missingModelsSaid: async () => [],
+  missingConnectionsSaid: async () => [],
 }));
 vi.mock("../src/safety.js", async (original) => ({
   ...(await original<typeof import("../src/safety.js")>()),
@@ -223,4 +233,132 @@ it("leaves a wizard in version 1 to today's engine", async () => {
   const row = await rests(id, "waiting_input", "done");
   expect(row.state.kernel).toBeUndefined();
   expect(await rowsOf(id)).toEqual([]);
+});
+
+const folder = (name: string) => new URL(`../../../packages/kernel/examples/${name}/`, import.meta.url).pathname;
+/** A wizard of the kernel's examples in the tenant, with every code file of its folder. */
+async function exampleWizard(name: string, more: Record<string, string> = {}) {
+  const at = folder(name);
+  const its = JSON.parse(readFileSync(`${at}wizard.json`, "utf8"));
+  return client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(its) as never });
+    const seed: Record<string, string> = { ...more };
+    for (const dirName of ["steps", "evals/offer", "evals/end"]) {
+      try {
+        for (const fileName of readdirSync(`${at}${dirName}`)) {
+          seed[`${dirName}/${fileName}`] = readFileSync(`${at}${dirName}/${fileName}`, "utf8");
+        }
+      } catch {
+        // the example has no such folder
+      }
+    }
+    await files.seedFiles(created.id, seed);
+    const snapshot = await files.draftFiles(created.id);
+    return { id: created.id, files: snapshot, file: its };
+  });
+}
+const startOf = (w: { id: string; files: unknown[]; file: unknown }, given?: Record<string, unknown>) =>
+  client.withTenant(T, () =>
+    runner.createRun({ wizardId: w.id, definition: kernelShell(w.file as never) as never, files: w.files as never, version: null, mode: "test", userId: "u", input: given }),
+  );
+
+describe("an action the file sets to ask", () => {
+  it("waits for the user's leave as a row, and is done once", async () => {
+    process.env.KERNEL_STEPS = "quickjs";
+    worked.length = 0;
+    const id = await startOf(await exampleWizard("mail"), { customer: "Nordlicht GmbH" });
+    await rests(id, "waiting_input");
+    // the agent was handed the two reading actions of the connection, and not the send
+    const agent = worked.find((s) => s.step === "work");
+    expect(agent?.connections).toMatchObject([{ id: "gmail", actions: ["users.threads.list", "users.threads.get"] }]);
+
+    await answer(id, (await waitingRow(id)).n, { approved: true });
+    await rests(id, "waiting_input");
+    const leave = await waitingRow(id);
+    expect(leave).toMatchObject({ type: "approval", step: "send", call: "gmail.users.messages.send" });
+    expect(worked.some((s) => s.type === "tool")).toBe(false); // nothing is sent while it is open
+
+    await answer(id, leave.n, { allow: true });
+    await rests(id, "done");
+    const tool = worked.find((s) => s.type === "tool");
+    expect(tool?.connections).toMatchObject([{ id: "gmail", actions: ["users.messages.send"] }]);
+    expect((await view(id)).output).toEqual({ sent: "msg_9" });
+  });
+
+  it("fails the action, and the run, when the user says no", async () => {
+    worked.length = 0;
+    const id = await startOf(await exampleWizard("mail"), { customer: "Nordlicht GmbH" });
+    await rests(id, "waiting_input");
+    await answer(id, (await waitingRow(id)).n, { approved: true });
+    await rests(id, "waiting_input");
+    await answer(id, (await waitingRow(id)).n, { allow: false });
+    const row = await rests(id, "failed");
+    expect(row.error).toBe('The user did not allow "gmail.users.messages.send".');
+    expect(worked.some((s) => s.type === "tool")).toBe(false);
+  });
+});
+
+describe("a wait", () => {
+  it("leaves every process and is woken by the clock, with a timeout as its answer", async () => {
+    const napFile = { version: 2, title: "Nap", description: "", start: "nap", edges: { nap: ["end"] }, output: { woke: "nap.timedOut" } };
+    const w = await client.withTenant(T, async () => {
+      const created = await wizards.createWizard("u", { definition: kernelShell(napFile as never) as never });
+      await files.seedFiles(created.id, { "steps/nap.ts": 'export default async (run, ask) => ({ value: await ask({ type: "wait", timeout: "1s" }) });\n' });
+      return { id: created.id, files: await files.draftFiles(created.id), file: napFile };
+    });
+    const id = await startOf(w, {});
+    const slept = await rests(id, "sleeping");
+    expect(slept.wakeAt).not.toBeNull();
+    await rests(id, "done");
+    expect((await view(id)).output).toEqual({ woke: true });
+  });
+});
+
+describe("evals", () => {
+  it("judge a finished run where the runtime is told to, and keep their scores", async () => {
+    process.env.KERNEL_EVALS = "1";
+    price.next = [3000];
+    const id = await startOf(await exampleWizard("offer", { "wizard.ts": "export {};\n" }), input);
+    await rests(id, "waiting_input");
+    await answer(id, 2, { approved: true });
+    await rests(id, "waiting_input");
+    await answer(id, (await waitingRow(id)).n, { approved: true });
+    await rests(id, "waiting_signal");
+    await answer(id, (await waitingRow(id)).n, { came: true });
+    await rests(id, "done");
+    delete process.env.KERNEL_EVALS;
+    // judging follows the run's end: wait for the scores
+    let scores: { eval: string; score: number | null }[] = [];
+    for (let i = 0; i < 100 && scores.length < 3; i++) {
+      scores = await client.withTenant(T, () => client.db.select().from(client.schema.runScore).where(eq(client.schema.runScore.runId, id)));
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    expect(scores.map((s) => [s.eval, s.score]).sort()).toEqual([
+      ["end/signed", 1],
+      ["offer/tone", 0.8],
+      ["offer/within-budget", 1],
+    ]);
+  });
+});
+
+describe("the switch", () => {
+  it("refuses a wizard in version 2 while it is off", async () => {
+    const features = await import("../src/features");
+    const w = await exampleWizard("mail");
+    const spy = vi.spyOn(features, "feature").mockImplementation((name: string) => name !== "kernel");
+    await expect(startOf(w, {})).rejects.toThrow();
+    spy.mockRestore();
+  });
+
+  it("says where a file and its step files do not fit", async () => {
+    const { validateWizard } = await import("@engenty/wizards-shared/definition");
+    const def = kernelShell({ ...file, edges: { ...file.edges, legal: ["check", "offr"] } });
+    expect(validateWizard(def, ["steps/offer.ts", "steps/legal.ts", "steps/extra.ts"]).map((i) => i.message)).toEqual(
+      expect.arrayContaining([
+        'The map names "offr", there is no steps/offr.ts.',
+        'The map names "check", there is no steps/check.ts.',
+        "No way leads to steps/extra.",
+      ]),
+    );
+  });
 });

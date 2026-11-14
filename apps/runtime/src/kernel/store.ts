@@ -3,6 +3,7 @@ import type { RunStatus } from "@engenty/wizards-shared/run";
 import { and, asc, eq, gte } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import type { RunRow } from "../engine/types.js";
+import { setWake } from "../tenants/control.js";
 
 /**
  * A run of version 2 in the tenant's database (docs/plans/kernel.md): the cursor, the wake time
@@ -38,7 +39,7 @@ export function statusOf(run: Run): RunStatus {
 /** What was read of a run, to write only what changed. */
 const seen = new WeakMap<
   Run,
-  { rows: string[]; scores: number; status: RunStatus; inDrive: boolean }
+  { rows: string[]; scores: number; status: RunStatus; inDrive: boolean; wakeAt?: number }
 >();
 
 export async function loadKernelRun(row: RunRow, inDrive = false): Promise<Run | undefined> {
@@ -168,8 +169,18 @@ export function kernelStore(
         },
         before.inDrive ? undefined : { rev: run.rev },
       );
+      // The clock reads its own copy of the time a run goes on.
+      if (status !== before.status || run.wakeAt !== before.wakeAt) {
+        await setWake(run.id, run.wakeAt ? new Date(run.wakeAt) : null);
+      }
       run.rev += 1;
-      seen.set(run, { rows, scores: run.scores?.length ?? 0, status, inDrive: before.inDrive });
+      seen.set(run, {
+        rows,
+        scores: run.scores?.length ?? 0,
+        status,
+        inDrive: before.inDrive,
+        wakeAt: run.wakeAt,
+      });
     },
   };
 }
