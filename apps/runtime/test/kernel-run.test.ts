@@ -484,3 +484,41 @@ describe("the run's page", () => {
     expect(seen.step).toMatchObject({ type: "result" });
   });
 });
+
+describe("a wizard of version 1 made into step files", () => {
+  it("is copied with its map and step files, and the copy runs to its end", async () => {
+    process.env.KERNEL_STEPS = "quickjs";
+    const convert = await import("../src/services/convert");
+    const v1 = {
+      version: 1,
+      title: "A reminder",
+      description: "Writes a reminder and has it looked at.",
+      steps: [
+        { id: "ask", type: "form", title: "Who", fields: [{ id: "customer", label: "Customer", kind: "text", required: true }] },
+        { id: "write", type: "agent", title: "Write", instructions: "Write a reminder for {{customer}}." },
+        { id: "look", type: "review", title: "Look", show: ["write"], approve: true },
+        { id: "end", type: "result", title: "Done", deliverables: [{ from: "write", formats: ["md"] }] },
+      ],
+    };
+    const made = await client.withTenant(T, async () => {
+      const from = await wizards.createWizard("u", { definition: v1 as never });
+      const copy = await convert.convertWizard("u", from.id);
+      // a second time on the copy is refused: it is made of step files already
+      await expect(convert.convertWizard("u", copy.id)).rejects.toThrow(/step files/);
+      const w = await wizards.writableWizard("u", copy.id);
+      return { ...copy, draft: w.draft, files: await files.draftFiles(copy.id) };
+    });
+    expect(made.files.map((f) => f.path).sort()).toEqual(["steps/look.ts", "steps/write.ts"]);
+    expect((made.draft as { kernel?: { start: string } }).kernel?.start).toBe("write");
+
+    const runId = await client.withTenant(T, () =>
+      runner.createRun({ wizardId: made.id, definition: made.draft as never, files: made.files as never, version: null, mode: "test", userId: "u", input: { customer: "Nordlicht GmbH" } }),
+    );
+    await rests(runId, "waiting_input");
+    await client.withTenant(T, () => runner.reviewStep(runId, "look", { type: "accept" }, { userId: "u" }));
+    const done = await rests(runId, "done", "failed");
+    expect(done.error ?? null).toBeNull();
+    expect(done.status).toBe("done");
+    expect(worked.at(-1)?.instructions).toContain("Nordlicht GmbH");
+  });
+});

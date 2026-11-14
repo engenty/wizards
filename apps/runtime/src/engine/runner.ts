@@ -2640,7 +2640,9 @@ function unsentWithout(run: RunRow, stepId: string): { unsent?: RunRow["unsent"]
  */
 export async function keepUnsent(run: RunRow, stepId: string, values: Record<string, unknown>) {
   // A run of step files shows its open ask as a page; what is typed there is kept the same way.
-  const shown = kernelOf(run.definition) ? kernelPage(run, await kernelRuns.view(run)).definition : run.definition;
+  const shown = kernelOf(run.definition)
+    ? kernelPage(run, await kernelRuns.view(run)).definition
+    : run.definition;
   const step = stepOf(shown, stepId);
   if (step?.type !== "form") {
     throw new RunConflict("Not a page");

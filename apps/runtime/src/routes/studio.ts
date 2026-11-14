@@ -189,6 +189,7 @@ import {
   rotateInCloud,
   syncToCloud,
 } from "../services/cloud.js";
+import { convertWizard } from "../services/convert.js";
 import { notFound, ServiceError } from "../services/errors.js";
 import { deleteFile, listFiles, readFile, writeFile } from "../services/files.js";
 import {
@@ -1768,6 +1769,10 @@ export const studio = new Hono<Vars>()
   )
   .post("/wizards/:id/duplicate", async (c) =>
     c.json(await duplicateWizard(c.get("user").id, c.req.param("id"))),
+  )
+  // A copy made of step files; the wizard itself stays.
+  .post("/wizards/:id/convert", async (c) =>
+    c.json(await convertWizard(c.get("user").id, c.req.param("id"))),
   )
   .delete("/wizards/:id", async (c) => {
     if (!managed) {
