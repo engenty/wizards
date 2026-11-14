@@ -38,6 +38,7 @@ import { ChatPanel, useArchitectChat, Working } from "./editor/ChatPanel";
 import { FilesPanel } from "./editor/FilesPanel";
 import { currentDecisions, FlowDiagram, type StepLive } from "./editor/FlowDiagram";
 import { Inspector, StepNav } from "./editor/Inspector";
+import { KernelFlow } from "./editor/KernelFlow";
 import { LiveDialog } from "./editor/LiveDialog";
 import { MemoryPanel } from "./editor/MemoryPanel";
 import { Pills, PreviewPane } from "./editor/PreviewPane";
@@ -836,6 +837,8 @@ function Editor() {
         <div className="flex h-full items-center justify-center px-6 text-[0.875rem] text-ink-3">
           <Working chat={chat} spinner="size-4 text-ember" />
         </div>
+      ) : def.kernel ? (
+        <KernelFlow file={def.kernel} />
       ) : (
         <FlowDiagram
           def={def}

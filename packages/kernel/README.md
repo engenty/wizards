@@ -1,7 +1,8 @@
-# The wizard kernel, a spike
+# The wizard kernel
 
-A wizard as a file and a folder of steps, moved by a cursor. That is all a wizard is. Nothing in the runtime uses this
-package. It exists to find out whether the design holds: see what was tried at the end.
+The engine of a wizard in version 2 of the format: a file and a folder of steps, moved by a
+cursor. That is all a wizard is. The runtime is its host behind the switch `kernel`
+(`apps/runtime/src/kernel`, docs/plans/kernel.md).
 
 ## A wizard
 
@@ -130,24 +131,27 @@ its limit fails.
 
 ## Where a step runs
 
-As ordinary code, in the runner's own process. What keeps a wizard's code from other tenants is
-that a runner is one tenant's, or one wizard's: its own process or isolate, its own database. The
-kernel has no sandbox of its own.
+Two ways, and the kernel's host says which.
 
-The first state of this spike ran steps in QuickJS inside a shared process. That is gone: with a
-runner per tenant it bought nothing, and it cost a 519 kB WebAssembly module, npm packages, a
-debugger, and an abort when a step took all its memory.
+- **As ordinary code**, in the host's own process. For a runner that is one tenant's, or one
+  wizard's, and code that is its own. `load.ts` loads a folder this way.
+- **In QuickJS** (`quickjs.ts`), for every other case. A step is compiled into one script
+  (`compile.ts`); it gets the run to read and `ask`, and nothing else. The clock stands still and
+  `Math.random` is seeded. A step that imports one of Node's own modules does not compile. `btoa`
+  and `atob` are there.
 
-What a step can reach is then the runner's to settle. A runner that holds no tokens and can call
-nothing but the broker leaves a step with `ask` as its only way out, whatever it tries.
+A step that only computes and asks behaves the same in both. The tests run the two example
+wizards both ways.
 
 ## The parts
 
 | File | Is |
 | --- | --- |
-| `src/kernel.ts` | `start`, `answer`, `wake`, `rewind`, `judge`, `read`. Knows the file, the step interface and the rows. |
+| `src/kernel.ts` | `start`, `answer`, `wake`, `rewind`, `stop`, `judge`, `read`; `record`, `back` and `move` for a host with a line of its own. Knows the file, the step interface and the rows. |
 | `src/grant.ts` | The grant from the file, an ask held to it, what a host lacks, what the file declares and no run used. |
-| `src/turn.ts` | One run of a step or an eval from its top. |
+| `src/turn.ts` | One run of a step or an eval from its top, as ordinary code. |
+| `src/quickjs.ts`, `src/compile.ts` | The same in QuickJS, and a wizard's folder compiled for it. |
+| `src/check-dir.ts`, `src/types-of.ts` | The check of a folder, and the types written from its file. |
 | `src/describe.ts` | Reads a wizard without running it: do the map and the step files fit. |
 | `src/load.ts` | A wizard's folder to what the kernel takes, in Node. |
 | `src/memory.ts` | A store in memory. |
@@ -180,14 +184,8 @@ answer an ask at once, by its type. An ask without a battery waits for `answer`.
 
 ## What it leaves out
 
-- A real model. The agent in the tests is a few lines of code; with executor its tool calls are
-  real, against the emulator.
+- A real model. The agent battery in the tests is a stand-in.
+- Pause, and a wizard as an ask.
+- Leave for an action an agent calls inside its own turn: only a tool ask's one `call`, or a
+  battery that says so, asks the user.
 - A real Google account and its OAuth sign-in. The emulator hands out a token.
-- The runner itself: a process or isolate per tenant or per wizard, what it holds and what it may
-  call. Nothing here stops a step from using the network or the clock.
-- The broker's own rules beside executor's. Leave for an action an agent calls inside its own
-  turn: only a tool ask's one `call` asks the user here.
-- Rows under an agent ask's row, `retries`, pause and cancel.
-- A store on the runtime's `run` tables, and the converter from a version 2 definition.
-- Types for a wizard's steps made from its file: `examples/offer/wizard.ts` is written by hand.
-- How often a host judges real runs, and what a judge costs: both are the host's to decide.
