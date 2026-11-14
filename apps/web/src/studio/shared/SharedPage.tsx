@@ -8,12 +8,13 @@ import { lang as studioLang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { type Space, useCurrentSpace, useMe, type WizardSummary } from "../../lib/session";
 import { Button, Card, cn, Dialog, IconButton, Input, Label, Switch } from "../../ui";
-import { SidePane, SpaceFace, useCrumbs } from "../AppFrame";
+import { SidePane, useCrumbs } from "../AppFrame";
 import { Pills } from "../editor/PreviewPane";
 import { QrCode } from "../editor/WizardQr";
 import { SlugField, useCopied, WordsFields } from "../space/PublicPage";
 import { langOfVoice, pageUrl } from "../space/page-address";
 import { ownLink } from "../where";
+import { PagePreview, pagePreviewKey } from "./PagePreview";
 
 /*
  * Shared (docs/plans/org-page.md): what leaves the team, for the organization's admins. Off,
@@ -250,6 +251,7 @@ function PageOn({
   const save = async (next: SpacePage) => {
     await api.patch(`/api/studio/spaces/${space.id}`, { page: next });
     await qc.invalidateQueries({ queryKey: keys.spaces() });
+    await qc.invalidateQueries({ queryKey: pagePreviewKey(space.id) });
   };
   const change = useMutation({
     mutationFn: (patch: Partial<SpacePage>) => save({ ...page, ...patch }),
@@ -337,71 +339,20 @@ function PageOn({
           )}
         </div>
       </SidePane>
-      <PagePreview space={space} page={page} wizards={own} url={url} />
-    </>
-  );
-}
-
-/**
- * The page as visitors see it, drawn here from its data: the brand, its headline and words, the
- * wizards on it in their order. Fixed in layout for now; the live page is a click away.
- */
-function PagePreview({
-  space,
-  page,
-  wizards,
-  url,
-}: {
-  space: Space;
-  page: SpacePage;
-  wizards: WizardSummary[];
-  url: string;
-}) {
-  const organization = useMe().data?.tenant.name ?? "";
-  const listed = page.wizards
-    .map((id) => wizards.find((w) => w.id === id))
-    .filter((w): w is WizardSummary => Boolean(w?.published && w.shareEnabled));
-  const brandName = space.brand.name?.trim() || (space.root ? organization : space.name);
-  return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 py-2">
-      <div className="flex items-center gap-3">
-        <SpaceFace space={space} name={brandName} size="sm" />
-        <span className="min-w-0 flex-1 truncate font-medium text-[0.9375rem]">{brandName}</span>
+      <div className="flex flex-col gap-2">
         <a
           href={url}
           target="_blank"
           rel="noreferrer"
-          className="flex shrink-0 items-center gap-1 font-mono text-[0.75rem] text-ink-3 hover:text-ink"
+          className="flex items-center gap-1 self-end font-mono text-[0.75rem] text-ink-3 hover:text-ink"
         >
           {url.replace(/^https?:\/\//, "")}
           <ArrowUpRight className="size-3.5" />
         </a>
-      </div>
-      <div className="flex flex-col gap-3">
-        <h1 className="text-balance font-display font-semibold text-[2rem] leading-tight">
-          {page.headline || page.title}
-        </h1>
-        {page.intro ? <p className="max-w-[60ch] text-[1rem] text-ink-2">{page.intro}</p> : null}
-      </div>
-      {listed.length ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {listed.map((w) => (
-            <Card key={w.id} className="flex items-start gap-3 p-4">
-              <Mascot kind={w.avatar} costume={w.costume} size={40} interactive={false} />
-              <div className="min-w-0">
-                <div className="font-medium text-[0.9375rem]">{w.title}</div>
-                {w.description ? (
-                  <p className="mt-1 line-clamp-2 text-[0.8125rem] text-ink-3">{w.description}</p>
-                ) : null}
-              </div>
-            </Card>
-          ))}
+        <div className="overflow-hidden rounded-xl shadow-elevated">
+          <PagePreview space={space} page={page} empty={t("shared.previewEmpty")} />
         </div>
-      ) : (
-        <p className="rounded-xl border border-border border-dashed p-6 text-center text-[0.875rem] text-ink-3">
-          {t("shared.previewEmpty")}
-        </p>
-      )}
-    </div>
+      </div>
+    </>
   );
 }
