@@ -15,6 +15,7 @@ import {
   remember,
   runConnectionsOn,
   spaceHolder,
+  startedScope,
   type Usable,
 } from "./person-connections.js";
 import { listSpaceConnections } from "./space-connections.js";
@@ -23,7 +24,7 @@ import { listSpaceConnections } from "./space-connections.js";
  * A wizard's needs on its page in the studio (docs/plans/run-connections.md, step 4): the service
  * each names, the steps that use it, how it resolves for the person looking and, for the space's
  * admins, the space's choice for runs nobody watches. Choosing and clearing that choice is the
- * admins'. The choice reaches a run nobody watches (`r:` holder) through `connectionsFor`; the
+ * admins'. The choice reaches a run a start began (`startedScope`) through `connectionsFor`; the
  * check before such a run is `unwatchedConnectionsSaid` in engine/requirements.ts.
  */
 
@@ -32,9 +33,6 @@ interface WizardRef {
   spaceId: string;
   draft: WizardDefinition;
 }
-
-/** A run nobody watches, as `connectionsFor` reads it: no person, the space's choice. */
-const unwatched = (wizardId: string): StoreScope => ({ wizardId, holder: "r:" });
 
 function accountView(u: Usable): NeedAccountView {
   return {
@@ -133,7 +131,7 @@ async function spaceChoice(
   w: WizardRef,
   need: ConnectionDef,
 ): Promise<NonNullable<WizardNeedView["space"]>> {
-  const found = await connectionsFor(unwatched(w.id), w.spaceId, need);
+  const found = await connectionsFor(startedScope(w.id), w.spaceId, need);
   return {
     chosen: found.by === "choice" && found.chosen ? found.chosen.row.id : null,
     options: found.candidates.filter((u) => u.kind === "space").map(accountView),
@@ -159,7 +157,7 @@ export async function chooseForSpace(
     throw notFound();
   }
   const need = needOf(w, needId);
-  const found = await connectionsFor(unwatched(w.id), w.spaceId, need);
+  const found = await connectionsFor(startedScope(w.id), w.spaceId, need);
   const target = found.candidates.find((u) => u.kind === "space" && u.row.id === connectionId);
   if (!target) {
     throw notFound();

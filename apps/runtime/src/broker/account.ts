@@ -125,6 +125,8 @@ export async function heldConnection(connection: BrokerConnection): Promise<Brok
     row: found.chosen.row,
     connector: found.chosen.connector,
     need: connection.def,
+    // `connectionsFor` gives a started run only the space's choice.
+    ...(connection.scope.started ? { chosenForStarts: true as const } : {}),
   };
 }
 

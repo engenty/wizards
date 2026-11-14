@@ -347,6 +347,36 @@ describe("a connection of the space the run uses for a wizard's need", () => {
   });
 });
 
+describe("a run a start began, with no person", () => {
+  it("uses the connection an admin chose for the space, though it is for the members", async () => {
+    switchOn();
+    const id = await spaceConnection({ audience: "members" });
+    try {
+      const run = await runRow();
+      const started = { kind: "store_secret" as const, def: crm, scope: { wizardId, holder: `r:${run}`, started: true as const }, spaceId: space };
+      // Nobody is there: the step calls for a guest, as the run's holder says.
+      const step = { kind: "step" as const, id: "read", for: { kind: "guest" as const, id: run } };
+      const call = (connection: typeof started | Omit<typeof started, "scope"> & { scope: { wizardId: string; holder: string } }) =>
+        inTenant(() =>
+          broker.brokerCall({ who: step, where: where(run), connection, action: { id: "list_contacts" }, input: {} }),
+        );
+      // No admin chose: an only candidate is not used.
+      expect(await call(started)).toMatchObject({ ok: false, refused: "not_connected" });
+      await inTenant(() => own.remember(wizardId, "crm", own.spaceHolder(space), { kind: "space", row: { id } }));
+      expect(await call(started)).toMatchObject({ ok: true, account: { label: "crm@firma.at" } });
+      expect(calls).toEqual([`list_contacts:space-${id}`]);
+      // A link visitor without a cookie has the same kind of holder, and is not this run.
+      const visitor = { ...started, scope: { wizardId, holder: `r:${run}-v` } };
+      expect(await call(visitor)).toMatchObject({ ok: false, refused: "not_connected" });
+      expect(calls).toHaveLength(1);
+    } finally {
+      await inTenant(() => client.db.delete(client.schema.connectionChoice));
+      await inTenant(() => client.db.delete(client.schema.spaceConnection));
+      await maxsAccount();
+    }
+  });
+});
+
 describe("a fixed step on a connection where each person signs in", () => {
   async function eachSignsIn(): Promise<string> {
     const id = await spaceConnection({ signIn: "person", secret: null, label: null });

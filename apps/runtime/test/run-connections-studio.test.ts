@@ -87,7 +87,7 @@ afterEach(() => {
 });
 
 /** A connection of the space that signs in as the space. */
-async function spaceConnection(audience: "all" | "members" = "all") {
+async function spaceConnection(audience: "all" | "members" | "admins" = "all") {
   const id = `sc-${Math.random().toString(36).slice(2, 10)}`;
   await inTenant(() =>
     client.db.insert(client.schema.spaceConnection).values({
@@ -173,10 +173,13 @@ describe("the wizard's needs in the studio", () => {
     await inTenant(() => access.asRole("admin", () => choice.chooseForSpace(w, "hub", sc)));
     const [chosen] = await inTenant(() => choice.wizardNeeds(w, { userId: USER, admin: true }, "en"));
     expect(chosen.space?.chosen).toBe(sc);
-    // A connection of the space that a run nobody watches can't use is not offered.
+    // A connection for the members is offered: the admin's choice lets a started run use it.
     const members = await spaceConnection("members");
+    await inTenant(() => access.asRole("admin", () => choice.chooseForSpace(w, "hub", members)));
+    // One for the admins alone is not.
+    const admins = await spaceConnection("admins");
     await expect(
-      inTenant(() => access.asRole("admin", () => choice.chooseForSpace(w, "hub", members))),
+      inTenant(() => access.asRole("admin", () => choice.chooseForSpace(w, "hub", admins))),
     ).rejects.toMatchObject({ code: "not_found" });
     await inTenant(() => access.asRole("admin", () => choice.clearForSpace(w, "hub")));
     const [cleared] = await inTenant(() => choice.wizardNeeds(w, { userId: USER, admin: true }, "en"));
@@ -199,7 +202,7 @@ describe("a start nobody watches", () => {
     const w = await newWizard();
     const sc = await spaceConnection();
     const said = await inTenant(() =>
-      requirements.unwatchedConnectionsSaid(w.draft, { wizardId: w.id, holder: "r:" }, space),
+      requirements.unwatchedConnectionsSaid(w.draft, own.startedScope(w.id), space),
     );
     expect(said).toMatchObject([
       { id: "hub", blocking: true, steps: [{ id: "contacts" }], problem: { code: "unwatchedNeedsChoice" } },
@@ -215,11 +218,40 @@ describe("a start nobody watches", () => {
     expect(run?.userId).toBeNull();
   });
 
+  it("uses only the space's choice, never an only candidate", async () => {
+    switchOn();
+    const w = await newWizard();
+    await spaceConnection("members");
+    const found = await inTenant(() =>
+      own.connectionsFor({ ...own.startedScope(w.id), holder: "r:run-1" }, space, { id: "hub", connector: "hubspot" }),
+    );
+    expect(found.candidates.some((c) => c.kind === "space")).toBe(true);
+    expect(found.chosen).toBeNull();
+  });
+
+  it("is told apart from a link visitor without a cookie, who never reads the space's choice", async () => {
+    switchOn();
+    const w = await newWizard();
+    const sc = await spaceConnection("members");
+    await inTenant(() => choice.chooseForSpace(w, "hub", sc));
+    const need = { id: "hub", connector: "hubspot" };
+    const started = await inTenant(() =>
+      own.connectionsFor({ ...own.startedScope(w.id), holder: "r:run-2" }, space, need),
+    );
+    expect(started).toMatchObject({ by: "choice", chosen: { kind: "space", row: { id: sc } } });
+    const visitor = await inTenant(() =>
+      own.connectionsFor({ wizardId: w.id, holder: "r:run-3" }, space, need),
+    );
+    // A guest is offered what is open to everyone, never what the members' connection holds.
+    expect(visitor.chosen).toBeNull();
+    expect(visitor.candidates.map((c) => c.row.id)).not.toContain(sc);
+  });
+
   it("is not checked for a start with an owner, nor without runConnections", async () => {
     const w = await newWizard();
     expect(
       await inTenant(() =>
-        requirements.unwatchedConnectionsSaid(w.draft, { wizardId: w.id, holder: "r:" }, space),
+        requirements.unwatchedConnectionsSaid(w.draft, own.startedScope(w.id), space),
       ),
     ).toEqual([]);
     switchOn();

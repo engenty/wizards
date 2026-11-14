@@ -31,6 +31,12 @@ export interface StoreScope {
    * never the root's or another space's. Absent: the wizard's space.
    */
   clientSpaceId?: string | null;
+  /**
+   * A run one of the wizard's starts began, with no person behind it: the space's choice is its
+   * account for a need (docs/plans/run-connections.md). A link visitor without a cookie also has
+   * an `r:` holder and is not this.
+   */
+  started?: true;
 }
 
 export { StoreError };
@@ -49,11 +55,13 @@ export function scopeOf(run: {
   userId: string | null;
   visitorId: string | null;
   clientSpaceId?: string | null;
+  startedBy?: unknown;
 }): StoreScope {
   return {
     wizardId: run.wizardId,
     holder: holderOf(run),
     ...(run.clientSpaceId ? { clientSpaceId: run.clientSpaceId } : {}),
+    ...(run.startedBy && !run.userId && !run.visitorId ? { started: true as const } : {}),
   };
 }
 

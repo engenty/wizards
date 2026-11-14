@@ -10,6 +10,7 @@ import {
   type WizardStart,
 } from "@engenty/wizards-shared/starts";
 import { and, eq, isNull, ne, notInArray, or, sql } from "drizzle-orm";
+import { startedScope } from "../connectors/person-connections.js";
 import { control, controlDb, db, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
@@ -117,11 +118,7 @@ export async function startFrom(
     const unwatched = start.owner
       ? null
       : blockingMessage(
-          await unwatchedConnectionsSaid(
-            version.definition,
-            { wizardId: w.id, holder: "r:" },
-            w.spaceId,
-          ),
+          await unwatchedConnectionsSaid(version.definition, startedScope(w.id), w.spaceId),
         );
     if (unwatched) {
       throw new StartRefused(saidText(unwatched, textLang(wizardLang(w.draft))));
