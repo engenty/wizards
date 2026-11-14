@@ -1592,6 +1592,58 @@ export type Requires = z.infer<typeof requiresSchema>;
  * can change without a new version, and stored definitions are converted once when it does.
  * A definition without a version is of this one.
  */
+/**
+ * A wizard in version 2 of the format (docs/plans/kernel.md): the file. It holds what the wizard
+ * needs and may reach, and the map. Nothing about a step is in it: a step is a file of the
+ * wizard's workspace, `steps/<id>.ts`, with one function. What reads it is in kernel-file.ts.
+ */
+export const KERNEL_VERSION = 2 as const;
+
+const kernelStepId = z
+  .string()
+  .regex(/^[a-z][a-zA-Z0-9_]*$/, "a step's id is a name a file can have: letters, digits, _");
+const way = z.union([kernelStepId, z.literal("end")]);
+
+export const kernelRequiresSchema = z.object({
+  /** The model classes an agent ask may name. */
+  models: z.array(z.enum(MODEL_CLASSES)).optional(),
+  /** Tools that are not a connection's: the sandbox, the browser, a plugin's, the wizard's own. */
+  tools: z.array(z.string().min(1)).optional(),
+  /** Roles beyond `user` and `operator`: an id and a title. */
+  roles: z.record(z.string().regex(/^[a-z][a-z0-9_-]*$/), z.string().min(1)).optional(),
+  /** The hosts the HTTP tool may reach. */
+  hosts: z.array(z.string().min(1)).optional(),
+});
+
+export const kernelFileSchema = z.object({
+  version: z.literal(KERNEL_VERSION),
+  title: z.string().min(1),
+  description: z.string().default(""),
+  avatar: z.string().default("round"),
+  lang: z
+    .string()
+    .regex(/^[a-z]{2}$/)
+    .optional(),
+  requires: kernelRequiresSchema.optional(),
+  /**
+   * Each connection by its kind, the actions the wizard uses, and for each whether it is allowed
+   * or asks the user first. Whose account it is, is bound where the wizard is installed.
+   */
+  connections: z.record(z.string().min(1), z.record(z.string().min(1), z.enum(["allow", "ask"]))).optional(),
+  /** What a caller sends, or a person fills in first. */
+  input: z.object({ fields: z.array(fieldSchema) }).optional(),
+  /** A finished run's output: a name, and where it is read from as `<step>.<path>`. */
+  output: z.record(z.string().min(1), z.string().min(1)).optional(),
+  start: kernelStepId,
+  /** The ways of each step. The first is taken when the step names none. */
+  edges: z.record(kernelStepId, z.array(way)),
+  /** How often a step may be reached in one run. */
+  limits: z.record(kernelStepId, z.number().int().min(1).max(1000)).optional(),
+});
+
+export type KernelFile = z.infer<typeof kernelFileSchema>;
+
+
 export const DEFINITION_VERSION = 1 as const;
 
 /** A definition as it is written: what the JSON Schema describes. */
@@ -1635,6 +1687,12 @@ export const wizardSchema = z
     themes: z.array(z.string().regex(THEME_ID)).max(8).optional(),
     requires: requiresSchema.optional(),
     steps: z.array(stepSchema).min(1),
+    /**
+     * The wizard in version 2 of the format (docs/plans/kernel.md, kernel-file.ts): with it the
+     * kernel runs the wizard from its step files, and `steps` is only what a reader that knows
+     * version 1 shows of it.
+     */
+    kernel: kernelFileSchema.optional(),
   })
   .superRefine((def, ctx) => {
     def.steps.forEach((step, i) => {
