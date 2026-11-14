@@ -4,6 +4,12 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.19.1] - 2026-11-14
+- ADDED **[studio]** The architect adds model and image steps only where a wish needs them (#623)
+- FIXED An ended run, chat turn or share job keeps the state it reached (#676)
+- FIXED **[studio]** A template's dialog says when its steps didn't load, instead of spinning (#616)
+- FIXED **[studio]** A template card that lacks a setup wraps its notice and links to that setup (#615)
+
 ## [0.19.0] - 2026-11-10
 - ADDED **[format]** Function tools and the sandbox reach the wizard's database (#608)
 - ADDED **[format]** A wizard brings its own sandbox tools, and its skill scripts run in the cloud's sandbox (#606)
