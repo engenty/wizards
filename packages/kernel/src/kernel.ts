@@ -11,15 +11,23 @@ import type {
   Score,
   Spec,
   Store,
+  TurnFn,
   Wizard,
 } from "./types";
+
+/** Thrown by a battery: this action needs the user's leave before it is done. */
+export class NeedsLeave extends Error {
+  constructor(message = "This action needs the user's leave.") {
+    super(message);
+  }
+}
 
 const UNIT: Record<string, number> = { s: 1e3, m: 60e3, h: 3600e3, d: 86400e3 };
 const ms = (text: string) => Number.parseInt(text, 10) * (UNIT[text.at(-1) ?? ""] ?? 0);
 const isLeft = (row: Row): row is LeftRow => "left" in row;
 const isAsk = (row: Row): row is AskRow => !("left" in row);
 /** A step's own asks, in the order it made them: without the rows that ask the user's leave. */
-const isOwn = (row: Row): row is AskRow => isAsk(row) && row.approves == null;
+const isOwn = (row: Row): row is AskRow => isAsk(row) && row.approves == null && row.parent == null;
 const read = (from: unknown, path: string) =>
   path.split(".").reduce<any>((at, key) => at?.[key], from);
 
@@ -57,6 +65,10 @@ export type KernelOptions = {
   patience?: number;
   /** What this host has. Given, a wizard that requires more is refused before it starts. */
   has?: Host;
+  /** How a step's code is run: as ordinary code (the default), or in a sandbox. */
+  turn?: TurnFn;
+  /** Checks an answer against the fields of its ask; says what is wrong, or nothing. */
+  check?: (fields: AskRow["fields"], value: unknown) => string | undefined;
 };
 
 /**
@@ -70,11 +82,14 @@ export function createKernel({
   now = Date.now,
   patience,
   has,
+  turn: runStep = runTurn as TurnFn,
+  check,
 }: KernelOptions) {
   const fail = (run: Run, error: string) =>
     Object.assign(run, { status: "failed" as const, error });
 
   async function move(run: Run): Promise<Run> {
+    if (run.status === "stopped") return run;
     const { file, steps } = await wizards(run.wizard);
     run.grant ??= grantOf(file);
     const grant = run.grant;
@@ -99,7 +114,7 @@ export function createKernel({
 
       // Run the step from its top. Asks that have an answered row get the answer back.
       const mine = run.rows.slice(run.open).filter(isOwn);
-      const turn = await runTurn(source, view(run), answered(mine), patience);
+      const turn = await runStep(source, view(run), answered(mine), patience);
 
       if (turn.end && "error" in turn.end) {
         fail(run, turn.end.error);
@@ -134,7 +149,7 @@ export function createKernel({
       // An action set to "ask" waits for the user's leave, a row of its own.
       const here = run.rows.slice(run.open).filter(isOwn);
       for (const row of here) {
-        if (row.state !== "waiting" || !needsLeave(grant, row)) continue;
+        if (row.state !== "waiting" || !(needsLeave(grant, row) || row.asksLeave)) continue;
         const leave = run.rows.filter(isAsk).find((other) => other.approves === row.n);
         if (!leave) {
           run.rows.push({
@@ -156,21 +171,40 @@ export function createKernel({
         }
       }
       const allowed = (row: AskRow) =>
-        !needsLeave(grant, row) ||
+        !(needsLeave(grant, row) || row.asksLeave) ||
         run.rows.filter(isAsk).some((other) => other.approves === row.n && other.state === "done");
       const answerable = here.filter(
         (row) => row.state === "waiting" && batteries[row.type] && allowed(row),
       );
       await Promise.all(
         answerable.map(async (row) => {
-          try {
-            row.answer = await batteries[row.type](row, run);
-            row.state = "done";
-          } catch (error) {
-            Object.assign(row, {
-              state: "failed",
-              error: error instanceof Error ? error.message : String(error),
+          const note = (spec: Spec & { answer?: unknown }) =>
+            void run.rows.push({
+              ...spec,
+              n: run.rows.length,
+              step: id,
+              role: spec.role ?? spec.type,
+              parent: row.n,
+              state: "done",
             });
+          for (;;) {
+            row.tries = (row.tries ?? 0) + 1;
+            try {
+              row.answer = await batteries[row.type](row, run, { note });
+              row.state = "done";
+              return;
+            } catch (error) {
+              if (error instanceof NeedsLeave && !row.asksLeave) {
+                row.asksLeave = true; // the next pass asks the user, then comes back here
+                return;
+              }
+              if (row.tries <= Number(row.retries ?? 0)) continue;
+              Object.assign(row, {
+                state: "failed",
+                error: error instanceof Error ? error.message : String(error),
+              });
+              return;
+            }
           }
         }),
       );
@@ -217,10 +251,27 @@ export function createKernel({
     return run;
   }
 
-  const missing = (fields: AskRow["fields"], value: unknown) =>
-    (fields ?? []).find(
+  /** What is wrong with a value for these fields; nothing when it fits. */
+  const wrong = (fields: AskRow["fields"], value: unknown): string | undefined => {
+    if (check) return check(fields, value);
+    const lacks = (fields ?? []).find(
       (field) => field.required && (value as Record<string, unknown> | null)?.[field.id] == null,
     );
+    return lacks && `"${lacks.id}" is missing.`;
+  };
+
+  /** Writes an answer into its waiting row. The run does not move yet. */
+  async function record(runId: string, n: number, value: unknown, by?: string): Promise<Run> {
+    const run = await open(runId);
+    const row = run.rows[n];
+    if (!row || isLeft(row) || row.state !== "waiting")
+      throw new Error(`Row ${n} does not wait for an answer.`);
+    const said = wrong(row.fields, value);
+    if (said) throw new Error(said);
+    Object.assign(row, { state: "done", answer: value, by });
+    await store.save(run);
+    return run;
+  }
 
   return {
     async start(
@@ -229,8 +280,8 @@ export function createKernel({
       id: string = crypto.randomUUID(),
     ): Promise<Run> {
       const { file } = await wizards(wizard);
-      const lacks = missing(file.input?.fields, input);
-      if (lacks) throw new Error(`"${lacks.id}" is missing.`);
+      const said = wrong(file.input?.fields, input);
+      if (said) throw new Error(said);
       const without = has ? lacking(file, has) : [];
       if (without.length)
         throw new Error(`This wizard cannot run here. It lacks ${without.join(", ")}.`);
@@ -249,14 +300,20 @@ export function createKernel({
 
     /** An answer to a waiting row, from a person, a signal or another run. */
     async answer(runId: string, n: number, value: unknown, by?: string): Promise<Run> {
+      return move(await record(runId, n, value, by));
+    },
+
+    /** The two halves of `answer`, for a host that moves runs in a line of its own. */
+    record,
+    move: async (runId: string) => move(await open(runId)),
+
+    /** Ends a run where it stands. Nothing moves it again; its rows stay. */
+    async stop(runId: string): Promise<Run> {
       const run = await open(runId);
-      const row = run.rows[n];
-      if (!row || isLeft(row) || row.state !== "waiting")
-        throw new Error(`Row ${n} does not wait for an answer.`);
-      const lacks = missing(row.fields, value);
-      if (lacks) throw new Error(`"${lacks.id}" is missing.`);
-      Object.assign(row, { state: "done", answer: value, by });
-      return move(run);
+      if (run.status === "done" || run.status === "failed") return run;
+      Object.assign(run, { status: "stopped", wakeAt: undefined });
+      await store.save(run);
+      return run;
     },
 
     /** A host calls this at `run.wakeAt`: a row whose time has come is answered with `timedOut`. */
@@ -265,7 +322,7 @@ export function createKernel({
       const due = run.rows
         .filter(isAsk)
         .filter((row) => row.state === "waiting" && row.due != null && row.due <= now());
-      if (!due.length) return run;
+      if (!due.length || run.status === "stopped") return run;
       for (const row of due) Object.assign(row, { state: "done", answer: { timedOut: true } });
       return move(run);
     },
@@ -286,7 +343,13 @@ export function createKernel({
       let from = n; // the step's rows begin after the last row that left a step
       while (from > 0 && !isLeft(run.rows[from - 1])) from--;
       return move(
-        Object.assign(run, { cursor: row.step, open: from, error: undefined, output: undefined }),
+        Object.assign(run, {
+          status: "running" as const,
+          cursor: row.step,
+          open: from,
+          error: undefined,
+          output: undefined,
+        }),
       );
     },
 
@@ -321,13 +384,13 @@ export function createKernel({
     run: Run,
     id: string,
     at: number,
-    source: Eval<any>,
+    source: Eval<any> | string,
     grant: Grant,
   ): Promise<Score> {
     const seen = view({ ...run, rows: run.rows.slice(0, at + 1), cursor: null });
     const asks: AskRow[] = [];
     for (let turns = 0; turns < 20; turns++) {
-      const turn = await runTurn(source, seen, answered(asks), patience);
+      const turn = await runStep(source, seen, answered(asks), patience);
       const kept = asks.length ? { asks } : {};
       if (turn.end && "error" in turn.end)
         return { eval: id, row: at, error: turn.end.error, ...kept };
@@ -356,7 +419,7 @@ export function createKernel({
               );
             if (!battery)
               throw new Error(`An eval may only ask what answers at once, not "${row.role}".`);
-            row.answer = await battery(row, run);
+            row.answer = await battery(row, run, { note: () => undefined });
             row.state = "done";
           } catch (error) {
             Object.assign(row, {
