@@ -1,7 +1,7 @@
 import type { Wizard } from "./types";
 
 /** Reads a wizard without running it: whether the map and the step files fit. */
-export function describe({ file, steps }: Wizard): string[] {
+export function describe({ file, steps, evals = {} }: Wizard): string[] {
   const issues: string[] = [];
   const seen = new Set<string>();
   const todo = [file.start];
@@ -20,5 +20,7 @@ export function describe({ file, steps }: Wizard): string[] {
   for (const [name, from] of Object.entries(file.output ?? {}))
     if (!steps[from.split(".")[0]])
       issues.push(`The output "${name}" reads "${from}", there is no such step.`);
+  for (const of of Object.keys(evals))
+    if (of !== "end" && !steps[of]) issues.push(`evals/${of} judges a step there is none of.`);
   return issues;
 }

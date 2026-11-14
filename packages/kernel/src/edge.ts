@@ -25,6 +25,7 @@ export type EdgeOptions = {
  *   POST /start   { wizard, input }
  *   POST /answer  { row, value, by? }
  *   POST /rewind  { row, value? }
+ *   POST /judge
  *   GET  /        the run
  */
 export function runObject({ sandbox, wizards, batteries }: EdgeOptions) {
@@ -52,7 +53,9 @@ export function runObject({ sandbox, wizards, batteries }: EdgeOptions) {
               ? await this.kernel.answer("run", body.row, body.value, body.by)
               : pathname === "/rewind"
                 ? await this.kernel.rewind("run", body.row, body.value)
-                : await this.kernel.read("run");
+                : pathname === "/judge"
+                  ? await this.kernel.judge("run")
+                  : await this.kernel.read("run");
         await this.sleep(run);
         return Response.json(run);
       } catch (error) {

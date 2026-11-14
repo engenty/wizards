@@ -36,7 +36,7 @@ beforeAll(async () => {
     export const RunObject = runObject({
       sandbox,
       wizards: (id) => WIZARDS[id],
-      batteries: { agent: async (row) => (row.step === "offer" ? { text: "An offer", price: 8400 } : { mail: "A reminder" }) },
+      batteries: { agent: async (row) => (row.step === "offer" ? { text: "An offer", price: 8400 } : row.step === "offer/tone" ? { score: 0.8 } : { mail: "A reminder" }) },
     });
 
     export default {
@@ -121,6 +121,15 @@ it("runs the offer wizard in a Durable Object, one request per answer", async ()
     "signed",
   ]);
   expect(await call("a")).toEqual(run); // read back from the object's storage
+
+  const judged = await call("a", "judge", {});
+  expect(judged.scores?.map((score) => [score.eval, score.score])).toEqual([
+    ["offer/tone", 0.8],
+    ["offer/within-budget", 1],
+    ["offer/tone", 0.8],
+    ["offer/within-budget", 1],
+    ["end/signed", 1],
+  ]);
 });
 
 it("keeps runs apart, and refuses what the kernel refuses", async () => {

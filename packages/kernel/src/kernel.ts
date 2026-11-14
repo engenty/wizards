@@ -6,6 +6,7 @@ import type {
   Row,
   Run,
   Sandbox,
+  Score,
   Spec,
   Store,
   Wizard,
@@ -33,6 +34,15 @@ export function view(run: Run) {
     counts,
   };
 }
+
+const answered = (rows: AskRow[]): Replay =>
+  rows.map((row) =>
+    row.state === "done"
+      ? { answer: row.answer }
+      : row.state === "failed"
+        ? { error: row.error ?? "" }
+        : null,
+  );
 
 const seedOf = (run: Run) =>
   [...`${run.id}:${run.open}`].reduce(
@@ -86,14 +96,7 @@ export function createKernel({
 
       // Run the step from its top. Asks that have an answered row get the answer back.
       const mine = run.rows.slice(run.open).filter(isAsk);
-      const replay: Replay = mine.map((row) =>
-        row.state === "done"
-          ? { answer: row.answer }
-          : row.state === "failed"
-            ? { error: row.error ?? "" }
-            : null,
-      );
-      const turn = await sandbox.run(source, view(run), replay, {
+      const turn = await sandbox.run(source, view(run), answered(mine), {
         now: run.startedAt,
         seed: seedOf(run),
       });
@@ -246,6 +249,7 @@ export function createKernel({
       const row = run.rows[n];
       if (!row || isLeft(row)) throw new Error(`Row ${n} is not an ask.`);
       run.rows.length = n + 1;
+      run.scores = run.scores?.filter((score) => score.row < n);
       Object.assign(
         row,
         value === undefined
@@ -259,8 +263,85 @@ export function createKernel({
       );
     },
 
+    /**
+     * Runs the evals that have not judged yet: a step's, for every time it returned, and those of
+     * `end` once the run is done. It changes nothing but `run.scores`.
+     */
+    async judge(runId: string): Promise<Run> {
+      const run = await open(runId);
+      const { file, evals = {} } = await wizards(run.wizard);
+      const roles = ["user", "operator", ...Object.keys(file.roles ?? {})];
+      const scores = run.scores ?? [];
+      const targets = run.rows.filter(isLeft).map((row) => ({ at: row.n, step: row.step }));
+      if (run.status === "done") targets.push({ at: run.rows.length - 1, step: "end" });
+      for (const { at, step } of targets) {
+        for (const [name, source] of Object.entries(evals[step] ?? {})) {
+          const id = `${step}/${name}`;
+          if (scores.some((score) => score.eval === id && score.row === at)) continue;
+          scores.push(await judgeOne(run, id, at, source, roles, file.tools ?? []));
+        }
+      }
+      run.scores = scores;
+      await store.save(run);
+      return run;
+    },
+
     read: open,
   };
+
+  /** One eval on the run as it stood at row `at`. Its asks are answered at once or fail. */
+  async function judgeOne(
+    run: Run,
+    id: string,
+    at: number,
+    source: string,
+    roles: string[],
+    tools: string[],
+  ): Promise<Score> {
+    const seen = view({ ...run, rows: run.rows.slice(0, at + 1), cursor: null });
+    const asks: AskRow[] = [];
+    for (let turns = 0; turns < 20; turns++) {
+      const turn = await sandbox.run(source, seen, answered(asks), {
+        now: run.startedAt,
+        seed: at,
+      });
+      const kept = asks.length ? { asks } : {};
+      if (turn.end && "error" in turn.end)
+        return { eval: id, row: at, error: turn.end.error, ...kept };
+      if (turn.end) {
+        const { score, why } = turn.end.done as { score?: unknown; why?: unknown };
+        if (typeof score !== "number" || !(score >= 0 && score <= 1))
+          return {
+            eval: id,
+            row: at,
+            error: `The score must be a number from 0 to 1, it is ${JSON.stringify(score)}.`,
+            ...kept,
+          };
+        return { eval: id, row: at, score, ...(typeof why === "string" && { why }), ...kept };
+      }
+      const asked = turn.asks.slice(asks.length);
+      for (const spec of asked) asks.push({ ...ask(run, id, spec, roles, tools), n: asks.length });
+      const waiting = asks.filter((row) => row.state === "waiting");
+      if (!waiting.length && !asked.length) break;
+      await Promise.all(
+        waiting.map(async (row) => {
+          const battery = batteries[row.type];
+          try {
+            if (!battery)
+              throw new Error(`An eval may only ask what answers at once, not "${row.role}".`);
+            row.answer = await battery(row, run);
+            row.state = "done";
+          } catch (error) {
+            Object.assign(row, {
+              state: "failed",
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }),
+      );
+    }
+    return { eval: id, row: at, error: "The eval did not come to an end.", asks };
+  }
 }
 
 export type Kernel = ReturnType<typeof createKernel>;

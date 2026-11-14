@@ -1,4 +1,4 @@
-import type { Step } from "../../src/types";
+import type { Eval, Step } from "../../src/types";
 
 /** What `wizard.json` says of this wizard, as types for its steps. The check would write this. */
 export type Input = {
@@ -18,3 +18,5 @@ type Ways = {
 };
 
 export type OfferStep<Id extends keyof Ways> = Step<Input, Ways[Id]>;
+
+export type OfferEval = Eval<Input>;
