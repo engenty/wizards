@@ -1,5 +1,5 @@
-import { type Grant, grantOf, type Host, lacking, needsLeave, outside } from "./grant";
-import { turn as runTurn } from "./turn";
+import { type Grant, grantOf, type Host, lacking, needsLeave, outside } from "./grant.js";
+import { turn as runTurn } from "./turn.js";
 import type {
   AskRow,
   Battery,
@@ -13,7 +13,7 @@ import type {
   Store,
   TurnFn,
   Wizard,
-} from "./types";
+} from "./types.js";
 
 /** Thrown by a battery: this action needs the user's leave before it is done. */
 export class NeedsLeave extends Error {
@@ -27,9 +27,42 @@ const ms = (text: string) => Number.parseInt(text, 10) * (UNIT[text.at(-1) ?? ""
 const isLeft = (row: Row): row is LeftRow => "left" in row;
 const isAsk = (row: Row): row is AskRow => !("left" in row);
 /** A step's own asks, in the order it made them: without the rows that ask the user's leave. */
-const isOwn = (row: Row): row is AskRow => isAsk(row) && row.approves == null && row.parent == null;
+const isOwn = (row: Row): row is AskRow =>
+  isAsk(row) && row.approves == null && row.parent == null && row.step !== "input";
 const read = (from: unknown, path: string) =>
   path.split(".").reduce<any>((at, key) => at?.[key], from);
+
+/** The row that asks for a run's input, where the run began without one. Not a step. */
+export const INPUT = "input";
+
+/** A run as it begins. Without an input, and where the file has fields for one, it first asks. */
+export function begin(
+  file: Wizard["file"],
+  run: Pick<Run, "id" | "wizard" | "startedAt">,
+  input?: Record<string, unknown>,
+): Run {
+  const asks = input === undefined && (file.input?.fields.length ?? 0) > 0;
+  return {
+    ...run,
+    input: input ?? {},
+    status: "running",
+    cursor: file.start,
+    open: null,
+    rows: asks
+      ? [
+          {
+            n: 0,
+            step: INPUT,
+            type: "form",
+            role: "user",
+            fields: file.input?.fields,
+            state: "waiting",
+          },
+        ]
+      : [],
+    rev: 0,
+  };
+}
 
 /** What a step sees of the run. All of it is worked out from the rows. */
 export function view(run: Run) {
@@ -94,6 +127,16 @@ export function createKernel({
     run.grant ??= grantOf(file);
     const grant = run.grant;
     run.status = "running";
+    // A run that began without its input asks for it first: the answer of row 0 is the input.
+    const first = run.rows[0];
+    if (first && isAsk(first) && first.step === INPUT) {
+      if (first.state === "waiting") {
+        run.status = "waiting";
+        await store.save(run);
+        return run;
+      }
+      run.input = first.answer as Record<string, unknown>;
+    }
 
     while (run.cursor && run.status === "running") {
       const id = run.cursor;
@@ -260,6 +303,33 @@ export function createKernel({
     return lacks && `"${lacks.id}" is missing.`;
   };
 
+  /** Takes a run back to row `n` and writes that. The run does not move yet. */
+  async function back(runId: string, n: number, value?: unknown): Promise<Run> {
+    const run = await open(runId);
+    const row = run.rows[n];
+    if (!row || isLeft(row)) throw new Error(`Row ${n} is not an ask.`);
+    run.rows.length = n + 1;
+    run.scores = run.scores?.filter((score) => score.row < n);
+    Object.assign(
+      row,
+      value === undefined
+        ? { state: "waiting", answer: undefined, by: undefined, error: undefined, tries: undefined }
+        : { state: "done", answer: value },
+    );
+    let from = n; // the step's rows begin after the last row that left a step
+    while (from > 0 && !isLeft(run.rows[from - 1])) from--;
+    const input = row.step === INPUT;
+    Object.assign(run, {
+      status: "running" as const,
+      cursor: input ? run.cursor : row.step,
+      open: input ? null : from,
+      error: undefined,
+      output: undefined,
+    });
+    await store.save(run);
+    return run;
+  }
+
   /** Writes an answer into its waiting row. The run does not move yet. */
   async function record(runId: string, n: number, value: unknown, by?: string): Promise<Run> {
     const run = await open(runId);
@@ -276,26 +346,16 @@ export function createKernel({
   return {
     async start(
       wizard: string,
-      input: Record<string, unknown>,
+      input?: Record<string, unknown>,
       id: string = crypto.randomUUID(),
     ): Promise<Run> {
       const { file } = await wizards(wizard);
-      const said = wrong(file.input?.fields, input);
+      const said = input === undefined ? undefined : wrong(file.input?.fields, input);
       if (said) throw new Error(said);
       const without = has ? lacking(file, has) : [];
       if (without.length)
         throw new Error(`This wizard cannot run here. It lacks ${without.join(", ")}.`);
-      return move({
-        id,
-        wizard,
-        input,
-        startedAt: now(),
-        status: "running",
-        cursor: file.start,
-        open: null,
-        rows: [],
-        rev: 0,
-      });
+      return move(begin(file, { id, wizard, startedAt: now() }, input));
     },
 
     /** An answer to a waiting row, from a person, a signal or another run. */
@@ -329,29 +389,11 @@ export function createKernel({
 
     /** Back to row `n`: asked again, or with a value answered differently. Later rows are dropped. */
     async rewind(runId: string, n: number, value?: unknown): Promise<Run> {
-      const run = await open(runId);
-      const row = run.rows[n];
-      if (!row || isLeft(row)) throw new Error(`Row ${n} is not an ask.`);
-      run.rows.length = n + 1;
-      run.scores = run.scores?.filter((score) => score.row < n);
-      Object.assign(
-        row,
-        value === undefined
-          ? { state: "waiting", answer: undefined, by: undefined }
-          : { state: "done", answer: value },
-      );
-      let from = n; // the step's rows begin after the last row that left a step
-      while (from > 0 && !isLeft(run.rows[from - 1])) from--;
-      return move(
-        Object.assign(run, {
-          status: "running" as const,
-          cursor: row.step,
-          open: from,
-          error: undefined,
-          output: undefined,
-        }),
-      );
+      return move(await back(runId, n, value));
     },
+
+    /** The first half of `rewind`, for a host that moves runs in a line of its own. */
+    back,
 
     /**
      * Runs the evals that have not judged yet: a step's, for every time it returned, and those of

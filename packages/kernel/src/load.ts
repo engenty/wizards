@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, parse } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { Wizard } from "./types";
+import type { Wizard } from "./types.js";
 
 /**
  * A wizard's folder as the kernel takes it: `wizard.json`, the default export of each

@@ -181,6 +181,9 @@ importers:
       '@engenty/wizards':
         specifier: workspace:*
         version: link:../../packages/wizards
+      '@engenty/wizards-kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
       '@engenty/wizards-shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -286,6 +289,9 @@ importers:
       effect:
         specifier: 4.0.0-beta.59
         version: 4.0.0-beta.59
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       exceljs:
         specifier: ^4.4.0
         version: 4.4.0

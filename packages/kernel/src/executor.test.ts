@@ -4,11 +4,11 @@ import { convertGoogleDiscoveryToOpenApi } from "@executor-js/plugin-openapi/pro
 import { createExecutor } from "@executor-js/sdk";
 import { Effect } from "effect";
 import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
-import { type Executor, executorBatteries, hostOf, type Model, stricterThere } from "./executor";
-import { createKernel } from "./kernel";
-import { loadWizard } from "./load";
-import { memoryStore } from "./memory";
-import type { AskRow, Run, Wizard } from "./types";
+import { type Executor, executorBatteries, hostOf, type Model, stricterThere } from "./executor.js";
+import { createKernel } from "./kernel.js";
+import { loadWizard } from "./load.js";
+import { memoryStore } from "./memory.js";
+import type { AskRow, Run, Wizard } from "./types.js";
 
 /**
  * The mail wizard against a Gmail that keeps state: executor's emulator of Google, reached

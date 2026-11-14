@@ -1,13 +1,14 @@
 import {
-  type KernelFile,
   KERNEL_VERSION,
+  type KernelFile,
   kernelFileSchema,
   kernelRequiresSchema,
   type ValidationIssue,
   type WizardDefinition,
 } from "./definition.js";
 
-export { type KernelFile, KERNEL_VERSION, kernelFileSchema, kernelRequiresSchema };
+export { KERNEL_VERSION, type KernelFile, kernelFileSchema, kernelRequiresSchema };
+
 import { CONNECTION_KINDS } from "./store.js";
 
 /**
@@ -16,8 +17,9 @@ import { CONNECTION_KINDS } from "./store.js";
  * wizard's workspace, `steps/<id>.ts`, with one function.
  */
 /** The file of a definition the kernel runs; nothing for a wizard in version 1. */
-export const kernelOf = (definition: { kernel?: KernelFile } | null | undefined): KernelFile | undefined =>
-  definition?.kernel;
+export const kernelOf = (
+  definition: { kernel?: KernelFile } | null | undefined,
+): KernelFile | undefined => definition?.kernel;
 
 /** The one step a reader of version 1 sees of a wizard in version 2. */
 export const KERNEL_STEP = "result";
@@ -57,7 +59,12 @@ const CODE = /\.(ts|js|mjs)$/;
 export const stepFilesOf = (paths: readonly string[]): Record<string, string> =>
   Object.fromEntries(
     paths
-      .filter((path) => path.startsWith(STEPS_DIR) && CODE.test(path) && !path.slice(STEPS_DIR.length).includes("/"))
+      .filter(
+        (path) =>
+          path.startsWith(STEPS_DIR) &&
+          CODE.test(path) &&
+          !path.slice(STEPS_DIR.length).includes("/"),
+      )
       .map((path) => [path.slice(STEPS_DIR.length).replace(CODE, ""), path]),
   );
 
@@ -65,7 +72,9 @@ export const stepFilesOf = (paths: readonly string[]): Record<string, string> =>
 export function evalFilesOf(paths: readonly string[]): Record<string, Record<string, string>> {
   const evals: Record<string, Record<string, string>> = {};
   for (const path of paths) {
-    const [of, name, more] = path.startsWith(EVALS_DIR) ? path.slice(EVALS_DIR.length).split("/") : [];
+    const [of, name, more] = path.startsWith(EVALS_DIR)
+      ? path.slice(EVALS_DIR.length).split("/")
+      : [];
     if (!of || !name || more !== undefined || !CODE.test(name)) continue;
     evals[of] ??= {};
     evals[of][name.replace(CODE, "")] = path;
@@ -90,17 +99,20 @@ export function kernelIssues(file: KernelFile, paths: readonly string[]): Valida
     todo.push(...(file.edges[id] ?? []));
   }
   for (const id of seen)
-    if (!steps[id]) issues.push({ stepId: id, message: `The map names "${id}", there is no steps/${id}.ts.` });
+    if (!steps[id])
+      issues.push({ stepId: id, message: `The map names "${id}", there is no steps/${id}.ts.` });
   for (const id of Object.keys(steps))
     if (!seen.has(id)) issues.push({ stepId: id, message: `No way leads to steps/${id}.` });
   for (const id of Object.keys(file.edges))
-    if (!seen.has(id)) issues.push({ stepId: id, message: `"${id}" has ways and none leads to it.` });
+    if (!seen.has(id))
+      issues.push({ stepId: id, message: `"${id}" has ways and none leads to it.` });
   for (const id of Object.keys(file.limits ?? {}))
     if (!steps[id]) issues.push({ message: `A limit names "${id}", there is no such step.` });
   for (const [name, from] of Object.entries(file.output ?? {}))
     if (!steps[from.split(".")[0]])
       issues.push({ message: `The output "${name}" reads "${from}", there is no such step.` });
   for (const of of Object.keys(evalFilesOf(paths)))
-    if (of !== "end" && !steps[of]) issues.push({ message: `evals/${of} judges a step there is none of.` });
+    if (of !== "end" && !steps[of])
+      issues.push({ message: `evals/${of} judges a step there is none of.` });
   return issues;
 }

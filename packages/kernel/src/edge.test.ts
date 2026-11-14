@@ -3,7 +3,7 @@ import { parse } from "node:path";
 import { build } from "esbuild";
 import { Miniflare } from "miniflare";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import type { Run } from "./types";
+import type { Run } from "./types.js";
 
 /**
  * A wizard as a Worker of its own: the kernel, the wizard's file and its step files bundled into

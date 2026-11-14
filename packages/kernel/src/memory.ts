@@ -1,4 +1,4 @@
-import type { Run, Store } from "./types";
+import type { Run, Store } from "./types.js";
 
 /** A store in memory. Only JSON is kept between two calls, as a database would. */
 export function memoryStore(): Store {

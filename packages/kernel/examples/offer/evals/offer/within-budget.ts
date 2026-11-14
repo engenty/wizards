@@ -1,4 +1,4 @@
-import type { OfferEval } from "../../wizard";
+import type { OfferEval } from "../../wizard.js";
 
 /** Code as the judge: exact and free. */
 const withinBudget: OfferEval = async (run) => {

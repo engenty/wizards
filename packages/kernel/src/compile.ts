@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, parse } from "node:path";
 import { build } from "esbuild";
-import type { Wizard } from "./types";
+import type { Wizard } from "./types.js";
 
 /**
  * A wizard's folder for QuickJS: each `steps/<id>.ts` and `evals/<step>/<name>.ts` bundled into

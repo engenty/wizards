@@ -1,10 +1,10 @@
 import { beforeAll, expect, it } from "vitest";
-import { check } from "./check";
-import { lacking } from "./grant";
-import { createKernel } from "./kernel";
-import { loadWizard } from "./load";
-import { memoryStore } from "./memory";
-import type { AskRow, Battery, Step, Wizard } from "./types";
+import { check } from "./check.js";
+import { lacking } from "./grant.js";
+import { createKernel } from "./kernel.js";
+import { loadWizard } from "./load.js";
+import { memoryStore } from "./memory.js";
+import type { AskRow, Battery, Step, Wizard } from "./types.js";
 
 /** The mail wizard: an agent reads the threads, a person looks at the draft, a step sends it. */
 let base: Wizard;

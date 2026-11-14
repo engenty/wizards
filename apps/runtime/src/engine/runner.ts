@@ -41,6 +41,7 @@ import {
   whenValue,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
+import { kernelOf } from "@engenty/wizards-shared/kernel-file";
 import { agentsMismatch, requiresOf, withRequires } from "@engenty/wizards-shared/requires";
 import type {
   AskInput,
@@ -51,6 +52,7 @@ import type {
   Said,
   StepOutput,
 } from "@engenty/wizards-shared/run";
+import { kernelHost } from "../kernel/host.js";
 import {
   CAN_GO_BACK,
   type ClosedChoice,
@@ -592,12 +594,21 @@ export async function createRun(input: {
   fill?: Record<string, unknown>;
   /** Which time of the start this is (`occurrenceKey`): a second run of it is refused. */
   occurrence?: string;
+  /**
+   * A wizard in version 2 (docs/plans/kernel.md): what the run is given as its input. Left out,
+   * the run asks for it first, where the wizard's file has fields for one.
+   */
+  input?: Record<string, unknown>;
 }): Promise<string> {
   const id = nanoid(18);
   const first = input.definition.steps[0];
+  const file = kernelOf(input.definition);
   // A started run fills its first page itself, in the drive loop.
-  const waits = first.type === "form" && !input.startedBy;
+  const waits = !file && first.type === "form" && !input.startedBy;
   const state: RunState = { values: {}, outputs: {}, history: [], notes: {} };
+  if (file) {
+    state.kernel = { input: input.input ?? null, startedAt: Date.now(), open: null, status: "running" };
+  }
   if (input.startedBy) {
     state.start = input.start;
     state.fill = input.fill ?? {};
@@ -708,7 +719,7 @@ export async function createRun(input: {
       startedBy: input.startedBy ?? null,
       occurrence: input.occurrence ?? null,
       status: waits ? "waiting_input" : "running",
-      cursor: first.id,
+      cursor: file ? file.start : first.id,
       state,
       label: await labelOf(input.definition, state),
       expiresAt,
@@ -2242,6 +2253,14 @@ async function startDriving(runId: string): Promise<boolean> {
 }
 
 async function drive(runId: string, signal: AbortSignal) {
+  // A wizard in version 2: the kernel moves the run (docs/plans/kernel.md).
+  const versioned = await loadRun(runId);
+  if (versioned && kernelOf(versioned.definition)) {
+    if (!RUN_ENDED.has(versioned.status)) {
+      await kernelRuns.drive(versioned, signal);
+    }
+    return;
+  }
   // The step starts afresh here: a question or a device call another process left has no one
   // waiting.
   await clearStaleAsk(runId);
@@ -3406,3 +3425,14 @@ async function runSpaceFiles(spaceId: string) {
   );
   return [...brand, ...own.filter((f) => !BRAND_FILES.has(f.kind))];
 }
+
+// --- runs of a wizard in version 2 (docs/plans/kernel.md) ----------------------
+
+/** The kernel's host over this engine: its line, its claims, its writes of a run's row. */
+export const kernelRuns = kernelHost({
+  loadRun,
+  updateRun: (runId, patch, seen) => updateRun(runId, patch, seen),
+  loadSpace,
+  makeContext,
+  kick,
+});

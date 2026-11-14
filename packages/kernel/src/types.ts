@@ -3,7 +3,11 @@ export type Field = { id: string; kind: string; required?: boolean; [key: string
 
 /** The file: what a wizard needs and may reach, and its map. Nothing about a step is in it. */
 export type WizardFile = {
+  version?: 2;
   title: string;
+  description?: string;
+  avatar?: string;
+  lang?: string;
   /** What the wizard needs from where it runs. An ask that names anything else fails. */
   requires?: {
     /** The model classes an agent ask may name. */
@@ -107,7 +111,7 @@ export type Run = {
   error?: string;
   scores?: Score[];
   /** What the run may reach, made from the file when it started. */
-  grant?: import("./grant").Grant;
+  grant?: import("./grant.js").Grant;
   rev: number;
 };
 

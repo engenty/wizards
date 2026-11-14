@@ -1,4 +1,4 @@
-import type { OfferStep } from "../wizard";
+import type { OfferStep } from "../wizard.js";
 
 const total = (items: { price: number; quantity: number }[]) =>
   items.reduce((sum, item) => sum + item.price * item.quantity, 0);

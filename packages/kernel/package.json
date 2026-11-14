@@ -1,16 +1,28 @@
 {
   "name": "@engenty/wizards-kernel",
   "version": "0.0.0",
-  "description": "A spike: a wizard as a file of edges and one function per step, moved by a cursor. Runs in Node and in a Durable Object.",
+  "description": "The engine of a wizard in version 2: a file of edges, one function per step, a cursor and rows.",
   "private": true,
   "type": "module",
   "exports": {
     ".": {
       "wizards-source": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./compile": {
+      "wizards-source": "./src/compile.ts",
+      "types": "./dist/compile.d.ts",
+      "default": "./dist/compile.js"
+    },
+    "./executor": {
+      "wizards-source": "./src/executor.ts",
+      "types": "./dist/executor.d.ts",
+      "default": "./dist/executor.js"
     }
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -28,5 +40,10 @@
     "@jitl/quickjs-wasmfile-release-sync": "0.31.0",
     "esbuild": "0.28.2",
     "quickjs-emscripten-core": "0.31.0"
-  }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
 }

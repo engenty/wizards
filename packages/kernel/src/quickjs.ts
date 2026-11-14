@@ -1,5 +1,5 @@
 import type { QuickJSContext, QuickJSWASMModule } from "quickjs-emscripten-core";
-import type { Turn, TurnFn } from "./types";
+import type { Turn, TurnFn } from "./types.js";
 
 /**
  * A step's code in QuickJS: the second way to run a step, for code that is not the host's own.

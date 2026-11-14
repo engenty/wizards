@@ -91,7 +91,8 @@ export interface RunState {
    * its rows. The other entries of this state stay empty for such a run.
    */
   kernel?: {
-    input: Record<string, unknown>;
+    /** Null until the run began: it then asks for its input where it was given none. */
+    input: Record<string, unknown> | null;
     startedAt: number;
     /** Where the rows of the step the run stands in begin; null between two steps. */
     open: number | null;

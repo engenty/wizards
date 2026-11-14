@@ -1,21 +1,26 @@
 {
+  "version": 2,
   "title": "Offer",
+  "description": "From a customer's request to a signed offer.",
+
   "requires": {
     "models": ["standard"],
     "roles": { "legal": "Legal" }
   },
+
   "input": {
     "fields": [
-      { "id": "customer", "kind": "text", "required": true },
-      { "id": "email", "kind": "text", "required": true },
-      { "id": "budget", "kind": "number" },
+      { "id": "customer", "label": "Customer", "kind": "text", "required": true },
+      { "id": "email", "label": "Their e-mail", "kind": "email", "required": true },
+      { "id": "budget", "label": "Budget", "kind": "number" },
       {
         "id": "items",
-        "kind": "list",
-        "fields": [
-          { "id": "name", "kind": "text" },
-          { "id": "price", "kind": "number" },
-          { "id": "quantity", "kind": "number" }
+        "label": "What they want",
+        "kind": "items",
+        "columns": [
+          { "id": "name", "label": "Item", "kind": "text" },
+          { "id": "price", "label": "Price", "kind": "money" },
+          { "id": "quantity", "label": "Quantity", "kind": "number" }
         ]
       }
     ]

@@ -1,5 +1,5 @@
-import { createKernel } from "./kernel";
-import type { Battery, Run, Store, Wizard } from "./types";
+import { createKernel } from "./kernel.js";
+import type { Battery, Run, Store, Wizard } from "./types.js";
 
 /** The part of a Durable Object's state this host uses. */
 type ObjectState = {

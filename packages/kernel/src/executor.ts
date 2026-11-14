@@ -1,5 +1,5 @@
-import type { Host } from "./grant";
-import type { AskRow, Battery, WizardFile } from "./types";
+import type { Host } from "./grant.js";
+import type { AskRow, Battery, WizardFile } from "./types.js";
 
 /**
  * The kernel's batteries on an executor (executor.sh, `@executor-js/sdk`): the tool ask and the

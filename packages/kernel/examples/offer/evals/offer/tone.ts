@@ -1,4 +1,4 @@
-import type { OfferEval } from "../../wizard";
+import type { OfferEval } from "../../wizard.js";
 
 /** A model as the judge. */
 const tone: OfferEval = async (run, ask) => {

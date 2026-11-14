@@ -1,4 +1,4 @@
-import type { Step } from "../../../src/types";
+import type { Step } from "../../../src/types.js";
 
 export type Draft = { to: string; subject: string; threadId: string; draft: string };
 

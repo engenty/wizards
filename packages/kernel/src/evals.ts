@@ -1,6 +1,6 @@
-import { createKernel } from "./kernel";
-import { memoryStore } from "./memory";
-import type { AskRow, Battery, Row, Run, Score, Wizard } from "./types";
+import { createKernel } from "./kernel.js";
+import { memoryStore } from "./memory.js";
+import type { AskRow, Battery, Row, Run, Score, Wizard } from "./types.js";
 
 /**
  * Tooling for evals beyond a run's own: a wizard over a dataset, and one ask of a past run asked

@@ -1,8 +1,8 @@
-import { describe } from "./describe";
-import { unused } from "./grant";
-import { createKernel } from "./kernel";
-import { memoryStore } from "./memory";
-import type { AskRow, Row, Run, TurnFn, Wizard } from "./types";
+import { describe } from "./describe.js";
+import { unused } from "./grant.js";
+import { createKernel } from "./kernel.js";
+import { memoryStore } from "./memory.js";
+import type { AskRow, Row, Run, TurnFn, Wizard } from "./types.js";
 
 /**
  * Tooling for tests of a wizard. It is not part of a wizard and the kernel does not use it.
