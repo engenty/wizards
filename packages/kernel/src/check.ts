@@ -3,7 +3,11 @@ import { createKernel } from "./kernel";
 import { memoryStore } from "./memory";
 import type { AskRow, Row, Run, Sandbox, Wizard } from "./types";
 
-/** A case: an input, an answer for each ask in the order the run makes them, what to expect. */
+/**
+ * Tooling for tests of a wizard. It is not part of a wizard and the kernel does not use it.
+ *
+ * A case: an input, an answer for each ask in the order the run makes them, what to expect.
+ */
 export type Case = {
   name: string;
   input: Record<string, unknown>;
@@ -42,10 +46,7 @@ export async function play(wizard: Wizard, sandbox: Sandbox, c: Case) {
   return { run, kernel, left };
 }
 
-/**
- * The check a coding agent runs: the map against the step files, every case, and which edges of
- * the map no case takes.
- */
+/** Runs the cases, and lists the edges of the map none of them takes. */
 export async function check(wizard: Wizard, sandbox: Sandbox, cases: Case[]) {
   const taken = new Set<string>();
   const results: CaseResult[] = [];
