@@ -3158,7 +3158,7 @@ export async function talkAllowed(run: RunRow): Promise<boolean> {
 }
 
 /** The viewer is the person whose run it is. */
-const ownsRun = (run: RunRow, viewer: Caller) =>
+export const ownsRun = (run: RunRow, viewer: Caller) =>
   Boolean(
     viewer.local ||
       viewer.link ||

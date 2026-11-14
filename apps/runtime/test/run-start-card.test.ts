@@ -366,6 +366,12 @@ describe("several accounts", () => {
       ["person", "max@gmail.com", false],
     ]);
     const work = card.candidates.find((c) => c.label === "max.work@gmail.com");
+    // Someone of the organization reading along, an admin too, chooses nothing for Max.
+    signIn(LENA, "owner");
+    expect(
+      (await call(id, "/connections/box/choice", "PUT", { owner: "person", id: work?.id })).status,
+    ).toBe(403);
+    signIn(MAX);
     // Someone else's account is none to choose.
     expect(
       (await call(id, "/connections/box/choice", "PUT", { owner: "person", id: "nope" })).status,

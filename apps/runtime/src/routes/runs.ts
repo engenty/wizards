@@ -91,6 +91,7 @@ import {
   goBack,
   keepUnsent,
   NoCreditsError,
+  ownsRun,
   RunConflict,
   RunInputError,
   retry,
@@ -1816,12 +1817,16 @@ export const runRoutes = new Hono()
     return c.json({ ok: true });
   })
   // The person picks which account the wizard uses for a need: on the card, or to change it.
+  // The choice is theirs alone: someone reading along (an admin too) changes nothing.
   .put("/:id/connections/:connectionId/choice", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     const spaceId = run ? await spaceIdOf(run) : "";
     const connection = run ? await findConnection(run, c.req.param("connectionId"), spaceId) : null;
     if (!run || !connection) {
       return c.json(notFoundAnswer(c), 404);
+    }
+    if (!ownsRun(run, await callerOf(c, run))) {
+      return refuse(c, { code: "connectionNotForYou" }, 403);
     }
     const pick = z
       .object({ owner: z.enum(["person", "space"]), id: z.string().min(1).max(100) })
