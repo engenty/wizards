@@ -1,7 +1,41 @@
 [
   {
+    "version": "v0.19.1",
+    "timestamp": 1794645386,
+    "commits": [
+      {
+        "id": "45491ce",
+        "message": "an ended run, chat turn or share job keeps the state it reached (#676)",
+        "group": "Fixed",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "b880818",
+        "message": "the architect adds model and image steps only where a wish needs them (#623)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "33a31bb",
+        "message": "a template's dialog says when its steps didn't load, instead of spinning (#616)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "f30d54c",
+        "message": "a template card that lacks a setup wraps its notice and links to that setup (#615)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.19.0",
-    "timestamp": 1794298809,
+    "timestamp": 1794299493,
     "commits": [
       {
         "id": "092faa4",
