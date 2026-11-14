@@ -2655,6 +2655,18 @@ export async function submitPage(
   by?: Actor,
   sent?: { seq: number; tab?: string },
 ): Promise<boolean> {
+  const versioned = await kernelRunOf(runId);
+  if (versioned) {
+    // A wizard in version 2: the page is the form the run waits at, a step's or its input.
+    const row = (await kernelRuns.view(versioned)).waiting.find(
+      (r) => r.step === stepId && r.type === "form",
+    );
+    if (!row) {
+      throw new RunConflict({ code: "runMovedOn" });
+    }
+    await kernelAnswer(runId, row.n, input, by);
+    return false;
+  }
   const at = Date.now();
   if (sent) {
     const last = (await loadRun(runId))?.state.pagesSent;
@@ -2838,6 +2850,30 @@ export type ReviewAction =
  * answers, as the door established it; none for what the engine does itself.
  */
 export async function reviewStep(runId: string, stepId: string, action: ReviewAction, by?: Actor) {
+  const versioned = await kernelRunOf(runId);
+  if (versioned) {
+    // A wizard in version 2: a review of the step, or the leave for an action it is about to do.
+    const waiting = (await kernelRuns.view(versioned)).waiting.filter((r) => r.step === stepId);
+    const row =
+      waiting.find((r) => r.type === "approval") ?? waiting.find((r) => r.type === "review");
+    if (!row || action.type === "regenerate") {
+      throw new RunConflict(row ? "Not a review that can be made again" : { code: "runMovedOn" });
+    }
+    const yes = action.type === "accept";
+    await kernelAnswer(
+      runId,
+      row.n,
+      row.type === "approval"
+        ? { allow: yes }
+        : {
+            approved: yes,
+            ...(action.note ? { note: action.note } : {}),
+            ...(action.type === "accept" && action.edits ? { edits: action.edits } : {}),
+          },
+      by,
+    );
+    return;
+  }
   const at = Date.now();
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
@@ -2918,6 +2954,16 @@ export async function goBack(runId: string, by?: Actor) {
   if (!run) {
     throw new RunConflict({ code: "runBusy" });
   }
+  if (kernelOf(run.definition)) {
+    // A wizard in version 2: the last answer somebody gave is asked for again.
+    const rows = (await kernelRuns.view(run)).rows;
+    const last = rows.findLast((r) => !("left" in r) && r.state === "done" && r.by !== undefined);
+    if (!last) {
+      throw new RunConflict({ code: "runMovedOn" });
+    }
+    await kernelRuns.rewind(runId, last.n).catch(kernelRefused);
+    return;
+  }
   // What belonged to the step left behind goes with it, and whoever answered the page asked again
   // no longer has: the flow's `back`.
   await apply(run, run.state, await flow(run, { kind: "back" }), {
@@ -2931,6 +2977,16 @@ export async function retry(runId: string) {
   const run = await loadRun(runId);
   if (run?.status !== "failed") {
     throw new RunConflict("Nothing to retry");
+  }
+  if (kernelOf(run.definition)) {
+    // A wizard in version 2: the ask that failed is made again.
+    const rows = (await kernelRuns.view(run)).rows;
+    const failed = rows.findLast((r) => !("left" in r) && r.state === "failed");
+    if (!failed) {
+      throw new RunConflict("Nothing to retry");
+    }
+    await kernelRuns.rewind(runId, failed.n).catch(kernelRefused);
+    return;
   }
   // A failure gave the run's hold back: a refusal on wake must not be walked around here.
   const refused = (await durableRunsOn()) ? await holdAgain(run) : null;
@@ -3435,6 +3491,29 @@ async function runSpaceFiles(spaceId: string) {
 }
 
 // --- runs of a wizard in version 2 (docs/plans/kernel.md) ----------------------
+
+/** The run, when it is of a wizard in version 2 and has not ended. */
+async function kernelRunOf(runId: string): Promise<RunRow | undefined> {
+  const run = await loadRun(runId);
+  return run && kernelOf(run.definition) ? run : undefined;
+}
+
+/** What the kernel refuses of a person's write, as the engine says it. */
+function kernelRefused(err: unknown): never {
+  if (err instanceof RunConflict) {
+    throw err;
+  }
+  throw new RunInputError([
+    { field: "", message: err instanceof Error ? err.message : String(err) },
+  ]);
+}
+
+/** A person's answer to a row of a run in version 2. */
+export async function kernelAnswer(runId: string, n: number, value: unknown, by?: Actor) {
+  await kernelRuns
+    .answer(runId, n, value, by?.userId ?? by?.visitorId ?? undefined)
+    .catch(kernelRefused);
+}
 
 /** The kernel's host over this engine: its line, its claims, its writes of a run's row. */
 export const kernelRuns = kernelHost({
