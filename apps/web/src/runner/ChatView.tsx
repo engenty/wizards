@@ -12,6 +12,7 @@ import {
   LiveBrowser,
   OutputView,
   QuestionPanel,
+  SignInCard,
   StoreButton,
   textHints,
   useDoneSignal,
@@ -1740,9 +1741,12 @@ export function ChatBody({
               bot(
                 "sleeping",
                 view.status === "sleeping"
-                  ? goesOnText(view.wakeAt, view.pause)
+                  ? goesOnText(view.wakeAt, view.pause, view.signIn)
                   : waitsSignalText(view.waitsFor, view.wakeAt),
               ),
+              ...(view.signIn && "connection" in view.signIn
+                ? [bot("sign-in", <SignInCard view={view} />)]
+                : []),
             ]}
           />
           <Idle placeholder={t("run.leavePage")} />

@@ -2,7 +2,7 @@ import type { Format } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables/columns";
 import { formatTableCell } from "@engenty/wizards-shared/engenty/data-tables/columns-format";
 import { formatBytes } from "@engenty/wizards-shared/numbers";
-import type { ShownList } from "@engenty/wizards-shared/run";
+import type { RunView, ShownList } from "@engenty/wizards-shared/run";
 import {
   type ConnectionView,
   type ConnectorOption,
@@ -10,7 +10,7 @@ import {
   type StoreFile,
 } from "@engenty/wizards-shared/store";
 import { Check, Database, FileText, Link2, Plus, Trash2, Unplug } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "./api.js";
 import { api, appCall, appCan, runBase, withBase } from "./env.js";
 import { lang, t } from "./i18n.js";
@@ -23,11 +23,13 @@ function CredentialsForm({
   connectionId,
   connector,
   onCancel,
+  onSignedIn,
 }: {
   runId: string;
   connectionId: string;
   connector: ConnectorOption;
   onCancel: () => void;
+  onSignedIn?: () => void;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -39,6 +41,7 @@ function CredentialsForm({
       await api.post(`${runBase(runId)}/connections/${connectionId}/credentials/${connector.id}`, {
         values,
       });
+      onSignedIn?.();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -80,41 +83,42 @@ function CredentialsForm({
   );
 }
 
-/** The person connects an account (their mailbox) to the wizard, or sees which one is connected. */
-export function ConnectionField({
+/**
+ * Connecting an account to one of the run's connections: a sign-in on the provider's page (a
+ * popup, or the app's sign-in sheet) or a form for keys. A page field shows it, and so does a run
+ * that waits for a sign-in. `again`: the buttons say "Sign in to …" for an account that needs a
+ * new sign-in. `onSignedIn`: the person came back from signing in or the keys were taken.
+ */
+export function ConnectCard({
   runId,
   connection,
+  again,
+  center,
+  onSignedIn,
 }: {
   runId: string;
-  connection: ConnectionView | undefined;
+  connection: ConnectionView;
+  again?: boolean;
+  /** The buttons stand in the middle, under a centred heading. */
+  center?: boolean;
+  onSignedIn?: () => void;
 }) {
   const [form, setForm] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  if (!connection) {
-    return null;
-  }
-  if (connection.account) {
-    const name =
-      connection.connectors.find((c) => c.id === connection.account?.connector)?.name ?? "";
-    return (
-      <div className="flex items-center gap-3 rounded-xl bg-card p-3 ring-1 ring-input">
-        <div className="flex size-10 items-center justify-center rounded-full bg-moss-tint text-moss">
-          <Check className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-medium text-[0.9375rem]">{connection.account.label}</div>
-          <div className="text-[0.8125rem] text-ink-3">{t("connect.connected", { name })}</div>
-        </div>
-        <IconButton
-          label={t("connect.disconnect")}
-          onClick={() => void api.del(`${runBase(runId)}/connections/${connection.id}`)}
-        >
-          <Unplug className="size-4" />
-        </IconButton>
-      </div>
-    );
-  }
+  // The provider's window tells the page when the person is back (`/api/connect/callback`).
+  useEffect(() => {
+    if (!onSignedIn) {
+      return;
+    }
+    const heard = (e: MessageEvent) => {
+      if (e.data?.type === "wizards:connected" && e.data.ok) {
+        onSignedIn();
+      }
+    };
+    window.addEventListener("message", heard);
+    return () => window.removeEventListener("message", heard);
+  }, [onSignedIn]);
   const oauth = async (connector: ConnectorOption) => {
     setError(null);
     setLink(null);
@@ -126,6 +130,7 @@ export function ConnectionField({
           `${runBase(runId)}/connections/${connection.id}/oauth/${connector.id}`,
         );
         await appCall("signIn", { url });
+        onSignedIn?.();
       } catch (err) {
         setError((err as Error).message);
       }
@@ -153,7 +158,7 @@ export function ConnectionField({
   }
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-2">
+      <div className={cn("flex flex-wrap gap-2", center && "justify-center")}>
         {connection.connectors.map((c) => (
           <button
             key={c.id}
@@ -168,7 +173,7 @@ export function ConnectionField({
                 : "bg-card text-ink-2 ring-input hover:text-ink hover:ring-ember",
             )}
           >
-            <Link2 className="size-4" /> {c.name}
+            <Link2 className="size-4" /> {again ? t("connect.signIn", { name: c.name }) : c.name}
           </button>
         ))}
       </div>
@@ -178,6 +183,7 @@ export function ConnectionField({
           connectionId={connection.id}
           connector={open}
           onCancel={() => setForm(null)}
+          onSignedIn={onSignedIn}
         />
       ) : null}
       {link ? (
@@ -193,6 +199,66 @@ export function ConnectionField({
       {error ? <p className="text-[0.8125rem] text-rose">{error}</p> : null}
     </div>
   );
+}
+
+/**
+ * A run that waits for a sign-in the viewer can give: the connect card. Once they are back the
+ * run looks again at once; signed in, it goes on and the card goes with the wait.
+ */
+export function SignInCard({ view, center }: { view: RunView; center?: boolean }) {
+  const runId = view.id;
+  const onSignedIn = useCallback(
+    () => void api.post(`${runBase(runId)}/signed-in`).catch(() => undefined),
+    [runId],
+  );
+  const signIn = view.status === "sleeping" ? view.signIn : null;
+  if (!(signIn && "connection" in signIn)) {
+    return null;
+  }
+  return (
+    <ConnectCard
+      runId={runId}
+      connection={signIn.connection}
+      again
+      center={center}
+      onSignedIn={onSignedIn}
+    />
+  );
+}
+
+/** The person connects an account (their mailbox) to the wizard, or sees which one is connected. */
+export function ConnectionField({
+  runId,
+  connection,
+}: {
+  runId: string;
+  connection: ConnectionView | undefined;
+}) {
+  if (!connection) {
+    return null;
+  }
+  if (connection.account) {
+    const name =
+      connection.connectors.find((c) => c.id === connection.account?.connector)?.name ?? "";
+    return (
+      <div className="flex items-center gap-3 rounded-xl bg-card p-3 ring-1 ring-input">
+        <div className="flex size-10 items-center justify-center rounded-full bg-moss-tint text-moss">
+          <Check className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium text-[0.9375rem]">{connection.account.label}</div>
+          <div className="text-[0.8125rem] text-ink-3">{t("connect.connected", { name })}</div>
+        </div>
+        <IconButton
+          label={t("connect.disconnect")}
+          onClick={() => void api.del(`${runBase(runId)}/connections/${connection.id}`)}
+        >
+          <Unplug className="size-4" />
+        </IconButton>
+      </div>
+    );
+  }
+  return <ConnectCard runId={runId} connection={connection} />;
 }
 
 // --- lists ---------------------------------------------------------------------

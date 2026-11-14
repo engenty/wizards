@@ -55,8 +55,8 @@ export type FlowFailure =
   | { class: "retry"; retryAfterMs: number | null }
   /** Out of credits: the run waits for a top-up. */
   | { class: "credits" }
-  /** A sign-in ran out: the run waits for the person to sign in again. */
-  | { class: "sign_in"; service: string }
+  /** A sign-in ran out: the run waits for the person to sign in again, to `connection` if it names one. */
+  | { class: "sign_in"; service: string; connection?: string }
   /** Anything else. */
   | { class: "final" };
 
@@ -425,7 +425,11 @@ function failed(
       const pause: Exclude<RunPause, { kind: "retry" }> =
         failure.class === "credits"
           ? { kind: "credits" }
-          : { kind: "sign_in", service: failure.service };
+          : {
+              kind: "sign_in",
+              service: failure.service,
+              ...(failure.connection ? { connection: failure.connection } : {}),
+            };
       if (host.now - Date.parse(retries.since) > FLOW_LIMITS.personWaitMaxMs) {
         delete state.pause;
         delete state.retries;

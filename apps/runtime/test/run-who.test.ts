@@ -270,6 +270,7 @@ const DOORS: [string, string, string, unknown][] = [
   ["a connection's sign-in", "POST", "/connections/c/oauth/k", {}],
   ["a connection's key", "POST", "/connections/c/credentials/k", {}],
   ["a connection's removal", "DELETE", "/connections/c", {}],
+  ["a sign-in's return", "POST", "/signed-in", {}],
   ["a list's new row", "POST", "/lists/l/rows", { rows: [] }],
   ["a list's row", "PATCH", "/lists/l/rows/r", {}],
   ["a list's row gone", "DELETE", "/lists/l/rows/r", {}],

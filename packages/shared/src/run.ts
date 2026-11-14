@@ -177,11 +177,21 @@ export interface RunState {
 /**
  * A run that sleeps for something other than a `wait` step. `retry`: the step tries again at
  * `wakeAt`. `credits`, `sign_in`: it waits for a person, and looks at `wakeAt` whether they acted.
+ * `connection`: the wizard's connection (its id in `connections`) the sign-in is for; none where
+ * the sign-in is no connection's.
  */
 export type RunPause =
   | { kind: "retry" }
   | { kind: "credits" }
-  | { kind: "sign_in"; service: string };
+  | { kind: "sign_in"; service: string; connection?: string };
+
+/**
+ * What a run that waits for a sign-in to one of the wizard's connections offers this viewer.
+ * `connection`: the connect card, for the person whose run it is: the wizard's own account, or
+ * their own sign-in to a connection of the space where each person signs in. `admin`: the
+ * connection signs in as the space, and an admin of the space signs it in again.
+ */
+export type RunSignIn = { connection: ConnectionView } | { admin: true };
 
 /** What a decision over a step's `ask` branches found. */
 export interface BranchDecision {
@@ -372,6 +382,8 @@ const NOTES_EN = {
   stepWaitsCredits:
     "This wizard has run out of credits for now. It goes on by itself once there are credits again.",
   stepWaitsSignIn: "{service} needs a new sign-in. This step goes on by itself after that.",
+  stepWaitsAdminSignIn:
+    "{service} needs a new sign-in by an admin of the space. This step goes on by itself after that.",
   stepFailedGoesOn: "This step didn’t work, so the wizard goes on with “{step}”.",
   signalKeyEmpty: "This step waits for a signal, but “{key}” came out empty.",
   signalCame: "The event arrived.",
@@ -899,6 +911,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "Das Guthaben dieses Wizards ist aufgebraucht. Er macht von selbst weiter, sobald wieder Guthaben da ist.",
   stepWaitsSignIn:
     "{service} braucht eine neue Anmeldung. Danach macht dieser Schritt von selbst weiter.",
+  stepWaitsAdminSignIn:
+    "{service} braucht eine neue Anmeldung durch einen Admin des Space. Danach macht dieser Schritt von selbst weiter.",
   stepFailedGoesOn:
     "Dieser Schritt hat nicht geklappt, darum macht der Wizard mit „{step}“ weiter.",
   signalKeyEmpty: "Dieser Schritt wartet auf ein Ereignis, aber „{key}“ ist leer.",
@@ -1493,6 +1507,8 @@ export interface RunView {
   wakeAt: string | null;
   /** Why it sleeps, where that is no `wait` step. */
   pause: RunPause | null;
+  /** While it waits for a sign-in to one of the wizard's connections: what this viewer can do. */
+  signIn: RunSignIn | null;
   /** Who a run that waits for a signal waits to hear from; null otherwise. */
   waitsFor: string | null;
   /**

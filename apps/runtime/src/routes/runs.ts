@@ -16,7 +16,7 @@ import {
   type PublicWizard,
   type RunNote,
 } from "@engenty/wizards-shared/run";
-import type { ConnectionView } from "@engenty/wizards-shared/store";
+import type { ConnectionDef, ConnectionView } from "@engenty/wizards-shared/store";
 import {
   machineTranslated,
   type TranslationMemory,
@@ -49,7 +49,11 @@ import {
 import { finishPluginOAuth, pluginStateTenant } from "../connectors/plugin-connections.js";
 import {
   finishSpaceConnectionOAuth,
+  type SignInAs,
+  signInWithCredentials,
+  spaceConnectionOf,
   spaceConnectionStateTenant,
+  startSpaceConnectionOAuth,
 } from "../connectors/space-connections.js";
 import { db, schema, withTenant } from "../db/client.js";
 import {
@@ -87,6 +91,7 @@ import {
   retry,
   reviewStep,
   runView,
+  signedIn,
   spaceIdOf,
   stopRun,
   submitPage,
@@ -374,8 +379,42 @@ async function viewOf(
   caller?: Caller,
 ) {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
-  const view = await runView(run, await brandView(w?.spaceId ?? "", run.definition.themes), hide);
+  const view = await runView(
+    run,
+    await brandView(w?.spaceId ?? "", run.definition.themes),
+    hide,
+    caller,
+  );
   return caller ? viewFor(view, run, caller) : view;
+}
+
+/**
+ * A wizard's connection that is a connection of the space: the run's person signs in to it
+ * themselves, as from their menu, with what that connection takes. Only the person whose run it
+ * is, signed in to the organization; whether it is open to them the space's own rules say
+ * (`allowSignIn`). Null: the connection is the wizard's own.
+ */
+async function spaceSignIn(
+  c: Context,
+  run: RunRow,
+  connection: ConnectionDef,
+): Promise<{ id: string; connectorId: string; as: SignInAs } | null> {
+  if (!connection.spaceConnection) {
+    return null;
+  }
+  const row = await spaceConnectionOf(await spaceIdOf(run), connection.spaceConnection);
+  if (!row || row.connectorId !== c.req.param("connectorId")) {
+    throw new HTTPException(404, { res: c.json(notFoundAnswer(c), 404) });
+  }
+  const user = await principalOf(c);
+  if (!(user && user.tenantId === run.tenantId && user.id === run.userId)) {
+    throw new HTTPException(403, { res: refuse(c, { code: "connectionNotForYou" }, 403) });
+  }
+  return {
+    id: row.id,
+    connectorId: row.connectorId,
+    as: { as: "person", userId: user.id, role: user.role },
+  };
 }
 
 /**
@@ -1619,6 +1658,10 @@ export const runRoutes = new Hono()
     if (!run || !connection) {
       return c.json(notFoundAnswer(c), 404);
     }
+    const space = await spaceSignIn(c, run, connection);
+    if (space) {
+      return c.json({ url: await startSpaceConnectionOAuth(space.id, space.as, requestLang(c)) });
+    }
     try {
       const url = await startOAuth(
         scopeOf(run),
@@ -1646,6 +1689,12 @@ export const runRoutes = new Hono()
     const { values } = z
       .object({ values: z.record(z.string(), z.string().max(500)) })
       .parse(await c.req.json());
+    const space = await spaceSignIn(c, run, connection);
+    if (space) {
+      const { label } = await signInWithCredentials(space.id, space.as, values);
+      await signedIn(run.id);
+      return c.json({ ok: true, label });
+    }
     try {
       const label = await connectWithCredentials(
         scopeOf(run),
@@ -1655,6 +1704,7 @@ export const runRoutes = new Hono()
         values,
       );
       signalChanged(run.id);
+      await signedIn(run.id);
       return c.json({ ok: true, label });
     } catch (err) {
       if (err instanceof ConnectError) {
@@ -1662,6 +1712,15 @@ export const runRoutes = new Hono()
       }
       throw err;
     }
+  })
+  // The provider's window said the person signed in: a run that waits for it looks again now.
+  .post("/:id/signed-in", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!run) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    await signedIn(run.id);
+    return c.json({ ok: true });
   })
   .delete("/:id/connections/:connectionId", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
@@ -2035,6 +2094,10 @@ export const connectCallback = new Hono().get("/callback", async (c) => {
       } else {
         const done = await withTenant(tenant, () => finishOAuth(answer, state));
         signalChanged(done.runId);
+        // The account is kept: a wake that fails leaves the run to its next look.
+        await withTenant(tenant, () => signedIn(done.runId)).catch((err) =>
+          console.error("[connect] wake", err),
+        );
       }
       ok = true;
       said = { code: "connected" };

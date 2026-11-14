@@ -46,6 +46,7 @@ import type {
   AskInput,
   RunNote,
   RunPause,
+  RunSignIn,
   RunStatus,
   Said,
   StepOutput,
@@ -81,10 +82,11 @@ import { and, eq, lt, notInArray, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
 import { effectsOn, enterVisit } from "../broker/effect.js";
-import { grantNote, grantOf, type KnownConnector, kindOf } from "../broker/index.js";
+import { grantNote, grantOf, inAudience, type KnownConnector, kindOf } from "../broker/index.js";
 import { runHolder, subjectsOf } from "../broker/rwx.js";
 import { resolveConnector } from "../connectors/external.js";
-import { connectionViews } from "../connectors/index.js";
+import { connectionViews, connectorOptions } from "../connectors/index.js";
+import { spaceConnectionOf } from "../connectors/space-connections.js";
 import {
   addLocalCost,
   canSpend,
@@ -120,7 +122,7 @@ import {
 } from "../safety.js";
 import { sandboxDataHost } from "../sandbox/data.js";
 import { peerTicket } from "../secrets/signing.js";
-import { nameOf } from "../services/access.js";
+import { isAdminRole, nameOf } from "../services/access.js";
 import { snapshotFile } from "../services/files.js";
 import { reportRun } from "../services/manage-reports.js";
 import { switchedOffRunners } from "../services/runners.js";
@@ -147,7 +149,7 @@ import {
 } from "../tenants/control.js";
 import { currentTenant, currentTenantOrNull } from "../tenants/tenant.js";
 import { hasOwnAccount } from "../upstreams.js";
-import { whoOf } from "./answerers.js";
+import { type Caller, whoOf } from "./answerers.js";
 import { type AskResult, askPerson, clearStaleAsk } from "./asks.js";
 import { decide } from "./decide.js";
 import { clearDeviceCalls } from "./device.js";
@@ -2021,10 +2023,7 @@ async function failSaid(err: unknown): Promise<Said> {
  * isn't looking. A crash before the run sleeps tells again, and that notice replaces this one.
  */
 async function tellPerson(run: RunRow, stepId: string, pause: RunPause) {
-  const said =
-    pause.kind === "sign_in"
-      ? note("stepWaitsSignIn", { service: pause.service })
-      : note("stepWaitsCredits");
+  const said = pause.kind === "sign_in" ? await signInSaid(run, pause) : note("stepWaitsCredits");
   await emitEvent(run.id, stepId, "error", said);
   try {
     const notice = await noticeFor(run, "needs_you", {
@@ -2061,8 +2060,50 @@ async function waitForPerson(
     err:
       failure.class === "credits"
         ? new NoCreditsError()
-        : new NotedError(note("stepWaitsSignIn", { service: failure.service })),
+        : new NotedError(await signInSaid(run, failure)),
   });
+}
+
+/** The connection of the space behind the wizard's connection a sign-in is for, if it is one. */
+async function spaceRowOf(run: RunRow, connectionId: string | undefined) {
+  const named = run.definition.connections?.find((c) => c.id === connectionId)?.spaceConnection;
+  return named ? spaceConnectionOf(await spaceIdOf(run), named) : null;
+}
+
+/** What a run that waits for a sign-in says: one that signs in as the space is an admin's to fix. */
+async function signInSaid(
+  run: RunRow,
+  pause: { service: string; connection?: string },
+): Promise<RunNote> {
+  const row = await spaceRowOf(run, pause.connection);
+  return note(row?.signIn === "space" ? "stepWaitsAdminSignIn" : "stepWaitsSignIn", {
+    service: pause.service,
+  });
+}
+
+/**
+ * The person signed in: a run that waits for a sign-in to one of the wizard's connections looks
+ * again now, not at its next look. Still not signed in, the step waits again and says nothing new.
+ */
+export async function signedIn(runId: string) {
+  const run = await loadRun(runId);
+  const pause = run?.status === "sleeping" ? run.state.pause : undefined;
+  if (!(run && pause?.kind === "sign_in" && pause.connection)) {
+    return;
+  }
+  const now = new Date();
+  try {
+    await updateRun(run.id, { wakeAt: now }, { rev: run.rev });
+  } catch (err) {
+    // It moved on meanwhile: it no longer waits for this.
+    if (err instanceof RunConflict) {
+      return;
+    }
+    throw err;
+  }
+  await setWake(run.id, now);
+  await wakeDue(now);
+  kick(run.id);
 }
 
 /**
@@ -2078,7 +2119,11 @@ function flowFailure(err: unknown, failure: Failure, acted: boolean): FlowFailur
       return { class: "credits" };
     case "sign_in":
       if (err instanceof SignInNeeded) {
-        return { class: "sign_in", service: err.service };
+        return {
+          class: "sign_in",
+          service: err.service,
+          ...(err.connection ? { connection: err.connection } : {}),
+        };
       }
       return acted ? { class: "final" } : { class: "sign_in", service: "" };
     default:
@@ -3047,14 +3092,84 @@ export async function talkAllowed(run: RunRow): Promise<boolean> {
   return enabled.some((id) => CONVERSATION_RUNNERS.includes(id) && !off.has(id));
 }
 
+/** The viewer is the person whose run it is. */
+const ownsRun = (run: RunRow, viewer: Caller) =>
+  Boolean(
+    viewer.local ||
+      viewer.link ||
+      (viewer.userId && viewer.userId === run.userId) ||
+      (viewer.visitorId && viewer.visitorId === run.visitorId),
+  );
+
+/**
+ * What a run that waits for a sign-in to one of the wizard's connections offers the viewer. A
+ * connection that signs in as the space is an admin's to sign in again. The card is for the
+ * person whose run it is: the wizard's own account, or their own sign-in to a connection of the
+ * space where each person signs in, if it is open to them. A guest never gets that one.
+ */
+async function signInOf(
+  run: RunRow,
+  def: WizardDefinition,
+  viewer: Caller | undefined,
+): Promise<RunSignIn | null> {
+  const pause = run.status === "sleeping" ? run.state.pause : undefined;
+  const connection =
+    pause?.kind === "sign_in" ? def.connections?.find((c) => c.id === pause.connection) : undefined;
+  if (!connection) {
+    return null;
+  }
+  const row = await spaceRowOf(run, connection.id);
+  if (connection.spaceConnection && !row) {
+    return null;
+  }
+  if (row?.signIn === "space") {
+    return { admin: true };
+  }
+  if (!(viewer && ownsRun(run, viewer))) {
+    return null;
+  }
+  const spaceId = await spaceIdOf(run);
+  const lang = textLang(wizardLang(def));
+  if (!row) {
+    const [view] = await connectionViews([connection], scopeOf(run), spaceId, lang);
+    // An account the step met and could not use is no account: the card connects anew.
+    return { connection: { ...view, account: null } };
+  }
+  const who = {
+    kind: viewer.role && isAdminRole(viewer.role) ? ("admin" as const) : ("person" as const),
+    id: viewer.userId ?? "",
+  };
+  if (!(run.userId && viewer.userId === run.userId && inAudience(row.audience, who))) {
+    return null;
+  }
+  return {
+    connection: {
+      id: connection.id,
+      kind: connection.kind ?? null,
+      connector: row.connectorId,
+      title: connection.title ?? row.name,
+      description: connection.description ?? null,
+      account: null,
+      connectors: await connectorOptions(
+        { id: connection.id, connector: row.connectorId },
+        spaceId,
+        lang,
+      ),
+    },
+  };
+}
+
 /**
  * The run as the viewer sees it. `hide`: steps whose output stays in the space (broker/kept.ts):
  * shown with no output and `kept`, left out of `outputs`; empty for a member, or a member's run.
+ * `viewer`: who looks, for what only they can do here (the connect card while the run waits for
+ * their sign-in).
  */
 export async function runView(
   run: RunRow,
   brand: RunView["brand"],
   hide: ReadonlySet<string> = new Set(),
+  viewer?: Caller,
 ): Promise<RunView> {
   // In the viewer's language every text of the view is the translation; ids and values stay.
   const memory = run.lang ? await storedTranslation(run.wizardId, run.lang) : null;
@@ -3126,6 +3241,7 @@ export async function runView(
         ? (run.wakeAt?.toISOString() ?? null)
         : null,
     pause: run.status === "sleeping" ? (run.state.pause ?? null) : null,
+    signIn: await signInOf(run, def, viewer),
     waitsFor:
       run.status === "waiting_signal" && step?.type === "wait"
         ? waitKeyText(run, step) || null

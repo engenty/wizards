@@ -67,7 +67,15 @@ export {
   useDoneSignal,
   waitsSignalText,
 } from "./RunnerView.js";
-export { ConnectionField, ListCheck, ListDownloads, ListTable, StoreButton } from "./store.js";
+export {
+  ConnectCard,
+  ConnectionField,
+  ListCheck,
+  ListDownloads,
+  ListTable,
+  SignInCard,
+  StoreButton,
+} from "./store.js";
 export {
   type SurfaceAction,
   type SurfaceChat,

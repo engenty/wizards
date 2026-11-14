@@ -97,6 +97,8 @@ const de: Record<RunnerKey, Line> = {
   "run.waitsCredits":
     "Das Guthaben ist aufgebraucht. Es geht von selbst weiter, sobald wieder welches da ist",
   "run.waitsSignIn": "{service} braucht eine neue Anmeldung. Danach geht es von selbst weiter",
+  "run.waitsAdminSignIn":
+    "{service} braucht eine neue Anmeldung durch einen Admin des Space. Danach geht es von selbst weiter",
   "run.waitsSignal": "Wartet auf ein Ereignis",
   "run.waitsSignalFrom": "Wartet auf ein Ereignis von {who}",
   "run.waitsAtMost": "{waits}, höchstens bis {date}",
@@ -121,6 +123,7 @@ const de: Record<RunnerKey, Line> = {
   "camera.denied":
     "Die Kamera ist für diese Seite nicht freigegeben. Erlaube sie in den Website-Einstellungen deines Browsers (Schloss-Symbol in der Adresszeile) – oder nimm das Foto mit der Kamera-App auf.",
   "connect.go": "Verbinden",
+  "connect.signIn": "Bei {name} anmelden",
   "connect.connected": "Verbunden über {name}",
   "connect.disconnect": "Trennen",
   "connect.none": "Auf diesem Server ist noch kein Anbieter zum Verbinden eingerichtet.",
@@ -413,6 +416,8 @@ const en = {
   "run.retryAt": "That didn’t work just now. It tries again {date} at {time}",
   "run.waitsCredits": "Out of credits for now. This goes on by itself once there are credits again",
   "run.waitsSignIn": "{service} needs a new sign-in. This goes on by itself after that",
+  "run.waitsAdminSignIn":
+    "{service} needs a new sign-in by an admin of the space. This goes on by itself after that",
   "run.waitsSignal": "Waiting for an event",
   "run.waitsSignalFrom": "Waiting for an event from {who}",
   "run.waitsAtMost": "{waits}, until {date} at the latest",
@@ -437,6 +442,7 @@ const en = {
   "camera.denied":
     "The camera isn’t allowed for this page. Allow it in your browser’s site settings (the lock icon in the address bar) – or take the photo with your camera app.",
   "connect.go": "Connect",
+  "connect.signIn": "Sign in to {name}",
   "connect.connected": "Connected through {name}",
   "connect.disconnect": "Disconnect",
   "connect.none": "This server has no provider for connecting accounts yet.",
