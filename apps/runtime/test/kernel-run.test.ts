@@ -463,6 +463,10 @@ describe("the run's page", () => {
     expect(seen.step).toMatchObject({ id: "input", type: "form" });
     expect((seen.step as { fields: { id: string }[] }).fields.map((f) => f.id)).toEqual(["customer"]);
 
+    // what is typed and not yet sent is kept, as on any page
+    await client.withTenant(T, async () => runner.keepUnsent((await run(runId)) as never, "input", { customer: "Nord" }));
+    expect((await run(runId))?.unsent).toMatchObject({ input: { customer: "Nord" } });
+
     await client.withTenant(T, () => runner.submitPage(runId, "input", { customer: "Nordlicht GmbH" }, { userId: "u" }));
     await rests(runId, "waiting_input");
     seen = await page(runId);
