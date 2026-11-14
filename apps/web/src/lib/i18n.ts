@@ -1119,7 +1119,8 @@ const de: Record<Key, Line> = {
   "shared.content": "Inhalte",
   "shared.settings": "Einstellungen",
   "shared.onPage": "Auf der Seite",
-  "shared.noneToShow": "Noch kein Wizard veröffentlicht und geteilt. Teile einen im Studio, dann steht er hier.",
+  "shared.noneToShow":
+    "Noch kein Wizard veröffentlicht und geteilt. Teile einen im Studio, dann steht er hier.",
   "shared.pickOne": "Schalte mindestens einen Wizard ein. Bis dahin zeigt die Seite nichts.",
   "nav.more": "Mehr",
   "nav.sources": "Ressourcen",
@@ -6215,7 +6216,8 @@ const en = {
   "shared.content": "Content",
   "shared.settings": "Settings",
   "shared.onPage": "On the page",
-  "shared.noneToShow": "No wizard is published and shared yet. Share one in Studio and it shows here.",
+  "shared.noneToShow":
+    "No wizard is published and shared yet. Share one in Studio and it shows here.",
   "shared.pickOne": "Switch on at least one wizard. Until then the page shows nothing.",
   "nav.more": "More",
   "nav.sources": "Resources",
