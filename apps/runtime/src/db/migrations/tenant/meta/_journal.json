@@ -540,6 +540,13 @@
       "when": 1794661909758,
       "tag": "0076_clients_in_spaces",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "6",
+      "when": 1794664300321,
+      "tag": "0077_client_spaces_at_root",
+      "breakpoints": true
     }
   ]
 }

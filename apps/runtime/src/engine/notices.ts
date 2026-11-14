@@ -410,7 +410,7 @@ function linkOf(row: NoticeRow, run: RunRow, wizard: { id: string; shareToken: s
 const askedOfAnother = (row: NoticeRow, run: RunRow) =>
   Boolean(row.userId) && row.userId !== run.userId;
 
-/** Whether the run is a client's: they started it in a space they are in as a client. */
+/** Whether the run is a client's: they started it in their client space. */
 async function clientOf(run: RunRow): Promise<boolean> {
   if (!(run.userId && run.clientSpaceId)) {
     return false;

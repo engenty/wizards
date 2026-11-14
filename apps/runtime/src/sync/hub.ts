@@ -56,12 +56,13 @@ export async function syncOverview(userId: string): Promise<SyncOverview> {
   const all = (
     await db.query.space.findMany({
       where: eq(schema.space.tenantId, currentTenant()),
-      columns: { id: true, name: true, origin: true },
+      columns: { id: true, name: true, origin: true, kind: true },
       orderBy: [schema.space.createdAt],
     })
   ).filter((s) => !open || open.has(s.id));
   const kept = await Promise.all(all.map((s) => keptFrom(userId, s.id)));
-  const spaces = all.filter((_, i) => !kept[i]);
+  // Client spaces stay out of the sync (docs/plans/org-spaces.md).
+  const spaces = all.filter((s, i) => !kept[i] && s.kind !== "client");
   const info = managed ? await tenantInfo(currentTenant()).catch(() => null) : null;
   const limit = await spaceLimit();
   return {

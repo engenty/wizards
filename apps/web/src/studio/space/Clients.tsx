@@ -7,19 +7,16 @@ import { Switch } from "../../ui";
 import { Section } from "./Section";
 
 /*
- * What of a space its clients reach (docs/plans/org-spaces.md): the wizards they may start, and
- * „Für Kunden sichtbar“ on an item of its Knowledge. Who the clients are is set in the share
- * dialog. Admins only, behind `clientSpaces`.
+ * What of the organization's own space its client spaces reach (docs/plans/org-spaces.md): the
+ * wizards its clients may start, and „Für Kunden sichtbar“ on an item of its Knowledge. A client
+ * space's own Knowledge and wizards are its clients' already. Admins only, behind `clientSpaces`.
  */
 
 type Open = Record<"document" | "table" | "page" | "wizard", string[]>;
 
 const openKey = (spaceId: string) => ["open-to-clients", spaceId];
 
-/**
- * Which of the space's published wizards its clients may start: a rule each. The organization's
- * own space opens its wizards to the clients of every space under it.
- */
+/** Which of the organization's published wizards clients may start in their client space: a rule each. */
 export function ClientWizards({ space }: { space: Space }) {
   const qc = useQueryClient();
   const wizards = useQuery({
@@ -60,8 +57,8 @@ export function ClientWizards({ space }: { space: Space }) {
 }
 
 /**
- * „Für Kunden sichtbar“ on an item of the space's Knowledge: its clients read it in the spaces they
- * are in. Off by default; a rule of the space when on.
+ * „Für Kunden sichtbar“ on an item of the organization's Knowledge: clients read it in their client
+ * space. Off by default; a rule of the space when on.
  */
 export function OpenToClients({
   spaceId,

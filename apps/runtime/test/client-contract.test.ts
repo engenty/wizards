@@ -157,14 +157,14 @@ beforeAll(async () => {
     expect(res.status, await res.clone().text()).toBe(200);
     wizards[k] = ((await res.json()) as any).wizardId ?? ((await res.json()) as any).id;
   }
-  // Two spaces under the organization's root, one for each client; a local install makes one
-  // space, these are written here directly.
+  // A client space for each client beside the team spaces; a local install makes one space,
+  // these are written here directly.
   wagner = "space-wagner";
   berger = "space-berger";
   await local(() =>
     db.db.insert(db.schema.space).values([
-      { id: wagner, tenantId: "local", name: "Wagner GmbH", brand: {}, parentId: spaceId },
-      { id: berger, tenantId: "local", name: "Berger & Söhne", brand: {}, parentId: spaceId },
+      { id: wagner, tenantId: "local", name: "Wagner GmbH", brand: {}, parentId: spaceId, kind: "client" },
+      { id: berger, tenantId: "local", name: "Berger & Söhne", brand: {}, parentId: spaceId, kind: "client" },
     ]),
   );
   await studio("PUT", `/api/studio/spaces/${wagner}/members/wagner`, { role: "client" });

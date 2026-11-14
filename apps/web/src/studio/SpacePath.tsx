@@ -1,8 +1,16 @@
 import { ChevronsUpDown, PanelLeft, Plus, Search, UserRound, UserSquare2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
-import { initialsOf, type Me, type Space, useCurrentSpace, useMayCreate } from "../lib/session";
+import {
+  initialsOf,
+  type Me,
+  type Space,
+  useCurrentSpace,
+  useIsAdmin,
+  useMayCreate,
+} from "../lib/session";
 import { cn, Dialog, Input } from "../ui";
 import { SpaceFace, useDismiss } from "./AppFrame";
 import { NewSpaceDialog } from "./HomePage";
@@ -38,7 +46,7 @@ function Face({ me, space }: { me: Me; space: Space }) {
       </span>
     );
   }
-  if (space.clients > 0) {
+  if (space.kind === "client") {
     return (
       <span className="grid size-6 shrink-0 place-items-center rounded-md bg-violet-500/10 font-semibold text-[0.5625rem] text-violet-700 ring-1 ring-violet-500/30 dark:text-violet-300">
         {initialsOf(space.name)}
@@ -75,7 +83,10 @@ export function SpacePath({ me }: { me: Me }) {
   const { space, spaces, select } = useCurrentSpace();
   const mayCreate = useMayCreate();
   const [open, setOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<"space" | "client" | null>(null);
+  // Client spaces with their switch, made by the organization's admins.
+  const clientsOn = useFeature("clientSpaces");
+  const admin = useIsAdmin();
   const [all, setAll] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, open, () => setOpen(false));
@@ -84,13 +95,15 @@ export function SpacePath({ me }: { me: Me }) {
   }
   const name = spaceLabel(me, space);
   const limit = me.limits.spaces;
-  // Mein Space and spaces with clients do not count against the plan's number.
-  const full = limit !== null && spaces.filter((s) => !s.personal && !s.clients).length >= limit;
+  // Mein Space and client spaces do not count against the plan's number.
+  const full = limit !== null && spaces.filter((s) => s.kind === "space").length >= limit;
+  const newClient = clientsOn && admin && me.mode === "managed";
   // Alone, there is nothing to switch to: the name stands without a menu.
-  const alone = spaces.length <= 1 && !(mayCreate && !full);
+  const alone = spaces.length <= 1 && !(mayCreate && (!full || newClient));
   const root = spaces.find((s) => s.root);
   const mine = spaces.find((s) => s.personal);
-  const shared = spaces.filter((s) => !s.root && !s.personal);
+  const shared = spaces.filter((s) => !s.root && s.kind === "space");
+  const clients = spaces.filter((s) => s.kind === "client");
   const go = (id: string) => {
     setOpen(false);
     setAll(false);
@@ -114,7 +127,7 @@ export function SpacePath({ me }: { me: Me }) {
     >
       <Face me={me} space={s} />
       <span className="min-w-0 flex-1 truncate">{spaceLabel(me, s)}</span>
-      {s.clients > 0 ? (
+      {s.kind === "client" && s.clients > 0 ? (
         <span className="flex shrink-0 items-center gap-0.5 text-[0.75rem] text-violet-700 dark:text-violet-300">
           <UserRound className="size-3" />
           {s.clients}
@@ -182,7 +195,7 @@ export function SpacePath({ me }: { me: Me }) {
               role="menuitem"
               onClick={() => {
                 setOpen(false);
-                setCreating(true);
+                setCreating("space");
               }}
               className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[0.875rem] text-ink-3 transition hover:bg-accent hover:text-ink"
             >
@@ -190,9 +203,34 @@ export function SpacePath({ me }: { me: Me }) {
               {t("nav.newSpace")}
             </button>
           ) : null}
+          {/* Client spaces: one per client, beside the team spaces (docs/plans/org-spaces.md). */}
+          {clients.length || (mayCreate && newClient) ? (
+            <div className="px-2 pt-2 pb-1 text-[0.75rem] text-ink-3">
+              {t("nav.clientsHeading")}
+            </div>
+          ) : null}
+          {clients.slice(0, SHOWN).map((s) => row(s))}
+          {mayCreate && newClient ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setCreating("client");
+              }}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[0.875rem] text-ink-3 transition hover:bg-accent hover:text-ink"
+            >
+              <Plus className="size-4 shrink-0" />
+              {t("nav.newClient")}
+            </button>
+          ) : null}
         </div>
       ) : null}
-      <NewSpaceDialog open={creating} onClose={() => setCreating(false)} />
+      <NewSpaceDialog
+        open={creating !== null}
+        client={creating === "client"}
+        onClose={() => setCreating(null)}
+      />
       <AllSpacesDialog me={me} open={all} onClose={() => setAll(false)} pick={go} />
     </div>
   );

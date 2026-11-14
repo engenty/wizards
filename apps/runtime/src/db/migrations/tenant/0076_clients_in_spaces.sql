@@ -1,8 +1,8 @@
--- Clients are in spaces now (docs/plans/org-spaces.md): a client space of before becomes a space
--- under the organization's own space, its root (the oldest space made here with no parent), with
--- its clients still in it. It wears the organization's brand and Info, as a client space did.
+-- A client space stands beside the team spaces (docs/plans/org-spaces.md): a client space of
+-- before, under a team space, moves under the organization's own space, its root (the oldest space
+-- made here with no parent), with its clients still in it. It wears the organization's brand and
+-- Info, as it did.
 UPDATE `space` SET
-  `kind` = 'space',
   `access` = 'all',
   `brand_from` = 'root',
   `parent_id` = coalesce((

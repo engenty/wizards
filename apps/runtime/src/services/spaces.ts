@@ -266,8 +266,8 @@ export async function ownedSpace(userId: string, spaceId: string): Promise<Space
   if (!p) {
     throw notFound();
   }
-  // A client of the organization reaches only the spaces they are in (docs/plans/org-spaces.md);
-  // every other space is not there for them.
+  // One of a client's people reaches only the client spaces they are in
+  // (docs/plans/org-spaces.md); every other space is not there for them.
   if (currentRole() === "client" && !(await inSpace(userId, p.id))) {
     throw notFound();
   }
@@ -290,18 +290,7 @@ export async function keptFrom(userId: string, spaceId: string): Promise<boolean
 
 /** Whether the space is shared with its members only and the person is not one of them. */
 async function hiddenFrom(userId: string, p: SpaceRow): Promise<boolean> {
-  return p.kind === "space" && p.access === "members" && !(await inSpace(userId, p.id));
-}
-
-/** The spaces with Kund:innen in them: they do not count against the plan's number. */
-async function spacesWithClients(): Promise<Set<string>> {
-  const rows = await db
-    .selectDistinct({ spaceId: schema.spaceMember.spaceId })
-    .from(schema.spaceMember)
-    .where(
-      and(eq(schema.spaceMember.tenantId, currentTenant()), eq(schema.spaceMember.role, "client")),
-    );
-  return new Set(rows.map((r) => r.spaceId));
+  return p.kind !== "personal" && p.access === "members" && !(await inSpace(userId, p.id));
 }
 
 /** The organization's brand, Info and themes, as a space that takes them keeps them. */
@@ -505,20 +494,16 @@ export async function personalSpace(userId: string, root: SpaceRow): Promise<Spa
 
 /**
  * What a listed space is, for an outside client (docs/plans/org-spaces.md): the organization's
- * own space, the person's Mein Space, a space shared with Kund:innen, or a space.
+ * own space, the person's Mein Space, a client space, or a team space.
  */
 export function spaceIs(p: {
   kind: string;
   root?: boolean;
-  clients?: number;
 }): "organization" | "personal" | "client" | "space" {
   if (p.root) {
     return "organization";
   }
-  if (p.kind === "personal") {
-    return "personal";
-  }
-  return (p.clients ?? 0) > 0 ? "client" : "space";
+  return p.kind === "personal" ? "personal" : p.kind === "client" ? "client" : "space";
 }
 
 /** Whether a space holds nothing yet: no wizard, no page, no chat. */
@@ -598,8 +583,9 @@ async function othersPersonal(userId: string, p: SpaceRow): Promise<boolean> {
 
 /**
  * The spaces as the studio shows them with `orgSpaces` on: the root first, then the person's
- * Mein Space, then the spaces under the root, oldest first, up to the plan's number. Each says
- * whether it is the root or the person's own and how many Kund:innen are in it.
+ * Mein Space, then the team spaces and the client spaces under the root, oldest first, the team
+ * spaces up to the plan's number. Each says whether it is the root or the person's own and how
+ * many of a client's people are in it.
  */
 async function listOrgSpaces(userId: string, build: boolean) {
   const root = build ? await rootSpace() : undefined;
@@ -611,15 +597,16 @@ async function listOrgSpaces(userId: string, build: boolean) {
   const all = await db.query.space.findMany({
     where: and(
       build ? eq(schema.space.tenantId, currentTenant()) : synced(),
-      eq(schema.space.kind, "space"),
+      inArray(schema.space.kind, ["space", "client"]),
       ...(root ? [ne(schema.space.id, root.id)] : []),
     ),
     orderBy: [schema.space.createdAt],
   });
-  // The oldest up to the plan's number, the root among them; spaces with Kund:innen do not count.
-  const withClients = await spacesWithClients();
+  // The oldest team spaces up to the plan's number, the root among them; client spaces do not
+  // count, and are there while clients are on.
+  const clientsOn = (await currentFeatures()).clientSpaces === true;
   let room = Number.isFinite(limit) ? Math.max(0, limit - (root ? 1 : 0)) : all.length;
-  const counted = all.filter((p) => withClients.has(p.id) || room-- > 0);
+  const counted = all.filter((p) => (p.kind === "client" ? clientsOn : room-- > 0));
   const theirs = new Set(
     (
       await db
@@ -666,7 +653,7 @@ async function listOrgSpaces(userId: string, build: boolean) {
  * its number. One that does not: only what its local install synced — possibly nothing yet.
  */
 export async function listSpaces(userId: string, lang?: Lang) {
-  // A client sees the spaces they are in, nothing else (docs/plans/org-spaces.md).
+  // A client sees their client spaces, nothing else (docs/plans/org-spaces.md).
   if (currentRole() === "client") {
     return spacesOfClient(userId);
   }
@@ -699,7 +686,7 @@ export async function listSpaces(userId: string, lang?: Lang) {
   }));
 }
 
-/** The spaces a client is in, as the space list shows them. */
+/** The client spaces one of a client's people is in, as the space list shows them. */
 async function spacesOfClient(userId: string) {
   const rows = await db
     .select({ space: schema.space })
@@ -710,6 +697,7 @@ async function spacesOfClient(userId: string) {
         eq(schema.spaceMember.userId, userId),
         eq(schema.spaceMember.role, "client"),
         eq(schema.space.tenantId, currentTenant()),
+        eq(schema.space.kind, "client"),
       ),
     );
   return rows.map((r) => ({ ...r.space, wizardCount: 0 }));
@@ -719,19 +707,27 @@ export async function createSpace(
   userId: string,
   name: string,
   access: "all" | "members" = "all",
+  kind: "space" | "client" = "space",
 ): Promise<{ id: string }> {
   await requireBuild();
   await requireAdmin();
-  // Mein Space and spaces with clients do not count as spaces of the plan.
-  const withClients = await spacesWithClients();
-  const n = (
-    await db.query.space.findMany({
-      columns: { id: true },
-      where: and(eq(schema.space.tenantId, currentTenant()), eq(schema.space.kind, "space")),
-    })
-  ).filter((p) => !withClients.has(p.id)).length;
+  // A client space (docs/plans/org-spaces.md): with clients on, beside the team spaces under the
+  // root, seen by the whole team. It does not count as a space of the plan, as Mein Space does not.
+  const features = await currentFeatures();
+  const client = kind === "client";
+  if (client && !(features.clientSpaces === true && features.orgSpaces === true)) {
+    throw notFound();
+  }
+  const n = client
+    ? 0
+    : (
+        await db.query.space.findMany({
+          columns: { id: true },
+          where: and(eq(schema.space.tenantId, currentTenant()), eq(schema.space.kind, "space")),
+        })
+      ).length;
   const limit = await spaceLimit();
-  if (n >= limit) {
+  if (!client && n >= limit) {
     throw new ServiceError(
       "refused",
       limit === 1 ? note("onlyOneSpaceAllowed") : note("mostSpaces", { count: limit }),
@@ -741,16 +737,20 @@ export async function createSpace(
   // With `orgSpaces` a new space sits under the organization's own and reads it.
   // It starts with the organization's brand and Info, and shared with whom the dialog said.
   const root = (await orgSpacesOn()) ? await rootSpace() : undefined;
+  if (client && !root) {
+    throw notFound();
+  }
   await db.transaction(async (tx) => {
     await tx.insert(schema.space).values({
       id,
       tenantId: currentTenant(),
       name,
+      kind,
       ...(root ? { ...brandOf(root), brandFrom: "root" as const } : { brand: {} }),
       parentId: root?.id ?? null,
-      access: root ? access : "all",
+      access: root && !client ? access : "all",
     });
-    if (root && access === "members") {
+    if (root && !client && access === "members") {
       await tx.insert(schema.spaceMember).values({
         id: nanoid(12),
         tenantId: currentTenant(),
