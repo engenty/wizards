@@ -2,7 +2,7 @@ import { describe } from "./describe";
 import { unused } from "./grant";
 import { createKernel } from "./kernel";
 import { memoryStore } from "./memory";
-import type { AskRow, Row, Run, Wizard } from "./types";
+import type { AskRow, Row, Run, TurnFn, Wizard } from "./types";
 
 /**
  * Tooling for tests of a wizard. It is not part of a wizard and the kernel does not use it.
@@ -23,7 +23,7 @@ const waiting = (run: Run) =>
   run.rows.find((row: Row): row is AskRow => !("left" in row) && row.state === "waiting");
 
 /** Runs one case: every ask, a model's as well as a person's, is answered from the case. */
-export async function play(wizard: Wizard, c: Case) {
+export async function play(wizard: Wizard, c: Case, turn?: TurnFn) {
   const left = [...c.answers];
   const take = (step: string) => {
     const [[id, answer]] = Object.entries(left.shift() ?? { "nothing more": {} });
@@ -39,7 +39,7 @@ export async function play(wizard: Wizard, c: Case) {
     },
   );
   for (const type of ["agent", "tool", "generate"]) types.add(type);
-  const kernel = createKernel({ store: memoryStore(), wizards: () => wizard, batteries });
+  const kernel = createKernel({ store: memoryStore(), wizards: () => wizard, batteries, turn });
   let run = await kernel.start("case", c.input);
   for (let row = waiting(run); run.status === "waiting" && row; row = waiting(run)) {
     run = await kernel.answer(run.id, row.n, take(row.step), row.role);
@@ -48,13 +48,13 @@ export async function play(wizard: Wizard, c: Case) {
 }
 
 /** Runs the cases, and lists the edges of the map none of them takes. */
-export async function check(wizard: Wizard, cases: Case[]) {
+export async function check(wizard: Wizard, cases: Case[], turn?: TurnFn) {
   const taken = new Set<string>();
   const rows: Row[] = [];
   const results: CaseResult[] = [];
   for (const c of cases) {
     try {
-      const { run, left } = await play(wizard, c);
+      const { run, left } = await play(wizard, c, turn);
       rows.push(...run.rows);
       const leaves = run.rows.filter((row) => "left" in row);
       for (const row of leaves) taken.add(`${row.step} > ${row.to}`);

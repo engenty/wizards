@@ -36,8 +36,9 @@ export type WizardFile = {
  */
 export type Wizard = {
   file: WizardFile;
-  steps: Record<string, Step<any, any>>;
-  evals?: Record<string, Record<string, Eval<any>>>;
+  /** A step is its function, or its compiled script where it runs in QuickJS. */
+  steps: Record<string, Step<any, any> | string>;
+  evals?: Record<string, Record<string, Eval<any> | string>>;
 };
 
 /** What a step passes to `ask`. It is the old step definition as an object. */
@@ -63,6 +64,12 @@ export type AskRow = Spec & {
   due?: number;
   /** On the row that asks the user's leave for an action: the row of that action. */
   approves?: number;
+  /** On a row that belongs to another ask, what an agent did in its turn: that ask's row. */
+  parent?: number;
+  /** Set where the one who answers said the action needs the user's leave. */
+  asksLeave?: boolean;
+  /** How often answering it was tried. */
+  tries?: number;
 };
 
 /** A step that returned: what it left behind and the way it went. */
@@ -89,7 +96,7 @@ export type Run = {
   wizard: string;
   input: Record<string, unknown>;
   startedAt: number;
-  status: "running" | "waiting" | "done" | "failed";
+  status: "running" | "waiting" | "done" | "failed" | "stopped";
   /** The step the run stands in. Null once it ended. */
   cursor: string | null;
   /** Where the rows of the current step begin. Null between two steps. */
@@ -140,8 +147,24 @@ export interface Store {
   save(run: Run): Promise<void>;
 }
 
-/** Answers an ask at once: a model, a tool, a renderer. Asks without one wait for `answer`. */
-export type Battery = (row: AskRow, run: Run) => Promise<unknown>;
+/**
+ * Answers an ask at once: a model, a tool, a renderer. Asks without one wait for `answer`.
+ * `note` keeps a row under the ask, for what was done on the way. A battery that throws
+ * `NeedsLeave` is called again once the user has allowed the action.
+ */
+export type Battery = (
+  row: AskRow,
+  run: Run,
+  more: { note(row: Spec & { answer?: unknown }): void },
+) => Promise<unknown>;
+
+/** Runs a step or an eval once from its top. The kernel's host chooses which one is used. */
+export type TurnFn = (
+  source: Step<any, any> | Eval<any> | string,
+  seen: Omit<RunView, "count"> & { counts: Record<string, number> },
+  replay: Replay,
+  patience?: number,
+) => Promise<Turn>;
 
 /** One run of a step's code from its top. */
 export type Turn = {

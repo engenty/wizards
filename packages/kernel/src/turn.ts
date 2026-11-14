@@ -13,11 +13,16 @@ const tick = () => new Promise<void>((done) => setTimeout(done, 0));
  * waits for anything else is given `patience` milliseconds and then fails.
  */
 export async function turn(
-  fn: (run: RunView<any>, ask: Ask) => Promise<unknown>,
+  fn: ((run: RunView<any>, ask: Ask) => Promise<unknown>) | string,
   seen: Omit<RunView, "count"> & { counts: Record<string, number> },
   replay: Replay,
   patience = 5000,
 ): Promise<Turn> {
+  if (typeof fn === "string")
+    return {
+      asks: [],
+      end: { error: "This step is a compiled script; this host runs steps as ordinary code." },
+    };
   const asks: Spec[] = [];
   let end: Turn["end"];
   const ask = ((spec: Spec) => {
