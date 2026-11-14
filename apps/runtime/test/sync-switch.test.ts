@@ -42,7 +42,7 @@ const there = async <T>(fn: () => Promise<T>) => client.withTenant(await now(), 
 const inOrg = <T>(org: string, fn: () => Promise<T>) => client.withTenant(org, fn);
 
 const inCloud: Transport = {
-  overview: () => there(() => hub.syncOverview()),
+  overview: () => there(() => hub.syncOverview(USER)),
   pull: (id, since, cursor) => there(() => hub.pullChanges(id, since, cursor)),
   push: (id, input) => there(() => hub.pushChanges(id, input)),
   missing: (_id, hashes) => there(() => hub.missingBlobs(hashes)),
@@ -62,7 +62,7 @@ const token = (tenant: string) =>
   ).toString("base64url")}.x`;
 
 const spacesIn = (org: string) =>
-  inOrg(org, async () => (await hub.syncOverview()).spaces.map((s) => s.id));
+  inOrg(org, async () => (await hub.syncOverview(USER)).spaces.map((s) => s.id));
 
 let first = "";
 let onlyHere = "";

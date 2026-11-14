@@ -280,6 +280,15 @@ export async function ownedSpace(userId: string, spaceId: string): Promise<Space
   return p;
 }
 
+/**
+ * Whether the space is kept from the person: someone else's Mein Space, or a space shared with
+ * its members only that they are not in. A space not made yet is not kept from anyone.
+ */
+export async function keptFrom(userId: string, spaceId: string): Promise<boolean> {
+  const p = await db.query.space.findFirst({ where: eq(schema.space.id, spaceId) });
+  return Boolean(p && ((await othersPersonal(userId, p)) || (await hiddenFrom(userId, p))));
+}
+
 /** Whether the space is shared with its members only and the person is not one of them. */
 async function hiddenFrom(userId: string, p: SpaceRow): Promise<boolean> {
   return p.kind === "space" && p.access === "members" && !(await inSpace(userId, p.id));

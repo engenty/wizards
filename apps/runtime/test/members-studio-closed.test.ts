@@ -374,7 +374,19 @@ describe("the sync's listing", () => {
     expect(theirs.role).toBe("member");
     expect(theirs.spaces.map((s) => s.id)).toEqual([open]);
     const admins = (await (await v1("o", "/sync")).json()) as Overview;
-    expect(admins.spaces.map((s) => s.id)).toEqual([open, closed]);
+    // The admin's own Mein Space comes with the organization's spaces; the member's does not.
+    const listed = (await (await get("/api/studio/spaces", owner)).json()) as { id: string; personal?: boolean }[];
+    const mine = listed.find((s) => s.personal)?.id;
+    expect(admins.spaces.map((s) => s.id).filter((id) => id !== mine)).toEqual([open, closed]);
+    expect(admins.spaces).toHaveLength(mine ? 3 : 2);
+    // Someone else's Mein Space refuses the pull, an admin's too.
+    const theirOwn = ((await (await get("/api/studio/spaces", member)).json()) as { id: string; personal?: boolean }[]).find(
+      (s) => s.personal,
+    )?.id;
+    expect(theirOwn).toBeDefined();
+    const again = (await (await v1("o", "/sync")).json()) as Overview;
+    expect(again.spaces.map((s) => s.id)).not.toContain(theirOwn);
+    expect((await v1("o", `/sync/spaces/${theirOwn}/changes`)).status).toBe(404);
     // What the listing left out refuses the pull, as before.
     expect((await v1("m", `/sync/spaces/${closed}/changes`)).status).toBe(403);
     expect((await v1("o", `/sync/spaces/${closed}/changes`)).status).toBe(200);
