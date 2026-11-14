@@ -81,5 +81,8 @@
 # a run finds the account its wizard needs: your own from another wizard, the space's (off by default)
 # runConnections=on|off
 #
+# the organization's own space as the root, Mein Space per person, the path bar with the space menu, Ordner in Work (on by default)
+# orgSpaces=on|off
+#
 # a plugin's switches carry its id; `wizards features` lists the ones installed here
 # contacts.leadScoring=on|off

@@ -19,12 +19,13 @@ import type { Scope } from "../mcp/scopes.js";
 import { loadedPlugin, pluginIdsOf } from "../plugins/registry.js";
 import { asRole, mayBuild, mayCreate } from "../services/access.js";
 import { apiRun, apiRuns, apiSpaceDetails, apiSpaces, apiWizards } from "../services/api.js";
-import { ServiceError } from "../services/errors.js";
+import { notFound, ServiceError } from "../services/errors.js";
 import { deleteFile, draftFiles, writeFile } from "../services/files.js";
 import { asLang, searchMarketplace } from "../services/marketplace.js";
 import { requireStudio } from "../services/members-studio.js";
 import { exportWizard } from "../services/package.js";
 import { siteJob, siteSchema, startSiteJob } from "../services/site.js";
+import { keptFrom } from "../services/spaces.js";
 import {
   checkOnServer,
   checkSchema,
@@ -84,6 +85,10 @@ export const inTenantAs = async <T>(who: Principal, fn: () => T | Promise<T>) =>
 const inSpaceAs = <T>(who: Principal, spaceId: string, fn: () => T | Promise<T>) =>
   inTenantAs(who, async () => {
     await requireStudio("spaces", spaceId);
+    // Someone else's Mein Space, or a space for its members only, is not there for the caller.
+    if (await keptFrom(who.userId, spaceId)) {
+      throw notFound();
+    }
     return fn();
   });
 
@@ -524,7 +529,7 @@ export const apiRoutes = new Hono()
     if (who instanceof Response) {
       return who;
     }
-    return inTenantAs(who, async () => c.json(await syncOverview()));
+    return inTenantAs(who, async () => c.json(await syncOverview(who.userId)));
   })
   // What changed in the organization's spaces, as it happens: an install pulls those spaces now
   // instead of at its next round (docs/plans/live-changes.md, 7).

@@ -186,7 +186,7 @@ let closed = "";
 let wizard = "";
 let closedWizard = "";
 
-type SpaceView = { id: string; membersStudio: boolean; studio: boolean };
+type SpaceView = { id: string; membersStudio: boolean; studio: boolean; personal?: boolean };
 
 beforeAll(async () => {
   const client = await import("../src/db/client");
@@ -229,7 +229,8 @@ describe("members in the Studio, switch on", () => {
   it("closes every space's studio to a member until an admin opens it; Work still reads", async () => {
     switches(["capabilities"]);
     const spaces = (await (await get("/api/studio/spaces", member)).json()) as SpaceView[];
-    expect(spaces.map((s) => s.studio)).toEqual([false, false]);
+    // The organization's spaces; the member's own Mein Space comes with them.
+    expect(spaces.filter((s) => !s.personal).map((s) => s.studio)).toEqual([false, false]);
     for (const path of [`/api/studio/spaces/${open}/knowledge`, `/api/studio/spaces/${open}/data`, `/api/studio/wizards/${wizard}`]) {
       const refused = await get(path, member);
       expect(refused.status).toBe(403);
@@ -241,7 +242,7 @@ describe("members in the Studio, switch on", () => {
     // The owner sees all of it, and every space open to them.
     expect((await get(`/api/studio/spaces/${closed}/knowledge`, owner)).status).toBe(200);
     const theirs = (await (await get("/api/studio/spaces", owner)).json()) as SpaceView[];
-    expect(theirs.map((s) => s.studio)).toEqual([true, true]);
+    expect(theirs.filter((s) => !s.personal).map((s) => s.studio)).toEqual([true, true]);
   });
 
   it("lets the admins alone set the rule", async () => {

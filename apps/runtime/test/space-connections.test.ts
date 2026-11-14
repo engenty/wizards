@@ -74,6 +74,7 @@ vi.mock("../src/manage.js", async (importOriginal) => ({
       { userId: "user-a", role: "owner", name: "Anna" },
       { userId: "user-m", role: "member", name: "Max" },
     ],
+    invitations: [],
   }),
 }));
 

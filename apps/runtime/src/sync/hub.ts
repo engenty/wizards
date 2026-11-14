@@ -16,7 +16,7 @@ import { managed, tenantInfo } from "../manage.js";
 import { currentRole, isAdminRole, MEMBERS_EDIT_ONLY, mayBuild } from "../services/access.js";
 import { ServiceError } from "../services/errors.js";
 import { studioSpaces } from "../services/members-studio.js";
-import { placeArrivingSpace, spaceLimit } from "../services/spaces.js";
+import { keptFrom, placeArrivingSpace, spaceLimit } from "../services/spaces.js";
 import { publishWizard, rotateShareLink, shareUrl } from "../services/wizards.js";
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -48,17 +48,20 @@ function requireSchema(theirs: string) {
 /**
  * The organization as an install meets it: its schema, its number of spaces, its spaces. The
  * install of a member meets the spaces whose Studio is open to members; the others refuse its
- * pulls and pushes (services/members-studio.ts), so they are not offered to it.
+ * pulls and pushes (services/members-studio.ts), so they are not offered to it. Someone else's
+ * Mein Space and a space for its members only are not offered to anyone outside them.
  */
-export async function syncOverview(): Promise<SyncOverview> {
+export async function syncOverview(userId: string): Promise<SyncOverview> {
   const open = await studioSpaces();
-  const spaces = (
+  const all = (
     await db.query.space.findMany({
       where: eq(schema.space.tenantId, currentTenant()),
       columns: { id: true, name: true, origin: true },
       orderBy: [schema.space.createdAt],
     })
   ).filter((s) => !open || open.has(s.id));
+  const kept = await Promise.all(all.map((s) => keptFrom(userId, s.id)));
+  const spaces = all.filter((_, i) => !kept[i]);
   const info = managed ? await tenantInfo(currentTenant()).catch(() => null) : null;
   const limit = await spaceLimit();
   return {
