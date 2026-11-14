@@ -547,6 +547,13 @@
       "when": 1794664300321,
       "tag": "0077_client_spaces_at_root",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "6",
+      "when": 1794698409976,
+      "tag": "0078_kernel_rows",
+      "breakpoints": true
     }
   ]
 }

@@ -86,6 +86,19 @@ export interface RunTurn {
 }
 
 export interface RunState {
+  /**
+   * A run of a wizard in version 2 (docs/plans/kernel.md): what the kernel keeps of it besides
+   * its rows. The other entries of this state stay empty for such a run.
+   */
+  kernel?: {
+    input: Record<string, unknown>;
+    startedAt: number;
+    /** Where the rows of the step the run stands in begin; null between two steps. */
+    open: number | null;
+    status: "running" | "waiting" | "done" | "failed" | "stopped";
+    grant?: unknown;
+    output?: Record<string, unknown>;
+  };
   values: Record<string, unknown>;
   outputs: Record<string, StepOutput>;
   /** Interactive steps answered, oldest first — "back" pops this. */
