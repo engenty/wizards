@@ -185,7 +185,7 @@ answer an ask at once, by its type. An ask without a battery waits for `answer`.
 - A real Google account and its OAuth sign-in. The emulator hands out a token.
 - The runner itself: a process or isolate per tenant or per wizard, what it holds and what it may
   call. Nothing here stops a step from using the network or the clock.
-- A real tool battery and the broker behind it. Leave for an action an agent calls inside its own
+- The broker's own rules beside executor's. Leave for an action an agent calls inside its own
   turn: only a tool ask's one `call` asks the user here.
 - Rows under an agent ask's row, `retries`, pause and cancel.
 - A store on the runtime's `run` tables, and the converter from a version 2 definition.
