@@ -232,7 +232,6 @@ describe("the space's rules decide", () => {
         () => {
           wrote++;
         },
-        { brandSections: true, brandRules: true, typography: true },
       );
       const out = await tools.set_profile.execute({ name: "Neu" });
       expect(out).toMatchObject({ error: expect.stringContaining("permission"), resource: "setup" });
@@ -258,7 +257,6 @@ describe("the space's rules decide", () => {
         () => {
           wrote++;
         },
-        { brandSections: true, brandRules: true, typography: true },
       );
       const write = tools.write_knowledge_page.execute;
       const cases = await write({ title: "Cases", markdown: "Our cases." });

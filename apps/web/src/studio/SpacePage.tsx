@@ -281,13 +281,11 @@ export function SpacePage({ place }: { place?: "skills" }) {
     ? space.brand.name?.trim() || (me ? spaceLabel(me, space) : space.name)
     : t("nav.space");
 
-  // Typography waits behind its switch.
-  const off = useFeature("typography") ? [] : ["typography"];
   const partMenu = part ? (plugins.spaceMenus[part.id] ?? []) : [];
   const sections = part
     ? [{ plugin: null, label: null, sections: partMenu }]
     : group && group !== "results"
-      ? spaceSections(group, plugins, off)
+      ? spaceSections(group, plugins)
       : [];
   const added = group ? spaceSections(group, plugins).filter((g) => g.plugin) : [];
   const anchors = [...sections, ...(group === "results" ? added : [])].flatMap((g) =>

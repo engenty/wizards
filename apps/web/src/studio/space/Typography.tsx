@@ -522,15 +522,13 @@ function FoundFont({
 
 /**
  * The brand's type: its fonts, each with what it is for and the weights it uses; optionally a
- * type scale of named text styles, and rules for how type may be used (behind the switch
- * `brandRules`, as the other rules).
+ * type scale of named text styles, and rules for how type may be used.
  */
 export function Typography({
   spaceId,
   fonts: savedFonts,
   styles: savedStyles,
   rules: savedRules,
-  ruled,
   sample,
   save,
   readOnly,
@@ -539,8 +537,6 @@ export function Typography({
   fonts: BrandFont[];
   styles: TextStyle[];
   rules: BrandRule[];
-  /** Rules are shown and can be added. */
-  ruled: boolean;
   /** What the text styles show: the space's title, or a line of its own. */
   sample: string;
   save: (patch: {
@@ -601,7 +597,7 @@ export function Typography({
           },
         ]
       : []),
-    ...(!ruled || rules.full
+    ...(rules.full
       ? []
       : [
           {
@@ -666,13 +662,7 @@ export function Typography({
           </div>
         ) : null}
 
-        {ruled ? (
-          <RuleRows
-            rules={rules}
-            placeholder={t("space.typeRulePlaceholder")}
-            readOnly={readOnly}
-          />
-        ) : null}
+        <RuleRows rules={rules} placeholder={t("space.typeRulePlaceholder")} readOnly={readOnly} />
       </div>
       {fromUrl ? (
         <FontsFromUrl

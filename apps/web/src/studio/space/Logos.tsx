@@ -66,9 +66,7 @@ function DropGroup({
 /**
  * The space's logos. The standard ones come first, without a title; the first of them is the
  * logo end users see. Two optional parts: sections for further variants, each with a title and
- * when to use it, and rules for how the logos may be used, one per row ("✅ …", "❌ …"). They wait
- * behind the switches `brandSections` (without it every logo stands with the standard ones) and
- * `brandRules`.
+ * when to use it, and rules for how the logos may be used, one per row ("✅ …", "❌ …").
  */
 export function Logos({
   spaceId,
@@ -76,8 +74,6 @@ export function Logos({
   readOnly,
   sections: savedSections,
   rules: savedRules,
-  sectioned,
-  ruled,
   save,
 }: {
   spaceId: string;
@@ -85,10 +81,6 @@ export function Logos({
   readOnly?: boolean;
   sections: LogoSection[];
   rules: BrandRule[];
-  /** Sections are shown and can be added. */
-  sectioned: boolean;
-  /** Rules are shown and can be added. */
-  ruled: boolean;
   save: (patch: { logoSections: LogoSection[]; logoRules: BrandRule[] }) => Promise<unknown>;
 }) {
   const actions = useFileActions(spaceId, readOnly);
@@ -101,8 +93,7 @@ export function Logos({
   const status = useAutosave({ logoSections: sections, logoRules: rules.rules }, save);
   const logos = data.files.filter((f) => f.kind === "logo");
   const byId = new Map(logos.map((f) => [f.id, f]));
-  const shown = sectioned ? sections : [];
-  const grouped = new Set(shown.flatMap((s) => s.logos));
+  const grouped = new Set(sections.flatMap((s) => s.logos));
   const standard = logos.filter((f) => !grouped.has(f.id));
   const mainId = mainLogo(logos, sections)?.id;
 
@@ -123,16 +114,16 @@ export function Logos({
     }
   };
 
-  const moveTo: MoveTo | undefined = shown.length
+  const moveTo: MoveTo | undefined = sections.length
     ? {
         options: [
           { value: "", label: t("space.sectionStandard") },
-          ...shown.map((s) => ({
+          ...sections.map((s) => ({
             value: s.id,
             label: s.title || t("space.sectionUntitled"),
           })),
         ],
-        current: (file) => shown.find((s) => s.logos.includes(file.id))?.id ?? "",
+        current: (file) => sections.find((s) => s.logos.includes(file.id))?.id ?? "",
         onMove: (file, value) => place(file.id, value || null),
       }
     : undefined;
@@ -176,7 +167,7 @@ export function Logos({
       icon: <Link className="size-4 shrink-0" />,
       onPick: () => setFromUrl(true),
     },
-    ...(sectioned && sections.length < SPACE_LIMITS.logoSections
+    ...(sections.length < SPACE_LIMITS.logoSections
       ? [
           {
             label: t("space.logoSectionAdd"),
@@ -189,7 +180,7 @@ export function Logos({
           },
         ]
       : []),
-    ...(!ruled || rules.full
+    ...(rules.full
       ? []
       : [
           {
@@ -226,7 +217,7 @@ export function Logos({
         {/* The standard logos: no title, they are what a logo is unless a section says otherwise. */}
         <DropGroup onLogo={drop?.(null)}>{tiles(standard, null, true)}</DropGroup>
 
-        {shown.map((s) => (
+        {sections.map((s) => (
           <div key={s.id} className="group/section">
             <DropGroup onLogo={drop?.(s.id)} className="flex flex-col gap-3">
               <SubSectionHead
@@ -259,13 +250,7 @@ export function Logos({
           </div>
         ))}
 
-        {ruled ? (
-          <RuleRows
-            rules={rules}
-            placeholder={t("space.logoRulePlaceholder")}
-            readOnly={readOnly}
-          />
-        ) : null}
+        <RuleRows rules={rules} placeholder={t("space.logoRulePlaceholder")} readOnly={readOnly} />
       </div>
       {actions.error ? <p className="mt-3 text-[0.875rem] text-rose">{actions.error}</p> : null}
       {fromUrl ? (

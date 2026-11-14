@@ -25,19 +25,16 @@ const PRESETS: { title: Key; hint: Key }[] = [
 /**
  * Marke › Stimme und Haltung: how the brand speaks, in blocks of text with a title (its tone,
  * whom it speaks to, where it stands, what it holds to, or one of its own), and what it says and
- * does not say as rules, one per row. The rules wait behind the switch `brandRules`.
+ * does not say as rules, one per row.
  */
 export function Voice({
   blocks: saved,
   rules: savedRules,
-  ruled,
   readOnly,
   save,
 }: {
   blocks: VoiceBlock[];
   rules: BrandRule[];
-  /** Rules are shown and can be added. */
-  ruled: boolean;
   readOnly?: boolean;
   save: (patch: { voice: VoiceBlock[]; voiceRules: BrandRule[] }) => Promise<unknown>;
 }) {
@@ -72,7 +69,7 @@ export function Voice({
             onPick: () => add(""),
           },
         ]),
-    ...(!ruled || rules.full
+    ...(rules.full
       ? []
       : [
           {
@@ -186,13 +183,11 @@ export function Voice({
           </div>
         )}
 
-        {ruled ? (
-          <RuleRows
-            rules={rules}
-            placeholder={t("space.voice.rulePlaceholder")}
-            readOnly={readOnly}
-          />
-        ) : null}
+        <RuleRows
+          rules={rules}
+          placeholder={t("space.voice.rulePlaceholder")}
+          readOnly={readOnly}
+        />
       </div>
     </Section>
   );

@@ -317,10 +317,6 @@ export function SpaceSettings({
   const key = `${space.id}:${rev}`;
   const readOnly = space.readOnly;
   const knowledge = group === "knowledge";
-  // Parts of the brand that wait behind their switches.
-  const sectioned = useFeature("brandSections");
-  const ruled = useFeature("brandRules");
-  const typography = useFeature("typography");
   const me = useMe().data;
   // A space under the organization's root chooses whose Info and brand it shows.
   const choosing =
@@ -422,8 +418,6 @@ export function SpaceSettings({
               readOnly={readOnly}
               sections={space.brand.logoSections ?? []}
               rules={space.brand.logoRules ?? []}
-              sectioned={sectioned}
-              ruled={ruled}
               save={(brand) => save({ brand })}
             />
           </Anchor>
@@ -437,27 +431,22 @@ export function SpaceSettings({
               gradients={space.brand.gradients ?? []}
               patterns={space.brand.patterns ?? []}
               rules={space.brand.colorRules ?? []}
-              sectioned={sectioned}
-              ruled={ruled}
               save={(brand) => save({ brand })}
               readOnly={readOnly}
             />
           </Anchor>
-          {typography ? (
-            <Anchor id="typography">
-              <Typography
-                key={`typography:${key}`}
-                spaceId={space.id}
-                fonts={space.brand.fonts ?? []}
-                styles={space.brand.textStyles ?? []}
-                rules={space.brand.typeRules ?? []}
-                ruled={ruled}
-                sample={space.brand.name || t("space.typeSample")}
-                save={(brand) => save({ brand })}
-                readOnly={readOnly}
-              />
-            </Anchor>
-          ) : null}
+          <Anchor id="typography">
+            <Typography
+              key={`typography:${key}`}
+              spaceId={space.id}
+              fonts={space.brand.fonts ?? []}
+              styles={space.brand.textStyles ?? []}
+              rules={space.brand.typeRules ?? []}
+              sample={space.brand.name || t("space.typeSample")}
+              save={(brand) => save({ brand })}
+              readOnly={readOnly}
+            />
+          </Anchor>
           <Anchor id="assets">
             <Assets
               key={`assets:${key}`}
@@ -473,7 +462,6 @@ export function SpaceSettings({
               key={`voice:${key}`}
               blocks={space.brand.voice ?? []}
               rules={space.brand.voiceRules ?? []}
-              ruled={ruled}
               save={(brand) => save({ brand })}
               readOnly={readOnly}
             />

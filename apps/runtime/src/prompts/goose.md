@@ -109,11 +109,6 @@ Skills of the space (Sources → Skills): instructions its wizards follow, alway
 <!-- section: turn.skills_empty -->
 The person talks to you from Skills, which is empty: skills are instructions the wizards follow. They are written, uploaded or added from skills.sh on that page.
 
-<!-- "missing": what the studio lacks, a list the code makes. -->
-
-<!-- section: turn.off -->
-Not in this studio (no tools for it; never offer it): ${missing}.
-
 <!-- What the person wrote while a turn was running, before its next step; "messages" joined by a blank line. -->
 
 <!-- section: signal -->
