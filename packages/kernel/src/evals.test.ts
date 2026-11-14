@@ -1,10 +1,10 @@
 import { beforeAll, expect, it } from "vitest";
-import { describe } from "./describe";
-import { evaluate, reask } from "./evals";
-import { createKernel } from "./kernel";
-import { loadWizard } from "./load";
-import { memoryStore } from "./memory";
-import type { AskRow, Battery, Eval, Run, Wizard } from "./types";
+import { describe } from "./describe.js";
+import { evaluate, reask } from "./evals.js";
+import { createKernel } from "./kernel.js";
+import { loadWizard } from "./load.js";
+import { memoryStore } from "./memory.js";
+import type { AskRow, Battery, Eval, Run, Wizard } from "./types.js";
 
 let wizard: Wizard;
 

@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { beforeAll, expect, it, describe as suite } from "vitest";
-import { type Case, check, play } from "./check";
-import { describe } from "./describe";
-import { createKernel } from "./kernel";
-import { loadWizard } from "./load";
-import { memoryStore } from "./memory";
-import type { AskRow, Step, Wizard } from "./types";
+import { type Case, check, play } from "./check.js";
+import { describe } from "./describe.js";
+import { createKernel } from "./kernel.js";
+import { loadWizard } from "./load.js";
+import { memoryStore } from "./memory.js";
+import type { AskRow, Step, Wizard } from "./types.js";
 
 const dir = new URL("../examples/offer/", import.meta.url).pathname;
 let wizard: Wizard;

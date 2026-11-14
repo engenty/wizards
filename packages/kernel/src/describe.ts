@@ -1,4 +1,4 @@
-import type { Wizard } from "./types";
+import type { Wizard } from "./types.js";
 
 /** Reads a wizard without running it: whether the map and the step files fit. */
 export function describe({ file, steps, evals = {} }: Wizard): string[] {

@@ -1,4 +1,4 @@
-import type { OfferStep } from "../wizard";
+import type { OfferStep } from "../wizard.js";
 
 const signed: OfferStep<"signed"> = async (run, ask) => {
   const signal = await ask({

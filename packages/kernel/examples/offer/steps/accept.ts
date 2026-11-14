@@ -1,4 +1,4 @@
-import type { OfferStep } from "../wizard";
+import type { OfferStep } from "../wizard.js";
 
 const accept: OfferStep<"accept"> = async (_run, ask) => {
   const review = await ask({ type: "review", show: ["offer"], approve: true });

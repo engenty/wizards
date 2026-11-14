@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { beforeAll, expect, it } from "vitest";
-import { type Case, check, play } from "./check";
-import { compileWizard } from "./compile";
-import { createKernel } from "./kernel";
-import { memoryStore } from "./memory";
-import { quickjsTurn } from "./quickjs";
-import type { AskRow, Wizard } from "./types";
+import { type Case, check, play } from "./check.js";
+import { compileWizard } from "./compile.js";
+import { createKernel } from "./kernel.js";
+import { memoryStore } from "./memory.js";
+import { quickjsTurn } from "./quickjs.js";
+import type { AskRow, Wizard } from "./types.js";
 
 /**
  * The second way to run a step: the same wizards, their steps compiled and run in QuickJS. A
@@ -128,7 +128,7 @@ it("refuses a step that is not compiled, and ordinary code refuses a compiled on
 });
 
 it("does not compile a step that imports one of Node's own modules", async () => {
-  const { compileStep } = await import("./compile");
+  const { compileStep } = await import("./compile.js");
   const { mkdtemp, writeFile } = await import("node:fs/promises");
   const dir = await mkdtemp("/tmp/kernel-compile-");
   await writeFile(

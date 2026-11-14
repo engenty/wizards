@@ -1,4 +1,4 @@
-import type { Eval, Step } from "../../src/types";
+import type { Eval, Step } from "../../src/types.js";
 
 /** What `wizard.json` says of this wizard, as types for its steps. The check would write this. */
 export type Input = {

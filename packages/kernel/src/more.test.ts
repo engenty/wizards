@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import { createKernel, NeedsLeave } from "./kernel";
-import { memoryStore } from "./memory";
-import type { AskRow, Battery, Step, Wizard } from "./types";
+import { createKernel, NeedsLeave } from "./kernel.js";
+import { memoryStore } from "./memory.js";
+import type { AskRow, Battery, Step, Wizard } from "./types.js";
 
 /** What a run needs beyond asking and answering: trying again, stopping, rows under a row. */
 const one = (only: Step<any, any>, file: Partial<Wizard["file"]> = {}): Wizard => ({
@@ -114,4 +114,23 @@ it("checks an answer with the host's own check of fields", async () => {
   const run = await kernel.start("one", {});
   await expect(kernel.answer(run.id, 0, { n: "seven" })).rejects.toThrow("Not a number.");
   expect((await kernel.answer(run.id, 0, { n: 7 })).status).toBe("done");
+});
+
+it("asks for its input first, where it began without one", async () => {
+  const wizard = one(async (run) => ({ value: `Hello ${run.input.name}` }), {
+    input: { fields: [{ id: "name", kind: "text", required: true }] },
+  });
+  const kernel = kernelOf(wizard);
+  const run = await kernel.start("one");
+  expect(run).toMatchObject({ status: "waiting", cursor: "only" });
+  expect(run.rows[0]).toMatchObject({
+    step: "input",
+    type: "form",
+    role: "user",
+    state: "waiting",
+  });
+  await expect(kernel.answer(run.id, 0, {})).rejects.toThrow('"name" is missing.');
+  expect((await kernel.answer(run.id, 0, { name: "Ada" })).output?.out).toBe("Hello Ada");
+  // with an input given, it asks nothing
+  expect((await kernel.start("one", { name: "Bo" })).output?.out).toBe("Hello Bo");
 });

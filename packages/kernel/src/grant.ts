@@ -1,4 +1,4 @@
-import type { AskRow, Row, Spec, WizardFile } from "./types";
+import type { AskRow, Row, Spec, WizardFile } from "./types.js";
 
 /** What a run may reach. Made once from the file when the run starts, and kept on the run. */
 export type Grant = {

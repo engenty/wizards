@@ -1,5 +1,7 @@
 {
+  "version": 2,
   "title": "Answer a customer",
+  "description": "Reads the last thread with a customer, drafts an answer, and sends it once you say so.",
 
   "requires": {
     "models": ["standard"]
@@ -12,7 +14,7 @@
     }
   },
 
-  "input": { "fields": [{ "id": "customer", "kind": "text" }] },
+  "input": { "fields": [{ "id": "customer", "label": "Customer", "kind": "text" }] },
 
   "start": "work",
   "edges": {

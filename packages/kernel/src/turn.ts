@@ -1,4 +1,4 @@
-import type { Ask, Replay, RunView, Spec, Turn } from "./types";
+import type { Ask, Replay, RunView, Spec, Turn } from "./types.js";
 
 const tick = () => new Promise<void>((done) => setTimeout(done, 0));
 

@@ -1,5 +1,5 @@
-import type { Step } from "../../../src/types";
-import type { Draft } from "./work";
+import type { Step } from "../../../src/types.js";
+import type { Draft } from "./work.js";
 
 /** Gmail takes a whole message as base64url text. */
 const message = ({ to, subject, draft }: Draft) =>
