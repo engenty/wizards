@@ -8,10 +8,10 @@ import { lang as studioLang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { type Space, useCurrentSpace, useMe, type WizardSummary } from "../../lib/session";
 import { Button, Card, cn, Dialog, IconButton, Input, Label, Switch } from "../../ui";
-import { useCrumbs } from "../AppFrame";
+import { SidePane, SpaceFace, useCrumbs } from "../AppFrame";
 import { Pills } from "../editor/PreviewPane";
 import { QrCode } from "../editor/WizardQr";
-import { PageFrame, SlugField, useCopied, WordsFields } from "../space/PublicPage";
+import { SlugField, useCopied, WordsFields } from "../space/PublicPage";
 import { langOfVoice, pageUrl } from "../space/page-address";
 import { ownLink } from "../where";
 
@@ -167,7 +167,12 @@ function SetupDialog({
   wizards: WizardSummary[];
 }) {
   const qc = useQueryClient();
-  const name0 = space.page?.title || space.brand.name?.trim() || space.name;
+  const organization = useMe().data?.tenant.name ?? "";
+  // The organization's own space is named after the organization, not by its stored name.
+  const name0 =
+    space.page?.title ||
+    space.brand.name?.trim() ||
+    (space.root && organization ? organization : space.name);
   const [title, setTitle] = useState(name0);
   const [slug, setSlug] = useState(space.page?.slug || pageSlugOf(name0) || "page");
   const turnOn = useMutation({
@@ -242,11 +247,9 @@ function PageOn({
   const qc = useQueryClient();
   const manageUrl = useMe().data?.manageUrl ?? null;
   const [tab, setTab] = useState<Tab>("content");
-  const [version, setVersion] = useState(1);
   const save = async (next: SpacePage) => {
     await api.patch(`/api/studio/spaces/${space.id}`, { page: next });
     await qc.invalidateQueries({ queryKey: keys.spaces() });
-    setVersion((v) => v + 1);
   };
   const change = useMutation({
     mutationFn: (patch: Partial<SpacePage>) => save({ ...page, ...patch }),
@@ -259,83 +262,146 @@ function PageOn({
     });
   const shown = own.filter((w) => w.published && w.shareEnabled);
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 p-2 md:grid-cols-[17rem_minmax(0,1fr)]">
-      <Card className="flex min-h-0 flex-col gap-4 overflow-y-auto p-3">
-        <Pills
-          named
-          label={t("mode.shared")}
-          value={tab}
-          onChange={setTab}
-          options={[
-            { id: "content", label: t("shared.content") },
-            { id: "settings", label: t("shared.settings") },
-          ]}
-        />
-        {tab === "content" ? (
-          <>
-            <section className="flex flex-col">
-              <h2 className="px-1 pb-1 font-medium text-[0.75rem] text-ink-3">
-                {t("shared.onPage")}
-              </h2>
-              {shown.length ? (
-                shown.map((w) => (
-                  <div
-                    key={w.id}
-                    className="flex items-center gap-2 border-border-soft border-b px-1 py-2 last:border-b-0"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-[0.875rem]">{w.title}</span>
-                    <Switch
-                      checked={page.wizards.includes(w.id)}
-                      disabled={change.isPending}
-                      label={w.title}
-                      onChange={(on) => toggle(w.id, on)}
-                    />
-                  </div>
-                ))
-              ) : (
-                <p className={cn(hint, "px-1")}>{t("shared.noneToShow")}</p>
-              )}
-              {page.wizards.length === 0 && shown.length ? (
-                <p className={cn(hint, "px-1 pt-2")}>{t("shared.pickOne")}</p>
-              ) : null}
-            </section>
-            {linked.length ? (
+    <>
+      <SidePane>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
+          <Pills
+            named
+            label={t("mode.shared")}
+            value={tab}
+            onChange={setTab}
+            options={[
+              { id: "content", label: t("shared.content") },
+              { id: "settings", label: t("shared.settings") },
+            ]}
+          />
+          {tab === "content" ? (
+            <>
               <section className="flex flex-col">
-                <h2 className="px-1 font-medium text-[0.75rem] text-ink-3">{t("shared.byLink")}</h2>
-                <div className="divide-y divide-border-soft px-1">
-                  {linked.map((w) => (
-                    <LinkRow key={w.id} wizard={w} compact />
-                  ))}
-                </div>
+                <h2 className="px-1 pb-1 font-medium text-[0.75rem] text-ink-3">
+                  {t("shared.onPage")}
+                </h2>
+                {shown.length ? (
+                  shown.map((w) => (
+                    <div
+                      key={w.id}
+                      className="flex items-center gap-2 border-border-soft border-b px-1 py-2 last:border-b-0"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-[0.875rem]">{w.title}</span>
+                      <Switch
+                        checked={page.wizards.includes(w.id)}
+                        disabled={change.isPending}
+                        label={w.title}
+                        onChange={(on) => toggle(w.id, on)}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <p className={cn(hint, "px-1")}>{t("shared.noneToShow")}</p>
+                )}
+                {page.wizards.length === 0 && shown.length ? (
+                  <p className={cn(hint, "px-1 pt-2")}>{t("shared.pickOne")}</p>
+                ) : null}
               </section>
-            ) : null}
-          </>
-        ) : (
-          <div className="flex flex-1 flex-col gap-5">
-            <WordsFields host={host} page={page} disabled={false} save={save} onState={() => {}} />
-            <Button
-              variant="ghost"
-              className="mt-auto self-start text-rose"
-              busy={change.isPending}
-              onClick={() => change.mutate({ on: false })}
-            >
-              {t("shared.turnOff")}
-            </Button>
-          </div>
-        )}
-      </Card>
-      <Card className="flex min-h-[60vh] min-w-0 flex-col gap-2 p-3">
+              {linked.length ? (
+                <section className="flex flex-col">
+                  <h2 className="px-1 font-medium text-[0.75rem] text-ink-3">
+                    {t("shared.byLink")}
+                  </h2>
+                  <div className="divide-y divide-border-soft px-1">
+                    {linked.map((w) => (
+                      <LinkRow key={w.id} wizard={w} compact />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+            </>
+          ) : (
+            <div className="flex flex-1 flex-col gap-5">
+              <WordsFields
+                host={host}
+                page={page}
+                disabled={false}
+                save={save}
+                onState={() => {}}
+              />
+              <Button
+                variant="ghost"
+                className="mt-auto self-start text-rose"
+                busy={change.isPending}
+                onClick={() => change.mutate({ on: false })}
+              >
+                {t("shared.turnOff")}
+              </Button>
+            </div>
+          )}
+        </div>
+      </SidePane>
+      <PagePreview space={space} page={page} wizards={own} url={url} />
+    </>
+  );
+}
+
+/**
+ * The page as visitors see it, drawn here from its data: the brand, its headline and words, the
+ * wizards on it in their order. Fixed in layout for now; the live page is a click away.
+ */
+function PagePreview({
+  space,
+  page,
+  wizards,
+  url,
+}: {
+  space: Space;
+  page: SpacePage;
+  wizards: WizardSummary[];
+  url: string;
+}) {
+  const organization = useMe().data?.tenant.name ?? "";
+  const listed = page.wizards
+    .map((id) => wizards.find((w) => w.id === id))
+    .filter((w): w is WizardSummary => Boolean(w?.published && w.shareEnabled));
+  const brandName = space.brand.name?.trim() || (space.root ? organization : space.name);
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 py-2">
+      <div className="flex items-center gap-3">
+        <SpaceFace space={space} name={brandName} size="sm" />
+        <span className="min-w-0 flex-1 truncate font-medium text-[0.9375rem]">{brandName}</span>
         <a
           href={url}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-1 self-end font-mono text-[0.75rem] text-ink-3 hover:text-ink"
+          className="flex shrink-0 items-center gap-1 font-mono text-[0.75rem] text-ink-3 hover:text-ink"
         >
           {url.replace(/^https?:\/\//, "")}
           <ArrowUpRight className="size-3.5" />
         </a>
-        <PageFrame url={url} version={version} device="desktop" />
-      </Card>
+      </div>
+      <div className="flex flex-col gap-3">
+        <h1 className="text-balance font-display font-semibold text-[2rem] leading-tight">
+          {page.headline || page.title}
+        </h1>
+        {page.intro ? <p className="max-w-[60ch] text-[1rem] text-ink-2">{page.intro}</p> : null}
+      </div>
+      {listed.length ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {listed.map((w) => (
+            <Card key={w.id} className="flex items-start gap-3 p-4">
+              <Mascot kind={w.avatar} costume={w.costume} size={40} interactive={false} />
+              <div className="min-w-0">
+                <div className="font-medium text-[0.9375rem]">{w.title}</div>
+                {w.description ? (
+                  <p className="mt-1 line-clamp-2 text-[0.8125rem] text-ink-3">{w.description}</p>
+                ) : null}
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-xl border border-border border-dashed p-6 text-center text-[0.875rem] text-ink-3">
+          {t("shared.previewEmpty")}
+        </p>
+      )}
     </div>
   );
 }
