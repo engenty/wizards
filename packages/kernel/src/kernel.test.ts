@@ -1,28 +1,25 @@
 import { readFile } from "node:fs/promises";
 import { beforeAll, expect, it, describe as suite } from "vitest";
 import { type Case, check, play } from "./check";
-import { loadWizard } from "./compile";
 import { describe } from "./describe";
 import { createKernel } from "./kernel";
+import { loadWizard } from "./load";
 import { memoryStore } from "./memory";
-import { nodeSandbox } from "./node";
-import type { AskRow, Sandbox, Wizard } from "./types";
+import type { AskRow, Step, Wizard } from "./types";
 
 const dir = new URL("../examples/offer/", import.meta.url).pathname;
 let wizard: Wizard;
-let sandbox: Sandbox;
 let cases: Case[];
 
 beforeAll(async () => {
   wizard = await loadWizard(dir);
-  sandbox = nodeSandbox();
   cases = JSON.parse(await readFile(new URL("../test/offer.cases.json", import.meta.url), "utf8"));
 });
 
 const named = (name: string) => cases.find((c) => c.name === name) as Case;
-const withStep = (id: string, body: string): Wizard => ({
+const withStep = (id: string, step: Step<any, any>): Wizard => ({
   ...wizard,
-  steps: { ...wizard.steps, [id]: `var __step = { default: ${body} };` },
+  steps: { ...wizard.steps, [id]: step },
 });
 
 suite("the offer wizard", () => {
@@ -31,7 +28,7 @@ suite("the offer wizard", () => {
   });
 
   it("passes its ten cases, and they take every edge of the map", async () => {
-    const { results, untaken } = await check(wizard, sandbox, cases);
+    const { results, untaken } = await check(wizard, cases);
     expect(results.map((r) => [r.name, r.why])).toEqual(cases.map((c) => [c.name, undefined]));
     expect(untaken).toEqual([]);
     expect(
@@ -53,7 +50,7 @@ suite("the offer wizard", () => {
   });
 
   it("stops a step that is reached more often than the file allows", async () => {
-    const { run } = await play(wizard, sandbox, named("Legal says no three times"));
+    const { run } = await play(wizard, named("Legal says no three times"));
     expect(run).toMatchObject({
       status: "failed",
       error: '"legal" was reached more than 3 times.',
@@ -61,7 +58,7 @@ suite("the offer wizard", () => {
   });
 
   it("tells a rewrite why it is one", async () => {
-    const { run } = await play(wizard, sandbox, named("Legal says no once"));
+    const { run } = await play(wizard, named("Legal says no once"));
     const offers = run.rows.filter((row) => row.step === "offer" && !("left" in row)) as AskRow[];
     expect(String(offers[1].instructions).split("\n").at(-1)).toBe(
       "The legal step said: Add the liability clause.",
@@ -83,8 +80,7 @@ suite("the map", () => {
 
   it("fails a run that leaves a step by a way it does not have", async () => {
     const { run } = await play(
-      withStep("accept", 'async () => ({ to: "chase" })'),
-      sandbox,
+      withStep("accept", async () => ({ to: "chase" })),
       named("Small, signed"),
     );
     expect(run).toMatchObject({ status: "failed", error: '"accept" may not go to "chase".' });
@@ -93,8 +89,8 @@ suite("the map", () => {
 
 suite("the grant", () => {
   it("fails an ask for a tool the file does not list", async () => {
-    const greedy = withStep("offer", '(run, ask) => ask({ type: "agent", tools: ["gmail.send"] })');
-    const { run } = await play(greedy, sandbox, { ...named("Small, signed"), answers: [] });
+    const greedy = withStep("offer", (_run, ask) => ask({ type: "agent", tools: ["gmail.send"] }));
+    const { run } = await play(greedy, { ...named("Small, signed"), answers: [] });
     expect(run).toMatchObject({
       status: "failed",
       error: '"offer" reached for "gmail.send", which the file does not grant.',
@@ -103,96 +99,98 @@ suite("the grant", () => {
 
   it("fails an ask to a role the file does not have", async () => {
     const { run } = await play(
-      withStep("offer", '(run, ask) => ask({ type: "review", role: "finance" })'),
-      sandbox,
+      withStep("offer", (_run, ask) => ask({ type: "review", role: "finance" })),
       { ...named("Small, signed"), answers: [] },
     );
     expect(run.error).toBe('"offer" reached for "finance", which the file does not grant.');
   });
 });
 
-suite("the sandbox", () => {
-  const one = (body: string): Wizard => ({
+suite("a step", () => {
+  const one = (only: Step<any, any>): Wizard => ({
     file: { title: "One", start: "only", edges: { only: ["end"] }, output: { out: "only" } },
-    steps: { only: `var __step = { default: ${body} };` },
+    steps: { only },
   });
-  const run = async (body: string, batteries = {}) => {
+  const run = async (only: Step<any, any>, batteries = {}, patience?: number) => {
     const kernel = createKernel({
       store: memoryStore(),
-      sandbox,
-      wizards: () => one(body),
+      wizards: () => one(only),
       batteries,
+      patience,
     });
     return { kernel, run: await kernel.start("one", {}) };
   };
 
-  it("gives a step that runs again the same clock and the same chance", async () => {
-    const body =
-      "async (run, ask) => { const before = [Date.now(), Math.random()]; await ask({ type: 'form' }); return { value: { before, after: [Date.now(), Math.random()] } }; }";
-    const first = await run(body);
-    const done = await first.kernel.answer(first.run.id, 0, {});
-    const { before, after } = done.output?.out as { before: number[]; after: number[] };
-    expect(before[0]).toBe(done.startedAt);
-    expect(after[0]).toBe(done.startedAt);
-    expect(after[1]).not.toBe(before[1]); // the second draw of the same series
-    const again = await first.kernel.rewind(done.id, 0, {});
-    expect(again.output?.out).toEqual({ before, after });
+  it("runs again from its top when its answer comes", async () => {
+    let turns = 0;
+    const { kernel, run: first } = await run(async (_run, ask) => {
+      turns++;
+      return { value: await ask({ type: "form" }) };
+    });
+    expect([first.status, turns]).toEqual(["waiting", 1]);
+    const done = await kernel.answer(first.id, 0, "yes");
+    expect([done.output?.out, turns]).toEqual(["yes", 2]);
   });
 
-  it("has no way out: no fetch, no process, no require, no timers", async () => {
-    const { run: done } = await run(
-      "async () => ({ value: [typeof fetch, typeof process, typeof require, typeof setTimeout, typeof globalThis.Deno] })",
-    );
-    expect(done.output?.out).toEqual([
-      "undefined",
-      "undefined",
-      "undefined",
-      "undefined",
-      "undefined",
-    ]);
+  it("cannot change the run it reads", async () => {
+    const { run: lost } = await run(async (seen) => {
+      (seen as { input: unknown }).input = {};
+      return {};
+    });
+    expect(lost.status).toBe("failed");
+    const { kernel, run: first } = await run(async (seen, ask) => {
+      seen.input.added = true;
+      seen.steps.other = 1;
+      return { value: await ask({ type: "form" }) };
+    });
+    expect((await kernel.read(first.id)).input).toEqual({});
   });
 
-  it("stops a step that never ends", async () => {
-    const started = Date.now();
-    const { run: lost } = await run("async () => { for (;;) {} }");
-    expect(lost).toMatchObject({ status: "failed", error: "interrupted" });
-    expect(Date.now() - started).toBeLessThan(5000);
+  it("fails when it waits for something that is not an ask", async () => {
+    const { run: lost } = await run(async () => new Promise(() => {}), {}, 50);
+    expect(lost).toMatchObject({
+      status: "failed",
+      error: "The step waits for something that is not an ask.",
+    });
   });
 
-  it("stops a step that takes all the memory", async () => {
-    const { run: lost } = await run(
-      "async () => { const all = []; for (;;) all.push(new Array(1e5).fill(1)); }",
-    );
-    expect(lost).toMatchObject({ status: "failed" });
-    // the sandbox is still good for the next run
-    expect((await run("async () => ({ value: 1 })")).run.output?.out).toBe(1);
-  });
-
-  it("fails the run when a step throws", async () => {
-    const { run: lost } = await run("async () => { throw new Error('no'); }");
+  it("fails the run when it throws", async () => {
+    const { run: lost } = await run(async () => {
+      throw new Error("no");
+    });
     expect(lost).toMatchObject({ status: "failed", error: "no" });
   });
 
   it("asks side by side and waits for all of them", async () => {
-    const body =
-      "async (run, ask) => ({ value: await Promise.all(['a', 'b', 'c'].map((name) => ask({ type: name === 'b' ? 'form' : 'agent', name }))) })";
-    const { kernel, run: first } = await run(body, {
-      agent: async (row: AskRow) => `${row.name}!`,
-    });
+    const { kernel, run: first } = await run(
+      async (_run, ask) => ({
+        value: await Promise.all(
+          ["a", "b", "c"].map((name) => ask({ type: name === "b" ? "form" : "agent", name })),
+        ),
+      }),
+      { agent: async (row: AskRow) => `${row.name}!` },
+    );
     expect(first.status).toBe("waiting");
     expect(first.rows.map((row) => (row as AskRow).state)).toEqual(["done", "waiting", "done"]);
     const done = await kernel.answer(first.id, 1, "b?");
     expect(done.output?.out).toEqual(["a!", "b?", "c!"]);
   });
 
-  it("lets a step catch a failed ask", async () => {
-    const body =
-      "async (run, ask) => { try { await ask({ type: 'agent' }); } catch (error) { return { value: 'caught: ' + error.message }; } }";
-    const { run: done } = await run(body, {
-      agent: async () => {
-        throw new Error("the model is down");
+  it("can catch a failed ask", async () => {
+    const { run: done } = await run(
+      async (_run, ask) => {
+        try {
+          await ask({ type: "agent" });
+        } catch (error) {
+          return { value: `caught: ${(error as Error).message}` };
+        }
       },
-    });
+      {
+        agent: async () => {
+          throw new Error("the model is down");
+        },
+      },
+    );
     expect(done.output?.out).toBe("caught: the model is down");
   });
 });
@@ -203,7 +201,6 @@ suite("a run", () => {
     const make = () =>
       createKernel({
         store,
-        sandbox,
         wizards: () => wizard,
         batteries: { agent: async () => ({ text: "…", price: 3000 }) },
       });
@@ -217,7 +214,6 @@ suite("a run", () => {
     const store = memoryStore();
     const kernel = createKernel({
       store,
-      sandbox,
       wizards: () => wizard,
       batteries: { agent: async () => ({ text: "…", price: 3000 }) },
     });
@@ -233,20 +229,21 @@ suite("a run", () => {
     const one: Wizard = {
       file: { title: "One", start: "only", edges: { only: ["end"] } },
       steps: {
-        only: "var __step = { default: (run, ask) => ask({ type: 'form', fields: [{ id: 'topic', kind: 'text', required: true }] }) };",
+        only: (_run, ask) =>
+          ask({ type: "form", fields: [{ id: "topic", kind: "text", required: true }] }),
       },
     };
-    const kernel = createKernel({ store: memoryStore(), sandbox, wizards: () => one });
+    const kernel = createKernel({ store: memoryStore(), wizards: () => one });
     const run = await kernel.start("one", {});
     await expect(kernel.answer(run.id, 0, {})).rejects.toThrow('"topic" is missing.');
     expect(await kernel.answer(run.id, 0, { topic: "replay" })).toMatchObject({ status: "done" });
     await expect(
-      createKernel({ store: memoryStore(), sandbox, wizards: () => wizard }).start("offer", {}),
+      createKernel({ store: memoryStore(), wizards: () => wizard }).start("offer", {}),
     ).rejects.toThrow('"customer" is missing.');
   });
 
   it("rewinds: an answer changed on a finished run, and the run goes on from there", async () => {
-    const { run: done, kernel } = await play(wizard, sandbox, named("Small, signed"));
+    const { run: done, kernel } = await play(wizard, named("Small, signed"));
     expect(done.status).toBe("done");
     const yes = done.rows.find((row) => row.step === "check" && !("left" in row)) as AskRow;
     const back = await kernel
@@ -263,7 +260,6 @@ suite("a run", () => {
     let clock = Date.parse("2026-11-14");
     const kernel = createKernel({
       store: memoryStore(),
-      sandbox,
       wizards: () => wizard,
       now: () => clock,
       batteries: { agent: async () => ({ text: "…", price: 8400 }) },
@@ -296,15 +292,14 @@ suite("a run", () => {
     let current = wizard;
     const kernel = createKernel({
       store,
-      sandbox,
       wizards: () => current,
       batteries: { agent: async () => ({ text: "…", price: 3000 }) },
     });
     const run = await kernel.start("offer", named("Small, signed").input);
-    current = withStep(
-      "accept",
-      'async (run, ask) => { await ask({ type: "review", title: "New wording" }); return { to: "end" }; }',
-    );
+    current = withStep("accept", async (_run, ask) => {
+      await ask({ type: "review", title: "New wording" });
+      return { to: "end" };
+    });
     const next = await kernel.answer(run.id, 2, { approved: true });
     expect(next.rows.at(-1)).toMatchObject({
       step: "accept",

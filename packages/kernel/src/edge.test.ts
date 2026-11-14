@@ -1,42 +1,48 @@
-import { readFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+import { readdir } from "node:fs/promises";
+import { parse } from "node:path";
 import { build } from "esbuild";
 import { Miniflare } from "miniflare";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { loadWizard } from "./compile";
-import type { Run, Wizard } from "./types";
+import type { Run } from "./types";
 
 /**
- * The kernel with no Node in it: bundled for workerd, QuickJS from a compiled WebAssembly module,
- * each run a Durable Object. The model is a stand-in that always writes an offer of 8,400.
+ * A wizard as a Worker of its own: the kernel, the wizard's file and its step files bundled into
+ * one script for workerd, each run a Durable Object. Nothing is evaluated at run time. The model
+ * is a stand-in that always writes an offer of 8,400.
  */
 const here = new URL(".", import.meta.url).pathname;
-const require = createRequire(import.meta.url);
+const offer = new URL("../examples/offer/", import.meta.url).pathname;
 let worker: Miniflare;
-
-const nap: Wizard = {
-  file: { title: "Nap", start: "nap", edges: { nap: ["end"] }, output: { woke: "nap.timedOut" } },
-  steps: {
-    nap: "var __step = { default: async (run, ask) => ({ value: await ask({ type: 'wait', timeout: '1s' }) }) };",
-  },
-};
+let size = 0;
 
 beforeAll(async () => {
-  const offer = await loadWizard(new URL("../examples/offer/", import.meta.url).pathname);
+  const steps = (await readdir(`${offer}steps`)).map((name) => parse(name).name);
   const entry = `
-    import wasm from "./quickjs.wasm";
-    import variant from "@jitl/quickjs-wasmfile-release-sync";
-    import { newQuickJSWASMModuleFromVariant, newVariant } from "quickjs-emscripten-core";
-    import { createSandbox } from "${here}sandbox";
     import { runObject } from "${here}edge";
+    import file from "${offer}wizard.json";
+    ${steps.map((id) => `import ${id} from "${offer}steps/${id}";`).join("\n")}
+    import tone from "${offer}evals/offer/tone";
+    import withinBudget from "${offer}evals/offer/within-budget";
+    import signedAtEnd from "${offer}evals/end/signed";
 
-    const WIZARDS = ${JSON.stringify({ offer, nap })};
-    const sandbox = createSandbox(() => newQuickJSWASMModuleFromVariant(newVariant(variant, { wasmModule: wasm })));
+    const WIZARDS = {
+      offer: {
+        file,
+        steps: { ${steps.join(", ")} },
+        evals: { offer: { tone, "within-budget": withinBudget }, end: { signed: signedAtEnd } },
+      },
+      nap: {
+        file: { title: "Nap", start: "nap", edges: { nap: ["end"] }, output: { woke: "nap.timedOut" } },
+        steps: { nap: async (run, ask) => ({ value: await ask({ type: "wait", timeout: "1s" }) }) },
+      },
+    };
 
     export const RunObject = runObject({
-      sandbox,
       wizards: (id) => WIZARDS[id],
-      batteries: { agent: async (row) => (row.step === "offer" ? { text: "An offer", price: 8400 } : row.step === "offer/tone" ? { score: 0.8 } : { mail: "A reminder" }) },
+      batteries: {
+        agent: async (row) =>
+          row.step === "offer" ? { text: "An offer", price: 8400 } : row.step === "offer/tone" ? { score: 0.8 } : { mail: "A reminder" },
+      },
     });
 
     export default {
@@ -51,19 +57,12 @@ beforeAll(async () => {
     bundle: true,
     write: false,
     format: "esm",
+    minify: true,
     conditions: ["workerd", "worker", "browser"],
-    external: ["./quickjs.wasm"],
   });
+  size = out.outputFiles[0].text.length;
   worker = new Miniflare({
-    modulesRoot: "/",
-    modules: [
-      { type: "ESModule", path: "/worker.js", contents: out.outputFiles[0].text },
-      {
-        type: "CompiledWasm",
-        path: "/quickjs.wasm",
-        contents: await readFile(require.resolve("@jitl/quickjs-wasmfile-release-sync/wasm")),
-      },
-    ],
+    modules: [{ type: "ESModule", path: "worker.js", contents: out.outputFiles[0].text }],
     compatibilityDate: "2025-09-01",
     durableObjects: { RUNS: { className: "RunObject", useSQLite: true } },
   });
@@ -150,4 +149,9 @@ it("wakes a run by the object's alarm", async () => {
     .poll(async () => (await call("n")).status, { timeout: 10_000, interval: 250 })
     .toBe("done");
   expect((await call("n")).output).toEqual({ woke: true });
+});
+
+it("is a small script: the kernel, the wizard and its steps", () => {
+  expect(size).toBeGreaterThan(1000);
+  expect(size).toBeLessThan(40_000);
 });

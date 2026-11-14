@@ -1,5 +1,5 @@
 import { createKernel } from "./kernel";
-import type { Battery, Run, Sandbox, Store, Wizard } from "./types";
+import type { Battery, Run, Store, Wizard } from "./types";
 
 /** The part of a Durable Object's state this host uses. */
 type ObjectState = {
@@ -12,7 +12,6 @@ type ObjectState = {
 };
 
 export type EdgeOptions = {
-  sandbox: Sandbox;
   wizards: (id: string) => Wizard | Promise<Wizard>;
   batteries?: Record<string, Battery>;
 };
@@ -28,7 +27,7 @@ export type EdgeOptions = {
  *   POST /judge
  *   GET  /        the run
  */
-export function runObject({ sandbox, wizards, batteries }: EdgeOptions) {
+export function runObject({ wizards, batteries }: EdgeOptions) {
   return class RunObject {
     kernel;
     constructor(readonly state: ObjectState) {
@@ -39,7 +38,7 @@ export function runObject({ sandbox, wizards, batteries }: EdgeOptions) {
           await state.storage.put("run", run);
         },
       };
-      this.kernel = createKernel({ store, sandbox, wizards, batteries });
+      this.kernel = createKernel({ store, wizards, batteries });
     }
 
     async fetch(request: Request): Promise<Response> {

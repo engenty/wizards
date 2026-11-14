@@ -19,13 +19,13 @@ export type WizardFile = {
 };
 
 /**
- * A wizard as the kernel takes it: the file, and each step's code compiled for the sandbox.
- * `evals` holds the evals by what they judge, a step's id or `end`, then by name.
+ * A wizard as the kernel takes it: the file, and each step's function by its id. `evals` holds
+ * the evals by what they judge, a step's id or `end`, then by name.
  */
 export type Wizard = {
   file: WizardFile;
-  steps: Record<string, string>;
-  evals?: Record<string, Record<string, string>>;
+  steps: Record<string, Step<any, any>>;
+  evals?: Record<string, Record<string, Eval<any>>>;
 };
 
 /** What a step passes to `ask`. It is the old step definition as an object. */
@@ -134,12 +134,3 @@ export type Turn = {
 };
 
 export type Replay = ({ answer: unknown } | { error: string } | null)[];
-
-export interface Sandbox {
-  run(
-    source: string,
-    view: Omit<RunView, "count"> & { counts: Record<string, number> },
-    replay: Replay,
-    fixed: { now: number; seed: number },
-  ): Promise<Turn>;
-}

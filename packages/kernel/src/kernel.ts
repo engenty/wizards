@@ -1,11 +1,12 @@
+import { turn as runTurn } from "./turn";
 import type {
   AskRow,
   Battery,
+  Eval,
   LeftRow,
   Replay,
   Row,
   Run,
-  Sandbox,
   Score,
   Spec,
   Store,
@@ -44,18 +45,13 @@ const answered = (rows: AskRow[]): Replay =>
         : null,
   );
 
-const seedOf = (run: Run) =>
-  [...`${run.id}:${run.open}`].reduce(
-    (seed, char) => (Math.imul(seed, 31) + char.charCodeAt(0)) | 0,
-    7,
-  );
-
 export type KernelOptions = {
   store: Store;
-  sandbox: Sandbox;
   wizards: (id: string) => Wizard | Promise<Wizard>;
   batteries?: Record<string, Battery>;
   now?: () => number;
+  /** How long a step may wait for something that is not an ask, in milliseconds. */
+  patience?: number;
 };
 
 /**
@@ -64,10 +60,10 @@ export type KernelOptions = {
  */
 export function createKernel({
   store,
-  sandbox,
   wizards,
   batteries = {},
   now = Date.now,
+  patience,
 }: KernelOptions) {
   const fail = (run: Run, error: string) =>
     Object.assign(run, { status: "failed" as const, error });
@@ -96,10 +92,7 @@ export function createKernel({
 
       // Run the step from its top. Asks that have an answered row get the answer back.
       const mine = run.rows.slice(run.open).filter(isAsk);
-      const turn = await sandbox.run(source, view(run), answered(mine), {
-        now: run.startedAt,
-        seed: seedOf(run),
-      });
+      const turn = await runTurn(source, view(run), answered(mine), patience);
 
       if (turn.end && "error" in turn.end) {
         fail(run, turn.end.error);
@@ -294,17 +287,14 @@ export function createKernel({
     run: Run,
     id: string,
     at: number,
-    source: string,
+    source: Eval<any>,
     roles: string[],
     tools: string[],
   ): Promise<Score> {
     const seen = view({ ...run, rows: run.rows.slice(0, at + 1), cursor: null });
     const asks: AskRow[] = [];
     for (let turns = 0; turns < 20; turns++) {
-      const turn = await sandbox.run(source, seen, answered(asks), {
-        now: run.startedAt,
-        seed: at,
-      });
+      const turn = await runTurn(source, seen, answered(asks), patience);
       const kept = asks.length ? { asks } : {};
       if (turn.end && "error" in turn.end)
         return { eval: id, row: at, error: turn.end.error, ...kept };

@@ -75,59 +75,63 @@ step that returned is a row with its value and its way.
 
 When an ask waits for a person, the kernel stops: nothing runs and nothing is kept in memory.
 When the answer comes, the step runs again from its top, and `ask` gives the answer back at once.
-So a step may run more than once. That is safe because a step can only compute: it runs in
-QuickJS with a clock that stands still and a seeded `Math.random`.
+So a step may run more than once. It is meant to do nothing but compute and ask.
 
 The file holds a run to its limits without trusting the code. An ask that names a tool or a role
 the file does not list fails. A `to` the map does not have fails. A step reached more often than
 its limit fails.
 
+## Where a step runs
+
+As ordinary code, in the runner's own process. What keeps a wizard's code from other tenants is
+that a runner is one tenant's, or one wizard's: its own process or isolate, its own database. The
+kernel has no sandbox of its own.
+
+The first state of this spike ran steps in QuickJS inside a shared process. That is gone: with a
+runner per tenant it bought nothing, and it cost a 519 kB WebAssembly module, npm packages, a
+debugger, and an abort when a step took all its memory.
+
+What a step can reach is then the runner's to settle. A runner that holds no tokens and can call
+nothing but the broker leaves a step with `ask` as its only way out, whatever it tries.
+
 ## The parts
 
 | File | Is |
 | --- | --- |
-| `src/kernel.ts` | `start`, `answer`, `wake`, `rewind`, `read`. Knows the file, the step interface and the rows. |
-| `src/sandbox.ts` | One turn of a step's code in QuickJS. |
+| `src/kernel.ts` | `start`, `answer`, `wake`, `rewind`, `judge`, `read`. Knows the file, the step interface and the rows. |
+| `src/turn.ts` | One run of a step or an eval from its top. |
 | `src/describe.ts` | Reads a wizard without running it: do the map and the step files fit. |
+| `src/load.ts` | A wizard's folder to what the kernel takes, in Node. |
+| `src/memory.ts` | A store in memory. |
+| `src/edge.ts` | A run as a Durable Object: its storage as the store, its alarm as the wake. |
 | `src/evals.ts` | `evaluate` and `reask`: evals over a dataset and on a past run. |
 | `src/check.ts` | Tooling for tests of a wizard: answers every ask from a list, and lists the edges no test takes. Not part of a wizard. |
-| `src/compile.ts` | A wizard's folder to what the kernel takes. The save step; needs Node. |
-| `src/memory.ts`, `src/node.ts` | A store in memory, the sandbox in Node. |
-| `src/edge.ts` | A run as a Durable Object: its storage as the store, its alarm as the wake. |
 
-A host gives the kernel a store (`load`, `save`), a sandbox, the wizards, and batteries: functions
-that answer an ask at once, by its type. An ask without a battery waits for `answer`.
+A host gives the kernel a store (`load`, `save`), the wizards, and batteries: functions that
+answer an ask at once, by its type. An ask without a battery waits for `answer`.
 
 ## What was tried
 
 `pnpm --filter @engenty/wizards-kernel test`
 
-- The offer wizard passes ten tests in the sandbox ([test/offer.cases.json](test/offer.cases.json)), and they
-  take all twelve edges.
-- A run resumes from its cursor and rows on a kernel that never saw it.
+- The offer wizard passes ten tests ([test/offer.cases.json](test/offer.cases.json)), and they take all
+  twelve edges.
+- A run resumes from its cursor and rows on a kernel that never saw it, and takes new code at its
+  next step.
 - Rewind, a timeout, asks side by side, a step that catches a failed ask.
-- A step that never ends is stopped. So is one that takes all its memory.
+- A step cannot change the run it reads. One that waits for something that is not an ask fails.
 - Evals: a step judged each time it returned and the run at its end, by code and by a stand-in
   model; over a dataset for two models; one ask of a past run asked again and both scored.
-- The same kernel runs under workerd, each run a Durable Object, woken by the object's alarm.
-
-What it measured here: a turn takes about 1.5 ms in Node. For a Worker, the kernel with QuickJS
-is 62 kB of script and a 519 kB WebAssembly module (241 kB gzipped).
-
-## What it found
-
-- A step that takes all its memory leaves QuickJS unable to free its runtime, and the WebAssembly
-  instance aborts. The sandbox loads a fresh one for the next turn. It takes about five seconds
-  until the memory limit stops such a step.
-- Reading a promise back out of the sandbox fails (`Lifetime not alive`). The kernel reads only
-  JSON text out of it.
-- The interrupt is counted, not timed. In a Worker the clock does not move while code runs.
+- A wizard as a Worker of its own: the kernel, the file and the step files bundled into one
+  script, 10 kB minified, run under workerd with each run a Durable Object woken by its alarm.
 
 ## What it leaves out
 
 - A real model. The agent battery in the tests is a stand-in.
+- The runner itself: a process or isolate per tenant or per wizard, what it holds and what it may
+  call. Nothing here stops a step from using the network or the clock.
+- A tool battery, and a check of a tool ask's `call` against the file.
 - Rows under an agent ask's row, `retries`, pause and cancel.
 - A store on the runtime's `run` tables, and the converter from a version 2 definition.
-- The memory and interrupt limits under workerd. They were tried in Node only.
 - Types for a wizard's steps made from its file: `examples/offer/wizard.ts` is written by hand.
 - How often a host judges real runs, and what a judge costs: both are the host's to decide.

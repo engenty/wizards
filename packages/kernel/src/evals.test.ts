@@ -1,18 +1,15 @@
 import { beforeAll, expect, it } from "vitest";
-import { loadWizard } from "./compile";
 import { describe } from "./describe";
 import { evaluate, reask } from "./evals";
 import { createKernel } from "./kernel";
+import { loadWizard } from "./load";
 import { memoryStore } from "./memory";
-import { nodeSandbox } from "./node";
-import type { AskRow, Battery, Run, Sandbox, Wizard } from "./types";
+import type { AskRow, Battery, Eval, Run, Wizard } from "./types";
 
 let wizard: Wizard;
-let sandbox: Sandbox;
 
 beforeAll(async () => {
   wizard = await loadWizard(new URL("../examples/offer/", import.meta.url).pathname);
-  sandbox = nodeSandbox();
 });
 
 /** A stand-in for the model: writes offers at the prices given, one after the other, and judges tone. */
@@ -60,7 +57,6 @@ it("loads a wizard's evals by what they judge", () => {
 it("judges every time a step returned, and the run once it is done", async () => {
   const kernel = createKernel({
     store: memoryStore(),
-    sandbox,
     wizards: () => wizard,
     batteries: model([3000, 2100]),
   });
@@ -96,7 +92,6 @@ it("judges every time a step returned, and the run once it is done", async () =>
 it("drops the scores of what a rewind takes back", async () => {
   const kernel = createKernel({
     store: memoryStore(),
-    sandbox,
     wizards: () => wizard,
     batteries: model([3000, 2100, 1900]),
   });
@@ -110,29 +105,28 @@ it("drops the scores of what a rewind takes back", async () => {
 });
 
 it("lets an eval only judge: no person to ask, no way to give, no score out of range", async () => {
-  const evals = (body: string) => ({
+  const evals = (odd: Eval<any>) => ({
     ...wizard,
-    evals: { offer: { odd: `var __step = { default: ${body} };` } },
+    evals: { offer: { odd } },
   });
-  const score = async (body: string) => {
+  const score = async (body: (...args: any[]) => Promise<any>) => {
     const kernel = createKernel({
       store: memoryStore(),
-      sandbox,
-      wizards: () => evals(body),
+      wizards: () => evals(body as Eval<any>),
       batteries: model([3000]),
     });
     return (await kernel.judge((await kernel.start("offer", input(4000))).id)).scores?.[0];
   };
-  expect((await score("(run, ask) => ask({ type: 'review', role: 'operator' })"))?.error).toBe(
+  expect((await score((_run, ask) => ask({ type: "review", role: "operator" })))?.error).toBe(
     'An eval may only ask what answers at once, not "operator".',
   );
-  expect((await score("async () => ({ score: 7 })"))?.error).toBe(
+  expect((await score(async () => ({ score: 7 })))?.error).toBe(
     "The score must be a number from 0 to 1, it is 7.",
   );
   expect(
-    (await score("(run, ask) => ask({ type: 'agent', tools: ['gmail.send'] })"))?.error,
+    (await score((_run, ask) => ask({ type: "agent", tools: ["gmail.send"] })))?.error,
   ).toContain("which the file does not grant");
-  expect(await score("async () => ({ score: 1, to: 'end' })")).toEqual({
+  expect(await score(async () => ({ score: 1, to: "end" }))).toEqual({
     eval: "offer/odd",
     row: 1,
     score: 1,
@@ -145,12 +139,9 @@ it("runs a wizard over a dataset, for two models to compare", async () => {
     { name: "tight", input: input(2000), answers: people },
     { name: "nobody answers", input: input(4000) },
   ];
-  const careful = await evaluate(
-    { wizard, sandbox, batteries: model([3000, 2100, 3000], 0.9) },
-    dataset,
-  );
+  const careful = await evaluate({ wizard, batteries: model([3000, 2100, 3000], 0.9) }, dataset);
   const careless = await evaluate(
-    { wizard, sandbox, batteries: model([3000, 3000, 3000, 3000, 3000, 3000], 0.6) },
+    { wizard, batteries: model([3000, 3000, 3000, 3000, 3000, 3000], 0.6) },
     dataset,
   );
 
@@ -187,7 +178,6 @@ it("runs a wizard over a dataset, for two models to compare", async () => {
 it("asks one ask of a past run again, with another model, and scores both", async () => {
   const kernel = createKernel({
     store: memoryStore(),
-    sandbox,
     wizards: () => wizard,
     batteries: model([3000, 3000, 3000, 3000]),
   });
@@ -195,7 +185,7 @@ it("asks one ask of a past run again, with another model, and scores both", asyn
   const last = past.rows.findLast((row) => row.step === "offer" && !("left" in row)) as AskRow;
 
   const { before, after, run } = await reask(
-    { wizard, sandbox, batteries: model([1900], 0.9) },
+    { wizard, batteries: model([1900], 0.9) },
     past,
     last.n,
   );
