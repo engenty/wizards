@@ -2,7 +2,7 @@ import { type Context, Hono } from "hono";
 import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
 import { inAudience } from "../broker/index.js";
-import { namesOf } from "../connectors/person-sign-ins.js";
+import { disconnectOwn, namesOf } from "../connectors/person-sign-ins.js";
 import {
   connectionPatchSchema,
   createSpaceConnection,
@@ -115,6 +115,11 @@ export const connectionRoutes = new Hono<Vars>()
   .post("/connections/:id/my-sign-in", async (c) => signIn(c, asMe(c.get("user"))))
   .delete("/connections/:id/my-sign-in", async (c) => {
     await removeSignIn(c.req.param("id"), asMe(c.get("user")));
+    return c.json({ ok: true });
+  })
+  // One of the person's own connections (menu › „Verbindungen“): it goes with every choice naming it.
+  .delete("/my-connections/:id", async (c) => {
+    await disconnectOwn(c.get("user"), c.req.param("id"));
     return c.json({ ok: true });
   });
 

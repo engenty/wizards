@@ -19,7 +19,7 @@ import {
 import { CATEGORY_TYPES, whereSchema } from "@engenty/wizards-shared/knowledge";
 import { PRESENCE_KINDS } from "@engenty/wizards-shared/live";
 import { CLASS_NAMES, isCreditsRef, modelLabel } from "@engenty/wizards-shared/providers";
-import { note } from "@engenty/wizards-shared/run";
+import { note, saidText } from "@engenty/wizards-shared/run";
 import { AUDIENCES } from "@engenty/wizards-shared/rwx";
 import { SPACE_FILE_KINDS } from "@engenty/wizards-shared/spaces";
 import {
@@ -66,10 +66,16 @@ import {
   setActionKinds,
 } from "../connectors/external.js";
 import { reloadConnector } from "../connectors/reload.js";
+import { chooseForSpace, clearForSpace, wizardNeeds } from "../connectors/space-choice.js";
 import { balanceCredits, canSpend } from "../credits/credits.js";
 import { estimateRun } from "../credits/estimate.js";
 import { listNotices, markNoticesRead } from "../engine/notices.js";
-import { missingConnections, missingModels, stepsWithoutModel } from "../engine/requirements.js";
+import {
+  missingConnections,
+  missingModels,
+  stepsWithoutModel,
+  unwatchedConnectionsSaid,
+} from "../engine/requirements.js";
 import { env } from "../env.js";
 import { feature, features, forgetAccountFeatures } from "../features.js";
 import { appleStatus } from "../harness/apple.js";
@@ -1808,10 +1814,41 @@ export const studio = new Hono<Vars>()
     const user = c.get("user");
     const w = await ownedWizard(user.id, c.req.param("id"));
     const lang = requestLang(c);
+    // A start nobody owns runs with nobody there: it needs the space's choice for each need.
+    const unwatched = w.starts.some((s) => s.on && !s.owner)
+      ? await unwatchedConnectionsSaid(w.draft, { wizardId: w.id, holder: "r:" }, w.spaceId)
+      : [];
     return c.json({
       missing: await missingModels(w.draft, lang),
-      connections: await missingConnections(w.draft, w.spaceId, lang, isAdminRole(user.role)),
+      connections: [
+        ...(await missingConnections(w.draft, w.spaceId, lang, isAdminRole(user.role))),
+        ...unwatched.map((m) => ({ ...m, problem: saidText(m.problem, lang) })),
+      ],
     });
+  })
+  // The wizard's needs (docs/plans/run-connections.md, step 4): how each resolves for the person
+  // looking; for the space's admins also the space's choice for runs nobody watches.
+  .get("/wizards/:id/needs", async (c) => {
+    const user = c.get("user");
+    const w = await ownedWizard(user.id, c.req.param("id"));
+    return c.json({
+      needs: await wizardNeeds(
+        w,
+        { userId: user.id, admin: isAdminRole(user.role) },
+        requestLang(c),
+      ),
+    });
+  })
+  .put("/wizards/:id/needs/:need/space-choice", async (c) => {
+    const w = await ownedWizard(c.get("user").id, c.req.param("id"));
+    const { connection } = z.object({ connection: z.string().min(1) }).parse(await c.req.json());
+    await chooseForSpace(w, c.req.param("need"), connection);
+    return c.json({ ok: true });
+  })
+  .delete("/wizards/:id/needs/:need/space-choice", async (c) => {
+    const w = await ownedWizard(c.get("user").id, c.req.param("id"));
+    await clearForSpace(w, c.req.param("need"));
+    return c.json({ ok: true });
   })
   // A runtime that runs alone: the wizard's copy in the cloud of the linked account.
   .get("/wizards/:id/cloud", async (c) => {

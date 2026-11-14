@@ -17,6 +17,7 @@ import { wizardUnavailable } from "../limits.js";
 import { noteOf } from "../model-errors.js";
 import { publishedVersion, type WizardRow } from "../services/wizards.js";
 import { addNotice } from "./notices.js";
+import { blockingMessage, unwatchedConnectionsSaid } from "./requirements.js";
 import { createRun, OccurrenceTaken } from "./runner.js";
 import type { RunRow } from "./types.js";
 
@@ -111,6 +112,19 @@ export async function startFrom(
       throw new StartRefused(
         saidText({ code: "wizardUnavailable" }, textLang(wizardLang(w.draft))),
       );
+    }
+    // A start nobody owns runs with nobody there: it uses the space's choice for each need.
+    const unwatched = start.owner
+      ? null
+      : blockingMessage(
+          await unwatchedConnectionsSaid(
+            version.definition,
+            { wizardId: w.id, holder: "r:" },
+            w.spaceId,
+          ),
+        );
+    if (unwatched) {
+      throw new StartRefused(saidText(unwatched, textLang(wizardLang(w.draft))));
     }
     const runId = await createRun({
       wizardId: w.id,

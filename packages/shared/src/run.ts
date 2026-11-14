@@ -810,6 +810,8 @@ const NOTES_EN = {
   maskedContract: { one: "{count} contract number", other: "{count} contract numbers" },
   maskedTerm: { one: "{count} term of your own", other: "{count} terms of your own" },
   maskedOther: { one: "{count} other detail", other: "{count} other details" },
+  unwatchedNeedsChoice:
+    "This wizard can’t start on its own yet. An admin chooses which connection it uses for {service}, in the wizard’s settings.",
 } as const satisfies Record<string, Line>;
 export type RunNoteCode = keyof typeof NOTES_EN;
 
@@ -1358,6 +1360,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   maskedContract: { one: "{count} Vertragsnummer", other: "{count} Vertragsnummern" },
   maskedTerm: { one: "{count} eigener Begriff", other: "{count} eigene Begriffe" },
   maskedOther: { one: "{count} andere Angabe", other: "{count} andere Angaben" },
+  unwatchedNeedsChoice:
+    "Dieser Wizard kann noch nicht von selbst starten. Ein Admin wählt in den Einstellungen des Wizards, welche Verbindung er für {service} nutzt.",
 };
 
 export const RUN_NOTES: Texts<RunNoteCode> = { en: NOTES_EN, de: NOTES_DE };

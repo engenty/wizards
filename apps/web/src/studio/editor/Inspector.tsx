@@ -94,6 +94,7 @@ import { ModelClassControl, StepCost, useEstimate } from "./estimate";
 import { conditionText, percent, whenWords } from "./FlowDiagram";
 import { HoldToDelete } from "./HoldToDelete";
 import { stepIcon, stepSummary, TYPE_TONE, toolLabel, typeLabel } from "./meta";
+import { NeedsSection } from "./NeedsSection";
 import { ShareEditor } from "./ShareEditor";
 import { StepWarnings } from "./StepWarnings";
 import { SurfaceBody } from "./SurfaceEditor";
@@ -1557,17 +1558,14 @@ export function WizardSettings({
         wizardId={wizardId}
         costume={<CostumePicker def={def} update={update} />}
       />
-      {def.lists?.length || def.connections?.length ? (
+      {def.connections?.length ? (
+        <Section title={t("needs.title")}>
+          <NeedsSection wizardId={wizardId} />
+        </Section>
+      ) : null}
+      {def.lists?.length ? (
         <Section title={t("inspector.remembers")}>
           <p className="text-[0.8125rem] text-ink-3">{t("inspector.remembersHint")}</p>
-          {(def.connections ?? []).map((c) => (
-            <div key={c.id} className="rounded-lg bg-paper px-3 py-2.5 ring-1 ring-border-soft">
-              <div className="text-[0.875rem]">{c.title ?? c.id}</div>
-              <div className="text-[0.75rem] text-ink-4">
-                {t("inspector.account")} · {c.kind}
-              </div>
-            </div>
-          ))}
           {(def.lists ?? []).map((l) => (
             <div key={l.id} className="rounded-lg bg-paper px-3 py-2.5 ring-1 ring-border-soft">
               <div className="text-[0.875rem]">{l.title}</div>

@@ -45,7 +45,9 @@ import {
 } from "@engenty/wizards-shared/tiers";
 import { missingSetup, usable } from "../connectors/builtin.js";
 import { candidates } from "../connectors/index.js";
+import { connectionsFor, runConnectionsOn } from "../connectors/person-connections.js";
 import { classProblem, currentTier, motionClient, tierRefusal } from "../models.js";
+import type { StoreScope } from "../store/index.js";
 
 // The steps every run passes through, and the choices that lead around a missing model, are
 // pure and shared (packages/shared/src/fit.ts): the standalone check uses the same. So are the
@@ -439,7 +441,7 @@ export async function missingModelsSaid(def: WizardDefinition): Promise<MissingM
 export type MissingConnectionSaid = Omit<MissingConnection, "problem"> & { problem: Said };
 
 /** The steps that use a connection: an agent step that lists it, a tool step that calls it, a page that connects it. */
-function stepsUsing(def: WizardDefinition, id: string): Step[] {
+export function stepsUsing(def: WizardDefinition, id: string): Step[] {
   return def.steps.filter(
     (s) =>
       (s.type === "agent" && s.connections?.includes(id)) ||
@@ -520,6 +522,49 @@ export async function missingConnectionsSaid(
       problem: said.reduce((first, second) => note("joined", { first, second })),
       steps: steps.map((s) => ({ id: s.id, title: s.title })),
       blocking: !can.length && steps.some((s) => unavoidable.has(s.id)),
+    });
+  }
+  return missing;
+}
+
+/**
+ * The needs a run nobody watches (`r:` holder) has no account for: one a step every run passes
+ * through uses, where the space's admins chose no connection for runs nobody watches
+ * (`spaceHolder`). Nobody is there to connect or choose one, so such a run does not start. With
+ * `runConnections` off the space's connections aren't offered, and nothing is said here. A need
+ * no connector of the space serves is `missingConnectionsSaid`'s; one that names a connection of
+ * the space has its account.
+ */
+export async function unwatchedConnectionsSaid(
+  def: WizardDefinition,
+  scope: StoreScope,
+  spaceId: string,
+): Promise<MissingConnectionSaid[]> {
+  if (!scope.holder.startsWith("r:") || !def.connections?.length || !(await runConnectionsOn())) {
+    return [];
+  }
+  const unavoidable = unavoidableSteps(def);
+  const missing: MissingConnectionSaid[] = [];
+  for (const need of def.connections) {
+    const steps = stepsUsing(def, need.id).filter((s) => unavoidable.has(s.id));
+    if (need.spaceConnection || !steps.length) {
+      continue;
+    }
+    const connectors = await candidates(need, spaceId);
+    if (!connectors.length || (await connectionsFor(scope, spaceId, need)).by === "choice") {
+      continue;
+    }
+    const name = need.title ?? (need.connector ? connectors[0].name : null);
+    missing.push({
+      id: need.id,
+      name,
+      kind: need.kind ?? null,
+      connectors: connectors.map((c) => c.id),
+      problem: note("unwatchedNeedsChoice", {
+        service: name ?? connectors.map((c) => c.name),
+      }),
+      steps: steps.map((s) => ({ id: s.id, title: s.title })),
+      blocking: true,
     });
   }
   return missing;
