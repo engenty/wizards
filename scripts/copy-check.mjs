@@ -229,6 +229,11 @@ const NOT_COPY = [
     "the public page's own words in the page's language, as Manage writes them",
   ],
   [
+    "packages/shared/src/page-texts.ts",
+    null,
+    "the public page's words for its visitors, in the page's language (the portal draws it)",
+  ],
+  [
     "apps/runtime/src/agents/architect.ts",
     "Neuer Schritt",
     "AI prompt: the German words the studio sends",
