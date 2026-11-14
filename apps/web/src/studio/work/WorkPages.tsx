@@ -293,11 +293,6 @@ export function WorkRunPage() {
 }
 
 /** Client mode: one placeholder until the client's view is built. */
-export function ClientPage() {
-  useCrumbs([{ label: t("mode.client") }]);
-  return <Empty>{t("client.placeholder")}</Empty>;
-}
-
 function Empty({ children }: { children: ReactNode }) {
   return <p className="py-24 text-center text-[0.9375rem] text-ink-3">{children}</p>;
 }

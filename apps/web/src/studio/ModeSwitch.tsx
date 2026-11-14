@@ -1,4 +1,4 @@
-import { Eye, type LucideIcon, MessageSquare, PenLine } from "lucide-react";
+import { Globe, type LucideIcon, MessageSquare, PenLine } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useNavigate } from "react-router";
@@ -12,14 +12,14 @@ import { cn } from "../ui";
 export const MODE_ICON: Record<Mode, LucideIcon> = {
   studio: PenLine,
   work: MessageSquare,
-  client: Eye,
+  shared: Globe,
 };
 
-/** The engenty in the bar's corner wears the mode: Studio green, Work blue, Client violet. */
+/** The engenty in the bar's corner wears the mode: Studio green, Work blue, Shared violet. */
 export const MODE_ENGENTY: Record<Mode, EngentyKind> = {
   studio: "dome",
   work: "round",
-  client: "tower",
+  shared: "tower",
 };
 
 /**

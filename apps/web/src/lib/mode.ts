@@ -4,16 +4,18 @@ import type { Me } from "./session";
 
 /**
  * The studio's modes (behind `workMode`): Studio for the people who build, Work for the firm's
- * team, Client for the firm's customers. Who may use which follows the roles there are: Studio
- * for whoever makes and deletes here (`limits.create`: builds, and is no mere member), Work and a
- * look at Client (behind `pages`) for everyone. The pick is kept per person in this browser, like the app bar.
+ * team, Shared for what leaves the team (docs/plans/org-page.md): the organization's page and
+ * the wizards shared by link. Who may use which follows the roles there are: Studio for whoever
+ * makes and deletes here (`limits.create`: builds, and is no mere member), Work for everyone,
+ * Shared for the organization's admins (behind `pages`). The pick is kept per person in this
+ * browser, like the app bar.
  */
 
-export const MODES = ["studio", "work", "client"] as const;
+export const MODES = ["studio", "work", "shared"] as const;
 export type Mode = (typeof MODES)[number];
 
 /** Where each mode starts. */
-export const MODE_HOME: Record<Mode, string> = { studio: "/", work: "/work", client: "/client" };
+export const MODE_HOME: Record<Mode, string> = { studio: "/", work: "/work", shared: "/shared" };
 
 const KEY = "wizards.mode";
 
@@ -26,9 +28,10 @@ export function allowedModes(me: Me): Mode[] {
   const builds =
     me.limits.create ||
     (featureOn(me.features, "capabilities") && me.limits.build && membersStudio);
-  // Client shows the space as its clients see it, on its public page: behind `pages`.
-  const modes: Mode[] = builds ? ["studio", "work", "client"] : ["work", "client"];
-  return featureOn(me.features, "pages") ? modes : modes.filter((m) => m !== "client");
+  // Shared is the admins' place for the organization's page: behind `pages`.
+  const admin = me.tenant.role === "owner" || me.tenant.role === "admin";
+  const modes: Mode[] = builds ? ["studio", "work"] : ["work"];
+  return featureOn(me.features, "pages") && admin ? [...modes, "shared"] : modes;
 }
 
 /** Whether the space the studio looks at opens its Studio to members (studio/members-studio.tsx). */
