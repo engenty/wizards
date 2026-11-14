@@ -747,6 +747,9 @@ importers:
         specifier: 0.31.0
         version: 0.31.0
     devDependencies:
+      '@engenty/wizards-shared':
+        specifier: workspace:*
+        version: link:../shared
       '@executor-js/emulate':
         specifier: 0.14.2
         version: 0.14.2(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
