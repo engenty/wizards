@@ -4,10 +4,22 @@ export type Field = { id: string; kind: string; required?: boolean; [key: string
 /** The file: what a wizard needs and may reach, and its map. Nothing about a step is in it. */
 export type WizardFile = {
   title: string;
-  /** Roles beyond `user` and `operator`. */
-  roles?: Record<string, string>;
-  /** Every tool and connection action a step may name in an ask. */
-  tools?: string[];
+  /** What the wizard needs from where it runs. An ask that names anything else fails. */
+  requires?: {
+    /** The model classes an agent ask may name. */
+    models?: string[];
+    /** Tools that are not a connection's: the sandbox, the browser, a plugin's, the wizard's own. */
+    tools?: string[];
+    /** Roles beyond `user` and `operator`: an id and a title. */
+    roles?: Record<string, string>;
+    /** The hosts the HTTP tool may reach. */
+    hosts?: string[];
+  };
+  /**
+   * Each connection by its kind, the actions the wizard uses, and for each whether it is allowed
+   * or asks the user first. Whose account it is, is bound where the wizard is installed.
+   */
+  connections?: Record<string, Record<string, "allow" | "ask">>;
   input?: { fields: Field[] };
   /** A finished run's output: a name, and where it is read from as `<step>.<path>`. */
   output?: Record<string, string>;
@@ -49,6 +61,8 @@ export type AskRow = Spec & {
   error?: string;
   by?: string;
   due?: number;
+  /** On the row that asks the user's leave for an action: the row of that action. */
+  approves?: number;
 };
 
 /** A step that returned: what it left behind and the way it went. */
@@ -85,6 +99,8 @@ export type Run = {
   output?: Record<string, unknown>;
   error?: string;
   scores?: Score[];
+  /** What the run may reach, made from the file when it started. */
+  grant?: import("./grant").Grant;
   rev: number;
 };
 

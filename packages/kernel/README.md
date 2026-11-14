@@ -7,7 +7,7 @@ package. It exists to find out whether the design holds: see what was tried at t
 
 ```
 offer/
-  wizard.json     roles, tools, input, output, start, edges, limits
+  wizard.json     requires, connections, input, output, start, edges, limits
   steps/
     offer.ts      one function per step, always the same interface
     legal.ts
@@ -68,6 +68,31 @@ Three ways to run them:
 | A dataset | `evaluate`: the wizard on every entry, with a real model, the people's answers from the entry | A model, a prompt or a step against another, before a release |
 | A past run | `reask`: one ask of a stored run asked again, same history, new code or model | What the new version would have written there |
 
+## What a wizard may reach
+
+Steps are code, so what they will ask for cannot be read from them. The file declares it:
+
+```json
+"requires": {
+  "models": ["standard"],
+  "tools": ["http.request"],
+  "roles": { "legal": "Legal" },
+  "hosts": ["api.example.com"]
+},
+"connections": {
+  "gmail": { "search_threads": "allow", "read_thread": "allow", "send": "ask" }
+}
+```
+
+- An ask that names a model class, a tool, a role, a host or a connection's action the file does
+  not list fails. A step narrows the file for one ask: `tools: ["gmail.read_thread"]`.
+- An action set to `ask` first asks the user, as a row of its own. Nothing is done before the
+  answer, and a no fails the action.
+- The grant is made from the file when a run starts and kept on the run. A later edit of the file
+  does not widen a run that is open.
+- A host can say what it has. A wizard that requires more is refused before it starts.
+- The file names kinds, never accounts. Whose Gmail it is, is bound where the wizard is installed.
+
 ## How a run moves
 
 A run is a cursor and rows. The cursor is the step it stands in. Every ask is a row, and every
@@ -99,6 +124,7 @@ nothing but the broker leaves a step with `ask` as its only way out, whatever it
 | File | Is |
 | --- | --- |
 | `src/kernel.ts` | `start`, `answer`, `wake`, `rewind`, `judge`, `read`. Knows the file, the step interface and the rows. |
+| `src/grant.ts` | The grant from the file, an ask held to it, what a host lacks, what the file declares and no run used. |
 | `src/turn.ts` | One run of a step or an eval from its top. |
 | `src/describe.ts` | Reads a wizard without running it: do the map and the step files fit. |
 | `src/load.ts` | A wizard's folder to what the kernel takes, in Node. |
@@ -120,6 +146,8 @@ answer an ask at once, by its type. An ask without a battery waits for `answer`.
   next step.
 - Rewind, a timeout, asks side by side, a step that catches a failed ask.
 - A step cannot change the run it reads. One that waits for something that is not an ask fails.
+- Requirements and connections: asks outside the file fail, an action set to `ask` waits for the
+  user, the grant stays as it was at the start, a host that lacks something refuses the wizard.
 - Evals: a step judged each time it returned and the run at its end, by code and by a stand-in
   model; over a dataset for two models; one ask of a past run asked again and both scored.
 - A wizard as a Worker of its own: the kernel, the file and the step files bundled into one
@@ -130,7 +158,8 @@ answer an ask at once, by its type. An ask without a battery waits for `answer`.
 - A real model. The agent battery in the tests is a stand-in.
 - The runner itself: a process or isolate per tenant or per wizard, what it holds and what it may
   call. Nothing here stops a step from using the network or the clock.
-- A tool battery, and a check of a tool ask's `call` against the file.
+- A real tool battery and the broker behind it. Leave for an action an agent calls inside its own
+  turn: only a tool ask's one `call` asks the user here.
 - Rows under an agent ask's row, `retries`, pause and cancel.
 - A store on the runtime's `run` tables, and the converter from a version 2 definition.
 - Types for a wizard's steps made from its file: `examples/offer/wizard.ts` is written by hand.

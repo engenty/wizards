@@ -1,4 +1,5 @@
 import { describe } from "./describe";
+import { unused } from "./grant";
 import { createKernel } from "./kernel";
 import { memoryStore } from "./memory";
 import type { AskRow, Row, Run, Wizard } from "./types";
@@ -49,10 +50,12 @@ export async function play(wizard: Wizard, c: Case) {
 /** Runs the cases, and lists the edges of the map none of them takes. */
 export async function check(wizard: Wizard, cases: Case[]) {
   const taken = new Set<string>();
+  const rows: Row[] = [];
   const results: CaseResult[] = [];
   for (const c of cases) {
     try {
       const { run, left } = await play(wizard, c);
+      rows.push(...run.rows);
       const leaves = run.rows.filter((row) => "left" in row);
       for (const row of leaves) taken.add(`${row.step} > ${row.to}`);
       const path = [
@@ -85,5 +88,10 @@ export async function check(wizard: Wizard, cases: Case[]) {
   const edges = Object.entries(wizard.file.edges).flatMap(([from, tos]) =>
     tos.map((to) => `${from} > ${to}`),
   );
-  return { issues: describe(wizard), results, untaken: edges.filter((edge) => !taken.has(edge)) };
+  return {
+    issues: describe(wizard),
+    results,
+    untaken: edges.filter((edge) => !taken.has(edge)),
+    unused: unused(wizard.file, rows),
+  };
 }
