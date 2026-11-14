@@ -67,19 +67,19 @@ export const FEATURES = {
   },
   brandSections: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Sections in Brand",
     hint: "Sections of logos and of colours, gradients and patterns among them.",
   },
   brandRules: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Rules in Brand",
     hint: "Rules for how the logos, the colours and the type may be used.",
   },
   typography: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Typography in Brand",
     hint: "The brand's fonts, their licences and a type scale.",
   },
@@ -121,7 +121,7 @@ export const FEATURES = {
   },
   goose: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Goose",
     hint: "The studio's assistant: its chat at the foot of the page and in the sidebar.",
   },
@@ -187,7 +187,7 @@ export const FEATURES = {
   },
   knowledgeTree: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Knowledge as a knowledge base",
     hint: "Knowledge's start page with one Add menu, folders in its menu and categories as a tab, the block editor for pages (docs/plans/knowledge-base.md).",
   },

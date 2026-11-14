@@ -24,13 +24,13 @@
 # the organization's settings in the cloud studio: name, members and invitations (instead of the account pages)
 # organizationSettings=on|off
 #
-# sections of logos and colours (gradients, patterns) in info & brand
+# sections of logos and colours (gradients, patterns) in info & brand (on by default)
 # brandSections=on|off
 #
-# rules for logos, colours and type in info & brand
+# rules for logos, colours and type in info & brand (on by default)
 # brandRules=on|off
 #
-# the brand's fonts in info & brand
+# the brand's fonts in info & brand (on by default)
 # typography=on|off
 #
 # wizards run as a spoken conversation in the browser (off by default)
@@ -45,7 +45,7 @@
 # Settings › Plugins before any plugin is installed (installing one turns it on)
 # plugins=on|off
 #
-# Goose, the studio's assistant
+# Goose, the studio's assistant (on by default)
 # goose=on|off
 #
 # the organization's model tier: a step's maker, what calls are for, what each class runs on (off by default)
