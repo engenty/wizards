@@ -526,7 +526,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
       />
       {mode === "work" ? (
         <WorkRail labels={labels} horizontal={horizontal} nav={nav} />
-      ) : mode === "client" ? (
+      ) : mode === "shared" ? (
         <div className="min-h-0 min-w-0 flex-1" />
       ) : (
         <>

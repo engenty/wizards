@@ -38,7 +38,7 @@ const mono = "font-mono text-[0.875rem]";
 /** `…wizards.page/`: the organization's host without its first label, as the address field's prefix. */
 const domainOf = (host: string) => host.slice(host.indexOf(".") + 1);
 
-function useCopied() {
+export function useCopied() {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -82,7 +82,7 @@ function Sources() {
 }
 
 /** The address field: the organization's domain as a grey prefix, the space's slug typed after it. */
-function SlugField({
+export function SlugField({
   host,
   value,
   onChange,
@@ -349,7 +349,15 @@ function keepDevice(device: Device) {
  * A new `version` loads it again past Manage's minute of caching, after each change the runtime
  * sent.
  */
-function PageFrame({ url, version, device }: { url: string; version: number; device: Device }) {
+export function PageFrame({
+  url,
+  version,
+  device,
+}: {
+  url: string;
+  version: number;
+  device: Device;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const [room, setRoom] = useState({ width: 0, tall: true });
   useEffect(() => {
@@ -463,7 +471,7 @@ function PageFrame({ url, version, device }: { url: string; version: number; dev
 }
 
 /** The page's words, saved as they are typed; the page is saved whole, so the rest rides along. */
-function WordsFields({
+export function WordsFields({
   host,
   page,
   disabled,

@@ -11,7 +11,8 @@ import { AppFrame } from "./studio/AppFrame";
 import { AssistantProvider } from "./studio/assistant/chat";
 import { MembersStudio } from "./studio/members-studio";
 import { SignInPage } from "./studio/SignInPage";
-import { ClientPage, InMode, WorkPage, WorkRunPage } from "./studio/work/WorkPages";
+import { SharedPage } from "./studio/shared/SharedPage";
+import { InMode, WorkPage, WorkRunPage } from "./studio/work/WorkPages";
 
 // The public runner and the studio are separate bundles: a visitor never downloads the editor.
 const PublicRunner = lazy(() =>
@@ -302,11 +303,11 @@ export function StudioApp() {
             }
           />
           <Route
-            path="/client"
+            path="/shared"
             element={
               <Studio wide>
-                <InMode mode="client">
-                  <ClientPage />
+                <InMode mode="shared">
+                  <SharedPage />
                 </InMode>
               </Studio>
             }

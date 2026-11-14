@@ -84,7 +84,7 @@ describe("a studio address elsewhere", () => {
 
   it("reads none of the studio's pages as an organization", () => {
     // Signed out, `capabilities` was taken for one: the studio started at /studio/capabilities.
-    for (const page of ["capabilities/connectors", "work/c/1", "skills", "client", "account"]) {
+    for (const page of ["capabilities/connectors", "work/c/1", "skills", "shared", "account"]) {
       expect(placeOf(`/studio/${page}`, null)).toEqual({ kind: "here", root: "/studio" });
       expect(placeOf(`/studio/${page}`, me)).toEqual({
         kind: "move",
