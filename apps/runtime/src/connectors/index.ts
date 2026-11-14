@@ -17,7 +17,7 @@ import { type ConnectorDefinition, scopesForGroups } from "../engenty/connection
 import { env } from "../env.js";
 import { NotedError } from "../model-errors.js";
 import { seal, unseal } from "../secrets/crypto.js";
-import { deleteSecret, peekSecret, putSecret, type StoreScope } from "../store/index.js";
+import type { StoreScope } from "../store/index.js";
 import { type ServerKey, serverText } from "../texts.js";
 import {
   connectorFetch,
@@ -28,6 +28,7 @@ import {
   viaAccount,
 } from "./builtin.js";
 import { resolveConnector } from "./external.js";
+import { connectionsFor, forget, remember, saveConnection } from "./person-connections.js";
 import { standInUrl } from "./stand-ins.js";
 import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-account.js";
 
@@ -111,9 +112,6 @@ export function connectRedirectUri(): string {
   return env.connectRedirectUrl || `${env.appUrl}/api/connect/callback`;
 }
 
-/** The store slot of a connection's account. */
-export const slot = (connectionId: string) => `connection:${connectionId}`;
-
 /** What is stored for a connected account. `accessToken` is the credentials JSON for `api_key`. */
 export interface StoredConnection {
   accessToken: string;
@@ -186,6 +184,10 @@ export async function connectorFor(
   return connector;
 }
 
+/**
+ * What each need of a run shows: the account the run uses for it (`connectionsFor`), or none
+ * where it has none or several and no choice.
+ */
 export async function connectionViews(
   connections: ConnectionDef[],
   scope: StoreScope,
@@ -195,7 +197,7 @@ export async function connectionViews(
 ): Promise<ConnectionView[]> {
   return Promise.all(
     connections.map(async (c) => {
-      const stored = await peekSecret(scope, slot(c.id));
+      const { chosen } = await connectionsFor(scope, spaceId, c);
       const only = c.connector ? (await candidates(c, spaceId))[0] : undefined;
       return {
         id: c.id,
@@ -203,11 +205,15 @@ export async function connectionViews(
         connector: c.connector ?? null,
         title: c.title ?? only?.name ?? null,
         description: c.description ?? null,
-        account: stored
+        account: chosen
           ? {
-              connector: stored.provider,
-              label: stored.label,
-              connectedAt: stored.createdAt.toISOString(),
+              connector: chosen.connector.id,
+              label:
+                chosen.kind === "person" ? chosen.row.label : (chosen.row.label ?? chosen.row.name),
+              connectedAt: (chosen.kind === "person"
+                ? chosen.row.createdAt
+                : chosen.row.setUpAt
+              ).toISOString(),
             }
           : only && open(only)
             ? { connector: only.id, label: only.name, connectedAt: new Date(0).toISOString() }
@@ -216,6 +222,21 @@ export async function connectionViews(
       };
     }),
   );
+}
+
+/**
+ * Keeps an account connected from a run as the holder's own connection, and remembers it as the
+ * one this wizard uses for the need.
+ */
+export async function keepAccount(
+  scope: StoreScope,
+  connectionId: string,
+  connectorId: string,
+  label: string,
+  stored: StoredConnection,
+): Promise<void> {
+  const row = await saveConnection(scope.holder, connectorId, label, stored);
+  await remember(scope.wizardId, connectionId, scope.holder, { kind: "person", row });
 }
 
 // --- connecting ----------------------------------------------------------------
@@ -346,7 +367,7 @@ export async function finishOAuth(
     scopes: tokens.grantedScopes,
     ...("ticket" in answer ? { via: "account" as const } : {}),
   };
-  await putSecret(state.scope, slot(connection.id), connector.id, account.label, stored);
+  await keepAccount(state.scope, connection.id, connector.id, account.label, stored);
   return state;
 }
 
@@ -384,7 +405,7 @@ export async function connectWithCredentials(
     expiresAt: null,
     scopes: [],
   };
-  await putSecret(scope, slot(connection.id), connector.id, account.label, stored);
+  await keepAccount(scope, connection.id, connector.id, account.label, stored);
   return account.label;
 }
 
@@ -414,8 +435,12 @@ function connectFailure(err: unknown): RunNote {
   return note("connectingNotWork", { host, detail });
 }
 
+/**
+ * The person disconnects an account from a run: the wizard forgets its choice. The account goes
+ * too unless another wizard uses it.
+ */
 export function disconnect(scope: StoreScope, connectionId: string) {
-  return deleteSecret(scope, slot(connectionId));
+  return forget(scope.wizardId, scope.holder, connectionId);
 }
 
 // --- using ---------------------------------------------------------------------

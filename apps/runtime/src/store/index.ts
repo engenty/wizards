@@ -13,6 +13,7 @@ import { cleanPath, mimeForPath } from "@engenty/wizards-shared/workspace";
 import { and, asc, eq, inArray, like, lt, notLike, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { Subject } from "../broker/rwx.js";
+import { chosenAccounts, forget } from "../connectors/person-connections.js";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { getBlob, putBlob } from "../files/blobs.js";
@@ -401,24 +402,33 @@ export async function deleteSecret(scope: StoreScope, slot: string) {
     .where(and(ownSecrets(scope), eq(schema.storeSecret.slot, slot)));
 }
 
+/**
+ * What the wizard keeps for the person besides lists and files: its kept secrets, and the
+ * accounts it uses (`connection_choice`) under the slot `connection:<need>`.
+ */
 export async function listSecrets(scope: StoreScope) {
   const rows = await db.query.storeSecret.findMany({ where: ownSecrets(scope) });
-  return rows.map((r) => ({
-    slot: r.slot,
-    provider: r.provider,
-    label: r.label,
-    createdAt: r.createdAt.toISOString(),
-  }));
+  return [
+    ...rows.map((r) => ({
+      slot: r.slot,
+      provider: r.provider,
+      label: r.label,
+      createdAt: r.createdAt.toISOString(),
+    })),
+    ...(await chosenAccounts(scope.wizardId, scope.holder)),
+  ];
 }
 
 // --- everything --------------------------------------------------------------
 
 /**
- * Deletes everything the wizard keeps for this person, their database too. Blobs stay: other
- * files may share them.
+ * Deletes everything the wizard keeps for this person, their database too, and forgets the
+ * accounts it uses: an account no other wizard uses goes with it. Blobs stay: other files may
+ * share them.
  */
 export async function clearStore(scope: StoreScope) {
   await dropHolderData(scope);
+  await forget(scope.wizardId, scope.holder);
   await db
     .delete(schema.storeRow)
     .where(

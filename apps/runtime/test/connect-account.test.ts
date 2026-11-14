@@ -147,9 +147,8 @@ describe("Google on a local install without its own Google client", () => {
     expect(tokens.grantedScopes).toContain("https://www.googleapis.com/auth/gmail.readonly");
 
     const scope = { wizardId, holder: "local" };
-    const { putSecret } = await import("../src/store/index");
     await local(() =>
-      putSecret(scope, "connection:mail", "mail-gmail", "c@gmail.com", {
+      connectors.keepAccount(scope, "mail", "mail-gmail", "c@gmail.com", {
         accessToken: "ya29.old",
         refreshToken: "1//refresh",
         expiresAt: new Date(Date.now() - 1000).toISOString(),

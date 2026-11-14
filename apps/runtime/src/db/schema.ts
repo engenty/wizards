@@ -1663,7 +1663,10 @@ export const storeFile = sqliteTable(
   (t) => [primaryKey({ columns: [t.wizardId, t.holder, t.path] })],
 );
 
-/** A connected account or a kept browser session. `data` is encrypted. */
+/**
+ * A kept browser session. `data` is encrypted. A wizard's connected accounts were kept here
+ * until they became a person's connections (`person_connection`, `wizards move-connections`).
+ */
 export const storeSecret = sqliteTable(
   "store_secret",
   {
@@ -1672,7 +1675,7 @@ export const storeSecret = sqliteTable(
       .notNull()
       .references(() => wizard.id, { onDelete: "cascade" }),
     holder: text("holder").notNull(),
-    /** "connection:<id>" or "browser:<host>". */
+    /** "browser". */
     slot: text("slot").notNull(),
     provider: text("provider").notNull(),
     /** Shown to the person: the account's address or the site's name. */
@@ -1807,6 +1810,60 @@ export const spaceConnectionSignIn = sqliteTable(
     updatedAt: updatedAt(),
   },
   (t) => [primaryKey({ columns: [t.connectionId, t.userId] })],
+);
+
+/**
+ * A person's own connection (docs/plans/run-connections.md): an account they signed in to from
+ * a run, theirs in every space they are in. A guest's belongs to the visitor and goes with the
+ * visitor's stores. One row per owner and address: kind `mail` and the connector of the same
+ * service share it (`connectors/person-connections.ts`, `SAME_SERVICE`). `secret` is sealed;
+ * the broker alone unseals it.
+ */
+export const personConnection = sqliteTable(
+  "person_connection",
+  {
+    id: text("id").primaryKey(),
+    /** Whose: `u:<user>`, `v:<visitor>` for a guest, `r:<run>` for a run nobody ran (`holderOf`). */
+    holder: text("holder").notNull(),
+    /** The connector it was signed in with: a built-in's id or a `space_connector`. */
+    connectorId: text("connector_id").notNull(),
+    /** The account as the provider names it, mostly the address. */
+    label: text("label").notNull(),
+    secret: text("secret").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("person_connection_account").on(t.holder, t.connectorId, t.label)],
+);
+
+/**
+ * Which connection a wizard uses for one of its needs (a `connections` entry of its definition,
+ * or a share target's `share:<id>`), remembered for one person, one visitor, or a space for the
+ * runs nobody watches. Points at a person's connection or at a connection of the space, never
+ * both; it goes with the connection it points at.
+ */
+export const connectionChoice = sqliteTable(
+  "connection_choice",
+  {
+    wizardId: text("wizard_id")
+      .notNull()
+      .references(() => wizard.id, { onDelete: "cascade" }),
+    /** The need's id: the connection's id in the definition. */
+    need: text("need").notNull(),
+    /** For whom: a run's holder (`u:`, `v:`, `r:`), or `s:<space id>` for the runs nobody watches. */
+    holder: text("holder").notNull(),
+    personConnectionId: text("person_connection_id").references(() => personConnection.id, {
+      onDelete: "cascade",
+    }),
+    spaceConnectionId: text("space_connection_id").references(() => spaceConnection.id, {
+      onDelete: "cascade",
+    }),
+    chosenAt: integer("chosen_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (t) => [
+    primaryKey({ columns: [t.wizardId, t.need, t.holder] }),
+    index("connection_choice_person").on(t.personConnectionId),
+  ],
 );
 
 /**
