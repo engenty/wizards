@@ -10,6 +10,7 @@ import {
   waitDurationMs,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
+import { kernelOf } from "@engenty/wizards-shared/kernel-file";
 import { note, type RunState, type RunTimeline, type RunView } from "@engenty/wizards-shared/run";
 import { and, count, desc, eq, gte, inArray, isNull, max, or, sql } from "drizzle-orm";
 import { canSpend, MICROS_PER_CREDIT } from "../credits/credits.js";
@@ -33,6 +34,7 @@ import {
   createRun,
   formContext,
   goBack,
+  kernelRuns,
   NoCreditsError,
   type ReviewAction,
   RunConflict,
@@ -451,8 +453,50 @@ export async function runReport(
   );
 }
 
+/**
+ * The report of a run of a wizard in version 2 (docs/plans/kernel.md): its rows, and what it
+ * waits for. A form or the run's input is answered with `answer_form` and the row's step; a
+ * review, or the leave for an action, with `review_step`.
+ */
+export async function kernelReport(run: RunRow) {
+  const view = await kernelRuns.view(run);
+  const asks = view.waiting.filter((row) => row.type !== "wait" || row.signal);
+  const first = asks.find((row) => row.type === "approval") ?? asks[0];
+  return {
+    runId: run.id,
+    status: run.status,
+    version: 2,
+    cursor: view.cursor,
+    waitingFor: first
+      ? {
+          row: first.n,
+          step: first.step,
+          role: first.role,
+          ...(first.type === "form"
+            ? { form: first.step, fields: first.fields ?? [] }
+            : first.type === "approval"
+              ? { review: first.step, leaveFor: first.call, input: first.input }
+              : first.type === "review"
+                ? { review: first.step, show: first.show }
+                : { signal: first.signal, key: first.key }),
+        }
+      : null,
+    rows: view.rows.map((row) =>
+      "left" in row
+        ? { n: row.n, step: row.step, left: true, to: row.to }
+        : { n: row.n, step: row.step, type: row.type, role: row.role, state: row.state },
+    ),
+    scores: view.scores.map(({ asks: _asks, ...score }) => score),
+    ...(view.output ? { data: view.output } : {}),
+    ...(run.error ? { error: run.error } : {}),
+  };
+}
+
 /** The report of a run as it stands; `draft` as for `waitingFor`. */
 export async function runReportOf(run: RunRow, draft?: Record<string, unknown>, viewer?: Caller) {
+  if (kernelOf(run.definition)) {
+    return kernelReport(run) as never;
+  }
   const current = run.definition.steps.find((s) => s.id === run.cursor) ?? null;
   const base = `/api/runs/${run.id}`;
   const hidden = viewer ? await hiddenWhileAsked(run, viewer) : [];

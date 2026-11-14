@@ -65,6 +65,7 @@ let client: typeof import("../src/db/client");
 let runner: typeof import("../src/engine/runner");
 let wizards: typeof import("../src/services/wizards");
 let files: typeof import("../src/services/files");
+let doors: typeof import("../src/services/runs");
 
 const T = "tenant-kernel-run";
 const example = new URL("../../../packages/kernel/examples/offer/", import.meta.url).pathname;
@@ -131,6 +132,7 @@ beforeAll(async () => {
   runner = await import("../src/engine/runner");
   wizards = await import("../src/services/wizards");
   files = await import("../src/services/files");
+  doors = await import("../src/services/runs");
   runner.startRunner();
 });
 afterAll(async () => {
@@ -360,5 +362,73 @@ describe("the switch", () => {
         "No way leads to steps/extra.",
       ]),
     );
+  });
+});
+
+describe("through the doors every run has", () => {
+  /** What an MCP client, or the run's page, does: read the report, answer what it waits for. */
+  const report = (id: string) => client.withTenant(T, () => doors.runReport("u", id)) as unknown as Promise<{
+    status: string;
+    version: number;
+    waitingFor: null | { row: number; step: string; form?: string; review?: string; leaveFor?: string; fields?: { id: string }[] };
+    rows: { step: string; left?: boolean }[];
+    data?: Record<string, unknown>;
+  }>;
+
+  it("starts a test run from the draft, asks for the input, and takes the answers as forms and reviews", async () => {
+    process.env.KERNEL_STEPS = "quickjs";
+    price.next = [3000];
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    const { runId } = await client.withTenant(T, () => doors.startTestRun("u", w.id));
+    await rests(runId, "waiting_input");
+
+    let seen = await report(runId);
+    expect(seen).toMatchObject({ version: 2, status: "waiting_input", waitingFor: { step: "input", form: "input" } });
+    expect(seen.waitingFor?.fields?.map((f) => f.id)).toEqual(["customer", "email", "budget", "items"]);
+
+    await client.withTenant(T, () => doors.answerRunForm("u", runId, "input", input));
+    await rests(runId, "waiting_input");
+    seen = await report(runId);
+    expect(seen.waitingFor).toMatchObject({ step: "check", review: "check" });
+
+    await client.withTenant(T, () => doors.reviewRun("u", runId, "check", { type: "decline", note: "Shorter." }));
+    await rests(runId, "waiting_input");
+    expect((await report(runId)).rows.filter((r) => r.left).map((r) => r.step)).toEqual(["offer", "check", "offer"]);
+
+    await client.withTenant(T, () => doors.reviewRun("u", runId, "check", { type: "accept" }));
+    await rests(runId, "waiting_input");
+    expect((await report(runId)).waitingFor).toMatchObject({ step: "accept" });
+
+    // back: the operator's yes is asked for again
+    await client.withTenant(T, () => doors.controlRun("u", runId, "back"));
+    await rests(runId, "waiting_input");
+    expect((await report(runId)).waitingFor).toMatchObject({ step: "check" });
+
+    await client.withTenant(T, () => doors.controlRun("u", runId, "cancel"));
+    expect((await rests(runId, "cancelled")).status).toBe("cancelled");
+  });
+
+  it("answers the leave for an action as a review of its step, and tries a failed ask again", async () => {
+    worked.length = 0;
+    const id = await startOf(await exampleWizard("mail"), { customer: "Nordlicht GmbH" });
+    await rests(id, "waiting_input");
+    await client.withTenant(T, () => doors.reviewRun("u", id, "look", { type: "accept" }));
+    await rests(id, "waiting_input");
+    expect((await report(id)).waitingFor).toMatchObject({ step: "send", review: "send", leaveFor: "gmail.users.messages.send" });
+    await client.withTenant(T, () => doors.reviewRun("u", id, "send", { type: "decline" }));
+    await rests(id, "failed");
+
+    // try again: the action is asked for again, and so is the user
+    await client.withTenant(T, () => doors.controlRun("u", id, "retry"));
+    await rests(id, "waiting_input");
+    await client.withTenant(T, () => doors.reviewRun("u", id, "send", { type: "accept" }));
+    await rests(id, "done");
+    expect((await report(id)).data).toEqual({ sent: "msg_9" });
+  });
+
+  it("refuses an answer to a page the run does not wait at", async () => {
+    const id = await startOf(await exampleWizard("mail"), { customer: "N" });
+    await rests(id, "waiting_input");
+    await expect(client.withTenant(T, () => doors.answerRunForm("u", id, "input", {}))).rejects.toThrow();
   });
 });
