@@ -52,7 +52,6 @@ import type {
   Said,
   StepOutput,
 } from "@engenty/wizards-shared/run";
-import { kernelHost } from "../kernel/host.js";
 import {
   CAN_GO_BACK,
   type ClosedChoice,
@@ -101,6 +100,7 @@ import { db, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { feature, remoteFeatures } from "../features.js";
 import { saveAsset } from "../files/storage.js";
+import { kernelHost } from "../kernel/host.js";
 import { managed, tenantInfo } from "../manage.js";
 import { hasFfmpeg } from "../media/ffmpeg.js";
 import { NotedError, noteOf, saidOf } from "../model-errors.js";
@@ -607,7 +607,12 @@ export async function createRun(input: {
   const waits = !file && first.type === "form" && !input.startedBy;
   const state: RunState = { values: {}, outputs: {}, history: [], notes: {} };
   if (file) {
-    state.kernel = { input: input.input ?? null, startedAt: Date.now(), open: null, status: "running" };
+    state.kernel = {
+      input: input.input ?? null,
+      startedAt: Date.now(),
+      open: null,
+      status: "running",
+    };
   }
   if (input.startedBy) {
     state.start = input.start;
@@ -638,6 +643,9 @@ export async function createRun(input: {
     if (!feature(name, switches)) {
       throw new ModelUnavailableError(note(name === "durableRuns" ? "waitsOff" : "codeStepsOff"));
     }
+  }
+  if (file && !feature("kernel", switches)) {
+    throw new ModelUnavailableError(note("kernelOff"));
   }
   const installed = new Set((await loadedPlugins(currentTenant())).map((p) => p.source.id));
   const lacking = (requires.plugins ?? []).filter((p) => !installed.has(p));
