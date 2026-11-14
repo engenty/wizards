@@ -96,60 +96,70 @@ export function NewSpaceDialog({
     },
   });
   return (
-    <Dialog open={open} onClose={onClose} title={t(client ? "home.newClient" : "home.newSpace")}>
-      {client ? (
-        <p className="-mt-2 text-[0.875rem] text-ink-2">{t("home.clientIntro")}</p>
-      ) : (
-        <>
-          <p className="-mt-2 text-[0.875rem] text-ink-2">{t("space.holds.intro")}</p>
-          <dl className="mt-4 flex flex-col gap-2.5 text-[0.8125rem]">
-            {SPACE_HOLDS.map((row) => (
-              <div key={row.what} className="flex items-start gap-2.5">
-                <row.icon className="mt-0.5 size-4 shrink-0 text-ink-3" />
-                <dt className="w-28 shrink-0 font-medium text-ink">{row.name()}</dt>
-                <dd className="min-w-0 text-ink-3">{t(row.what)}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="mt-3 text-[0.8125rem] text-ink-4">{t("space.holds.shared")}</p>
-        </>
-      )}
-      <form
-        className="mt-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (name.trim()) {
-            create.mutate();
-          }
-        }}
-      >
-        <Input
-          autoFocus
-          placeholder={t(client ? "home.clientName" : "home.spaceName")}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        {asks && me ? (
-          <div className="mt-5">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      wide="page"
+      title={t(client ? "home.newClient" : "home.newSpace")}
+    >
+      {/* Two columns: what it is on the left, the form on the right; one below the other on a phone. */}
+      <div className="grid gap-8 sm:grid-cols-2">
+        <div className="flex min-w-0 flex-col gap-4">
+          {client ? (
+            <p className="text-[0.875rem] text-ink-2">{t("home.clientIntro")}</p>
+          ) : (
+            <>
+              <p className="text-[0.875rem] text-ink-2">{t("space.holds.intro")}</p>
+              <dl className="flex flex-col gap-3 text-[0.8125rem]">
+                {SPACE_HOLDS.map((row) => (
+                  <div key={row.what} className="flex items-start gap-2.5">
+                    <row.icon className="mt-0.5 size-4 shrink-0 text-ink-3" />
+                    <div className="min-w-0">
+                      <dt className="font-medium text-ink">{row.name()}</dt>
+                      <dd className="text-ink-3">{t(row.what)}</dd>
+                    </div>
+                  </div>
+                ))}
+              </dl>
+              <p className="text-[0.8125rem] text-ink-4">{t("space.holds.shared")}</p>
+            </>
+          )}
+        </div>
+        <form
+          className="flex min-w-0 flex-col gap-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) {
+              create.mutate();
+            }
+          }}
+        >
+          <Input
+            autoFocus
+            placeholder={t(client ? "home.clientName" : "home.spaceName")}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          {asks && me ? (
             <WhoSees
               value={access}
               organization={me.tenant.name || t("nav.space")}
               onChange={setAccess}
             />
+          ) : null}
+          {create.error ? (
+            <p className="text-[0.8125rem] text-rose">{(create.error as Error).message}</p>
+          ) : null}
+          <div className="mt-auto flex justify-end gap-2">
+            <Button variant="ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" busy={create.isPending} disabled={!name.trim()}>
+              {t(client ? "home.newClient" : "home.newSpace")}
+            </Button>
           </div>
-        ) : null}
-        {create.error ? (
-          <p className="mt-3 text-[0.8125rem] text-rose">{(create.error as Error).message}</p>
-        ) : null}
-        <div className="mt-5 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button type="submit" busy={create.isPending} disabled={!name.trim()}>
-            {t(client ? "home.newClient" : "home.newSpace")}
-          </Button>
-        </div>
-      </form>
+        </form>
+      </div>
     </Dialog>
   );
 }
