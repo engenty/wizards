@@ -3005,9 +3005,9 @@ const de: Record<Key, Line> = {
   "needs.chip.cannot": "nicht verfügbar",
   "needs.chip.choose": "Auswahl offen",
   "needs.chip.connect": "nicht verbunden",
-  "needs.unwatched": "Läufe ohne Person",
+  "needs.unwatched": "Wenn er von selbst startet",
   "needs.unwatchedHint":
-    "Wenn ein Lauf startet und niemand da ist, nutzt er die Verbindung des Space, die du hier wählst. Ohne Auswahl startet er nicht.",
+    "Dann ist niemand da, der wählt. Der Wizard nutzt die Verbindung des Space, die du hier wählst. Ohne Auswahl startet er nicht von selbst.",
   "needs.notChosen": "Nicht gewählt",
   "needs.clear": "Auswahl aufheben",
   "needs.noSpaceConnection": "Der Space hat dafür noch keine Verbindung.",
@@ -8046,9 +8046,9 @@ const en = {
   "needs.chip.cannot": "not available",
   "needs.chip.choose": "not chosen yet",
   "needs.chip.connect": "not connected",
-  "needs.unwatched": "Runs with nobody there",
+  "needs.unwatched": "When it starts on its own",
   "needs.unwatchedHint":
-    "When a run starts and nobody is there, it uses the space’s connection you choose here. Without one it doesn’t start.",
+    "Nobody is there to choose then. The wizard uses the space’s connection you choose here. Without one it doesn’t start on its own.",
   "needs.notChosen": "Not chosen",
   "needs.clear": "Clear choice",
   "needs.noSpaceConnection": "The space has no connection for this yet.",

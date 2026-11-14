@@ -205,7 +205,7 @@ describe("a start nobody watches", () => {
       { id: "hub", blocking: true, steps: [{ id: "contacts" }], problem: { code: "unwatchedNeedsChoice" } },
     ]);
     await expect(inTenant(() => starts.startFrom(w, start(), event))).rejects.toThrow(
-      /Nobody is there to connect HubSpot/,
+      /can’t start on its own yet\. An admin chooses which connection it uses for HubSpot/,
     );
     await inTenant(() => choice.chooseForSpace(w, "hub", sc));
     const runId = await inTenant(() => starts.startFrom(w, start(), event));

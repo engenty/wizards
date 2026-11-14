@@ -811,7 +811,7 @@ const NOTES_EN = {
   maskedTerm: { one: "{count} term of your own", other: "{count} terms of your own" },
   maskedOther: { one: "{count} other detail", other: "{count} other details" },
   unwatchedNeedsChoice:
-    "Nobody is there to connect {service} when this runs. An admin chooses the space’s connection in the wizard’s settings.",
+    "This wizard can’t start on its own yet. An admin chooses which connection it uses for {service}, in the wizard’s settings.",
 } as const satisfies Record<string, Line>;
 export type RunNoteCode = keyof typeof NOTES_EN;
 
@@ -1361,7 +1361,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   maskedTerm: { one: "{count} eigener Begriff", other: "{count} eigene Begriffe" },
   maskedOther: { one: "{count} andere Angabe", other: "{count} andere Angaben" },
   unwatchedNeedsChoice:
-    "Wenn dieser Lauf startet, ist niemand da, der {service} verbindet. Ein Admin wählt die Verbindung des Space in den Einstellungen des Wizards.",
+    "Dieser Wizard kann noch nicht von selbst starten. Ein Admin wählt in den Einstellungen des Wizards, welche Verbindung er für {service} nutzt.",
 };
 
 export const RUN_NOTES: Texts<RunNoteCode> = { en: NOTES_EN, de: NOTES_DE };
