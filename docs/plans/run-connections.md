@@ -1,6 +1,7 @@
 # Plan: connections in a run
 
-Status: planned on 2026-11-14, nothing decided and nothing built. Checked against `main` at
+Status: planned on 2026-11-14, its questions decided the same day (see „Decided“), nothing built.
+Checked against `main` at
 `45491ce9`. Follows `docs/plans/capabilities.md` (the connection model, the broker) and
 `docs/plans/integrations.md` (the OAuth clients).
 
@@ -68,8 +69,12 @@ flowchart TB
   visitor, as today.
 - A run sees the connections of the person running it and of the space it runs in. A run in a
   client space sees that client space's, never the parent's or another client's.
+- A person's own connection goes with them into every space they are in.
 - The space's rules stay where they are: who may use a connection, and *Allowed / With approval /
-  Never* per kind of action.
+  Never* per kind of action. They count for a person's own account used in that space too. Where
+  the space has no rules for a connector, the wizard's `policy` counts, as today.
+- One sign-in serves kind `mail` and the connector of the same service (`gmail`, `outlook`): one
+  account per address, with the scopes each need asks for.
 
 ### What a run does
 
@@ -91,8 +96,8 @@ flowchart TB
   sign-in.
 - **Where the person sees it.** „Was dieser Wizard sich merkt“ names the account in use and lets
   the person change it.
-- **A new account** belongs to the person who connects it. An admin may connect it for the space
-  instead (open question 2).
+- **A new account** belongs to the person who connects it. An admin of the space may connect it
+  for the space instead. A guest's stays with the visitor and goes when their store is cleaned up.
 - **A run nobody watches** (a start, a channel without a browser) uses a connection of the space.
   An admin makes that choice on the wizard's page in the studio. Without it the check before a run
   refuses the start, as it does for a missing model. A call or an SMS hands over a link to the
@@ -174,20 +179,25 @@ serves every vendor and the cloud, Google needs a client in four places:
 | Several accounts | Re-link the slot | Choose once, change under „Was dieser Wizard sich merkt“ |
 | Secrets | Never asked for in a chat | The same |
 
-## Open questions
+## Decided
 
-1. **A person's own connection: in every space they are in, or per space?** `capabilities.md` says
-   per space. Recommendation: every space, it is their account. A space's connection stays in its
-   space.
-2. **Who may connect an account for the space from inside a run?** Recommendation: admins only,
-   as in Capabilities.
-3. **Guests.** Recommendation: the account stays with the visitor, as today, and goes when their
-   store is cleaned up.
-4. **A person's account and the space's rules.** Where the space has rules for a connector, do they
-   count for a person's own account used in that space? Recommendation: yes. Without rules the
-   wizard's `policy` counts, as today.
-5. **Kind `mail` and the connectors `gmail` / `outlook`.** One Gmail sign-in could serve both, with
-   the scopes each need asks for. Recommendation: yes, one account per address.
+By Matthias on 2026-11-14.
+
+1. **A person's own connection counts in every space they are in.** A space's connection stays in
+   its space. This replaces "per space" in `capabilities.md` for a person's own sign-ins.
+2. **Only admins connect an account for the space from inside a run**, for now. See „To do“.
+3. **A guest's account stays with the visitor**, as today, and goes when their store is cleaned up.
+4. **A space's rules for a connector count for a person's own account used in that space.**
+   Without rules the wizard's `policy` counts, as today.
+5. **One sign-in serves kind `mail` and the connector of the same service.** One account per
+   address.
+
+## To do
+
+- **An admin role for a client space.** Clients have one role, `client`, with no admin among them,
+  so only the organization's admins connect an account for a client space. Once a client can be
+  the admin of their client space, they connect for it, from a run too. Belongs to
+  `docs/plans/client-spaces.md`.
 
 ## Not in this plan
 
