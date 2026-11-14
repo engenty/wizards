@@ -162,7 +162,9 @@ function OwnRow({ connection: c }: { connection: OwnConnectionView }) {
           <div className="truncate text-[0.9375rem]">{name}</div>
           <div className="truncate text-[0.8125rem] text-ink-3">
             {c.wizards.length
-              ? t("konto.ownUsedBy", { wizards: c.wizards.map((w) => `„${w.title}“`).join(", ") })
+              ? t("konto.ownUsedBy", {
+                  wizards: c.wizards.map((w) => t("needs.quoted", { text: w.title })).join(", "),
+                })
               : t("konto.ownUnused")}
           </div>
         </div>

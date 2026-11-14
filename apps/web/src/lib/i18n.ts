@@ -2992,6 +2992,7 @@ const de: Record<Key, Line> = {
     other: "auch in {n} weiteren Wizards",
   },
   "needs.title": "Verbindungen",
+  "needs.quoted": "„{text}“",
   "needs.hint":
     "Die Dienste, die dieser Wizard nutzt, und welche Verbindung ein Lauf hier verwendet.",
   "needs.failed": "Die Verbindungen ließen sich nicht laden. Versuch es gleich noch einmal.",
@@ -8033,6 +8034,7 @@ const en = {
   "inspector.lookEffectCount": { one: "{n} effect", other: "{n} effects" },
   "inspector.lookAlsoIn": { one: "also in one other wizard", other: "also in {n} other wizards" },
   "needs.title": "Connections",
+  "needs.quoted": "“{text}”",
   "needs.hint": "The services this wizard uses, and which connection a run uses here.",
   "needs.failed": "The connections couldn’t be loaded. Try again in a moment.",
   "needs.steps": "Used in {steps}",

@@ -73,7 +73,9 @@ function NeedRow({ wizardId, need }: { wizardId: string; need: WizardNeedView })
       </div>
       {need.steps.length ? (
         <div className="text-[0.75rem] text-ink-4">
-          {t("needs.steps", { steps: need.steps.map((s) => `„${s.title}“`).join(", ") })}
+          {t("needs.steps", {
+            steps: need.steps.map((s) => t("needs.quoted", { text: s.title })).join(", "),
+          })}
           {need.unavoidable ? null : ` · ${t("needs.somePaths")}`}
         </div>
       ) : null}
@@ -90,7 +92,9 @@ function NeedRow({ wizardId, need }: { wizardId: string; need: WizardNeedView })
         ) : null}
         <span>{hereText(need.here)}</span>
       </div>
-      {need.space ? <SpaceChoice wizardId={wizardId} need={need} /> : null}
+      {need.space && need.steps.length && need.here.state !== "cannot" ? (
+        <SpaceChoice wizardId={wizardId} need={need} />
+      ) : null}
     </div>
   );
 }
@@ -127,7 +131,7 @@ function SpaceChoice({ wizardId, need }: { wizardId: string; need: WizardNeedVie
                 ...(chosen ? [] : [{ value: "", label: t("needs.notChosen") }]),
                 ...space.options.map((o) => ({
                   value: o.id,
-                  label: `${o.connectorName} · ${o.label}`,
+                  label: need.name ? o.label : `${o.label} · ${o.connectorName}`,
                 })),
               ]}
             />
