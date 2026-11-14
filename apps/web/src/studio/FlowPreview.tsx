@@ -26,6 +26,8 @@ export interface PreviewStep {
   optional: boolean;
   /** `to` is a step's id or `end`. */
   branches?: { to: string; when: string }[];
+  /** False where the step below is not where this one goes on: no line joins the two. */
+  flowsOn?: boolean;
 }
 
 const NODE_W = 208;
@@ -127,7 +129,7 @@ function layout(steps: PreviewStep[]) {
         });
       }
     }
-    if (next) {
+    if (next && s.flowsOn !== false) {
       edges.push({ id: `n-${s.id}`, type: "straight", source: s.id, target: next.id, ...arrow });
     }
   });
