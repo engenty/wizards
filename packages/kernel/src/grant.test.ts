@@ -1,42 +1,29 @@
-import { expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
 import { check } from "./check";
 import { lacking } from "./grant";
 import { createKernel } from "./kernel";
+import { loadWizard } from "./load";
 import { memoryStore } from "./memory";
 import type { AskRow, Battery, Step, Wizard } from "./types";
 
-/** A mail wizard: an agent reads the threads, a person looks at the draft, a step sends it. */
+/** The mail wizard: an agent reads the threads, a person looks at the draft, a step sends it. */
+let base: Wizard;
+beforeAll(async () => {
+  base = await loadWizard(new URL("../examples/mail/", import.meta.url).pathname);
+});
+
+/** The same wizard with more in its file, for the asks that reach past it, and other steps. */
 const mail = (steps: Record<string, Step<any, any>> = {}): Wizard => ({
   file: {
-    title: "Mail",
+    ...base.file,
     requires: { models: ["standard"], tools: ["http.request"], hosts: ["api.example.com"] },
-    connections: { gmail: { search_threads: "allow", read_thread: "allow", send: "ask" } },
-    start: "work",
-    edges: { work: ["look"], look: ["send"], send: ["end"] },
-    output: { sent: "send.id" },
   },
-  steps: {
-    work: async (_run, ask) => ({
-      value: await ask({
-        type: "agent",
-        model: "standard",
-        instructions: "Find the last thread and draft an answer.",
-        tools: ["gmail.search_threads", "gmail.read_thread"],
-      }),
-    }),
-    look: async (_run, ask) => ({
-      value: await ask({ type: "review", show: ["work"], approve: true }),
-    }),
-    send: async (run, ask) => ({
-      value: await ask({ type: "tool", call: "gmail.send", input: { body: run.steps.work.draft } }),
-    }),
-    ...steps,
-  },
+  steps: { ...base.steps, ...steps },
 });
 
 const sent: unknown[] = [];
 const batteries: Record<string, Battery> = {
-  agent: async () => ({ draft: "Dear Nordlicht" }),
+  agent: async () => ({ to: "einkauf@nordlicht.example", draft: "Dear Nordlicht" }),
   tool: async (row: AskRow) => {
     sent.push(row.input);
     return { id: `sent-${sent.length}` };
@@ -58,13 +45,13 @@ it("asks the user before an action that is set to ask, and only then does it", a
     type: "approval",
     role: "user",
     call: "gmail.send",
-    input: { body: "Dear Nordlicht" },
+    input: { to: "einkauf@nordlicht.example", body: "Dear Nordlicht" },
   });
   expect(sent).toEqual([]); // nothing is sent while the question is open
 
   run = await kernel.answer(run.id, leave.n, { allow: true });
   expect(run).toMatchObject({ status: "done", output: { sent: "sent-1" } });
-  expect(sent).toEqual([{ body: "Dear Nordlicht" }]);
+  expect(sent).toEqual([{ to: "einkauf@nordlicht.example", body: "Dear Nordlicht" }]);
 });
 
 it("fails the action when the user says no", async () => {

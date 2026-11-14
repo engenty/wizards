@@ -1,0 +1,26 @@
+{
+  "title": "Answer a customer",
+
+  "requires": {
+    "models": ["standard"]
+  },
+  "connections": {
+    "gmail": {
+      "search_threads": "allow",
+      "read_thread": "allow",
+      "send": "ask"
+    }
+  },
+
+  "input": { "fields": [{ "id": "customer", "kind": "text" }] },
+
+  "start": "work",
+  "edges": {
+    "work": ["look"],
+    "look": ["send", "work"],
+    "send": ["end"]
+  },
+  "limits": { "work": 3 },
+
+  "output": { "sent": "send.id" }
+}

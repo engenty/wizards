@@ -39,7 +39,8 @@ export default async function (run, ask) {
 - `value` is what later steps read. `to` is one of the step's ways in the map; left out, the
   first way is taken.
 
-[examples/offer](examples/offer) is a full wizard.
+[examples/offer](examples/offer) is a full wizard with a loop, three roles and evals. [examples/mail](examples/mail)
+uses a connection and asks the user before it sends.
 
 ## Evals
 
