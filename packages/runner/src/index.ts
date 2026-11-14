@@ -74,6 +74,7 @@ export {
   ListDownloads,
   ListTable,
   SignInCard,
+  StartCard,
   StoreButton,
 } from "./store.js";
 export {

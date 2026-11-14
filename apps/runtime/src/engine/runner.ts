@@ -65,7 +65,12 @@ import {
 import { CONVERSATION_RUNNERS, DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
 import { fitData } from "@engenty/wizards-shared/shape";
 import type { StartEvent, StartedBy } from "@engenty/wizards-shared/starts";
-import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
+import type {
+  ConnectionDef,
+  ConnectionView,
+  ListDef,
+  ListRow,
+} from "@engenty/wizards-shared/store";
 import {
   type FlowEvent,
   type FlowFailure,
@@ -85,8 +90,9 @@ import { effectsOn, enterVisit } from "../broker/effect.js";
 import { grantNote, grantOf, inAudience, type KnownConnector, kindOf } from "../broker/index.js";
 import { runHolder, subjectsOf } from "../broker/rwx.js";
 import { resolveConnector } from "../connectors/external.js";
-import { connectionViews, connectorOptions } from "../connectors/index.js";
-import { spaceConnectionOf } from "../connectors/space-connections.js";
+import { candidates, connectionViews, connectorOptions } from "../connectors/index.js";
+import { runConnectionsOn } from "../connectors/person-connections.js";
+import { spaceConnectionOf, spaceConnectorFor } from "../connectors/space-connections.js";
 import {
   addLocalCost,
   canSpend,
@@ -178,6 +184,7 @@ import {
   tierRefusalSaid,
 } from "./requirements.js";
 import { liveResources, releaseResources, resourcesFor } from "./resources.js";
+import { needsAhead, needsOfStep, unconnected } from "./run-needs.js";
 import {
   dropWait,
   findSignal,
@@ -2069,6 +2076,44 @@ async function waitForPerson(
   });
 }
 
+/**
+ * A step uses a need the run has no account for (none, or several and none chosen): the run waits
+ * for the person to connect or choose one, as long as it takes. Their card says so; it goes on at
+ * once after (`signedIn`).
+ */
+async function waitForAccount(run: RunRow, step: Step, need: ConnectionDef) {
+  const spaceId = await spaceIdOf(run);
+  const service = need.title ?? (await candidates(need, spaceId))[0]?.name ?? need.id;
+  const pause: RunPause = { kind: "sign_in", service, connection: need.id };
+  const state = structuredClone(run.state);
+  // Woken before anything was connected, it waits again and says nothing new.
+  const told = state.retries?.step === step.id && state.retries.told === "sign_in";
+  state.pause = pause;
+  state.retries = {
+    ...(state.retries?.step === step.id
+      ? state.retries
+      : { step: step.id, count: 0, since: new Date().toISOString() }),
+    told: "sign_in",
+  };
+  await updateRun(run.id, { status: "sleeping", state, wakeAt: null }, { status: "running" });
+  if (!told) {
+    await tellPerson(run, step.id, pause);
+    void pushRun(run.id, "waiting");
+  }
+}
+
+/**
+ * The wizard's need a sign-in is for, where the run has no account to use for it: the connect
+ * card's (`RunView.connect`), not a new sign-in's. With `runConnections` off, never.
+ */
+async function unconnectedNeed(run: RunRow, connectionId: string | undefined) {
+  const need = run.definition.connections?.find((c) => c.id === connectionId);
+  if (!(need && (await runConnectionsOn()))) {
+    return null;
+  }
+  return (await unconnected(scopeOf(run), await spaceIdOf(run), [need])).length ? need : null;
+}
+
 /** The connection of the space behind the wizard's connection a sign-in is for, if it is one. */
 async function spaceRowOf(run: RunRow, connectionId: string | undefined) {
   const named = run.definition.connections?.find((c) => c.id === connectionId)?.spaceConnection;
@@ -2080,6 +2125,9 @@ async function signInSaid(
   run: RunRow,
   pause: { service: string; connection?: string },
 ): Promise<RunNote> {
+  if (await unconnectedNeed(run, pause.connection)) {
+    return note("stepWaitsConnect", { service: pause.service });
+  }
   const row = await spaceRowOf(run, pause.connection);
   return note(row?.signIn === "space" ? "stepWaitsAdminSignIn" : "stepWaitsSignIn", {
     service: pause.service,
@@ -2377,6 +2425,18 @@ async function drive(runId: string, signal: AbortSignal) {
       // A step that ran is over and the next one is the person's: a phone in a pocket hears it.
       void pushRun(runId, "waiting");
       return;
+    }
+    // A need of this step with no account to use: the person connects or chooses one first.
+    if (await runConnectionsOn()) {
+      const [missing] = await unconnected(
+        scopeOf(run),
+        await spaceIdOf(run),
+        needsOfStep(def, step),
+      );
+      if (missing) {
+        await waitForAccount(run, step, missing);
+        return;
+      }
     }
     // An answer moved the run on without holding again (`answerGoesOn`): it holds before it spends.
     if (run.state.holdLater) {
@@ -3135,6 +3195,10 @@ async function signInOf(
   }
   const spaceId = await spaceIdOf(run);
   const lang = textLang(wizardLang(def));
+  // No account to use for it at all: the connect card of `RunView.connect` asks.
+  if (!row && (await unconnectedNeed(run, connection.id))) {
+    return null;
+  }
   if (!row) {
     const [view] = await connectionViews([connection], scopeOf(run), spaceId, lang);
     // An account the step met and could not use is no account: the card connects anew.
@@ -3155,6 +3219,7 @@ async function signInOf(
       title: connection.title ?? row.name,
       description: connection.description ?? null,
       account: null,
+      candidates: [],
       connectors: await connectorOptions(
         { id: connection.id, connector: row.connectorId },
         spaceId,
@@ -3162,6 +3227,55 @@ async function signInOf(
       ),
     },
   };
+}
+
+/**
+ * What the run asks the viewer to connect or choose before it goes on (`RunView.connect`), for
+ * the person whose run it is: at its start (nothing passed yet) the needs of the steps every run
+ * passes, and the need of the step it waits at. A need used on a branch only asks when the run
+ * gets there. With `runConnections` off, nothing: a page field connects, as before.
+ */
+async function connectOf(
+  run: RunRow,
+  def: WizardDefinition,
+  viewer: Caller | undefined,
+): Promise<ConnectionView[]> {
+  if (!(viewer && ownsRun(run, viewer) && def.connections?.length)) {
+    return [];
+  }
+  if (!(await runConnectionsOn())) {
+    return [];
+  }
+  const pause = run.status === "sleeping" ? run.state.pause : undefined;
+  const waits =
+    pause?.kind === "sign_in" ? def.connections.filter((c) => c.id === pause.connection) : [];
+  const starting =
+    !run.state.history.length && (run.status === "waiting_input" || waits.length > 0);
+  const ahead = starting ? needsAhead(def, def.steps[0].id, run.state.values) : [];
+  const needs = [...new Set([...waits, ...ahead])];
+  const spaceId = await spaceIdOf(run);
+  const scope = scopeOf(run);
+  const missing = await unconnected(scope, spaceId, needs);
+  if (!missing.length) {
+    return [];
+  }
+  // An admin of the space whose run it is may connect for the space; a guest never.
+  const admin = Boolean(
+    viewer.userId && viewer.userId === run.userId && viewer.role && isAdminRole(viewer.role),
+  );
+  const home = run.clientSpaceId ?? spaceId;
+  const views = await connectionViews(missing, scope, spaceId, textLang(wizardLang(def)));
+  return Promise.all(
+    views.map(async (view) => {
+      const forSpace: string[] = [];
+      for (const c of admin ? view.connectors : []) {
+        if (await spaceConnectorFor(home, c.id)) {
+          forSpace.push(c.id);
+        }
+      }
+      return { ...view, forSpace };
+    }),
+  );
 }
 
 /**
@@ -3247,6 +3361,7 @@ export async function runView(
         : null,
     pause: run.status === "sleeping" ? (run.state.pause ?? null) : null,
     signIn: await signInOf(run, def, viewer),
+    connect: await connectOf(run, def, viewer),
     waitsFor:
       run.status === "waiting_signal" && step?.type === "wait"
         ? waitKeyText(run, step) || null

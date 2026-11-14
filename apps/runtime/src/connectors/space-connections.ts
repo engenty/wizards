@@ -36,6 +36,8 @@ import { currentTenant } from "../tenants/tenant.js";
 import { connectorFetch, resolveEnv, signInFetch, viaAccount } from "./builtin.js";
 import { resolveConnector } from "./external.js";
 import { connectRedirectUri as redirectUri } from "./index.js";
+import { remember, spaceHolder } from "./person-connections.js";
+import { sameService } from "./same-service.js";
 import { standInUrl } from "./stand-ins.js";
 import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-account.js";
 
@@ -361,6 +363,57 @@ export async function createSpaceConnection(
   return row;
 }
 
+/**
+ * The connector a connection of the space uses for an account a run connects with `connectorId`:
+ * itself, or the service's own (kind `mail` signs in to Gmail as `mail-gmail`, the space keeps
+ * `google-gmail`). Null: the space can't keep it as a connection (a mailbox over IMAP).
+ */
+export async function spaceConnectorFor(
+  spaceId: string,
+  connectorId: string,
+): Promise<string | null> {
+  for (const id of sameService(connectorId)) {
+    const found = await resolveConnector(spaceId, id);
+    if (found && found.connector.auth.kind !== "browser") {
+      return found.connector.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * An admin connects an account for the space from inside a run (docs/plans/run-connections.md,
+ * decision 2): a connection of the space that signs in as the space, under the space's default
+ * rules, and the space's choice for the wizard's need, and the admin's own. One the admin began
+ * here and never signed in is taken again, not set up twice. The sign-in follows, as the space:
+ * `startSpaceConnectionOAuth` or `signInWithCredentials`.
+ */
+export async function spaceConnectionForNeed(
+  userId: string,
+  spaceId: string,
+  need: { wizardId: string; id: string; name: string; holder: string },
+  connectorId: string,
+): Promise<SpaceConnectionRow> {
+  const begun = (await listSpaceConnections(spaceId)).find(
+    (r) =>
+      r.connectorId === connectorId &&
+      r.signIn === "space" &&
+      r.secret === null &&
+      r.setUpBy === userId,
+  );
+  const row =
+    begun ??
+    (await createSpaceConnection(
+      userId,
+      spaceId,
+      newConnectionSchema.parse({ connectorId, name: need.name, signIn: "space" }),
+    ));
+  for (const holder of [spaceHolder(spaceId), need.holder]) {
+    await remember(need.wizardId, need.id, holder, { kind: "space", row });
+  }
+  return row;
+}
+
 export async function updateSpaceConnection(
   userId: string,
   id: string,
@@ -638,6 +691,8 @@ interface SpaceConnectionOAuthState {
   verifier: string;
   exp: number;
   lang?: Lang;
+  /** Started from a run's connect card: the run hears of it and looks again. */
+  runId?: string;
 }
 
 /** The provider rights the connection's actions need, and the connector's base rights. */
@@ -659,6 +714,8 @@ export async function startSpaceConnectionOAuth(
   id: string,
   as: SignInAs,
   lang?: Lang,
+  /** The run whose connect card started it. */
+  runId?: string,
 ): Promise<string> {
   const row = await spaceConnectionById(id);
   await allowSignIn(row, as);
@@ -673,6 +730,7 @@ export async function startSpaceConnectionOAuth(
     userId: as.as === "person" ? as.userId : null,
     exp: Date.now() + 15 * 60_000,
     lang,
+    ...(runId ? { runId } : {}),
   };
   if (await viaAccount(connector)) {
     // The Manage-App keeps the PKCE verifier; ours stays empty.
@@ -710,7 +768,7 @@ export function spaceConnectionStateTenant(rawState: string): string | null {
 export async function finishSpaceConnectionOAuth(
   answer: { code: string } | { ticket: string },
   rawState: string,
-): Promise<{ connectionId: string }> {
+): Promise<{ connectionId: string; runId: string | null }> {
   const state = unseal<SpaceConnectionOAuthState>(rawState);
   if (!state?.spaceConnection || state.exp < Date.now()) {
     throw new Error("The sign-in has expired. Sign in again.");
@@ -759,7 +817,7 @@ export async function finishSpaceConnectionOAuth(
     throw new Error("The connection no longer signs in per person.");
   }
   await keepSignIn(row, as, account.label, stored);
-  return { connectionId: row.id };
+  return { connectionId: row.id, runId: state.runId ?? null };
 }
 
 /** Forgets a sign-in: the space's (admins) or the person's own. */

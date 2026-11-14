@@ -13,6 +13,7 @@ import {
   OutputView,
   QuestionPanel,
   SignInCard,
+  StartCard,
   StoreButton,
   textHints,
   useDoneSignal,
@@ -1672,6 +1673,21 @@ export function ChatBody({
                 t(view.answeredBy === "team" ? "run.answeredByTeam" : "run.answeredByOther"),
               ),
             ]}
+          />
+          <Idle />
+        </>
+      );
+    } else if (
+      view.connect?.length &&
+      (view.status === "waiting_input" || view.status === "sleeping")
+    ) {
+      // An account the run needs and has none for: connected or chosen before anything else.
+      body = (
+        <>
+          <Thread
+            avatar={view.wizard.avatar}
+            costume={view.wizard.costume}
+            lines={[...before, bot("connect", <StartCard view={view} />, { wide: true })]}
           />
           <Idle />
         </>

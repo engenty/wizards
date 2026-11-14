@@ -1,6 +1,7 @@
 import { isLang, type Lang } from "@engenty/wizards-shared/definition";
 import { note, type RunNote } from "@engenty/wizards-shared/run";
 import type {
+  ConnectionCandidate,
   ConnectionDef,
   ConnectionKind,
   ConnectionView,
@@ -28,7 +29,13 @@ import {
   viaAccount,
 } from "./builtin.js";
 import { resolveConnector } from "./external.js";
-import { connectionsFor, forget, remember, saveConnection } from "./person-connections.js";
+import {
+  connectionsFor,
+  forget,
+  remember,
+  saveConnection,
+  type Usable,
+} from "./person-connections.js";
 import { standInUrl } from "./stand-ins.js";
 import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-account.js";
 
@@ -197,7 +204,7 @@ export async function connectionViews(
 ): Promise<ConnectionView[]> {
   return Promise.all(
     connections.map(async (c) => {
-      const { chosen } = await connectionsFor(scope, spaceId, c);
+      const { chosen, candidates: found } = await connectionsFor(scope, spaceId, c);
       const only = c.connector ? (await candidates(c, spaceId))[0] : undefined;
       return {
         id: c.id,
@@ -218,10 +225,42 @@ export async function connectionViews(
           : only && open(only)
             ? { connector: only.id, label: only.name, connectedAt: new Date(0).toISOString() }
             : null,
+        candidates: found.map((u) => candidateOf(u, u === chosen)),
         connectors: await connectorOptions(c, spaceId, lang),
       };
     }),
   );
+}
+
+/** An account a run may use, as the connect card lists it. */
+function candidateOf(u: Usable, chosen: boolean): ConnectionCandidate {
+  return {
+    id: u.row.id,
+    owner: u.kind,
+    label: u.kind === "person" ? u.row.label : (u.row.label ?? u.row.name),
+    name: u.kind === "space" ? u.row.name : null,
+    connector: u.row.connectorId,
+    chosen,
+  };
+}
+
+/**
+ * The person picks which of the accounts the run may use the wizard uses for a need, from the
+ * card or under „Was dieser Wizard sich merkt“. False: it is none the run may use.
+ */
+export async function choose(
+  scope: StoreScope,
+  spaceId: string,
+  connection: ConnectionDef,
+  pick: { owner: "person" | "space"; id: string },
+): Promise<boolean> {
+  const { candidates: found } = await connectionsFor(scope, spaceId, connection);
+  const usable = found.find((u) => u.kind === pick.owner && u.row.id === pick.id);
+  if (!usable) {
+    return false;
+  }
+  await remember(scope.wizardId, connection.id, scope.holder, usable);
+  return true;
 }
 
 /**

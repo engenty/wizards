@@ -382,6 +382,7 @@ const NOTES_EN = {
   stepWaitsCredits:
     "This wizard has run out of credits for now. It goes on by itself once there are credits again.",
   stepWaitsSignIn: "{service} needs a new sign-in. This step goes on by itself after that.",
+  stepWaitsConnect: "{service} isn’t connected yet. This step goes on by itself once it is.",
   stepWaitsAdminSignIn:
     "{service} needs a new sign-in by an admin of the space. This step goes on by itself after that.",
   stepFailedGoesOn: "This step didn’t work, so the wizard goes on with “{step}”.",
@@ -918,6 +919,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "Das Guthaben dieses Wizards ist aufgebraucht. Er macht von selbst weiter, sobald wieder Guthaben da ist.",
   stepWaitsSignIn:
     "{service} braucht eine neue Anmeldung. Danach macht dieser Schritt von selbst weiter.",
+  stepWaitsConnect:
+    "{service} ist noch nicht verbunden. Sobald das passiert, macht dieser Schritt von selbst weiter.",
   stepWaitsAdminSignIn:
     "{service} braucht eine neue Anmeldung durch einen Admin des Space. Danach macht dieser Schritt von selbst weiter.",
   stepFailedGoesOn:
@@ -1606,6 +1609,12 @@ export interface RunView {
   lists: ShownList[];
   /** The wizard's connections with what the person has connected. */
   connections: ConnectionView[];
+  /**
+   * The accounts the run needs before it goes on and has none for, for the person whose run it
+   * is: at its start those of the steps every run passes, later the one of the step it waits at.
+   * The runner shows the connect card for them before anything else.
+   */
+  connect: ConnectionView[];
   /** The wizard keeps things for the person between runs (lists, files, accounts). */
   keeps: boolean;
   /** Set once the result is shared. */

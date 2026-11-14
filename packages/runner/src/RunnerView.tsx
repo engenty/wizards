@@ -41,7 +41,7 @@ import { api, runBase, runnerEnv, standalone, withBase } from "./env.js";
 import { FieldInput, type Values } from "./fields";
 import { eventText, noteLine, runnerLangCode, setChoiceLabels, t } from "./i18n.js";
 import { DownloadButtons, OutputView } from "./outputs";
-import { ListCheck, ListDownloads, ListTable, SignInCard, StoreButton } from "./store";
+import { ListCheck, ListDownloads, ListTable, SignInCard, StartCard, StoreButton } from "./store";
 import { SurfaceView } from "./surface.js";
 import { Button, Card, cn, LinkedText, Spinner, Textarea } from "./ui.js";
 
@@ -524,6 +524,22 @@ function Sleeping({ view, compact }: { view: RunView; compact?: boolean }) {
         </div>
       ) : null}
       <p className="mt-4 text-[0.9375rem] text-ink-3">{t("run.leavePage")}</p>
+    </div>
+  );
+}
+
+/**
+ * The run needs an account it has none for before it goes on: at its start, or at the step that
+ * uses it. The connect card, or the list to choose from, in place of the page.
+ */
+function ConnectFirst({ view, compact }: { view: RunView; compact?: boolean }) {
+  const { Mascot } = runnerEnv();
+  return (
+    <div className="flex animate-rise flex-col items-center pt-6 text-center">
+      <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={compact ? 130 : 170} />
+      <div className="mt-6 w-full max-w-md">
+        <StartCard view={view} center />
+      </div>
     </div>
   );
 }
@@ -1229,6 +1245,11 @@ export function RunnerBody({
   let body: React.ReactNode = null;
   if (view.answeredBy) {
     body = <AnsweredElsewhere view={view} run={run} compact={compact} />;
+  } else if (
+    view.connect?.length &&
+    (view.status === "waiting_input" || view.status === "sleeping")
+  ) {
+    body = <ConnectFirst view={view} compact={compact} />;
   } else if (view.status === "running" && view.ask) {
     body = <AskPanel key={view.ask.id} runId={view.id} ask={view.ask} />;
   } else if (view.status === "waiting_input" && view.question) {

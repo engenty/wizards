@@ -37,7 +37,9 @@ import { MARK_FOCUSED_PERSONAL } from "../browser/snapshot.js";
 import { clientOf, clientRefused } from "../clients.js";
 import {
   ConnectError,
+  choose,
   connectionViews,
+  connectorFor,
   connectWithCredentials,
   disconnect,
   findConnection,
@@ -46,13 +48,16 @@ import {
   oauthStateRun,
   startOAuth,
 } from "../connectors/index.js";
+import { runConnectionsOn } from "../connectors/person-connections.js";
 import { finishPluginOAuth, pluginStateTenant } from "../connectors/plugin-connections.js";
 import {
   finishSpaceConnectionOAuth,
   type SignInAs,
   signInWithCredentials,
+  spaceConnectionForNeed,
   spaceConnectionOf,
   spaceConnectionStateTenant,
+  spaceConnectorFor,
   startSpaceConnectionOAuth,
 } from "../connectors/space-connections.js";
 import { db, schema, withTenant } from "../db/client.js";
@@ -116,7 +121,7 @@ import {
   runWaitTicketValid,
   verifySignedUrl,
 } from "../secrets/signing.js";
-import { isAdminRole, MEMBERS_EDIT_ONLY } from "../services/access.js";
+import { asRole, isAdminRole, MEMBERS_EDIT_ONLY } from "../services/access.js";
 import { brandView } from "../services/brand.js";
 import { clientMayOpen } from "../services/client-portal.js";
 import { ServiceError } from "../services/errors.js";
@@ -415,6 +420,63 @@ async function spaceSignIn(
     connectorId: row.connectorId,
     as: { as: "person", userId: user.id, role: user.role },
   };
+}
+
+/** Whether a connect from the run is for the space (decision 2 in docs/plans/run-connections.md). */
+async function wantsForSpace(
+  c: Context,
+): Promise<{ forSpace: boolean; values?: Record<string, string> }> {
+  const body = await c.req.json().catch(() => ({}));
+  return z
+    .object({
+      forSpace: z.boolean().optional().default(false),
+      values: z.record(z.string(), z.string().max(500)).optional(),
+    })
+    .parse(body ?? {});
+}
+
+/**
+ * An admin of the space connects the account for the space from the run they run themselves: a
+ * connection of the space, signed in as the space, and the space's choice for the need. Nobody
+ * else, never a guest. Returns the connection to sign in, as the space.
+ */
+async function spaceConnectionFromRun(
+  c: Context,
+  run: RunRow,
+  connection: ConnectionDef,
+): Promise<{ id: string; role: Role }> {
+  const user = await principalOf(c);
+  const admin =
+    user &&
+    user.tenantId === run.tenantId &&
+    user.id === run.userId &&
+    isAdminRole(user.role) &&
+    !connection.spaceConnection &&
+    (await runConnectionsOn());
+  if (!admin) {
+    throw new HTTPException(403, { res: refuse(c, MEMBERS_EDIT_ONLY, 403) });
+  }
+  const spaceId = await spaceIdOf(run);
+  const home = run.clientSpaceId ?? spaceId;
+  const connector = await connectorFor(connection, c.req.param("connectorId") ?? "", spaceId);
+  const kept = await spaceConnectorFor(home, connector.id);
+  if (!kept) {
+    throw new HTTPException(404, { res: c.json(notFoundAnswer(c), 404) });
+  }
+  const row = await asRole(user.role, () =>
+    spaceConnectionForNeed(
+      user.id,
+      home,
+      {
+        wizardId: run.wizardId,
+        id: connection.id,
+        name: connection.title ?? connector.name,
+        holder: scopeOf(run).holder,
+      },
+      kept,
+    ),
+  );
+  return { id: row.id, role: user.role };
 }
 
 /**
@@ -1660,7 +1722,23 @@ export const runRoutes = new Hono()
     }
     const space = await spaceSignIn(c, run, connection);
     if (space) {
-      return c.json({ url: await startSpaceConnectionOAuth(space.id, space.as, requestLang(c)) });
+      return c.json({
+        url: await startSpaceConnectionOAuth(space.id, space.as, requestLang(c), run.id),
+      });
+    }
+    if ((await wantsForSpace(c)).forSpace) {
+      try {
+        const made = await spaceConnectionFromRun(c, run, connection);
+        const url = await asRole(made.role, () =>
+          startSpaceConnectionOAuth(made.id, { as: "space" }, requestLang(c), run.id),
+        );
+        return c.json({ url });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          return c.json(err.toJSON(requestLang(c)), err.status);
+        }
+        throw err;
+      }
     }
     try {
       const url = await startOAuth(
@@ -1686,14 +1764,28 @@ export const runRoutes = new Hono()
     if (!run || !connection) {
       return c.json(notFoundAnswer(c), 404);
     }
-    const { values } = z
-      .object({ values: z.record(z.string(), z.string().max(500)) })
-      .parse(await c.req.json());
+    const { values = {}, forSpace } = await wantsForSpace(c);
     const space = await spaceSignIn(c, run, connection);
     if (space) {
       const { label } = await signInWithCredentials(space.id, space.as, values);
       await signedIn(run.id);
       return c.json({ ok: true, label });
+    }
+    if (forSpace) {
+      try {
+        const made = await spaceConnectionFromRun(c, run, connection);
+        const { label } = await asRole(made.role, () =>
+          signInWithCredentials(made.id, { as: "space" }, values),
+        );
+        signalChanged(run.id);
+        await signedIn(run.id);
+        return c.json({ ok: true, label });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          return c.json(err.toJSON(requestLang(c)), err.status);
+        }
+        throw err;
+      }
     }
     try {
       const label = await connectWithCredentials(
@@ -1719,6 +1811,25 @@ export const runRoutes = new Hono()
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
+    signalChanged(run.id);
+    await signedIn(run.id);
+    return c.json({ ok: true });
+  })
+  // The person picks which account the wizard uses for a need: on the card, or to change it.
+  .put("/:id/connections/:connectionId/choice", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    const spaceId = run ? await spaceIdOf(run) : "";
+    const connection = run ? await findConnection(run, c.req.param("connectionId"), spaceId) : null;
+    if (!run || !connection) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const pick = z
+      .object({ owner: z.enum(["person", "space"]), id: z.string().min(1).max(100) })
+      .parse(await c.req.json());
+    if (!(await choose(scopeOf(run), spaceId, connection, pick))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    signalChanged(run.id);
     await signedIn(run.id);
     return c.json({ ok: true });
   })
@@ -1828,6 +1939,7 @@ export const runRoutes = new Hono()
         title: null,
         description: null,
         account: { connector: x.provider, label: x.label, connectedAt: x.createdAt },
+        candidates: [],
         connectors: [],
       }));
     return c.json({
@@ -1841,7 +1953,7 @@ export const runRoutes = new Hono()
             await spaceIdOf(run),
             requestLang(c),
           )
-        ).filter((x) => x.account),
+        ).filter((x) => x.account || x.candidates.length),
         ...forSharing,
       ],
       keepsSignIns: secrets.some((s) => s.slot === "browser"),
@@ -2090,7 +2202,15 @@ export const connectCallback = new Hono().get("/callback", async (c) => {
       if (pluginTenant) {
         await withTenant(tenant, () => finishPluginOAuth(answer, state));
       } else if (spaceTenant) {
-        await withTenant(tenant, () => finishSpaceConnectionOAuth(answer, state));
+        const done = await withTenant(tenant, () => finishSpaceConnectionOAuth(answer, state));
+        // Signed in from a run's connect card: the run looks again now.
+        if (done.runId) {
+          const runId = done.runId;
+          signalChanged(runId);
+          await withTenant(tenant, () => signedIn(runId)).catch((err) =>
+            console.error("[connect] wake", err),
+          );
+        }
       } else {
         const done = await withTenant(tenant, () => finishOAuth(answer, state));
         signalChanged(done.runId);
