@@ -1,5 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { readableIds } from "../broker/rwx.js";
+import { currentRole } from "../services/access.js";
 import { runReport, startRun } from "../services/runs.js";
 import { readsOf } from "../services/space-parent.js";
 import { listWizards } from "../services/wizards.js";
@@ -26,17 +27,10 @@ export async function wizardTools(caller: ElementCaller): Promise<Record<string,
   if (!userId) {
     return {};
   }
-  // A client space runs the wizards of its space (docs/plans/client-spaces.md): they are listed
-  // from there and decided by the space's rules; a run started here belongs to the client space
-  // (docs/plans/client-portal.md). With `orgSpaces` a space under the organization's root runs its
-  // own wizards and the root's; a run of the root's belongs to the space (docs/plans/org-spaces.md).
+  // With `orgSpaces` a space under the organization's root runs its own wizards and the root's;
+  // a run of the root's belongs to the space (docs/plans/org-spaces.md).
   const reads = await readsOf(caller.space.id);
-  const sources =
-    reads?.as === "client"
-      ? [reads.parentId]
-      : reads?.as === "root"
-        ? [caller.space.id, reads.parentId]
-        : [caller.space.id];
+  const sources = reads ? [caller.space.id, reads.parentId] : [caller.space.id];
   /** The published wizards of a source the caller may read. */
   const readable = async (spaceId: string) => {
     const published = (await listWizards(userId, spaceId)).filter((w) => w.published);
@@ -106,8 +100,10 @@ export async function wizardTools(caller: ElementCaller): Promise<Record<string,
                 throw new Error(`No published wizard "${input.wizardId}" in this space.`);
               }
               const { runId, refused } = await startRun(userId, input.wizardId, input.answers, {
-                // A wizard of the parent runs with its data here.
-                clientSpaceId: from === caller.space.id ? null : caller.space.id,
+                // A wizard of the root runs with its data here; a client's run is kept in the
+                // space they are in, whichever wizard it is.
+                clientSpaceId:
+                  from === caller.space.id && currentRole() !== "client" ? null : caller.space.id,
                 // Started in a Work chat: its folder lists the result.
                 chatId: caller.where.chatId ?? null,
               });

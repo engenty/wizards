@@ -47,7 +47,7 @@ import {
   useValue,
   ValueView,
 } from "./space/Categories";
-import { ClientSpaces, OpenToClients } from "./space/ClientSpaces";
+import { ClientWizards, OpenToClients } from "./space/Clients";
 import { DatabaseView } from "./space/DatabaseView";
 import { DateienMenu, DateienPage } from "./space/Dateien";
 import { FileView } from "./space/Documents";
@@ -231,9 +231,12 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const pagesOn = useFeature("pages");
   // Skills wait behind theirs.
   const skillsOn = useFeature("skills");
-  // Client spaces wait behind theirs, and are the admins'.
+  // What clients reach waits behind their switch and the organization's spaces, and is the
+  // admins'; a Mein Space never has clients.
   const admin = useIsAdmin();
-  const clientsOn = useFeature("clientSpaces") && admin;
+  const clientSpaces = useFeature("clientSpaces");
+  const orgSpaces = useFeature("orgSpaces");
+  const clientsOn = clientSpaces && orgSpaces && admin && !space?.personal;
   // Wissen as a knowledge base waits behind its switch.
   const treeOn = useFeature("knowledgeTree");
   // Dateien waits behind its switch, and mounts a folder of this computer (a local install's) or
@@ -1103,7 +1106,7 @@ export function SpacePage({ place }: { place?: "skills" }) {
               ) : null}
               {space && group === "clients" && clientsOn ? (
                 <Anchor id="clients">
-                  <ClientSpaces space={space} />
+                  <ClientWizards space={space} />
                 </Anchor>
               ) : null}
               {space && group === "skills" && skillsOn ? (

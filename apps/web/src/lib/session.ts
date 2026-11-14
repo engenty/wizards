@@ -362,7 +362,7 @@ export interface Space {
   root: boolean;
   /** Mein Space: the person's own. */
   personal: boolean;
-  /** How many Kund:innen are in the space. */
+  /** How many clients are in the space. */
   clients: number;
   /** Who of the organization sees the space: everyone, or only its members. */
   access: "all" | "members";

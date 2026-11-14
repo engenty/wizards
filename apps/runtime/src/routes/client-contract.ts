@@ -24,7 +24,7 @@ import { notFoundAnswer } from "./lang.js";
 
 /**
  * The client contract on the API (docs/plans/client-portal.md): what a client of the organization
- * reaches of their client spaces, for the client portal (apps/portal) and any app built on it. One
+ * reaches of the spaces shared with them, for the client portal (apps/portal) and any app built on it. One
  * list makes both the listing (`GET /client`, inputs as JSON Schema) and the calls
  * (`POST /client/:name`, `POST /client/spaces/:spaceId/:name`). Every call acts as the token's
  * person, whose role must be `client`; the services decide the rest (services/client-portal.ts).
@@ -32,7 +32,7 @@ import { notFoundAnswer } from "./lang.js";
 
 interface ClientCall {
   scope: Scope;
-  /** Whether the call is about one client space, named in the path. */
+  /** Whether the call is about one space, named in the path. */
   space: boolean;
   description: string;
   input: z.ZodObject;
@@ -52,7 +52,8 @@ export const CLIENT_CALLS = {
   spaces: {
     scope: "data:read",
     space: false,
-    description: "Your client spaces, each with the firm's space and its brand.",
+    description:
+      "The spaces shared with you, each with the organization's name and the brand it wears.",
     input: none,
     run: (who) => clientSpaces(who),
   },
@@ -60,7 +61,7 @@ export const CLIENT_CALLS = {
     scope: "data:read",
     space: true,
     description:
-      "What waits for you in a client space: your runs waiting on a page or an answer, results the firm shared, the wizards you can start.",
+      "What waits for you in a space: your runs waiting on a page or an answer, results the firm shared, the wizards you can start.",
     input: none,
     run: (who, spaceId) => clientForYou(who, spaceId),
   },
@@ -68,7 +69,7 @@ export const CLIENT_CALLS = {
     scope: "elements:read",
     space: true,
     description:
-      "The firm's wizards you can start in a client space, each with its engenty (`avatar`) and its number of steps.",
+      "The wizards the firm opened to you in a space, each with its engenty (`avatar`) and its number of steps.",
     input: none,
     run: (who, spaceId) => clientWizards(who, spaceId),
   },
@@ -76,14 +77,14 @@ export const CLIENT_CALLS = {
     scope: "elements:run",
     space: true,
     description:
-      "Starts one of those wizards in the client space. Gives the run and its ticket for the run's own routes.",
+      "Starts one of those wizards in the space. Gives the run and its ticket for the run's own routes.",
     input: z.object({ wizardId: z.string().min(1).max(64) }),
     run: (who, spaceId, input) => clientStartWizard(who, spaceId, input.wizardId),
   },
   results: {
     scope: "data:read",
     space: true,
-    description: "The finished runs of a client space you see: yours, and those the firm shared.",
+    description: "The finished runs of a space you see: yours, and those the firm shared.",
     input: none,
     run: (who, spaceId) => clientResults(who, spaceId),
   },
@@ -91,14 +92,14 @@ export const CLIENT_CALLS = {
     scope: "data:read",
     space: false,
     description:
-      "One run you see, by its id: a ticket its own routes open with (`?rt=`), and its client space.",
+      "One run you see, by its id: a ticket its own routes open with (`?rt=`), and its space.",
     input: z.object({ runId: z.string().min(1).max(64) }),
     run: (who, _spaceId, input) => clientOpenRun(who, input.runId),
   },
   chats: {
     scope: "data:read",
     space: true,
-    description: "The chats of a client space you are a member of.",
+    description: "The chats of a space you are a member of.",
     input: none,
     run: (who, spaceId) => clientChats(who, spaceId),
   },
@@ -106,7 +107,7 @@ export const CLIENT_CALLS = {
     scope: "data:read",
     space: false,
     description:
-      "One of your chats, by its id: who wrote what, its text and the AI's views and runs as parts in order, and its client space.",
+      "One of your chats, by its id: who wrote what, its text and the AI's views and runs as parts in order, and its space.",
     input: z.object({ chatId: z.string().min(1).max(64) }),
     run: (who, _spaceId, input) => clientChatMessages(who, input.chatId),
   },
@@ -124,14 +125,14 @@ export const CLIENT_CALLS = {
   files: {
     scope: "data:read",
     space: true,
-    description: "The files of a client space. One file's bytes: GET /client/files/:fileId.",
+    description: "The files of a space. One file's bytes: GET /client/files/:fileId.",
     input: none,
     run: (who, spaceId) => clientFiles(who, spaceId),
   },
   file: {
     scope: "data:read",
     space: false,
-    description: "One file you see, by its id: what it is, and its client space.",
+    description: "One file you see, by its id: what it is, and its space.",
     input: z.object({ fileId: z.string().min(1).max(64) }),
     run: (who, _spaceId, input) => clientFileInfo(who, input.fileId),
   },

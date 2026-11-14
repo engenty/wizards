@@ -333,7 +333,7 @@ async function openedRun(c: Context, runId: string, opts: { signed?: boolean; an
   }
   const user = await principalOf(c);
   if (user && user.tenantId === run.tenantId) {
-    // A client of the organization opens only the runs of their client spaces that are theirs
+    // A client of the organization opens only the runs of their spaces that are theirs
     // or shared with them (docs/plans/client-portal.md); the firm opens every run.
     if (user.role === "client" && !(await clientMayOpen(user.id, run))) {
       return null;

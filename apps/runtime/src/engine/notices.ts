@@ -410,6 +410,22 @@ function linkOf(row: NoticeRow, run: RunRow, wizard: { id: string; shareToken: s
 const askedOfAnother = (row: NoticeRow, run: RunRow) =>
   Boolean(row.userId) && row.userId !== run.userId;
 
+/** Whether the run is a client's: they started it in a space they are in as a client. */
+async function clientOf(run: RunRow): Promise<boolean> {
+  if (!(run.userId && run.clientSpaceId)) {
+    return false;
+  }
+  const row = await db.query.spaceMember.findFirst({
+    columns: { id: true },
+    where: and(
+      eq(schema.spaceMember.spaceId, run.clientSpaceId),
+      eq(schema.spaceMember.userId, run.userId),
+      eq(schema.spaceMember.role, "client"),
+    ),
+  });
+  return Boolean(row);
+}
+
 type Delivery = "dealt" | "again";
 
 /** A refusal is an answer (over the limit, no such person, a Manage-App without the route): the bell has to do. */
@@ -425,7 +441,10 @@ function afterFailure(err: unknown, channel: string, row: NoticeRow): Delivery {
 async function mailOf(row: NoticeRow, run: RunRow): Promise<Delivery> {
   // A test run stays in the studio; a client's run in their portal, whose link a mail cannot know
   // yet. Whoever answers for the team is of the firm: their link goes to the run in Work.
-  if (run.mode !== "live" || (run.clientSpaceId && !askedOfAnother(row, run))) {
+  if (
+    run.mode !== "live" ||
+    (run.clientSpaceId && !askedOfAnother(row, run) && (await clientOf(run)))
+  ) {
     return "dealt";
   }
   const address = row.visitor ? visitorAddress(run) : null;

@@ -475,7 +475,7 @@ export const authRoutes = new Hono()
         impersonatedBy: admin?.id ?? null,
         impersonatorEmail: admin?.email ?? null,
       });
-      // A client's first sign-in: the client spaces that invited their address take them in.
+      // A client's first sign-in: the spaces that invited their address take them in.
       if (claims.role === "client" && !admin) {
         await withTenant(claims.tenantId, () =>
           claimClientInvites(claims.userId, claims.email),

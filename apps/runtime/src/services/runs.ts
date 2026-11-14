@@ -552,9 +552,9 @@ export function refusedInput(err: unknown): never {
 
 /**
  * Runs the published version of a wizard for the admin, from their own AI client: a live run
- * that is theirs — no visitor, no share link needed. With answers the first page is filled. In a
- * client space the wizard is its parent's and the run belongs to the client space
- * (docs/plans/client-portal.md).
+ * that is theirs — no visitor, no share link needed. With answers the first page is filled. A run
+ * that carries a space (`clientSpaceId`) belongs to it, whichever space its wizard is in
+ * (docs/plans/org-spaces.md).
  */
 export async function startRun(
   userId: string,
@@ -887,25 +887,23 @@ export interface ResultsFilter {
  * `filter`; and each wizard with how many it has and when its last one came, the latest first.
  */
 export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
-  // A client space shows the runs started in it, of its parent's wizards; a space only its own
-  // (docs/plans/client-portal.md). With `orgSpaces` a space under the root shows its own wizards'
-  // runs and the runs of the root's wizards started in it (docs/plans/org-spaces.md).
+  // A space shows its own wizards' runs, a client's among them, and with `orgSpaces` the runs of
+  // the root's wizards started in it (docs/plans/org-spaces.md). A run in another space than its
+  // wizard's, or a client's, carries that space (`clientSpaceId`).
   const reads = await readsOf(spaceId);
-  const client = reads?.as === "client" ? spaceId : null;
-  const wizardSpaces =
-    reads?.as === "client"
-      ? [reads.parentId]
-      : reads?.as === "root"
-        ? [spaceId, reads.parentId]
-        : [spaceId];
-  const inSpace = client
-    ? eq(schema.run.clientSpaceId, client)
-    : reads?.as === "root"
-      ? or(
-          and(eq(schema.wizard.spaceId, spaceId), isNull(schema.run.clientSpaceId)),
-          and(eq(schema.wizard.spaceId, reads.parentId), eq(schema.run.clientSpaceId, spaceId)),
-        )
-      : isNull(schema.run.clientSpaceId);
+  const wizardSpaces = reads ? [spaceId, reads.parentId] : [spaceId];
+  // Where the space has clients, each result says whether it is shared with them.
+  const client = await db.query.spaceMember.findFirst({
+    columns: { id: true },
+    where: and(eq(schema.spaceMember.spaceId, spaceId), eq(schema.spaceMember.role, "client")),
+  });
+  const here = or(isNull(schema.run.clientSpaceId), eq(schema.run.clientSpaceId, spaceId));
+  const inSpace = reads
+    ? or(
+        and(eq(schema.wizard.spaceId, spaceId), here),
+        and(eq(schema.wizard.spaceId, reads.parentId), eq(schema.run.clientSpaceId, spaceId)),
+      )
+    : here;
   const wizards = await db
     .select({
       id: schema.wizard.id,
@@ -936,19 +934,15 @@ export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
   const ids = wizards.map((w) => w.id).filter((id) => !filter.wizardId || id === filter.wizardId);
   // The runs of this space, by the wizards listed: the root's only those started here.
   const fromRoot = new Set(wizards.filter((w) => w.spaceId !== spaceId).map((w) => w.id));
-  const runsHere =
-    reads?.as === "root"
-      ? or(
-          and(
-            inArray(schema.run.wizardId, ids.filter((id) => !fromRoot.has(id)).concat("")),
-            isNull(schema.run.clientSpaceId),
-          ),
-          and(
-            inArray(schema.run.wizardId, [...fromRoot].concat("")),
-            eq(schema.run.clientSpaceId, spaceId),
-          ),
-        )
-      : inSpace;
+  const runsHere = reads
+    ? or(
+        and(inArray(schema.run.wizardId, ids.filter((id) => !fromRoot.has(id)).concat("")), here),
+        and(
+          inArray(schema.run.wizardId, [...fromRoot].concat("")),
+          eq(schema.run.clientSpaceId, spaceId),
+        ),
+      )
+    : here;
   const rows = ids.length
     ? await db
         .select({

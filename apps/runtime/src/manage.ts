@@ -11,7 +11,7 @@ import { serverText } from "./texts.js";
  */
 export const managed = Boolean(env.manage.url);
 
-/** `client`: a client of the organization, in their client spaces only (docs/plans/client-spaces.md). */
+/** `client`: a client of the organization, in the spaces shared with them only (docs/plans/org-spaces.md). */
 export type Role = "owner" | "admin" | "member" | "client";
 
 export interface TokenClaims {
@@ -77,7 +77,7 @@ function toClaims(payload: JWTPayload): TokenClaims | null {
   if (typeof p.sub !== "string" || typeof p.tenant !== "string") {
     return null;
   }
-  // A role this runtime does not know gets the least: a client's (docs/plans/client-spaces.md).
+  // A role this runtime does not know gets the least: a client's (docs/plans/org-spaces.md).
   const role: Role =
     p.role === "owner" || p.role === "admin" || p.role === "member" || p.role === "client"
       ? p.role

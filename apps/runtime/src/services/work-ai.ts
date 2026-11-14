@@ -65,7 +65,7 @@ export interface WorkTurn {
 const instructionsFor = (space: string, skills: string, knowledge: boolean, client: boolean) =>
   [
     client
-      ? `You are the AI of the firm that runs the client space "${space}" in engenty wizards, and you answer one of the firm's clients there. The firm's people read this chat too. Answer from the client space and what the firm opened to its clients; where you can't know, say so and suggest asking the firm. When one of the firm's wizards fits the request, run it with wizard_run. In German, say du, as the client portal does.`
+      ? `You are the AI of the firm that runs the space "${space}" in engenty wizards, and you answer one of the firm's clients there. The firm's people read this chat too. Answer from what the firm opened to its clients; where you can't know, say so and suggest asking the firm. When one of the firm's wizards fits the request, run it with wizard_run. In German, say du, as the client portal does.`
       : `You are the AI of the space "${space}" in engenty wizards. The team of the space talks with you and with each other in this chat.`,
     'Each message of a person comes as <user name="…">; answer the person who asked you, in their language, and call them by their name only when it helps.',
     knowledge
@@ -171,10 +171,10 @@ export interface ApprovedRun {
 }
 
 /**
- * A client's turn (docs/plans/client-portal.md, phase 1): the client space's Knowledge with what
- * the firm opened to clients, the wizards opened to them (a run lands in the client space) and
- * views. No skills, sandbox, connections, plugins or web: nothing that reaches past the client
- * space or spends on the firm's sign-ins.
+ * A client's turn (docs/plans/client-portal.md, phase 1): what of the space's Knowledge the firm
+ * opened to clients, the wizards opened to them (a run lands in the space) and views. No skills,
+ * sandbox, connections, plugins or web: nothing that reaches past the space or spends on the
+ * firm's sign-ins.
  */
 async function clientTools(
   space: { id: string; name: string },

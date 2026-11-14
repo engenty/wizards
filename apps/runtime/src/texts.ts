@@ -109,7 +109,7 @@ const EN = {
   invalidInput: "Invalid input",
   internalError: "Internal error",
   notSignedIn: "You’re not signed in.",
-  clientsNotHere: "This is for the team. Your client space is open to you in the client view.",
+  clientsNotHere: "This is for the team. Your space is open to you in the client view.",
   accountSuspended: "This account is suspended.",
   tooLarge: "That is too large.",
   tooManyStreams: "Too many studio windows are open. Close one, or reload in a moment.",
