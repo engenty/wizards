@@ -34785,6 +34785,2636 @@
               }
             ]
           }
+        },
+        "kernel": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "number",
+              "const": 2
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "default": "",
+              "type": "string"
+            },
+            "avatar": {
+              "default": "round",
+              "type": "string"
+            },
+            "lang": {
+              "type": "string",
+              "pattern": "^[a-z]{2}$"
+            },
+            "requires": {
+              "type": "object",
+              "properties": {
+                "models": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "classifier",
+                      "low",
+                      "standard",
+                      "high",
+                      "image",
+                      "video",
+                      "audio",
+                      "speech"
+                    ]
+                  }
+                },
+                "tools": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "roles": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]*$"
+                  },
+                  "additionalProperties": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "hosts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "connections": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": [
+                    "allow",
+                    "ask"
+                  ]
+                }
+              }
+            },
+            "input": {
+              "type": "object",
+              "properties": {
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,40}$"
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "text",
+                          "textarea",
+                          "number",
+                          "select",
+                          "multiselect",
+                          "date",
+                          "email",
+                          "url",
+                          "toggle",
+                          "color",
+                          "image",
+                          "file",
+                          "items",
+                          "connection",
+                          "list",
+                          "location",
+                          "audio",
+                          "signature",
+                          "slot"
+                        ]
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "placeholder": {
+                        "type": "string"
+                      },
+                      "help": {
+                        "type": "string"
+                      },
+                      "options": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "default": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        ]
+                      },
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,40}$"
+                            },
+                            "label": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "text",
+                                "number",
+                                "money"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "label",
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "vat": {
+                        "type": "object",
+                        "properties": {
+                          "rate": {
+                            "type": "number"
+                          },
+                          "field": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "currency": {
+                        "type": "string"
+                      },
+                      "notify": {
+                        "type": "boolean"
+                      },
+                      "multiple": {
+                        "type": "boolean"
+                      },
+                      "min": {
+                        "type": "number"
+                      },
+                      "max": {
+                        "type": "number"
+                      },
+                      "increment": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "unit": {
+                        "type": "string",
+                        "maxLength": 16
+                      },
+                      "look": {
+                        "type": "string",
+                        "enum": [
+                          "slider",
+                          "stepper",
+                          "list"
+                        ]
+                      },
+                      "camera": {
+                        "type": "boolean"
+                      },
+                      "video": {
+                        "type": "boolean"
+                      },
+                      "listen": {
+                        "type": "boolean"
+                      },
+                      "scan": {
+                        "type": "boolean"
+                      },
+                      "connection": {
+                        "type": "string"
+                      },
+                      "list": {
+                        "type": "string"
+                      },
+                      "prefill": {
+                        "type": "string"
+                      },
+                      "when": {
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "field": {
+                                        "type": "string"
+                                      },
+                                      "op": {
+                                        "type": "string",
+                                        "enum": [
+                                          "eq",
+                                          "ne",
+                                          "gt",
+                                          "gte",
+                                          "lt",
+                                          "lte",
+                                          "in",
+                                          "notIn",
+                                          "contains",
+                                          "exists",
+                                          "notExists",
+                                          "truthy",
+                                          "falsy"
+                                        ]
+                                      },
+                                      "value": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "boolean"
+                                          },
+                                          {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "field",
+                                      "op"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "not": {
+                                        "type": "object",
+                                        "properties": {
+                                          "field": {
+                                            "type": "string"
+                                          },
+                                          "op": {
+                                            "type": "string",
+                                            "enum": [
+                                              "eq",
+                                              "ne",
+                                              "gt",
+                                              "gte",
+                                              "lt",
+                                              "lte",
+                                              "in",
+                                              "notIn",
+                                              "contains",
+                                              "exists",
+                                              "notExists",
+                                              "truthy",
+                                              "falsy"
+                                            ]
+                                          },
+                                          "value": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "boolean"
+                                              },
+                                              {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string"
+                                                }
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "field",
+                                          "op"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": [
+                                      "not"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                ]
+                              },
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "or": {
+                                        "minItems": 1,
+                                        "type": "array",
+                                        "items": {
+                                          "anyOf": [
+                                            {
+                                              "anyOf": [
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "field": {
+                                                      "type": "string"
+                                                    },
+                                                    "op": {
+                                                      "type": "string",
+                                                      "enum": [
+                                                        "eq",
+                                                        "ne",
+                                                        "gt",
+                                                        "gte",
+                                                        "lt",
+                                                        "lte",
+                                                        "in",
+                                                        "notIn",
+                                                        "contains",
+                                                        "exists",
+                                                        "notExists",
+                                                        "truthy",
+                                                        "falsy"
+                                                      ]
+                                                    },
+                                                    "value": {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "string"
+                                                        },
+                                                        {
+                                                          "type": "number"
+                                                        },
+                                                        {
+                                                          "type": "boolean"
+                                                        },
+                                                        {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "field",
+                                                    "op"
+                                                  ],
+                                                  "additionalProperties": false
+                                                },
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "not": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "field": {
+                                                          "type": "string"
+                                                        },
+                                                        "op": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "eq",
+                                                            "ne",
+                                                            "gt",
+                                                            "gte",
+                                                            "lt",
+                                                            "lte",
+                                                            "in",
+                                                            "notIn",
+                                                            "contains",
+                                                            "exists",
+                                                            "notExists",
+                                                            "truthy",
+                                                            "falsy"
+                                                          ]
+                                                        },
+                                                        "value": {
+                                                          "anyOf": [
+                                                            {
+                                                              "type": "string"
+                                                            },
+                                                            {
+                                                              "type": "number"
+                                                            },
+                                                            {
+                                                              "type": "boolean"
+                                                            },
+                                                            {
+                                                              "type": "array",
+                                                              "items": {
+                                                                "type": "string"
+                                                              }
+                                                            }
+                                                          ]
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "field",
+                                                        "op"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "not"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "minItems": 1,
+                                              "type": "array",
+                                              "items": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "field": {
+                                                        "type": "string"
+                                                      },
+                                                      "op": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "eq",
+                                                          "ne",
+                                                          "gt",
+                                                          "gte",
+                                                          "lt",
+                                                          "lte",
+                                                          "in",
+                                                          "notIn",
+                                                          "contains",
+                                                          "exists",
+                                                          "notExists",
+                                                          "truthy",
+                                                          "falsy"
+                                                        ]
+                                                      },
+                                                      "value": {
+                                                        "anyOf": [
+                                                          {
+                                                            "type": "string"
+                                                          },
+                                                          {
+                                                            "type": "number"
+                                                          },
+                                                          {
+                                                            "type": "boolean"
+                                                          },
+                                                          {
+                                                            "type": "array",
+                                                            "items": {
+                                                              "type": "string"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "field",
+                                                      "op"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "not": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "field": {
+                                                            "type": "string"
+                                                          },
+                                                          "op": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "eq",
+                                                              "ne",
+                                                              "gt",
+                                                              "gte",
+                                                              "lt",
+                                                              "lte",
+                                                              "in",
+                                                              "notIn",
+                                                              "contains",
+                                                              "exists",
+                                                              "notExists",
+                                                              "truthy",
+                                                              "falsy"
+                                                            ]
+                                                          },
+                                                          "value": {
+                                                            "anyOf": [
+                                                              {
+                                                                "type": "string"
+                                                              },
+                                                              {
+                                                                "type": "number"
+                                                              },
+                                                              {
+                                                                "type": "boolean"
+                                                              },
+                                                              {
+                                                                "type": "array",
+                                                                "items": {
+                                                                  "type": "string"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "field",
+                                                          "op"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "not"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "or": {
+                                                  "minItems": 1,
+                                                  "type": "array",
+                                                  "items": {
+                                                    "anyOf": [
+                                                      {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "field": {
+                                                            "type": "string"
+                                                          },
+                                                          "op": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "eq",
+                                                              "ne",
+                                                              "gt",
+                                                              "gte",
+                                                              "lt",
+                                                              "lte",
+                                                              "in",
+                                                              "notIn",
+                                                              "contains",
+                                                              "exists",
+                                                              "notExists",
+                                                              "truthy",
+                                                              "falsy"
+                                                            ]
+                                                          },
+                                                          "value": {
+                                                            "anyOf": [
+                                                              {
+                                                                "type": "string"
+                                                              },
+                                                              {
+                                                                "type": "number"
+                                                              },
+                                                              {
+                                                                "type": "boolean"
+                                                              },
+                                                              {
+                                                                "type": "array",
+                                                                "items": {
+                                                                  "type": "string"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "field",
+                                                          "op"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "not": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                              "field": {
+                                                                "type": "string"
+                                                              },
+                                                              "op": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                  "eq",
+                                                                  "ne",
+                                                                  "gt",
+                                                                  "gte",
+                                                                  "lt",
+                                                                  "lte",
+                                                                  "in",
+                                                                  "notIn",
+                                                                  "contains",
+                                                                  "exists",
+                                                                  "notExists",
+                                                                  "truthy",
+                                                                  "falsy"
+                                                                ]
+                                                              },
+                                                              "value": {
+                                                                "anyOf": [
+                                                                  {
+                                                                    "type": "string"
+                                                                  },
+                                                                  {
+                                                                    "type": "number"
+                                                                  },
+                                                                  {
+                                                                    "type": "boolean"
+                                                                  },
+                                                                  {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                      "type": "string"
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            },
+                                                            "required": [
+                                                              "field",
+                                                              "op"
+                                                            ],
+                                                            "additionalProperties": false
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "not"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              },
+                                              "required": [
+                                                "or"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "and": {
+                                                  "minItems": 1,
+                                                  "type": "array",
+                                                  "items": {
+                                                    "anyOf": [
+                                                      {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "field": {
+                                                            "type": "string"
+                                                          },
+                                                          "op": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "eq",
+                                                              "ne",
+                                                              "gt",
+                                                              "gte",
+                                                              "lt",
+                                                              "lte",
+                                                              "in",
+                                                              "notIn",
+                                                              "contains",
+                                                              "exists",
+                                                              "notExists",
+                                                              "truthy",
+                                                              "falsy"
+                                                            ]
+                                                          },
+                                                          "value": {
+                                                            "anyOf": [
+                                                              {
+                                                                "type": "string"
+                                                              },
+                                                              {
+                                                                "type": "number"
+                                                              },
+                                                              {
+                                                                "type": "boolean"
+                                                              },
+                                                              {
+                                                                "type": "array",
+                                                                "items": {
+                                                                  "type": "string"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "field",
+                                                          "op"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "not": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                              "field": {
+                                                                "type": "string"
+                                                              },
+                                                              "op": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                  "eq",
+                                                                  "ne",
+                                                                  "gt",
+                                                                  "gte",
+                                                                  "lt",
+                                                                  "lte",
+                                                                  "in",
+                                                                  "notIn",
+                                                                  "contains",
+                                                                  "exists",
+                                                                  "notExists",
+                                                                  "truthy",
+                                                                  "falsy"
+                                                                ]
+                                                              },
+                                                              "value": {
+                                                                "anyOf": [
+                                                                  {
+                                                                    "type": "string"
+                                                                  },
+                                                                  {
+                                                                    "type": "number"
+                                                                  },
+                                                                  {
+                                                                    "type": "boolean"
+                                                                  },
+                                                                  {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                      "type": "string"
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            },
+                                                            "required": [
+                                                              "field",
+                                                              "op"
+                                                            ],
+                                                            "additionalProperties": false
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "not"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              },
+                                              "required": [
+                                                "and"
+                                              ],
+                                              "additionalProperties": false
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "or"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "and": {
+                                        "minItems": 1,
+                                        "type": "array",
+                                        "items": {
+                                          "anyOf": [
+                                            {
+                                              "anyOf": [
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "field": {
+                                                      "type": "string"
+                                                    },
+                                                    "op": {
+                                                      "type": "string",
+                                                      "enum": [
+                                                        "eq",
+                                                        "ne",
+                                                        "gt",
+                                                        "gte",
+                                                        "lt",
+                                                        "lte",
+                                                        "in",
+                                                        "notIn",
+                                                        "contains",
+                                                        "exists",
+                                                        "notExists",
+                                                        "truthy",
+                                                        "falsy"
+                                                      ]
+                                                    },
+                                                    "value": {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "string"
+                                                        },
+                                                        {
+                                                          "type": "number"
+                                                        },
+                                                        {
+                                                          "type": "boolean"
+                                                        },
+                                                        {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "field",
+                                                    "op"
+                                                  ],
+                                                  "additionalProperties": false
+                                                },
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "not": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "field": {
+                                                          "type": "string"
+                                                        },
+                                                        "op": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "eq",
+                                                            "ne",
+                                                            "gt",
+                                                            "gte",
+                                                            "lt",
+                                                            "lte",
+                                                            "in",
+                                                            "notIn",
+                                                            "contains",
+                                                            "exists",
+                                                            "notExists",
+                                                            "truthy",
+                                                            "falsy"
+                                                          ]
+                                                        },
+                                                        "value": {
+                                                          "anyOf": [
+                                                            {
+                                                              "type": "string"
+                                                            },
+                                                            {
+                                                              "type": "number"
+                                                            },
+                                                            {
+                                                              "type": "boolean"
+                                                            },
+                                                            {
+                                                              "type": "array",
+                                                              "items": {
+                                                                "type": "string"
+                                                              }
+                                                            }
+                                                          ]
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "field",
+                                                        "op"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "not"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "minItems": 1,
+                                              "type": "array",
+                                              "items": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "field": {
+                                                        "type": "string"
+                                                      },
+                                                      "op": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "eq",
+                                                          "ne",
+                                                          "gt",
+                                                          "gte",
+                                                          "lt",
+                                                          "lte",
+                                                          "in",
+                                                          "notIn",
+                                                          "contains",
+                                                          "exists",
+                                                          "notExists",
+                                                          "truthy",
+                                                          "falsy"
+                                                        ]
+                                                      },
+                                                      "value": {
+                                                        "anyOf": [
+                                                          {
+                                                            "type": "string"
+                                                          },
+                                                          {
+                                                            "type": "number"
+                                                          },
+                                                          {
+                                                            "type": "boolean"
+                                                          },
+                                                          {
+                                                            "type": "array",
+                                                            "items": {
+                                                              "type": "string"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "field",
+                                                      "op"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "not": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "field": {
+                                                            "type": "string"
+                                                          },
+                                                          "op": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "eq",
+                                                              "ne",
+                                                              "gt",
+                                                              "gte",
+                                                              "lt",
+                                                              "lte",
+                                                              "in",
+                                                              "notIn",
+                                                              "contains",
+                                                              "exists",
+                                                              "notExists",
+                                                              "truthy",
+                                                              "falsy"
+                                                            ]
+                                                          },
+                                                          "value": {
+                                                            "anyOf": [
+                                                              {
+                                                                "type": "string"
+                                                              },
+                                                              {
+                                                                "type": "number"
+                                                              },
+                                                              {
+                                                                "type": "boolean"
+                                                              },
+                                                              {
+                                                                "type": "array",
+                                                                "items": {
+                                                                  "type": "string"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "field",
+                                                          "op"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "not"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "or": {
+                                                  "minItems": 1,
+                                                  "type": "array",
+                                                  "items": {
+                                                    "anyOf": [
+                                                      {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "field": {
+                                                            "type": "string"
+                                                          },
+                                                          "op": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "eq",
+                                                              "ne",
+                                                              "gt",
+                                                              "gte",
+                                                              "lt",
+                                                              "lte",
+                                                              "in",
+                                                              "notIn",
+                                                              "contains",
+                                                              "exists",
+                                                              "notExists",
+                                                              "truthy",
+                                                              "falsy"
+                                                            ]
+                                                          },
+                                                          "value": {
+                                                            "anyOf": [
+                                                              {
+                                                                "type": "string"
+                                                              },
+                                                              {
+                                                                "type": "number"
+                                                              },
+                                                              {
+                                                                "type": "boolean"
+                                                              },
+                                                              {
+                                                                "type": "array",
+                                                                "items": {
+                                                                  "type": "string"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "field",
+                                                          "op"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "not": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                              "field": {
+                                                                "type": "string"
+                                                              },
+                                                              "op": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                  "eq",
+                                                                  "ne",
+                                                                  "gt",
+                                                                  "gte",
+                                                                  "lt",
+                                                                  "lte",
+                                                                  "in",
+                                                                  "notIn",
+                                                                  "contains",
+                                                                  "exists",
+                                                                  "notExists",
+                                                                  "truthy",
+                                                                  "falsy"
+                                                                ]
+                                                              },
+                                                              "value": {
+                                                                "anyOf": [
+                                                                  {
+                                                                    "type": "string"
+                                                                  },
+                                                                  {
+                                                                    "type": "number"
+                                                                  },
+                                                                  {
+                                                                    "type": "boolean"
+                                                                  },
+                                                                  {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                      "type": "string"
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            },
+                                                            "required": [
+                                                              "field",
+                                                              "op"
+                                                            ],
+                                                            "additionalProperties": false
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "not"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              },
+                                              "required": [
+                                                "or"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "and": {
+                                                  "minItems": 1,
+                                                  "type": "array",
+                                                  "items": {
+                                                    "anyOf": [
+                                                      {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "field": {
+                                                            "type": "string"
+                                                          },
+                                                          "op": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "eq",
+                                                              "ne",
+                                                              "gt",
+                                                              "gte",
+                                                              "lt",
+                                                              "lte",
+                                                              "in",
+                                                              "notIn",
+                                                              "contains",
+                                                              "exists",
+                                                              "notExists",
+                                                              "truthy",
+                                                              "falsy"
+                                                            ]
+                                                          },
+                                                          "value": {
+                                                            "anyOf": [
+                                                              {
+                                                                "type": "string"
+                                                              },
+                                                              {
+                                                                "type": "number"
+                                                              },
+                                                              {
+                                                                "type": "boolean"
+                                                              },
+                                                              {
+                                                                "type": "array",
+                                                                "items": {
+                                                                  "type": "string"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "field",
+                                                          "op"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "not": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                              "field": {
+                                                                "type": "string"
+                                                              },
+                                                              "op": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                  "eq",
+                                                                  "ne",
+                                                                  "gt",
+                                                                  "gte",
+                                                                  "lt",
+                                                                  "lte",
+                                                                  "in",
+                                                                  "notIn",
+                                                                  "contains",
+                                                                  "exists",
+                                                                  "notExists",
+                                                                  "truthy",
+                                                                  "falsy"
+                                                                ]
+                                                              },
+                                                              "value": {
+                                                                "anyOf": [
+                                                                  {
+                                                                    "type": "string"
+                                                                  },
+                                                                  {
+                                                                    "type": "number"
+                                                                  },
+                                                                  {
+                                                                    "type": "boolean"
+                                                                  },
+                                                                  {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                      "type": "string"
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            },
+                                                            "required": [
+                                                              "field",
+                                                              "op"
+                                                            ],
+                                                            "additionalProperties": false
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "not"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              },
+                                              "required": [
+                                                "and"
+                                              ],
+                                              "additionalProperties": false
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "and"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "minItems": 1,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "field": {
+                                          "type": "string"
+                                        },
+                                        "op": {
+                                          "type": "string",
+                                          "enum": [
+                                            "eq",
+                                            "ne",
+                                            "gt",
+                                            "gte",
+                                            "lt",
+                                            "lte",
+                                            "in",
+                                            "notIn",
+                                            "contains",
+                                            "exists",
+                                            "notExists",
+                                            "truthy",
+                                            "falsy"
+                                          ]
+                                        },
+                                        "value": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "boolean"
+                                            },
+                                            {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "field",
+                                        "op"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "not": {
+                                          "type": "object",
+                                          "properties": {
+                                            "field": {
+                                              "type": "string"
+                                            },
+                                            "op": {
+                                              "type": "string",
+                                              "enum": [
+                                                "eq",
+                                                "ne",
+                                                "gt",
+                                                "gte",
+                                                "lt",
+                                                "lte",
+                                                "in",
+                                                "notIn",
+                                                "contains",
+                                                "exists",
+                                                "notExists",
+                                                "truthy",
+                                                "falsy"
+                                              ]
+                                            },
+                                            "value": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "number"
+                                                },
+                                                {
+                                                  "type": "boolean"
+                                                },
+                                                {
+                                                  "type": "array",
+                                                  "items": {
+                                                    "type": "string"
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "field",
+                                            "op"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "not"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  ]
+                                },
+                                {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "or": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "anyOf": [
+                                              {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "field": {
+                                                        "type": "string"
+                                                      },
+                                                      "op": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "eq",
+                                                          "ne",
+                                                          "gt",
+                                                          "gte",
+                                                          "lt",
+                                                          "lte",
+                                                          "in",
+                                                          "notIn",
+                                                          "contains",
+                                                          "exists",
+                                                          "notExists",
+                                                          "truthy",
+                                                          "falsy"
+                                                        ]
+                                                      },
+                                                      "value": {
+                                                        "anyOf": [
+                                                          {
+                                                            "type": "string"
+                                                          },
+                                                          {
+                                                            "type": "number"
+                                                          },
+                                                          {
+                                                            "type": "boolean"
+                                                          },
+                                                          {
+                                                            "type": "array",
+                                                            "items": {
+                                                              "type": "string"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "field",
+                                                      "op"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "not": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "field": {
+                                                            "type": "string"
+                                                          },
+                                                          "op": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "eq",
+                                                              "ne",
+                                                              "gt",
+                                                              "gte",
+                                                              "lt",
+                                                              "lte",
+                                                              "in",
+                                                              "notIn",
+                                                              "contains",
+                                                              "exists",
+                                                              "notExists",
+                                                              "truthy",
+                                                              "falsy"
+                                                            ]
+                                                          },
+                                                          "value": {
+                                                            "anyOf": [
+                                                              {
+                                                                "type": "string"
+                                                              },
+                                                              {
+                                                                "type": "number"
+                                                              },
+                                                              {
+                                                                "type": "boolean"
+                                                              },
+                                                              {
+                                                                "type": "array",
+                                                                "items": {
+                                                                  "type": "string"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "field",
+                                                          "op"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "not"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "minItems": 1,
+                                                "type": "array",
+                                                "items": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "field": {
+                                                          "type": "string"
+                                                        },
+                                                        "op": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "eq",
+                                                            "ne",
+                                                            "gt",
+                                                            "gte",
+                                                            "lt",
+                                                            "lte",
+                                                            "in",
+                                                            "notIn",
+                                                            "contains",
+                                                            "exists",
+                                                            "notExists",
+                                                            "truthy",
+                                                            "falsy"
+                                                          ]
+                                                        },
+                                                        "value": {
+                                                          "anyOf": [
+                                                            {
+                                                              "type": "string"
+                                                            },
+                                                            {
+                                                              "type": "number"
+                                                            },
+                                                            {
+                                                              "type": "boolean"
+                                                            },
+                                                            {
+                                                              "type": "array",
+                                                              "items": {
+                                                                "type": "string"
+                                                              }
+                                                            }
+                                                          ]
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "field",
+                                                        "op"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "not": {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "field": {
+                                                              "type": "string"
+                                                            },
+                                                            "op": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "eq",
+                                                                "ne",
+                                                                "gt",
+                                                                "gte",
+                                                                "lt",
+                                                                "lte",
+                                                                "in",
+                                                                "notIn",
+                                                                "contains",
+                                                                "exists",
+                                                                "notExists",
+                                                                "truthy",
+                                                                "falsy"
+                                                              ]
+                                                            },
+                                                            "value": {
+                                                              "anyOf": [
+                                                                {
+                                                                  "type": "string"
+                                                                },
+                                                                {
+                                                                  "type": "number"
+                                                                },
+                                                                {
+                                                                  "type": "boolean"
+                                                                },
+                                                                {
+                                                                  "type": "array",
+                                                                  "items": {
+                                                                    "type": "string"
+                                                                  }
+                                                                }
+                                                              ]
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "field",
+                                                            "op"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "not"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "or": {
+                                                    "minItems": 1,
+                                                    "type": "array",
+                                                    "items": {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "field": {
+                                                              "type": "string"
+                                                            },
+                                                            "op": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "eq",
+                                                                "ne",
+                                                                "gt",
+                                                                "gte",
+                                                                "lt",
+                                                                "lte",
+                                                                "in",
+                                                                "notIn",
+                                                                "contains",
+                                                                "exists",
+                                                                "notExists",
+                                                                "truthy",
+                                                                "falsy"
+                                                              ]
+                                                            },
+                                                            "value": {
+                                                              "anyOf": [
+                                                                {
+                                                                  "type": "string"
+                                                                },
+                                                                {
+                                                                  "type": "number"
+                                                                },
+                                                                {
+                                                                  "type": "boolean"
+                                                                },
+                                                                {
+                                                                  "type": "array",
+                                                                  "items": {
+                                                                    "type": "string"
+                                                                  }
+                                                                }
+                                                              ]
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "field",
+                                                            "op"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        },
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "not": {
+                                                              "type": "object",
+                                                              "properties": {
+                                                                "field": {
+                                                                  "type": "string"
+                                                                },
+                                                                "op": {
+                                                                  "type": "string",
+                                                                  "enum": [
+                                                                    "eq",
+                                                                    "ne",
+                                                                    "gt",
+                                                                    "gte",
+                                                                    "lt",
+                                                                    "lte",
+                                                                    "in",
+                                                                    "notIn",
+                                                                    "contains",
+                                                                    "exists",
+                                                                    "notExists",
+                                                                    "truthy",
+                                                                    "falsy"
+                                                                  ]
+                                                                },
+                                                                "value": {
+                                                                  "anyOf": [
+                                                                    {
+                                                                      "type": "string"
+                                                                    },
+                                                                    {
+                                                                      "type": "number"
+                                                                    },
+                                                                    {
+                                                                      "type": "boolean"
+                                                                    },
+                                                                    {
+                                                                      "type": "array",
+                                                                      "items": {
+                                                                        "type": "string"
+                                                                      }
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              },
+                                                              "required": [
+                                                                "field",
+                                                                "op"
+                                                              ],
+                                                              "additionalProperties": false
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "not"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                },
+                                                "required": [
+                                                  "or"
+                                                ],
+                                                "additionalProperties": false
+                                              },
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "and": {
+                                                    "minItems": 1,
+                                                    "type": "array",
+                                                    "items": {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "field": {
+                                                              "type": "string"
+                                                            },
+                                                            "op": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "eq",
+                                                                "ne",
+                                                                "gt",
+                                                                "gte",
+                                                                "lt",
+                                                                "lte",
+                                                                "in",
+                                                                "notIn",
+                                                                "contains",
+                                                                "exists",
+                                                                "notExists",
+                                                                "truthy",
+                                                                "falsy"
+                                                              ]
+                                                            },
+                                                            "value": {
+                                                              "anyOf": [
+                                                                {
+                                                                  "type": "string"
+                                                                },
+                                                                {
+                                                                  "type": "number"
+                                                                },
+                                                                {
+                                                                  "type": "boolean"
+                                                                },
+                                                                {
+                                                                  "type": "array",
+                                                                  "items": {
+                                                                    "type": "string"
+                                                                  }
+                                                                }
+                                                              ]
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "field",
+                                                            "op"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        },
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "not": {
+                                                              "type": "object",
+                                                              "properties": {
+                                                                "field": {
+                                                                  "type": "string"
+                                                                },
+                                                                "op": {
+                                                                  "type": "string",
+                                                                  "enum": [
+                                                                    "eq",
+                                                                    "ne",
+                                                                    "gt",
+                                                                    "gte",
+                                                                    "lt",
+                                                                    "lte",
+                                                                    "in",
+                                                                    "notIn",
+                                                                    "contains",
+                                                                    "exists",
+                                                                    "notExists",
+                                                                    "truthy",
+                                                                    "falsy"
+                                                                  ]
+                                                                },
+                                                                "value": {
+                                                                  "anyOf": [
+                                                                    {
+                                                                      "type": "string"
+                                                                    },
+                                                                    {
+                                                                      "type": "number"
+                                                                    },
+                                                                    {
+                                                                      "type": "boolean"
+                                                                    },
+                                                                    {
+                                                                      "type": "array",
+                                                                      "items": {
+                                                                        "type": "string"
+                                                                      }
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              },
+                                                              "required": [
+                                                                "field",
+                                                                "op"
+                                                              ],
+                                                              "additionalProperties": false
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "not"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                },
+                                                "required": [
+                                                  "and"
+                                                ],
+                                                "additionalProperties": false
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      },
+                                      "required": [
+                                        "or"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "and": {
+                                          "minItems": 1,
+                                          "type": "array",
+                                          "items": {
+                                            "anyOf": [
+                                              {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "field": {
+                                                        "type": "string"
+                                                      },
+                                                      "op": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "eq",
+                                                          "ne",
+                                                          "gt",
+                                                          "gte",
+                                                          "lt",
+                                                          "lte",
+                                                          "in",
+                                                          "notIn",
+                                                          "contains",
+                                                          "exists",
+                                                          "notExists",
+                                                          "truthy",
+                                                          "falsy"
+                                                        ]
+                                                      },
+                                                      "value": {
+                                                        "anyOf": [
+                                                          {
+                                                            "type": "string"
+                                                          },
+                                                          {
+                                                            "type": "number"
+                                                          },
+                                                          {
+                                                            "type": "boolean"
+                                                          },
+                                                          {
+                                                            "type": "array",
+                                                            "items": {
+                                                              "type": "string"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "field",
+                                                      "op"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "not": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "field": {
+                                                            "type": "string"
+                                                          },
+                                                          "op": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "eq",
+                                                              "ne",
+                                                              "gt",
+                                                              "gte",
+                                                              "lt",
+                                                              "lte",
+                                                              "in",
+                                                              "notIn",
+                                                              "contains",
+                                                              "exists",
+                                                              "notExists",
+                                                              "truthy",
+                                                              "falsy"
+                                                            ]
+                                                          },
+                                                          "value": {
+                                                            "anyOf": [
+                                                              {
+                                                                "type": "string"
+                                                              },
+                                                              {
+                                                                "type": "number"
+                                                              },
+                                                              {
+                                                                "type": "boolean"
+                                                              },
+                                                              {
+                                                                "type": "array",
+                                                                "items": {
+                                                                  "type": "string"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "field",
+                                                          "op"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "not"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "minItems": 1,
+                                                "type": "array",
+                                                "items": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "field": {
+                                                          "type": "string"
+                                                        },
+                                                        "op": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "eq",
+                                                            "ne",
+                                                            "gt",
+                                                            "gte",
+                                                            "lt",
+                                                            "lte",
+                                                            "in",
+                                                            "notIn",
+                                                            "contains",
+                                                            "exists",
+                                                            "notExists",
+                                                            "truthy",
+                                                            "falsy"
+                                                          ]
+                                                        },
+                                                        "value": {
+                                                          "anyOf": [
+                                                            {
+                                                              "type": "string"
+                                                            },
+                                                            {
+                                                              "type": "number"
+                                                            },
+                                                            {
+                                                              "type": "boolean"
+                                                            },
+                                                            {
+                                                              "type": "array",
+                                                              "items": {
+                                                                "type": "string"
+                                                              }
+                                                            }
+                                                          ]
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "field",
+                                                        "op"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "not": {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "field": {
+                                                              "type": "string"
+                                                            },
+                                                            "op": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "eq",
+                                                                "ne",
+                                                                "gt",
+                                                                "gte",
+                                                                "lt",
+                                                                "lte",
+                                                                "in",
+                                                                "notIn",
+                                                                "contains",
+                                                                "exists",
+                                                                "notExists",
+                                                                "truthy",
+                                                                "falsy"
+                                                              ]
+                                                            },
+                                                            "value": {
+                                                              "anyOf": [
+                                                                {
+                                                                  "type": "string"
+                                                                },
+                                                                {
+                                                                  "type": "number"
+                                                                },
+                                                                {
+                                                                  "type": "boolean"
+                                                                },
+                                                                {
+                                                                  "type": "array",
+                                                                  "items": {
+                                                                    "type": "string"
+                                                                  }
+                                                                }
+                                                              ]
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "field",
+                                                            "op"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "not"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "or": {
+                                                    "minItems": 1,
+                                                    "type": "array",
+                                                    "items": {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "field": {
+                                                              "type": "string"
+                                                            },
+                                                            "op": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "eq",
+                                                                "ne",
+                                                                "gt",
+                                                                "gte",
+                                                                "lt",
+                                                                "lte",
+                                                                "in",
+                                                                "notIn",
+                                                                "contains",
+                                                                "exists",
+                                                                "notExists",
+                                                                "truthy",
+                                                                "falsy"
+                                                              ]
+                                                            },
+                                                            "value": {
+                                                              "anyOf": [
+                                                                {
+                                                                  "type": "string"
+                                                                },
+                                                                {
+                                                                  "type": "number"
+                                                                },
+                                                                {
+                                                                  "type": "boolean"
+                                                                },
+                                                                {
+                                                                  "type": "array",
+                                                                  "items": {
+                                                                    "type": "string"
+                                                                  }
+                                                                }
+                                                              ]
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "field",
+                                                            "op"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        },
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "not": {
+                                                              "type": "object",
+                                                              "properties": {
+                                                                "field": {
+                                                                  "type": "string"
+                                                                },
+                                                                "op": {
+                                                                  "type": "string",
+                                                                  "enum": [
+                                                                    "eq",
+                                                                    "ne",
+                                                                    "gt",
+                                                                    "gte",
+                                                                    "lt",
+                                                                    "lte",
+                                                                    "in",
+                                                                    "notIn",
+                                                                    "contains",
+                                                                    "exists",
+                                                                    "notExists",
+                                                                    "truthy",
+                                                                    "falsy"
+                                                                  ]
+                                                                },
+                                                                "value": {
+                                                                  "anyOf": [
+                                                                    {
+                                                                      "type": "string"
+                                                                    },
+                                                                    {
+                                                                      "type": "number"
+                                                                    },
+                                                                    {
+                                                                      "type": "boolean"
+                                                                    },
+                                                                    {
+                                                                      "type": "array",
+                                                                      "items": {
+                                                                        "type": "string"
+                                                                      }
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              },
+                                                              "required": [
+                                                                "field",
+                                                                "op"
+                                                              ],
+                                                              "additionalProperties": false
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "not"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                },
+                                                "required": [
+                                                  "or"
+                                                ],
+                                                "additionalProperties": false
+                                              },
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "and": {
+                                                    "minItems": 1,
+                                                    "type": "array",
+                                                    "items": {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "field": {
+                                                              "type": "string"
+                                                            },
+                                                            "op": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "eq",
+                                                                "ne",
+                                                                "gt",
+                                                                "gte",
+                                                                "lt",
+                                                                "lte",
+                                                                "in",
+                                                                "notIn",
+                                                                "contains",
+                                                                "exists",
+                                                                "notExists",
+                                                                "truthy",
+                                                                "falsy"
+                                                              ]
+                                                            },
+                                                            "value": {
+                                                              "anyOf": [
+                                                                {
+                                                                  "type": "string"
+                                                                },
+                                                                {
+                                                                  "type": "number"
+                                                                },
+                                                                {
+                                                                  "type": "boolean"
+                                                                },
+                                                                {
+                                                                  "type": "array",
+                                                                  "items": {
+                                                                    "type": "string"
+                                                                  }
+                                                                }
+                                                              ]
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "field",
+                                                            "op"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        },
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "not": {
+                                                              "type": "object",
+                                                              "properties": {
+                                                                "field": {
+                                                                  "type": "string"
+                                                                },
+                                                                "op": {
+                                                                  "type": "string",
+                                                                  "enum": [
+                                                                    "eq",
+                                                                    "ne",
+                                                                    "gt",
+                                                                    "gte",
+                                                                    "lt",
+                                                                    "lte",
+                                                                    "in",
+                                                                    "notIn",
+                                                                    "contains",
+                                                                    "exists",
+                                                                    "notExists",
+                                                                    "truthy",
+                                                                    "falsy"
+                                                                  ]
+                                                                },
+                                                                "value": {
+                                                                  "anyOf": [
+                                                                    {
+                                                                      "type": "string"
+                                                                    },
+                                                                    {
+                                                                      "type": "number"
+                                                                    },
+                                                                    {
+                                                                      "type": "boolean"
+                                                                    },
+                                                                    {
+                                                                      "type": "array",
+                                                                      "items": {
+                                                                        "type": "string"
+                                                                      }
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              },
+                                                              "required": [
+                                                                "field",
+                                                                "op"
+                                                              ],
+                                                              "additionalProperties": false
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "not"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                },
+                                                "required": [
+                                                  "and"
+                                                ],
+                                                "additionalProperties": false
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      },
+                                      "required": [
+                                        "and"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "calc": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              }
+                            },
+                            "required": [
+                              "calc"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "optionsFrom": {
+                        "type": "string"
+                      },
+                      "cards": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "value": {
+                            "type": "string"
+                          },
+                          "image": {
+                            "type": "string"
+                          },
+                          "subtitle": {
+                            "type": "string"
+                          },
+                          "meta": {
+                            "type": "string"
+                          },
+                          "link": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "ask": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "group": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "fields"
+              ],
+              "additionalProperties": false
+            },
+            "output": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "start": {
+              "type": "string",
+              "pattern": "^[a-z][a-zA-Z0-9_]*$"
+            },
+            "edges": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9_]*$"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-z][a-zA-Z0-9_]*$"
+                    },
+                    {
+                      "type": "string",
+                      "const": "end"
+                    }
+                  ]
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9_]*$"
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              }
+            }
+          },
+          "required": [
+            "version",
+            "title",
+            "start",
+            "edges"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
