@@ -44,7 +44,6 @@ const COMMANDS = [
   "features",
   "move-files",
   "move-folder-sources",
-  "move-connections",
   "validate",
   "uninstall",
 ];
@@ -93,8 +92,6 @@ ${line(`${command()} uninstall`, "take it off this computer: shows the plan, ask
 ${more("--dry-run only shows it; --yes asks nothing and keeps your data; --yes --delete-data")}
 ${line(`${command()} move-files`, "move the spaces’ files to where 0.16 keeps them; runs by itself at start, by hand for a second try")}
 ${line(`${command()} move-folder-sources`, "once with Dateien on: the Sources plugin’s folders become mounts, taken into Wissen from there")}
-${line(`${command()} move-connections`, "once after the update: the accounts wizards kept become your own connections")}
-${more("--dry-run only counts them")}
 ${line(`${command()} validate`, "check wizards without the studio: .wizard files, unpacked packages, wizard JSON")}
 ${more("--json prints the issues as JSON. A space’s connectors and plugins are checked on import.")}
 
@@ -124,8 +121,6 @@ interface Args {
   /** The paths \`validate\` checks. */
   paths: string[];
   json: boolean;
-  /** `move-connections --dry-run`: only count. */
-  dryRun: boolean;
   yes: boolean;
   local: boolean;
   open: boolean;
@@ -142,7 +137,6 @@ function parse(argv: string[]): Args | string {
     apps: [],
     paths: [],
     json: false,
-    dryRun: false,
     yes: false,
     local: false,
     open: true,
@@ -164,8 +158,6 @@ function parse(argv: string[]): Args | string {
       args.print = true;
     } else if (arg === "--json") {
       args.json = true;
-    } else if (arg === "--dry-run") {
-      args.dryRun = true;
     } else if (arg === "--client") {
       const id = argv[++i];
       if (!CLIENTS.some((client) => client.id === id)) {
@@ -288,8 +280,6 @@ async function main(argv: string[]): Promise<number> {
       return (await import("./move-files.js")).moveFiles();
     case "move-folder-sources":
       return (await import("./move-folder-sources.js")).moveFolderSources();
-    case "move-connections":
-      return (await import("./move-connections.js")).moveConnections({ dryRun: args.dryRun });
     case "validate":
       // The paths are the person's, from where they typed the command (install-env.ts).
       process.chdir(startedIn);

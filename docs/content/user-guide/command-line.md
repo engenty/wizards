@@ -30,7 +30,6 @@ version: 0.18.0
 | `wizards uninstall` | Takes engenty wizards off this computer. It shows what it will remove first and asks about your data on its own; your data is kept unless you choose to delete it. `--dry-run` only shows the plan, `--yes` asks nothing and keeps your data, `--yes --delete-data` deletes it too. See [Remove](./install.md#remove) |
 | `wizards move-files` | Once, after the update to 0.16: moves the files of your spaces (logos, assets, documents) to where they are kept now, by their content, so the same file is stored once. Until then they don’t open. Running it again moves only what is left |
 | `wizards move-folder-sources` | Once, with Dateien and the new Wissen switched on: each folder the Sources plugin read into Wissen becomes a mounted folder in Dateien, and Wissen takes it from there. What you changed by hand stays yours. Running it again converts only what is left |
-| `wizards move-connections` | Once, after the update that keeps your accounts as your own: each account a wizard kept for you becomes a connection of yours, and the wizard goes on using it. `--dry-run` only counts them. Running it again finds nothing left |
 | `wizards validate <path …>` | Checks wizards without the studio: `.wizard` files, unpacked wizard files, or a wizard’s JSON. `--json` prints the problems as JSON |
 | `wizards <name>` | Runs the file `<name>` from `~/.engenty/wizards/commands`, if it is executable, and passes every argument on. Other tools put commands there. Not on Windows |
 

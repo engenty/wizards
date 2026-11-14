@@ -10,6 +10,7 @@ import { seal } from "../secrets/crypto.js";
 import { roleOf } from "../services/access.js";
 import type { StoreScope } from "../store/index.js";
 import { candidates } from "./index.js";
+import { sameService } from "./same-service.js";
 import { listSpaceConnections, type SpaceConnectionRow } from "./space-connections.js";
 
 /*
@@ -23,21 +24,6 @@ import { listSpaceConnections, type SpaceConnectionRow } from "./space-connectio
  * space's connections are offered for a need. Without it a wizard reaches the accounts connected
  * in its own runs alone, as before.
  */
-
-/**
- * Connectors of one service: one sign-in serves kind `mail` and the service's own connector,
- * one account per address (decided 2026-11-14).
- */
-const SAME_SERVICE: readonly (readonly string[])[] = [
-  ["mail-gmail", "google-gmail"],
-  ["mail-outlook", "microsoft-outlook"],
-];
-
-/** The connector ids that share one account with `connectorId`, itself first. */
-export function sameService(connectorId: string): string[] {
-  const ids = SAME_SERVICE.find((s) => s.includes(connectorId)) ?? [];
-  return [connectorId, ...ids.filter((id) => id !== connectorId)];
-}
 
 /** A person's connection without its secret: only the broker unseals that. */
 export type PersonConnectionRow = Omit<typeof schema.personConnection.$inferSelect, "secret">;

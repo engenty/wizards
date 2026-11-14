@@ -247,19 +247,34 @@ describe("a guest's account", () => {
   });
 });
 
-describe("wizards move-connections", () => {
-  it("makes each kept account a connection with a choice, once", async () => {
-    const { moveTenantConnections: move } = await import("../src/cli/move-connections");
-    const kept = (wizard: string, holder: string, slot: string, provider: string, label: string, token: string) =>
-      client.db.insert(client.schema.storeSecret).values({
-        id: `${wizard}-${holder}-${slot}`,
-        wizardId: wizards[wizard],
-        holder,
-        slot,
-        provider,
-        label,
-        data: crypto.seal(tokens(token)),
-      });
+describe("the accounts wizards kept", () => {
+  const kept = (wizard: string, holder: string, slot: string, provider: string, label: string, token: string) =>
+    client.db.insert(client.schema.storeSecret).values({
+      id: `${wizard}-${holder}-${slot}`,
+      wizardId: wizards[wizard],
+      holder,
+      slot,
+      provider,
+      label,
+      data: crypto.seal(tokens(token)),
+    });
+  /** What the tenant's database holds of connections and choices. */
+  const snapshot = () =>
+    inTenant(async () => ({
+      connections: await client.db.query.personConnection.findMany({
+        orderBy: (t, { asc }) => [asc(t.id)],
+      }),
+      choices: await client.db.query.connectionChoice.findMany({
+        orderBy: (t, { asc }) => [asc(t.wizardId), asc(t.need), asc(t.holder)],
+      }),
+    }));
+  /** As at a start: the tenant's database opens afresh, migrates and converts. */
+  const start = async () => {
+    client.closeTenantDb(TENANT);
+    await client.openTenantDb(TENANT);
+  };
+
+  it("become connections at a start, and an existing wizard's run finds its account", async () => {
     await inTenant(async () => {
       await kept("old", "u:mover", "connection:hub", "hubspot", "crm@firma.at", "old-1");
       await kept("older", "u:mover", "connection:hub", "hubspot", "crm@firma.at", "old-2");
@@ -268,23 +283,19 @@ describe("wizards move-connections", () => {
       await kept("old", "v:visitor", "connection:hub", "hubspot", "crm@firma.at", "old-5");
       await kept("old", "u:mover", "browser", "browser", "Browser-Anmeldungen", "cookies");
     });
+    await start();
 
-    const dry = await inTenant(() => move(true));
-    expect(dry).toEqual({ accounts: 3, reused: 0, choices: 5 });
-    expect(await inTenant(() => client.db.query.personConnection.findMany({
-      where: eq(client.schema.personConnection.holder, "u:mover"),
-    }))).toEqual([]);
-
-    expect(await inTenant(() => move(false))).toEqual({ accounts: 3, reused: 0, choices: 5 });
     const mover = await inTenant(() =>
       client.db.query.personConnection.findMany({ where: eq(client.schema.personConnection.holder, "u:mover") }),
     );
     expect(mover.map((r) => r.label).sort()).toEqual(["crm@firma.at", "m@gmail.com"]);
+    const visitor = await inTenant(() =>
+      client.db.query.personConnection.findMany({ where: eq(client.schema.personConnection.holder, "v:visitor") }),
+    );
+    expect(visitor).toHaveLength(1);
     const secrets = await inTenant(() => client.db.query.storeSecret.findMany());
     expect(secrets.map((s) => s.slot)).toEqual(["browser"]);
-    expect(await inTenant(() => move(false))).toEqual({ accounts: 0, reused: 0, choices: 0 });
 
-    // An existing wizard's run still finds its account, and what the wizard keeps lists it.
     const scope = { wizardId: wizards.old, holder: "u:mover" };
     const held = await inTenant(() => account.wizardAccount(scope, hub, space));
     // Two wizards kept the same account: one connection, with the newer of the two secrets.
@@ -295,5 +306,55 @@ describe("wizards move-connections", () => {
     expect(share?.label).toBe("m@gmail.com");
     const listed = await inTenant(() => store.listSecrets(scope));
     expect(listed.map((s) => s.slot).sort()).toEqual(["browser", "connection:hub", "connection:mail"]);
+  });
+
+  it("change nothing at a second start", async () => {
+    const before = await snapshot();
+    await start();
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("end with one connection per account when two processes convert at once", async () => {
+    await inTenant(async () => {
+      await kept("old", "u:twice", "connection:hub", "hubspot", "crm@twice.at", "two-1");
+      await kept("older", "u:twice", "connection:hub", "hubspot", "crm@twice.at", "two-2");
+      await kept("old", "u:twice", "connection:mail", "mail-gmail", "t@gmail.com", "two-3");
+      await kept("older", "u:twice", "connection:mail", "mail-outlook", "t@outlook.com", "two-4");
+    });
+    const { createClient } = await import("@libsql/client");
+    const { drizzle } = await import("drizzle-orm/libsql");
+    const { moveKeptAccounts } = await import("../src/db/kept-accounts");
+    const url = `file:${join(process.env.DATA_DIR as string, "tenants", `${TENANT}.db`)}`;
+    // Two processes: each its own connection to the tenant's database.
+    const processes = [createClient({ url }), createClient({ url })];
+    const busy = (err: unknown) => /SQLITE_BUSY|database is locked/.test(String((err as Error)?.message ?? err));
+    const convert = async (db: Parameters<typeof moveKeptAccounts>[0]) => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await moveKeptAccounts(db);
+        } catch (err) {
+          if (attempt > 50 || !busy(err)) {
+            throw err;
+          }
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      }
+    };
+    const results = await Promise.all(
+      processes.map((c) => convert(drizzle(c, { schema: client.schema }) as never)),
+    );
+    for (const c of processes) {
+      c.close();
+    }
+    expect(results.reduce((n, r) => n + r.choices, 0)).toBe(4);
+    const twice = await inTenant(() =>
+      client.db.query.personConnection.findMany({ where: eq(client.schema.personConnection.holder, "u:twice") }),
+    );
+    expect(twice.map((r) => r.label).sort()).toEqual(["crm@twice.at", "t@gmail.com", "t@outlook.com"]);
+    const choices = await inTenant(() =>
+      client.db.query.connectionChoice.findMany({ where: eq(client.schema.connectionChoice.holder, "u:twice") }),
+    );
+    expect(choices).toHaveLength(4);
+    expect(await inTenant(() => client.db.query.storeSecret.findMany())).toHaveLength(1);
   });
 });

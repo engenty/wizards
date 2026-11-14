@@ -1665,7 +1665,7 @@ export const storeFile = sqliteTable(
 
 /**
  * A kept browser session. `data` is encrypted. A wizard's connected accounts were kept here
- * until they became a person's connections (`person_connection`, `wizards move-connections`).
+ * until they became a person's connections (`person_connection`, `db/kept-accounts.ts`).
  */
 export const storeSecret = sqliteTable(
   "store_secret",
@@ -1816,7 +1816,7 @@ export const spaceConnectionSignIn = sqliteTable(
  * A person's own connection (docs/plans/run-connections.md): an account they signed in to from
  * a run, theirs in every space they are in. A guest's belongs to the visitor and goes with the
  * visitor's stores. One row per owner and address: kind `mail` and the connector of the same
- * service share it (`connectors/person-connections.ts`, `SAME_SERVICE`). `secret` is sealed;
+ * service share it (`connectors/same-service.ts`). `secret` is sealed;
  * the broker alone unseals it.
  */
 export const personConnection = sqliteTable(
