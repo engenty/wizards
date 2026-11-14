@@ -94,6 +94,27 @@ Steps are code, so what they will ask for cannot be read from them. The file dec
 - A host can say what it has. A wizard that requires more is refused before it starts.
 - The file names kinds, never accounts. Whose Gmail it is, is bound where the wizard is installed.
 
+## A real connection: Gmail through executor
+
+`src/executor.ts` puts the kernel's batteries on an executor
+([executor.sh](https://executor.sh), `@executor-js/sdk`): a tool ask and the tools an agent is
+handed become calls of the executor's tools. `src/executor.test.ts` runs the mail wizard that way
+against executor's emulator of Google, a Gmail that keeps state.
+
+- Gmail's own API description becomes 81 tools. The file names `gmail.users.messages.send`; the
+  executor addresses `tools.gmail.org.me.users.messages.send`. The part in between, `org.me`, is
+  the account, bound where the wizard is installed.
+- The token sits in the executor's credential store. No step, no row and no log line holds it.
+- The agent reads the thread with two real calls. The send waits for the user as a row of the
+  run, and only then reaches Gmail. The answer lands in the customer's thread.
+- When Gmail fails, the action's row fails with Gmail's message. Asked again, the user is asked
+  again and the mail is sent once.
+- The kernel did not change for any of this.
+
+What does not fit by itself: executor asks for approval through a callback in the running
+process, which cannot wait for days. So the kernel asks, as a row, and answers executor's own
+gate with yes. `stricterThere` lists where executor's policy is stricter than the file.
+
 ## How a run moves
 
 A run is a cursor and rows. The cursor is the step it stands in. Every ask is a row, and every
@@ -130,6 +151,7 @@ nothing but the broker leaves a step with `ask` as its only way out, whatever it
 | `src/describe.ts` | Reads a wizard without running it: do the map and the step files fit. |
 | `src/load.ts` | A wizard's folder to what the kernel takes, in Node. |
 | `src/memory.ts` | A store in memory. |
+| `src/executor.ts` | The batteries on an executor: tools, accounts and credentials from there. |
 | `src/edge.ts` | A run as a Durable Object: its storage as the store, its alarm as the wake. |
 | `src/evals.ts` | `evaluate` and `reask`: evals over a dataset and on a past run. |
 | `src/check.ts` | Tooling for tests of a wizard: answers every ask from a list, and lists the edges no test takes. Not part of a wizard. |
@@ -149,6 +171,8 @@ answer an ask at once, by its type. An ask without a battery waits for `answer`.
 - A step cannot change the run it reads. One that waits for something that is not an ask fails.
 - Requirements and connections: asks outside the file fail, an action set to `ask` waits for the
   user, the grant stays as it was at the start, a host that lacks something refuses the wizard.
+- The mail wizard through executor against an emulated Gmail: read, wait for the user, send,
+  fail and send again, with no token in any row.
 - Evals: a step judged each time it returned and the run at its end, by code and by a stand-in
   model; over a dataset for two models; one ask of a past run asked again and both scored.
 - A wizard as a Worker of its own: the kernel, the file and the step files bundled into one
@@ -156,7 +180,9 @@ answer an ask at once, by its type. An ask without a battery waits for `answer`.
 
 ## What it leaves out
 
-- A real model. The agent battery in the tests is a stand-in.
+- A real model. The agent in the tests is a few lines of code; with executor its tool calls are
+  real, against the emulator.
+- A real Google account and its OAuth sign-in. The emulator hands out a token.
 - The runner itself: a process or isolate per tenant or per wizard, what it holds and what it may
   call. Nothing here stops a step from using the network or the clock.
 - A real tool battery and the broker behind it. Leave for an action an agent calls inside its own

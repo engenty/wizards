@@ -23,7 +23,12 @@ const mail = (steps: Record<string, Step<any, any>> = {}): Wizard => ({
 
 const sent: unknown[] = [];
 const batteries: Record<string, Battery> = {
-  agent: async () => ({ to: "einkauf@nordlicht.example", draft: "Dear Nordlicht" }),
+  agent: async () => ({
+    to: "einkauf@nordlicht.example",
+    subject: "Re: Workshop",
+    threadId: "thr_1",
+    draft: "Dear Nordlicht",
+  }),
   tool: async (row: AskRow) => {
     sent.push(row.input);
     return { id: `sent-${sent.length}` };
@@ -44,14 +49,14 @@ it("asks the user before an action that is set to ask, and only then does it", a
   expect(leave).toMatchObject({
     type: "approval",
     role: "user",
-    call: "gmail.send",
-    input: { to: "einkauf@nordlicht.example", body: "Dear Nordlicht" },
+    call: "gmail.users.messages.send",
+    input: { userId: "me", body: { threadId: "thr_1" } },
   });
   expect(sent).toEqual([]); // nothing is sent while the question is open
 
   run = await kernel.answer(run.id, leave.n, { allow: true });
   expect(run).toMatchObject({ status: "done", output: { sent: "sent-1" } });
-  expect(sent).toEqual([{ to: "einkauf@nordlicht.example", body: "Dear Nordlicht" }]);
+  expect(sent).toMatchObject([{ userId: "me", body: { threadId: "thr_1" } }]);
 });
 
 it("fails the action when the user says no", async () => {
@@ -60,7 +65,10 @@ it("fails the action when the user says no", async () => {
   let run = await kernel.start("mail", {});
   run = await kernel.answer(run.id, waiting(run.rows).n, { approved: true });
   run = await kernel.answer(run.id, waiting(run.rows).n, { allow: false });
-  expect(run).toMatchObject({ status: "failed", error: 'The user did not allow "gmail.send".' });
+  expect(run).toMatchObject({
+    status: "failed",
+    error: 'The user did not allow "gmail.users.messages.send".',
+  });
   expect(sent).toEqual([]);
 });
 
@@ -91,8 +99,11 @@ it("keeps the grant a run started with, whatever the file says later", async () 
   let wizard = mail();
   const kernel = createKernel({ store: memoryStore(), wizards: () => wizard, batteries });
   const run = await kernel.start("mail", {});
-  expect(run.grant?.connections.gmail.send).toBe("ask");
-  wizard = { ...wizard, file: { ...wizard.file, connections: { gmail: { send: "allow" } } } };
+  expect(run.grant?.connections.gmail["users.messages.send"]).toBe("ask");
+  wizard = {
+    ...wizard,
+    file: { ...wizard.file, connections: { gmail: { "users.messages.send": "allow" } } },
+  };
   const next = await kernel.answer(run.id, waiting(run.rows).n, { approved: true });
   expect(waiting(next.rows)).toMatchObject({ type: "approval" }); // still asks
 });
