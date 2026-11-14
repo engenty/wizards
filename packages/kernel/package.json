@@ -32,6 +32,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@engenty/wizards-shared": "workspace:*",
     "@executor-js/emulate": "0.14.2",
     "@executor-js/plugin-openapi": "1.6.11",
     "@executor-js/sdk": "1.6.11",
