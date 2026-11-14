@@ -9,13 +9,12 @@ design and its reasons are in
 2026-11-14.
 
 A word on numbers: today's format is version 1 (`DEFINITION_VERSION`). The new one is version 2.
-Where this plan says format 2 and format 3 below, read version 1 and version 2.
 
 Scope: a third format for a wizard, the engine that runs it, how it reaches models, tools and
 people, where its code runs, and how the studio shows it. Built beside today's engine, behind the
 switch `kernel`.
 
-Not in scope: changing wizards in format 2 while they run, removing today's engine, a store other
+Not in scope: changing wizards in version 1 while they run, removing today's engine, a store other
 than the tenant's database, prices.
 
 ## What is built
@@ -24,18 +23,22 @@ than the tenant's database, prices.
 |---|---|---|
 | A.1 The package | Built | `packages/kernel`, with a build of its own |
 | A.2 Retries, stop, rows under an ask, a battery that asks for leave | Built. Pause and a wizard as an ask are not. | `kernel.ts` |
-| A.3 Answers checked against fields | A hook: the host passes its check. The runtime passes none yet, so only `required` is checked. | `kernel.ts` |
+| A.3 Answers checked against fields | Built: the kernel takes the host's check, and a page's answers are checked as a form's are today | `kernel.ts`, `engine/runner.ts` |
 | A.4 QuickJS as the second way | Built, with `btoa` and `atob`, which steps written for ordinary code expect | `quickjs.ts`, `compile.ts` |
 | B.5 The file's schema | Built | `packages/shared/src/definition.ts`, `kernel-file.ts` |
-| B.6 Compiling | Built, when a run is driven, kept in memory by the files' hash. No `wizard.d.ts` yet. | `apps/runtime/src/kernel/wizard.ts` |
-| B.7 The check | The file against its step files, in `validateWizard`. No `wizards check` yet. | `definition.ts` |
+| B.6 Compiling | Built, when a run is driven, kept in memory by the files' hash. The types of a file's input and steps are made by `typesOf`; nothing writes them beside a wizard at save yet. | `apps/runtime/src/kernel/wizard.ts`, `packages/kernel/src/types-of.ts` |
+| B.7 The check | The file against its step files, in `validateWizard`; a folder checked and compiled by `checkDir` in the package. No `wizards check` command in the CLI yet. | `definition.ts`, `packages/kernel/src/check-dir.ts` |
 | C.8 Tables and store | Built | `run_row`, `run_score`, `kernel/store.ts` |
 | C.9 Batteries | Built over today's step executors. A step that asks the person for a yes becomes a row. | `kernel/batteries.ts` |
 | C.10 Entry points | Built: start, the line, answers, back, retry, cancel, the clock, the report. Signals by address do not find such a run yet. | `kernel/host.ts`, `engine/runner.ts` |
 | C.11 A person answers | Built another way: see below | `kernel/page.ts` |
 | D.13 Judging runs | Built, by a share the runtime is told (`KERNEL_EVALS`). No setting of a space yet. | `kernel/host.ts` |
 | E Executor | In the package only, tested against the emulator. Not in the runtime. | `packages/kernel/src/executor.ts` |
-| F, G, H | See the items | |
+| F.18 The map | Built, to read: the studio draws the file's steps and edges. Editing the map, a run's rows as a timeline and scores are not built. | `apps/web/src/studio/editor/kernel-flow.ts`, `KernelFlow.tsx` |
+| F.21 For those who build | The authoring guide tells of step files while the switch is on. No starter in version 2. | `prompts/authoring.md` |
+| G.22 Converting | Built: `toKernel` makes the file, its step files and notes on what is not carried over; all 31 starters convert, compile and run to their end with stand-ins. The studio's `POST /wizards/:id/convert` makes a copy of a wizard in version 2. | `packages/shared/src/convert-kernel.ts`, `services/convert.ts` |
+| H.23 A runner per tenant | Built: `RUNNER_TENANT` makes a runner take one tenant's runs only, and the rule of decision 6 picks how a step's code runs | `env.ts`, `tenants/control.ts`, `kernel/host.ts` |
+| H.24, H.25 | Not built: the runner still holds what today's step executors hold; no broker of its own, no rollout | |
 
 Where it differs from the plan:
 
@@ -49,8 +52,23 @@ Where it differs from the plan:
   a form, a review, or the leave for an action as a review of what is about to be done. So the
   page, the pages and reviews routes and the MCP tools `answer_form` and `review_step` answer such
   a run unchanged.
-- **How a step's code runs is told to the runner** (`KERNEL_STEPS=native`), QuickJS otherwise.
-  The rule of decision 6, by tenant and by where a wizard comes from, is not built.
+- **How a step's code runs follows decision 6:** ordinary code where the runner serves one tenant
+  or the install is your own and the wizard is your own; QuickJS for a wizard from a starter and
+  in every shared runner. `KERNEL_STEPS` overrides it for a runner.
+
+## How it was tested
+
+- The package: 71 tests, the kernel, both ways to run a step, the grant, evals, the folder check,
+  the converter over nine hand-written wizards and the 31 starters, and executor against its
+  Google emulator.
+- The runtime: 22 tests in `test/kernel-run.test.ts` and 6 in `test/kernel-where.test.ts`, with a
+  stand-in for the model: both ways to run a step, the input asked for, back, limits, a step file
+  that does not compile, leave for an action, a wait the clock ends, evals, the switch, the
+  services, the run's page, a converted wizard run to its end.
+- By hand against a started runtime: a wizard in version 2 made over HTTP, published, and
+  answered in a browser on its public page, from the form through a review to the result.
+- Not tested: a run with a real model (this branch was built without a model key), a restart of
+  the runner in the middle of each kind of wait, and the cloud.
 
 ## What is decided
 
@@ -83,16 +101,16 @@ tenant. Decision 6 therefore gives two states, and the order below follows from 
 | A local install, a wizard from someone else | QuickJS | QuickJS |
 | The cloud | QuickJS, for every wizard | Ordinary code in the tenant's runner; a runner of its own for a wizard from someone else |
 
-So QuickJS comes early, not last: it is what lets format 3 run in the cloud before the runners
+So QuickJS comes early, not last: it is what lets version 2 run in the cloud before the runners
 change. What a step may use is the same in both: it computes and asks. Node's own modules in a
 step work only where the code runs as ordinary code, and never in a published wizard.
 
 ## Which engine runs a wizard
 
-By the wizard, not by a global flip. A wizard in format 2 keeps today's engine
-(`apps/runtime/src/engine/runner.ts`). A wizard in format 3 runs on the kernel. The switch `kernel`
+By the wizard, not by a global flip. A wizard in version 1 keeps today's engine
+(`apps/runtime/src/engine/runner.ts`). A wizard in version 2 runs on the kernel. The switch `kernel`
 (`packages/shared/src/feature-flags.ts`, `kind: "release"`, off) allows making and running
-format 3. Nothing changes for a wizard nobody converts.
+version 2. Nothing changes for a wizard nobody converts.
 
 ## Where things live
 
@@ -154,9 +172,9 @@ Tests named here run alone, as the repository asks:
    `runAgentStep` (`engine/steps.ts`) with the model from `textModel` (`models.ts`); a tool ask to
    `callConnection` (`tools/connector.ts`) and so to `brokerCall`; generate and render to their
    step functions. Where `decide()` in `broker/call.ts` says ask and the file says allow, the
-   battery answers "needs leave" and the kernel asks. The `approval` table is not used by format 3.
+   battery answers "needs leave" and the kernel asks. The `approval` table is not used by version 2.
 10. **The entry points.** `apps/runtime/src/kernel/host.ts`, called from `services/runs.ts` and
-    `engine/runner.ts` when the wizard is format 3:
+    `engine/runner.ts` when the wizard is version 2:
 
     | Today | Kernel |
     |---|---|
@@ -170,7 +188,7 @@ Tests named here run alone, as the repository asks:
     | `runView`, the stream | From the rows |
 
     Test: the scenarios of `test/durable-wait`, `durable-person`, `durable-retry` and `signals`,
-    with the offer wizard in format 3.
+    with the offer wizard in version 2.
 11. **A person answers.** The run page (`packages/runner`: `RunnerView`, `AskPanel`) draws a row:
     a form from its fields, a review, the card for an action that needs leave, a `view` of
     components. `answer_form`, `review_step` and `answer_ask` in the MCP server answer a row.
@@ -207,15 +225,15 @@ Tests named here run alone, as the repository asks:
     instructions as sent, fields. The file's `requires` and `connections` as a form.
 20. **A run as rows.** `RunTimeline.tsx` from `run_row`, with asking a row again and answering it
     differently. Scores beside the steps they judged.
-21. **For those who build.** The authoring guide (`get_authoring_guide`) and a starter in format 3.
+21. **For those who build.** The authoring guide (`get_authoring_guide`) and a starter in version 2.
     The assistant writes step files through `write_file`.
 
 ### G. Converting
 
-22. **Format 2 to format 3**, as a function in `packages/shared`: a definition in, a file and its
+22. **Version 1 to version 2**, as a function in `packages/shared`: a definition in, a file and its
     step files out.
 
-    | Format 2 | Format 3 |
+    | Version 1 | Version 2 |
     |---|---|
     | A form, review, agent, tool, generate step | A step file with one ask |
     | `next` rules and `goto` | The returned `to`, and the edge |
@@ -247,21 +265,21 @@ Tests named here run alone, as the repository asks:
 
 | Stage | Items | After it |
 |---|---|---|
-| 1 | A, B | A wizard in format 3 can be written, checked and run in tests |
+| 1 | A, B | A wizard in version 2 can be written, checked and run in tests |
 | 2 | C | It runs in a local install and in the cloud (QuickJS), with people answering |
 | 3 | F 18–20, G | People see and steer it in the studio; old wizards can move |
 | 4 | D, E | Its writing is judged; connections go through executor |
 | 5 | H 23–25 | Step code is ordinary code in the cloud |
-| 6 | Flip | New wizards are format 3 |
+| 6 | Flip | New wizards are version 2 |
 
 D and E do not block 3 and can run beside it.
 
 ## Before the switch flips
 
-- The 31 starters exist in format 3 and behave as before for a person using them.
-- A run in format 3 survives a restart of its runner at every kind of wait.
+- The 31 starters exist in version 2 and behave as before for a person using them.
+- A run in version 2 survives a restart of its runner at every kind of wait.
 - A wizard from the marketplace cannot read a file or open a connection on a local install.
-- The studio's assistant builds a new wizard in format 3 from a sentence.
+- The studio's assistant builds a new wizard in version 2 from a sentence.
 - A run's cost is counted as before.
 - Languages: where a wizard's labels and prompts in several languages live. Today a starter is one
   definition per language. Not designed.
