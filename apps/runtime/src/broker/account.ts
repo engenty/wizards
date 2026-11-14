@@ -3,7 +3,12 @@ import { and, eq } from "drizzle-orm";
 import { connectorFetch, resolveEnv, signInFetch } from "../connectors/builtin.js";
 import { candidates, open, type StoredConnection } from "../connectors/index.js";
 import { connectionsFor, remember, runConnectionsOn } from "../connectors/person-connections.js";
-import type { SpaceConnectionRow, StoredTokens } from "../connectors/space-connections.js";
+import { sameService } from "../connectors/same-service.js";
+import {
+  listSpaceConnections,
+  type SpaceConnectionRow,
+  type StoredTokens,
+} from "../connectors/space-connections.js";
 import { refreshThroughAccount } from "../connectors/via-account.js";
 import { db, schema } from "../db/client.js";
 import { refreshAccessToken } from "../engenty/connections-sdk/oauth2.js";
@@ -14,7 +19,7 @@ import type {
 import { seal, unseal } from "../secrets/crypto.js";
 import { getSecret, type StoredSecret, type StoreScope } from "../store/index.js";
 import { currentTenant } from "../tenants/tenant.js";
-import type { BrokerConnection, Who } from "./call.js";
+import { type BrokerConnection, type SpaceRules, spaceRulesOf, type Who } from "./call.js";
 
 /*
  * The one reader of a connection's secret (docs/plans/broker.md, "One reader"). Nothing outside
@@ -27,6 +32,8 @@ export interface Account {
   connector: ConnectorDefinition;
   ctx: ConnectorActionContext;
   label: string;
+  /** A person's own account (`person_connection`): the space's rules for its service count. */
+  person?: true;
 }
 
 /**
@@ -71,7 +78,26 @@ export async function wizardAccount(
     connector,
     label: chosen.row.label,
     ctx: actionContext(scope, connection, connector, data.accessToken, data.scopes, chosen.row),
+    person: true,
   };
+}
+
+/**
+ * The space's rules for a person's own account of this connector used in a run of the space
+ * (behind `runConnections`): those of the space's connections of the same connector or the same
+ * service, read on every call so that a pause or a changed rule binds at once. Null where the
+ * space has none, or the switch is off: the wizard's `policy` counts then.
+ */
+export async function spaceRulesFor(
+  spaceId: string,
+  connectorId: string,
+): Promise<SpaceRules | null> {
+  if (!(await runConnectionsOn())) {
+    return null;
+  }
+  const service = sameService(connectorId);
+  const rows = await listSpaceConnections(spaceId);
+  return spaceRulesOf(rows.filter((row) => service.includes(row.connectorId)));
 }
 
 /**
@@ -94,7 +120,12 @@ export async function heldConnection(connection: BrokerConnection): Promise<Brok
       found.chosen,
     );
   }
-  return { kind: "space_connection", row: found.chosen.row, connector: found.chosen.connector };
+  return {
+    kind: "space_connection",
+    row: found.chosen.row,
+    connector: found.chosen.connector,
+    need: connection.def,
+  };
 }
 
 function actionContext(
@@ -160,9 +191,18 @@ async function refreshed(
   };
 }
 
-/** Whose sign-in a `person` connection opens for: a person, an admin, or Goose for its person. */
-const signsInThemselves = (who: Who): who is Who & { id: string } =>
-  (who.kind === "person" || who.kind === "admin" || who.kind === "goose") && Boolean(who.id);
+/**
+ * Whose sign-in a `person` connection opens for: a person, an admin, Goose for its person, or a
+ * fixed step for the person its run is held for. A guest, or a step nobody's run, has none.
+ */
+function signedInAs(who: Who): string | null {
+  const asked = who.kind === "step" ? who.for : who;
+  return asked &&
+    (asked.kind === "person" || asked.kind === "admin" || asked.kind === "goose") &&
+    asked.id
+    ? asked.id
+    : null;
+}
 
 /**
  * The account a connection of the space holds for this caller: the space's own sign-in, or the
@@ -188,13 +228,14 @@ export async function spaceAccount(
         .set({ secret, updatedAt: new Date() })
         .where(eq(schema.spaceConnection.id, row.id));
   } else {
-    if (!signsInThemselves(who)) {
+    const userId = signedInAs(who);
+    if (!userId) {
       return null;
     }
     const own = await db.query.spaceConnectionSignIn.findFirst({
       where: and(
         eq(schema.spaceConnectionSignIn.connectionId, row.id),
-        eq(schema.spaceConnectionSignIn.userId, who.id),
+        eq(schema.spaceConnectionSignIn.userId, userId),
       ),
     });
     if (!own) {

@@ -1,4 +1,9 @@
-import type { BrokerRefusal, ConnectionActionKind } from "@engenty/wizards-shared/connectors";
+import {
+  type BrokerRefusal,
+  CONNECTION_ACTION_KINDS,
+  type ConnectionActionKind,
+  type ConnectionOutcome,
+} from "@engenty/wizards-shared/connectors";
 import type { AskInput } from "@engenty/wizards-shared/run";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import type { SpaceConnectionRow } from "../connectors/space-connections.js";
@@ -20,6 +25,7 @@ import {
   keptSecret,
   markUsed,
   spaceAccount,
+  spaceRulesFor,
   stateOf,
   wizardAccount,
 } from "./account.js";
@@ -36,6 +42,7 @@ import { type Grant, inGrant, runGrant } from "./grant.js";
 import {
   CALLS_PER_DAY,
   CALLS_PER_RUN,
+  type CallLimits,
   closeLine,
   type LineContext,
   limitHeard,
@@ -106,10 +113,38 @@ export interface Where {
 /** What an action does, as the rules see it. */
 export type ActionKind = ConnectionActionKind;
 
-/** Which connection: one a wizard holds for the person running it, or one of the space. */
+/**
+ * Which connection: one a wizard holds for the person running it, or one of the space. A
+ * connection of the space the run uses for a wizard's need (`heldConnection`) keeps that need:
+ * the run's grant binds it as it binds the wizard's own.
+ */
 export type BrokerConnection =
   | { kind: "store_secret"; def: ConnectionDef; scope: StoreScope; spaceId: string }
-  | { kind: "space_connection"; row: SpaceConnectionRow; connector: ConnectorDefinition };
+  | {
+      kind: "space_connection";
+      row: SpaceConnectionRow;
+      connector: ConnectorDefinition;
+      need?: ConnectionDef;
+    };
+
+/** A connection of the space as a decision names it: its id and what people call it. */
+export type Named = Pick<SpaceConnectionRow, "id" | "name">;
+
+/**
+ * The space's rules for a connector, as they bind a person's own account used in a run of that
+ * space (docs/plans/run-connections.md, decided 4): per kind of action, the strictest outcome of
+ * the space's connections of that connector (or of the same service) and the connection that
+ * says it; the first of them that pauses; the lowest limits. The audience does not count: the
+ * account is the person's own.
+ */
+export interface SpaceRules {
+  rules: Record<ActionKind, { outcome: ConnectionOutcome; by: Named }>;
+  paused: Named | null;
+  callsPerRun: { calls: number; by: Named } | null;
+  callsPerDay: { calls: number; by: Named } | null;
+  /** Every connection whose rules these are: their calls and these count under the limits together. */
+  ids: string[];
+}
 
 export interface BrokerAction {
   id: string;
@@ -168,9 +203,11 @@ export interface Decision {
   /**
    * Which rule decided, as the log and „Was darf …?“ name it: `grant`, `audience`, `actions`,
    * `ai_step_writes`, `rules.<kind>` (a connection of the space), `destructive`, `policy.<action>`
-   * (a wizard's connection), `read`, `own_job`, `autonomous_mode`, `paused`. A run that is over is
-   * logged as `run.<status>` (over.ts), before any decision here; a call past a connection's limit as
-   * `limits.run` or `limits.day`, after it. The log also has `once` (broker/effect.ts).
+   * (a wizard's connection), `read`, `own_job`, `autonomous_mode`, `paused`. A person's own account
+   * under the space's rules names the connection of the space that decided: `rules.<kind>@<id>`,
+   * `paused@<id>`, `limits.run@<id>`. A run that is over is logged as `run.<status>` (over.ts),
+   * before any decision here; a call past a connection's limit as `limits.run` or `limits.day`,
+   * after it. The log also has `once` (broker/effect.ts).
    */
   rule: string;
   reason: string;
@@ -259,8 +296,10 @@ export function inAudience(audience: SpaceConnectionRow["audience"], who: Who): 
  * „Mit Freigabe“ there asks the space's admins (`admins`). Where each person signs in, „Mit
  * Freigabe“ asks that person. A plugin's own job on a connection it set up runs as before.
  *
- * A wizard's own connection: reads run, writes and sends ask the person running, deleting always
- * asks; the wizard's author may settle an action's ask per `connection.policy`.
+ * A wizard's need on a person's own account, in a space that has connections of its service: the
+ * space's rules, pause and limits count (`space`), not its audience. Else reads run, writes and
+ * sends ask the person running, deleting always asks; the wizard's author may settle an action's
+ * ask per `connection.policy`.
  */
 export function decide(call: {
   who: Who;
@@ -270,17 +309,20 @@ export function decide(call: {
   kind: ActionKind;
   /** The run's grant, where the call is bound by one (`grantBinds`); left out: no grant applies. */
   grant?: Grant | null;
+  /** The space's rules for a person's own account (`spaceRulesFor`); left out: the wizard's `policy`. */
+  space?: SpaceRules | null;
 }): Decision {
   const { connection, kind, who } = call;
   if (who.kind === "runtime") {
     return decideRuntime(connection, kind);
   }
-  if (call.grant && connection.kind === "store_secret") {
-    if (!inGrant(call.grant, connection.def.id, call.actionId, kind)) {
+  const need = needOf(connection);
+  if (call.grant && need) {
+    if (!inGrant(call.grant, need.id, call.actionId, kind)) {
       return {
         outcome: "deny",
         rule: "grant",
-        reason: `The run's grant does not include "${call.actionId}" through ${connection.def.id}.`,
+        reason: `The run's grant does not include "${call.actionId}" through ${need.id}.`,
       };
     }
   }
@@ -347,6 +389,9 @@ export function decide(call: {
       reason: `The connection's rule: ${VERB[kind]} asks the space's admins.`,
     };
   }
+  if (call.space) {
+    return decideBySpace(call.space, kind);
+  }
   if (kind === "destructive") {
     return { outcome: "ask", rule: "destructive", reason: "Deleting always asks the person." };
   }
@@ -364,6 +409,75 @@ export function decide(call: {
     outcome: "allow",
     rule: named,
     reason: kind === "read" ? "Reading is allowed." : "The wizard allows this action.",
+  };
+}
+
+/**
+ * A person's own account under the space's rules: a pause first, then the rule for the kind. The
+ * rule names the connection of the space that decided (`rules.send@<id>`); „Mit Freigabe“ asks the
+ * person running, whose account it is.
+ */
+function decideBySpace(space: SpaceRules, kind: ActionKind): Decision {
+  if (space.paused) {
+    return {
+      outcome: "deny",
+      rule: `paused@${space.paused.id}`,
+      refused: "paused",
+      reason: `The space's connection „${space.paused.name}“ is paused: nobody reaches the service until an admin resumes it.`,
+    };
+  }
+  const { outcome, by } = space.rules[kind];
+  const rule = `rules.${kind}@${by.id}`;
+  const said = `The space's rule (${by.name})`;
+  if (outcome === "deny") {
+    return { outcome: "deny", rule, reason: `${said}: ${VERB[kind]} never.` };
+  }
+  if (outcome === "allow") {
+    return { outcome: "allow", rule, reason: `${said}: ${VERB[kind]} allowed.` };
+  }
+  return { outcome: "ask", rule, reason: `${said}: ${VERB[kind]} asks the person.` };
+}
+
+/** How strict an outcome is: the strictest of several connections' rules counts. */
+const STRICT: Record<ConnectionOutcome, number> = { allow: 0, ask: 1, deny: 2 };
+
+/**
+ * The space's rules a person's own account is used under: those of `rows`, the space's
+ * connections of the account's service. Null where the space has none: the wizard's `policy`
+ * counts then. Pure; `rows` in the order they were set up, so of two as strict the first decides.
+ */
+export function spaceRulesOf(rows: readonly SpaceConnectionRow[]): SpaceRules | null {
+  const [first] = rows;
+  if (!first) {
+    return null;
+  }
+  const named = (row: SpaceConnectionRow): Named => ({ id: row.id, name: row.name });
+  const rules = Object.fromEntries(
+    CONNECTION_ACTION_KINDS.map((kind) => {
+      let pick = { outcome: first.rules[kind] ?? "deny", by: named(first) };
+      for (const row of rows) {
+        const outcome = row.rules[kind] ?? "deny";
+        if (STRICT[outcome] > STRICT[pick.outcome]) {
+          pick = { outcome, by: named(row) };
+        }
+      }
+      return [kind, pick];
+    }),
+  ) as SpaceRules["rules"];
+  const lowest = (of: "callsPerRun" | "callsPerDay") =>
+    rows.reduce<{ calls: number; by: Named } | null>((low, row) => {
+      const calls = row[of];
+      return calls !== null && (low === null || calls < low.calls)
+        ? { calls, by: named(row) }
+        : low;
+    }, null);
+  const paused = rows.find((row) => row.pausedAt);
+  return {
+    rules,
+    paused: paused ? named(paused) : null,
+    callsPerRun: lowest("callsPerRun"),
+    callsPerDay: lowest("callsPerDay"),
+    ids: rows.map((row) => row.id),
   };
 }
 
@@ -411,12 +525,23 @@ function aiStep(who: Who, where: Where): boolean {
 }
 
 /**
- * Whether a run's grant binds this call: a wizard's own connection, called in a run. A plugin's
- * connection is the space's, under its own rules (A4, A5); a share target's connection
- * (`def.target`) is the person's own request after the run, never in the definition.
+ * The wizard's need a connection serves: the wizard's own connection, or the one a connection of
+ * the space is used for (`heldConnection`). None for a plugin's connection or one of the space a
+ * definition names by its id.
+ */
+function needOf(connection: BrokerConnection): ConnectionDef | null {
+  return connection.kind === "store_secret" ? connection.def : (connection.need ?? null);
+}
+
+/**
+ * Whether a run's grant binds this call: a wizard's need, called in a run, through its own
+ * connection or one of the space the run uses for it. A plugin's connection is the space's, under
+ * its own rules (A4, A5); a share target's connection (`def.target`) is the person's own request
+ * after the run, never in the definition.
  */
 export function grantBinds(where: Where, connection: BrokerConnection): boolean {
-  return !!where.runId && connection.kind === "store_secret" && !connection.def.target;
+  const need = needOf(connection);
+  return !!where.runId && !!need && !need.target;
 }
 
 const AUDIENCE: Record<SpaceConnectionRow["audience"], string> = {
@@ -559,14 +684,15 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
 
   // The grant first: what the run's definition gave it, fixed when it started.
   let grant: Grant | null | undefined;
-  if (grantBinds(where, connection)) {
+  const need = needOf(connection);
+  if (need && grantBinds(where, connection)) {
     grant = await runGrant(where.runId as string);
     if (!grant) {
       const reason = "The run is not known here.";
       await line(kind, "deny", "grant", reason, "not_in_grant");
       return { ok: false, refused: "not_in_grant", reason };
     }
-    if (!inGrant(grant, connectionId, call.action.id, kind)) {
+    if (!inGrant(grant, need.id, call.action.id, kind)) {
       const decision = decide({ who, where, connection, actionId: call.action.id, kind, grant });
       await line(kind, "deny", decision.rule, decision.reason, "not_in_grant");
       return { ok: false, refused: "not_in_grant", reason: decision.reason };
@@ -586,7 +712,15 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     return { ok: false, refused: "no_action", reason };
   }
 
-  const decision = decide({ who, where, connection, actionId: call.action.id, kind, grant });
+  // A person's own account in a space with rules for its service: those rules count (decided 4).
+  const space =
+    connection.kind === "store_secret" && account.person
+      ? await spaceRulesFor(
+          connection.scope.clientSpaceId ?? connection.spaceId,
+          account.connector.id,
+        )
+      : null;
+  const decision = decide({ who, where, connection, actionId: call.action.id, kind, grant, space });
   const { rule } = decision;
   if (decision.outcome === "deny") {
     const refused = decision.refused ?? "denied";
@@ -613,7 +747,8 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
         ? {
             post: {
               who,
-              connectionId,
+              // The grant fixes a held connection's channel under the wizard's need.
+              connectionId: connection.kind === "space_connection" && need ? need.id : connectionId,
               actionId: call.action.id,
               channel: channelOf(call.input),
             },
@@ -698,29 +833,33 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     }
   }
 
-  // The call would run. Through a connection of the space with a limit it takes its place first:
-  // its line is written now, if the limits leave room, and its end is filled in after.
+  // The call would run. Through a connection of the space with a limit, or a person's account
+  // under the space's, it takes its place first: its line is written now, if the limits leave
+  // room, and its end is filled in after.
   let open: OpenLine | null = null;
-  if (connection.kind === "space_connection") {
-    const { callsPerRun: perRun, callsPerDay: perDay } = connection.row;
-    if (perRun !== null || perDay !== null) {
-      const place = await takePlace(lineOf(kind, decision.outcome, rule, decision.reason), {
-        perRun,
-        perDay,
-      });
-      if ("full" in place) {
-        const refused = place.full === "run" ? CALLS_PER_RUN : CALLS_PER_DAY;
-        const reason =
-          place.full === "run"
-            ? `The connection takes ${perRun} calls from one run, and this run has made them.`
-            : `The connection takes ${perDay} calls a day, and today's are made.`;
-        await line(kind, "deny", `limits.${place.full}`, reason, refused, null, {
-          limitHeard: await limitHeard(connectionId, place.full, where.runId ?? null),
-        });
-        return { ok: false, refused, reason };
-      }
-      open = place;
+  const limits = limitsOf(connection, space);
+  if (limits) {
+    const { perRun, perDay } = limits;
+    const place = await takePlace(lineOf(kind, decision.outcome, rule, decision.reason), limits);
+    if ("full" in place) {
+      const refused = place.full === "run" ? CALLS_PER_RUN : CALLS_PER_DAY;
+      const reason =
+        place.full === "run"
+          ? `The connection takes ${perRun} calls from one run, and this run has made them.`
+          : `The connection takes ${perDay} calls a day, and today's are made.`;
+      const by = space ? (place.full === "run" ? space.callsPerRun : space.callsPerDay)?.by : null;
+      await line(
+        kind,
+        "deny",
+        `limits.${place.full}${by ? `@${by.id}` : ""}`,
+        reason,
+        refused,
+        null,
+        { limitHeard: await limitHeard(connectionId, place.full, where.runId ?? null) },
+      );
+      return { ok: false, refused, reason };
     }
+    open = place;
   }
   /** The call's end: on the line that took its place, else as a line of its own. */
   const end = (result: string, size: number | null = null, context: LineContext = {}) =>
@@ -775,6 +914,24 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     await end(result);
     throw err;
   }
+}
+
+/**
+ * The limits a call takes its place under: a connection of the space's own, or the space's for a
+ * person's account (`of`: the connections whose calls count together). Null where there are none.
+ */
+function limitsOf(connection: BrokerConnection, space: SpaceRules | null): CallLimits | null {
+  const limits: CallLimits | null =
+    connection.kind === "space_connection"
+      ? { perRun: connection.row.callsPerRun, perDay: connection.row.callsPerDay }
+      : space
+        ? {
+            perRun: space.callsPerRun?.calls ?? null,
+            perDay: space.callsPerDay?.calls ?? null,
+            of: space.ids,
+          }
+        : null;
+  return limits && (limits.perRun !== null || limits.perDay !== null) ? limits : null;
 }
 
 /**

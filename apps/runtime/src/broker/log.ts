@@ -187,6 +187,11 @@ export function startOfToday(): Date {
 export interface CallLimits {
   perRun: number | null;
   perDay: number | null;
+  /**
+   * The connections of the space whose limits these are, where the line is not through one of
+   * them: a person's own account under the space's rules. Left out: the line's own connection.
+   */
+  of?: string[];
 }
 
 /**
@@ -203,18 +208,29 @@ function counted(): SQL {
   ) as SQL;
 }
 
-const inRun = (connectionId: string, runId: string) =>
+/**
+ * The lines a connection's limits count: its own, and those of people's own accounts its rules
+ * decided (`rules.<kind>@<id>`, call.ts `decideBySpace`), which the run or the space finds.
+ */
+const ruledBy = (ids: readonly string[]) =>
+  or(
+    ...ids.map((id) => sql`substr(${schema.brokerLog.rule}, ${-(id.length + 1)}) = ${`@${id}`}`),
+  ) as SQL;
+const inRun = (ids: readonly string[], runId: string) =>
   and(
-    eq(schema.brokerLog.connectionId, connectionId),
     eq(schema.brokerLog.runId, runId),
+    or(inArray(schema.brokerLog.connectionId, [...ids]), ruledBy(ids)),
     counted(),
   ) as SQL;
-const today = (connectionId: string) =>
-  and(
-    eq(schema.brokerLog.connectionId, connectionId),
-    gte(schema.brokerLog.at, startOfToday()),
-    counted(),
-  ) as SQL;
+/** Today's: through the connections by their index, and in the space where people's own accounts are. */
+const today = (ids: readonly string[], spaceId: string | null | undefined): SQL => {
+  const log = schema.brokerLog;
+  const since = gte(log.at, startOfToday());
+  const own = sql`(select count(*) from ${log} where ${and(inArray(log.connectionId, [...ids]), since, counted())})`;
+  return spaceId
+    ? sql`(${own} + (select count(*) from ${log} where ${and(eq(log.spaceId, spaceId), since, ruledBy(ids), counted())}))`
+    : own;
+};
 
 /** The line of a call that took its place and is under way; `closeLine` writes its end. */
 export interface OpenLine {
@@ -233,16 +249,15 @@ export async function takePlace(
   limits: CallLimits,
 ): Promise<OpenLine | { full: "run" | "day" }> {
   const log = schema.brokerLog;
+  const ids = limits.of ?? [row.connectionId];
   const places: SQL[] = [];
   if (limits.perRun !== null && row.runId) {
     places.push(
-      sql`(select count(*) from ${log} where ${inRun(row.connectionId, row.runId)}) < ${limits.perRun}`,
+      sql`(select count(*) from ${log} where ${inRun(ids, row.runId)}) < ${limits.perRun}`,
     );
   }
   if (limits.perDay !== null) {
-    places.push(
-      sql`(select count(*) from ${log} where ${today(row.connectionId)}) < ${limits.perDay}`,
-    );
+    places.push(sql`${today(ids, row.spaceId)} < ${limits.perDay}`);
   }
   const id = nanoid(14);
   // The columns as the table has them: a time is its milliseconds, a flag 0 or 1.
@@ -280,7 +295,7 @@ export async function takePlace(
   const full =
     limits.perRun !== null &&
     row.runId &&
-    (await db.$count(log, inRun(row.connectionId, row.runId))) >= limits.perRun
+    (await db.$count(log, inRun(ids, row.runId))) >= limits.perRun
       ? "run"
       : "day";
   return { full };
