@@ -426,6 +426,20 @@ describe("through the doors every run has", () => {
     expect((await report(id)).data).toEqual({ sent: "msg_9" });
   });
 
+  it("checks a page's answers as every form's are", async () => {
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    const { runId } = await client.withTenant(T, () => doors.startTestRun("u", w.id));
+    await rests(runId, "waiting_input");
+    // an e-mail that is none, and a budget that is no number
+    await expect(
+      client.withTenant(T, () => doors.answerRunForm("u", runId, "input", { ...input, email: "not an address", budget: "a lot" })),
+    ).rejects.toThrow();
+    expect((await run(runId))?.status).toBe("waiting_input");
+    await client.withTenant(T, () => doors.answerRunForm("u", runId, "input", input));
+    await rests(runId, "waiting_input");
+    expect((await run(runId))?.cursor).toBe("check");
+  });
+
   it("refuses an answer to a page the run does not wait at", async () => {
     const id = await startOf(await exampleWizard("mail"), { customer: "N" });
     await rests(id, "waiting_input");

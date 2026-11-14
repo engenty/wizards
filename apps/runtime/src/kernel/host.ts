@@ -10,8 +10,11 @@ import {
 import type { KernelFile } from "@engenty/wizards-shared/definition";
 import { kernelOf } from "@engenty/wizards-shared/kernel-file";
 import type { RunStatus } from "@engenty/wizards-shared/run";
-import type { schema } from "../db/client.js";
+import { eq } from "drizzle-orm";
+import { db, schema } from "../db/client.js";
 import type { RunRow, SpaceRow } from "../engine/types.js";
+import { env } from "../env.js";
+import { managed } from "../manage.js";
 import { kernelBatteries, type MakeContext } from "./batteries.js";
 import { kernelStore, loadKernelRun } from "./store.js";
 import { KernelCompileError, kernelWizard, type StepMode } from "./wizard.js";
@@ -36,14 +39,31 @@ export type KernelDeps = {
 
 export class KernelRunError extends Error {}
 
-/** How a step's code runs here. QuickJS unless this runner is told its code is its own. */
-export const stepMode = (): StepMode =>
-  process.env.KERNEL_STEPS === "native" ? "native" : "quickjs";
+/**
+ * How a step's code runs here (docs/plans/kernel.md, decision 6). As ordinary code only where
+ * this runner is one tenant's, or the runtime is one person's own install, and the wizard is not
+ * someone else's. In QuickJS everywhere else. `KERNEL_STEPS` says it outright, for tests.
+ */
+export function stepMode(wizard?: { starter: string | null } | null): StepMode {
+  const told = process.env.KERNEL_STEPS;
+  if (told === "native" || told === "quickjs") {
+    return told;
+  }
+  const ownRunner = Boolean(env.runner.tenant) || !managed;
+  return ownRunner && !wizard?.starter ? "native" : "quickjs";
+}
 
 /** The share of finished runs whose evals judge them, 0 to 1. */
 const evalShare = () => Math.min(1, Math.max(0, Number(process.env.KERNEL_EVALS ?? 0) || 0));
 
 const quickjs = quickjsTurn();
+
+/** Where the run's wizard comes from: one made from a marketplace entry is someone else's code. */
+const wizardOf = (row: RunRow) =>
+  db.query.wizard.findFirst({
+    where: eq(schema.wizard.id, row.wizardId),
+    columns: { starter: true },
+  });
 const isAsk = (row: Row): row is AskRow => !("left" in row);
 
 export type KernelRunView = {
@@ -90,7 +110,7 @@ export function kernelHost(deps: KernelDeps) {
     /** Moves a claimed run to its next wait. Called by the engine's drive in place of its own loop. */
     async drive(row: RunRow, signal: AbortSignal): Promise<void> {
       const file = fileOf(row);
-      const mode = stepMode();
+      const mode = stepMode(await wizardOf(row));
       const store = kernelStore(deps.loadRun, (id, patch) => deps.updateRun(id, patch), true);
       let wizard: Awaited<ReturnType<typeof kernelWizard>>;
       try {
@@ -159,7 +179,7 @@ export function kernelHost(deps: KernelDeps) {
 
     /** The evals that have not judged yet, now, whatever the share of runs that are judged. */
     async judge(row: RunRow, signal: AbortSignal): Promise<Score[]> {
-      const mode = stepMode();
+      const mode = stepMode(await wizardOf(row));
       const wizard = await kernelWizard(fileOf(row), row.files, mode);
       const kernel = createKernel({
         store: kernelStore(deps.loadRun, deps.updateRun),

@@ -846,7 +846,11 @@ async function grantConnectors(
 export function kick(runId: string) {
   const tenant = currentTenant();
   void wakeRun(runId)
-    .then(() => (env.serves.runner ? take(runId, tenant) : nudgeRunner(runId, tenant)))
+    .then(() =>
+      env.serves.runner && (!env.runner.tenant || env.runner.tenant === tenant)
+        ? take(runId, tenant)
+        : nudgeRunner(runId, tenant),
+    )
     .catch((err) => console.error(`[run ${runId}]`, err));
 }
 
@@ -856,7 +860,7 @@ export function kick(runId: string) {
  * line still has the run, and the next look takes it.
  */
 async function nudgeRunner(runId: string, tenant: string) {
-  const runners = await otherRunners();
+  const runners = await otherRunners(tenant);
   const runner = runners[Math.floor(Math.random() * runners.length)];
   if (!runner) {
     return;
@@ -901,6 +905,10 @@ async function claimAndHold(runId: string, tenant: string): Promise<number | nul
  */
 async function take(runId: string, tenant: string): Promise<void> {
   if (active.has(runId) || active.size >= env.runner.maxRuns) {
+    return;
+  }
+  // A runner that serves one tenant takes no other's run: the line still has it for its own.
+  if (env.runner.tenant && env.runner.tenant !== tenant) {
     return;
   }
   // The slot counts from here, so takes at the same moment stay under the cap.
@@ -2725,7 +2733,17 @@ export async function submitPage(
     if (!row) {
       throw new RunConflict({ code: "runMovedOn" });
     }
-    await kernelAnswer(runId, row.n, input, by);
+    // The page's fields are checked as every form's are: kinds, what is required, choices.
+    const page = kernelPage(versioned, await kernelRuns.view(versioned));
+    const form = stepOf(page.definition, stepId);
+    if (form?.type !== "form") {
+      throw new RunConflict("Not a page");
+    }
+    const read = readFormInput(form, input, await formContext(page, form));
+    if (read.errors.length) {
+      throw new RunInputError(read.errors);
+    }
+    await kernelAnswer(runId, row.n, read.values, by);
     return false;
   }
   const at = Date.now();
