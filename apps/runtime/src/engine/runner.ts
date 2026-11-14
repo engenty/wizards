@@ -169,6 +169,7 @@ import {
   blockingMessage,
   closedChoices,
   maskedNote,
+  missingConnectionsSaid,
   missingModelsSaid,
   openValue,
   stepsWithoutModel,
@@ -635,8 +636,12 @@ export async function createRun(input: {
   if (noData) {
     throw new ModelUnavailableError(noData);
   }
-  // A step every run passes through needs a model this runtime cannot serve: refuse before anything is held.
-  const blocked = blockingMessage(await missingModelsSaid(input.definition));
+  // A step every run passes through needs a model this runtime cannot serve, or a connection none
+  // of whose connectors connects here: refuse before anything is held.
+  const blocked = blockingMessage([
+    ...(await missingModelsSaid(input.definition)),
+    ...(await missingConnectionsSaid(input.definition, await spaceIdOf(input))),
+  ]);
   if (blocked) {
     throw new ModelUnavailableError(blocked);
   }

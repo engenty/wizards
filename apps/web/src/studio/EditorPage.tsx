@@ -1,6 +1,6 @@
 import { goesOnText, waitsSignalText } from "@engenty/wizards-runner";
 import { type ModelClass, TEXT_CLASSES } from "@engenty/wizards-shared/definition";
-import type { MissingModel, RunView } from "@engenty/wizards-shared/run";
+import type { MissingConnection, MissingModel, RunView } from "@engenty/wizards-shared/run";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -476,13 +476,18 @@ function Editor() {
     }
   }, [params, wizard.data, chat, setParams]);
 
-  // Models the draft needs that this runtime cannot serve: a step on every path blocks the test.
+  // Models the draft needs that this runtime cannot serve, and connections whose connectors can't
+  // connect here: a step on every path that needs one blocks the test.
   const models = useQuery({
     queryKey: ["wizard-models", id, wizard.data?.revision],
-    queryFn: () => api.get<{ missing: MissingModel[] }>(`/api/studio/wizards/${id}/models`),
+    queryFn: () =>
+      api.get<{ missing: MissingModel[]; connections: MissingConnection[] }>(
+        `/api/studio/wizards/${id}/models`,
+      ),
     enabled: Boolean(wizard.data),
   });
   const missing = models.data?.missing ?? [];
+  const needs = models.data?.connections ?? [];
   // A local install with an account sends what it publishes on to the account's cloud.
   const cloudLinked = me.data?.mode === "local" && Boolean(me.data.account);
   // The organization's public page, where the wizard stands on it: one more place it runs.
@@ -493,7 +498,9 @@ function Editor() {
       ? spacePage
       : null;
   const cloud = useCloud(id ?? "", Boolean(id) && cloudLinked);
-  const blocked = missing.some((m) => m.blocking);
+  const modelsBlocked = missing.some((m) => m.blocking);
+  const needsBlocked = needs.some((n) => n.blocking);
+  const blocked = modelsBlocked || needsBlocked;
   /** A run opens in the preview; on a phone the sheet folds so the run gets the screen. */
   const openRun = (runId: string) => {
     setDrawerRun(runId);
@@ -885,47 +892,72 @@ function Editor() {
           )}
         </div>
       ) : null}
-      {!hasIssues && !building && missing.length ? (
+      {!hasIssues && !building && (missing.length || needs.length) ? (
         <div
           className={cn(
             "absolute top-3 right-3 left-3 z-10 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1",
             blocked ? "ring-rose/30" : "ring-amber/30",
           )}
         >
-          <p className="text-[0.875rem]">
-            {t(blocked ? "editor.models.blocking" : "editor.models.optional")}
-          </p>
-          <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
-            {missing.map((m) => (
-              <li key={m.tierClass ?? m.cls}>
-                <span className="text-ink">
-                  {m.tierClass ? tierClassLabel(m.tierClass) : t(`class.${m.cls}` as Key)}
-                </span>{" "}
-                ({m.steps.map((s) => `„${s.title}“`).join(", ")}): <LinkedText text={m.problem} />
-              </li>
-            ))}
-          </ul>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <Button size="sm" variant="quiet" onClick={() => navigate("/settings/models")}>
-              {t("editor.models.settings")}
-            </Button>
-            {missing.some((m) => m.tierClass) ? (
-              <p className="text-[0.8125rem] text-ink-3">{t("editor.models.tierAdmins")}</p>
-            ) : credits === "connect" ? (
-              <p className="text-[0.8125rem] text-ink-3">
-                {t("teaser.models")}{" "}
-                <button
-                  type="button"
-                  className="font-medium text-ink underline underline-offset-2"
-                  onClick={() => navigate("/settings/account")}
-                >
-                  {t("teaser.connect")}
-                </button>
+          {missing.length ? (
+            <>
+              <p className="text-[0.875rem]">
+                {t(modelsBlocked ? "editor.models.blocking" : "editor.models.optional")}
               </p>
-            ) : credits === "use" ? (
-              <p className="text-[0.8125rem] text-ink-3">{t("teaser.modelsLinked")}</p>
-            ) : null}
-          </div>
+              <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
+                {missing.map((m) => (
+                  <li key={m.tierClass ?? m.cls}>
+                    <span className="text-ink">
+                      {m.tierClass ? tierClassLabel(m.tierClass) : t(`class.${m.cls}` as Key)}
+                    </span>{" "}
+                    ({m.steps.map((s) => `„${s.title}“`).join(", ")}):{" "}
+                    <LinkedText text={m.problem} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {needs.length ? (
+            <>
+              <p className={cn("text-[0.875rem]", missing.length > 0 && "mt-3")}>
+                {t(needsBlocked ? "editor.connections.blocking" : "editor.connections.optional")}
+              </p>
+              <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
+                {needs.map((n) => (
+                  <li key={n.id}>
+                    <span className="text-ink">
+                      {n.name ?? t(`editor.connections.${n.kind ?? "mail"}` as Key)}
+                    </span>
+                    {n.steps.length ? ` (${n.steps.map((s) => `„${s.title}“`).join(", ")})` : ""}:{" "}
+                    <LinkedText text={n.problem} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {missing.length ? (
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <Button size="sm" variant="quiet" onClick={() => navigate("/settings/models")}>
+                {t("editor.models.settings")}
+              </Button>
+              {missing.some((m) => m.tierClass) ? (
+                <p className="text-[0.8125rem] text-ink-3">{t("editor.models.tierAdmins")}</p>
+              ) : credits === "connect" ? (
+                <p className="text-[0.8125rem] text-ink-3">
+                  {t("teaser.models")}{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-ink underline underline-offset-2"
+                    onClick={() => navigate("/settings/account")}
+                  >
+                    {t("teaser.connect")}
+                  </button>
+                </p>
+              ) : credits === "use" ? (
+                <p className="text-[0.8125rem] text-ink-3">{t("teaser.modelsLinked")}</p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {/* A test the runtime refused to start says why, where the run would have opened. */}

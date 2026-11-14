@@ -67,12 +67,43 @@ describe("prompts", () => {
 
   it("the guide tells of waits only while a run can do them", () => {
     expect(authoringGuide()).not.toContain("type WaitStep");
-    expect(authoringGuide([], [], [], { durableRuns: true })).toContain("type WaitStep");
+    expect(authoringGuide([], [], [], [], { durableRuns: true })).toContain("type WaitStep");
   });
 
   it("the guide tells of code steps only while a run can do them", () => {
     expect(authoringGuide()).not.toContain("Code steps.");
-    expect(authoringGuide([], [], [], { codeSteps: true })).toContain("Code steps.");
+    expect(authoringGuide([], [], [], [], { codeSteps: true })).toContain("Code steps.");
+  });
+
+  it("the guide names the connectors that can't connect here, with what the server's owner sets", () => {
+    const guide = authoringGuide(
+      [
+        {
+          id: "google-gmail",
+          name: "Gmail",
+          toolPrefix: "gmail",
+          usable: false,
+          missingSetup: "GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET",
+          actions: [],
+        },
+      ],
+      [
+        {
+          name: "Gmail",
+          usable: false,
+          missingSetup: "GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET",
+        },
+        { name: "IMAP", usable: true, missingSetup: null },
+      ],
+    );
+    expect(guide).toContain(
+      "- google-gmail — Gmail — CAN'T CONNECT on this server yet: don't build on it, and don't name it as a way to connect (the server's owner sets GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET), tools gmail_*",
+    );
+    expect(guide).toContain(
+      'A connection of kind "mail" connects a mailbox here with these connectors; the person picks one:\n' +
+        "- Gmail — CAN'T CONNECT on this server yet: don't build on it, and don't name it as a way to connect (the server's owner sets GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET)\n" +
+        "- IMAP\n",
+    );
   });
 
   it("fills placeholders strictly", () => {

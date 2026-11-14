@@ -1563,6 +1563,8 @@ export const requiresSchema = z.object({
   plugins: z.array(z.string().regex(PLUGIN_ID)).optional(),
   /** The kinds of the wizard's connections. */
   connections: z.array(z.enum(CONNECTION_KINDS)).optional(),
+  /** The connectors the wizard's connections name (`connector`). */
+  connectors: z.array(z.string().min(1)).optional(),
   /** The switches that must be on. */
   features: z.array(z.enum(REQUIRED_FEATURES)).optional(),
   /** The wizard's own database: `person`, or `shared` besides (`data.scope`). */

@@ -6,7 +6,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { accountOverview, accountToken, linkedAccount } from "../auth/account.js";
 import type { SessionUser } from "../auth/index.js";
-import { authoringGuide } from "../authoring/guide.js";
+import { authoringGuide, guideMail } from "../authoring/guide.js";
 import { listConnectors } from "../connectors/external.js";
 import { guideSpaceConnections } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
@@ -99,6 +99,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
           ctx.doing(serverText(ctx.lang, "doingAuthoringGuide"));
           const guide = authoringGuide(
             ctx.space ? await listConnectors(ctx.space.id) : [],
+            await guideMail(),
             await pluginToolsOf(user.tenantId),
             ctx.space ? await guideSpaceConnections(ctx.space.id) : [],
             await currentFeatures(),

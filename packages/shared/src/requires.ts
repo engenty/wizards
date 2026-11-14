@@ -238,6 +238,9 @@ export function requiresOf(
   // A code step, or a function tool of the wizard or of one of its agents: its own code runs.
   code ||= def.steps.some((s) => s.type === "code") || wizardToolsUsed(def).length > 0;
   const connections = sorted((def.connections ?? []).flatMap((c) => (c.kind ? [c.kind] : [])));
+  const connectors = sorted(
+    (def.connections ?? []).flatMap((c) => (c.connector ? [c.connector] : [])),
+  );
   const features = [
     ...(code ? (["codeSteps"] as const) : []),
     ...(durable ? (["durableRuns"] as const) : []),
@@ -252,6 +255,7 @@ export function requiresOf(
       : {}),
     plugins: pluginsOf(def, needs),
     connections,
+    connectors,
     features: [...features].sort(),
     ...(def.data ? { data: def.data.scope } : {}),
     ...(optionalModels.size ? { optional: { models: sorted(optionalModels) } } : {}),

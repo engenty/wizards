@@ -2000,6 +2000,10 @@ const de: Record<Key, Line> = {
     "Diese Schritte laufen so nicht. Wähle beim Testen einen Weg ohne sie oder richte die Modelle ein:",
   "editor.models.settings": "Modelle einrichten",
   "editor.models.tierAdmins": "Nur Admins ändern die Modelle der Modellstufe.",
+  "editor.connections.blocking":
+    "So kann der Wizard nicht starten. Seine Connectors lassen sich hier nicht verbinden:",
+  "editor.connections.optional": "Manche Connectors lassen sich hier noch nicht verbinden:",
+  "editor.connections.mail": "Postfach",
   "editor.prevStep": "Vorheriger Schritt",
   "editor.nextStep": "Nächster Schritt",
   "editor.deleteStep": "Schritt löschen",
@@ -7034,6 +7038,10 @@ const en = {
     "These steps won’t run like this. Choose a path without them when testing, or set up the models:",
   "editor.models.settings": "Set up models",
   "editor.models.tierAdmins": "Only admins can change the tier’s models.",
+  "editor.connections.blocking":
+    "The wizard can’t start like this. Its connectors can’t connect here:",
+  "editor.connections.optional": "Some connectors can’t connect here yet:",
+  "editor.connections.mail": "Mailbox",
   "editor.prevStep": "Previous step",
   "editor.nextStep": "Next step",
   "editor.deleteStep": "Delete step",
