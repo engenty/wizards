@@ -107,6 +107,7 @@ import { env } from "../env.js";
 import { feature, remoteFeatures } from "../features.js";
 import { saveAsset } from "../files/storage.js";
 import { kernelHost } from "../kernel/host.js";
+import { kernelPage } from "../kernel/page.js";
 import { managed, tenantInfo } from "../manage.js";
 import { hasFfmpeg } from "../media/ffmpeg.js";
 import { NotedError, noteOf, saidOf } from "../model-errors.js";
@@ -3373,6 +3374,10 @@ export async function runView(
   hide: ReadonlySet<string> = new Set(),
   viewer?: Caller,
 ): Promise<RunView> {
+  // A wizard in version 2: the page reads the run as the small wizard it is at this moment.
+  if (kernelOf(run.definition)) {
+    return runView(kernelPage(run, await kernelRuns.view(run)), brand, hide, viewer);
+  }
   // In the viewer's language every text of the view is the translation; ids and values stay.
   const memory = run.lang ? await storedTranslation(run.wizardId, run.lang) : null;
   const translated = memory ? translateDefinition(run.definition, memory) : null;

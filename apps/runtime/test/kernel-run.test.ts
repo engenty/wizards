@@ -432,3 +432,37 @@ describe("through the doors every run has", () => {
     await expect(client.withTenant(T, () => doors.answerRunForm("u", id, "input", {}))).rejects.toThrow();
   });
 });
+
+describe("the run's page", () => {
+  const page = async (id: string) => {
+    const row = await run(id);
+    return client.withTenant(T, () => runner.runView(row as never, null as never));
+  };
+
+  it("shows the input as a form, a review with what it is about, the leave for an action, and the end", async () => {
+    process.env.KERNEL_STEPS = "quickjs";
+    // started without an input, so it asks for it; the draft's own check would want a real Gmail
+    const runId = await startOf(await exampleWizard("mail"));
+    await rests(runId, "waiting_input");
+
+    let seen = await page(runId);
+    expect(seen.step).toMatchObject({ id: "input", type: "form" });
+    expect((seen.step as { fields: { id: string }[] }).fields.map((f) => f.id)).toEqual(["customer"]);
+
+    await client.withTenant(T, () => runner.submitPage(runId, "input", { customer: "Nordlicht GmbH" }, { userId: "u" }));
+    await rests(runId, "waiting_input");
+    seen = await page(runId);
+    expect(seen.step).toMatchObject({ id: "look", type: "review", show: ["work"], approve: true });
+
+    await client.withTenant(T, () => runner.reviewStep(runId, "look", { type: "accept" }, { userId: "u" }));
+    await rests(runId, "waiting_input");
+    seen = await page(runId);
+    expect(seen.step).toMatchObject({ id: "send", type: "review", title: "gmail.users.messages.send", show: ["send__action"] });
+
+    await client.withTenant(T, () => runner.reviewStep(runId, "send", { type: "accept" }, { userId: "u" }));
+    await rests(runId, "done");
+    seen = await page(runId);
+    expect(seen.status).toBe("done");
+    expect(seen.step).toMatchObject({ type: "result" });
+  });
+});
