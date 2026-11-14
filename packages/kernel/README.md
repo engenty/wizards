@@ -12,6 +12,12 @@ offer/
     offer.ts      one function per step, always the same interface
     legal.ts
     …
+  evals/
+    offer/        judges the step `offer`, every time it returned
+      tone.ts
+      within-budget.ts
+    end/          judges the finished run
+      signed.ts
 ```
 
 The file says what a wizard needs and may reach, and it is the map: `start` and the ways of each
@@ -35,6 +41,33 @@ export default async function (run, ask) {
 
 [examples/offer](examples/offer) is a full wizard.
 
+## Evals
+
+A test checks the flow with the model's answers given. An eval keeps the real model and judges
+what it wrote. An eval file has the step interface, judges and never routes:
+
+```ts
+export default async function (run, ask) {
+  const { price } = run.steps.offer;
+  return { score: price <= run.input.budget * 1.1 ? 1 : 0, why: `${price} of ${run.input.budget}` };
+}
+```
+
+- The folder says what it judges: `evals/<step>/` a step, each time it returned; `evals/end/` the
+  finished run. Nothing about evals is in the file.
+- `run` is the run as it stood at that moment. `ask` may ask a model to judge; an ask to a person
+  fails the eval. The score is a number from 0 to 1.
+- Scores are kept on the run, beside its rows, and never change them. A rewind drops the scores of
+  what it takes back.
+
+Three ways to run them:
+
+| Where | With | For |
+| --- | --- | --- |
+| A real run | `kernel.judge(run)`, when and how often the host decides | Watching what a wizard writes |
+| A dataset | `evaluate`: the wizard on every entry, with a real model, the people's answers from the entry | A model, a prompt or a step against another, before a release |
+| A past run | `reask`: one ask of a stored run asked again, same history, new code or model | What the new version would have written there |
+
 ## How a run moves
 
 A run is a cursor and rows. The cursor is the step it stands in. Every ask is a row, and every
@@ -56,6 +89,7 @@ its limit fails.
 | `src/kernel.ts` | `start`, `answer`, `wake`, `rewind`, `read`. Knows the file, the step interface and the rows. |
 | `src/sandbox.ts` | One turn of a step's code in QuickJS. |
 | `src/describe.ts` | Reads a wizard without running it: do the map and the step files fit. |
+| `src/evals.ts` | `evaluate` and `reask`: evals over a dataset and on a past run. |
 | `src/check.ts` | Tooling for tests of a wizard: answers every ask from a list, and lists the edges no test takes. Not part of a wizard. |
 | `src/compile.ts` | A wizard's folder to what the kernel takes. The save step; needs Node. |
 | `src/memory.ts`, `src/node.ts` | A store in memory, the sandbox in Node. |
@@ -73,6 +107,8 @@ that answer an ask at once, by its type. An ask without a battery waits for `ans
 - A run resumes from its cursor and rows on a kernel that never saw it.
 - Rewind, a timeout, asks side by side, a step that catches a failed ask.
 - A step that never ends is stopped. So is one that takes all its memory.
+- Evals: a step judged each time it returned and the run at its end, by code and by a stand-in
+  model; over a dataset for two models; one ask of a past run asked again and both scored.
 - The same kernel runs under workerd, each run a Durable Object, woken by the object's alarm.
 
 What it measured here: a turn takes about 1.5 ms in Node. For a Worker, the kernel with QuickJS
@@ -94,3 +130,4 @@ is 62 kB of script and a 519 kB WebAssembly module (241 kB gzipped).
 - A store on the runtime's `run` tables, and the converter from a version 2 definition.
 - The memory and interrupt limits under workerd. They were tried in Node only.
 - Types for a wizard's steps made from its file: `examples/offer/wizard.ts` is written by hand.
+- How often a host judges real runs, and what a judge costs: both are the host's to decide.

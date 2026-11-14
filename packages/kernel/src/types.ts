@@ -18,8 +18,15 @@ export type WizardFile = {
   limits?: Record<string, number>;
 };
 
-/** A wizard as the kernel takes it: the file, and each step's code compiled for the sandbox. */
-export type Wizard = { file: WizardFile; steps: Record<string, string> };
+/**
+ * A wizard as the kernel takes it: the file, and each step's code compiled for the sandbox.
+ * `evals` holds the evals by what they judge, a step's id or `end`, then by name.
+ */
+export type Wizard = {
+  file: WizardFile;
+  steps: Record<string, string>;
+  evals?: Record<string, Record<string, string>>;
+};
 
 /** What a step passes to `ask`. It is the old step definition as an object. */
 export type Spec = {
@@ -49,6 +56,20 @@ export type LeftRow = { n: number; step: string; left: true; value?: unknown; to
 
 export type Row = AskRow | LeftRow;
 
+/** What an eval said of one step that returned, or of the finished run. */
+export type Score = {
+  /** `<step>/<name>`, or `end/<name>`. */
+  eval: string;
+  /** The row it judged: the one a step left with, or the run's last. */
+  row: number;
+  score?: number;
+  why?: string;
+  /** Set where the eval could not judge. */
+  error?: string;
+  /** What the eval asked a model, with the answers. */
+  asks?: AskRow[];
+};
+
 export type Run = {
   id: string;
   wizard: string;
@@ -63,6 +84,7 @@ export type Run = {
   wakeAt?: number;
   output?: Record<string, unknown>;
   error?: string;
+  scores?: Score[];
   rev: number;
 };
 
@@ -85,6 +107,16 @@ export type Step<Input = Record<string, unknown>, To extends string = string> = 
   run: RunView<Input>,
   ask: Ask,
 ) => Promise<{ value?: unknown; to?: To } | void>;
+
+/**
+ * The one interface of an eval file. It is a step that judges and never routes: it sees the run
+ * as it stood when the step it judges returned, may ask what answers at once, and gives a score
+ * from 0 to 1.
+ */
+export type Eval<Input = Record<string, unknown>> = (
+  run: RunView<Input>,
+  ask: Ask,
+) => Promise<{ score: number; why?: string }>;
 
 /** Where runs are kept. `save` refuses a run someone else moved in the meantime. */
 export interface Store {
