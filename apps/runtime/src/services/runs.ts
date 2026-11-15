@@ -743,6 +743,7 @@ export async function draftStepView(
   wizardId: string,
   stepId: string,
   lang: string | null,
+  ask = 0,
 ): Promise<RunView> {
   const w = await ownedWizard(userId, wizardId);
   const def = w.draft;
@@ -769,6 +770,7 @@ export async function draftStepView(
       stepId,
       Object.fromEntries(left.flatMap((row) => ("left" in row ? [[row.step, row.value]] : []))),
       wizardLang(def) === "de",
+      ask,
     );
     if (!still) {
       throw notFound();
@@ -861,6 +863,8 @@ export async function draftStepView(
         ...page,
         definition: {
           ...page.definition,
+          // The intro stands above the page a run starts with, not above a later step's.
+          intro: stepId === "input" ? page.definition.intro : undefined,
           steps: page.definition.steps.map((s) => ({
             ...s,
             ...(still.titles[s.id] ? { title: still.titles[s.id] } : {}),

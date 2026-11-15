@@ -1,5 +1,6 @@
 import { RunnerBody as RunnerPage, setRunnerLang } from "@engenty/wizards-runner";
 import { isLang, langName, wizardLang } from "@engenty/wizards-shared/definition";
+import type { KernelOutline } from "@engenty/wizards-shared/kernel-file";
 import type { RunTheme, RunView } from "@engenty/wizards-shared/run";
 import { DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -27,6 +28,7 @@ import { RunnerBody, type RunSource } from "../../runner/RunnerView";
 import { bothModes, useScopedLook } from "../../runner/theme";
 import { Button, cn, IconButton } from "../../ui";
 import { LookSwitch, type RunLook } from "../RunDrawer";
+import { askName } from "./KernelFlow";
 import { type Audience, ResultPreview } from "./ResultPreview";
 import { TestRunControls } from "./RunControls";
 
@@ -263,14 +265,28 @@ export function PreviewPane({
   const listed = stepId ? (def.steps.find((s) => s.id === stepId) ?? null) : null;
   const shown: { id: string; type: string } | null =
     listed ?? (stepId && kernelStamp !== undefined ? { id: stepId, type: "step" } : null);
+  // A step of version 0.3.0 may ask more than once: each of its asks can be shown.
+  const outline = useQuery({
+    queryKey: ["wizard-outline", w.id, kernelStamp],
+    queryFn: () => api.get<{ steps: KernelOutline }>(`/api/studio/wizards/${w.id}/outline`),
+    enabled: Boolean(shown && !listed),
+  }).data?.steps;
+  const asks = shown && !listed ? (outline?.[shown.id]?.asks ?? []) : [];
+  const [askAt, setAskAt] = useState({ step: "", at: 0 });
+  const at = askAt.step === shown?.id && askAt.at < asks.length ? askAt.at : 0;
   const stepView = useQuery({
-    queryKey: ["draft-step-view", w.id, shown?.id, w.revision, shownLang, kernelStamp],
-    queryFn: () =>
-      api.get<RunView>(
+    queryKey: ["draft-step-view", w.id, shown?.id, w.revision, shownLang, kernelStamp, at],
+    queryFn: () => {
+      const query = new URLSearchParams({
+        ...(shownLang === own ? {} : { lang: shownLang }),
+        ...(at ? { ask: String(at) } : {}),
+      }).toString();
+      return api.get<RunView>(
         `/api/studio/wizards/${w.id}/steps/${encodeURIComponent(shown?.id ?? "")}/view${
-          shownLang === own ? "" : `?lang=${encodeURIComponent(shownLang)}`
+          query ? `?${query}` : ""
         }`,
-      ),
+      );
+    },
     enabled: Boolean(shown && shown.type !== "result"),
     // An edit asks again and the step stays meanwhile; another step never shows the one before.
     placeholderData: (previous, query) => (query?.queryKey[2] === shown?.id ? previous : undefined),
@@ -339,6 +355,17 @@ export function PreviewPane({
               <Play className="size-3.5" />
               {t("run.testChip")}
             </button>
+          ) : null}
+          {shown && asks.length > 1 ? (
+            <Choice
+              label={t("editor.previewAsk")}
+              value={String(at)}
+              onChange={(v) => setAskAt({ step: shown.id, at: Number(v) })}
+              options={asks.map((ask, i) => ({
+                value: String(i),
+                label: `${i + 1}. ${askName(ask.spec)}`,
+              }))}
+            />
           ) : null}
           <span className="flex-1" />
           {onEdit ? (

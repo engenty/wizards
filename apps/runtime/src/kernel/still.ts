@@ -31,8 +31,9 @@ const plain = (value: OutlineValue | undefined): unknown => {
   return value;
 };
 
-const specOf = (step: StepOutline | undefined) =>
-  (plain(step?.asks[0]?.spec ?? {}) ?? {}) as Record<string, unknown>;
+/** What the step's ask number `at` passes, as far as it is written out; its first by default. */
+const specOf = (step: StepOutline | undefined, at = 0) =>
+  (plain(step?.asks[at]?.spec ?? {}) ?? {}) as Record<string, unknown>;
 
 /**
  * Each step's title and the line it shows while it works, where its code writes them out: what
@@ -95,7 +96,8 @@ export interface KernelStill {
 
 /**
  * The still of step `stepId`; `input` is the page the file's runs start with. `made`: what each
- * step left behind in the latest test run. Nothing where the wizard has no such step.
+ * step left behind in the latest test run. `at`: which of the step's asks, the first by default.
+ * Nothing where the wizard has no such step or ask.
  */
 export function kernelStill(
   file: KernelFile,
@@ -103,14 +105,15 @@ export function kernelStill(
   stepId: string,
   made: Record<string, unknown>,
   german: boolean,
+  at = 0,
 ): KernelStill | null {
   const spec =
     stepId === "input"
-      ? file.input?.fields.length
+      ? file.input?.fields.length && at === 0
         ? ({ type: "form", ...file.input } as Record<string, unknown>)
         : null
-      : outline[stepId]
-        ? specOf(outline[stepId])
+      : outline[stepId] && (at === 0 || outline[stepId].asks[at])
+        ? specOf(outline[stepId], at)
         : null;
   if (!spec) return null;
   const person = spec.type === "form" || spec.type === "review";
@@ -138,7 +141,7 @@ export function kernelStill(
     status: person ? "waiting_input" : "running",
     titles: Object.fromEntries(
       [stepId, ...show].flatMap((id) => {
-        const title = specOf(outline[id]).title ?? outline[id]?.title;
+        const title = (id === stepId ? spec : specOf(outline[id])).title ?? outline[id]?.title;
         return typeof title === "string" ? [[id, title]] : [];
       }),
     ),

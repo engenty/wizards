@@ -2062,6 +2062,8 @@ export const studio = new Hono<Vars>()
         c.req.param("id"),
         c.req.param("stepId"),
         c.req.query("lang") ?? null,
+        // Which of a step's asks, in a wizard of version 0.3.0.
+        Math.max(0, Number.parseInt(c.req.query("ask") ?? "0", 10) || 0),
       ),
     ),
   )
