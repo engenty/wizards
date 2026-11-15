@@ -2,7 +2,7 @@
 
 One wizard of version 0.3.0, built with the kernel into one Worker. Each run is a Durable Object (`runObject` from `packages/kernel/src/edge.ts`). The step files are imported into the bundle and run as plain code. No QuickJS: the bundle has none of it, and none is needed for one wizard on infrastructure of its own. A sandbox only matters where strangers' wizards share one host.
 
-Local only (`wrangler dev`); nothing was deployed.
+Local only (`wrangler dev`, and `workerd serve` below); nothing was deployed.
 
 ```bash
 pnpm install --ignore-workspace     # this folder is not in the workspace
@@ -92,8 +92,27 @@ A build could write `wrangler.toml` from `wizard.json` (bindings, vars, the secr
 
 ## Recommendation
 
-Make the wizard folder a package and drop QuickJS from this path. A folder = `wizard.json` + `steps/` + a `package.json` that pins the kernel and the edge batteries. `wizards build` checks it (`tsc`, `kernelIssues`, `requires` against the batteries the package brings), bundles it with esbuild, and writes the Worker's config from `requires`. That makes one wizard one deployable unit for private infrastructure, at ~16 KiB.
+Make the wizard folder a package and drop QuickJS from this path. A folder = `wizard.json` + `steps/` + a `package.json` that pins the kernel and the edge batteries. `wizards build` checks it (`tsc`, `kernelIssues`, `requires` against the batteries the package brings), bundles it with esbuild, and writes the Worker's config from `requires`. That makes one wizard one deployable unit for private infrastructure, at ~16 KiB: on Cloudflare, or on plain `workerd` with a config of 30 lines and a folder of SQLite files.
 
 Before it is more than a spike: rows out of the single stored value, model calls moved out of the request, a token per run, and an R2 battery for files. All of those sit in `edge.ts` and the batteries; the format itself needs only the `package.json` pin and the written rule that steps reach the world only through `ask`.
 
-Not tried: self-hosted `workerd` (open source) as the private target without a Cloudflare account. The same `dist/worker.js` should run there; its Durable Object storage on local disk is the part to check.
+## On self-hosted workerd
+
+The same `dist/worker.js` runs on [workerd](https://github.com/cloudflare/workerd), Cloudflare's open-source runtime, with no account and no wrangler: [`workerd.capnp`](workerd.capnp) is the whole config.
+
+```bash
+pnpm workerd                                   # node build.mjs + workerd serve on :8788
+MODEL_API_KEY=… MODEL_BASE_URL=… pnpm workerd  # secrets from the environment
+node flow.mjs http://127.0.0.1:8788
+```
+
+- **The flow:** the same as under wrangler, with the echo battery and with the local stand-in model (two `POST /v1/chat/completions`, `auth=yes`). It ends `done` with the same output.
+- **Storage:** `durableObjectStorage = (localDisk = …)`. Each run is one SQLite file in `.workerd/runs/<uniqueKey>/`. A run read after a restart is the same run: 9 rows, `done`, its output.
+- **Alarms:** a wizard that waits 3 s (`ask({ type: "wait", timeout: "3s" })`):
+  - While workerd runs, the object's WAL is written at start + 3 s with no request coming in; the run is `done`, `woke: true`.
+  - With workerd stopped while the run waits and started again after the time has passed, the overdue alarm fires at startup (WAL written at the restart, 21:02:21, before the first request at 21:02:25).
+- **Outbound:** `fetch` goes through a `network` service. `allow = ["public", "private", "local"]` is needed to reach a model on the same machine or network; leaving `private`/`local` out limits the Worker to the internet.
+- **Secrets:** `fromEnvironment` bindings. There is no secret store; the process environment is it.
+- **Needs `--experimental`**, for SQLite-backed Durable Objects on local disk.
+
+What self-hosting does not give: one process on one machine. Every Durable Object lives in that process; there is no placement across machines, no replication of `.workerd/runs` (back it up like any SQLite files), no TLS (put a proxy in front), and no limits on CPU or memory per request. For one wizard on one server, that is what it should be.

@@ -6,7 +6,8 @@
   "scripts": {
     "build": "node build.mjs",
     "dev": "wrangler dev --port 8787",
-    "flow": "node flow.mjs"
+    "flow": "node flow.mjs",
+    "workerd": "node build.mjs && mkdir -p .workerd/runs && workerd serve workerd.capnp --experimental"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
