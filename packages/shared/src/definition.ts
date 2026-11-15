@@ -1701,75 +1701,84 @@ export function inCurrentFormat<T>(definition: T): T {
     : { ...definition, version: now };
 }
 
-/** A definition as it is written: what the JSON Schema describes. */
-export const wizardShapeSchema = z
-  .object({
-    version: z.enum(FORMAT_VERSIONS).default(DEFINITION_VERSION),
-    title: z.string().min(1),
-    description: z.string().default(""),
-    avatar: z.enum(ENGENTY_KINDS).default("round"),
-    /** A costume the avatar wears; none without one. */
-    costume: z.enum(ENGENTY_COSTUMES).optional(),
-    /** Shown on the first page above the first question. */
-    intro: z.string().optional(),
-    /**
-     * What tells this wizard's runs apart in the runs panel, a template of answers such as
-     * `{{kunde}} · {{angebot}}`. Filled and stored on the run as its answers arrive.
-     */
-    label: z.string().max(200).optional(),
-    /**
-     * The language the wizard speaks to people: its texts, the runner's words, its numbers and
-     * dates, by its two-letter code ("en", "de", "it"). Any language, not only those engenty's own
-     * strings are written in; `validateWizard` checks it names a real one. Without one it is read
-     * from the wizard's own words (`wizardLang`).
-     */
-    lang: z
-      .string()
-      .regex(/^[a-z]{2}$/)
-      .optional(),
-    /** Tabular data the wizard keeps between runs, per person — or for all runs (`shared`). */
-    lists: z.array(listSchema).max(12).optional(),
-    /** Accounts the person connects; kept between runs, per person. */
-    connections: z.array(connectionSchema).max(12).optional(),
-    /** A database of the wizard's own, kept by the runtime per person, or shared as well. */
-    data: dataSchema.optional(),
-    /** How the wizard's pages look, over its space's brand: colours, typefaces, effects, CSS. */
-    /**
-     * The themes the wizard offers, in its order: ids of the space's themes, or `brand`, `host`
-     * and `default`. The place that shows the wizard picks one; its own pages take the first the
-     * space has. Without any: the space's brand.
-     */
-    themes: z.array(z.string().regex(THEME_ID)).max(8).optional(),
-    requires: requiresSchema.optional(),
-    steps: z.array(stepSchema).min(1),
-    /**
-     * The wizard in version 0.3.0 of the format (docs/plans/kernel.md, kernel-file.ts): with it the
-     * kernel runs the wizard from its step files, and `steps` is only what a reader that knows
-     * version 1 shows of it.
-     */
-    kernel: kernelFileSchema.optional(),
-  })
-  .superRefine((def, ctx) => {
-    if ((def.version === KERNEL_VERSION) !== Boolean(def.kernel)) {
+/** A definition as it is written, without the checks across its parts. */
+const wizardShapeBase = z.object({
+  version: z.enum(FORMAT_VERSIONS).default(DEFINITION_VERSION),
+  title: z.string().min(1),
+  description: z.string().default(""),
+  avatar: z.enum(ENGENTY_KINDS).default("round"),
+  /** A costume the avatar wears; none without one. */
+  costume: z.enum(ENGENTY_COSTUMES).optional(),
+  /** Shown on the first page above the first question. */
+  intro: z.string().optional(),
+  /**
+   * What tells this wizard's runs apart in the runs panel, a template of answers such as
+   * `{{kunde}} · {{angebot}}`. Filled and stored on the run as its answers arrive.
+   */
+  label: z.string().max(200).optional(),
+  /**
+   * The language the wizard speaks to people: its texts, the runner's words, its numbers and
+   * dates, by its two-letter code ("en", "de", "it"). Any language, not only those engenty's own
+   * strings are written in; `validateWizard` checks it names a real one. Without one it is read
+   * from the wizard's own words (`wizardLang`).
+   */
+  lang: z
+    .string()
+    .regex(/^[a-z]{2}$/)
+    .optional(),
+  /** Tabular data the wizard keeps between runs, per person — or for all runs (`shared`). */
+  lists: z.array(listSchema).max(12).optional(),
+  /** Accounts the person connects; kept between runs, per person. */
+  connections: z.array(connectionSchema).max(12).optional(),
+  /** A database of the wizard's own, kept by the runtime per person, or shared as well. */
+  data: dataSchema.optional(),
+  /** How the wizard's pages look, over its space's brand: colours, typefaces, effects, CSS. */
+  /**
+   * The themes the wizard offers, in its order: ids of the space's themes, or `brand`, `host`
+   * and `default`. The place that shows the wizard picks one; its own pages take the first the
+   * space has. Without any: the space's brand.
+   */
+  themes: z.array(z.string().regex(THEME_ID)).max(8).optional(),
+  requires: requiresSchema.optional(),
+  steps: z.array(stepSchema).min(1),
+  /**
+   * The wizard in version 0.3.0 of the format (docs/plans/kernel.md, kernel-file.ts): with it the
+   * kernel runs the wizard from its step files, and `steps` is only what a reader that knows
+   * version 1 shows of it.
+   */
+  kernel: kernelFileSchema.optional(),
+});
+
+/**
+ * A definition in version 0.2.0 as the JSON Schema of that version describes it: steps in a list,
+ * nothing of step files. Refinements stay with the app; JSON Schema cannot say them.
+ */
+export const wizardShapeV020 = wizardShapeBase
+  .omit({ kernel: true })
+  .extend({ version: z.enum([DEFINITION_VERSION]).default(DEFINITION_VERSION) });
+
+/** A definition as it is written. */
+export const wizardShapeSchema = wizardShapeBase.superRefine((def, ctx) => {
+  if ((def.version === KERNEL_VERSION) !== Boolean(def.kernel)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["version"],
+      message: `version ${KERNEL_VERSION} is a wizard made of step files, and only that`,
+    });
+  }
+  def.steps.forEach((step, i) => {
+    const classed =
+      step.type === "agent" || step.type === "generate" || step.type === "motion-graphics";
+    const problem = classed ? makerProblem(step) : null;
+    if (classed && problem) {
       ctx.addIssue({
         code: "custom",
-        path: ["version"],
-        message: `version ${KERNEL_VERSION} is a wizard made of step files, and only that`,
+        path: ["steps", i, step.maker ? "maker" : "model"],
+        message: problem,
       });
     }
-    def.steps.forEach((step, i) => {
-      const classed =
-        step.type === "agent" || step.type === "generate" || step.type === "motion-graphics";
-      const problem = classed ? makerProblem(step) : null;
-      if (classed && problem) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["steps", i, step.maker ? "maker" : "model"],
-          message: problem,
-        });
-      }
-    });
   });
+});
 
 /**
  * What the app parses a definition with: the schema above, after a version written the earlier
