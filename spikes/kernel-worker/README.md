@@ -224,3 +224,13 @@ The page is not in the Worker's script: `build.mjs` writes it to `dist/assets/pa
 - **Cloudflare / `wrangler dev`:** `[assets] directory = "dist/assets"` in `wrangler.toml`. Cloudflare answers `/page/<file>` itself before the Worker is asked, with an ETag and its cache (`CF-Cache-Status: HIT` locally); a file that isn't there is a 404. Assets don't count against the Worker's script size and their requests aren't billed as the Worker's.
 - **workerd:** there are no assets, so `workerd.capnp` has a disk service on `dist/assets`, bound as `ASSETS`, and the Worker hands `/page/*` to it. The disk says `application/octet-stream` for every file, which a browser refuses for a module script and a stylesheet, so the Worker sets the type from the name, and `immutable` on the hashed chunks.
 Both walked in the browser: first page → review, no errors.
+
+## On the VPS (Coolify)
+
+Live at **https://x-post-worker.engenty.dev**: the x-post wizard, standalone with the echo battery (no `MODEL_API_KEY` set), on workerd in a container. No Cloudflare account; Cloudflare's runtime only.
+
+- **Image:** [`Dockerfile`](Dockerfile), built from the repository's root (the deploy package's `link:` pins point into `packages/`), with [`Dockerfile.dockerignore`](Dockerfile.dockerignore) keeping the context to `packages/{kernel,runner,shared}` and this folder. Stage one installs the runner's part of the workspace, builds its CSS, runs `deploy.mjs` (`--build-arg WIZARD=…`, default `wizards/x-post`) and the deploy package's own install and build. Stage two is Debian slim with the workerd binary, `dist/` and `workerd.capnp`: 231 MB, mostly workerd. `workerd serve … --socket-addr http=0.0.0.0:8080`.
+- **Coolify:** application `spike-kernel-worker` (uuid `aj03z9bu9obhlxszppuiyqva`), project `engenty-wizards`, environment `test`, GitHub app `coolify-engenty`, branch `claude/spike-kernel-worker-b8f487`, build pack Dockerfile `/spikes/kernel-worker/Dockerfile`, port 8080, domain `https://x-post-worker.engenty.dev` (the `*.engenty.dev` wildcard, Let's Encrypt). Persistent volume on `/app/.workerd/runs`. Auto Deploy on, watch paths `spikes/kernel-worker/**` and `packages/{kernel,runner,shared}/**`.
+- **What ran:** a deploy took 50 s. `/wizard` 200; the run page in the browser: first page → review → "Passt so" → result. After a restart (a new container), `GET /runs/<id>` gave the same run, `done`, with its rows: the runs live on the volume.
+- **A real model:** set `MODEL_API_KEY` (and `MODEL_BASE_URL` for anything but OpenAI) on the application in Coolify; `MODELS` is baked into `workerd.capnp` from `requires.models`.
+- **Not there:** a sign-in: anyone with the URL can start and answer runs. Connected mode: the cloud runtime has no `/v1/asks`.
