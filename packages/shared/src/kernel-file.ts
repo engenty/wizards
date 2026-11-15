@@ -58,3 +58,63 @@ export function kernelShell(file: KernelFile): WizardDefinition {
     kernel: file,
   } as WizardDefinition;
 }
+
+/** Where a step's code works a value out: the code as it is written. */
+export interface OutlineCode {
+  $code: string;
+}
+
+/** A text with parts worked out in code between its words. */
+export interface OutlineText {
+  $text: (string | OutlineCode)[];
+}
+
+/** A value read from a step's code: what is written out, or the code where it is worked out. */
+export type OutlineValue =
+  | string
+  | number
+  | boolean
+  | null
+  | OutlineCode
+  | OutlineText
+  | OutlineValue[]
+  | { [key: string]: OutlineValue };
+
+/** One `ask` of a step: what it passes where that is written out, its code where it is not. */
+export interface OutlineAsk {
+  spec?: Record<string, OutlineValue>;
+  code?: string;
+}
+
+/** One `return` of a step: the way it names, and the condition around it. */
+export interface OutlineWay {
+  /** Missing where the step names no way: the first of its ways in the file is taken. */
+  to?: string;
+  when?: string;
+  /** The way in a person's words, where the `return` gives a `why`. */
+  why?: string;
+  /** Set where a model decides it: the statement that has to hold, from a decision ask's `ways`. */
+  ask?: string;
+  /** Set where the way is worked out. */
+  code?: string;
+}
+
+/** What the studio reads of one step file without running it. */
+export interface StepOutline {
+  /** From the comment at the top of the file. */
+  title?: string;
+  description?: string;
+  asks: OutlineAsk[];
+  ways: OutlineWay[];
+  /** Why the file could not be read. */
+  error?: string;
+}
+
+/** A wizard's steps by id, as read from `steps/<id>.ts`. */
+export type KernelOutline = Record<string, StepOutline>;
+
+export const isOutlineCode = (value: unknown): value is OutlineCode =>
+  typeof value === "object" && value !== null && typeof (value as OutlineCode).$code === "string";
+
+export const isOutlineText = (value: unknown): value is OutlineText =>
+  typeof value === "object" && value !== null && Array.isArray((value as OutlineText).$text);

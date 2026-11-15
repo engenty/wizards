@@ -96,6 +96,7 @@ import {
   subscribeTerminal,
   writeTerminal,
 } from "../harness/terminal.js";
+import { kernelOutline } from "../kernel/outline.js";
 import {
   connectorsView,
   filesView,
@@ -2092,6 +2093,9 @@ export const studio = new Hono<Vars>()
   // --- workspace -------------------------------------------------------------
   .get("/wizards/:id/files", async (c) =>
     c.json(await listFiles(c.get("user").id, c.req.param("id"))),
+  )
+  .get("/wizards/:id/outline", async (c) =>
+    c.json({ steps: await kernelOutline(await listFiles(c.get("user").id, c.req.param("id"))) }),
   )
   .get("/wizards/:id/files/:path{.+}", async (c) => {
     const { file, data } = await readFile(c.get("user").id, c.req.param("id"), c.req.param("path"));

@@ -38,7 +38,7 @@ import { ChatPanel, useArchitectChat, Working } from "./editor/ChatPanel";
 import { FilesPanel } from "./editor/FilesPanel";
 import { currentDecisions, FlowDiagram, type StepLive } from "./editor/FlowDiagram";
 import { Inspector, StepNav } from "./editor/Inspector";
-import { KernelFlow } from "./editor/KernelFlow";
+import { firstKernelStep, KernelFlow, KernelStep } from "./editor/KernelFlow";
 import { LiveDialog } from "./editor/LiveDialog";
 import { MemoryPanel } from "./editor/MemoryPanel";
 import { Pills, PreviewPane } from "./editor/PreviewPane";
@@ -720,31 +720,43 @@ function Editor() {
     </Button>
   );
 
+  /** A wizard of version 0.3.0, and the step of it that is chosen: neither is in `def.steps`. */
+  const kernel = def.kernel ? { wizardId: w.id, file: def.kernel, files: w.files } : undefined;
+  const kernelStep =
+    kernel && selected && selected !== "__wizard" && !stepOf(selected) ? selected : null;
+
   /** The step's editor: in the column beside the preview, or in the preview's place. */
-  const editor = (
-    // A swipe left or right moves to the next or the previous step.
-    <div className="min-h-0 flex-1 overflow-y-auto" {...stepSwipe}>
-      <div className="mx-auto w-full max-w-3xl">
-        <ResultPageOpener.Provider value={openPage}>
-          <Inspector
-            def={def}
-            selected={selected}
-            update={save}
-            onSelect={select}
-            issues={w.issues}
-            warnings={w.warnings}
-            files={w.files}
-            wizardId={w.id}
-            spaceId={w.spaceId}
-            readOnly={w.readOnly}
-            decisions={shownDecisions}
-            branchFocus={branchFocus}
-            assistant={assistant}
-          />
-        </ResultPageOpener.Provider>
+  const editor =
+    kernel && kernelStep ? (
+      <div className="min-h-0 flex-1 overflow-y-auto" {...stepSwipe}>
+        <div className="mx-auto w-full max-w-3xl">
+          <KernelStep wizard={kernel} id={kernelStep} />
+        </div>
       </div>
-    </div>
-  );
+    ) : (
+      // A swipe left or right moves to the next or the previous step.
+      <div className="min-h-0 flex-1 overflow-y-auto" {...stepSwipe}>
+        <div className="mx-auto w-full max-w-3xl">
+          <ResultPageOpener.Provider value={openPage}>
+            <Inspector
+              def={def}
+              selected={selected}
+              update={save}
+              onSelect={select}
+              issues={w.issues}
+              warnings={w.warnings}
+              files={w.files}
+              wizardId={w.id}
+              spaceId={w.spaceId}
+              readOnly={w.readOnly}
+              decisions={shownDecisions}
+              branchFocus={branchFocus}
+              assistant={assistant}
+            />
+          </ResultPageOpener.Provider>
+        </div>
+      </div>
+    );
 
   /** The steps in a row, under the preview's switches: what the preview and the editor are on. */
   const strip = (
@@ -755,6 +767,7 @@ function Editor() {
       issues={w.issues}
       warnings={w.warnings}
       run={drawerRun ? { shown: showRun, at: activeStep, onShow: () => setShowRun(true) } : null}
+      kernel={kernel}
     />
   );
   /** Where there is no column: show the step or edit it, at the start of the main area's bar. */
@@ -778,17 +791,23 @@ function Editor() {
   const columnPick: ColumnPick =
     column === "flow"
       ? "flow"
-      : !chosen
-        ? "settings"
-        : chosen.type === "result"
-          ? "result"
-          : "edit";
+      : kernelStep
+        ? "edit"
+        : !chosen
+          ? "settings"
+          : chosen.type === "result"
+            ? "result"
+            : "edit";
   const pickColumn = (pick: ColumnPick) => {
     setColumn(pick === "flow" ? "flow" : "edit");
     if (pick === "settings") {
       select("__wizard");
     } else if (pick === "result" && resultStep) {
       select(resultStep.id);
+    } else if (pick === "edit" && kernel) {
+      if (!kernelStep) {
+        select(firstKernelStep(kernel.file));
+      }
     } else if (pick === "edit" && (!chosen || chosen.type === "result")) {
       const first = def.steps.find((s) => s.type !== "result");
       if (first) {
@@ -838,7 +857,14 @@ function Editor() {
           <Working chat={chat} spinner="size-4 text-ember" />
         </div>
       ) : def.kernel ? (
-        <KernelFlow file={def.kernel} />
+        <KernelFlow
+          wizard={{ wizardId: w.id, file: def.kernel, files: w.files }}
+          selected={selected}
+          onSelect={(sid) => {
+            select(sid);
+            setColumn("edit");
+          }}
+        />
       ) : (
         <FlowDiagram
           def={def}

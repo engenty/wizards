@@ -28,16 +28,67 @@ export interface PreviewStep {
   branches?: { to: string; when: string }[];
   /** False where the step below is not where this one goes on: no line joins the two. */
   flowsOn?: boolean;
+  /** On a card: the kind of step above its title, one line below it, and a note beside the kind. */
+  kind?: string;
+  summary?: string;
+  note?: string;
 }
 
 const NODE_W = 208;
 const NODE_H = 42;
+/** A card: the step with its kind and one line of what it does, as the editor's diagram has it. */
+const CARD_W = 280;
+const CARD_H = 88;
 const GAP = 26;
 /** How far a branch swings out to the right of the steps, and the room its words get there. */
 const SWING = 22;
 const LABEL_W = 132;
 
-type StepData = Pick<PreviewStep, "title" | "icon" | "tone" | "optional">;
+type StepData = Pick<
+  PreviewStep,
+  "title" | "icon" | "tone" | "optional" | "kind" | "summary" | "note"
+> & { selected?: boolean; onSelect?: () => void };
+
+function CardNode({ data }: NodeProps<Node<StepData>>) {
+  const Icon = data.icon;
+  return (
+    <button
+      type="button"
+      onClick={data.onSelect}
+      style={{ width: CARD_W, height: CARD_H }}
+      className={cn(
+        "nodrag nopan pointer-events-auto block cursor-pointer rounded-xl bg-card px-4 py-3 text-left shadow-soft ring-1 transition",
+        data.selected
+          ? "shadow-elevated ring-2 ring-ember"
+          : "ring-border-soft hover:shadow-elevated",
+      )}
+    >
+      <Handle type="target" position={Position.Top} />
+      <Handle type="target" id="in" position={Position.Right} />
+      <span className="flex items-center gap-2">
+        <span
+          className={cn("inline-flex size-6 items-center justify-center rounded-md", data.tone)}
+        >
+          <Icon className="size-3.5" />
+        </span>
+        <span className="truncate font-medium text-[0.6875rem] text-ink-3 uppercase tracking-[0.07em]">
+          {data.kind}
+        </span>
+        {data.note ? (
+          <span className="ml-auto shrink-0 text-[0.6875rem] text-ink-3 tabular-nums">
+            {data.note}
+          </span>
+        ) : null}
+      </span>
+      <span className="mt-1.5 block truncate font-display font-semibold text-[0.9375rem] text-ink">
+        {data.title}
+      </span>
+      <span className="block truncate text-[0.75rem] text-ink-2">{data.summary}</span>
+      <Handle type="source" position={Position.Bottom} />
+      <Handle type="source" id="out" position={Position.Right} />
+    </button>
+  );
+}
 
 function StepNode({ data }: NodeProps<Node<StepData>>) {
   const Icon = data.icon;
@@ -66,15 +117,17 @@ function StepNode({ data }: NodeProps<Node<StepData>>) {
   );
 }
 
-/** A branch: out to the right of its step, down past the steps it skips, and back in. */
+/** A branch: out to the right of its step, past the steps it skips or goes back over, and back in. */
 function BranchEdge({ sourceX, sourceY, targetX, targetY, label, markerEnd }: EdgeProps) {
   const x = Math.max(sourceX, targetX) + SWING;
   const r = 8;
+  // A way back leads up: its corners turn the other way.
+  const up = targetY < sourceY ? -1 : 1;
   const path = [
     `M ${sourceX} ${sourceY}`,
     `H ${x - r}`,
-    `Q ${x} ${sourceY} ${x} ${sourceY + r}`,
-    `V ${targetY - r}`,
+    `Q ${x} ${sourceY} ${x} ${sourceY + up * r}`,
+    `V ${targetY - up * r}`,
     `Q ${x} ${targetY} ${x - r} ${targetY}`,
     `H ${targetX}`,
   ].join(" ");
@@ -87,7 +140,8 @@ function BranchEdge({ sourceX, sourceY, targetX, targetY, label, markerEnd }: Ed
             width: LABEL_W,
             transform: `translate(${x + 8}px, ${(sourceY + targetY) / 2}px) translateY(-50%)`,
           }}
-          className="absolute text-[0.6875rem] text-ink-2 leading-snug"
+          className="absolute line-clamp-3 whitespace-pre-line break-words text-[0.6875rem] text-ink-2 leading-snug"
+          title={typeof label === "string" ? label : undefined}
         >
           {label}
         </div>
@@ -96,18 +150,35 @@ function BranchEdge({ sourceX, sourceY, targetX, targetY, label, markerEnd }: Ed
   );
 }
 
-const nodeTypes = { step: StepNode };
+const nodeTypes = { step: StepNode, card: CardNode };
 const edgeTypes = { branch: BranchEdge };
 
-function layout(steps: PreviewStep[]) {
+function layout(
+  steps: PreviewStep[],
+  cards: boolean,
+  selected?: string,
+  onSelect?: (id: string) => void,
+) {
+  const w = cards ? CARD_W : NODE_W;
+  const h = cards ? CARD_H : NODE_H;
   const arrow = {
     markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: "var(--ink-4)" },
   };
   const nodes: Node<StepData>[] = steps.map((s, i) => ({
     id: s.id,
-    type: "step",
-    position: { x: 0, y: i * (NODE_H + GAP) },
-    data: { title: s.title, icon: s.icon, tone: s.tone, optional: s.optional },
+    type: cards ? "card" : "step",
+    position: { x: 0, y: i * (h + GAP) },
+    data: {
+      title: s.title,
+      icon: s.icon,
+      tone: s.tone,
+      optional: s.optional,
+      kind: s.kind,
+      summary: s.summary,
+      note: s.note,
+      selected: s.id === selected,
+      onSelect: onSelect ? () => onSelect(s.id) : undefined,
+    },
     draggable: false,
   }));
   const edges: Edge[] = [];
@@ -136,8 +207,8 @@ function layout(steps: PreviewStep[]) {
   return {
     nodes,
     edges,
-    width: NODE_W + (branching ? SWING + 8 + LABEL_W : 0),
-    height: steps.length * (NODE_H + GAP) - GAP,
+    width: w + (branching ? SWING + 8 + LABEL_W : 0),
+    height: steps.length * (h + GAP) - GAP,
   };
 }
 
@@ -145,9 +216,24 @@ function layout(steps: PreviewStep[]) {
  * A wizard's flow as the studio draws it, reduced to what a person choosing a template needs:
  * the steps by name in one column, and where a branch skips some of them. Nothing to click,
  * drag or zoom — it scrolls with the column it is in.
+ *
+ * `cards`: each step as a card with its kind and one line below its title, and a click chooses it.
  */
-export default function FlowPreview({ steps }: { steps: PreviewStep[] }) {
-  const { nodes, edges, width, height } = useMemo(() => layout(steps), [steps]);
+export default function FlowPreview({
+  steps,
+  cards = false,
+  selected,
+  onSelect,
+}: {
+  steps: PreviewStep[];
+  cards?: boolean;
+  selected?: string;
+  onSelect?: (id: string) => void;
+}) {
+  const { nodes, edges, width, height } = useMemo(
+    () => layout(steps, cards, selected, onSelect),
+    [steps, cards, selected, onSelect],
+  );
   if (!steps.length) {
     return null;
   }

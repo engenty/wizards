@@ -274,6 +274,9 @@ importers:
       '@turbodocx/html-to-docx':
         specifier: ^1.23.3
         version: 1.23.3
+      acorn:
+        specifier: 8.19.0
+        version: 8.19.0
       ai:
         specifier: 7.0.163
         version: 7.0.163(zod@4.6.7)

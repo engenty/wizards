@@ -133,7 +133,8 @@ export type Ask = <Answer = any>(spec: Spec) => Promise<Answer>;
 export type Step<Input = Record<string, unknown>, To extends string = string> = (
   run: RunView<Input>,
   ask: Ask,
-) => Promise<{ value?: unknown; to?: To } | void>;
+  /** `why`: the way in a person's words, for the map the studio draws. Nothing reads it in a run. */
+) => Promise<{ value?: unknown; to?: To; why?: string } | void>;
 
 /**
  * The one interface of an eval file. It is a step that judges and never routes: it sees the run

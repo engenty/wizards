@@ -1045,7 +1045,8 @@ export function toKernel(definition: WizardDefinition): {
     const otherTo = other && target(other.goto, id);
     const ways = [otherTo ?? next];
     const leave: string[] = [];
-    const asked: string[] = [];
+    /** The ways a model decides: each target with the statement that has to hold for it. */
+    const asked: Record<string, string> = {};
 
     const failTo = step.onFail ? target(step.onFail, id) : undefined;
     const body = failTo
@@ -1068,11 +1069,7 @@ export function toKernel(definition: WizardDefinition): {
     for (const rule of rules) {
       if (rule.ask) {
         const to = target(rule.goto, id);
-        if (to) asked.push(to);
-        say(
-          `A model decided the way "${rule.ask}". The step takes its default way. The target stays in the map.`,
-          id,
-        );
+        if (to) asked[to] = asked[to] ? `${asked[to]} / ${rule.ask}` : rule.ask;
         continue;
       }
       if (rule.when === undefined) continue;
@@ -1086,6 +1083,18 @@ export function toKernel(definition: WizardDefinition): {
       );
       ways.push(to);
     }
+    // As in version 1: a model is asked only where no condition led away.
+    if (Object.keys(asked).length) {
+      use("text");
+      const made = code(`\`What this step made:\n\${text(value)}${answers()}\``);
+      leave.push(
+        `const way: any = await ask(${print({ type: "decision", instructions: made, ways: asked }, "  ")});`,
+      );
+      for (const to of Object.keys(asked)) {
+        leave.push(`if (way?.to === ${q(to)}) return { value, to: ${q(to)} };`);
+        ways.push(to);
+      }
+    }
     let last = ways[0];
     const cap = other && otherTo ? capOf(index, other) : undefined;
     if (cap && otherTo) {
@@ -1094,7 +1103,6 @@ export function toKernel(definition: WizardDefinition): {
       last = next;
     }
     if (failTo) ways.push(failTo);
-    ways.push(...asked);
     edges[id] = [...new Set(ways)];
     leave.push(edges[id].length > 1 ? `return { value, to: ${q(last)} };` : "return { value };");
 

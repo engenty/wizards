@@ -52,6 +52,7 @@
     "@modelcontextprotocol/server": "2.4.0",
     "@napi-rs/canvas": "1.0.13",
     "@turbodocx/html-to-docx": "^1.23.3",
+    "acorn": "8.19.0",
     "ai": "7.0.163",
     "aws4fetch": "^1.0.20",
     "cross-spawn": "7.0.6",

@@ -170,6 +170,58 @@ describe("a hand-written wizard", () => {
     expect(pathOf(approved)).toEqual(["draft", "check"]);
   });
 
+  it("a way a model decides is a decision ask that names the step's ways", async () => {
+    const { file, files, wizard, notes } = await convert({
+      title: "Triage",
+      steps: [
+        { id: "who", type: "form", title: "Who", fields: [name] },
+        {
+          id: "read",
+          type: "agent",
+          title: "Read",
+          instructions: "Read the request of {{name}}.",
+          next: [{ ask: "The request is urgent.", goto: "call" }],
+        },
+        {
+          id: "wait",
+          type: "agent",
+          title: "Wait",
+          instructions: "Queue it.",
+          next: [{ goto: "done" }],
+        },
+        { id: "call", type: "agent", title: "Call", instructions: "Call now." },
+        result(),
+      ],
+    });
+    expect(file.edges.read).toEqual(["wait", "call"]);
+    expect(files["steps/read.ts"]).toContain('ways: { call: "The request is urgent." }');
+    expect(notes.join("\n")).not.toContain("A model decided");
+
+    const asked: AskRow[] = [];
+    const agent: Battery = async (row) => `Made by ${row.step}`;
+    const picks =
+      (to: string): Battery =>
+      async (row) => {
+        asked.push(row);
+        return { to };
+      };
+    const urgent = await play(
+      wizard,
+      { name: "Ada" },
+      { agent, decision: picks("call") },
+      () => ({}),
+    );
+    expect(pathOf(urgent)).toEqual(["read", "call"]);
+    expect(String(asked[0].instructions)).toContain("Made by read");
+    const calm = await play(
+      wizard,
+      { name: "Ada" },
+      { agent, decision: picks("none") },
+      () => ({}),
+    );
+    expect(pathOf(calm)).toEqual(["read", "wait"]);
+  });
+
   it("onFail is the way a failed ask takes", async () => {
     const { file, wizard } = await convert({
       title: "Lookup",

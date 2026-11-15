@@ -71,6 +71,40 @@ function stepOf(def: WizardDefinition, row: AskRow): Step {
     tries,
     ...spec
   } = row;
+  // A decision over the step's ways: the model names the one whose statement holds, or none.
+  const ways =
+    row.type === "decision" && row.ways && typeof row.ways === "object"
+      ? Object.entries(row.ways as Record<string, unknown>)
+      : [];
+  if (ways.length) {
+    const { ways: _ways, ...rest } = spec;
+    return {
+      ...rest,
+      ...base,
+      type: "decision",
+      instructions: [
+        String(row.instructions ?? ""),
+        'Choose where the wizard goes next: the way whose statement holds, or "none" where none does.',
+        ...ways.map(([to, holds]) => `- ${to}: ${String(holds)}`),
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      tools: [],
+      connections: [],
+      output: {
+        format: "json",
+        fields: [
+          {
+            id: "to",
+            label: "to",
+            kind: "choice",
+            options: [...ways.map(([to]) => to), "none"],
+            required: true,
+          },
+        ],
+      },
+    } as unknown as Step;
+  }
   if (row.type === "agent" || row.type === "decision") {
     const tools = (row.tools ?? []).filter((name) => !actionOf(def, name));
     return {
