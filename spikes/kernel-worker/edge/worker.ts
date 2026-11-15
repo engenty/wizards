@@ -1,5 +1,5 @@
-import { runObject } from "../../../packages/kernel/src/edge.js";
-import type { Wizard } from "../../../packages/kernel/src/types.js";
+import type { Wizard } from "@engenty/wizards-kernel";
+import { runObject } from "@engenty/wizards-kernel/edge";
 import { batteries } from "./batteries.js";
 
 type Env = { RUNS: DurableObjectNamespace };

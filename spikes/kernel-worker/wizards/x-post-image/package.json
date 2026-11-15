@@ -1,0 +1,11 @@
+{
+  "name": "@wizards/x-post-image",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The wizard's runner: the kernel and the edge batteries it was written and tested against. Steps may import packages listed here.",
+  "dependencies": {
+    "@engenty/wizards-edge": "link:../../edge",
+    "@engenty/wizards-kernel": "link:../../../../packages/kernel"
+  }
+}

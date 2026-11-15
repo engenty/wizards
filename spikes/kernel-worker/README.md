@@ -5,7 +5,8 @@ One wizard of version 0.3.0, built with the kernel into one Worker. Each run is 
 Local only (`wrangler dev`, and `workerd serve` below); nothing was deployed.
 
 ```bash
-pnpm install --ignore-workspace     # this folder is not in the workspace
+pnpm install --ignore-workspace     # this folder is not in the workspace (wrangler, esbuild)
+(cd wizards/x-post && pnpm install --ignore-workspace)   # the wizard's own pins
 pnpm dev                            # build.mjs + wrangler dev on :8787; WIZARD=wizards/x-post-image pnpm dev for the other one
 pnpm flow                           # start, first page, review twice, read the run
 ```
@@ -14,9 +15,11 @@ pnpm flow                           # start, first page, review twice, read the 
 
 | File | What it does |
 |---|---|
-| `build.mjs` | Takes one wizard folder (`wizard.json` + `steps/*.ts`) and bundles it with the kernel into `dist/worker.js`. Refuses a wizard whose `requires.tools`, `connections` or `requires.roles` this Worker can't give. |
-| `src/worker.ts` | `GET /` (the wizard), `POST /runs`, `GET /runs/<id>`, `POST /runs/<id>/answer`, `/rewind`, `/judge`. The run id is the Durable Object's name. |
-| `src/batteries.ts` | `agent`: one chat completion over `fetch` to an OpenAI-compatible endpoint (`MODEL_BASE_URL`, secret `MODEL_API_KEY`, `MODELS` maps each model class to a model). Echoes without a key. `form`, `review`, `approval`, `wait`, `signal` wait for HTTP. Every other ask type fails at once: `This Worker has no battery for "<type>" asks.` |
+| `build.mjs` | Takes one wizard folder (`wizard.json` + `steps/*.ts` + `package.json`) and bundles it with the kernel and the edge package from the folder's own `node_modules` into `dist/worker.js`. Refuses a wizard whose `requires.tools`, `connections` or `requires.roles` this Worker can't give. |
+| `wizards/<name>/package.json` | The wizard's pin to its runner: `@engenty/wizards-kernel` and `@engenty/wizards-edge`, plus whatever npm packages its steps import. Its `pnpm-lock.yaml` fixes the exact versions. |
+| `edge/` | `@engenty/wizards-edge`: the Worker and its batteries as a package. It names the kernel it runs on as a peer dependency, so the wizard's pin chooses the kernel. |
+| `edge/worker.ts` | `GET /` (the wizard), `POST /runs`, `GET /runs/<id>`, `POST /runs/<id>/answer`, `/rewind`, `/judge`. The run id is the Durable Object's name. |
+| `edge/batteries.ts` | `agent`: one chat completion over `fetch` to an OpenAI-compatible endpoint (`MODEL_BASE_URL`, secret `MODEL_API_KEY`, `MODELS` maps each model class to a model). Echoes without a key. `form`, `review`, `approval`, `wait`, `signal` wait for HTTP. Every other ask type fails at once: `This Worker has no battery for "<type>" asks.` |
 | `wizards/x-post` | The converted marketplace wizard "X-Post mit Bild (0.3.0)" without its image step: `post` (model `low`) and `check` (review). Step files unchanged. |
 | `wizards/x-post-image` | The same wizard whole, to show an ask without a battery failing. |
 | `stub-model.mjs` | A local OpenAI-compatible stand-in, to run the `fetch` path without an account. |
@@ -60,7 +63,30 @@ Size: 15.5 KiB minified for the kernel, the Worker and two steps; 17.4 KiB with 
 
 ## What the format lacks to be self-contained
 
-**A pin to its runner.** `wizard.json` says `version: "0.3.0"`, the format. Nothing says which kernel and which batteries the folder was written and tested against. Yes: the folder should carry a `package.json` that pins them, e.g. `@engenty/wizards-kernel` and an `@engenty/wizards-edge` (this spike's `worker.ts` + `batteries.ts`), plus the npm packages its steps import. Then `pnpm install && wizards build` makes the same bundle anywhere. `wizard.json` stays the place for what the wizard requires; `package.json` is only how it is built.
+**A pin to its runner.** `wizard.json` says `version: "0.3.0"`, the format; nothing in it says which kernel and which batteries the folder was written and tested against. In this spike the folder carries a `package.json` for that:
+
+```json
+{
+  "name": "@wizards/x-post",
+  "version": "1.0.0",
+  "dependencies": {
+    "@engenty/wizards-edge": "link:../../edge",
+    "@engenty/wizards-kernel": "link:../../../../packages/kernel"
+  }
+}
+```
+
+`link:` stands in for published versions (`"0.3.0"`); neither package is on npm. The build takes the kernel and the edge package only from the folder's own `node_modules`, and refuses:
+
+```
+"X-Post (0.3.0, nur Text)" pins no @engenty/wizards-kernel, @engenty/wizards-edge in its package.json.
+@engenty/wizards-kernel is not installed in …/noinstall. Run pnpm install there.
+@engenty/wizards-edge runs on kernel 0.1.0; the wizard pins 0.0.0.
+```
+
+and says what it built from: `X-Post (0.3.0, nur Text): kernel 0.0.0, edge 0.1.0, 2 steps, models ["low"], 15.5 KiB`. `wizard.json` stays the place for what the wizard requires; `package.json` is only how it is built. For this, `packages/kernel` exports `./edge`.
+
+Open: the kernel is `0.0.0` and private. Publishing it (and the edge package) with versions is what makes the pin mean anything outside this repository. The format version and the kernel version are two numbers; a kernel should say which format versions it runs, and the build should check `wizard.json`'s `version` against it.
 
 **`requires` → bindings.** It maps, but only by a convention nobody has written down:
 
@@ -94,7 +120,7 @@ A build could write `wrangler.toml` from `wizard.json` (bindings, vars, the secr
 
 Make the wizard folder a package and drop QuickJS from this path. A folder = `wizard.json` + `steps/` + a `package.json` that pins the kernel and the edge batteries. `wizards build` checks it (`tsc`, `kernelIssues`, `requires` against the batteries the package brings), bundles it with esbuild, and writes the Worker's config from `requires`. That makes one wizard one deployable unit for private infrastructure, at ~16 KiB: on Cloudflare, or on plain `workerd` with a config of 30 lines and a folder of SQLite files.
 
-Before it is more than a spike: rows out of the single stored value, model calls moved out of the request, a token per run, and an R2 battery for files. All of those sit in `edge.ts` and the batteries; the format itself needs only the `package.json` pin and the written rule that steps reach the world only through `ask`.
+Before it is more than a spike: rows out of the single stored value, model calls moved out of the request, a token per run, and an R2 battery for files. All of those sit in `edge.ts` and the edge package; the format itself needs only the `package.json` pin (built here) and the written rule that steps reach the world only through `ask`.
 
 ## On self-hosted workerd
 

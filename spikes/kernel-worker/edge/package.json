@@ -1,0 +1,13 @@
+{
+  "name": "@engenty/wizards-edge",
+  "version": "0.1.0",
+  "description": "A wizard of version 0.3.0 as a Worker: the HTTP surface, each run a Durable Object, and the batteries of the edge.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./worker.ts"
+  },
+  "peerDependencies": {
+    "@engenty/wizards-kernel": "0.0.0"
+  }
+}

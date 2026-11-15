@@ -24,6 +24,11 @@
       "wizards-source": "./src/check-dir.ts",
       "types": "./dist/check-dir.d.ts",
       "default": "./dist/check-dir.js"
+    },
+    "./edge": {
+      "wizards-source": "./src/edge.ts",
+      "types": "./dist/edge.d.ts",
+      "default": "./dist/edge.js"
     }
   },
   "scripts": {

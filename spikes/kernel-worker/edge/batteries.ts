@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import type { AskRow, Battery } from "../../../packages/kernel/src/types.js";
+import type { AskRow, Battery } from "@engenty/wizards-kernel";
 
 /** What this Worker reads from its bindings. `MODEL_API_KEY` is a secret, the rest are vars. */
 type Env = {
