@@ -3,16 +3,18 @@ import {
   isOutlineCode,
   isOutlineText,
   type KernelOutline,
+  type OutlineEdit,
   type OutlineValue,
   type OutlineWay,
   type StepOutline,
 } from "@engenty/wizards-shared/kernel-file";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Bot,
   Braces,
+  ChevronRight,
   Eye,
   FileCode2,
   FileText,
@@ -27,7 +29,16 @@ import {
 import { lazy, Suspense, useMemo } from "react";
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import { cn } from "../../ui";
+import {
+  BlockTools,
+  CODE,
+  KernelEditContext,
+  type KernelEditing,
+  useEditable,
+  Words,
+} from "./KernelEdit";
 import { kernelFlow } from "./kernel-flow";
 
 const FlowPreview = lazy(() => import("../FlowPreview"));
@@ -226,14 +237,39 @@ export function useKernelCards(wizard: KernelWizard | undefined) {
 export function KernelStep({
   wizard,
   id,
+  readOnly,
+  onSelect,
+  onNote,
   onBack,
 }: {
   wizard: KernelWizard;
   id: string;
+  /** Nothing of the step is changed here. */
+  readOnly?: boolean;
+  /** Sends a note about one element of the step to the assistant. */
+  onNote?: (text: string) => void;
+  /** Chooses the step a way leads to. */
+  onSelect?: (id: string) => void;
   onBack?: () => void;
 }) {
   const { file } = wizard;
-  const { read } = useKernelCards(wizard);
+  const { read, steps } = useKernelCards(wizard);
+  const target = (to: string) => steps.find((step) => step.id === to);
+  const qc = useQueryClient();
+  const hash = wizard.files.find((f) => f.path === `steps/${id}.ts`)?.hash;
+  // A text typed over goes into the step's file; the wizard, read again, has the file's new hash,
+  // and with it the panel reads the step anew.
+  const write = useMutation({
+    mutationFn: (body: { at: [number, number]; value: OutlineEdit }) =>
+      api.post(`/api/studio/wizards/${wizard.wizardId}/outline`, { step: id, hash, ...body }),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.wizard(wizard.wizardId) }),
+  });
+  const editing = {
+    save: (at: [number, number], value: OutlineEdit) => write.mutate({ at, value }),
+    note: onNote
+      ? (about: string, text: string) => onNote(`steps/${id}.ts · „${about}“: ${text}`)
+      : undefined,
+  };
   if (id === INPUT && file.input) {
     return (
       <StepPanel
@@ -252,7 +288,8 @@ export function KernelStep({
           ways: [{ to: file.start }],
         }}
         ways={[file.start]}
-        title={(id) => titleOf(id, read?.[id])}
+        target={target}
+        onSelect={onSelect}
         onBack={onBack}
       />
     );
@@ -262,7 +299,12 @@ export function KernelStep({
       id={id}
       step={read?.[id]}
       ways={file.edges[id] ?? []}
-      title={(to) => (to === "end" ? t("editor.branch.end") : titleOf(to, read?.[to]))}
+      // A change that was not written leaves the panel: it shows the file again.
+      key={`${id}:${write.failureCount}`}
+      target={target}
+      editing={readOnly ? undefined : editing}
+      failed={write.error ? (write.error as Error).message : undefined}
+      onSelect={onSelect}
       onBack={onBack}
     />
   );
@@ -306,12 +348,36 @@ export function KernelFlow({
 const INPUT = "/input";
 
 const LABEL = "font-medium text-[0.6875rem] text-ink-3 uppercase tracking-[0.07em]";
-const CODE = "rounded bg-paper-2 px-1 font-mono text-[0.75rem] text-ink-2";
+/** A value in its place, the way a form shows one: on a ground of its own, under its label. */
+const BOX = "rounded-xl bg-paper-2 px-4 py-3 text-[0.9375rem] text-ink";
+
+const short = (value: OutlineValue) =>
+  typeof value === "number" ||
+  typeof value === "boolean" ||
+  (typeof value === "string" && value.length <= 40 && !value.includes("\n")) ||
+  (isOutlineCode(value) && value.$code.length <= 40) ||
+  (Array.isArray(value) &&
+    value.every((one) => typeof one !== "object" || one === null) &&
+    value.join("").length <= 60);
 
 /** A value as the panel shows it: words as words, lists as chips, code as code. */
-function Value({ value }: { value: OutlineValue }) {
+function Value({
+  value,
+  path,
+  lines,
+}: {
+  value: OutlineValue;
+  /** Where the value stands in its ask: a text there is typed over in place. */
+  path?: string;
+  lines?: boolean;
+}) {
+  if (path && (typeof value === "string" || isOutlineText(value))) {
+    return (
+      <Words path={path} value={value} lines={lines} bare={lines} className="leading-relaxed" />
+    );
+  }
   if (typeof value === "string") {
-    return <span className="whitespace-pre-wrap">{value}</span>;
+    return <span className="whitespace-pre-wrap leading-relaxed">{value}</span>;
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return (
@@ -323,7 +389,7 @@ function Value({ value }: { value: OutlineValue }) {
   }
   if (isOutlineText(value)) {
     return (
-      <span className="whitespace-pre-wrap leading-relaxed">
+      <span className="whitespace-pre-wrap leading-[1.9]">
         {value.$text.map((part, i) =>
           typeof part === "string" ? (
             <span key={i}>{part}</span>
@@ -340,7 +406,10 @@ function Value({ value }: { value: OutlineValue }) {
     return (
       <span className="flex flex-wrap gap-1.5">
         {value.map((one) => (
-          <span key={String(one)} className="rounded-full px-2.5 py-0.5 ring-1 ring-border-soft">
+          <span
+            key={String(one)}
+            className="rounded-full bg-card px-2.5 py-0.5 text-[0.8125rem] text-ink-2"
+          >
             {String(one)}
           </span>
         ))}
@@ -348,10 +417,27 @@ function Value({ value }: { value: OutlineValue }) {
     );
   }
   return (
-    <pre className="overflow-x-auto rounded-lg bg-paper-2 p-2.5 font-mono text-[0.75rem] text-ink-2">
+    <pre className="overflow-x-auto font-mono text-[0.75rem] text-ink-2">
       {JSON.stringify(value, null, 2)}
     </pre>
   );
+}
+
+const SHOWN = ["id", "label", "kind", "required", "description", "options", "columns"];
+
+/** A value's entries, an object inside it by its path: `vat.field`. */
+function entries(spec: Spec, skip: string[] = []): [string, OutlineValue][] {
+  return Object.entries(spec ?? {})
+    .filter(([key]) => !skip.includes(key))
+    .flatMap(([key, value]): [string, OutlineValue][] =>
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      !isOutlineCode(value) &&
+      !isOutlineText(value)
+        ? entries(value as Spec).map(([name, one]) => [`${key}.${name}`, one])
+        : [[key, value]],
+    );
 }
 
 /** The questions of a page, or the fields an answer has: label, kind, and whether it is required. */
@@ -360,26 +446,87 @@ function Fields({ fields }: { fields: OutlineValue[] }) {
     <ul className="flex flex-col gap-1.5">
       {fields.map((field, i) => {
         const f = field as Spec;
-        const options = Array.isArray(f?.options) ? f.options.map(String).join(", ") : "";
+        const options = Array.isArray(f?.options) ? f.options.map(String) : [];
+        const columns = Array.isArray(f?.columns) ? f.columns : [];
+        // Whatever else the question sets: its default, its currency, the field its tax comes from.
+        const more = isOutlineCode(field) ? [] : entries(f, SHOWN);
         return (
-          <li
-            key={i}
-            className="flex items-baseline justify-between gap-3 rounded-lg bg-paper-2 px-3 py-2"
-          >
+          <li key={i} className={cn(BOX, "group/block relative flex flex-col gap-2")}>
+            <BlockTools about={str(f?.label) ?? str(f?.id) ?? String(i + 1)} />
             {isOutlineCode(field) ? (
-              <code className={CODE}>{field.$code}</code>
+              <code className={cn(CODE, "self-start")}>{field.$code}</code>
             ) : (
               <>
-                <span className="min-w-0 text-ink">
-                  {str(f?.label) ?? str(f?.id)}
-                  {f?.required === true ? <span className="text-ember"> *</span> : null}
-                  {str(f?.description) ? (
-                    <span className="block text-[0.75rem] text-ink-3">{str(f.description)}</span>
-                  ) : null}
+                <span className="flex items-baseline justify-between gap-3">
+                  <span className="min-w-0 font-medium text-ink">
+                    {str(f?.label) ? (
+                      <Words path={`fields.${i}.label`} value={str(f.label) as string} />
+                    ) : (
+                      str(f?.id)
+                    )}
+                    {f?.required === true ? <span className="text-ember"> *</span> : null}
+                  </span>
+                  <span className="shrink-0 font-mono text-[0.75rem] text-ink-3 transition-opacity group-focus-within/block:opacity-0 group-hover/block:opacity-0">
+                    {str(f?.kind)}
+                  </span>
                 </span>
-                <span className="shrink-0 text-right text-[0.75rem] text-ink-3">
-                  {[str(f?.kind), options].filter(Boolean).join(" · ")}
-                </span>
+                {str(f?.description) ? (
+                  <Words
+                    path={`fields.${i}.description`}
+                    value={str(f.description) as string}
+                    className="text-[0.8125rem] text-ink-2"
+                  />
+                ) : null}
+                {options.length ? (
+                  <span className="flex flex-wrap gap-1.5 text-[0.8125rem] text-ink-2">
+                    {options.map((one, at) => (
+                      <span key={at} className="rounded-full bg-card px-2.5 py-0.5">
+                        <Words path={`fields.${i}.options.${at}`} value={one} />
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
+                {columns.length ? (
+                  <span className="flex flex-col gap-1">
+                    {columns.map((column, at) => {
+                      const c = column as Spec;
+                      return (
+                        <span
+                          key={at}
+                          className="flex items-baseline justify-between gap-3 rounded-lg bg-card px-3 py-1.5 text-[0.875rem]"
+                        >
+                          {isOutlineCode(column) ? (
+                            <code className={CODE}>{column.$code}</code>
+                          ) : (
+                            <>
+                              {str(c?.label) ? (
+                                <Words
+                                  path={`fields.${i}.columns.${at}.label`}
+                                  value={str(c.label) as string}
+                                />
+                              ) : (
+                                <span>{str(c?.id)}</span>
+                              )}
+                              <span className="font-mono text-[0.75rem] text-ink-3">
+                                {str(c?.kind)}
+                              </span>
+                            </>
+                          )}
+                        </span>
+                      );
+                    })}
+                  </span>
+                ) : null}
+                {more.length ? (
+                  <span className="flex flex-wrap gap-x-4 gap-y-1 text-[0.8125rem]">
+                    {more.map(([name, one]) => (
+                      <span key={name} className="inline-flex items-baseline gap-1.5">
+                        <span className="text-ink-3">{name}</span>
+                        <Value value={one} />
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
               </>
             )}
           </li>
@@ -390,42 +537,79 @@ function Fields({ fields }: { fields: OutlineValue[] }) {
 }
 
 /** What an ask passes, in the order a person reads it; `type` and `title` are the panel's head. */
-const FIRST = [
-  "description",
-  "fields",
-  "instructions",
-  "prompt",
-  "show",
-  "model",
-  "format",
-  "asset",
-];
+const FIRST = ["description", "fields", "instructions", "prompt"];
 
-function Ask({ spec }: { spec: Spec }) {
-  const keys = [
-    ...FIRST.filter((key) => key in spec),
-    ...Object.keys(spec).filter((key) => !FIRST.includes(key) && key !== "type" && key !== "title"),
-  ];
+/** A long value on a ground of its own; a text among them turns to an input when clicked into. */
+function Long({ path, about, value }: { path: string; about: string; value: OutlineValue }) {
+  const pen = useEditable(path);
+  return (
+    <div
+      className={cn(
+        BOX,
+        "group/block relative",
+        pen && "transition-colors focus-within:bg-card focus-within:shadow-[0_0_0_2px_var(--ring)]",
+      )}
+    >
+      <BlockTools about={about} pen={pen} />
+      <Value value={value} path={path} lines />
+    </div>
+  );
+}
+
+function Ask({ spec: given }: { spec: Spec }) {
+  let spec = given;
+  // An object of short values is read as its entries: `options.template`, not a block of JSON.
+  const flat: Spec = {};
+  for (const [key, value] of Object.entries(spec)) {
+    const inner =
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      !isOutlineCode(value) &&
+      !isOutlineText(value)
+        ? Object.entries(value as Spec)
+        : [];
+    if (inner.length && inner.every(([, one]) => short(one))) {
+      for (const [name, one] of inner) flat[`${key}.${name}`] = one;
+    } else flat[key] = value;
+  }
+  spec = flat;
+  const rest = Object.keys(spec).filter(
+    (key) => !FIRST.includes(key) && key !== "type" && key !== "title",
+  );
+  // Long values get a field of their own; the short ones stand together, name left and value right.
+  const long = [...FIRST.filter((key) => key in spec), ...rest.filter((key) => !short(spec[key]))];
+  const small = rest.filter((key) => short(spec[key]));
   const label = (key: string) =>
-    key === "fields"
-      ? kindOf(spec) === "form"
-        ? t("inspector.questions")
-        : key
+    key === "fields" && kindOf(spec) === "form"
+      ? t("inspector.questions")
       : key === "instructions" || key === "prompt"
         ? t("inspector.task")
         : key;
   return (
     <div className="flex flex-col gap-4">
-      {keys.map((key) => (
-        <div key={key} className="flex flex-col gap-1.5 text-[0.875rem] text-ink">
+      {long.map((key) => (
+        <div key={key} className="flex flex-col gap-1.5">
           <span className={LABEL}>{label(key)}</span>
           {key === "fields" && Array.isArray(spec.fields) ? (
             <Fields fields={spec.fields} />
           ) : (
-            <Value value={spec[key]} />
+            <Long path={key} about={label(key)} value={spec[key]} />
           )}
         </div>
       ))}
+      {small.length ? (
+        <dl className={cn(BOX, "flex flex-col gap-2.5")}>
+          {small.map((key) => (
+            <div key={key} className="flex items-baseline justify-between gap-4">
+              <dt className="shrink-0 text-[0.8125rem] text-ink-3">{label(key)}</dt>
+              <dd className="min-w-0 text-right font-medium">
+                <Value value={spec[key]} path={key} />
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
     </div>
   );
 }
@@ -435,7 +619,10 @@ function StepPanel({
   path,
   step,
   ways,
-  title,
+  target,
+  editing,
+  failed,
+  onSelect,
   onBack,
 }: {
   id: string;
@@ -444,7 +631,14 @@ function StepPanel({
   step: StepOutline | undefined;
   /** The step's ways in the file. The first is taken where the step names none. */
   ways: string[];
-  title: (id: string) => string;
+  /** The step a way leads to, as its card. */
+  target: (id: string) => { title: string; icon: LucideIcon; tone: string } | undefined;
+  /** What changes the step: a text typed over, a note to the assistant. Left out, it is read only. */
+  editing?: Pick<KernelEditing, "save" | "note">;
+  /** Why the last change was not written. */
+  failed?: string;
+  /** Chooses the step a way leads to. */
+  onSelect?: (id: string) => void;
   /** Leads back to the map, where the panel stands in its place. */
   onBack?: () => void;
 }) {
@@ -453,7 +647,7 @@ function StepPanel({
   const shown: OutlineWay[] = named.length ? named : ways.map((to) => ({ to }));
   return (
     <div className="flex h-full flex-col overflow-auto">
-      <div className="flex items-center gap-2 border-border-soft border-b px-4 py-3">
+      <div className="flex items-center gap-2 px-5 pt-4">
         {onBack ? (
           <button
             type="button"
@@ -468,51 +662,98 @@ function StepPanel({
           {path ?? `steps/${id}.ts`}
         </code>
       </div>
-      <div className="flex flex-col gap-6 px-5 py-5">
+      <div className="flex flex-col gap-8 px-5 pt-2 pb-8">
         {step?.error ? <p className="text-[0.875rem] text-rose">{step.error}</p> : null}
+        {failed ? <p className="text-[0.875rem] text-rose">{failed}</p> : null}
         {(step?.asks ?? []).map((ask, i) => {
           const Icon = iconOf(ask.spec);
           return (
-            <section key={i} className="flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    "inline-flex size-6 items-center justify-center rounded-md",
-                    (KINDS[kindOf(ask.spec)] ?? IN_CODE).tone,
+            <KernelEditContext.Provider
+              key={i}
+              value={
+                editing ? { path: path ?? `steps/${id}.ts`, at: ask.at ?? {}, ...editing } : null
+              }
+            >
+              <section className="flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "inline-flex size-6 items-center justify-center rounded-md",
+                      (KINDS[kindOf(ask.spec)] ?? IN_CODE).tone,
+                    )}
+                  >
+                    <Icon className="size-3.5" />
+                  </span>
+                  <span className={LABEL}>{kindLabel(kindOf(ask.spec))}</span>
+                </div>
+                <h3 className="-mt-1 font-display font-semibold text-[1.5rem] text-ink leading-tight">
+                  {str(ask.spec?.title) ? (
+                    <Words path="title" value={str(ask.spec?.title) as string} />
+                  ) : i === 0 ? (
+                    (step?.title ?? id)
+                  ) : (
+                    ""
                   )}
-                >
-                  <Icon className="size-3.5" />
-                </span>
-                <span className={LABEL}>{kindLabel(kindOf(ask.spec))}</span>
-              </div>
-              <h3 className="font-display font-semibold text-[1.0625rem] text-ink">
-                {str(ask.spec?.title) ?? (i === 0 ? (step?.title ?? id) : "")}
-              </h3>
-              {ask.spec ? <Ask spec={ask.spec} /> : <code className={CODE}>{ask.code}</code>}
-            </section>
+                </h3>
+                {ask.spec ? <Ask spec={ask.spec} /> : <code className={CODE}>{ask.code}</code>}
+              </section>
+            </KernelEditContext.Provider>
           );
         })}
-        <section className="flex flex-col gap-2 border-border-soft border-t pt-5">
-          <span className={LABEL}>{t("kernel.ways")}</span>
-          {shown.map((way, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-2 text-[0.875rem] text-ink">
-              {way.ask ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Sparkles className="size-3.5 text-ember" />
-                  {way.ask}
+        <section className="flex flex-col gap-1.5">
+          <span className={cn(LABEL, "mb-1")}>{t("kernel.ways")}</span>
+          {shown.map((way, i) => {
+            const to = way.to ?? "end";
+            const card = way.code ? undefined : target(to);
+            const open = card && to !== "end" && onSelect ? () => onSelect(to) : undefined;
+            const Icon = card?.icon;
+            return (
+              <button
+                key={i}
+                type="button"
+                disabled={!open}
+                onClick={open}
+                className={cn(
+                  BOX,
+                  "group flex items-center gap-3 text-left",
+                  open && "cursor-pointer hover:bg-paper-3",
+                )}
+              >
+                {Icon ? (
+                  <span
+                    className={cn(
+                      "inline-flex size-8 shrink-0 items-center justify-center rounded-lg",
+                      card.tone,
+                    )}
+                  >
+                    <Icon className="size-4" />
+                  </span>
+                ) : null}
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="text-[0.8125rem] text-ink-2">
+                    {way.ask ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Sparkles className="size-3.5 text-ember" />
+                        {way.ask}
+                      </span>
+                    ) : way.why || redoes(step?.asks[0]?.spec, way.to) ? (
+                      (way.why ?? t("kernel.redo"))
+                    ) : way.when ? (
+                      <code className={CODE}>{way.when}</code>
+                    ) : shown.length > 1 ? (
+                      t("editor.otherwise")
+                    ) : null}
+                  </span>
+                  <span className="font-medium">
+                    {way.code ? <code className={CODE}>{way.code}</code> : card?.title}
+                  </span>
                 </span>
-              ) : way.why || redoes(step?.asks[0]?.spec, way.to) ? (
-                <span>{way.why ?? t("kernel.redo")}</span>
-              ) : way.when ? (
-                <code className={CODE}>{way.when}</code>
-              ) : shown.length > 1 ? (
-                <span className="text-ink-3">{t("editor.otherwise")}</span>
-              ) : null}
-              <span>
-                → {way.code ? <code className={CODE}>{way.code}</code> : title(way.to ?? "end")}
-              </span>
-            </div>
-          ))}
+                {open ? (
+                  <ChevronRight className="size-4 shrink-0 text-ink-3 group-hover:text-ink" />
+                ) : null}
+              </button>
+            );
+          })}
         </section>
       </div>
     </div>

@@ -1,6 +1,8 @@
+import { stripTypeScriptTypes } from "node:module";
 import type {
   KernelOutline,
   OutlineAsk,
+  OutlineEdit,
   OutlineValue,
   OutlineWay,
   StepOutline,
@@ -9,6 +11,7 @@ import { stepFilesOf } from "@engenty/wizards-shared/kernel-file";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { type Node, parse } from "acorn";
 import { transform } from "esbuild";
+import { ServiceError } from "../services/errors.js";
 import { snapshotFile } from "../services/files.js";
 
 /**
@@ -37,8 +40,16 @@ function head(source: string): Pick<StepOutline, "title" | "description"> {
 export async function stepOutline(source: string): Promise<StepOutline> {
   let code: string;
   let tree: N;
+  // Types blanked out leave every character where it is, so a value's place is its place in the
+  // file. What cannot be blanked (an enum) is transformed, and then nothing has a place.
+  let placed = true;
   try {
-    code = (await transform(source, { loader: "ts", format: "esm", target: "esnext" })).code;
+    try {
+      code = stripTypeScriptTypes(source, { mode: "strip" });
+    } catch {
+      placed = false;
+      code = (await transform(source, { loader: "ts", format: "esm", target: "esnext" })).code;
+    }
     tree = parse(code, { ecmaVersion: "latest", sourceType: "module" }) as N;
   } catch (err) {
     return { ...head(source), asks: [], ways: [], error: (err as Error).message.split("\n")[0] };
@@ -55,8 +66,11 @@ export async function stepOutline(source: string): Promise<StepOutline> {
         if (one.id.type === "Identifier" && one.init) named.set(one.id.name, one.init);
   }
 
-  const value = (node: N | null, depth = 0): OutlineValue => {
+  type Places = Record<string, [number, number]>;
+  const value = (node: N | null, depth = 0, path = "", at?: Places): OutlineValue => {
     if (!node) return null;
+    const text_ = node.type === "TemplateLiteral" || typeof node.value === "string";
+    if (placed && at && text_) at[path] = [node.start, node.end];
     switch (node.type) {
       case "Literal":
         return node.regex || typeof node.value === "bigint" ? { $code: text(node) } : node.value;
@@ -70,23 +84,26 @@ export async function stepOutline(source: string): Promise<StepOutline> {
         return { $text: parts };
       }
       case "ArrayExpression":
-        return (node.elements as (N | null)[]).map((one) =>
-          one && one.type !== "SpreadElement" ? value(one, depth) : { $code: one ? text(one) : "" },
+        return (node.elements as (N | null)[]).map((one, i) =>
+          one && one.type !== "SpreadElement"
+            ? value(one, depth, `${path}.${i}`, at)
+            : { $code: one ? text(one) : "" },
         );
       case "ObjectExpression":
-        return object(node, depth);
+        return object(node, depth, path, at);
       case "UnaryExpression":
         if (node.operator === "-" && typeof node.argument.value === "number")
           return -node.argument.value;
         break;
       case "Identifier": {
         const init = named.get(node.name);
-        if (init && depth < 4 && !FUNCTIONS.includes(init.type)) return value(init, depth + 1);
+        if (init && depth < 4 && !FUNCTIONS.includes(init.type))
+          return value(init, depth + 1, path, at);
       }
     }
     return { $code: text(node) };
   };
-  const object = (node: N, depth: number): Record<string, OutlineValue> => {
+  const object = (node: N, depth: number, path = "", at?: Places): Record<string, OutlineValue> => {
     const out: Record<string, OutlineValue> = {};
     for (const prop of node.properties as N[]) {
       if (prop.type !== "Property" || prop.computed) {
@@ -94,7 +111,7 @@ export async function stepOutline(source: string): Promise<StepOutline> {
         continue;
       }
       const key = prop.key.type === "Identifier" ? prop.key.name : String(prop.key.value);
-      out[key] = value(prop.value, depth);
+      out[key] = value(prop.value, depth, path ? `${path}.${key}` : key, at);
     }
     return out;
   };
@@ -140,10 +157,11 @@ export async function stepOutline(source: string): Promise<StepOutline> {
       return;
     }
     if (node.type === "CallExpression" && node.callee.name === askName) {
-      const spec = value(node.arguments[0] ?? null);
+      const at: Places = {};
+      const spec = value(node.arguments[0] ?? null, 0, "", at);
       asks.push(
         spec && typeof spec === "object" && !Array.isArray(spec) && !("$code" in spec)
-          ? { spec: spec as Record<string, OutlineValue> }
+          ? { spec: spec as Record<string, OutlineValue>, at }
           : { code: node.arguments[0] ? text(node.arguments[0]) : "" },
       );
     }
@@ -180,6 +198,39 @@ export async function stepOutline(source: string): Promise<StepOutline> {
     }
   }
   return { ...head(source), asks, ways };
+}
+
+/**
+ * A step file with one of its texts typed over: the text at `from`–`to` written anew, the code
+ * between its words as it was. Only a place the outline names is replaced, and only where the
+ * file still reads as a step afterwards.
+ */
+export async function editStep(
+  source: string,
+  [from, to]: [number, number],
+  next: OutlineEdit,
+): Promise<string> {
+  const before = await stepOutline(source);
+  const known = before.asks.some((ask) =>
+    Object.values(ask.at ?? {}).some((place) => place[0] === from && place[1] === to),
+  );
+  if (!known) throw new ServiceError("revision_conflict", "The step has changed. Load it again.");
+  const parts = typeof next === "string" ? [next] : next;
+  const words = parts.every((part) => typeof part === "string") ? parts.join("") : null;
+  const written =
+    words !== null && !words.includes("\n")
+      ? JSON.stringify(words)
+      : `\`${parts
+          .map((part) =>
+            typeof part === "string"
+              ? part.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${")
+              : `\${${part.$code}}`,
+          )
+          .join("")}\``;
+  const out = source.slice(0, from) + written + source.slice(to);
+  const after = await stepOutline(out);
+  if (after.error) throw new ServiceError("invalid", after.error);
+  return out;
 }
 
 /** The outline of every step file of a workspace. A file is read once for each of its versions. */

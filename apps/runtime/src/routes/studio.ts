@@ -96,7 +96,7 @@ import {
   subscribeTerminal,
   writeTerminal,
 } from "../harness/terminal.js";
-import { kernelOutline } from "../kernel/outline.js";
+import { editStep, kernelOutline } from "../kernel/outline.js";
 import {
   connectorsView,
   filesView,
@@ -2097,6 +2097,30 @@ export const studio = new Hono<Vars>()
   .get("/wizards/:id/outline", async (c) =>
     c.json({ steps: await kernelOutline(await listFiles(c.get("user").id, c.req.param("id"))) }),
   )
+  // One text of a step typed over in the studio: written into the step's file where it stands.
+  .post("/wizards/:id/outline", async (c) => {
+    const body = z
+      .object({
+        step: z.string().regex(/^[\w-]+$/),
+        hash: z.string(),
+        at: z.tuple([z.number().int().min(0), z.number().int().min(0)]),
+        value: z.union([
+          z.string(),
+          z.array(z.union([z.string(), z.object({ $code: z.string() })])),
+        ]),
+      })
+      .parse(await c.req.json());
+    const user = c.get("user").id;
+    const path = `steps/${body.step}.ts`;
+    const { file, data } = await readFile(user, c.req.param("id"), path);
+    if (file.hash !== body.hash) {
+      throw new ServiceError("revision_conflict", "The step has changed. Load it again.");
+    }
+    const next = await editStep(data.toString("utf8"), body.at, body.value);
+    return c.json(
+      await writeFile(user, c.req.param("id"), path, new TextEncoder().encode(next), file.mime),
+    );
+  })
   .get("/wizards/:id/files/:path{.+}", async (c) => {
     const { file, data } = await readFile(c.get("user").id, c.req.param("id"), c.req.param("path"));
     return c.body(new Uint8Array(data), 200, {

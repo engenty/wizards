@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stepOutline } from "../src/kernel/outline.js";
+import { editStep, stepOutline } from "../src/kernel/outline.js";
 
 describe("what the studio reads of a step file", () => {
   it("reads an ask's literals, a template's parts and a constant of the file", async () => {
@@ -91,5 +91,39 @@ export default async function (run, ask) {
       { to: "queue" },
       { to: "later", ask: "It can wait a week." },
     ]);
+  });
+
+  it("writes a text a person typed over where it stands, the code between its words kept", async () => {
+    const source = `const label: string = "Name";
+export default async function (run: any, ask: any) {
+  const value: any = await ask({
+    type: "agent",
+    title: "Pitch",
+    instructions: \`Write to \${text(run.input.customer)}.\`,
+    fields: [{ id: "name", label, options: ["a", "b"] }],
+  });
+  return { value };
+}`;
+    const at = (await stepOutline(source)).asks[0].at ?? {};
+    expect(source.slice(...at.title)).toBe('"Pitch"');
+    expect(source.slice(...at["fields.0.label"])).toBe('"Name"');
+    expect(source.slice(...at["fields.0.options.1"])).toBe('"b"');
+
+    const titled = await editStep(source, at.title, 'The "pitch"');
+    expect(titled).toContain('title: "The \\"pitch\\"",');
+    const labelled = await editStep(source, at["fields.0.label"], "Your name");
+    expect(labelled).toContain('const label: string = "Your name";');
+    const told = await editStep(source, at.instructions, [
+      "Dear `",
+      { $code: "text(run.input.customer)" },
+      "`,\nsay ${hello}.",
+    ]);
+    expect(told).toContain(
+      "instructions: `Dear \\`${text(run.input.customer)}\\`,\nsay \\${hello}.`,",
+    );
+    expect((await stepOutline(told)).asks[0].spec?.instructions).toEqual({
+      $text: ["Dear `", { $code: "text(run.input.customer)" }, "`,\nsay ${hello}."],
+    });
+    await expect(editStep(source, [0, 5], "x")).rejects.toThrow();
   });
 });

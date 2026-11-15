@@ -730,7 +730,13 @@ function Editor() {
     kernel && kernelStep ? (
       <div className="min-h-0 flex-1 overflow-y-auto" {...stepSwipe}>
         <div className="mx-auto w-full max-w-3xl">
-          <KernelStep wizard={kernel} id={kernelStep} />
+          <KernelStep
+            wizard={kernel}
+            id={kernelStep}
+            onSelect={select}
+            readOnly={w.readOnly}
+            onNote={(text) => void chat.send(text)}
+          />
         </div>
       </div>
     ) : (

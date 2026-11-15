@@ -84,7 +84,15 @@ export type OutlineValue =
 export interface OutlineAsk {
   spec?: Record<string, OutlineValue>;
   code?: string;
+  /**
+   * Where each written-out text of `spec` stands in the file, by its path (`fields.1.label`):
+   * from, to. What the studio replaces when a person types over the text.
+   */
+  at?: Record<string, [number, number]>;
 }
+
+/** A text as a person typed it over: its words, with the code between them as it was. */
+export type OutlineEdit = string | (string | OutlineCode)[];
 
 /** One `return` of a step: the way it names, and the condition around it. */
 export interface OutlineWay {
