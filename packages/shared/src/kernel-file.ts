@@ -11,7 +11,7 @@ import {
 import { CONNECTION_KINDS } from "./store.js";
 
 /**
- * What reads the file of a wizard in version 2 (docs/plans/kernel.md). The file's schema is in
+ * What reads the file of a wizard in version 0.3.0 (docs/plans/kernel.md). The file's schema is in
  * definition.ts, beside the definition that carries it.
  */
 export {

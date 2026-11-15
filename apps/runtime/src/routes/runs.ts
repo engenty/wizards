@@ -1283,7 +1283,7 @@ export const runRoutes = new Hono()
     return c.json({ ok: true });
   })
   // A run's timeline in the runs panel, for the people of its organization.
-  // A run of a wizard in version 2 (docs/plans/kernel.md): its rows, and an answer or a way back
+  // A run of a wizard in version 0.3.0 (docs/plans/kernel.md): its rows, and an answer or a way back
   // for one of them. The pages and reviews above answer such a run as well.
   .get("/:id/rows", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));

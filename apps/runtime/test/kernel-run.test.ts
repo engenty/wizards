@@ -18,7 +18,7 @@ process.env.FEATURES = "durableRuns=on,kernel=on";
 process.env.RUNNER_CLOCK_MS = "100";
 
 /**
- * A wizard in version 2 through the runtime (docs/plans/kernel.md): made as every wizard is,
+ * A wizard in version 0.3.0 through the runtime (docs/plans/kernel.md): made as every wizard is,
  * its step files in its workspace, its runs in the engine's line. The model is a stand-in, as in
  * the other engine tests: what an ask becomes for today's step executors is what is looked at.
  */
@@ -139,7 +139,7 @@ afterAll(async () => {
   await runner.stopRunner();
 });
 
-describe.each(["quickjs", "native"] as const)("a wizard in version 2, its steps run as %s", (mode) => {
+describe.each(["quickjs", "native"] as const)("a wizard in version 0.3.0, its steps run as %s", (mode) => {
   it("runs to the operator's review, and on to its end as each one answers", async () => {
     worked.length = 0;
     price.next = [3000];
@@ -302,7 +302,7 @@ describe("an action the file sets to ask", () => {
 
 describe("a wait", () => {
   it("leaves every process and is woken by the clock, with a timeout as its answer", async () => {
-    const napFile = { version: 2, title: "Nap", description: "", start: "nap", edges: { nap: ["end"] }, output: { woke: "nap.timedOut" } };
+    const napFile = { version: "0.3.0", title: "Nap", description: "", start: "nap", edges: { nap: ["end"] }, output: { woke: "nap.timedOut" } };
     const w = await client.withTenant(T, async () => {
       const created = await wizards.createWizard("u", { definition: kernelShell(napFile as never) as never });
       await files.seedFiles(created.id, { "steps/nap.ts": 'export default async (run, ask) => ({ value: await ask({ type: "wait", timeout: "1s" }) });\n' });
@@ -344,7 +344,7 @@ describe("evals", () => {
 });
 
 describe("the switch", () => {
-  it("refuses a wizard in version 2 while it is off", async () => {
+  it("refuses a wizard in version 0.3.0 while it is off", async () => {
     const features = await import("../src/features");
     const w = await exampleWizard("mail");
     const spy = vi.spyOn(features, "feature").mockImplementation((name: string) => name !== "kernel");
@@ -383,7 +383,7 @@ describe("through the doors every run has", () => {
     await rests(runId, "waiting_input");
 
     let seen = await report(runId);
-    expect(seen).toMatchObject({ version: 2, status: "waiting_input", waitingFor: { step: "input", form: "input" } });
+    expect(seen).toMatchObject({ version: "0.3.0", status: "waiting_input", waitingFor: { step: "input", form: "input" } });
     expect(seen.waitingFor?.fields?.map((f) => f.id)).toEqual(["customer", "email", "budget", "items"]);
 
     await client.withTenant(T, () => doors.answerRunForm("u", runId, "input", input));

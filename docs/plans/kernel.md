@@ -2,13 +2,13 @@
 
 Status: partly built, behind the switch `kernel` (off by default), on the branch of #694. Built:
 the kernel as a package (A), the format (B.5), and the runtime as its host (C): a wizard in
-version 2 is made, runs in the engine's line, and is answered through the pages, reviews and MCP
+version 0.3.0 is made, runs in the engine's line, and is answered through the pages, reviews and MCP
 tools every run has. "What is built" below says what, and where it differs from this plan. The
 design and its reasons are in
 [The Smallest Wizard](https://claude.ai/artifact/S9Q6tXsn3VMvnTvFE8NvDQ). Decided by Matthias on
 2026-11-14.
 
-A word on numbers: today's format is version 1 (`DEFINITION_VERSION`). The new one is version 2.
+A word on numbers: today's format is version 1 (`DEFINITION_VERSION`). The new one is version 0.3.0 (`KERNEL_VERSION`).
 
 Scope: a third format for a wizard, the engine that runs it, how it reaches models, tools and
 people, where its code runs, and how the studio shows it. Built beside today's engine, behind the
@@ -42,12 +42,12 @@ than the tenant's database, prices.
 
 Where it differs from the plan:
 
-- **A wizard in version 2 is stored inside a definition of version 1.** The definition gains one
+- **A wizard in version 0.3.0 is stored inside a definition of version 1.** The definition gains one
   optional entry, `kernel`, that holds the file; its `steps` are one result step, so everything
   that reads a definition finds a whole, small one. 97 places read a definition's steps; this way
   none of them had to change. `kernelShell` makes that definition from a file.
 - **A run keeps what the kernel needs in `run.state.kernel`,** beside the columns the plan names.
-- **The run's page was not rebuilt.** A run of version 2 is shown to it as the small wizard it is
+- **The run's page was not rebuilt.** A run of version 0.3.0 is shown to it as the small wizard it is
   at that moment: the steps that returned with what they left behind, and the page it waits at,
   a form, a review, or the leave for an action as a review of what is about to be done. So the
   page, the pages and reviews routes and the MCP tools `answer_form` and `review_step` answer such
@@ -65,7 +65,7 @@ Where it differs from the plan:
   stand-in for the model: both ways to run a step, the input asked for, back, limits, a step file
   that does not compile, leave for an action, a wait the clock ends, evals, the switch, the
   services, the run's page, a converted wizard run to its end.
-- By hand against a started runtime: a wizard in version 2 made over HTTP, published, and
+- By hand against a started runtime: a wizard in version 0.3.0 made over HTTP, published, and
   answered in a browser on its public page, from the form through a review to the result.
 - Not tested: a run with a real model (this branch was built without a model key), a restart of
   the runner in the middle of each kind of wait, and the cloud.
@@ -101,14 +101,14 @@ tenant. Decision 6 therefore gives two states, and the order below follows from 
 | A local install, a wizard from someone else | QuickJS | QuickJS |
 | The cloud | QuickJS, for every wizard | Ordinary code in the tenant's runner; a runner of its own for a wizard from someone else |
 
-So QuickJS comes early, not last: it is what lets version 2 run in the cloud before the runners
+So QuickJS comes early, not last: it is what lets version 0.3.0 run in the cloud before the runners
 change. What a step may use is the same in both: it computes and asks. Node's own modules in a
 step work only where the code runs as ordinary code, and never in a published wizard.
 
 ## Which engine runs a wizard
 
 By the wizard, not by a global flip. A wizard in version 1 keeps today's engine
-(`apps/runtime/src/engine/runner.ts`). A wizard in version 2 runs on the kernel. The switch `kernel`
+(`apps/runtime/src/engine/runner.ts`). A wizard in version 0.3.0 runs on the kernel. The switch `kernel`
 (`packages/shared/src/feature-flags.ts`, `kind: "release"`, off) allows making and running
 version 2. Nothing changes for a wizard nobody converts.
 
@@ -174,7 +174,7 @@ Tests named here run alone, as the repository asks:
    step functions. Where `decide()` in `broker/call.ts` says ask and the file says allow, the
    battery answers "needs leave" and the kernel asks. The `approval` table is not used by version 2.
 10. **The entry points.** `apps/runtime/src/kernel/host.ts`, called from `services/runs.ts` and
-    `engine/runner.ts` when the wizard is version 2:
+    `engine/runner.ts` when the wizard is version 0.3.0:
 
     | Today | Kernel |
     |---|---|
@@ -230,10 +230,10 @@ Tests named here run alone, as the repository asks:
 
 ### G. Converting
 
-22. **Version 1 to version 2**, as a function in `packages/shared`: a definition in, a file and its
+22. **Version 1 to version 0.3.0**, as a function in `packages/shared`: a definition in, a file and its
     step files out.
 
-    | Version 1 | Version 2 |
+    | Version 1 | Version 0.3.0 |
     |---|---|
     | A form, review, agent, tool, generate step | A step file with one ask |
     | `next` rules and `goto` | The returned `to`, and the edge |
@@ -265,21 +265,21 @@ Tests named here run alone, as the repository asks:
 
 | Stage | Items | After it |
 |---|---|---|
-| 1 | A, B | A wizard in version 2 can be written, checked and run in tests |
+| 1 | A, B | A wizard in version 0.3.0 can be written, checked and run in tests |
 | 2 | C | It runs in a local install and in the cloud (QuickJS), with people answering |
 | 3 | F 18–20, G | People see and steer it in the studio; old wizards can move |
 | 4 | D, E | Its writing is judged; connections go through executor |
 | 5 | H 23–25 | Step code is ordinary code in the cloud |
-| 6 | Flip | New wizards are version 2 |
+| 6 | Flip | New wizards are version 0.3.0 |
 
 D and E do not block 3 and can run beside it.
 
 ## Before the switch flips
 
-- The 31 starters exist in version 2 and behave as before for a person using them.
-- A run in version 2 survives a restart of its runner at every kind of wait.
+- The 31 starters exist in version 0.3.0 and behave as before for a person using them.
+- A run in version 0.3.0 survives a restart of its runner at every kind of wait.
 - A wizard from the marketplace cannot read a file or open a connection on a local install.
-- The studio's assistant builds a new wizard in version 2 from a sentence.
+- The studio's assistant builds a new wizard in version 0.3.0 from a sentence.
 - A run's cost is counted as before.
 - Languages: where a wizard's labels and prompts in several languages live. Today a starter is one
   definition per language. Not designed.

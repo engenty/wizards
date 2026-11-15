@@ -1,7 +1,7 @@
 {
   "name": "@engenty/wizards-kernel",
   "version": "0.0.0",
-  "description": "The engine of a wizard in version 2: a file of edges, one function per step, a cursor and rows.",
+  "description": "The engine of a wizard in version 0.3.0: a file of edges, one function per step, a cursor and rows.",
   "private": true,
   "type": "module",
   "exports": {

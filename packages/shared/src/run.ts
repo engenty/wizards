@@ -87,7 +87,7 @@ export interface RunTurn {
 
 export interface RunState {
   /**
-   * A run of a wizard in version 2 (docs/plans/kernel.md): what the kernel keeps of it besides
+   * A run of a wizard in version 0.3.0 (docs/plans/kernel.md): what the kernel keeps of it besides
    * its rows. The other entries of this state stay empty for such a run.
    */
   kernel?: {

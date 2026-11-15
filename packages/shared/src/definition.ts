@@ -1593,11 +1593,11 @@ export type Requires = z.infer<typeof requiresSchema>;
  * A definition without a version is of this one.
  */
 /**
- * A wizard in version 2 of the format (docs/plans/kernel.md): the file. It holds what the wizard
+ * A wizard in version 0.3.0 of the format (docs/plans/kernel.md): the file. It holds what the wizard
  * needs and may reach, and the map. Nothing about a step is in it: a step is a file of the
  * wizard's workspace, `steps/<id>.ts`, with one function. What reads it is in kernel-file.ts.
  */
-export const KERNEL_VERSION = 2 as const;
+export const KERNEL_VERSION = "0.3.0" as const;
 
 const kernelStepId = z
   .string()
@@ -1689,7 +1689,7 @@ export const wizardSchema = z
     requires: requiresSchema.optional(),
     steps: z.array(stepSchema).min(1),
     /**
-     * The wizard in version 2 of the format (docs/plans/kernel.md, kernel-file.ts): with it the
+     * The wizard in version 0.3.0 of the format (docs/plans/kernel.md, kernel-file.ts): with it the
      * kernel runs the wizard from its step files, and `steps` is only what a reader that knows
      * version 1 shows of it.
      */
@@ -2090,7 +2090,7 @@ export function kernelIssues(file: KernelFile, paths: readonly string[]): Valida
 
 export function validateWizard(def: WizardDefinition, files?: string[]): ValidationIssue[] {
   const issues: ValidationIssue[] = sectionIssues(def);
-  // A wizard in version 2: its file against the step files of its workspace.
+  // A wizard in version 0.3.0: its file against the step files of its workspace.
   if (def.kernel && files) {
     issues.push(...kernelIssues(def.kernel, files));
   }

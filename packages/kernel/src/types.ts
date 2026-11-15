@@ -3,7 +3,7 @@ export type Field = { id: string; kind: string; required?: boolean; [key: string
 
 /** The file: what a wizard needs and may reach, and its map. Nothing about a step is in it. */
 export type WizardFile = {
-  version?: 2;
+  version?: "0.3.0";
   title: string;
   description?: string;
   avatar?: string;

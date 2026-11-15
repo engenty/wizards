@@ -8,7 +8,7 @@ import { build, type Plugin } from "esbuild";
 import { snapshotFile } from "../services/files.js";
 
 /**
- * A wizard of version 2 as the kernel takes it (docs/plans/kernel.md): its file, and the code of
+ * A wizard of version 0.3.0 as the kernel takes it (docs/plans/kernel.md): its file, and the code of
  * its steps and evals compiled from the workspace a run started with.
  *
  * `quickjs`: each step is one script for the sandbox. A step that imports anything but a file of

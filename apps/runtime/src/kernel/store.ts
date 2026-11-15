@@ -6,7 +6,7 @@ import type { RunRow } from "../engine/types.js";
 import { setWake } from "../tenants/control.js";
 
 /**
- * A run of version 2 in the tenant's database (docs/plans/kernel.md): the cursor, the wake time
+ * A run of version 0.3.0 in the tenant's database (docs/plans/kernel.md): the cursor, the wake time
  * and the fence are the run's own columns, what else the kernel keeps is `state.kernel`, and the
  * rows and scores have their tables.
  */

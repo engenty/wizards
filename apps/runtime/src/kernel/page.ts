@@ -5,7 +5,7 @@ import type { RunRow } from "../engine/types.js";
 import type { KernelRunView } from "./host.js";
 
 /**
- * A run of a wizard in version 2 as the run's page reads it (docs/plans/kernel.md). The page
+ * A run of a wizard in version 0.3.0 as the run's page reads it (docs/plans/kernel.md). The page
  * draws a run of version 1: a step the person is on, and what earlier steps made. So the run is
  * shown as the small wizard it is at this moment: the steps that returned, each with what it
  * left behind, and the page it waits at, a form, a review, or the leave for an action. The page's
