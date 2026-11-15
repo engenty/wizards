@@ -9,19 +9,23 @@ type DurableObjectNamespace = {
   get(id: unknown): { fetch(request: Request): Promise<Response> };
 };
 
-/** The run page, built by build.mjs: `@engenty/wizards-runner` with this Worker as its source. */
-export type Page = { js: string; css: string };
+/**
+ * The run page, built by build.mjs: `@engenty/wizards-runner` with this Worker as its source.
+ * Its files by name: `page.js`, `page.css`, and the chunks the page loads when it needs them.
+ */
+export type Page = Record<string, string>;
 
 const html = (lang: string, title: string) => `<!doctype html>
 <html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${title.replace(/</g, "&lt;")}</title><link rel="stylesheet" href="/page.css">
+<title>${title.replace(/</g, "&lt;")}</title><link rel="stylesheet" href="/page/page.css">
 <style>html,body{margin:0;background:#faf8f5}</style></head>
-<body><div id="page" class="engenty-runner"></div><script type="module" src="/page.js"></script></body></html>`;
+<body><div id="page" class="engenty-runner"></div><script type="module" src="/page/page.js"></script></body></html>`;
 
 /**
  * One wizard as a Worker. Each run is a Durable Object named by the run's id.
  *
  *   GET  /, /r/<id>                       the run page (a new run, or that one)
+ *   GET  /page/<file>                     its script, its styles, and the chunks it loads later
  *   GET  /wizard                          the wizard: title, its first page, what it requires
  *   POST /runs                            { input? } starts a run; without input it asks for it first
  *   GET  /runs/<id>                       the run, its rows
@@ -43,10 +47,18 @@ export function wizardWorker(wizard: Wizard, page?: Page) {
       return new Response(html(file.lang ?? "en", file.title), {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
-    if (page && first === "page.js")
-      return new Response(page.js, { headers: { "content-type": "text/javascript" } });
-    if (page && first === "page.css")
-      return new Response(page.css, { headers: { "content-type": "text/css" } });
+    if (page && first === "page") {
+      const text = page[id ?? ""];
+      if (text === undefined) return Response.json({ error: "Not found." }, { status: 404 });
+      return new Response(text, {
+        headers: {
+          "content-type": id?.endsWith(".css") ? "text/css" : "text/javascript",
+          // A chunk's name carries its hash: it never changes.
+          ...(id !== "page.js" &&
+            id !== "page.css" && { "cache-control": "public, max-age=31536000, immutable" }),
+        },
+      });
+    }
     if (first === "wizard") {
       const { title, description, input, requires, connections } = file;
       return Response.json({ title, description, input, requires, connections });

@@ -51,6 +51,7 @@ const started = performance.now();
 // with the runner's own CSS. It goes into the Worker as two strings.
 const runnerAt = `${dir}/node_modules/@engenty/wizards-runner`;
 let pageBytes = 0;
+let laterBytes = 0;
 if (existsSync(runnerAt)) {
   const runner = realpathSync(runnerAt);
   const cssAt = `${runner}/dist/runner.css`;
@@ -66,25 +67,30 @@ if (existsSync(runnerAt)) {
     format: "esm",
     minify: true,
     write: false,
+    // What the runner loads on demand (pdfmake, on the first PDF) stays a file of its own.
+    splitting: true,
+    outdir: "/page",
+    entryNames: "page",
+    chunkNames: "[name]-[hash]",
     jsx: "automatic",
     conditions: ["wizards-source", "browser"],
     define: { "process.env.NODE_ENV": '"production"' },
     loader: { ".png": "dataurl", ".svg": "dataurl", ".woff2": "dataurl" },
   });
-  const js = page.outputFiles[0].text;
-  const css = readFileSync(cssAt, "utf8");
-  pageBytes = js.length + css.length;
-  mkdirSync(`${here}dist`, { recursive: true });
-  writeFileSync(
-    `${here}dist/page.mjs`,
-    `export const js = ${JSON.stringify(js)};\nexport const css = ${JSON.stringify(css)};\n`,
+  const files = Object.fromEntries(
+    page.outputFiles.map((out) => [out.path.slice("/page/".length), out.text]),
   );
+  files["page.css"] = readFileSync(cssAt, "utf8");
+  pageBytes = files["page.js"].length + files["page.css"].length;
+  laterBytes = Object.values(files).reduce((sum, text) => sum + text.length, 0) - pageBytes;
+  mkdirSync(`${here}dist`, { recursive: true });
+  writeFileSync(`${here}dist/page.mjs`, `export const files = ${JSON.stringify(files)};\n`);
 }
 
 const name = (id) => `step_${id.replace(/\W/g, "_")}`;
 const entry = `
 import { wizardWorker } from "@engenty/wizards-edge";
-${pageBytes ? `import * as page from "${here}dist/page.mjs";` : ""}
+${pageBytes ? `import { files as page } from "${here}dist/page.mjs";` : ""}
 import file from "${dir}/wizard.json";
 ${steps.map((id) => `import ${name(id)} from "${dir}/steps/${id}.ts";`).join("\n")}
 
@@ -112,5 +118,5 @@ const bytes = Object.values(out.metafile.outputs)[0].bytes;
 console.log(
   `${file.title}: kernel ${kernel}, edge ${installed["@engenty/wizards-edge"].version}, ` +
     `${steps.length} steps, models ${JSON.stringify(file.requires?.models ?? [])}, ` +
-    `${(bytes / 1024).toFixed(1)} KiB${pageBytes ? ` (the page ${(pageBytes / 1024).toFixed(0)} KiB of it)` : ""} in ${Math.round(performance.now() - started)} ms → dist/worker.js`,
+    `${(bytes / 1024).toFixed(1)} KiB${pageBytes ? ` (the page ${(pageBytes / 1024).toFixed(0)} KiB of it, ${(laterBytes / 1024).toFixed(0)} KiB more loaded when needed)` : ""} in ${Math.round(performance.now() - started)} ms → dist/worker.js`,
 );
