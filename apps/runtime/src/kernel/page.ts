@@ -26,13 +26,17 @@ const textOf = (value: unknown): string | undefined =>
 const outputOf = (value: unknown, when: string): StepOutput => {
   if (typeof value === "string") return { text: value, at: when };
   const text = textOf(value);
+  const assets = filesOf(value);
+  // A step that made files is shown by them: its images, its document. The value beside them
+  // only says the same again as data.
+  if (assets) return { ...(text === undefined ? {} : { text }), assets, at: when };
+  return { json: value ?? {}, ...(text === undefined ? {} : { text }), at: when };
+};
+
+/** The files a step left behind, where it left any. */
+const filesOf = (value: unknown): StepOutput["assets"] | undefined => {
   const assets = (value as { assets?: unknown } | null)?.assets;
-  return {
-    json: value ?? {},
-    ...(text === undefined ? {} : { text }),
-    ...(Array.isArray(assets) ? { assets: assets as StepOutput["assets"] } : {}),
-    at: when,
-  };
+  return Array.isArray(assets) && assets.length ? (assets as StepOutput["assets"]) : undefined;
 };
 
 /** A step that ran, as the page lists it: it shows what the step left behind. */
@@ -43,7 +47,9 @@ const made = (id: string, value: unknown): Step =>
     title: id,
     instructions: "",
     tools: [],
-    output: { format: textOf(value) === undefined ? "json" : "markdown" },
+    output: {
+      format: textOf(value) === undefined && !filesOf(value) ? "json" : "markdown",
+    },
   }) as unknown as Step;
 
 export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
