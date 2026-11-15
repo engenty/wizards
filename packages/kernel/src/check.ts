@@ -20,7 +20,15 @@ export type Case = {
 export type CaseResult = { name: string; ok: boolean; path: string[]; run: Run; why?: string };
 
 const waiting = (run: Run) =>
-  run.rows.find((row: Row): row is AskRow => !("left" in row) && row.state === "waiting");
+  run.rows.find(
+    (row: Row): row is AskRow =>
+      !("left" in row) &&
+      row.state === "waiting" &&
+      // An action that waits for the user's leave is answered after its question, not before.
+      !run.rows.some(
+        (other) => !("left" in other) && other.approves === row.n && other.state === "waiting",
+      ),
+  );
 
 /** Runs one case: every ask, a model's as well as a person's, is answered from the case. */
 export async function play(wizard: Wizard, c: Case, turn?: TurnFn) {
