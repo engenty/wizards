@@ -83,6 +83,7 @@ copyFileSync(join(here, "template-build.mjs"), join(dir, "build.mjs"));
 // stands in for their versions; a released CLI writes "<version>" here.
 const kernelDir = resolve(here, "../../packages/kernel");
 const edgeDir = resolve(here, "edge");
+const runnerDir = resolve(here, "../../packages/runner");
 const version = (path) => JSON.parse(readFileSync(join(path, "package.json"), "utf8")).version;
 const toolVersions = JSON.parse(readFileSync(join(here, "package.json"), "utf8")).devDependencies;
 writeFileSync(
@@ -102,6 +103,7 @@ writeFileSync(
       dependencies: {
         "@engenty/wizards-edge": `link:${relative(dir, edgeDir)}`,
         "@engenty/wizards-kernel": `link:${relative(dir, kernelDir)}`,
+        "@engenty/wizards-runner": `link:${relative(dir, runnerDir)}`,
       },
       devDependencies: toolVersions,
       wizards: {

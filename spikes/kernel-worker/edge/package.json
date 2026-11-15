@@ -5,9 +5,11 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./worker.ts"
+    ".": "./worker.ts",
+    "./page.tsx": "./page.tsx"
   },
   "peerDependencies": {
-    "@engenty/wizards-kernel": "0.0.0"
+    "@engenty/wizards-kernel": "0.0.0",
+    "@engenty/wizards-runner": "0.1.0"
   }
 }

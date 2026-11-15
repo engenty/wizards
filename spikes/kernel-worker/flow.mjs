@@ -20,8 +20,8 @@ const rows = (run) =>
     )
     .join("\n");
 
-const wizard = await call("/");
-console.log(`# GET /\n${wizard.title} · requires ${JSON.stringify(wizard.requires)}`);
+const wizard = await call("/wizard");
+console.log(`# GET /wizard\n${wizard.title} · requires ${JSON.stringify(wizard.requires)}`);
 console.log(`  input: ${wizard.input.fields.map((field) => field.id).join(", ")}`);
 
 const report = (label, run) => {

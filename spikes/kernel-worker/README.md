@@ -14,6 +14,8 @@ pnpm dev                                 # build.mjs + wrangler dev on :8787
 node ../../flow.mjs                      # start, first page, review twice, read the run
 ```
 
+Open `http://127.0.0.1:8787/` for the run page (below). `GET /wizard` describes the wizard.
+
 ## What is here
 
 | File | What it does |
@@ -22,6 +24,7 @@ node ../../flow.mjs                      # start, first page, review twice, read
 | `template-build.mjs` | The deploy package's `build.mjs`: bundles `wizard.json` and the steps with the kernel and the edge package from the package's own `node_modules` into `dist/worker.js`. |
 | `edge/` | `@engenty/wizards-edge`: the Worker and its batteries as a package. It names the kernel it runs on as a peer dependency, so the deploy package's pin chooses the kernel. |
 | `edge/worker.ts` | `GET /` (the wizard), `POST /runs`, `GET /runs/<id>`, `POST /runs/<id>/answer`, `/rewind`, `/judge`. The run id is the Durable Object's name. |
+| `edge/view.ts`, `edge/page.tsx` | The run page: `viewOf` turns the kernel's rows into the `RunView` the runner draws (ported from the runtime's `kernelPage` + the parts of `runView` it needs); `page.tsx` is `@engenty/wizards-runner`'s `RunnerBody` with this Worker as its `RunSource`. |
 | `edge/batteries.ts` | `agent`: one chat completion over `fetch` to an OpenAI-compatible endpoint (`MODEL_BASE_URL`, secret `MODEL_API_KEY`, `MODELS` maps each model class to a model). Echoes without a key. `form`, `review`, `approval`, `wait`, `signal` wait for HTTP. Every other ask type fails at once: `This Worker has no battery for "<type>" asks.` |
 | `wizards/x-post` | The converted marketplace wizard "X-Post mit Bild (0.3.0)" without its image step: `post` (model `low`) and `check` (review). Step files unchanged. Plain: no `package.json`. |
 | `wizards/x-post-image` | The same wizard whole, to show an ask without a battery failing. |
@@ -195,3 +198,24 @@ stub model: 2× POST /v1/chat/completions, from home, not from the Worker
 ### Compared with executor.sh
 
 executor.sh is the same split, for tools: an agent calls one endpoint (MCP at `/mcp`, or the CLI), and executor holds the accounts, adds the credential inside, and asks for approval where a tool says so. The agent never sees a secret. It runs hosted (Executor Cloud), local (`executor` CLI on the machine, keys in the OS keychain) or self-hosted (one Docker container with its own database, OAuth callbacks on its own URL). So it does need *a* connection service, but not a hosted one: the self-hosted container is that service, on your own server. Our home is the same thing for a deployed wizard: the organization's runtime, hosted or on the local install. The kernel already has `executorBatteries` (`packages/kernel/src/executor.ts`), so an executor can stand where home stands here, for tools; Wissen, Daten and the run's place in the studio are ours.
+
+## The run page
+
+The deploy package also pins `@engenty/wizards-runner`, the components the studio, the client portal and the WordPress plugin draw runs with. `build.mjs` bundles `edge/page.tsx` with it (and the runner's `dist/runner.css`, scoped to `.engenty-runner`) into the Worker, which serves it:
+
+| Route | |
+|---|---|
+| `GET /` | a new run, then the page moves to `/r/<id>` |
+| `GET /r/<id>` | that run's page |
+| `GET /runs/<id>/page` | the run as a `RunView` |
+| `POST /runs/<id>/page/pages/<step>` `{ values }` | the form it waits at (the run's input is the step `input`) |
+| `POST /runs/<id>/page/reviews/<step>` `{ type, edits?, note?, target? }` | a review: `accept` / `decline` / `regenerate`; on the leave for an action `accept`/`decline` → `{ allow }`. As the runtime's `reviewStep`. |
+| `POST /runs/<id>/page/retry` | the failed ask, asked again |
+
+Walked in the browser (`wrangler dev`):
+- **x-post, on its own:** the first page (intro, the textarea with its help, the tone as chips, "Post schreiben") → the review "Passt der Post?" with the post, Bearbeiten, Text kopieren, a note and "Neu erstellen" → a new version (rows: `check review done {"approved":false,"regenerate":"post","note":"Kürzer bitte."}`, `post` again) → edited in the review, "Passt so" → the result page with the edited text and "Nochmal".
+- **team-note, connected:** the first page → the leave for `slack.chat.postMessage`, its input as JSON, "Ablehnen" / "Freigeben" → Freigeben → home posts → the result with the note and Slack's answer.
+
+Not there: step back (`canBack` is false), downloads (the result's formats are left out: the runner would ask a server for the PDF; standalone it can write one in the browser, not wired), files and photos, the brand and the engenty (`Mascot` draws nothing), a live stream (the page reads the run again every 2 s while it works or sleeps), a sign-in for whoever opens the URL.
+
+Size: the page is 2.8 MB minified, 1 MB gzipped: pdfmake 1.6 MB (the runner imports it up front for standalone PDFs), zod 445 KB, react-dom 206 KB, the runner 180 KB, shared 125 KB. The kernel, the Worker and the wizard are 45 KB beside it. A Worker takes 3 MB gzipped on the free plan, 10 MB paid; loading pdfmake only when a PDF is written would take the page to about 400 KB gzipped.
