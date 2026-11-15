@@ -102,8 +102,17 @@ interface Filters {
   format: ItemFormat | "";
   capability: Capability | "";
   plan: MarketplacePlan | "";
+  /** The version of the format a wizard is written in. */
+  version: string;
 }
-const NO_FILTERS: Filters = { useCase: "", industry: "", format: "", capability: "", plan: "" };
+const NO_FILTERS: Filters = {
+  useCase: "",
+  industry: "",
+  format: "",
+  capability: "",
+  plan: "",
+  version: "",
+};
 
 const label = (group: MarketGroup, id: string) => marketLabel(group, id, lang);
 
@@ -1241,6 +1250,14 @@ export function MarketplaceBrowser({
         const Icon = CAPABILITY_ICONS[id as Capability];
         return <Icon className="size-4 text-ink-3" />;
       }),
+    },
+    {
+      // The version of the format a template's wizard is written in, newest first.
+      key: "version",
+      name: t("market.version"),
+      options: Object.entries(first?.facets.version ?? {})
+        .sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
+        .map(([id, count]) => ({ value: id, label: id, count: count ?? 0 })),
     },
   ];
   const narrowed = Boolean(query.trim()) || starred || Object.values(filters).some(Boolean);

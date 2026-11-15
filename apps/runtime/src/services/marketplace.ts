@@ -218,6 +218,7 @@ function addFacets(a: MarketplaceFacets, b: MarketplaceFacets): MarketplaceFacet
     format: add(a.format, b.format),
     capability: add(a.capability, b.capability),
     plan: add(a.plan, b.plan),
+    version: add(a.version, b.version),
   };
 }
 

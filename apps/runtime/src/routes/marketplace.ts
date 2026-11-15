@@ -1,3 +1,4 @@
+import { FORMAT_VERSIONS } from "@engenty/wizards-shared/definition";
 import { CAPABILITY_IDS } from "@engenty/wizards-shared/fit";
 import {
   INDUSTRY_IDS,
@@ -28,6 +29,7 @@ const searchSchema = z.object({
   format: z.enum(ITEM_FORMAT_IDS).optional(),
   capability: z.enum(CAPABILITY_IDS).optional(),
   plan: z.enum(MARKETPLACE_PLAN_IDS).optional(),
+  version: z.enum(FORMAT_VERSIONS).optional(),
   starred: z
     .enum(["1", "0"])
     .optional()

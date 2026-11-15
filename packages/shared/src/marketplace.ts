@@ -432,6 +432,8 @@ export interface MarketplaceFilters {
   format?: ItemFormat;
   capability?: Capability;
   plan?: MarketplacePlan;
+  /** The version of the format the entry's wizard is written in: `0.2.0`, `0.3.0`. */
+  version?: string;
 }
 
 /** Per option of a filter: the entries it would leave, with the other filters as they are. */
@@ -443,6 +445,8 @@ export interface MarketplaceFacets {
   capability?: Partial<Record<Capability, number>>;
   /** Optional: a marketplace older than this filter leaves it out. */
   plan?: Partial<Record<MarketplacePlan, number>>;
+  /** Optional: a marketplace older than this filter leaves it out. */
+  version?: Partial<Record<string, number>>;
 }
 
 /** A page of a search: the entries, best first, how many there are, and the filters' counts. */
