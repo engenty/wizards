@@ -7,6 +7,7 @@ import {
   type OutlineValue,
   type StepOutline,
 } from "@engenty/wizards-shared/kernel-file";
+import { note, noteText } from "@engenty/wizards-shared/run";
 
 /**
  * One step of a wizard in version 0.3.0 as a run would show it, without running it: the studio's
@@ -41,7 +42,8 @@ function sample(step: StepOutline | undefined, id: string, german: boolean): unk
     kind?: string;
     options?: unknown[];
   }[];
-  const word = german ? "Beispiel" : "Sample";
+  const lang = german ? "de" : "en";
+  const word = noteText(note("kernelSample"), lang);
   if (spec.type !== "form" && fields.length) {
     return Object.fromEntries(
       fields.map((field) => [
@@ -55,9 +57,7 @@ function sample(step: StepOutline | undefined, id: string, german: boolean): unk
     );
   }
   const title = String(spec.title ?? step?.title ?? id);
-  return german
-    ? `## ${title}\n\n*${word}.* Nach einem Testlauf steht hier, was dieser Schritt erstellt.`
-    : `## ${title}\n\n*${word}.* After a test run, this shows what the step made.`;
+  return `## ${title}\n\n${noteText(note("kernelSampleText"), lang)}`;
 }
 
 export interface KernelStill {
