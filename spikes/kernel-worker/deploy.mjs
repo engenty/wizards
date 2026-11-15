@@ -133,6 +133,11 @@ no_bundle = true
 [build]
 command = "node build.mjs"
 
+# The run page's files (build.mjs writes them), served beside the Worker, not in its script.
+[assets]
+directory = "dist/assets"
+binding = "ASSETS"
+
 [[durable_objects.bindings]]
 name = "RUNS"
 class_name = "RunObject"
@@ -162,6 +167,7 @@ const config :Workerd.Config = (
   services = [
     (name = "wizard", worker = .wizard),
     (name = "runs", disk = (path = ".workerd/runs", writable = true)),
+    (name = "assets", disk = (path = "dist/assets")),
     (name = "net", network = (allow = ["public", "private", "local"])),
   ],
   sockets = [(name = "http", address = "127.0.0.1:8788", http = (), service = "wizard")],
@@ -175,6 +181,7 @@ const wizard :Workerd.Worker = (
   globalOutbound = "net",
   bindings = [
     (name = "RUNS", durableObjectNamespace = "RunObject"),
+    (name = "ASSETS", service = "assets"),
 ${
   home
     ? `    (name = "HOME_URL", text = ${JSON.stringify(home)}),

@@ -3,17 +3,15 @@ import { runObject } from "@engenty/wizards-kernel/edge";
 import { batteries } from "./batteries.js";
 import { pageRow, viewOf } from "./view.js";
 
-type Env = { RUNS: DurableObjectNamespace };
+type Env = {
+  RUNS: DurableObjectNamespace;
+  /** The page's files: Wrangler's static assets, or a disk service on workerd. */
+  ASSETS?: { fetch(request: Request): Promise<Response> };
+};
 type DurableObjectNamespace = {
   idFromName(name: string): unknown;
   get(id: unknown): { fetch(request: Request): Promise<Response> };
 };
-
-/**
- * The run page, built by build.mjs: `@engenty/wizards-runner` with this Worker as its source.
- * Its files by name: `page.js`, `page.css`, and the chunks the page loads when it needs them.
- */
-export type Page = Record<string, string>;
 
 const html = (lang: string, title: string) => `<!doctype html>
 <html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25,7 +23,7 @@ const html = (lang: string, title: string) => `<!doctype html>
  * One wizard as a Worker. Each run is a Durable Object named by the run's id.
  *
  *   GET  /, /r/<id>                       the run page (a new run, or that one)
- *   GET  /page/<file>                     its script, its styles, and the chunks it loads later
+ *   GET  /page/<file>                     its script, its styles, the chunks it loads later: static assets
  *   GET  /wizard                          the wizard: title, its first page, what it requires
  *   POST /runs                            { input? } starts a run; without input it asks for it first
  *   GET  /runs/<id>                       the run, its rows
@@ -37,7 +35,7 @@ const html = (lang: string, title: string) => `<!doctype html>
  *   POST /runs/<id>/page/reviews/<step>   { type: accept | decline | regenerate, edits?, note?, target? }
  *   POST /runs/<id>/page/retry            the failed ask, asked again
  */
-export function wizardWorker(wizard: Wizard, page?: Page) {
+export function wizardWorker(wizard: Wizard, page = false) {
   const RunObject = runObject({ wizards: () => wizard, batteries });
   const { file } = wizard;
 
@@ -47,18 +45,9 @@ export function wizardWorker(wizard: Wizard, page?: Page) {
       return new Response(html(file.lang ?? "en", file.title), {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
-    if (page && first === "page") {
-      const text = page[id ?? ""];
-      if (text === undefined) return Response.json({ error: "Not found." }, { status: 404 });
-      return new Response(text, {
-        headers: {
-          "content-type": id?.endsWith(".css") ? "text/css" : "text/javascript",
-          // A chunk's name carries its hash: it never changes.
-          ...(id !== "page.js" &&
-            id !== "page.css" && { "cache-control": "public, max-age=31536000, immutable" }),
-        },
-      });
-    }
+    // On Cloudflare the assets answer `/page/<file>` before the Worker is asked; on workerd it
+    // hands the request to its disk, which says nothing of a file's type.
+    if (page && first === "page") return pageFile(request, env, id ?? "");
     if (first === "wizard") {
       const { title, description, input, requires, connections } = file;
       return Response.json({ title, description, input, requires, connections });
@@ -124,6 +113,22 @@ export function wizardWorker(wizard: Wizard, page?: Page) {
   }
 
   return { RunObject, fetch };
+}
+
+/** A file of the page from the disk, with the type its name says; a hashed chunk never changes. */
+async function pageFile(request: Request, env: Env, name: string): Promise<Response> {
+  if (!env.ASSETS) return Response.json({ error: "Not found." }, { status: 404 });
+  const file = await env.ASSETS.fetch(request);
+  if (!file.ok) return file;
+  return new Response(file.body, {
+    headers: {
+      "content-type": name.endsWith(".css") ? "text/css" : "text/javascript",
+      "cache-control":
+        name === "page.js" || name === "page.css"
+          ? "public, max-age=0, must-revalidate"
+          : "public, max-age=31536000, immutable",
+    },
+  });
 }
 
 const conflict = () => Response.json({ error: "The run has moved on." }, { status: 409 });

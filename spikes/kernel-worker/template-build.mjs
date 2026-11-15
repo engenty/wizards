@@ -7,6 +7,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { parse } from "node:path";
@@ -48,7 +49,8 @@ const steps = readdirSync(`${dir}/steps`).map((name) => parse(name).name);
 const started = performance.now();
 
 // The run page, where the package has the runner: its components over this Worker's routes,
-// with the runner's own CSS. It goes into the Worker as two strings.
+// with the runner's own CSS. Its files go to dist/assets/page/, which Wrangler serves as static
+// assets beside the Worker and workerd from a disk: none of it is in the Worker's script.
 const runnerAt = `${dir}/node_modules/@engenty/wizards-runner`;
 let pageBytes = 0;
 let laterBytes = 0;
@@ -83,21 +85,22 @@ if (existsSync(runnerAt)) {
   files["page.css"] = readFileSync(cssAt, "utf8");
   pageBytes = files["page.js"].length + files["page.css"].length;
   laterBytes = Object.values(files).reduce((sum, text) => sum + text.length, 0) - pageBytes;
-  mkdirSync(`${here}dist`, { recursive: true });
-  writeFileSync(`${here}dist/page.mjs`, `export const files = ${JSON.stringify(files)};\n`);
+  rmSync(`${here}dist/assets`, { recursive: true, force: true });
+  mkdirSync(`${here}dist/assets/page`, { recursive: true });
+  for (const [name, text] of Object.entries(files))
+    writeFileSync(`${here}dist/assets/page/${name}`, text);
 }
 
 const name = (id) => `step_${id.replace(/\W/g, "_")}`;
 const entry = `
 import { wizardWorker } from "@engenty/wizards-edge";
-${pageBytes ? `import { files as page } from "${here}dist/page.mjs";` : ""}
 import file from "${dir}/wizard.json";
 ${steps.map((id) => `import ${name(id)} from "${dir}/steps/${id}.ts";`).join("\n")}
 
 const worker = wizardWorker({
   file,
   steps: { ${steps.map((id) => `${JSON.stringify(id)}: ${name(id)}`).join(", ")} },
-}${pageBytes ? ", page" : ""});
+}, ${pageBytes ? "true" : "false"});
 export const RunObject = worker.RunObject;
 export default { fetch: worker.fetch };
 `;
@@ -118,5 +121,5 @@ const bytes = Object.values(out.metafile.outputs)[0].bytes;
 console.log(
   `${file.title}: kernel ${kernel}, edge ${installed["@engenty/wizards-edge"].version}, ` +
     `${steps.length} steps, models ${JSON.stringify(file.requires?.models ?? [])}, ` +
-    `${(bytes / 1024).toFixed(1)} KiB${pageBytes ? ` (the page ${(pageBytes / 1024).toFixed(0)} KiB of it, ${(laterBytes / 1024).toFixed(0)} KiB more loaded when needed)` : ""} in ${Math.round(performance.now() - started)} ms → dist/worker.js`,
+    `${(bytes / 1024).toFixed(1)} KiB${pageBytes ? `, the page ${(pageBytes / 1024).toFixed(0)} KiB + ${(laterBytes / 1024).toFixed(0)} KiB when needed in dist/assets/page/` : ""} in ${Math.round(performance.now() - started)} ms → dist/worker.js`,
 );
