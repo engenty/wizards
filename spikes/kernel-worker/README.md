@@ -149,3 +149,49 @@ node flow.mjs http://127.0.0.1:8788
 - **Needs `--experimental`**, for SQLite-backed Durable Objects on local disk.
 
 What self-hosting does not give: one process on one machine. Every Durable Object lives in that process; there is no placement across machines, no replication of `.workerd/runs` (back it up like any SQLite files), no TLS (put a proxy in front), and no limits on CPU or memory per request. For one wizard on one server, that is what it should be.
+
+## Connected: the broker battery
+
+A Worker on its own can do form + model wizards. Everything else a wizard reaches (the agent loop with tools, Wissen, Daten, connections) stays at the organization's runtime, behind the broker. A connected deployment sends every ask there.
+
+```bash
+node deploy.mjs wizards/team-note --home http://127.0.0.1:8791   # without --home: refused, it lacks the connection "slack"
+node home.mjs wizards/team-note                                  # the stand-in home on :8791
+cd deploy/team-note && pnpm install --ignore-workspace && echo DEPLOY_KEY=dev-deploy-key > .dev.vars && pnpm dev
+node ../../flow-connected.mjs
+```
+
+**Contract.** `POST <HOME_URL>/v1/asks`, `Authorization: Bearer <DEPLOY_KEY>`, body `{ run: { id, wizard, input }, row }`. Home answers `200 { answer }`, `409 { needsLeave: true }` (the Worker's kernel then asks the user, as a row), or `4xx/5xx { error }` (the ask fails with that sentence). The Worker holds no model key and no connection secret; `HOME_URL` and `DEPLOY_KEY` are its only bindings. In connected mode every ask type no person answers goes home (`edge/batteries.ts`).
+
+**Home.** `home.mjs` is a stand-in for the route the runtime would serve; `apps/` was not touched. In the runtime the route hands the row to `kernelBatteries` (`apps/runtime/src/kernel/batteries.ts`), which already answers 0.3.0 asks with the step executors and sends connector calls through `brokerCall`. The stand-in makes the same decisions in a few lines: the deploy key names the deployment (space, wizard); home decides with **its own** copy of `wizard.json` (`grantOf`, `outside`, `needsLeave` from the kernel), not the Worker's; the model key and the Slack stand-in are only there; every call is logged.
+
+What ran (`wrangler dev` + `home.mjs` + `stub-model.mjs` behind home), Team-Notiz: draft with model `low`, then `slack.chat.postMessage`, set to `ask`:
+
+```
+# POST /runs                      status waiting · at send
+  0 draft agent done   1 draft left → send
+  2 send tool slack.chat.postMessage waiting   3 send approval slack.chat.postMessage waiting
+# the user allows the post        status done
+  output: {"note":"…","sent":{"ok":true,"channel":"#team","ts":"1794775195.687"}}
+# second run, the user refuses     error: The user did not allow "slack.chat.postMessage". · at send
+
+# home: GET /v1/log
+  allow draft model low
+  hold  send slack.chat.postMessage (asks the user first)
+  allow send slack.chat.postMessage  leave given
+  allow draft model low
+  #team: [{"channel":"#team","text":"…"}]        one post: the refused run never reached home
+stub model: 2× POST /v1/chat/completions, from home, not from the Worker
+```
+
+**Found on the way.**
+- **A tool row can be answered over HTTP.** The kernel's `record` takes an answer for any waiting row. The Slack post's own row waits while its approval row waits, and `POST /runs/<id>/answer` on the tool row was taken as the tool's answer: the run went on with `sent: {allow: true}`, and home never saw the call. On a Worker anyone with the run's URL can do that. `/answer` must refuse rows a battery answers (types other than `form`, `review`, `approval`, `wait`, `signal`). This is a kernel fix, not a spike one.
+- **Home trusts the Worker for the user's leave.** The approval row lives in the run on the Worker; home sees only `row.asksLeave`. For "ask the user" that is the user's own run, which is acceptable. An admin's approval („Mit Freigabe“) must be held at home, by the broker, not in the run.
+- The row reaching home has `role` set to its type by the kernel; `outside()` reads that as a role. Home checks the ask as the step made it.
+- `edge.ts` now takes the run's id on `/start` (the Durable Object's name), and exports `NeedsLeave`; `edge.test.ts` passes.
+
+**Not done.** A token per run instead of one deploy key; registering the run at home (so the studio sees it, and its costs land on the space); the route itself in the runtime, as a role of its own (the broker's phase 3).
+
+### Compared with executor.sh
+
+executor.sh is the same split, for tools: an agent calls one endpoint (MCP at `/mcp`, or the CLI), and executor holds the accounts, adds the credential inside, and asks for approval where a tool says so. The agent never sees a secret. It runs hosted (Executor Cloud), local (`executor` CLI on the machine, keys in the OS keychain) or self-hosted (one Docker container with its own database, OAuth callbacks on its own URL). So it does need *a* connection service, but not a hosted one: the self-hosted container is that service, on your own server. Our home is the same thing for a deployed wizard: the organization's runtime, hosted or on the local install. The kernel already has `executorBatteries` (`packages/kernel/src/executor.ts`), so an executor can stand where home stands here, for tools; Wissen, Daten and the run's place in the studio are ours.

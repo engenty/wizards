@@ -2,7 +2,10 @@
 // exported from the studio) becomes a deploy package for a Worker of its own. The wizard is
 // copied as it is; the pin to the kernel and the edge batteries, the build and the Worker's config
 // are added here, from what this CLI itself runs.
-//   node deploy.mjs <wizard folder | .wizard> [--out deploy/<name>]
+//   node deploy.mjs <wizard folder | .wizard> [--home <url>] [--out deploy/<name>]
+// With --home the deployment is connected: every ask goes to the organization's runtime at that
+// URL, which answers it through the broker; the Worker holds only a deploy key. Without it the
+// Worker is on its own: a model key of its own, no tools, no connections.
 import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
@@ -21,9 +24,13 @@ const here = new URL(".", import.meta.url).pathname;
 const args = process.argv.slice(2);
 const at = args.indexOf("--out");
 const out = at >= 0 ? args.splice(at, 2)[1] : undefined;
+const homeAt = args.indexOf("--home");
+const home = homeAt >= 0 ? args.splice(homeAt, 2)[1] : undefined;
 const from = resolve(args[0] ?? "");
 if (!args[0] || !existsSync(from)) {
-  console.error("Usage: node deploy.mjs <wizard folder | .wizard> [--out deploy/<name>]");
+  console.error(
+    "Usage: node deploy.mjs <wizard folder | .wizard> [--home <url>] [--out deploy/<name>]",
+  );
   process.exit(1);
 }
 
@@ -51,12 +58,15 @@ const slug = basename(from)
   .replace(/[^a-z0-9-]+/gi, "-")
   .toLowerCase();
 
-// What the file requires and a Worker cannot give is refused before anything is written.
-const refused = [
-  ...(file.requires?.tools ?? []).map((tool) => `the tool "${tool}"`),
-  ...Object.keys(file.connections ?? {}).map((kind) => `the connection "${kind}"`),
-  ...Object.keys(file.requires?.roles ?? {}).map((role) => `someone for the role "${role}"`),
-];
+// On its own, what the file requires and a Worker cannot give is refused before anything is
+// written. Connected, the home decides each ask; what it has is its business.
+const refused = home
+  ? []
+  : [
+      ...(file.requires?.tools ?? []).map((tool) => `the tool "${tool}"`),
+      ...Object.keys(file.connections ?? {}).map((kind) => `the connection "${kind}"`),
+      ...Object.keys(file.requires?.roles ?? {}).map((role) => `someone for the role "${role}"`),
+    ];
 if (refused.length) {
   console.error(`"${file.title}" cannot run as a Worker. It lacks ${refused.join(", ")}.`);
   process.exit(1);
@@ -105,7 +115,8 @@ writeFileSync(
   )}\n`,
 );
 
-// The Worker's config, from `requires`: each model class becomes a model name to set.
+// The Worker's config, from `requires`. Connected: the home's URL and the deploy key's name.
+// On its own: each model class becomes a model name to set, and the model key's name.
 const models = JSON.stringify(
   Object.fromEntries((file.requires?.models ?? []).map((name) => [name, "gpt-4.1-mini"])),
 );
@@ -132,12 +143,17 @@ new_sqlite_classes = ["RunObject"]
 [vars]
 MODEL_BASE_URL = "https://api.openai.com/v1"
 MODELS = '${models}'
-`,
+`.replace(
+    /# The model classes[\s\S]*$/,
+    home
+      ? `# Connected: every ask goes home. DEPLOY_KEY is a secret.\n[vars]\nHOME_URL = "${home}"\n`
+      : (all) => all,
+  ),
 );
 writeFileSync(
   join(dir, "workerd.capnp"),
   `# "${file.title}" on self-hosted workerd: pnpm workerd. Runs are kept in .workerd/runs.
-# Secrets from the environment: MODEL_API_KEY, MODEL_BASE_URL.
+# Secrets from the environment: ${home ? "DEPLOY_KEY" : "MODEL_API_KEY, MODEL_BASE_URL"}.
 using Workerd = import "/workerd/workerd.capnp";
 
 const config :Workerd.Config = (
@@ -157,9 +173,14 @@ const wizard :Workerd.Worker = (
   globalOutbound = "net",
   bindings = [
     (name = "RUNS", durableObjectNamespace = "RunObject"),
-    (name = "MODELS", text = ${JSON.stringify(models)}),
+${
+  home
+    ? `    (name = "HOME_URL", text = ${JSON.stringify(home)}),
+    (name = "DEPLOY_KEY", fromEnvironment = "DEPLOY_KEY"),`
+    : `    (name = "MODELS", text = ${JSON.stringify(models)}),
     (name = "MODEL_BASE_URL", fromEnvironment = "MODEL_BASE_URL"),
-    (name = "MODEL_API_KEY", fromEnvironment = "MODEL_API_KEY"),
+    (name = "MODEL_API_KEY", fromEnvironment = "MODEL_API_KEY"),`
+}
   ],
 );
 `,
@@ -173,4 +194,6 @@ execFileSync("zip", ["-qr", zip, "."], { cwd: dir });
 console.log(
   `"${file.title}" → ${relative(process.cwd(), dir)}/ and ${relative(process.cwd(), zip)}`,
 );
-console.log(`  kernel ${version(kernelDir)}, edge ${version(edgeDir)}, models ${models}`);
+console.log(
+  `  kernel ${version(kernelDir)}, edge ${version(edgeDir)}, ${home ? `connected to ${home}` : `models ${models}`}`,
+);

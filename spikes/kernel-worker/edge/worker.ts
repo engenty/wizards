@@ -8,12 +8,6 @@ type DurableObjectNamespace = {
   get(id: unknown): { fetch(request: Request): Promise<Response> };
 };
 
-/** The object keeps its run under the id "run"; the caller knows it by the object's name. */
-async function named(id: string, response: Response): Promise<Response> {
-  const body = (await response.json()) as Record<string, unknown>;
-  return Response.json(body.error ? body : { ...body, id }, { status: response.status });
-}
-
 /**
  * One wizard as a Worker. Each run is a Durable Object named by the run's id.
  *
@@ -39,17 +33,14 @@ export function wizardWorker(wizard: Wizard) {
     if (!id) {
       if (request.method !== "POST") return Response.json({ error: "Not found." }, { status: 404 });
       const { input } = (await request.json()) as { input?: Record<string, unknown> };
-      return named(
-        run,
-        await object.fetch(
-          new Request("https://run/start", {
-            method: "POST",
-            body: JSON.stringify({ wizard: "wizard", input }),
-          }),
-        ),
+      return object.fetch(
+        new Request("https://run/start", {
+          method: "POST",
+          body: JSON.stringify({ wizard: "wizard", input, id: run }),
+        }),
       );
     }
-    return named(run, await object.fetch(new Request(`https://run/${action}`, request)));
+    return object.fetch(new Request(`https://run/${action}`, request));
   };
 
   return { RunObject, fetch };

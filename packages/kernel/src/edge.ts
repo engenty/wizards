@@ -1,6 +1,8 @@
 import { createKernel } from "./kernel.js";
 import type { Battery, Run, Store, Wizard } from "./types.js";
 
+export { NeedsLeave } from "./kernel.js";
+
 /** The part of a Durable Object's state this host uses. */
 type ObjectState = {
   storage: {
@@ -21,7 +23,7 @@ export type EdgeOptions = {
  * as the wake. The object handles one request at a time, which is the fence a database gives
  * with `rev`. Between two requests nothing runs and nothing is kept in memory.
  *
- *   POST /start   { wizard, input }
+ *   POST /start   { wizard, input, id? }   id: the run's id, where the caller names the object by it
  *   POST /answer  { row, value, by? }
  *   POST /rewind  { row, value? }
  *   POST /judge
@@ -47,7 +49,7 @@ export function runObject({ wizards, batteries }: EdgeOptions) {
       try {
         const run =
           pathname === "/start"
-            ? await this.kernel.start(body.wizard, body.input, "run")
+            ? await this.kernel.start(body.wizard, body.input, body.id ?? "run")
             : pathname === "/answer"
               ? await this.kernel.answer("run", body.row, body.value, body.by)
               : pathname === "/rewind"

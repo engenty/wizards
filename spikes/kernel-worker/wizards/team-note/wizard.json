@@ -1,0 +1,15 @@
+{
+  "version": "0.3.0",
+  "title": "Team-Notiz",
+  "description": "Schreibt aus einem Stichwort eine kurze Notiz und schickt sie in den Team-Kanal, sobald du es erlaubst.",
+  "lang": "de",
+  "requires": { "models": ["low"] },
+  "connections": { "slack": { "chat.postMessage": "ask" } },
+  "input": {
+    "fields": [{ "id": "topic", "label": "Worum geht es?", "kind": "textarea", "required": true }],
+    "cta": "Notiz schreiben"
+  },
+  "start": "draft",
+  "edges": { "draft": ["send"], "send": ["end"] },
+  "output": { "note": "draft", "sent": "send" }
+}
