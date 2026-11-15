@@ -30,8 +30,11 @@ export interface KernelEditing {
 
 export const KernelEditContext = createContext<KernelEditing | null>(null);
 
-/** The texts a person types over where they stand; every other value is changed in the code. */
-const WORDS = /(^|\.)(title|description|instructions|prompt|working|label|placeholder)$/;
+/**
+ * The short texts a person types over where they stand. An Auftrag is not among them: it is
+ * changed with the assistant or in the code, like every other value.
+ */
+const WORDS = /(^|\.)(title|description|working|label|placeholder)$/;
 const OPTION = /^fields\.\d+\.options\.\d+$/;
 
 /** Something the code fills in or works out: set apart from the words a person wrote. */

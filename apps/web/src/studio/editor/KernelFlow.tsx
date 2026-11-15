@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   Bot,
   Braces,
+  Check,
   ChevronRight,
   Eye,
   FileCode2,
@@ -25,8 +26,9 @@ import {
   type LucideIcon,
   Plug,
   Sparkles,
+  X,
 } from "lucide-react";
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useContext, useMemo } from "react";
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
@@ -349,7 +351,7 @@ const INPUT = "/input";
 
 const LABEL = "font-medium text-[0.6875rem] text-ink-3 uppercase tracking-[0.07em]";
 /** A value in its place, the way a form shows one: on a ground of its own, under its label. */
-const BOX = "rounded-xl bg-paper-2 px-4 py-3 text-[0.9375rem] text-ink";
+const BOX = "rounded-md bg-paper-2 px-4 py-3 text-[0.9375rem] text-ink";
 
 const short = (value: OutlineValue) =>
   typeof value === "number" ||
@@ -442,6 +444,7 @@ function entries(spec: Spec, skip: string[] = []): [string, OutlineValue][] {
 
 /** The questions of a page, or the fields an answer has: label, kind, and whether it is required. */
 function Fields({ fields }: { fields: OutlineValue[] }) {
+  const tools = Boolean(useContext(KernelEditContext)?.note);
   return (
     <ul className="flex flex-col gap-1.5">
       {fields.map((field, i) => {
@@ -466,7 +469,14 @@ function Fields({ fields }: { fields: OutlineValue[] }) {
                     )}
                     {f?.required === true ? <span className="text-ember"> *</span> : null}
                   </span>
-                  <span className="shrink-0 font-mono text-[0.75rem] text-ink-3 transition-opacity group-focus-within/block:opacity-0 group-hover/block:opacity-0">
+                  <span
+                    className={cn(
+                      "shrink-0 font-mono text-[0.75rem] text-ink-3",
+                      // The block's tools take this corner while the pointer is on it.
+                      tools &&
+                        "transition-opacity group-focus-within/block:opacity-0 group-hover/block:opacity-0",
+                    )}
+                  >
                     {str(f?.kind)}
                   </span>
                 </span>
@@ -493,7 +503,7 @@ function Fields({ fields }: { fields: OutlineValue[] }) {
                       return (
                         <span
                           key={at}
-                          className="flex items-baseline justify-between gap-3 rounded-lg bg-card px-3 py-1.5 text-[0.875rem]"
+                          className="flex items-baseline justify-between gap-3 rounded bg-card px-3 py-1.5 text-[0.875rem]"
                         >
                           {isOutlineCode(column) ? (
                             <code className={CODE}>{column.$code}</code>
@@ -535,6 +545,12 @@ function Fields({ fields }: { fields: OutlineValue[] }) {
     </ul>
   );
 }
+
+/** What a review's switches allow the person, in the editor's words. */
+const ALLOWS: Record<string, "editor.reviewEditable" | "editor.reviewRedo"> = {
+  edit: "editor.reviewEditable",
+  regenerate: "editor.reviewRedo",
+};
 
 /** What an ask passes, in the order a person reads it; `type` and `title` are the panel's head. */
 const FIRST = ["description", "fields", "instructions", "prompt"];
@@ -599,15 +615,31 @@ function Ask({ spec: given }: { spec: Spec }) {
         </div>
       ))}
       {small.length ? (
-        <dl className={cn(BOX, "flex flex-col gap-2.5")}>
-          {small.map((key) => (
-            <div key={key} className="flex items-baseline justify-between gap-4">
-              <dt className="shrink-0 text-[0.8125rem] text-ink-3">{label(key)}</dt>
-              <dd className="min-w-0 text-right font-medium">
-                <Value value={spec[key]} path={key} />
-              </dd>
-            </div>
-          ))}
+        // The settings as notes under the fields: on the panel's own ground, a name and its value
+        // on each line.
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-1 px-1 text-[0.8125rem]">
+          {small.map((key) => {
+            const value = spec[key];
+            const words = kindOf(spec) === "review" ? ALLOWS[key] : undefined;
+            const Mark = value === true ? Check : X;
+            return (
+              <div key={key} className="contents">
+                <dt className="text-ink-3">{label(key)}</dt>
+                <dd className="min-w-0 text-ink">
+                  {typeof value === "boolean" ? (
+                    <span
+                      className={cn("inline-flex items-center gap-1.5", !value && "text-ink-3")}
+                    >
+                      <Mark className={cn("size-3.5 shrink-0", value && "text-moss")} />
+                      {words ? t(words) : t(value ? "kernel.yes" : "kernel.no")}
+                    </span>
+                  ) : (
+                    <Value value={value} path={key} />
+                  )}
+                </dd>
+              </div>
+            );
+          })}
         </dl>
       ) : null}
     </div>
@@ -722,7 +754,7 @@ function StepPanel({
                 {Icon ? (
                   <span
                     className={cn(
-                      "inline-flex size-8 shrink-0 items-center justify-center rounded-lg",
+                      "inline-flex size-8 shrink-0 items-center justify-center rounded",
                       card.tone,
                     )}
                   >
