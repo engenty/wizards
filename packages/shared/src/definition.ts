@@ -1588,16 +1588,38 @@ export const requiresSchema = z.object({
 export type Requires = z.infer<typeof requiresSchema>;
 
 /**
- * The version of the definition this app writes and reads. The format is in beta until 1.0: it
- * can change without a new version, and stored definitions are converted once when it does.
- * A definition without a version is of this one.
+ * The version of the format a wizard is written in, the same way everywhere a wizard is kept or
+ * handed on: its definition, its file, the marketplace. `0.2.0` is the format of steps in a list.
+ * The format is in beta until 1.0: it can change without a new version, and stored definitions
+ * are converted once when it does. A definition without a version is of this one.
  */
-export const DEFINITION_VERSION = 1 as const;
+export const DEFINITION_VERSION = "0.2.0" as const;
+/** The versions of the format this app reads. */
+export const FORMAT_VERSIONS = [DEFINITION_VERSION] as const;
+export type FormatVersion = (typeof FORMAT_VERSIONS)[number];
+
+/**
+ * The version of a format as it is written today. Before 2026-11-15 the format of steps in a list
+ * said `1`. A value written that way is read as what it means now.
+ */
+export function formatVersionOf(version: unknown): unknown {
+  return version === 1 || version === "1" ? DEFINITION_VERSION : version;
+}
+
+/** A definition with its version as it is written today (`formatVersionOf`); anything else as it is. */
+export function inCurrentFormat<T>(definition: T): T {
+  if (!definition || typeof definition !== "object" || Array.isArray(definition)) {
+    return definition;
+  }
+  const { version } = definition as { version?: unknown };
+  const now = formatVersionOf(version);
+  return now === version ? definition : { ...definition, version: now };
+}
 
 /** A definition as it is written: what the JSON Schema describes. */
-export const wizardSchema = z
+export const wizardShapeSchema = z
   .object({
-    version: z.literal(DEFINITION_VERSION).default(DEFINITION_VERSION),
+    version: z.enum(FORMAT_VERSIONS).default(DEFINITION_VERSION),
     title: z.string().min(1),
     description: z.string().default(""),
     avatar: z.enum(ENGENTY_KINDS).default("round"),
@@ -1651,7 +1673,13 @@ export const wizardSchema = z
     });
   });
 
-export type WizardDefinition = z.infer<typeof wizardSchema>;
+/**
+ * What the app parses a definition with: the schema above, after a version written the earlier
+ * way is read as today's (`inCurrentFormat`).
+ */
+export const wizardSchema = z.preprocess(inCurrentFormat, wizardShapeSchema);
+
+export type WizardDefinition = z.infer<typeof wizardShapeSchema>;
 
 export const INTERACTIVE: ReadonlySet<StepType> = new Set(["form", "review", "result"]);
 
