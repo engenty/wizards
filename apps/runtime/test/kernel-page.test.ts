@@ -37,16 +37,20 @@ const view = (rows: Row[], cursor: string, extra: Partial<KernelRunView> = {}): 
 });
 
 describe("a run of version 0.3.0 on its page", () => {
-  it("shows the intro above the first page only", () => {
+  it("shows the intro above the first page only, and keeps it for the chat", () => {
+    const at = (page: RunRow) => page.definition.steps.findIndex((s) => s.id === page.cursor);
     const first = kernelPage(run, view([form("input", 0, "waiting")], "input"));
     expect(first.definition.intro).toBe("Tell me who it is for.");
+    expect(at(first)).toBe(0);
 
     const second = kernelPage(
       run,
       view([{ ...form("input", 0, "done"), answer: { name: "N" } }, form("ask", 1, "waiting")], "ask"),
     );
     expect(second.cursor).toBe("ask");
-    expect(second.definition.intro).toBeUndefined();
+    // The chat greets with the intro on every page; the page counts this one as not the first.
+    expect(second.definition.intro).toBe("Tell me who it is for.");
+    expect(at(second)).toBeGreaterThan(0);
   });
 
   it("names a step at work by the title its file writes, before it asked anything", () => {

@@ -197,15 +197,24 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
       deliverables: [],
     } as unknown as Step);
   }
-  const { kernel: _kernel, intro, ...shell } = run.definition;
-  // The page shows the wizard's intro above its first page: the one before anything was answered
-  // or any step returned. The page counts a run's first page by the steps before it, which a run
-  // of version 0.3.0 lists only once they returned.
+  // The page shows the wizard's intro above its first page, and counts a run's first page by the
+  // steps before it. A run of version 0.3.0 lists a step only once it returned, so a page answered
+  // before any step returned stands before the one it is on: the intro stays the run's (the chat
+  // greets with it), and shows above the first page only.
   const first = !view.rows.some((row) => "left" in row || row.state === "done");
+  if (!first && cursor && steps.findIndex((s) => s.id === cursor) === 0) {
+    steps.unshift({
+      id: "answered__",
+      type: "form",
+      title: file?.title ?? run.definition.title,
+      fields: [],
+    } as unknown as Step);
+  }
+  const { kernel: _kernel, ...shell } = run.definition;
   const state: RunState = { values, outputs, history: [], notes: {} };
   return {
     ...run,
-    definition: { ...shell, ...(intro && first ? { intro } : {}), steps } as WizardDefinition,
+    definition: { ...shell, steps } as WizardDefinition,
     cursor,
     state,
   };
