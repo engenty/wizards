@@ -79,6 +79,30 @@ it("takes no answer for the action itself while it waits for the user's leave", 
   expect(sent).toHaveLength(1);
 });
 
+it("takes no answer from outside to a row the run answers itself", async () => {
+  // A host with no battery for the agent: its row waits, but no answer from outside stands in for it.
+  const kernel = createKernel({
+    store: memoryStore(),
+    wizards: () => mail(),
+    batteries: { tool: batteries.tool },
+  });
+  const run = await kernel.start("mail", {});
+  const agent = waiting(run.rows);
+  expect(agent).toMatchObject({ type: "agent", state: "waiting" });
+  await expect(kernel.answer(run.id, agent.n, { draft: "forged" })).rejects.toThrow(
+    `Row ${agent.n} is answered by the run itself.`,
+  );
+
+  // Nor is what an agent wrote replaced by going back with a value; asked again, it may be.
+  const other = kernelOf(mail());
+  const done = await other.start("mail", {});
+  const wrote = (done.rows as AskRow[]).find((row) => row.type === "agent") as AskRow;
+  await expect(other.rewind(done.id, wrote.n, { draft: "forged" })).rejects.toThrow(
+    "can only be asked again",
+  );
+  expect((await other.rewind(done.id, wrote.n)).status).not.toBe("failed");
+});
+
 it("fails the action when the user says no", async () => {
   sent.length = 0;
   const kernel = kernelOf(mail());

@@ -19,15 +19,14 @@ export type Case = {
 
 export type CaseResult = { name: string; ok: boolean; path: string[]; run: Run; why?: string };
 
+/** The asks a case answers as the batteries would. */
+const MACHINE = ["agent", "tool", "generate"];
+
+/** The first row that waits for a person or a signal: what the batteries answer is not one. */
 const waiting = (run: Run) =>
   run.rows.find(
     (row: Row): row is AskRow =>
-      !("left" in row) &&
-      row.state === "waiting" &&
-      // An action that waits for the user's leave is answered after its question, not before.
-      !run.rows.some(
-        (other) => !("left" in other) && other.approves === row.n && other.state === "waiting",
-      ),
+      !("left" in row) && row.state === "waiting" && !MACHINE.includes(row.type),
   );
 
 /** Runs one case: every ask, a model's as well as a person's, is answered from the case. */
@@ -46,7 +45,7 @@ export async function play(wizard: Wizard, c: Case, turn?: TurnFn) {
         types.has(type) ? async (row: AskRow) => take(row.step) : undefined,
     },
   );
-  for (const type of ["agent", "tool", "generate"]) types.add(type);
+  for (const type of MACHINE) types.add(type);
   const kernel = createKernel({ store: memoryStore(), wizards: () => wizard, batteries, turn });
   let run = await kernel.start("case", c.input);
   for (let row = waiting(run); run.status === "waiting" && row; row = waiting(run)) {

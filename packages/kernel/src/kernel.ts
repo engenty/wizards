@@ -26,6 +26,14 @@ const UNIT: Record<string, number> = { s: 1e3, m: 60e3, h: 3600e3, d: 86400e3 };
 const ms = (text: string) => Number.parseInt(text, 10) * (UNIT[text.at(-1) ?? ""] ?? 0);
 const isLeft = (row: Row): row is LeftRow => "left" in row;
 const isAsk = (row: Row): row is AskRow => !("left" in row);
+
+/**
+ * Whether an answer may come from outside the kernel: from a person in a role the file grants,
+ * or to a wait, from a signal or another run. What a model, a tool or an agent answers is the
+ * batteries' alone; an answer to it from outside would stand in for the work or for the user's leave.
+ */
+const fromOutside = (grant: Grant, row: AskRow) =>
+  row.type === "wait" || grant.roles.includes(row.role);
 /** A step's own asks, in the order it made them: without the rows that ask the user's leave. */
 const isOwn = (row: Row): row is AskRow =>
   isAsk(row) && row.approves == null && row.parent == null && row.step !== "input";
@@ -289,6 +297,10 @@ export function createKernel({
     };
   }
 
+  /** The run's grant, as it was made when the run started. */
+  const grantFor = async (run: Run): Promise<Grant> =>
+    run.grant ?? grantOf((await wizards(run.wizard)).file);
+
   async function open(runId: string): Promise<Run> {
     const run = await store.load(runId);
     if (!run) throw new Error(`There is no run "${runId}".`);
@@ -326,6 +338,8 @@ export function createKernel({
     if (!row || isLeft(row)) throw new Error(`Row ${n} is not an ask.`);
     const waits = value === undefined ? undefined : held(run, row);
     if (waits) throw new Error(waits);
+    if (value !== undefined && !fromOutside(await grantFor(run), row))
+      throw new Error(`Row ${n} is answered by the run itself; it can only be asked again.`);
     run.rows.length = n + 1;
     run.scores = run.scores?.filter((score) => score.row < n);
     Object.assign(
@@ -356,6 +370,8 @@ export function createKernel({
       throw new Error(`Row ${n} does not wait for an answer.`);
     const waits = held(run, row);
     if (waits) throw new Error(waits);
+    if (!fromOutside(await grantFor(run), row))
+      throw new Error(`Row ${n} is answered by the run itself.`);
     const said = wrong(row.fields, value);
     if (said) throw new Error(said);
     Object.assign(row, { state: "done", answer: value, by });
