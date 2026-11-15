@@ -1,0 +1,14 @@
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!.npmrc
+!packages/kernel
+!packages/runner
+!packages/shared
+!spikes/kernel-worker
+**/node_modules
+**/dist
+spikes/kernel-worker/deploy
+spikes/kernel-worker/.dev.vars
+spikes/kernel-worker/.workerd
