@@ -1304,10 +1304,20 @@ export function toKernel(definition: WizardDefinition): {
 /** The helpers a step file may need, in the order they are written. `needs` come with them. */
 const HELPERS: Record<string, { source: string; needs?: string[] }> = {
   text: {
-    source: `/** A value as a text shows it: nothing is "", a list of words is joined, data is JSON. */
+    source: `/**
+ * A value as a text shows it: nothing is "", a list of words is joined, data is JSON. What a step
+ * made as a text with its files is its text; files alone are "".
+ */
 const text = (value: unknown): string => {
   if (value === undefined || value === null) return "";
   if (typeof value === "string") return value;
+  if (
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    ("text" in value || "assets" in value) &&
+    Object.keys(value).every((key) => key === "text" || key === "assets")
+  )
+    return typeof (value as { text?: unknown }).text === "string" ? (value as { text: string }).text : "";
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value) && value.every((one) => typeof one !== "object")) return value.join(", ");
   return JSON.stringify(value, null, 2);
