@@ -40,6 +40,9 @@ vi.mock("../src/engine/steps.js", async (original) => ({
     if (step.id === "work") {
       return { json: { to: "einkauf@nordlicht.example", subject: "Re: Workshop", threadId: "thr_1", draft: "Dear Nordlicht" }, at: new Date().toISOString() };
     }
+    if (step.id === "pitch") {
+      return { json: { text: "A long pitch" }, at: new Date().toISOString() };
+    }
     if (step.id === "offer") {
       return { json: { text: "An offer", price: price.next.shift() ?? 3000 }, at: new Date().toISOString() };
     }
@@ -520,5 +523,62 @@ describe("a wizard of version 1 made into step files", () => {
     expect(done.error ?? null).toBeNull();
     expect(done.status).toBe("done");
     expect(worked.at(-1)?.instructions).toContain("Nordlicht GmbH");
+  });
+
+  it("takes a review's edits and its way back, and ends with what the file's output names", async () => {
+    process.env.KERNEL_STEPS = "quickjs";
+    const convert = await import("../src/services/convert");
+    const v1 = {
+      version: 1,
+      title: "A letter",
+      description: "Writes a pitch, has it looked at, and a letter from it.",
+      steps: [
+        { id: "ask", type: "form", title: "Who", fields: [{ id: "customer", label: "Customer", kind: "text", required: true }] },
+        { id: "pitch", type: "agent", title: "Pitch", instructions: "Write a pitch for {{customer}}." },
+        { id: "look", type: "review", title: "Look", show: ["pitch"], edit: true, regenerate: true },
+        { id: "letter", type: "agent", title: "Letter", instructions: "Write a letter from this pitch: {{steps.pitch}}" },
+        { id: "end", type: "result", title: "Done", deliverables: [{ from: "letter", formats: ["md"] }, { from: "pitch", formats: ["md"] }] },
+      ],
+    };
+    const made = await client.withTenant(T, async () => {
+      const from = await wizards.createWizard("u", { definition: v1 as never });
+      const copy = await convert.convertWizard("u", from.id);
+      const w = await wizards.writableWizard("u", copy.id);
+      return { ...copy, draft: w.draft, files: await files.draftFiles(copy.id) };
+    });
+    const runId = await client.withTenant(T, () =>
+      runner.createRun({ wizardId: made.id, definition: made.draft as never, files: made.files as never, version: null, mode: "test", userId: "u", input: { customer: "Nordlicht GmbH" } }),
+    );
+    await rests(runId, "waiting_input");
+    const page = async () => client.withTenant(T, async () => runner.runView((await run(runId)) as never, null as never));
+
+    // the review offers what its ask names: an edit and a new version, not a yes or no
+    let seen = await page();
+    expect(seen.step).toMatchObject({ id: "look", type: "review", show: ["pitch"], edit: true, regenerate: true, approve: false });
+    expect(seen.outputs.pitch?.text).toBe("A long pitch");
+
+    // a new version: the pitch runs again with the note
+    worked.length = 0;
+    await client.withTenant(T, () => runner.reviewStep(runId, "look", { type: "regenerate", target: "pitch", note: "Shorter." }, { userId: "u" }));
+    await rests(runId, "waiting_input");
+    expect(worked.map((w) => w.step)).toEqual(["pitch"]);
+    expect(worked[0].instructions).toContain("Shorter.");
+    // only a step the review shows can be made again
+    await expect(
+      client.withTenant(T, () => runner.reviewStep(runId, "look", { type: "regenerate", target: "letter", note: "No." }, { userId: "u" })),
+    ).rejects.toThrow(/made again/);
+
+    // an edit of the text reaches the step after the review
+    worked.length = 0;
+    await client.withTenant(T, () =>
+      runner.reviewStep(runId, "look", { type: "accept", edits: { pitch: "A short pitch" } }, { userId: "u" }),
+    );
+    await rests(runId, "done", "failed");
+    expect(worked.find((w) => w.step === "letter")?.instructions).toContain("A short pitch");
+    expect(worked.find((w) => w.step === "letter")?.instructions).not.toContain("A long pitch");
+
+    seen = await page();
+    expect(seen.status).toBe("done");
+    expect((seen.step as { deliverables: { from: string }[] }).deliverables.map((d) => d.from).sort()).toEqual(["letter", "pitch"]);
   });
 });

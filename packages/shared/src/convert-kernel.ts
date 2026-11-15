@@ -1447,7 +1447,8 @@ const edited = (run: any, review: string, step: string): any => {
   const value = run.steps[step];
   const edit = run.steps[review]?.edits?.[step];
   if (edit === undefined || edit === null) return value;
-  if (typeof edit === "string") return typeof value === "object" && value !== null ? value : edit;
+  if (typeof edit === "string")
+    return typeof value === "object" && value !== null ? { ...value, text: edit } : edit;
   return { ...value, ...edit };
 };`,
   },

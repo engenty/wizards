@@ -14,8 +14,26 @@ import type { KernelRunView } from "./host.js";
 const isAsk = (row: Row): row is AskRow => !("left" in row);
 const at = (run: RunRow) => new Date(run.updatedAt ?? Date.now()).toISOString();
 
-const outputOf = (value: unknown, when: string): StepOutput =>
-  typeof value === "string" ? { text: value, at: when } : { json: value ?? {}, at: when };
+/** A step's text, where it has one: a string, or the `text` of what it returned. */
+const textOf = (value: unknown): string | undefined =>
+  typeof value === "string"
+    ? value
+    : typeof (value as { text?: unknown } | null)?.text === "string"
+      ? (value as { text: string }).text
+      : undefined;
+
+/** What a step returned, as the page shows it: its text to read and edit, its documents to open. */
+const outputOf = (value: unknown, when: string): StepOutput => {
+  if (typeof value === "string") return { text: value, at: when };
+  const text = textOf(value);
+  const assets = (value as { assets?: unknown } | null)?.assets;
+  return {
+    json: value ?? {},
+    ...(text === undefined ? {} : { text }),
+    ...(Array.isArray(assets) ? { assets: assets as StepOutput["assets"] } : {}),
+    at: when,
+  };
+};
 
 /** A step that ran, as the page lists it: it shows what the step left behind. */
 const made = (id: string, value: unknown): Step =>
@@ -25,7 +43,7 @@ const made = (id: string, value: unknown): Step =>
     title: id,
     instructions: "",
     tools: [],
-    output: { format: typeof value === "string" ? "markdown" : "json" },
+    output: { format: textOf(value) === undefined ? "json" : "markdown" },
   }) as unknown as Step;
 
 export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
@@ -51,12 +69,16 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
   let cursor: string | null = view.cursor;
   const values: Record<string, unknown> = {};
   if (view.status === "done") {
-    const shown = steps.map((s) => s.id);
+    // The result shows what the file's output reads, step by step; without one, the last step.
+    const named = Object.values(file?.output ?? {})
+      .map((path) => path.split(".")[0])
+      .filter((id, i, all) => outputs[id] && all.indexOf(id) === i);
+    const from = named.length ? named : steps.map((s) => s.id).slice(-1);
     add({
       id: "result",
       type: "result",
       title: file?.title ?? run.definition.title,
-      deliverables: shown.slice(-1).map((from) => ({ from, formats: ["md"] })),
+      deliverables: from.map((id) => ({ from: id, formats: ["md"] })),
     } as unknown as Step);
     cursor = "result";
   } else if (page?.type === "form") {
@@ -80,7 +102,10 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
       type: "review",
       title: String(page.title ?? page.step),
       show,
-      approve: page.approve !== false,
+      // As in version 1: each way to answer only where the ask names it.
+      approve: page.approve === true,
+      edit: page.edit === true,
+      regenerate: page.regenerate === true,
     } as unknown as Step);
     cursor = page.step;
   } else if (page?.type === "approval") {

@@ -2939,10 +2939,31 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
     const waiting = (await kernelRuns.view(versioned)).waiting.filter((r) => r.step === stepId);
     const row =
       waiting.find((r) => r.type === "approval") ?? waiting.find((r) => r.type === "review");
-    if (!row || action.type === "regenerate") {
-      throw new RunConflict(row ? "Not a review that can be made again" : { code: "runMovedOn" });
+    if (!row) {
+      throw new RunConflict({ code: "runMovedOn" });
+    }
+    const shows = (row.show as string[] | undefined) ?? [];
+    if (action.type === "regenerate") {
+      // The step answers `{ regenerate, note }` and goes back to the step it names.
+      if (row.type !== "review" || row.regenerate !== true || !shows.includes(action.target)) {
+        throw new RunConflict("Not a review that can be made again");
+      }
+      await kernelAnswer(
+        runId,
+        row.n,
+        { approved: false, regenerate: action.target, note: action.note.slice(0, 2000) },
+        by,
+      );
+      return;
     }
     const yes = action.type === "accept";
+    // As in version 1: only edits of a step the review shows, and only where it lets them edit.
+    const edits =
+      action.type === "accept" && row.edit === true
+        ? Object.fromEntries(
+            Object.entries(action.edits ?? {}).filter(([id]) => shows.includes(id)),
+          )
+        : {};
     await kernelAnswer(
       runId,
       row.n,
@@ -2951,7 +2972,7 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
         : {
             approved: yes,
             ...(action.note ? { note: action.note } : {}),
-            ...(action.type === "accept" && action.edits ? { edits: action.edits } : {}),
+            ...(Object.keys(edits).length ? { edits } : {}),
           },
       by,
     );
