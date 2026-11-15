@@ -1,18 +1,18 @@
-// Builds one wizard folder (wizard.json + steps/*.ts + package.json) into dist/worker.js, with
-// the kernel and the edge batteries its package.json pins, installed in its own node_modules.
-//   node build.mjs [wizards/x-post]       or WIZARD=wizards/x-post node build.mjs
+// The build of a deploy package: wizard.json + steps/*.ts beside it, bundled into dist/worker.js
+// with the kernel and the edge batteries this package pins, from its own node_modules.
+// deploy.mjs copies this file into the package as build.mjs.   pnpm build
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { parse, resolve } from "node:path";
+import { parse } from "node:path";
 import { build } from "esbuild";
 
 const here = new URL(".", import.meta.url).pathname;
-const dir = resolve(here, process.argv[2] ?? process.env.WIZARD ?? "wizards/x-post");
+const dir = here.replace(/\/$/, "");
 const file = JSON.parse(readFileSync(`${dir}/wizard.json`, "utf8"));
 const pkg = existsSync(`${dir}/package.json`)
   ? JSON.parse(readFileSync(`${dir}/package.json`, "utf8"))
   : {};
 
-// The folder says which runner it was written for. Without the pin, or not installed, no build.
+// The package says which runner it was made for. Without the pin, or not installed, no build.
 const RUNNER = ["@engenty/wizards-kernel", "@engenty/wizards-edge"];
 const unpinned = RUNNER.filter((name) => !pkg.dependencies?.[name]);
 if (unpinned.length) {
@@ -29,26 +29,15 @@ const installed = Object.fromEntries(
     return [name, JSON.parse(readFileSync(at, "utf8"))];
   }),
 );
-// The edge batteries name the kernel they run on; the wizard's pin has to be that one.
+// The edge batteries name the kernel they run on; this package's pin has to be that one.
 const kernel = installed["@engenty/wizards-kernel"].version;
 const wants = installed["@engenty/wizards-edge"].peerDependencies?.["@engenty/wizards-kernel"];
 if (wants && wants !== kernel) {
-  console.error(`@engenty/wizards-edge runs on kernel ${wants}; the wizard pins ${kernel}.`);
+  console.error(`@engenty/wizards-edge runs on kernel ${wants}; the package pins ${kernel}.`);
   process.exit(1);
 }
 
 const steps = readdirSync(`${dir}/steps`).map((name) => parse(name).name);
-
-// What the file requires and this Worker cannot give is refused here, before anything runs.
-const refused = [
-  ...(file.requires?.tools ?? []).map((tool) => `the tool "${tool}"`),
-  ...Object.keys(file.connections ?? {}).map((kind) => `the connection "${kind}"`),
-  ...Object.keys(file.requires?.roles ?? {}).map((role) => `someone for the role "${role}"`),
-];
-if (refused.length) {
-  console.error(`This Worker cannot run "${file.title}". It lacks ${refused.join(", ")}.`);
-  process.exit(1);
-}
 
 const name = (id) => `step_${id.replace(/\W/g, "_")}`;
 const entry = `
@@ -67,7 +56,7 @@ export default { fetch: worker.fetch };
 const started = performance.now();
 const out = await build({
   stdin: { contents: entry, resolveDir: dir, loader: "ts" },
-  // The edge package finds the kernel through the wizard's pin, not a copy of its own.
+  // The edge package finds the kernel through this package's pin, not a copy of its own.
   nodePaths: [`${dir}/node_modules`],
   bundle: true,
   format: "esm",

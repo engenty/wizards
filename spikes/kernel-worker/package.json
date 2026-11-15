@@ -2,15 +2,14 @@
   "name": "spike-kernel-worker",
   "private": true,
   "type": "module",
-  "description": "Spike: one wizard of version 0.3.0 as a Cloudflare Worker, each run a Durable Object. Not part of the workspace.",
+  "description": "Spike: a wizard of version 0.3.0 as a Cloudflare Worker, each run a Durable Object. deploy.mjs stands in for `wizards deploy`. Not part of the workspace.",
   "scripts": {
-    "build": "node build.mjs",
-    "dev": "wrangler dev --port 8787",
-    "flow": "node flow.mjs",
-    "workerd": "node build.mjs && mkdir -p .workerd/runs && workerd serve workerd.capnp --experimental"
+    "deploy": "node deploy.mjs",
+    "flow": "node flow.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
+    "workerd": "1.20261023.1",
     "wrangler": "4.156.0"
   }
 }

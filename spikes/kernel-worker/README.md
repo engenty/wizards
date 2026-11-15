@@ -2,25 +2,28 @@
 
 One wizard of version 0.3.0, built with the kernel into one Worker. Each run is a Durable Object (`runObject` from `packages/kernel/src/edge.ts`). The step files are imported into the bundle and run as plain code. No QuickJS: the bundle has none of it, and none is needed for one wizard on infrastructure of its own. A sandbox only matters where strangers' wizards share one host.
 
+This is an option, not the way wizards run. In the hosted studio and the local install a wizard stays `wizard.json` + `steps/` and runs on that runtime's kernel. For a server of one's own, the CLI makes a **deploy package** from it: the wizard as it is, plus the pin to its runner, the build and the Worker's config. `deploy.mjs` stands in for that command (`wizards deploy <path> --worker`, next to `wizards validate <path…>`), and takes the same paths: a wizard folder or a `.wizard` package exported from the studio.
+
 Local only (`wrangler dev`, and `workerd serve` below); nothing was deployed.
 
 ```bash
-pnpm install --ignore-workspace     # this folder is not in the workspace (wrangler, esbuild)
-(cd wizards/x-post && pnpm install --ignore-workspace)   # the wizard's own pins
-pnpm dev                            # build.mjs + wrangler dev on :8787; WIZARD=wizards/x-post-image pnpm dev for the other one
-pnpm flow                           # start, first page, review twice, read the run
+pnpm install --ignore-workspace          # this folder is not in the workspace
+node deploy.mjs wizards/x-post           # → deploy/x-post/ and deploy/x-post.zip
+cd deploy/x-post && pnpm install --ignore-workspace
+pnpm dev                                 # build.mjs + wrangler dev on :8787
+node ../../flow.mjs                      # start, first page, review twice, read the run
 ```
 
 ## What is here
 
 | File | What it does |
 |---|---|
-| `build.mjs` | Takes one wizard folder (`wizard.json` + `steps/*.ts` + `package.json`) and bundles it with the kernel and the edge package from the folder's own `node_modules` into `dist/worker.js`. Refuses a wizard whose `requires.tools`, `connections` or `requires.roles` this Worker can't give. |
-| `wizards/<name>/package.json` | The wizard's pin to its runner: `@engenty/wizards-kernel` and `@engenty/wizards-edge`, plus whatever npm packages its steps import. Its `pnpm-lock.yaml` fixes the exact versions. |
-| `edge/` | `@engenty/wizards-edge`: the Worker and its batteries as a package. It names the kernel it runs on as a peer dependency, so the wizard's pin chooses the kernel. |
+| `deploy.mjs` | A wizard folder or `.wizard` package → `deploy/<name>/` and `deploy/<name>.zip`: `wizard.json`, `steps/`, `package.json` with the pin, `build.mjs`, `wrangler.toml` and `workerd.capnp` written from `requires`. Refuses a wizard whose `requires.tools`, `connections` or `requires.roles` a Worker can't give. |
+| `template-build.mjs` | The deploy package's `build.mjs`: bundles `wizard.json` and the steps with the kernel and the edge package from the package's own `node_modules` into `dist/worker.js`. |
+| `edge/` | `@engenty/wizards-edge`: the Worker and its batteries as a package. It names the kernel it runs on as a peer dependency, so the deploy package's pin chooses the kernel. |
 | `edge/worker.ts` | `GET /` (the wizard), `POST /runs`, `GET /runs/<id>`, `POST /runs/<id>/answer`, `/rewind`, `/judge`. The run id is the Durable Object's name. |
 | `edge/batteries.ts` | `agent`: one chat completion over `fetch` to an OpenAI-compatible endpoint (`MODEL_BASE_URL`, secret `MODEL_API_KEY`, `MODELS` maps each model class to a model). Echoes without a key. `form`, `review`, `approval`, `wait`, `signal` wait for HTTP. Every other ask type fails at once: `This Worker has no battery for "<type>" asks.` |
-| `wizards/x-post` | The converted marketplace wizard "X-Post mit Bild (0.3.0)" without its image step: `post` (model `low`) and `check` (review). Step files unchanged. |
+| `wizards/x-post` | The converted marketplace wizard "X-Post mit Bild (0.3.0)" without its image step: `post` (model `low`) and `check` (review). Step files unchanged. Plain: no `package.json`. |
 | `wizards/x-post-image` | The same wizard whole, to show an ask without a battery failing. |
 | `stub-model.mjs` | A local OpenAI-compatible stand-in, to run the `fetch` path without an account. |
 
@@ -28,7 +31,7 @@ Files in R2: not built. Nothing in these wizards writes a file, and the image is
 
 ## What ran
 
-`pnpm dev` + `pnpm flow`, with `.dev.vars` pointing the agent battery at `stub-model.mjs`:
+In `deploy/x-post`: `pnpm dev` + `node ../../flow.mjs`, with `.dev.vars` pointing the agent battery at `stub-model.mjs`:
 
 ```
 # POST /runs (no input: the first page waits)
@@ -49,7 +52,7 @@ stub: POST /v1/chat/completions model=gpt-4.1-mini auth=yes prompt=1121 chars   
 
 The same flow without a key: the post is `Echo (low): Post schreiben` with the link appended by the step's code; the run ends the same way.
 
-`WIZARD=wizards/x-post-image pnpm dev`, `POST /runs` with input:
+`deploy/x-post-image`, `pnpm dev`, `POST /runs` with input:
 
 ```
 status failed | error: This Worker has no battery for "generate" asks.
@@ -57,36 +60,40 @@ status failed | error: This Worker has no battery for "generate" asks.
   3 visual generate failed: This Worker has no battery for "generate" asks.
 ```
 
-`node build.mjs <Recherche-Briefing (0.3.0)>`: `This Worker cannot run "Recherche-Briefing (0.3.0)". It lacks the tool "web_fetch", the tool "web_search".` (exit 1)
+`node deploy.mjs recherche-briefing-0.3.0.wizard`: `"Recherche-Briefing (0.3.0)" cannot run as a Worker. It lacks the tool "web_fetch", the tool "web_search".` (exit 1)
+
+`node deploy.mjs x-post-0.3.0.wizard`, the studio's export as it is: `deploy/x-post-0-3-0/` with all three steps, `models {"image":…,"low":…}`.
 
 Size: 15.5 KiB minified for the kernel, the Worker and two steps; 17.4 KiB with three. Build: ~15 ms. Requests to `wrangler dev` answer in ~8 ms. Cold start on Cloudflare is not measured (no deploy); a script this small is far below anything that slows an isolate's start.
 
 ## What the format lacks to be self-contained
 
-**A pin to its runner.** `wizard.json` says `version: "0.3.0"`, the format; nothing in it says which kernel and which batteries the folder was written and tested against. In this spike the folder carries a `package.json` for that:
+**A pin to its runner, in the deploy package only.** `wizard.json` says `version: "0.3.0"`, the format; nothing in it says which kernel and batteries a bundle was built against. The format doesn't need that: the studio and the local install run a wizard on their own kernel. A Worker does, and the deploy package carries it:
 
 ```json
 {
   "name": "@wizards/x-post",
-  "version": "1.0.0",
+  "scripts": { "build": "node build.mjs", "dev": "wrangler dev", "workerd": "…workerd serve workerd.capnp --experimental" },
   "dependencies": {
     "@engenty/wizards-edge": "link:../../edge",
     "@engenty/wizards-kernel": "link:../../../../packages/kernel"
-  }
+  },
+  "devDependencies": { "esbuild": "0.28.2", "workerd": "1.20261023.1", "wrangler": "4.156.0" },
+  "wizards": { "kernel": "0.0.0", "edge": "0.1.0", "format": "0.3.0" }
 }
 ```
 
-`link:` stands in for published versions (`"0.3.0"`); neither package is on npm. The build takes the kernel and the edge package only from the folder's own `node_modules`, and refuses:
+The CLI writes the pin from the kernel and edge package it runs itself. `link:` stands in for published versions: neither package is on npm, and a zip with `link:` paths only installs inside this repository. A released CLI writes `"0.3.0"` and the zip installs anywhere. The package's `build.mjs` takes the kernel and edge package only from its own `node_modules`, and refuses:
 
 ```
 "X-Post (0.3.0, nur Text)" pins no @engenty/wizards-kernel, @engenty/wizards-edge in its package.json.
 @engenty/wizards-kernel is not installed in …/noinstall. Run pnpm install there.
-@engenty/wizards-edge runs on kernel 0.1.0; the wizard pins 0.0.0.
+@engenty/wizards-edge runs on kernel 0.1.0; the package pins 0.0.0.
 ```
 
-and says what it built from: `X-Post (0.3.0, nur Text): kernel 0.0.0, edge 0.1.0, 2 steps, models ["low"], 15.5 KiB`. `wizard.json` stays the place for what the wizard requires; `package.json` is only how it is built. For this, `packages/kernel` exports `./edge`.
+and says what it built from: `X-Post (0.3.0, nur Text): kernel 0.0.0, edge 0.1.0, 2 steps, models ["low"], 15.5 KiB`. For this, `packages/kernel` exports `./edge`.
 
-Open: the kernel is `0.0.0` and private. Publishing it (and the edge package) with versions is what makes the pin mean anything outside this repository. The format version and the kernel version are two numbers; a kernel should say which format versions it runs, and the build should check `wizard.json`'s `version` against it.
+Open: the kernel is `0.0.0` and private. Publishing it and the edge package with versions is what makes the pin mean anything outside this repository. A kernel should also say which format versions it runs, so the CLI can refuse a `wizard.json` it doesn't know.
 
 **`requires` → bindings.** It maps, but only by a convention nobody has written down:
 
@@ -99,9 +106,9 @@ Open: the kernel is `0.0.0` and private. Publishing it (and the edge package) wi
 | `hosts` | a check in the `http.request` battery; a Worker can't limit its own outbound fetches |
 | files | an R2 binding + a battery that writes there and keeps the key in the row |
 
-A build could write `wrangler.toml` from `wizard.json` (bindings, vars, the secret names to set) instead of the hand-written one here.
+`deploy.mjs` writes `wrangler.toml` and `workerd.capnp` from `requires`: the Durable Object binding, one `MODELS` entry per model class (to be set to a model of the endpoint), the secret names. Tools, connections and roles are refused, since no battery for them exists yet.
 
-**Imports in steps.** esbuild bundles whatever a step imports: a helper file next to it, an npm package from the folder's `package.json`. Checking stays `tsc` against the kernel's `Step` type plus `kernelIssues`. One rule the format must state, since nothing enforces it without a sandbox: a step runs again from its top on every answer, so it reaches the world only through `ask`; imported code that fetches or writes on its own runs again each time. On infrastructure of one's own, that is a lint rule, not a sandbox. Node built-ins need `nodejs_compat`; packages that need native code or a filesystem don't run in a Worker at all, and the build is where that shows.
+**Imports in steps.** esbuild bundles whatever a step imports: a helper file next to it, or an npm package. Where the package comes from is open: the wizard would have to name it, and the deploy package's `package.json` would carry it. Checking stays `tsc` against the kernel's `Step` type plus `kernelIssues`. One rule the format must state, since nothing enforces it without a sandbox: a step runs again from its top on every answer, so it reaches the world only through `ask`; imported code that fetches or writes on its own runs again each time. On infrastructure of one's own, that is a lint rule, not a sandbox. Node built-ins need `nodejs_compat`; packages that need native code or a filesystem don't run in a Worker at all, and the build is where that shows.
 
 **Long runs and Durable Object limits.**
 - The whole run is one stored value (`storage.put("run", …)`). A SQLite-backed object takes values up to 2 MB; a long run with large model answers reaches that. Rows should go one per key or into the object's SQL table.
@@ -118,13 +125,13 @@ A build could write `wrangler.toml` from `wizard.json` (bindings, vars, the secr
 
 ## Recommendation
 
-Make the wizard folder a package and drop QuickJS from this path. A folder = `wizard.json` + `steps/` + a `package.json` that pins the kernel and the edge batteries. `wizards build` checks it (`tsc`, `kernelIssues`, `requires` against the batteries the package brings), bundles it with esbuild, and writes the Worker's config from `requires`. That makes one wizard one deployable unit for private infrastructure, at ~16 KiB: on Cloudflare, or on plain `workerd` with a config of 30 lines and a folder of SQLite files.
+Keep the wizard format as it is and drop QuickJS from this path. Deploying one wizard to a server of one's own is an option of the CLI: `wizards deploy <path> --worker` takes a wizard folder or a `.wizard` package, refuses what a Worker can't give, and writes a deploy package (folder and zip) that pins the kernel and edge batteries it was made with and carries the Worker's config from `requires`. `pnpm install && pnpm build` makes a ~16 KiB `dist/worker.js` that runs on Cloudflare, or on plain `workerd` with a config of 30 lines and a folder of SQLite files.
 
-Before it is more than a spike: rows out of the single stored value, model calls moved out of the request, a token per run, and an R2 battery for files. All of those sit in `edge.ts` and the edge package; the format itself needs only the `package.json` pin (built here) and the written rule that steps reach the world only through `ask`.
+Before it is more than a spike: rows out of the single stored value, model calls moved out of the request, a token per run, and an R2 battery for files. All of those sit in `edge.ts` and the edge package; the format itself needs only the written rule that steps reach the world only through `ask`.
 
 ## On self-hosted workerd
 
-The same `dist/worker.js` runs on [workerd](https://github.com/cloudflare/workerd), Cloudflare's open-source runtime, with no account and no wrangler: [`workerd.capnp`](workerd.capnp) is the whole config.
+The same `dist/worker.js` runs on [workerd](https://github.com/cloudflare/workerd), Cloudflare's open-source runtime, with no account and no wrangler: the deploy package's `workerd.capnp` is the whole config. In `deploy/x-post`:
 
 ```bash
 pnpm workerd                                   # node build.mjs + workerd serve on :8788
