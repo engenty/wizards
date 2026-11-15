@@ -1,5 +1,6 @@
 import {
   isOutlineCode,
+  type OutlineCode,
   type OutlineEdit,
   type OutlineText,
 } from "@engenty/wizards-shared/kernel-file";
@@ -39,9 +40,25 @@ const OPTION = /^fields\.\d+\.options\.\d+$/;
 
 /** Something the code fills in or works out: set apart from the words a person wrote. */
 export const CODE =
-  "rounded-md bg-cobalt-tint px-1.5 py-0.5 font-mono text-[0.75rem] text-cobalt [overflow-wrap:anywhere]";
+  "box-decoration-clone rounded-md bg-cobalt-tint px-1.5 py-0.5 font-mono text-[0.75rem] text-cobalt [overflow-wrap:anywhere]";
 
-type Parts = (string | { $code: string })[];
+type Parts = (string | OutlineCode)[];
+
+/** A written-out value as a chip shows it: a text in quotes on one line, nothing as a dash. */
+const said = (value: string | number | boolean) =>
+  typeof value !== "string"
+    ? String(value)
+    : value.trim()
+      ? `„${value.trim().replace(/\s*\n\s*/g, " ")}“`
+      : "–";
+
+/** A part of the chip in the page's own type: the words a person reads, apart from the code. */
+function words(text: string) {
+  const span = document.createElement("span");
+  span.className = "font-sans text-[0.8125rem] text-ink";
+  span.textContent = text;
+  return span;
+}
 
 const partsOf = (value: string | OutlineText): Parts =>
   typeof value === "string" ? [value] : value.$text;
@@ -92,7 +109,10 @@ export function Words({
   const editing = useContext(KernelEditContext);
   const place = WORDS.test(path) || OPTION.test(path) ? editing?.at[path] : undefined;
   const el = useRef<HTMLSpanElement>(null);
-  const shown = JSON.stringify(partsOf(value));
+  // Compared by the code alone: how a chip is drawn is not part of what a person typed.
+  const shown = JSON.stringify(
+    partsOf(value).map((part) => (typeof part === "string" ? part : { $code: part.$code })),
+  );
   const fill = () =>
     el.current?.replaceChildren(
       ...partsOf(value).map((part) => {
@@ -102,7 +122,18 @@ export function Words({
         chip.className = `${CODE} select-none`;
         chip.contentEditable = "false";
         chip.dataset.code = part.$code;
-        chip.textContent = part.$code;
+        // A choice between two written values reads as that: what is asked, then the one and
+        // the other in words.
+        if (part.$either) {
+          chip.replaceChildren(
+            `${part.$either.if} ? `,
+            words(said(part.$either.then)),
+            " : ",
+            words(said(part.$either.else)),
+          );
+        } else {
+          chip.textContent = part.$code;
+        }
         return chip;
       }),
     );

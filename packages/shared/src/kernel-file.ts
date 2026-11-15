@@ -65,7 +65,15 @@ export function kernelShell(file: KernelFile): WizardDefinition {
 /** Where a step's code works a value out: the code as it is written. */
 export interface OutlineCode {
   $code: string;
+  /**
+   * Where the code picks one of two written-out values: what it asks, and the value for yes and
+   * for no. The studio shows such a choice as words.
+   */
+  $either?: { if: string; then: OutlinePlain; else: OutlinePlain };
 }
+
+/** A value written out in full: a text, a number, yes or no. */
+export type OutlinePlain = string | number | boolean;
 
 /** A text with parts worked out in code between its words. */
 export interface OutlineText {

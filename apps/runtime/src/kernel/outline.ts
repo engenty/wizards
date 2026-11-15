@@ -67,6 +67,21 @@ export async function stepOutline(source: string): Promise<StepOutline> {
   }
 
   type Places = Record<string, [number, number]>;
+  /** A value written out in full, where the node is one: a text, a number, yes or no. */
+  const plainOf = (node: N): string | number | boolean | undefined =>
+    node.type === "Literal" && ["string", "number", "boolean"].includes(typeof node.value)
+      ? node.value
+      : node.type === "TemplateLiteral" && !node.expressions.length
+        ? (node.quasis[0].value.cooked ?? "")
+        : undefined;
+  /** The code of a node; a choice between two written-out values says both. */
+  const coded = (node: N) => {
+    const then = node.type === "ConditionalExpression" ? plainOf(node.consequent) : undefined;
+    const other = node.type === "ConditionalExpression" ? plainOf(node.alternate) : undefined;
+    return then !== undefined && other !== undefined
+      ? { $code: text(node), $either: { if: text(node.test), then, else: other } }
+      : { $code: text(node) };
+  };
   const value = (node: N | null, depth = 0, path = "", at?: Places): OutlineValue => {
     if (!node) return null;
     const text_ = node.type === "TemplateLiteral" || typeof node.value === "string";
@@ -76,10 +91,10 @@ export async function stepOutline(source: string): Promise<StepOutline> {
         return node.regex || typeof node.value === "bigint" ? { $code: text(node) } : node.value;
       case "TemplateLiteral": {
         if (!node.expressions.length) return node.quasis[0].value.cooked ?? "";
-        const parts: (string | { $code: string })[] = [];
+        const parts: (string | ReturnType<typeof coded>)[] = [];
         (node.quasis as N[]).forEach((quasi, i) => {
           if (quasi.value.cooked) parts.push(quasi.value.cooked);
-          if (node.expressions[i]) parts.push({ $code: text(node.expressions[i]) });
+          if (node.expressions[i]) parts.push(coded(node.expressions[i]));
         });
         return { $text: parts };
       }
@@ -101,7 +116,7 @@ export async function stepOutline(source: string): Promise<StepOutline> {
           return value(init, depth + 1, path, at);
       }
     }
-    return { $code: text(node) };
+    return coded(node);
   };
   const object = (node: N, depth: number, path = "", at?: Places): Record<string, OutlineValue> => {
     const out: Record<string, OutlineValue> = {};
