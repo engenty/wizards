@@ -1632,10 +1632,36 @@ export const kernelFileSchema = z.object({
   connections: z
     .record(z.string().min(1), z.record(z.string().min(1), z.enum(["allow", "ask"])))
     .optional(),
-  /** What a caller sends, or a person fills in first. */
-  input: z.object({ fields: z.array(fieldSchema) }).optional(),
+  /** Shown on the first page, above the first question. */
+  intro: z.string().optional(),
+  /** The lists the wizard keeps across its runs, as a wizard of steps in a list names them. */
+  lists: z.array(listSchema).max(12).optional(),
+  /**
+   * What a caller sends, or a person fills in first. As a page it may be laid out like any form:
+   * its groups, its button's words, its components and what they read.
+   */
+  input: z
+    .object({
+      fields: z.array(fieldSchema),
+      groups: z.array(fieldGroupSchema).max(6).optional(),
+      cta: z.string().optional(),
+      components: surfaceComponentsSchema.optional(),
+      data: z.record(z.string(), z.string()).optional(),
+    })
+    .optional(),
   /** A finished run's output: a name, and where it is read from as `<step>.<path>`. */
   output: z.record(z.string().min(1), z.string().min(1)).optional(),
+  /**
+   * The page a finished run shows a person: what it says, and what it offers to download, each
+   * from a step or a list (`lists.<id>`) in the formats named. Left out, the page offers what
+   * `output` reads.
+   */
+  result: z
+    .object({
+      message: z.string().optional(),
+      downloads: z.array(deliverableSchema).optional(),
+    })
+    .optional(),
   start: kernelStepId,
   /** The ways of each step. The first is taken when the step names none. */
   edges: z.record(kernelStepId, z.array(way)),
@@ -1645,12 +1671,40 @@ export const kernelFileSchema = z.object({
 
 export type KernelFile = z.infer<typeof kernelFileSchema>;
 
-export const DEFINITION_VERSION = 1 as const;
+/**
+ * The version of the format a wizard is written in, the same way everywhere a wizard is kept or
+ * handed on: its definition, its file, the marketplace. `0.2.0` is the format of steps in a list,
+ * `0.3.0` the one made of step files (`KERNEL_VERSION`).
+ */
+export const DEFINITION_VERSION = "0.2.0" as const;
+export const FORMAT_VERSIONS = [DEFINITION_VERSION, KERNEL_VERSION] as const;
+export type FormatVersion = (typeof FORMAT_VERSIONS)[number];
+
+/**
+ * The version of a format as it is written today. Before 2026-11-15 the format of steps in a list
+ * said `1`, and a wizard made of step files said so too, with its own version only inside its
+ * file. A value written that way is read as what it means now.
+ */
+export function formatVersionOf(version: unknown, kernel?: unknown): unknown {
+  return kernel ? KERNEL_VERSION : version === 1 || version === "1" ? DEFINITION_VERSION : version;
+}
+
+/** A definition with its version as it is written today (`formatVersionOf`); anything else as it is. */
+export function inCurrentFormat<T>(definition: T): T {
+  if (!definition || typeof definition !== "object" || Array.isArray(definition)) {
+    return definition;
+  }
+  const { version, kernel } = definition as { version?: unknown; kernel?: unknown };
+  const now = formatVersionOf(version, kernel);
+  return now === version || (now === undefined && !kernel)
+    ? definition
+    : { ...definition, version: now };
+}
 
 /** A definition as it is written: what the JSON Schema describes. */
-export const wizardSchema = z
+export const wizardShapeSchema = z
   .object({
-    version: z.literal(DEFINITION_VERSION).default(DEFINITION_VERSION),
+    version: z.enum(FORMAT_VERSIONS).default(DEFINITION_VERSION),
     title: z.string().min(1),
     description: z.string().default(""),
     avatar: z.enum(ENGENTY_KINDS).default("round"),
@@ -1696,6 +1750,13 @@ export const wizardSchema = z
     kernel: kernelFileSchema.optional(),
   })
   .superRefine((def, ctx) => {
+    if ((def.version === KERNEL_VERSION) !== Boolean(def.kernel)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["version"],
+        message: `version ${KERNEL_VERSION} is a wizard made of step files, and only that`,
+      });
+    }
     def.steps.forEach((step, i) => {
       const classed =
         step.type === "agent" || step.type === "generate" || step.type === "motion-graphics";
@@ -1710,7 +1771,13 @@ export const wizardSchema = z
     });
   });
 
-export type WizardDefinition = z.infer<typeof wizardSchema>;
+/**
+ * What the app parses a definition with: the schema above, after a version written the earlier
+ * way is read as today's (`inCurrentFormat`).
+ */
+export const wizardSchema = z.preprocess(inCurrentFormat, wizardShapeSchema);
+
+export type WizardDefinition = z.infer<typeof wizardShapeSchema>;
 
 export const INTERACTIVE: ReadonlySet<StepType> = new Set(["form", "review", "result"]);
 

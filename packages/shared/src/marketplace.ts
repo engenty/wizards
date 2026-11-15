@@ -406,8 +406,11 @@ export interface MarketplaceSummary {
   effort: Effort;
   costTier: CostTier;
   steps: number;
-  /** The definition version the entry's wizard is written in (`DEFINITION_VERSION`). */
-  version: number;
+  /**
+   * The version of the format the entry's wizard is written in (`FORMAT_VERSIONS`). A marketplace
+   * from before 2026-11-15 says `1` for `0.2.0`: a client reads it with `formatVersionOf`.
+   */
+  version: string;
   /**
    * The plugins its wizard uses, by id (`pluginsOf`). A marketplace older than this field leaves
    * it out: read it as none.

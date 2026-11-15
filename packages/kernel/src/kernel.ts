@@ -55,7 +55,8 @@ export function begin(
             step: INPUT,
             type: "form",
             role: "user",
-            fields: file.input?.fields,
+            // The page as the file lays it out: its fields, groups, button and components.
+            ...file.input,
             state: "waiting",
           },
         ]

@@ -651,6 +651,8 @@ export function toKernel(definition: WizardDefinition): {
           const at = indexOf(old);
           if (at === 0 && inputOnly) return ["input"];
           if (at >= 0 && !gone(at)) return [newIds[at]];
+          // A list the wizard keeps is shown as it is named.
+          if (dataRef(old).startsWith("lists.")) return [dataRef(old)];
           say(`The review shows "${old}", which is not a step of version 2.`, id);
           return [];
         });
@@ -1153,25 +1155,29 @@ export function toKernel(definition: WizardDefinition): {
   // --- the file ------------------------------------------------------------------------------
 
   const output: Record<string, string> = {};
+  // The page a finished run shows: its message, and each download with its formats.
+  const result: NonNullable<KernelFile["result"]> = {};
   steps.forEach((step, index) => {
     if (step.type !== "result") return;
+    const downloads: NonNullable<typeof result.downloads> = [];
     for (const deliverable of step.deliverables) {
-      const at = indexOf(dataRef(deliverable.from).replace(/^steps\./, ""));
-      if (at >= 0 && edges[newIds[at]]) output[newIds[at]] = newIds[at];
-      else
+      const ref = dataRef(deliverable.from);
+      const at = indexOf(ref.replace(/^steps\./, ""));
+      if (at >= 0 && edges[newIds[at]]) {
+        output[newIds[at]] = newIds[at];
+        downloads.push({ ...deliverable, from: newIds[at] });
+      } else if (ref.startsWith("lists.")) {
+        downloads.push({ ...deliverable, from: ref });
+      } else
         say(`The result offers "${deliverable.from}", which is not a step of version 2.`, step.id);
     }
+    if (step.message) result.message = step.message;
+    if (downloads.length) result.downloads = downloads;
     for (const [key, ref] of Object.entries(step.data ?? {})) {
       const from = direct(ref) ?? `${newIds[index]}.${key}`;
       if (edges[from.split(".")[0]]) output[key] = from;
     }
-    const dropped = [
-      step.message && "its message",
-      step.share && "its share targets",
-      step.deliverables.length && "the formats of its downloads",
-    ].filter(Boolean);
-    if (dropped.length)
-      say(`The result is the file's output. Not kept: ${dropped.join(", ")}.`, step.id);
+    if (step.share) say("The result is the file's output. Not kept: its share targets.", step.id);
   });
 
   const limits: Record<string, number> = {};
@@ -1212,13 +1218,9 @@ export function toKernel(definition: WizardDefinition): {
     );
   if (opening?.timeout || opening?.remind)
     say("The first form's timeout and reminder do not apply to the file's input.");
-  if (inputOnly && (opening?.components || opening?.cta || opening?.groups))
-    say("The first form's layout, button and groups are not part of the file's input.");
   const left = (
     [
-      ["intro", definition.intro],
       ["label", definition.label],
-      ["lists", definition.lists?.length],
       ["data", definition.data],
       ["themes", definition.themes?.length],
       ["costume", definition.costume],
@@ -1238,8 +1240,22 @@ export function toKernel(definition: WizardDefinition): {
     ...(definition.lang ? { lang: definition.lang } : {}),
     ...(Object.keys(requires).length ? { requires } : {}),
     ...(Object.keys(connections).length ? { connections } : {}),
-    ...(opening ? { input: { fields: opening.fields } } : {}),
+    ...(definition.intro ? { intro: definition.intro } : {}),
+    ...(definition.lists?.length ? { lists: definition.lists } : {}),
+    ...(opening
+      ? {
+          input: {
+            fields: opening.fields,
+            // The page as the first form lays it out.
+            ...(opening.groups ? { groups: opening.groups } : {}),
+            ...(opening.cta ? { cta: opening.cta } : {}),
+            ...(opening.components ? { components: opening.components } : {}),
+            ...(opening.data ? { data: opening.data } : {}),
+          },
+        }
+      : {}),
     ...(Object.keys(output).length ? { output } : {}),
+    ...(Object.keys(result).length ? { result } : {}),
     start,
     edges,
     ...(Object.keys(limits).length ? { limits } : {}),

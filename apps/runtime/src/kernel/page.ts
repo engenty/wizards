@@ -74,11 +74,16 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
       .map((path) => path.split(".")[0])
       .filter((id, i, all) => outputs[id] && all.indexOf(id) === i);
     const from = named.length ? named : steps.map((s) => s.id).slice(-1);
+    // The downloads the file names, each from a step that left something or from a list.
+    const downloads = file?.result?.downloads?.filter(
+      (one) => one.from.startsWith("lists.") || outputs[one.from],
+    );
     add({
       id: "result",
       type: "result",
       title: file?.title ?? run.definition.title,
-      deliverables: from.map((id) => ({ from: id, formats: ["md"] })),
+      ...(file?.result?.message ? { message: file.result.message } : {}),
+      deliverables: downloads ?? from.map((id) => ({ from: id, formats: ["md"] })),
     } as unknown as Step);
     cursor = "result";
   } else if (page?.type === "form") {
@@ -87,10 +92,18 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
       type: "form",
       title: String(page.title ?? (page.step === "input" ? (file?.title ?? "") : page.step)),
       fields: page.fields ?? [],
+      // How the page is laid out, where the ask says so.
+      ...(page.groups ? { groups: page.groups } : {}),
+      ...(page.cta ? { cta: page.cta } : {}),
+      ...(page.components ? { components: page.components } : {}),
+      ...(page.data ? { data: page.data } : {}),
     } as unknown as Step);
     cursor = page.step;
   } else if (page?.type === "review") {
-    const show = ((page.show as string[] | undefined) ?? []).filter((id) => outputs[id]);
+    // What a step left behind, or a list the wizard keeps.
+    const show = ((page.show as string[] | undefined) ?? []).filter(
+      (id) => outputs[id] || id.startsWith("lists."),
+    );
     if (!show.length) {
       const about = `${page.step}__about`;
       add(made(about, String(page.message ?? page.title ?? page.step)));

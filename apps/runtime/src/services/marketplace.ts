@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { statSync } from "node:fs";
 import {
   DEFINITION_VERSION,
+  FORMAT_VERSIONS,
+  formatVersionOf,
   readable,
   type WizardDefinition,
   wizardSchema,
@@ -254,8 +256,11 @@ function asEntry(
   const lacking = summary.capabilities.filter((c) => unavailable.has(c));
   return {
     ...summary,
+    // A marketplace that still writes the version the earlier way is read as today's.
+    version: String(formatVersionOf(summary.version)),
     credits: null,
-    usable: summary.version <= DEFINITION_VERSION,
+    // A format this app reads.
+    usable: (FORMAT_VERSIONS as readonly unknown[]).includes(formatVersionOf(summary.version)),
     starred: starred.has(summary.id),
     missing: lacking.filter((c) => !optional.has(c)),
     optional: lacking.filter((c) => optional.has(c)),

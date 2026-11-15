@@ -9,7 +9,7 @@ import {
   type ConnectionRules,
   MAILBOX_ERRORS,
 } from "@engenty/wizards-shared/connectors";
-import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import { inCurrentFormat, type WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
 import { withRequires } from "@engenty/wizards-shared/requires";
 import {
@@ -77,7 +77,8 @@ const updatedAt = () => integer("updated_at", { mode: "timestamp_ms" }).notNull(
 const definitionColumn = customType<{ data: WizardDefinition; driverData: string }>({
   dataType: () => "text",
   toDriver: (value) => JSON.stringify(filledIn(value)),
-  fromDriver: (value) => JSON.parse(value) as WizardDefinition,
+  // A definition kept before its version was written as today reads as today's.
+  fromDriver: (value) => inCurrentFormat(JSON.parse(value) as WizardDefinition),
 });
 
 function filledIn(def: WizardDefinition): WizardDefinition {

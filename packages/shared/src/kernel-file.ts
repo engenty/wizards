@@ -48,11 +48,14 @@ export function kernelShell(file: KernelFile): WizardDefinition {
     policy: Object.fromEntries(Object.keys(actions).map((action) => [action, "allow"])),
   }));
   return {
-    version: 1,
+    version: file.version,
     title: file.title,
     description: file.description ?? "",
     avatar: (file.avatar ?? "round") as WizardDefinition["avatar"],
     ...(file.lang ? { lang: file.lang } : {}),
+    // What stands around the steps is the wizard's, in either format: the page reads it there.
+    ...(file.intro ? { intro: file.intro } : {}),
+    ...(file.lists?.length ? { lists: file.lists } : {}),
     ...(connections.length ? { connections } : {}),
     steps: [{ id: KERNEL_STEP, type: "result", title: file.title, deliverables: [] }],
     kernel: file,

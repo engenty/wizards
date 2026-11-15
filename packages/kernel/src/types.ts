@@ -24,7 +24,18 @@ export type WizardFile = {
    * or asks the user first. Whose account it is, is bound where the wizard is installed.
    */
   connections?: Record<string, Record<string, "allow" | "ask">>;
-  input?: { fields: Field[] };
+  /** Shown on the first page, above the first question. */
+  intro?: string;
+  /** What a caller sends, or a person fills in first; as a page, laid out like any form. */
+  input?: {
+    fields: Field[];
+    groups?: unknown[];
+    cta?: string;
+    components?: unknown[];
+    data?: Record<string, string>;
+  };
+  /** The page a finished run shows: what it says and what it offers to download. */
+  result?: { message?: string; downloads?: { from: string; label?: string; formats: string[] }[] };
   /** A finished run's output: a name, and where it is read from as `<step>.<path>`. */
   output?: Record<string, string>;
   start: string;
