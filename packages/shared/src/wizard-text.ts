@@ -91,7 +91,7 @@ const COMPONENTS: ReadonlySet<string> = new Set(SURFACE_COMPONENTS);
  * schema needs): the parser adds them, the printer leaves them out.
  */
 const DEFAULTS: Record<string, Record<string, unknown>> = {
-  wizard: { version: 1, description: "", avatar: "round" },
+  wizard: { version: "0.2.0", description: "", avatar: "round" },
   agent: { instructions: "", tools: [], output: { format: "markdown" } },
   tool: { output: {} },
   widget: { data: {} },

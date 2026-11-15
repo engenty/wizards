@@ -15,7 +15,7 @@ verifying and voting will take a token of the Manage-App (scope `wizards:publish
 
 | Call | Answers |
 |---|---|
-| `GET /api/v1/entries?q=&lang=&useCase=&industry=&format=&capability=&plan=&limit=&offset=` | `MarketplacePage`: the published entries the words find, best first, narrowed by the filters; `total` of them, `all` published entries, and per filter option the entries it would leave (`facets`). Without `q` in the marketplace's own order. `limit` at most 100, default 60. |
+| `GET /api/v1/entries?q=&lang=&useCase=&industry=&format=&capability=&plan=&version=&limit=&offset=` | `MarketplacePage`: the published entries the words find, best first, narrowed by the filters; `total` of them, `all` published entries, and per filter option the entries it would leave (`facets`). Without `q` in the marketplace's own order. `limit` at most 100, default 60. |
 | `GET /api/v1/entries?ids=a,b&lang=` | The same page, of exactly these entries (no words, no filters) |
 | `GET /api/v1/entries/:id?lang=` | `MarketplaceItem`: the summary, the wizard in that language (else in its own) and its workspace files (base64). 404 for an entry that is not published. |
 | `GET /api/v1/entries/:id/export` | `MarketplaceExport`: the entry in every language it has, with its files: what a client keeps offline |
@@ -28,10 +28,13 @@ verifying and voting will take a token of the Manage-App (scope `wizards:publish
   files, how it is sorted. A client that keeps an entry fetches the export again only when the
   hash in `sync` differs from the one it keeps. `revision` goes up with every change; a wizard
   made from an entry records it (`wizard.starter_revision`).
-- **Versions**: `version` is the definition version the wizard is written in. A client whose
-  `DEFINITION_VERSION` is lower shows the entry as needing a newer app. The schema drops what it
-  does not know, so a client also reads the wizard before it starts one and refuses it when
-  anything would be lost. A client says the version it reads in `x-wizards-definition`.
+- **Versions**: `version` is the version of the format the wizard is written in, as a wizard's
+  own `version` says it: `0.2.0` for steps in a list (`FORMAT_VERSIONS`). A client that does not
+  read that format shows the entry as needing a newer app. The schema drops what it does not
+  know, so a client also reads the wizard before it starts one and refuses it when anything would
+  be lost. A client says the version it writes in `x-wizards-definition`. Before 2026-11-15 the
+  format of steps in a list said `1`: a client reads that as `0.2.0` (`formatVersionOf`).
+  `version=` narrows the search to one, counted in `facets.version`.
 - **Plugins and plans**: `plugins` names the plugins an entry's wizard uses (its tools named
   `<plugin>.<tool>`, `pluginsOf`), `plan` the plan that has them (`free`, or `pro` as soon as it
   uses a plugin: plugins come with Pro and Team), and `pluginStarter` the plugin's own starter

@@ -1,3 +1,4 @@
+import { formatVersionOf } from "./definition.js";
 import {
   type CatalogFieldWeights,
   scoreCatalogEntry,
@@ -121,9 +122,13 @@ export function matchesFilters(e: MarketplaceSummary, f: MarketplaceFilters): bo
       (f.industry !== "any" && e.industries.includes("any"))) &&
     (!f.format || e.formats.includes(f.format)) &&
     (!f.capability || e.capabilities.includes(f.capability)) &&
-    (!f.plan || (e.plan ?? "free") === f.plan)
+    (!f.plan || (e.plan ?? "free") === f.plan) &&
+    (!f.version || versionOf(e) === f.version)
   );
 }
+
+/** The version of the format an entry's wizard is written in, as it is written today. */
+const versionOf = (e: MarketplaceSummary) => String(formatVersionOf(e.version));
 
 const FACETS = {
   useCase: (e: MarketplaceSummary) => e.useCases as string[],
@@ -131,6 +136,7 @@ const FACETS = {
   format: (e: MarketplaceSummary) => e.formats as string[],
   capability: (e: MarketplaceSummary) => e.capabilities as string[],
   plan: (e: MarketplaceSummary) => [e.plan ?? "free"],
+  version: (e: MarketplaceSummary) => [versionOf(e)],
 } satisfies Record<keyof MarketplaceFacets, (e: MarketplaceSummary) => string[]>;
 
 /**
@@ -148,6 +154,7 @@ function facetsOf(
     format: {},
     capability: {},
     plan: {},
+    version: {},
   };
   for (const key of Object.keys(FACETS) as (keyof MarketplaceFacets)[]) {
     const options = new Set(all.flatMap(FACETS[key]));
