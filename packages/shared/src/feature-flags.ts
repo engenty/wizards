@@ -195,7 +195,7 @@ export const FEATURES = {
     kind: "release",
     default: false,
     label: "Wizards made of step files",
-    hint: "Version 2 of the format: a file with what a wizard needs and its map, and one function per step. The kernel moves its runs (docs/plans/kernel.md).",
+    hint: "Version 0.3.0 of the format: a file with what a wizard needs and its map, and one function per step. The kernel moves its runs (docs/plans/kernel.md).",
   },
   durableRuns: {
     kind: "release",

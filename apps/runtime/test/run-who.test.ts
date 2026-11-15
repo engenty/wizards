@@ -277,7 +277,7 @@ const DOORS: [string, string, string, unknown][] = [
   ["the wizard's memory gone", "DELETE", "/store", {}],
   ["the phone's push", "POST", "/notify", { token: "12345678", platform: "ios" }],
   ["the phone's push gone", "DELETE", "/notify", {}],
-  ["a row of a run in version 2", "POST", "/rows/0", { value: {} }],
+  ["a row of a run in version 0.3.0", "POST", "/rows/0", { value: {} }],
   ["publishing the result", "POST", "/share", {}],
   ["taking it back", "DELETE", "/share", {}],
   ["sending it on", "POST", "/share/jobs", { target: "email" }],

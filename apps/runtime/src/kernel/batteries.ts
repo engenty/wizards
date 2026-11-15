@@ -5,7 +5,7 @@ import { runAutomaticStep } from "../engine/steps.js";
 import type { RunRow, SpaceRow, StepContext } from "../engine/types.js";
 
 /**
- * Who answers an ask of a run in version 2 at once (docs/plans/kernel.md): today's step
+ * Who answers an ask of a run in version 0.3.0 at once (docs/plans/kernel.md): today's step
  * executors. An ask becomes the step of version 1 it would have been, with its text already
  * written, and runs as that. So models, connections, the broker and what a step costs are the
  * ones every run has.
@@ -121,7 +121,7 @@ export function kernelBatteries(
       ask: async (ask) => {
         if (ask.kind !== "confirm") {
           throw new Error(
-            "This step needs the person in the middle of its work, which a run of version 2 cannot do yet.",
+            "This step needs the person in the middle of its work, which a run of version 0.3.0 cannot do yet.",
           );
         }
         if (row.asksLeave) {

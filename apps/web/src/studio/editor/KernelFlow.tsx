@@ -6,7 +6,7 @@ import { kernelFlow } from "./kernel-flow";
 const FlowPreview = lazy(() => import("../FlowPreview"));
 
 /**
- * The map of a wizard in version 2: read from its file, so it is whole before any run. Each node
+ * The map of a wizard in version 0.3.0: read from its file, so it is whole before any run. Each node
  * is a step file of the wizard; its code is under Files, as `steps/<id>.ts`.
  */
 export function KernelFlow({ file }: { file: KernelFile }) {

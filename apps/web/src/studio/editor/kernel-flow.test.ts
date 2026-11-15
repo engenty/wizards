@@ -4,7 +4,7 @@ import { kernelFlow } from "./kernel-flow";
 
 const file = (edges: Record<string, string[]>, start: string, limits?: Record<string, number>) =>
   ({
-    version: 2,
+    version: "0.3.0",
     title: "T",
     description: "",
     avatar: "round",
@@ -13,7 +13,7 @@ const file = (edges: Record<string, string[]>, start: string, limits?: Record<st
     limits,
   }) as KernelFile;
 
-describe("the map of a wizard in version 2", () => {
+describe("the map of a wizard in version 0.3.0", () => {
   it("puts the steps in one column along a path of the map, the other ways beside it", () => {
     const flow = kernelFlow(
       file(

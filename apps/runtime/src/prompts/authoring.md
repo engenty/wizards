@@ -601,15 +601,15 @@ Sandbox tools. When the fixed task needs a program, packages or files (convert a
 The script runs in its folder in the run's sandbox: it reads input.json, writes output.json (checked against output), and files it writes to out/ become files of the step. A file the person gave reaches it when the model passes upload:<id>; the script finds it at the path input.json then holds (in/<name>). At most 5 minutes a call; what it installs stays for the run. The step lists every host of "hosts" in its own "hosts". The sandbox is agentOS where Docker isn't the engine: Python is Pyodide (numpy, pandas; pure-Python packages with micropip), Node runs JavaScript, no native programs.
 
 <!-- section: kernel -->
-<!-- Only while the switch kernel is on: authoringGuide() leaves it out otherwise. A wizard in version 2 of the format (docs/plans/kernel.md): a file and one function per step. -->
-A wizard made of step files (version 2). Choose it when the flow is more than a line: loops, several asks in one step, text or fields built from earlier answers, your own logic. A plain line of pages and AI steps stays as described above.
+<!-- Only while the switch kernel is on: authoringGuide() leaves it out otherwise. A wizard in version 0.3.0 of the format (docs/plans/kernel.md): a file and one function per step. -->
+A wizard made of step files (version 0.3.0). Choose it when the flow is more than a line: loops, several asks in one step, text or fields built from earlier answers, your own logic. A plain line of pages and AI steps stays as described above.
 
 Such a wizard is one definition with a "kernel" entry, plus one file per step in its workspace:
 
 { "version": 1, "title": "...", "description": "...", "avatar": "round",
   "steps": [{ "id": "result", "type": "result", "title": "...", "deliverables": [] }],   // always exactly this one step
   "kernel": {
-    "version": 2, "title": "...", "description": "...",
+    "version": "0.3.0", "title": "...", "description": "...",
     "requires": { "models": ["standard"], "tools": [], "roles": { "legal": "Legal" }, "hosts": [] },
     "connections": { "<connection id>": { "<action>": "allow" | "ask" } },   // "ask": the user is asked before the action is done
     "input": { "fields": [Field, ...] },        // what the run is given, or asks for on its first page

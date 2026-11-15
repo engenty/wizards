@@ -454,7 +454,7 @@ export async function runReport(
 }
 
 /**
- * The report of a run of a wizard in version 2 (docs/plans/kernel.md): its rows, and what it
+ * The report of a run of a wizard in version 0.3.0 (docs/plans/kernel.md): its rows, and what it
  * waits for. A form or the run's input is answered with `answer_form` and the row's step; a
  * review, or the leave for an action, with `review_step`.
  */
@@ -465,7 +465,7 @@ export async function kernelReport(run: RunRow) {
   return {
     runId: run.id,
     status: run.status,
-    version: 2,
+    version: "0.3.0",
     cursor: view.cursor,
     waitingFor: first
       ? {

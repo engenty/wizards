@@ -18,7 +18,7 @@ import { readNumber } from "./numbers.js";
 import { stepClasses } from "./requires.js";
 
 /**
- * A wizard of version 1 as a wizard of version 2 (docs/plans/kernel.md, item 22): the file, one
+ * A wizard of version 1 as a wizard of version 0.3.0 (docs/plans/kernel.md, item 22): the file, one
  * step file per step, and notes on what a person should look at. Nothing is run and nothing is
  * read but the definition.
  *
@@ -298,7 +298,7 @@ export function toKernel(definition: WizardDefinition): {
     const found = raw(dataRef(ref), scope);
     if (found) return found;
     say(
-      `${where} reads "${dataRef(ref)}", which a step of version 2 cannot read. It is undefined.`,
+      `${where} reads "${dataRef(ref)}", which a step of version 0.3.0 cannot read. It is undefined.`,
       here(scope),
     );
     return "undefined";
@@ -945,7 +945,7 @@ export function toKernel(definition: WizardDefinition): {
         if (step.until) {
           use("daysUntil");
           say(
-            "The step waits until a date. In version 2 it waits whole days, counted from the day the run began.",
+            "The step waits until a date. In version 0.3.0 it waits whole days, counted from the day the run began.",
             id,
           );
           return [
@@ -1216,14 +1216,14 @@ export function toKernel(definition: WizardDefinition): {
       ["costume", definition.costume],
     ] as const
   ).flatMap(([name, there]) => (there ? [name] : []));
-  if (left.length) say(`The file of version 2 has no place for: ${left.join(", ")}.`);
+  if (left.length) say(`The file of version 0.3.0 has no place for: ${left.join(", ")}.`);
   if (steps.some((step) => step.type === "review" && step.edit))
     say(
       "A review's edits are in its value. Steps later in the list read them. The file's output reads the step's own value.",
     );
 
   const file: KernelFile = {
-    version: 2,
+    version: "0.3.0",
     title: definition.title,
     description: definition.description ?? "",
     avatar: definition.avatar ?? "round",

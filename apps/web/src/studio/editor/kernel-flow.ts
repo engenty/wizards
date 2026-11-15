@@ -1,7 +1,7 @@
 import type { KernelFile } from "@engenty/wizards-shared/definition";
 
 /**
- * The map of a wizard in version 2 as the studio draws it (docs/plans/kernel.md): its steps in
+ * The map of a wizard in version 0.3.0 as the studio draws it (docs/plans/kernel.md): its steps in
  * one column, in an order in which each leads to the next where the map allows, and every other
  * way as a branch beside them.
  */

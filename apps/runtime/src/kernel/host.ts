@@ -20,7 +20,7 @@ import { kernelStore, loadKernelRun } from "./store.js";
 import { KernelCompileError, kernelWizard, type StepMode } from "./wizard.js";
 
 /**
- * The runtime as the kernel's host (docs/plans/kernel.md): a run of a wizard in version 2 is
+ * The runtime as the kernel's host (docs/plans/kernel.md): a run of a wizard in version 0.3.0 is
  * created, put in line, claimed and woken as every run is. Where today's engine would walk the
  * definition's steps, the kernel moves the run instead; where a person answers, the answer goes
  * into a row.

@@ -596,7 +596,7 @@ export async function createRun(input: {
   /** Which time of the start this is (`occurrenceKey`): a second run of it is refused. */
   occurrence?: string;
   /**
-   * A wizard in version 2 (docs/plans/kernel.md): what the run is given as its input. Left out,
+   * A wizard in version 0.3.0 (docs/plans/kernel.md): what the run is given as its input. Left out,
    * the run asks for it first, where the wizard's file has fields for one.
    */
   input?: Record<string, unknown>;
@@ -2270,7 +2270,7 @@ async function startDriving(runId: string): Promise<boolean> {
 }
 
 async function drive(runId: string, signal: AbortSignal) {
-  // A wizard in version 2: the kernel moves the run (docs/plans/kernel.md).
+  // A wizard in version 0.3.0: the kernel moves the run (docs/plans/kernel.md).
   const versioned = await loadRun(runId);
   if (versioned && kernelOf(versioned.definition)) {
     if (!RUN_ENDED.has(versioned.status)) {
@@ -2670,7 +2670,7 @@ export async function submitPage(
 ): Promise<boolean> {
   const versioned = await kernelRunOf(runId);
   if (versioned) {
-    // A wizard in version 2: the page is the form the run waits at, a step's or its input.
+    // A wizard in version 0.3.0: the page is the form the run waits at, a step's or its input.
     const row = (await kernelRuns.view(versioned)).waiting.find(
       (r) => r.step === stepId && r.type === "form",
     );
@@ -2875,7 +2875,7 @@ export type ReviewAction =
 export async function reviewStep(runId: string, stepId: string, action: ReviewAction, by?: Actor) {
   const versioned = await kernelRunOf(runId);
   if (versioned) {
-    // A wizard in version 2: a review of the step, or the leave for an action it is about to do.
+    // A wizard in version 0.3.0: a review of the step, or the leave for an action it is about to do.
     const waiting = (await kernelRuns.view(versioned)).waiting.filter((r) => r.step === stepId);
     const row =
       waiting.find((r) => r.type === "approval") ?? waiting.find((r) => r.type === "review");
@@ -2978,7 +2978,7 @@ export async function goBack(runId: string, by?: Actor) {
     throw new RunConflict({ code: "runBusy" });
   }
   if (kernelOf(run.definition)) {
-    // A wizard in version 2: the last answer somebody gave is asked for again.
+    // A wizard in version 0.3.0: the last answer somebody gave is asked for again.
     const rows = (await kernelRuns.view(run)).rows;
     const last = rows.findLast((r) => !("left" in r) && r.state === "done" && r.by !== undefined);
     if (!last) {
@@ -3002,7 +3002,7 @@ export async function retry(runId: string) {
     throw new RunConflict("Nothing to retry");
   }
   if (kernelOf(run.definition)) {
-    // A wizard in version 2: the ask that failed is made again.
+    // A wizard in version 0.3.0: the ask that failed is made again.
     const rows = (await kernelRuns.view(run)).rows;
     const failed = rows.findLast((r) => !("left" in r) && r.state === "failed");
     if (!failed) {
@@ -3282,7 +3282,7 @@ export async function runView(
   hide: ReadonlySet<string> = new Set(),
   viewer?: Caller,
 ): Promise<RunView> {
-  // A wizard in version 2: the page reads the run as the small wizard it is at this moment.
+  // A wizard in version 0.3.0: the page reads the run as the small wizard it is at this moment.
   if (kernelOf(run.definition)) {
     return runView(kernelPage(run, await kernelRuns.view(run)), brand, hide, viewer);
   }
@@ -3517,9 +3517,9 @@ async function runSpaceFiles(spaceId: string) {
   return [...brand, ...own.filter((f) => !BRAND_FILES.has(f.kind))];
 }
 
-// --- runs of a wizard in version 2 (docs/plans/kernel.md) ----------------------
+// --- runs of a wizard in version 0.3.0 (docs/plans/kernel.md) ----------------------
 
-/** The run, when it is of a wizard in version 2 and has not ended. */
+/** The run, when it is of a wizard in version 0.3.0 and has not ended. */
 async function kernelRunOf(runId: string): Promise<RunRow | undefined> {
   const run = await loadRun(runId);
   return run && kernelOf(run.definition) ? run : undefined;

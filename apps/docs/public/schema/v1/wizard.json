@@ -34561,8 +34561,8 @@
       "type": "object",
       "properties": {
         "version": {
-          "type": "number",
-          "const": 2
+          "type": "string",
+          "const": "0.3.0"
         },
         "title": {
           "type": "string",
