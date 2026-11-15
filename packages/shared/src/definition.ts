@@ -1588,11 +1588,6 @@ export const requiresSchema = z.object({
 export type Requires = z.infer<typeof requiresSchema>;
 
 /**
- * The version of the definition this app writes and reads. The format is in beta until 1.0: it
- * can change without a new version, and stored definitions are converted once when it does.
- * A definition without a version is of this one.
- */
-/**
  * A wizard in version 0.3.0 of the format (docs/plans/kernel.md): the file. It holds what the wizard
  * needs and may reach, and the map. Nothing about a step is in it: a step is a file of the
  * wizard's workspace, `steps/<id>.ts`, with one function. What reads it is in kernel-file.ts.
