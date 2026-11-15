@@ -5,7 +5,8 @@
 #   docker run -p 8080:8080 -v runs:/app/.workerd/runs wizard
 FROM node:24-bookworm-slim AS build
 ARG WIZARD=wizards/x-post
-RUN npm install -g pnpm@10.23.0
+RUN apt-get update && apt-get install -y --no-install-recommends zip unzip \
+  && rm -rf /var/lib/apt/lists/* && npm install -g pnpm@10.23.0
 WORKDIR /repo
 COPY . .
 # The runner and what it builds on (the shared definitions), for the run page and its CSS.
