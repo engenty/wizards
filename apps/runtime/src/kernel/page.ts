@@ -91,7 +91,14 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
    */
   const stepFor = (id: string, value: unknown): Step => {
     const ask = work.get(id);
-    if (!ask) return made(id, value);
+    if (!ask) {
+      // No ask yet: the step is shown by what its file writes out.
+      const own = view.titles?.[id];
+      return {
+        ...made(id, value, own?.title ?? id),
+        ...(own?.working ? { working: own.working } : {}),
+      } as Step;
+    }
     const title = typeof ask.title === "string" && ask.title ? ask.title : id;
     const said = typeof ask.working === "string" ? { working: ask.working } : {};
     return FILES.has(String(ask.type)) && (filesOf(value) || value === "")
@@ -190,11 +197,15 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
       deliverables: [],
     } as unknown as Step);
   }
-  const { kernel: _kernel, ...shell } = run.definition;
+  const { kernel: _kernel, intro, ...shell } = run.definition;
+  // The page shows the wizard's intro above its first page: the one before anything was answered
+  // or any step returned. The page counts a run's first page by the steps before it, which a run
+  // of version 0.3.0 lists only once they returned.
+  const first = !view.rows.some((row) => "left" in row || row.state === "done");
   const state: RunState = { values, outputs, history: [], notes: {} };
   return {
     ...run,
-    definition: { ...shell, steps } as WizardDefinition,
+    definition: { ...shell, ...(intro && first ? { intro } : {}), steps } as WizardDefinition,
     cursor,
     state,
   };

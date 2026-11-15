@@ -77,6 +77,10 @@ function kindLabel(type: string): string {
   return type in KINDS ? t(`type.${type}` as "type.form") : type || t("kernel.inCode");
 }
 
+/** An ask of a step by its title, else by its kind: what the preview lists to choose from. */
+export const askName = (spec: Spec | undefined): string =>
+  plain(spec?.title) || kindLabel(kindOf(spec));
+
 /** A document, where a generate ask makes one: the icon the editor's diagram has for it. */
 function iconOf(spec: Spec | undefined): LucideIcon {
   const kind = KINDS[kindOf(spec)];

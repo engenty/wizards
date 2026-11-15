@@ -59,6 +59,26 @@ it("asks the user before an action that is set to ask, and only then does it", a
   expect(sent).toMatchObject([{ userId: "me", body: { threadId: "thr_1" } }]);
 });
 
+it("takes no answer for the action itself while it waits for the user's leave", async () => {
+  sent.length = 0;
+  const kernel = kernelOf(mail());
+  let run = await kernel.start("mail", {});
+  run = await kernel.answer(run.id, waiting(run.rows).n, { approved: true });
+  const leave = waiting(run.rows);
+  const action = leave.approves as number;
+  expect(run.rows[action]).toMatchObject({ type: "tool", state: "waiting" });
+
+  await expect(kernel.answer(run.id, action, { id: "made-up" })).rejects.toThrow(
+    `Row ${action} waits for the user's leave. Answer row ${leave.n}.`,
+  );
+  await expect(kernel.rewind(run.id, action, { id: "made-up" })).rejects.toThrow(
+    `Row ${action} waits for the user's leave.`,
+  );
+  run = await kernel.answer(run.id, leave.n, { allow: true });
+  expect(run).toMatchObject({ status: "done", output: { sent: "sent-1" } });
+  expect(sent).toHaveLength(1);
+});
+
 it("fails the action when the user says no", async () => {
   sent.length = 0;
   const kernel = kernelOf(mail());

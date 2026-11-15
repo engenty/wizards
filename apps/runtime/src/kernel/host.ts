@@ -16,6 +16,8 @@ import type { RunRow, SpaceRow } from "../engine/types.js";
 import { env } from "../env.js";
 import { managed } from "../manage.js";
 import { kernelBatteries, type MakeContext } from "./batteries.js";
+import { kernelOutline } from "./outline.js";
+import { stepTitles } from "./still.js";
 import { kernelStore, loadKernelRun } from "./store.js";
 import { KernelCompileError, kernelWizard, type StepMode } from "./wizard.js";
 
@@ -77,6 +79,8 @@ export type KernelRunView = {
   output?: Record<string, unknown>;
   error?: string;
   rev: number;
+  /** Each step's title and working line as its file writes them, for a step with no ask yet. */
+  titles?: Record<string, { title?: string; working?: string }>;
 };
 
 export function kernelHost(deps: KernelDeps) {
@@ -211,6 +215,7 @@ export function kernelHost(deps: KernelDeps) {
         output: run?.output,
         error: row.error ?? undefined,
         rev: row.rev,
+        titles: stepTitles(await kernelOutline(row.files ?? [])),
       };
     },
   };

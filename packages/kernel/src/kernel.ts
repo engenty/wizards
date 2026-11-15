@@ -295,6 +295,21 @@ export function createKernel({
     return run;
   }
 
+  /**
+   * A row that waits for the user's leave takes no answer until the user gave it: an answer
+   * would stand for the action without the leave. Where a battery does the action, it does it as
+   * soon as the leave is given; where none does (a case of `check`), the answer comes after.
+   */
+  const held = (run: Run, row: AskRow) => {
+    if (row.approves != null) return; // the question itself, which the user answers
+    if (!(row.asksLeave || (run.grant && needsLeave(run.grant, row)))) return;
+    const leave = run.rows.filter(isAsk).find((other) => other.approves === row.n);
+    if (leave?.state === "done" && (leave.answer as { allow?: unknown })?.allow === true) return;
+    return leave
+      ? `Row ${row.n} waits for the user's leave. Answer row ${leave.n}.`
+      : `Row ${row.n} waits for the user's leave.`;
+  };
+
   /** What is wrong with a value for these fields; nothing when it fits. */
   const wrong = (fields: AskRow["fields"], value: unknown): string | undefined => {
     if (check) return check(fields, value);
@@ -309,6 +324,8 @@ export function createKernel({
     const run = await open(runId);
     const row = run.rows[n];
     if (!row || isLeft(row)) throw new Error(`Row ${n} is not an ask.`);
+    const waits = value === undefined ? undefined : held(run, row);
+    if (waits) throw new Error(waits);
     run.rows.length = n + 1;
     run.scores = run.scores?.filter((score) => score.row < n);
     Object.assign(
@@ -337,6 +354,8 @@ export function createKernel({
     const row = run.rows[n];
     if (!row || isLeft(row) || row.state !== "waiting")
       throw new Error(`Row ${n} does not wait for an answer.`);
+    const waits = held(run, row);
+    if (waits) throw new Error(waits);
     const said = wrong(row.fields, value);
     if (said) throw new Error(said);
     Object.assign(row, { state: "done", answer: value, by });

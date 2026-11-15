@@ -11,7 +11,10 @@ const outline: KernelOutline = {
     ways: [],
   },
   check: {
-    asks: [{ spec: { type: "review", title: "Fine?", show: ["pitch"], edit: true } }],
+    asks: [
+      { spec: { type: "review", title: "Fine?", show: ["pitch"], edit: true } },
+      { spec: { type: "form", title: "Why not?", fields: [{ id: "why", label: "Why", kind: "text" }] } },
+    ],
     ways: [],
   },
   form: {
@@ -56,5 +59,13 @@ describe("a step of version 0.3.0 shown without a run", () => {
       working: "Writes …",
     });
     expect(kernelStill(file, outline, "nope", {}, false)).toBeNull();
+  });
+
+  it("shows each ask of a step, by its place in the step", () => {
+    const second = kernelStill(file, outline, "check", {}, false, 1);
+    expect(second?.waiting[0]).toMatchObject({ type: "form", title: "Why not?" });
+    expect(second?.titles.check).toBe("Why not?");
+    expect(kernelStill(file, outline, "check", {}, false, 2)).toBeNull();
+    expect(kernelStill(file, outline, "input", {}, false, 1)).toBeNull();
   });
 });

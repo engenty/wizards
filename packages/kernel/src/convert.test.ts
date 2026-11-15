@@ -493,9 +493,69 @@ describe("a hand-written wizard", () => {
     expect(big.output?.big).toBe('Big: <data field="extras">60.5</data>');
     const small = await play(wizard, { budget: 100 }, { agent }, answer({ size: "L", extras }));
     expect(pathOf(small)).toEqual(["more", "small", "end_step"]);
-    expect(small.output?.small).toContain("| Wheels | 60.50 EUR | 60.50 EUR |");
+    expect(small.output?.small).toContain("| Wheels | €60.50 | €60.50 |");
     const none = await play(wizard, { budget: 100 }, { agent }, answer({ size: "S" }));
     expect(pathOf(none)).toEqual(["more"]);
+  });
+
+  it("line items are written in the wizard's language, as before", async () => {
+    const { wizard } = await convert({
+      title: "Angebot",
+      lang: "de",
+      steps: [
+        {
+          id: "input",
+          type: "form",
+          title: "Leistungen",
+          fields: [
+            {
+              id: "items",
+              label: "Leistungen",
+              kind: "items",
+              columns: [
+                { id: "what", label: "Was", kind: "text" },
+                { id: "price", label: "Preis", kind: "money" },
+              ],
+              vat: { rate: 20 },
+            },
+          ],
+        },
+        { id: "offer", type: "agent", title: "Angebot", instructions: "{{items}}" },
+        result({ data: { offer: "steps.offer" } }),
+      ],
+    });
+    const agent: Battery = async (row) => String(row.instructions).split("\n\n#")[0];
+    const run = await play(
+      wizard,
+      { items: [{ what: "Website", price: "1234,5" }] },
+      { agent },
+      () => ({}),
+    );
+    expect(run.output?.offer).toContain("| Website | 1.234,50\u00a0€ | 1.234,50\u00a0€ |");
+    expect(run.output?.offer).toContain("VAT 20%: 246,90\u00a0€");
+  });
+
+  it("a step's text beside its files reads as that text, as before", async () => {
+    const { wizard } = await convert({
+      title: "Brief",
+      steps: [
+        {
+          id: "input",
+          type: "form",
+          title: "Who",
+          fields: [{ id: "who", label: "Who", kind: "text" }],
+        },
+        { id: "letter", type: "agent", title: "Letter", instructions: "Write." },
+        { id: "next", type: "agent", title: "Next", instructions: "From: {{steps.letter}}" },
+        result({ data: { next: "steps.next" } }),
+      ],
+    });
+    const agent: Battery = async (row) =>
+      row.step === "letter"
+        ? { text: "Dear N", assets: [{ id: "a1", kind: "pdf" }] }
+        : String(row.instructions).split("\n\n#")[0];
+    const run = await play(wizard, { who: "N" }, { agent }, () => ({}));
+    expect(run.output?.next).toBe("From: Dear N");
   });
 
   it("the other kinds of step: a first form with a way back, waits, files, edits and choices", async () => {

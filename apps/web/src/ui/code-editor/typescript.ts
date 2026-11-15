@@ -2,8 +2,9 @@ import { closeBrackets } from "@codemirror/autocomplete";
 import { javascript } from "@codemirror/lang-javascript";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
-import { EditorView, lineNumbers } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import { foldParts } from "./folding";
 
 /** TypeScript in the studio's editor: a wizard's step files, highlighted in the studio's colours. */
 
@@ -20,10 +21,8 @@ export function typescriptParts(): Extension[] {
     javascript({ typescript: true }),
     syntaxHighlighting(style),
     closeBrackets(),
-    lineNumbers(),
-    EditorView.theme({
-      ".cm-lineNumbers .cm-gutterElement": { color: "var(--ink-4)", padding: "0 0.5rem 0 0.75rem" },
-    }),
+    // Each function, object and list folds, as in wizard.json.
+    ...foldParts(),
     EditorView.contentAttributes.of({ spellcheck: "false" }),
   ];
 }
