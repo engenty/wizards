@@ -1,0 +1,74 @@
+{
+  "version": "0.3.0",
+  "title": "X-Post (0.3.0, nur Text)",
+  "description": "Aus einem Thema wird ein Post für X mit passendem Bild.",
+  "avatar": "flame",
+  "lang": "de",
+  "requires": {
+    "models": [
+      "low"
+    ]
+  },
+  "intro": "Sag mir, worum es geht. Ich schreibe den Post.",
+  "input": {
+    "fields": [
+      {
+        "id": "topic",
+        "label": "Worum geht es?",
+        "kind": "textarea",
+        "required": true,
+        "placeholder": "z. B. Wir eröffnen am Freitag unser neues Studio in Wien",
+        "help": "Ein, zwei Sätze reichen. Namen, Datum und Ort übernehme ich so, wie du sie schreibst."
+      },
+      {
+        "id": "tone",
+        "label": "Wie soll der Post klingen?",
+        "kind": "select",
+        "options": [
+          "Locker",
+          "Professionell",
+          "Witzig",
+          "Inspirierend"
+        ],
+        "default": "Locker"
+      },
+      {
+        "id": "link",
+        "label": "Link",
+        "kind": "url",
+        "placeholder": "z. B. https://deine-website.at/eroeffnung",
+        "help": "Steht am Ende des Posts. Ohne Link lässt du das Feld leer."
+      }
+    ],
+    "cta": "Post schreiben"
+  },
+  "output": {
+    "post": "check"
+  },
+  "result": {
+    "message": "Dein Post ist fertig.",
+    "downloads": [
+      {
+        "from": "check",
+        "label": "Post",
+        "formats": [
+          "txt"
+        ]
+      }
+    ]
+  },
+  "start": "post",
+  "edges": {
+    "post": [
+      "check"
+    ],
+    "check": [
+      "end",
+      "post"
+    ]
+  },
+  "limits": {
+    "post": 6,
+    "check": 11
+  }
+}

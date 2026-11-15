@@ -1,0 +1,15 @@
+{
+  "name": "spike-kernel-worker",
+  "private": true,
+  "type": "module",
+  "description": "Spike: one wizard of version 0.3.0 as a Cloudflare Worker, each run a Durable Object. Not part of the workspace.",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "wrangler dev --port 8787",
+    "flow": "node flow.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "wrangler": "4.156.0"
+  }
+}
