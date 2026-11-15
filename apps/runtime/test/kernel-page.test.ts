@@ -48,4 +48,19 @@ describe("a run of version 0.3.0 on its page", () => {
     expect(second.cursor).toBe("ask");
     expect(second.definition.intro).toBeUndefined();
   });
+
+  it("names a step at work by the title its file writes, before it asked anything", () => {
+    const page = kernelPage(
+      run,
+      view([{ n: 0, step: "ask", left: true, value: {}, to: "write" }], "write", {
+        status: "running",
+        waiting: [],
+        titles: { write: { title: "The letter", working: "Writes the letter …" } },
+      }),
+    );
+    expect(page.definition.steps.find((s) => s.id === "write")).toMatchObject({
+      title: "The letter",
+      working: "Writes the letter …",
+    });
+  });
 });

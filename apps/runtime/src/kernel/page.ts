@@ -91,7 +91,14 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
    */
   const stepFor = (id: string, value: unknown): Step => {
     const ask = work.get(id);
-    if (!ask) return made(id, value);
+    if (!ask) {
+      // No ask yet: the step is shown by what its file writes out.
+      const own = view.titles?.[id];
+      return {
+        ...made(id, value, own?.title ?? id),
+        ...(own?.working ? { working: own.working } : {}),
+      } as Step;
+    }
     const title = typeof ask.title === "string" && ask.title ? ask.title : id;
     const said = typeof ask.working === "string" ? { working: ask.working } : {};
     return FILES.has(String(ask.type)) && (filesOf(value) || value === "")

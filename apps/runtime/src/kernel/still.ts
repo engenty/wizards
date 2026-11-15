@@ -34,6 +34,28 @@ const plain = (value: OutlineValue | undefined): unknown => {
 const specOf = (step: StepOutline | undefined) =>
   (plain(step?.asks[0]?.spec ?? {}) ?? {}) as Record<string, unknown>;
 
+/**
+ * Each step's title and the line it shows while it works, where its code writes them out: what
+ * its first ask passes, or the comment at the top of its file.
+ */
+export function stepTitles(
+  outline: KernelOutline,
+): Record<string, { title?: string; working?: string }> {
+  return Object.fromEntries(
+    Object.entries(outline).map(([id, step]) => {
+      const spec = specOf(step);
+      const title = spec.title ?? step.title;
+      return [
+        id,
+        {
+          ...(typeof title === "string" && title ? { title } : {}),
+          ...(typeof spec.working === "string" ? { working: spec.working } : {}),
+        },
+      ];
+    }),
+  );
+}
+
 /** What a step would have made, where no test run made it: values by its fields, or a text. */
 function sample(step: StepOutline | undefined, id: string, german: boolean): unknown {
   const spec = specOf(step);
