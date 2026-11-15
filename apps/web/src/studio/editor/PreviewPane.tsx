@@ -152,6 +152,7 @@ export function PreviewPane({
   runView,
   onView,
   stepId,
+  kernelStamp,
   audience,
   onAudience,
   test,
@@ -171,6 +172,8 @@ export function PreviewPane({
   onView: (view: RunView | null) => void;
   /** The step shown; null: the test run, or without one the start. */
   stepId: string | null;
+  /** A wizard in version 0.3.0: what its step files are now, so the step shown follows an edit. */
+  kernelStamp?: string;
   audience: Audience;
   onAudience: (audience: Audience) => void;
   test: { start: () => void; busy: boolean; disabled: boolean };
@@ -256,9 +259,12 @@ export function PreviewPane({
   const [device, setDevice] = useState<"desk" | "phone">("desk");
 
   // The step chosen, as a run shows it there; the result step is its result page.
-  const shown = stepId ? (def.steps.find((s) => s.id === stepId) ?? null) : null;
+  // A step of a wizard in version 0.3.0 is not in the definition: it is shown by its id alone.
+  const listed = stepId ? (def.steps.find((s) => s.id === stepId) ?? null) : null;
+  const shown: { id: string; type: string } | null =
+    listed ?? (stepId && kernelStamp !== undefined ? { id: stepId, type: "step" } : null);
   const stepView = useQuery({
-    queryKey: ["draft-step-view", w.id, shown?.id, w.revision, shownLang],
+    queryKey: ["draft-step-view", w.id, shown?.id, w.revision, shownLang, kernelStamp],
     queryFn: () =>
       api.get<RunView>(
         `/api/studio/wizards/${w.id}/steps/${encodeURIComponent(shown?.id ?? "")}/view${
@@ -288,7 +294,7 @@ export function PreviewPane({
         }
       : null;
 
-  const result = shown?.type === "result" ? shown : null;
+  const result = listed?.type === "result" ? listed : null;
   /** Shows or hides the column beside the preview, where the window has room for it. */
   const columnToggle =
     column === null ? null : (
@@ -324,11 +330,6 @@ export function PreviewPane({
       <div className={cn("flex min-h-0 flex-1 flex-col", result && "hidden")}>
         <div className="kb-hide flex h-12 shrink-0 items-center gap-1.5 overflow-x-auto border-border-soft border-b px-3 [scrollbar-width:none]">
           {lead}
-          {ways.length > 1 && !shown ? (
-            <span className="shrink-0">
-              <LookSwitch look={shownWay} onChange={setWay} ways={[...ways]} />
-            </span>
-          ) : null}
           {onShowRun ? (
             <button
               type="button"
@@ -372,6 +373,12 @@ export function PreviewPane({
               onChange={setShownLang}
               options={langs.map((code) => ({ value: code, label: langName(code) }))}
             />
+          ) : null}
+          {/* How a run looks, steps or chat: beside the device it is shown on. */}
+          {ways.length > 1 && !shown ? (
+            <span className="shrink-0">
+              <LookSwitch look={shownWay} onChange={setWay} ways={[...ways]} />
+            </span>
           ) : null}
           <span className="max-sm:hidden">
             <Pills<"desk" | "phone">

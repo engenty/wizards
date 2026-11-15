@@ -2131,6 +2131,14 @@ export const studio = new Hono<Vars>()
   })
   .put("/wizards/:id/files/:path{.+}", async (c) => {
     const data = new Uint8Array(await c.req.arrayBuffer());
+    // Written from an editor, a file is replaced only while it is the version that was read.
+    const read = c.req.header("if-match");
+    if (read) {
+      const files = await listFiles(c.get("user").id, c.req.param("id"));
+      if (files.find((f) => f.path === c.req.param("path"))?.hash !== read) {
+        throw new ServiceError("revision_conflict", "The file has changed. Load it again.");
+      }
+    }
     const file = await writeFile(
       c.get("user").id,
       c.req.param("id"),

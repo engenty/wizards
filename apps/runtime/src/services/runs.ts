@@ -7,6 +7,7 @@ import {
   type Step,
   shownFields,
   slotText,
+  type WizardDefinition,
   waitDurationMs,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
@@ -44,6 +45,9 @@ import {
   runView,
   submitPage,
 } from "../engine/runner.js";
+import { kernelOutline } from "../kernel/outline.js";
+import { kernelPage } from "../kernel/page.js";
+import { type KernelStill, kernelStill } from "../kernel/still.js";
 import { managed } from "../manage.js";
 import { ModelUnavailableError, saidOf } from "../model-errors.js";
 import { prompt } from "../prompts.js";
@@ -52,6 +56,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { roleOf } from "./access.js";
 import { brandView } from "./brand.js";
 import { notFound, ServiceError } from "./errors.js";
+import { listFiles } from "./files.js";
 import { readsOf } from "./space-parent.js";
 import { storedTranslation } from "./translations.js";
 import { ownedWizard, requireClean, shareUrl, studioUrl } from "./wizards.js";
@@ -742,7 +747,8 @@ export async function draftStepView(
   const w = await ownedWizard(userId, wizardId);
   const def = w.draft;
   const step = def.steps.find((s) => s.id === stepId);
-  if (!step) {
+  const file = step ? undefined : kernelOf(def);
+  if (!step && !file) {
     throw notFound();
   }
   // The latest finished test run has every answer and output; else the latest one at all.
@@ -752,7 +758,23 @@ export async function draftStepView(
       where: and(tests, eq(schema.run.status, "done")),
       orderBy: desc(schema.run.createdAt),
     })) ?? (await db.query.run.findFirst({ where: tests, orderBy: desc(schema.run.createdAt) }));
-  const before = new Set(def.steps.slice(0, def.steps.indexOf(step)).map((s) => s.id));
+  // A wizard in version 0.3.0: the step's page as its code asks for it, with what the latest
+  // test run made, or a sample of it.
+  let still: KernelStill | null = null;
+  if (file) {
+    const left = latest ? (await kernelRuns.view(latest)).rows : [];
+    still = kernelStill(
+      file,
+      await kernelOutline(await listFiles(userId, wizardId)),
+      stepId,
+      Object.fromEntries(left.flatMap((row) => ("left" in row ? [[row.step, row.value]] : []))),
+      wizardLang(def) === "de",
+    );
+    if (!still) {
+      throw notFound();
+    }
+  }
+  const before = new Set(step ? def.steps.slice(0, def.steps.indexOf(step)).map((s) => s.id) : []);
   const state: RunState = {
     values: latest?.state.values ?? {},
     outputs: Object.fromEntries(
@@ -761,8 +783,9 @@ export async function draftStepView(
     history: (latest?.state.history ?? []).filter((id) => before.has(id)),
     notes: {},
   };
-  const status: RunRow["status"] =
-    step.type === "form" || step.type === "review"
+  const status: RunRow["status"] = !step
+    ? (still?.status ?? "running")
+    : step.type === "form" || step.type === "review"
       ? "waiting_input"
       : step.type === "result"
         ? "done"
@@ -805,12 +828,12 @@ export async function draftStepView(
     driving: false,
     status,
     wakeAt:
-      step.type === "wait" && (step.for ?? step.signal?.timeout)
+      step?.type === "wait" && (step.for ?? step.signal?.timeout)
         ? new Date(now.getTime() + waitDurationMs((step.for ?? step.signal?.timeout) as string))
         : null,
     claim: 0,
     rev: 0,
-    cursor: step.id,
+    cursor: stepId,
     state,
     lang: lang && lang !== wizardLang(def) && (await storedTranslation(w.id, lang)) ? lang : null,
     error: null,
@@ -821,7 +844,32 @@ export async function draftStepView(
     clientSharedAt: null,
     shareToken: null,
   };
-  const view = await runView(run, await brandView(w.spaceId, def.themes));
+  // The still as the small wizard a run in version 0.3.0 is shown as, with the titles its code has and the step's working line.
+  const page = still
+    ? kernelPage(run, {
+        id: run.id,
+        status,
+        cursor: stepId,
+        rows: still.rows,
+        waiting: still.waiting,
+        scores: [],
+        rev: 0,
+      })
+    : run;
+  const shown = still
+    ? {
+        ...page,
+        definition: {
+          ...page.definition,
+          steps: page.definition.steps.map((s) => ({
+            ...s,
+            ...(still.titles[s.id] ? { title: still.titles[s.id] } : {}),
+            ...(s.id === stepId && still.working ? { working: still.working } : {}),
+          })),
+        } as WizardDefinition,
+      }
+    : page;
+  const view = await runView(shown, await brandView(w.spaceId, def.themes));
   // What the latest run said while it worked, and when, is its own: nothing works here.
   return { ...view, events: [] };
 }
