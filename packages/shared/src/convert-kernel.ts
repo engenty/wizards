@@ -6,6 +6,7 @@ import {
   type Field,
   isOtherwise,
   type KernelFile,
+  localeOf,
   type NextRule,
   type Step,
   textClassOf,
@@ -13,6 +14,7 @@ import {
   type WizardDefinition,
   whenCalc,
   whenNames,
+  wizardLang,
 } from "./definition.js";
 import { readNumber } from "./numbers.js";
 import { stepClasses } from "./requires.js";
@@ -71,6 +73,35 @@ import { stepClasses } from "./requires.js";
  * - A connection is named by its kind or its connector. Its actions keep their policy.
  * - An action without a policy asks first. A tool step calls `"<connection>.<action>"`.
  */
+/**
+ * How a language writes an amount in a currency, read once here so that a step's code needs no
+ * `Intl`: the separators, and what stands before and after the number (`1.234,50 €`).
+ */
+function moneyShape(currency: string, locale: string) {
+  const shape = { group: ",", decimal: ".", before: "", after: ` ${currency}` };
+  try {
+    const parts = new Intl.NumberFormat(locale, { style: "currency", currency }).formatToParts(
+      1234.5,
+    );
+    const at = parts.findIndex((part) => part.type === "integer");
+    const end = parts.findLastIndex((part) => part.type === "fraction");
+    return {
+      group: parts.find((part) => part.type === "group")?.value ?? "",
+      decimal: parts.find((part) => part.type === "decimal")?.value ?? ".",
+      before: parts
+        .slice(0, at)
+        .map((part) => part.value)
+        .join(""),
+      after: parts
+        .slice(end + 1)
+        .map((part) => part.value)
+        .join(""),
+    };
+  } catch {
+    return shape;
+  }
+}
+
 export function toKernel(definition: WizardDefinition): {
   file: KernelFile;
   files: Record<string, string>;
@@ -354,6 +385,7 @@ export function toKernel(definition: WizardDefinition): {
             columns: field.columns ?? [],
             currency: field.currency ?? "EUR",
             vat: field.vat?.rate ?? 0,
+            money: moneyShape(field.currency ?? "EUR", localeOf(wizardLang(definition))),
           }),
         );
         const vat = field.vat?.field ? fieldValue(field.vat.field, scope) : undefined;
@@ -1371,12 +1403,22 @@ const op = (name: string, ...of: any[]): any => {
     source: `/** Line items with their amounts and totals, and as a table a model reads. */
 const itemsOf = (
   value: unknown,
-  field: { columns: { id: string; label: string; kind: string }[]; currency: string; vat: number },
+  field: {
+    columns: { id: string; label: string; kind: string }[];
+    currency: string;
+    vat: number;
+    money: { group: string; decimal: string; before: string; after: string };
+  },
   vatFrom?: unknown,
 ) => {
   const round = (n: number) => Math.round(n * 100) / 100;
   const amount = (v: unknown) => (Number.isNaN(num(v)) ? 0 : num(v));
-  const money = (n: number) => \`\${n.toFixed(2)} \${field.currency}\`;
+  // As the wizard's language writes an amount: \`1.234,50 €\`, \`€1,234.50\`.
+  const money = (n: number) => {
+    const [whole, cents] = Math.abs(n).toFixed(2).split(".");
+    const grouped = whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, field.money.group);
+    return \`\${n < 0 ? "-" : ""}\${field.money.before}\${grouped}\${field.money.decimal}\${cents}\${field.money.after}\`;
+  };
   const numeric = field.columns.filter((column) => column.kind !== "text");
   const rows = (Array.isArray(value) ? value : []).map((row: any) => ({
     ...row,
