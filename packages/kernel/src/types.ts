@@ -28,6 +28,8 @@ export type WizardFile = {
   intro?: string;
   /** What a caller sends, or a person fills in first; as a page, laid out like any form. */
   input?: {
+    title?: string;
+    description?: string;
     fields: Field[];
     groups?: unknown[];
     cta?: string;
@@ -35,7 +37,11 @@ export type WizardFile = {
     data?: Record<string, string>;
   };
   /** The page a finished run shows: what it says and what it offers to download. */
-  result?: { message?: string; downloads?: { from: string; label?: string; formats: string[] }[] };
+  result?: {
+    title?: string;
+    message?: string;
+    downloads?: { from: string; label?: string; formats: string[] }[];
+  };
   /** A finished run's output: a name, and where it is read from as `<step>.<path>`. */
   output?: Record<string, string>;
   start: string;

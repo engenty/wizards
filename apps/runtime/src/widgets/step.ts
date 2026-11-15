@@ -73,7 +73,40 @@ async function widgetData(step: WidgetStep, ctx: StepContext) {
       ? `data:${found.row.mime};base64,${found.data.toString("base64")}`
       : null;
   };
+  // A wizard made of step files hands over values, not paths: this run's uploads and what its
+  // steps made become addresses the page can show, wherever they stand in a value.
+  const shown = async (value: unknown): Promise<unknown> => {
+    if (typeof value === "string") {
+      return (await urlOf(value)) ?? value;
+    }
+    if (Array.isArray(value)) {
+      return Promise.all(value.map(shown));
+    }
+    // One file a step made, as its value names it.
+    const one = value as { id?: unknown; kind?: unknown; ai?: AiOrigin } | null;
+    if (one && typeof one.id === "string" && typeof one.kind === "string") {
+      if (one.ai) made.set(one.id, one.ai);
+      return (await urlOf(one.id)) ?? value;
+    }
+    const assets = (value as { assets?: unknown } | null)?.assets;
+    if (Array.isArray(assets)) {
+      const media = (assets as { id?: string; kind?: string; ai?: AiOrigin }[]).filter(
+        (a) => a.kind === "image" || a.kind === "video" || a.kind === "audio",
+      );
+      for (const a of media) {
+        if (a.id && a.ai) made.set(a.id, a.ai);
+      }
+      const urls = (await Promise.all(media.map((a) => urlOf(a.id)))).filter(Boolean);
+      // What a step made once per row, or several files: a list. One file of one ask: that file.
+      return "entries" in (value as object) || urls.length > 1 ? urls : (urls[0] ?? null);
+    }
+    return value;
+  };
   for (const [key, raw] of Object.entries(step.data)) {
+    if (ctx.def.kernel) {
+      out[key] = await shown(raw);
+      continue;
+    }
     const ref = dataRef(raw);
     const field = fields.find((f) => f.id === ref);
     if (field && (field.kind === "image" || field.kind === "file" || field.kind === "signature")) {

@@ -112,6 +112,7 @@ import { basePath, env } from "../env.js";
 import { loadAsset, saveAsset } from "../files/storage.js";
 import { type CheckedUpload, checkUpload } from "../files/upload-check.js";
 import { reverseGeocode } from "../geocode.js";
+import { kernelPage } from "../kernel/page.js";
 import { allowed, hashIp, verifyTurnstile, wizardUnavailable } from "../limits.js";
 import { managed, postFeedback, type Role } from "../manage.js";
 import { mintConversation } from "../media/conversation.js";
@@ -2325,7 +2326,9 @@ async function serveAsset(c: Context, run: RunRow, assetId: string) {
   return c.body(new Uint8Array(found.data), 200, headers);
 }
 
-async function serveDownload(c: Context, run: RunRow, stepId: string, rawFormat?: string) {
+async function serveDownload(c: Context, given: RunRow, stepId: string, rawFormat?: string) {
+  // A run of a wizard made of step files is read as the page shows it: its steps and what each left.
+  const run = kernelOf(given.definition) ? kernelPage(given, await kernelRuns.view(given)) : given;
   const format = z.enum(FORMATS).safeParse(rawFormat);
   const step = run.definition.steps.find((s) => s.id === stepId);
   const output = step ? run.state.outputs[step.id] : undefined;

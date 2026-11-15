@@ -1642,6 +1642,9 @@ export const kernelFileSchema = z.object({
    */
   input: z
     .object({
+      /** The page's own title; left out, the wizard's. */
+      title: z.string().min(1).optional(),
+      description: z.string().optional(),
       fields: z.array(fieldSchema),
       groups: z.array(fieldGroupSchema).max(6).optional(),
       cta: z.string().optional(),
@@ -1658,6 +1661,8 @@ export const kernelFileSchema = z.object({
    */
   result: z
     .object({
+      /** The page's own title; left out, the wizard's. */
+      title: z.string().min(1).optional(),
       message: z.string().optional(),
       downloads: z.array(deliverableSchema).optional(),
     })

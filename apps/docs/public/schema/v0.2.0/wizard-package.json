@@ -35332,6 +35332,13 @@
             "input": {
               "type": "object",
               "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
                 "fields": {
                   "type": "array",
                   "items": {
@@ -37947,6 +37954,10 @@
             "result": {
               "type": "object",
               "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "message": {
                   "type": "string"
                 },

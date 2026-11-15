@@ -1,5 +1,5 @@
 import { type AskRow, type Battery, NeedsLeave, type Run } from "@engenty/wizards-kernel";
-import type { Step, WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { Field, Step, WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { RunState, StepOutput } from "@engenty/wizards-shared/run";
 import { runAutomaticStep } from "../engine/steps.js";
 import type { RunRow, SpaceRow, StepContext } from "../engine/types.js";
@@ -54,7 +54,7 @@ function narrowed(def: WizardDefinition, row: AskRow, run: Run): WizardDefinitio
 }
 
 /** The ask as the step of version 1 it would have been. */
-function stepOf(def: WizardDefinition, row: AskRow): Step {
+export function stepOf(def: WizardDefinition, row: AskRow): Step {
   const base = { id: row.step, title: String(row.title ?? row.step) };
   const {
     n,
@@ -114,7 +114,9 @@ function stepOf(def: WizardDefinition, row: AskRow): Step {
       instructions: String(row.instructions ?? ""),
       tools,
       connections: (def.connections ?? []).map((c) => c.id),
-      output: row.fields?.length ? { format: "json", fields: row.fields } : { format: "text" },
+      output: row.fields?.length
+        ? { format: "json", fields: row.fields }
+        : { format: row.format === "markdown" ? "markdown" : "text" },
     } as unknown as Step;
   }
   if (row.type === "tool") {
@@ -135,10 +137,38 @@ function stepOf(def: WizardDefinition, row: AskRow): Step {
 function answerOf(output: StepOutput): unknown {
   const { at, ...made } = output;
   if (made.json !== undefined) {
-    return made.json;
+    // Data and files together (a film with what it was cut from, an agent's kept pictures): the
+    // step reads the data as before and finds the files beside it.
+    const data = made.json;
+    return made.assets?.length && data && typeof data === "object" && !Array.isArray(data)
+      ? { ...(data as Record<string, unknown>), assets: made.assets }
+      : data;
   }
   const keys = Object.keys(made);
   return keys.length === 1 && keys[0] === "text" ? made.text : made;
+}
+
+/**
+ * The files a person gave so far, as today's executors look for them: the upload fields that
+ * were asked, in the input and on every page, and what was put into each. Nothing else of the
+ * answers: a step passes those itself.
+ */
+function givenFiles(run: RunRow, kernelRun: Run) {
+  const fields = new Map<string, Field>();
+  const values: Record<string, unknown> = {};
+  const take = (asked: unknown, answers: unknown) => {
+    for (const field of (Array.isArray(asked) ? asked : []) as Field[]) {
+      if (field.kind !== "image" && field.kind !== "file" && field.kind !== "signature") continue;
+      fields.set(field.id, field);
+      const value = (answers as Record<string, unknown> | null | undefined)?.[field.id];
+      if (value !== undefined) values[field.id] = value;
+    }
+  };
+  take(run.definition.kernel?.input?.fields, kernelRun.input);
+  for (const row of kernelRun.rows) {
+    if (!("left" in row) && row.type === "form") take(row.fields, row.answer);
+  }
+  return { fields: [...fields.values()], values };
 }
 
 export function kernelBatteries(
@@ -149,7 +179,19 @@ export function kernelBatteries(
 ): Record<string, Battery> {
   const battery: Battery = async (row, kernelRun) => {
     const def = narrowed(run.definition, row, kernelRun);
-    const ctx = await makeContext({ ...run, definition: def }, space, emptyState(), signal, {
+    // The person's photos and files are the run's: a step that names one finds it.
+    const given = givenFiles(run, kernelRun);
+    const asked = given.fields.length
+      ? ({
+          ...def,
+          steps: [
+            { id: "asked__", type: "form", title: def.title, fields: given.fields },
+            ...def.steps,
+          ],
+        } as WizardDefinition)
+      : def;
+    const state = { ...emptyState(), values: given.values };
+    const ctx = await makeContext({ ...run, definition: asked }, space, state, signal, {
       stepId: row.step,
       // A step that wants the person's yes for what it is about to do: the kernel asks, as a row.
       ask: async (ask) => {

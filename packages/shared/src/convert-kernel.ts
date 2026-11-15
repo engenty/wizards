@@ -1171,6 +1171,7 @@ export function toKernel(definition: WizardDefinition): {
       } else
         say(`The result offers "${deliverable.from}", which is not a step of version 2.`, step.id);
     }
+    if (step.title && step.title !== definition.title) result.title = step.title;
     if (step.message) result.message = step.message;
     if (downloads.length) result.downloads = downloads;
     for (const [key, ref] of Object.entries(step.data ?? {})) {
@@ -1245,6 +1246,11 @@ export function toKernel(definition: WizardDefinition): {
     ...(opening
       ? {
           input: {
+            // The first page keeps its own title and what it says under it.
+            ...(opening.title && opening.title !== definition.title
+              ? { title: opening.title }
+              : {}),
+            ...(opening.description ? { description: opening.description } : {}),
             fields: opening.fields,
             // The page as the first form lays it out.
             ...(opening.groups ? { groups: opening.groups } : {}),

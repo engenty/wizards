@@ -2,6 +2,7 @@ import type { AskRow, Row } from "@engenty/wizards-kernel";
 import type { Step, WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { RunState, StepOutput } from "@engenty/wizards-shared/run";
 import type { RunRow } from "../engine/types.js";
+import { stepOf } from "./batteries.js";
 import type { KernelRunView } from "./host.js";
 
 /**
@@ -39,12 +40,25 @@ const filesOf = (value: unknown): StepOutput["assets"] | undefined => {
   return Array.isArray(assets) && assets.length ? (assets as StepOutput["assets"]) : undefined;
 };
 
+/** The asks a machine answers: what a step does its work with. */
+const WORK = new Set([
+  "agent",
+  "decision",
+  "tool",
+  "generate",
+  "widget",
+  "motion-graphics",
+  "surface",
+]);
+/** The asks whose answer is files, drawn and downloaded as that kind of step does it. */
+const FILES = new Set(["generate", "widget", "motion-graphics"]);
+
 /** A step that ran, as the page lists it: it shows what the step left behind. */
-const made = (id: string, value: unknown): Step =>
+const made = (id: string, value: unknown, title = id): Step =>
   ({
     id,
     type: "agent",
-    title: id,
+    title,
     instructions: "",
     tools: [],
     output: {
@@ -64,9 +78,29 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
     }
     steps.push(step);
   };
+  // The ask each step did its work with: the last one of it a machine answered.
+  const work = new Map<string, AskRow>();
+  for (const row of view.rows) {
+    if (isAsk(row) && WORK.has(String(row.type)) && row.parent == null && row.approves == null) {
+      work.set(row.step, row);
+    }
+  }
+  /**
+   * A step as the page lists it, in the words of its ask. Where it left files, it is the kind of
+   * step that makes them, so they are shown and downloaded as an image, a document or a film.
+   */
+  const stepFor = (id: string, value: unknown): Step => {
+    const ask = work.get(id);
+    if (!ask) return made(id, value);
+    const title = typeof ask.title === "string" && ask.title ? ask.title : id;
+    const said = typeof ask.working === "string" ? { working: ask.working } : {};
+    return FILES.has(String(ask.type)) && (filesOf(value) || value === "")
+      ? ({ ...stepOf(run.definition, ask), id, title } as Step)
+      : ({ ...made(id, value, title), ...said } as Step);
+  };
   for (const row of view.rows) {
     if ("left" in row) {
-      add(made(row.step, row.value));
+      add(stepFor(row.step, row.value));
       outputs[row.step] = outputOf(row.value, when);
     }
   }
@@ -87,7 +121,7 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
     add({
       id: "result",
       type: "result",
-      title: file?.title ?? run.definition.title,
+      title: file?.result?.title ?? file?.title ?? run.definition.title,
       ...(file?.result?.message ? { message: file.result.message } : {}),
       deliverables: downloads ?? from.map((id) => ({ from: id, formats: ["md"] })),
     } as unknown as Step);
@@ -97,6 +131,7 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
       id: page.step,
       type: "form",
       title: String(page.title ?? (page.step === "input" ? (file?.title ?? "") : page.step)),
+      ...(page.description ? { description: page.description } : {}),
       fields: page.fields ?? [],
       // How the page is laid out, where the ask says so.
       ...(page.groups ? { groups: page.groups } : {}),
@@ -120,6 +155,8 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
       id: page.step,
       type: "review",
       title: String(page.title ?? page.step),
+      // What to check, in the step's own words.
+      ...(page.description ? { description: page.description } : {}),
       show,
       // As in version 1: each way to answer only where the ask names it.
       approve: page.approve === true,
@@ -143,7 +180,7 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
     cursor = page.step;
   } else if (cursor) {
     // At work, or waiting for a signal or a time: the step it stands in.
-    add(made(cursor, ""));
+    add(stepFor(cursor, ""));
   }
   if (!steps.some((s) => s.type === "result")) {
     steps.push({

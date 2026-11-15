@@ -7,7 +7,7 @@ import {
   type Run,
   type Score,
 } from "@engenty/wizards-kernel";
-import type { KernelFile } from "@engenty/wizards-shared/definition";
+import { type Field, type KernelFile, shownFields } from "@engenty/wizards-shared/definition";
 import { kernelOf } from "@engenty/wizards-shared/kernel-file";
 import type { RunStatus } from "@engenty/wizards-shared/run";
 import { eq } from "drizzle-orm";
@@ -94,6 +94,14 @@ export function kernelHost(deps: KernelDeps) {
       store: kernelStore(deps.loadRun, deps.updateRun),
       wizards: () => {
         throw new KernelRunError("A person's write does not move the run.");
+      },
+      // A page asks for what it shows: a required field its `when` hides is not missing.
+      check: (fields, value) => {
+        const page = (value ?? {}) as Record<string, unknown>;
+        const lacks = shownFields((fields ?? []) as Field[], {}, page).find(
+          (field) => field.required && (page[field.id] == null || page[field.id] === ""),
+        );
+        return lacks && `"${lacks.id}" is missing.`;
       },
     });
 

@@ -350,13 +350,17 @@ async function seenPhotos(
     return [];
   }
   const named = new Set(templateRefs(step.instructions).map((ref) => ref.split(".")[0]));
+  // A step of a wizard made of step files names a photo by its upload itself.
+  const direct = new Set(
+    [...step.instructions.matchAll(/upload:([A-Za-z0-9_-]+)/g)].map((found) => found[1]),
+  );
   const ids = allFields(ctx.def)
-    .filter((f) => f.kind === "image" && named.has(f.id))
+    .filter((f) => f.kind === "image")
     .flatMap((f) => {
       const value = ctx.state.values[f.id];
-      return (Array.isArray(value) ? value : [value]).filter(
-        (id): id is string => typeof id === "string" && id.length > 0,
-      );
+      return (Array.isArray(value) ? value : [value])
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+        .filter((id) => named.has(f.id) || direct.has(id));
     })
     .slice(0, MAX_SEEN);
   const out: { upload: UploadRef; id: string; data: Uint8Array; mime: string }[] = [];
@@ -864,9 +868,12 @@ function imagesOf(name: string, ctx: StepContext): string[] {
       (id): id is string => typeof id === "string" && id.length > 0,
     );
   }
-  return (ctx.state.outputs[name]?.assets ?? [])
+  const made = (ctx.state.outputs[name]?.assets ?? [])
     .filter((a) => a.mime.startsWith("image/") && a.kind !== "poster")
     .map((a) => a.id);
+  // A wizard made of step files names the image itself, by its id; `loadReference` takes it
+  // only where it is this run's.
+  return made.length || !ctx.def.kernel ? made : [name];
 }
 
 async function loadReference(id: string | undefined, ctx: StepContext) {
