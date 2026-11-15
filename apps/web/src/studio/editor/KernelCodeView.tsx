@@ -257,7 +257,13 @@ export function KernelCodeView({
                   key={path}
                   value={draft ?? saved}
                   onChange={(next) => setDrafts((all) => ({ ...all, [path]: next }))}
-                  language={path.endsWith(".md") ? "markdown" : "typescript"}
+                  language={
+                    path.endsWith(".md")
+                      ? "markdown"
+                      : path.endsWith(".json")
+                        ? "json"
+                        : "typescript"
+                  }
                   ariaLabel={path}
                   readOnly={readOnly || own}
                 />
