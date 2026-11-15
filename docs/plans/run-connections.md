@@ -179,13 +179,16 @@ serves every vendor and the cloud, Google needs a client in four places:
 | The dev stack (`~/.engenty-dev.env`) | `GOOGLE_OAUTH_CLIENT_ID`, `_SECRET` | `http://localhost:24468/api/connect/callback`, `http://localhost:18991/api/connect/callback` |
 | A computer without an account (`~/.engenty/wizards/.env`) | `GOOGLE_OAUTH_CLIENT_ID`, `_SECRET` | `http://localhost:24368/api/connect/callback` |
 
-- Two Google Cloud projects in the engenty.ai organization, because the consent screen's status is
-  per project: one for production, one for dev with status Testing.
-- Both enable the Gmail, Drive, Calendar and People APIs and list the scopes the connectors ask
-  for (`engenty/connections-google`, `connectors/gmail.ts`).
-- Testing: a sign-in expires after 7 days, and at most 100 test users.
-- Production: `gmail.readonly`, `gmail.modify` and `gmail.compose` are restricted scopes. Google
-  verifies the app and asks for a yearly security assessment before more than 100 people connect.
+- **One client, the sign-in's** (decided by Matthias on 2026-11-15): the Google Cloud project whose
+  client Manage signs people in with (`GOOGLE_CLIENT_ID`) also connects their accounts. All four
+  places above take its id and secret; its list of redirect addresses holds the sign-in's and the
+  five above.
+- The project enables the Gmail, Drive, Calendar and People APIs, and its consent screen lists the
+  scopes the connectors ask for (`engenty/connections-google`, `connectors/gmail.ts`).
+- `gmail.readonly`, `gmail.modify` and `gmail.compose` are restricted scopes. Until Google has
+  verified the project, its consent screen warns of an unverified app and at most 100 people
+  connect. Google verifies the whole project, the sign-in with it, and asks for a yearly security
+  assessment.
 - Without a client, Gmail connects over IMAP with an app password. The dev stack's stand-in for
   Google shows Gmail for testing the flow.
 
