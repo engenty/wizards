@@ -350,6 +350,7 @@ function initials(name: string): string {
 /** After the first step: what came of it, and the step that is next. */
 function NextStep({ me, space, setup }: { me: Me; space: Space; setup: Setup }) {
   const navigate = useNavigate();
+  const assistant = useAssistant();
   const page = setup.current as Exclude<PageId, "info">;
   const local = page === "team" && me.mode === "local";
   const id = local ? "connect" : page;
@@ -403,7 +404,13 @@ function NextStep({ me, space, setup }: { me: Me; space: Space; setup: Setup }) 
       </h2>
       <p className="text-[1rem] text-ink-2 leading-relaxed">{t(`start.now.${id}.hint` as Key)}</p>
       <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-3">
-        <Button onClick={() => navigate(local ? "/settings/account" : GO[page])}>
+        <Button
+          onClick={() => {
+            navigate(local ? "/settings/account" : GO[page]);
+            // Goose looks around first, says what it found and asks before it takes anything in.
+            void assistant?.send(t(`start.ask.${id}` as Key));
+          }}
+        >
           {t(`start.now.${id}.go` as Key)}
           <ArrowRight className="size-4" />
         </Button>
