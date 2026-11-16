@@ -356,11 +356,11 @@ describe("an entry that needs plugins", () => {
 describe("the version of a wizard's format in the search", () => {
   const guest = async () => {
     const { marketplaceGuest } = await import("../src/routes/marketplace");
-    const res = await marketplaceGuest.request("/?lang=de&version=0.2.0");
+    const res = await marketplaceGuest.request("/?lang=de&version=0.3.0");
     return (await res.json()) as MarketplacePage;
   };
 
-  it("is offered only while the kernel switch is on", async () => {
+  it("is offered only while the switch for version 0.3.0 is on", async () => {
     remote.entries.set("card", exportOf("card"));
     const before = process.env.FEATURES;
     try {
@@ -373,7 +373,7 @@ describe("the version of a wizard's format in the search", () => {
       process.env.FEATURES = "kernel=on";
       const on = await guest();
       expect(Object.keys(on.facets.version ?? {})).toEqual(["0.2.0"]);
-      expect(asked()).toContain("version=0.2.0");
+      expect(asked()).toContain("version=0.3.0");
     } finally {
       if (before === undefined) delete process.env.FEATURES;
       else process.env.FEATURES = before;

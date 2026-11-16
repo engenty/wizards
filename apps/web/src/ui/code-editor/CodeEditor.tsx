@@ -22,7 +22,8 @@ import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import { t } from "../../lib/i18n";
 
 /**
- * The studio's editor for text that is code to a machine: a page's Markdown, a view's JSON
+ * The studio's editor for text that is code to a machine: a page's Markdown, a view's JSON, a
+ * step's TypeScript
  * (docs/plans/page-editor-codemirror.md). CodeMirror 6, themed with the studio's own colours.
  * The text stays exactly what is typed: Markdown is styled as it is written, nothing is hidden.
  */
@@ -30,7 +31,7 @@ import { t } from "../../lib/i18n";
 export interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
-  language: "markdown" | "json";
+  language: "markdown" | "json" | "typescript";
   ariaLabel: string;
   placeholder?: string;
   readOnly?: boolean;
@@ -104,24 +105,24 @@ export function applyText(view: EditorView, next: string) {
 
 // --- the studio's look -------------------------------------------------------------------------
 
-const look = (tone: "light" | "dark", language: "markdown" | "json") =>
+const look = (tone: "light" | "dark", language: CodeEditorProps["language"]) =>
   EditorView.theme(
     {
       "&": {
         color: tone === "dark" ? "oklch(92% 0.02 260)" : "var(--ink)",
         backgroundColor: "transparent",
-        fontSize: language === "json" ? "0.75rem" : "0.9375rem",
+        fontSize: language !== "markdown" ? "0.75rem" : "0.9375rem",
       },
       "&.cm-focused": { outline: "none" },
       ".cm-scroller": {
-        fontFamily: language === "json" ? "var(--f-mono)" : "var(--f-ui)",
-        lineHeight: language === "json" ? "1.6" : "1.65",
+        fontFamily: language !== "markdown" ? "var(--f-mono)" : "var(--f-ui)",
+        lineHeight: language !== "markdown" ? "1.6" : "1.65",
       },
       ".cm-content": {
-        padding: language === "json" ? "0.625rem 0" : "1rem 0",
+        padding: language !== "markdown" ? "0.625rem 0" : "1rem 0",
         caretColor: tone === "dark" ? "white" : "var(--ink)",
       },
-      ".cm-line": { padding: language === "json" ? "0 0.75rem" : "0 1rem" },
+      ".cm-line": { padding: language !== "markdown" ? "0 0.75rem" : "0 1rem" },
       ".cm-cursor, .cm-dropCursor": {
         borderLeftColor: tone === "dark" ? "white" : "var(--ink)",
       },

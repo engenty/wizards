@@ -2097,6 +2097,48 @@ export const runEffect = sqliteTable(
 );
 
 /**
+ * A row of a run the kernel moves (docs/plans/kernel.md): an ask with its answer, or a step that
+ * returned with its value and its way. Rows are only added to, except by a rewind, which drops
+ * the later ones.
+ */
+export const runRow = sqliteTable(
+  "run_row",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    n: integer("n").notNull(),
+    step: text("step").notNull(),
+    /** `ask`, `left`, `approval` (the user's leave for an action), or `note` (under another ask). */
+    kind: text("kind", { enum: ["ask", "left", "approval", "note"] }).notNull(),
+    /** An ask's: `waiting`, `done`, `failed`. Null on a row that left a step. */
+    state: text("state"),
+    /** The whole row as the kernel keeps it. */
+    data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.runId, t.n] })],
+);
+
+/** What an eval said of a step that returned, or of a finished run (docs/plans/kernel.md). */
+export const runScore = sqliteTable(
+  "run_score",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    /** `<step>/<name>`, or `end/<name>`. */
+    eval: text("eval").notNull(),
+    /** The row it judged. */
+    row: integer("row").notNull(),
+    score: real("score"),
+    data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.runId, t.eval, t.row] })],
+);
+
+/**
  * Something that arrived for runs to wait for: written first, then matched, so one that comes
  * before the wait is not lost and nothing depends on a process being up. Kept 30 days.
  */

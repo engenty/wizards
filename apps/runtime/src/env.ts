@@ -120,6 +120,11 @@ export const env = {
     /** Where the web reaches this runner (the browser's screen of a run it holds). */
     url: str("RUNNER_URL").replace(/\/$/, ""),
     /**
+     * The one tenant this runner serves (docs/plans/kernel.md): it takes no other tenant's runs,
+     * and so may run that tenant's own step code as ordinary code. Empty: every tenant's, as today.
+     */
+    tenant: str("RUNNER_TENANT"),
+    /**
      * Pinged after a look at the line, at most once a minute: an outside monitor that hears
      * nothing knows the runner stopped taking runs. Empty = no ping.
      */

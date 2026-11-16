@@ -244,6 +244,8 @@ export async function waitingRuns(): Promise<{ runId: string; tenantId: string }
     .where(
       and(
         eq(control.runIndex.active, true),
+        // A runner that serves one tenant sees only that tenant's runs in line.
+        env.runner.tenant ? eq(control.runIndex.tenantId, env.runner.tenant) : undefined,
         or(
           isNull(control.runIndex.owner),
           isNull(control.runIndex.seen),
@@ -271,10 +273,15 @@ export async function registerRunner() {
   const now = new Date();
   await controlDb
     .insert(control.runner)
-    .values({ id: env.runner.id, url: env.runner.url || null, seen: now })
+    .values({
+      id: env.runner.id,
+      url: env.runner.url || null,
+      seen: now,
+      tenant: env.runner.tenant || null,
+    })
     .onConflictDoUpdate({
       target: control.runner.id,
-      set: { url: env.runner.url || null, seen: now },
+      set: { url: env.runner.url || null, seen: now, tenant: env.runner.tenant || null },
     });
   // Runners gone for a day are forgotten.
   await controlDb
@@ -283,12 +290,16 @@ export async function registerRunner() {
 }
 
 /** The other runners that report now and named an address: the web asks them for their lines. */
-export async function otherRunners(): Promise<{ id: string; url: string }[]> {
+export async function otherRunners(tenant?: string): Promise<{ id: string; url: string }[]> {
   const rows = await controlDb
-    .select({ id: control.runner.id, url: control.runner.url })
+    .select({ id: control.runner.id, url: control.runner.url, tenant: control.runner.tenant })
     .from(control.runner)
     .where(gte(control.runner.seen, new Date(Date.now() - RUNNER_STALE_MS)));
-  return rows.flatMap((r) => (r.url && r.id !== env.runner.id ? [{ id: r.id, url: r.url }] : []));
+  const reachable = rows.filter((r) => r.url && r.id !== env.runner.id);
+  // A tenant's own runner first; else the ones that serve every tenant. Never another tenant's.
+  const own = reachable.filter((r) => tenant && r.tenant === tenant);
+  const pick = own.length ? own : reachable.filter((r) => !r.tenant);
+  return pick.map((r) => ({ id: r.id, url: r.url as string }));
 }
 
 /** This runner finished a look at the line. */

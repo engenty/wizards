@@ -41,6 +41,7 @@ import {
   whenValue,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
+import { kernelOf } from "@engenty/wizards-shared/kernel-file";
 import { agentsMismatch, requiresOf, withRequires } from "@engenty/wizards-shared/requires";
 import type {
   AskInput,
@@ -105,6 +106,8 @@ import { db, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { feature, remoteFeatures } from "../features.js";
 import { saveAsset } from "../files/storage.js";
+import { kernelHost } from "../kernel/host.js";
+import { kernelPage } from "../kernel/page.js";
 import { managed, tenantInfo } from "../manage.js";
 import { hasFfmpeg } from "../media/ffmpeg.js";
 import { NotedError, noteOf, saidOf } from "../model-errors.js";
@@ -599,12 +602,26 @@ export async function createRun(input: {
   fill?: Record<string, unknown>;
   /** Which time of the start this is (`occurrenceKey`): a second run of it is refused. */
   occurrence?: string;
+  /**
+   * A wizard in version 0.3.0 (docs/plans/kernel.md): what the run is given as its input. Left out,
+   * the run asks for it first, where the wizard's file has fields for one.
+   */
+  input?: Record<string, unknown>;
 }): Promise<string> {
   const id = nanoid(18);
   const first = input.definition.steps[0];
+  const file = kernelOf(input.definition);
   // A started run fills its first page itself, in the drive loop.
-  const waits = first.type === "form" && !input.startedBy;
+  const waits = !file && first.type === "form" && !input.startedBy;
   const state: RunState = { values: {}, outputs: {}, history: [], notes: {} };
+  if (file) {
+    state.kernel = {
+      input: input.input ?? null,
+      startedAt: Date.now(),
+      open: null,
+      status: "running",
+    };
+  }
   if (input.startedBy) {
     state.start = input.start;
     state.fill = input.fill ?? {};
@@ -634,6 +651,9 @@ export async function createRun(input: {
     if (!feature(name, switches)) {
       throw new ModelUnavailableError(note(name === "durableRuns" ? "waitsOff" : "codeStepsOff"));
     }
+  }
+  if (file && !feature("kernel", switches)) {
+    throw new ModelUnavailableError(note("kernelOff"));
   }
   const installed = new Set((await loadedPlugins(currentTenant())).map((p) => p.source.id));
   const lacking = (requires.plugins ?? []).filter((p) => !installed.has(p));
@@ -715,7 +735,7 @@ export async function createRun(input: {
       startedBy: input.startedBy ?? null,
       occurrence: input.occurrence ?? null,
       status: waits ? "waiting_input" : "running",
-      cursor: first.id,
+      cursor: file ? file.start : first.id,
       state,
       label: await labelOf(input.definition, state),
       expiresAt,
@@ -826,7 +846,11 @@ async function grantConnectors(
 export function kick(runId: string) {
   const tenant = currentTenant();
   void wakeRun(runId)
-    .then(() => (env.serves.runner ? take(runId, tenant) : nudgeRunner(runId, tenant)))
+    .then(() =>
+      env.serves.runner && (!env.runner.tenant || env.runner.tenant === tenant)
+        ? take(runId, tenant)
+        : nudgeRunner(runId, tenant),
+    )
     .catch((err) => console.error(`[run ${runId}]`, err));
 }
 
@@ -836,7 +860,7 @@ export function kick(runId: string) {
  * line still has the run, and the next look takes it.
  */
 async function nudgeRunner(runId: string, tenant: string) {
-  const runners = await otherRunners();
+  const runners = await otherRunners(tenant);
   const runner = runners[Math.floor(Math.random() * runners.length)];
   if (!runner) {
     return;
@@ -881,6 +905,10 @@ async function claimAndHold(runId: string, tenant: string): Promise<number | nul
  */
 async function take(runId: string, tenant: string): Promise<void> {
   if (active.has(runId) || active.size >= env.runner.maxRuns) {
+    return;
+  }
+  // A runner that serves one tenant takes no other's run: the line still has it for its own.
+  if (env.runner.tenant && env.runner.tenant !== tenant) {
     return;
   }
   // The slot counts from here, so takes at the same moment stay under the cap.
@@ -1172,7 +1200,8 @@ export async function makeContext(
     resources,
     ask: own.ask ?? ((ask) => askOf(run, ask, stepId, signal)),
     emit:
-      own.emit ?? ((type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset)),
+      own.emit ??
+      ((type, message, asset) => emitEvent(run.id, stepId || null, type, message, asset)),
     call: { runId: run.id, stepId },
     ...(own.share ? { share: true } : {}),
     saveState: async () => {
@@ -2290,6 +2319,14 @@ async function startDriving(runId: string): Promise<boolean> {
 }
 
 async function drive(runId: string, signal: AbortSignal) {
+  // A wizard in version 0.3.0: the kernel moves the run (docs/plans/kernel.md).
+  const versioned = await loadRun(runId);
+  if (versioned && kernelOf(versioned.definition)) {
+    if (!RUN_ENDED.has(versioned.status)) {
+      await kernelRuns.drive(versioned, signal);
+    }
+    return;
+  }
   // The step starts afresh here: a question or a device call another process left has no one
   // waiting.
   await clearStaleAsk(runId);
@@ -2663,7 +2700,11 @@ function unsentWithout(run: RunRow, stepId: string): { unsent?: RunRow["unsent"]
  * One page's entry is written in place, so two pages saving at once keep both.
  */
 export async function keepUnsent(run: RunRow, stepId: string, values: Record<string, unknown>) {
-  const step = stepOf(run.definition, stepId);
+  // A run of step files shows its open ask as a page; what is typed there is kept the same way.
+  const shown = kernelOf(run.definition)
+    ? kernelPage(run, await kernelRuns.view(run)).definition
+    : run.definition;
+  const step = stepOf(shown, stepId);
   if (step?.type !== "form") {
     throw new RunConflict("Not a page");
   }
@@ -2688,6 +2729,28 @@ export async function submitPage(
   by?: Actor,
   sent?: { seq: number; tab?: string },
 ): Promise<boolean> {
+  const versioned = await kernelRunOf(runId);
+  if (versioned) {
+    // A wizard in version 0.3.0: the page is the form the run waits at, a step's or its input.
+    const row = (await kernelRuns.view(versioned)).waiting.find(
+      (r) => r.step === stepId && r.type === "form",
+    );
+    if (!row) {
+      throw new RunConflict({ code: "runMovedOn" });
+    }
+    // The page's fields are checked as every form's are: kinds, what is required, choices.
+    const page = kernelPage(versioned, await kernelRuns.view(versioned));
+    const form = stepOf(page.definition, stepId);
+    if (form?.type !== "form") {
+      throw new RunConflict("Not a page");
+    }
+    const read = readFormInput(form, input, await formContext(page, form));
+    if (read.errors.length) {
+      throw new RunInputError(read.errors);
+    }
+    await kernelAnswer(runId, row.n, read.values, by);
+    return false;
+  }
   const at = Date.now();
   if (sent) {
     const last = (await loadRun(runId))?.state.pagesSent;
@@ -2871,6 +2934,51 @@ export type ReviewAction =
  * answers, as the door established it; none for what the engine does itself.
  */
 export async function reviewStep(runId: string, stepId: string, action: ReviewAction, by?: Actor) {
+  const versioned = await kernelRunOf(runId);
+  if (versioned) {
+    // A wizard in version 0.3.0: a review of the step, or the leave for an action it is about to do.
+    const waiting = (await kernelRuns.view(versioned)).waiting.filter((r) => r.step === stepId);
+    const row =
+      waiting.find((r) => r.type === "approval") ?? waiting.find((r) => r.type === "review");
+    if (!row) {
+      throw new RunConflict({ code: "runMovedOn" });
+    }
+    const shows = (row.show as string[] | undefined) ?? [];
+    if (action.type === "regenerate") {
+      // The step answers `{ regenerate, note }` and goes back to the step it names.
+      if (row.type !== "review" || row.regenerate !== true || !shows.includes(action.target)) {
+        throw new RunConflict("Not a review that can be made again");
+      }
+      await kernelAnswer(
+        runId,
+        row.n,
+        { approved: false, regenerate: action.target, note: action.note.slice(0, 2000) },
+        by,
+      );
+      return;
+    }
+    const yes = action.type === "accept";
+    // As in version 1: only edits of a step the review shows, and only where it lets them edit.
+    const edits =
+      action.type === "accept" && row.edit === true
+        ? Object.fromEntries(
+            Object.entries(action.edits ?? {}).filter(([id]) => shows.includes(id)),
+          )
+        : {};
+    await kernelAnswer(
+      runId,
+      row.n,
+      row.type === "approval"
+        ? { allow: yes }
+        : {
+            approved: yes,
+            ...(action.note ? { note: action.note } : {}),
+            ...(Object.keys(edits).length ? { edits } : {}),
+          },
+      by,
+    );
+    return;
+  }
   const at = Date.now();
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
@@ -2951,6 +3059,16 @@ export async function goBack(runId: string, by?: Actor) {
   if (!run) {
     throw new RunConflict({ code: "runBusy" });
   }
+  if (kernelOf(run.definition)) {
+    // A wizard in version 0.3.0: the last answer somebody gave is asked for again.
+    const rows = (await kernelRuns.view(run)).rows;
+    const last = rows.findLast((r) => !("left" in r) && r.state === "done" && r.by !== undefined);
+    if (!last) {
+      throw new RunConflict({ code: "runMovedOn" });
+    }
+    await kernelRuns.rewind(runId, last.n).catch(kernelRefused);
+    return;
+  }
   // What belonged to the step left behind goes with it, and whoever answered the page asked again
   // no longer has: the flow's `back`.
   await apply(run, run.state, await flow(run, { kind: "back" }), {
@@ -2964,6 +3082,16 @@ export async function retry(runId: string) {
   const run = await loadRun(runId);
   if (run?.status !== "failed") {
     throw new RunConflict("Nothing to retry");
+  }
+  if (kernelOf(run.definition)) {
+    // A wizard in version 0.3.0: the ask that failed is made again.
+    const rows = (await kernelRuns.view(run)).rows;
+    const failed = rows.findLast((r) => !("left" in r) && r.state === "failed");
+    if (!failed) {
+      throw new RunConflict("Nothing to retry");
+    }
+    await kernelRuns.rewind(runId, failed.n).catch(kernelRefused);
+    return;
   }
   // A failure gave the run's hold back: a refusal on wake must not be walked around here.
   const refused = (await durableRunsOn()) ? await holdAgain(run) : null;
@@ -3290,6 +3418,10 @@ export async function runView(
   hide: ReadonlySet<string> = new Set(),
   viewer?: Caller,
 ): Promise<RunView> {
+  // A wizard in version 0.3.0: the page reads the run as the small wizard it is at this moment.
+  if (kernelOf(run.definition)) {
+    return runView(kernelPage(run, await kernelRuns.view(run)), brand, hide, viewer);
+  }
   // In the viewer's language every text of the view is the translation; ids and values stay.
   const memory = run.lang ? await storedTranslation(run.wizardId, run.lang) : null;
   const translated = memory ? translateDefinition(run.definition, memory) : null;
@@ -3521,3 +3653,37 @@ async function runSpaceFiles(spaceId: string) {
   );
   return [...brand, ...own.filter((f) => !BRAND_FILES.has(f.kind))];
 }
+
+// --- runs of a wizard in version 0.3.0 (docs/plans/kernel.md) ----------------------
+
+/** The run, when it is of a wizard in version 0.3.0 and has not ended. */
+async function kernelRunOf(runId: string): Promise<RunRow | undefined> {
+  const run = await loadRun(runId);
+  return run && kernelOf(run.definition) ? run : undefined;
+}
+
+/** What the kernel refuses of a person's write, as the engine says it. */
+function kernelRefused(err: unknown): never {
+  if (err instanceof RunConflict) {
+    throw err;
+  }
+  throw new RunInputError([
+    { field: "", message: err instanceof Error ? err.message : String(err) },
+  ]);
+}
+
+/** A person's answer to a row of a run in version 2. */
+export async function kernelAnswer(runId: string, n: number, value: unknown, by?: Actor) {
+  await kernelRuns
+    .answer(runId, n, value, by?.userId ?? by?.visitorId ?? undefined)
+    .catch(kernelRefused);
+}
+
+/** The kernel's host over this engine: its line, its claims, its writes of a run's row. */
+export const kernelRuns = kernelHost({
+  loadRun,
+  updateRun: (runId, patch, seen) => updateRun(runId, patch, seen),
+  loadSpace,
+  makeContext,
+  kick,
+});

@@ -86,6 +86,20 @@ export interface RunTurn {
 }
 
 export interface RunState {
+  /**
+   * A run of a wizard in version 0.3.0 (docs/plans/kernel.md): what the kernel keeps of it besides
+   * its rows. The other entries of this state stay empty for such a run.
+   */
+  kernel?: {
+    /** Null until the run began: it then asks for its input where it was given none. */
+    input: Record<string, unknown> | null;
+    startedAt: number;
+    /** Where the rows of the step the run stands in begin; null between two steps. */
+    open: number | null;
+    status: "running" | "waiting" | "done" | "failed" | "stopped";
+    grant?: unknown;
+    output?: Record<string, unknown>;
+  };
   values: Record<string, unknown>;
   outputs: Record<string, StepOutput>;
   /** Interactive steps answered, oldest first — "back" pops this. */
@@ -395,6 +409,9 @@ const NOTES_EN = {
   reminderSent: "Sent a reminder.",
   waitsOff: "This wizard has a wait step, and those aren’t turned on here yet.",
   codeStepsOff: "This wizard runs code of its own, and that isn’t turned on here yet.",
+  kernelOff: "This wizard is made of step files, and those aren’t turned on here yet.",
+  kernelSample: "Sample",
+  kernelSampleText: "*Sample.* After a test run, this shows what the step made.",
   pluginsMissing: "This wizard needs {plugins}, which isn’t installed here.",
   connectorsCantConnect: "{connectors} can’t connect here yet.",
   connectorNeedsSettings: "To connect {connector}, engenty wizards needs {settings} here.",
@@ -936,6 +953,10 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   reminderSent: "Erinnerung gesendet.",
   waitsOff: "Dieser Wizard hat einen Warten-Schritt, und die sind hier noch nicht eingeschaltet.",
   codeStepsOff: "Dieser Wizard führt eigenen Code aus, und das ist hier noch nicht eingeschaltet.",
+  kernelOff:
+    "Dieser Wizard besteht aus Schritt-Dateien, und die sind hier noch nicht eingeschaltet.",
+  kernelSample: "Beispiel",
+  kernelSampleText: "*Beispiel.* Nach einem Testlauf steht hier, was dieser Schritt erstellt.",
   pluginsMissing: "Dieser Wizard braucht {plugins}, und das ist hier nicht installiert.",
   connectorsCantConnect: {
     one: "{connectors} lässt sich hier noch nicht verbinden.",

@@ -62,7 +62,7 @@ ${sandbox}
 <!-- Technical: engineering owns everything below. -->
 
 <!-- section: guide -->
-<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON; durable and code are the sections below, or nothing. -->
+<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON; durable, code and kernel are the sections below, or nothing. -->
 engenty wizards: a wizard is a page-by-page flow an end user walks through on a shared link. Pages ask questions; AI steps research, write, draw images, render video, build documents and dashboards, or write into other systems. You author the wizard as JSON; the person who asked you is the ADMIN, the people who later open the link are END USERS.
 
 ${schema}
@@ -70,6 +70,8 @@ ${schema}
 ${durable}
 
 ${code}
+
+${kernel}
 
 ${principles}
 
@@ -597,6 +599,45 @@ Sandbox tools. When the fixed task needs a program, packages or files (convert a
   hosts: [api.exchangerate.host]
   ---
 The script runs in its folder in the run's sandbox: it reads input.json, writes output.json (checked against output), and files it writes to out/ become files of the step. A file the person gave reaches it when the model passes upload:<id>; the script finds it at the path input.json then holds (in/<name>). At most 5 minutes a call; what it installs stays for the run. The step lists every host of "hosts" in its own "hosts". The sandbox is agentOS where Docker isn't the engine: Python is Pyodide (numpy, pandas; pure-Python packages with micropip), Node runs JavaScript, no native programs.
+
+<!-- section: kernel -->
+<!-- Only while the switch kernel is on: authoringGuide() leaves it out otherwise. A wizard in version 0.3.0 of the format (docs/plans/kernel.md): a file and one function per step. -->
+A wizard made of step files (version 0.3.0). Choose it when the flow is more than a line: loops, several asks in one step, text or fields built from earlier answers, your own logic. A plain line of pages and AI steps stays as described above.
+
+Such a wizard is one definition with a "kernel" entry, plus one file per step in its workspace:
+
+{ "version": 1, "title": "...", "description": "...", "avatar": "round",
+  "steps": [{ "id": "result", "type": "result", "title": "...", "deliverables": [] }],   // always exactly this one step
+  "kernel": {
+    "version": "0.3.0", "title": "...", "description": "...",
+    "requires": { "models": ["standard"], "tools": [], "roles": { "legal": "Legal" }, "hosts": [] },
+    "connections": { "<connection id>": { "<action>": "allow" | "ask" } },   // "ask": the user is asked before the action is done
+    "input": { "fields": [Field, ...] },        // what the run is given, or asks for on its first page
+    "output": { "<name>": "<step>.<key>" },      // what a finished run gives back
+    "start": "<step>",
+    "edges": { "<step>": ["<step>" | "end", ...] },   // every way a step may go; the first is taken when the step names none
+    "limits": { "<step>": 3 }                    // how often a step may be reached in one run (default 10)
+  } }
+
+Each step is a workspace file "steps/<id>.ts" (write_file) that exports ONE function. No imports except other files of the workspace; no Node modules, no packages, no network, no timers:
+
+export default async function (run, ask) {
+  const draft = await ask({ type: "agent", model: "standard", instructions: `Write an offer for ${run.input.customer}.`,
+                            fields: [{ id: "text", kind: "text" }, { id: "price", kind: "number" }] });
+  return { value: draft, to: draft.price > 5000 ? "legal" : "check" };
+}
+
+- run (read only): run.input, run.today, run.steps.<id> (what each step that returned left behind, its latest value), run.last ({ step, value, to } of the step before), run.count("<id>") (how often a step was reached, this time included).
+- ask(spec) is the only way to do anything; it returns the answer. spec.type:
+  "form" { fields } and "review" { show: ["<step>"], approve: true } are answered by a person (role "user" by default; "role": "operator" or one of requires.roles for someone else). A review answers { approved, note }.
+  "agent" { model, instructions, fields?, tools? } is answered by a model; with fields the answer has those keys. tools names connection actions as "<connection>.<action>", only ones the file lists.
+  "tool" { call: "<connection>.<action>", input } is one fixed action.
+  "wait" { timeout: "3d", signal?, key? } is answered by time or a signal: { came } or { timedOut }.
+  "timeout" on any ask: after it the answer is { timedOut: true }.
+- return { value, to }: value is what later steps read as run.steps.<id>; to is one of the step's ways in "edges", or left out for the first.
+- A step runs again from its top when an answer arrives, and ask gives earlier answers back at once. So a step only computes and asks.
+- The file is the limit: an ask that names a model class, tool, role, host or connection action the file does not list fails, and so does a way that is not in "edges".
+- A loop is an edge back to an earlier step, counted with run.count() and held by "limits".
 
 <!-- section: widgets -->
 Widgets — when to use: the result must look the same every run, animate, or be explored (a map with

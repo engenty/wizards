@@ -1,8 +1,13 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFINITION_VERSION, parseWizard } from "@engenty/wizards-shared/definition";
 import {
+  DEFINITION_VERSION,
+  KERNEL_VERSION,
+  parseWizard,
+} from "@engenty/wizards-shared/definition";
+import {
+  kernelJsonSchema,
   packageJsonSchema,
   themeJsonSchema,
   wizardJsonSchema,
@@ -31,7 +36,23 @@ describe("the published JSON Schemas", () => {
   it("are the ones the Zod schemas give (pnpm schema writes them)", () => {
     expect(published(`v${DEFINITION_VERSION}/wizard.json`)).toEqual(wizardJsonSchema());
     expect(published(`v${DEFINITION_VERSION}/wizard-package.json`)).toEqual(packageJsonSchema());
+    expect(published(`v${KERNEL_VERSION}/wizard.json`)).toEqual(kernelJsonSchema());
     expect(published("theme/v1/theme.json")).toEqual(themeJsonSchema());
+  });
+
+  it("describe a wizard made of step files apart from one of steps in a list", () => {
+    const checkFile = ajv.compile(kernelJsonSchema());
+    for (const example of ["mail", "offer"]) {
+      const file = JSON.parse(
+        readFileSync(
+          join(import.meta.dirname, `../../../packages/kernel/examples/${example}/wizard.json`),
+          "utf8",
+        ),
+      );
+      expect(checkFile(file), JSON.stringify(checkFile.errors)).toBe(true);
+    }
+    // Version 0.2.0 knows nothing of step files.
+    expect(checkWizard({ ...EXAMPLE_WIZARD, version: KERNEL_VERSION })).toBe(false);
   });
 
   it("take what the app takes", () => {

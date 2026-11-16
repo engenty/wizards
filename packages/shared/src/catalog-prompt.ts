@@ -122,7 +122,7 @@ export function wizardTextTags(opts: { durableRuns: boolean }): string {
   const durable = opts.durableRuns;
   const lines: string[] = [];
   lines.push(
-    `<Wizard ${attrs(shapeOf(wizardShapeSchema), new Set(["steps", "version", "requires"]), durable)}> — the wizard; its children are the steps, in order.`,
+    `<Wizard ${attrs(shapeOf(wizardShapeSchema), new Set(["steps", "version", "requires", "kernel"]), durable)}> — the wizard; its children are the steps, in order.`,
     "",
     "Steps (each takes <Next> children; Text: the key the text inside the tag fills):",
   );

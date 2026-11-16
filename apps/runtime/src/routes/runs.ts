@@ -9,6 +9,7 @@ import {
   wizardLang,
 } from "@engenty/wizards-shared/definition";
 import { TableColumnValueError } from "@engenty/wizards-shared/engenty/data-tables";
+import { kernelOf } from "@engenty/wizards-shared/kernel-file";
 import {
   note,
   noteText,
@@ -90,6 +91,8 @@ import {
   GuestBudgetError,
   goBack,
   keepUnsent,
+  kernelAnswer,
+  kernelRuns,
   NoCreditsError,
   ownsRun,
   RunConflict,
@@ -109,6 +112,7 @@ import { basePath, env } from "../env.js";
 import { loadAsset, saveAsset } from "../files/storage.js";
 import { type CheckedUpload, checkUpload } from "../files/upload-check.js";
 import { reverseGeocode } from "../geocode.js";
+import { kernelPage } from "../kernel/page.js";
 import { allowed, hashIp, verifyTurnstile, wizardUnavailable } from "../limits.js";
 import { managed, postFeedback, type Role } from "../manage.js";
 import { mintConversation } from "../media/conversation.js";
@@ -1280,6 +1284,35 @@ export const runRoutes = new Hono()
     return c.json({ ok: true });
   })
   // A run's timeline in the runs panel, for the people of its organization.
+  // A run of a wizard in version 0.3.0 (docs/plans/kernel.md): its rows, and an answer or a way back
+  // for one of them. The pages and reviews above answer such a run as well.
+  .get("/:id/rows", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!(run && kernelOf(run.definition))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    return c.json(await kernelRuns.view(run));
+  })
+  .post("/:id/rows/:n", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
+    if (!(run && kernelOf(run.definition))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const { value, back } = z
+      .object({ value: z.unknown().optional(), back: z.boolean().optional() })
+      .parse(await c.req.json());
+    const n = Number(c.req.param("n"));
+    try {
+      if (back) {
+        await kernelRuns.rewind(run.id, n, value);
+      } else {
+        await kernelAnswer(run.id, n, value, await actorOf(c, run));
+      }
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 409);
+    }
+  })
   .get("/:id/timeline", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     const user = run && (await memberViewing(c, run)) ? await principalOf(c) : null;
@@ -2293,7 +2326,9 @@ async function serveAsset(c: Context, run: RunRow, assetId: string) {
   return c.body(new Uint8Array(found.data), 200, headers);
 }
 
-async function serveDownload(c: Context, run: RunRow, stepId: string, rawFormat?: string) {
+async function serveDownload(c: Context, given: RunRow, stepId: string, rawFormat?: string) {
+  // A run of a wizard made of step files is read as the page shows it: its steps and what each left.
+  const run = kernelOf(given.definition) ? kernelPage(given, await kernelRuns.view(given)) : given;
   const format = z.enum(FORMATS).safeParse(rawFormat);
   const step = run.definition.steps.find((s) => s.id === stepId);
   const output = step ? run.state.outputs[step.id] : undefined;
