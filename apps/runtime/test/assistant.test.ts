@@ -175,7 +175,7 @@ describe("one chat per person", () => {
 
   it("keeps where the person wants the assistant", async () => {
     const layout = () => json(send("GET", "/api/studio/assistant/layout"));
-    expect(await layout()).toEqual({ layout: "bottom", layouts: {}, width: null });
+    expect(await layout()).toEqual({ layout: "avatar", layouts: {}, width: null });
     await send("PUT", "/api/studio/assistant/layout", { layout: "sidebar" });
     expect(await layout()).toEqual({ layout: "sidebar", layouts: {}, width: null });
     expect((await send("PUT", "/api/studio/assistant/layout", { layout: "left" })).status).toBe(400);

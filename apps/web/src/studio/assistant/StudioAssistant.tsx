@@ -1933,7 +1933,7 @@ function useWhereOrNull(state: AssistantState | null) {
 }
 
 const STAND_IN = {
-  layout: "bottom",
+  layout: "avatar",
   open: false,
   chat: { messages: [] },
 } as unknown as AssistantState;
