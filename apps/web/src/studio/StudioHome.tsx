@@ -199,6 +199,13 @@ function isWebsite(text: string): boolean {
 function SetupCard({ me, space, setup }: { me: Me; space: Space; setup: Setup }) {
   const [hiding, setHiding] = useState(false);
   const at = setup.pages.indexOf(setup.current);
+  // Which way the step changed, for the column's entrance; none on the first draw. Worked out
+  // while drawing, so the new step's first frame already has it.
+  const moved = useRef<{ at: number; came: "up" | "down" | null }>({ at, came: null });
+  if (moved.current.at !== at) {
+    moved.current = { at, came: at > moved.current.at ? "down" : "up" };
+  }
+  const came = moved.current.came;
   const go = (by: number) => {
     const next = setup.pages[at + by];
     if (next) {
@@ -262,11 +269,21 @@ function SetupCard({ me, space, setup }: { me: Me; space: Space; setup: Setup })
               <ChevronLeft className="size-4" />
               {t("start.allSteps")}
             </button>
-            {setup.current === "info" ? (
-              <FirstStep space={space} />
-            ) : (
-              <NextStep me={me} space={space} setup={setup} />
-            )}
+            {/* A step picked further down comes up from below, one further up from above. */}
+            <div
+              key={setup.current}
+              className={cn(
+                "fade-in-0 animate-in duration-300 ease-out",
+                came === "down" && "slide-in-from-bottom-4",
+                came === "up" && "slide-in-from-top-4",
+              )}
+            >
+              {setup.current === "info" ? (
+                <FirstStep space={space} />
+              ) : (
+                <NextStep me={me} space={space} setup={setup} />
+              )}
+            </div>
             <div className="flex items-center gap-2 md:hidden">
               <button
                 type="button"
