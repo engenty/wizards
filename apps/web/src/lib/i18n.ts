@@ -1436,7 +1436,7 @@ const de: Record<Key, Line> = {
   "start.setup.what":
     "Goose sucht dann deine Website und übernimmt Name, Logo, Farben und das Wichtigste in Space › Info. Du siehst dabei zu. Ist etwas unklar, fragt Goose nach.",
   "start.setup.ask":
-    "Richte den Auftritt für „{name}“ ein. Finde die Website, lies sie und übernimm Name, Logo, Farben, Schrift und die wichtigsten Fakten in Space › Info. Öffne dabei die Seite, die du gerade füllst, damit ich zusehen kann. Wenn du nicht sicher bist, welche Organisation gemeint ist, frag mich zuerst.",
+    "Richte den Auftritt für „{name}“ ein. Finde die Website, lies sie und übernimm Name, Logo, Farben, Schrift und die wichtigsten Fakten in Space › Info. Öffne dabei die Seite, die du gerade füllst, damit ich zusehen kann. Wenn du nicht sicher bist, welche Organisation gemeint ist, frag mich zuerst. Gib mir am Ende Buttons, um weiterzukommen: für deine Fragen und für den nächsten Schritt der Einrichtung.",
   "start.setup.placeholder": "Name oder Website",
   "start.setup.example": "z. B. Bäckerei Huber oder baeckerei-huber.at",
   "start.setup.go": "Starten",
@@ -4975,6 +4975,8 @@ const de: Record<Key, Line> = {
   "fact.e_mail": "E-Mail",
   "fact.website": "Website",
   "fact.iban": "IBAN",
+  "fact.bic": "BIC",
+  "fact.bank": "Bank",
   "space.factType": "Typ",
   "space.factAuto": "Automatisch",
   "space.type.text": "Text",
@@ -6546,7 +6548,7 @@ const en = {
   "start.setup.what":
     "Goose then looks up your website and takes your name, logo, colours and the key facts into Space › Info. You can watch it happen. If something is unclear, Goose asks.",
   "start.setup.ask":
-    "Set up the brand for “{name}”. Find the website, read it and take the name, logo, colours, typography and the key facts into Space › Info. Open the page you are filling as you go, so I can watch. If you are not sure which organization is meant, ask me first.",
+    "Set up the brand for “{name}”. Find the website, read it and take the name, logo, colours, typography and the key facts into Space › Info. Open the page you are filling as you go, so I can watch. If you are not sure which organization is meant, ask me first. At the end, give me buttons to move on: for your questions and for the next step of the setup.",
   "start.setup.placeholder": "Name or website",
   "start.setup.example": "e.g. Huber Bakery or huberbakery.com",
   "start.setup.go": "Start",
@@ -9997,6 +9999,8 @@ const en = {
   "fact.e_mail": "Email",
   "fact.website": "Website",
   "fact.iban": "IBAN",
+  "fact.bic": "BIC",
+  "fact.bank": "Bank",
   "space.factType": "Type",
   "space.factAuto": "Automatic",
   "space.type.text": "Text",

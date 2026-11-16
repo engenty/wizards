@@ -11,6 +11,7 @@ import { type Lang, textClassOf } from "@engenty/wizards-shared/definition";
 import { RWX_ALL } from "@engenty/wizards-shared/rwx";
 import { SPACE_DATA_LIMITS } from "@engenty/wizards-shared/space-data";
 import {
+  basicFactOf,
   cleanAssetSections,
   cleanLogoSections,
   FACT_TYPES,
@@ -405,14 +406,16 @@ export function gooseSpaceTools(input: AssistantInput, space: SpaceRow, wrote: (
             const next = [...p.facts];
             for (const f of facts) {
               const label = f.label.trim();
-              const at = next.findIndex((x) => x.label.toLowerCase() === label.toLowerCase());
+              // A common fact (IBAN, USt-IdNr. …) keeps the studio's key, whatever it is called.
+              const basic = basicFactOf(label);
+              const at = next.findIndex(
+                (x) => x.label.toLowerCase() === label.toLowerCase() || (basic && x.key === basic),
+              );
               if (at >= 0) {
                 next[at] = { ...next[at], value: f.value.trim(), type: f.type ?? next[at].type };
               } else {
-                const key = factKey(
-                  label,
-                  next.map((x) => x.key),
-                );
+                const keys = next.map((x) => x.key);
+                const key = basic && !keys.includes(basic) ? basic : factKey(label, keys);
                 next.push({
                   key,
                   label,
@@ -1016,6 +1019,29 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     }),
     ...(writable ? gooseSpaceTools(input, writable, wrote) : {}),
   };
+  // Short answers as buttons under the answer: a click sends one as the person's message.
+  tools.offer_replies = createTool({
+    id: "offer_replies",
+    description:
+      "Puts up to three short answers as buttons under your answer; a click sends that answer as the person's next message. Call it once, at the end, when your answer ends with a question the person answers with one of a few choices, or when there is an obvious next step (the next part of the setup, checking what you just filled in). Labels in the person's language, one to four words; `message` is what is sent, a full sentence where the label alone would be unclear. Don't list the buttons in your text.",
+    inputSchema: z.object({
+      replies: z
+        .array(
+          z.object({
+            label: z.string().min(1).max(40),
+            message: z.string().min(1).max(300).optional(),
+          }),
+        )
+        .min(1)
+        .max(3),
+    }),
+    execute: async ({ replies }) => {
+      const card = { plugin: "", tool: "replies", data: { replies } };
+      cards.push(card);
+      input.onCard?.(card);
+      return { shown: replies.map((r) => r.label) };
+    },
+  });
   // On everyday effort the chat can offer extra effort for work that asks for more: a card with
   // a button, while it goes on answering.
   if (!input.extra) {
