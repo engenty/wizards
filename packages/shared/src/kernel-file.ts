@@ -29,6 +29,38 @@ export const kernelOf = (
   definition: { kernel?: KernelFile } | null | undefined,
 ): KernelFile | undefined => definition?.kernel;
 
+/**
+ * The file once a step's file is gone: a way to it goes where it led, and it has no ways or limit
+ * of its own. A step left with no way ends the run; a run that started with it starts where it led.
+ */
+export function withoutStep(file: KernelFile, id: string): KernelFile {
+  if (
+    file.start !== id &&
+    !(id in file.edges) &&
+    !Object.values(file.edges).some((w) => w.includes(id))
+  ) {
+    return file;
+  }
+  const led = (file.edges[id] ?? []).filter((to) => to !== id);
+  const edges = Object.fromEntries(
+    Object.entries(file.edges)
+      .filter(([from]) => from !== id)
+      .map(([from, ways]) => {
+        const kept = ways
+          .flatMap((to) => (to === id ? led : [to]))
+          .filter((to) => to !== from || ways.includes(from));
+        const unique = kept.filter((to, i) => kept.indexOf(to) === i);
+        return [from, unique.length ? unique : ["end"]];
+      }),
+  );
+  const { [id]: _limit, ...limits } = file.limits ?? {};
+  const start =
+    file.start === id
+      ? (led.find((to) => to !== "end" && to in edges) ?? Object.keys(edges)[0] ?? id)
+      : file.start;
+  return { ...file, start, edges, ...(file.limits ? { limits } : {}) };
+}
+
 /** The one step a reader of version 1 sees of a wizard in version 2. */
 export const KERNEL_STEP = "result";
 
