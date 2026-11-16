@@ -1353,6 +1353,10 @@ const de: Record<Key, Line> = {
   "start.setup.hint":
     "Im Studio erstellst du AI-Workflows für dein Team und Kunden. Sie arbeiten mit deinen Daten, Skills und Verbindungen.",
   "start.setup.field": "Name oder Website deiner Organisation",
+  "start.setup.what":
+    "Goose sucht dann deine Website und übernimmt Name, Logo, Farben und das Wichtigste in Space › Info. Du siehst dabei zu. Ist etwas unklar, fragt Goose nach.",
+  "start.setup.ask":
+    "Richte den Auftritt für „{name}“ ein. Finde die Website, lies sie und übernimm Name, Logo, Farben, Schrift und die wichtigsten Fakten in Space › Info. Öffne dabei die Seite, die du gerade füllst, damit ich zusehen kann. Wenn du nicht sicher bist, welche Organisation gemeint ist, frag mich zuerst.",
   "start.setup.placeholder": "Name oder Website",
   "start.setup.example": "z. B. Bäckerei Huber oder baeckerei-huber.at",
   "start.setup.go": "Starten",
@@ -1398,6 +1402,16 @@ const de: Record<Key, Line> = {
     "Dann laufen deine Wizards auch, wenn dieser Computer schläft, und dein Team arbeitet mit.",
   "start.now.connect.go": "Anmelden",
   "start.later": "Später",
+  "start.hide": "Ausblenden",
+  "start.finish": "Fertig und schließen",
+  "start.stepOf": "Schritt {n} von {all}",
+  "start.next": "Weiter",
+  "start.allSteps": "Alle Schritte",
+  "start.hide.title": "Einrichtung ausblenden?",
+  "start.hide.detail":
+    "Du richtest alles selbst ein, oder Goose hilft dir dabei. Die offenen Schritte bleiben unten auf Home.",
+  "start.hide.self": "Selbst einrichten",
+  "start.hide.goose": "Goose fragen",
   "start.back": "Zurück",
   "start.week": { one: "Diese Woche {n} Lauf", other: "Diese Woche {n} Läufe" },
   "start.wish": "Was soll ein neuer Wizard tun?",
@@ -6371,6 +6385,10 @@ const en = {
   "start.setup.hint":
     "In the studio you build AI workflows for your team and clients. They work with your data, skills and connections.",
   "start.setup.field": "Your organization’s name or website",
+  "start.setup.what":
+    "Goose then looks up your website and takes your name, logo, colours and the key facts into Space › Info. You can watch it happen. If something is unclear, Goose asks.",
+  "start.setup.ask":
+    "Set up the brand for “{name}”. Find the website, read it and take the name, logo, colours, typography and the key facts into Space › Info. Open the page you are filling as you go, so I can watch. If you are not sure which organization is meant, ask me first.",
   "start.setup.placeholder": "Name or website",
   "start.setup.example": "e.g. Huber Bakery or huberbakery.com",
   "start.setup.go": "Start",
@@ -6413,6 +6431,16 @@ const en = {
     "Then your wizards keep running while this computer sleeps, and your team works with you.",
   "start.now.connect.go": "Sign in",
   "start.later": "Later",
+  "start.hide": "Hide",
+  "start.finish": "Done, close",
+  "start.stepOf": "Step {n} of {all}",
+  "start.next": "Next",
+  "start.allSteps": "All steps",
+  "start.hide.title": "Hide the setup?",
+  "start.hide.detail":
+    "You set everything up yourself, or Goose helps you with it. The open steps stay at the bottom of Home.",
+  "start.hide.self": "I’ll do it myself",
+  "start.hide.goose": "Ask Goose",
   "start.back": "Back",
   "start.week": { one: "{n} run this week", other: "{n} runs this week" },
   "start.wish": "What should a new wizard do?",
