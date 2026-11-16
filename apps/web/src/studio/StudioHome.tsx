@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, Sparkles, X } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Mascot } from "../brand";
 import type { EngentyKind } from "../engenty/colors";
@@ -338,6 +338,8 @@ function HideSetup({
 /** Before anything is set up: the engenty offers its help, the name or website starts it. */
 function FirstStep({ space }: { space: Space }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const assistant = useAssistant();
   const [value, setValue] = useState("");
   const start = useMutation({
     mutationFn: (text: string) =>
@@ -346,11 +348,21 @@ function FirstStep({ space }: { space: Space }) {
         : api.patch(`/api/studio/spaces/${space.id}`, { brand: { name: text } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.spaces() }),
   });
+  // With Goose the name or address goes to it: it finds the website and fills Space › Info while
+  // the person watches there, and asks back when the organization isn't clear. Without it, the
+  // studio reads the website (or keeps the name) itself.
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (value.trim()) {
-      start.mutate(value.trim());
+    const text = value.trim();
+    if (!text) {
+      return;
     }
+    if (assistant) {
+      navigate("/space/info");
+      void assistant.send(t("start.setup.ask", { name: text }));
+      return;
+    }
+    start.mutate(text);
   };
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
@@ -388,6 +400,9 @@ function FirstStep({ space }: { space: Space }) {
           <p className="pl-4 text-[0.8125rem] text-rose">{(start.error as Error).message}</p>
         ) : null}
         <p className="pl-4 text-[0.875rem] text-ink-3">{t("start.setup.example")}</p>
+        {assistant ? (
+          <p className="mt-2 text-[0.875rem] text-ink-2 leading-relaxed">{t("start.setup.what")}</p>
+        ) : null}
       </form>
     </div>
   );
@@ -480,25 +495,52 @@ function NextStep({ me, space, setup }: { me: Me; space: Space; setup: Setup }) 
 function Steps({ me, setup }: { me: Me; setup: Setup }) {
   const left = setup.pages.filter((p) => !setup.done[p]).length;
   const all = left === setup.pages.length;
+  // One raised background slides to the step under the pointer, and back to the open one.
+  const [hover, setHover] = useState<PageId | null>(null);
+  const rows = useRef(new Map<PageId, HTMLLIElement>());
+  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
+  const target = hover ?? setup.current;
+  useLayoutEffect(() => {
+    const row = rows.current.get(target);
+    setBox(row ? { top: row.offsetTop, height: row.offsetHeight } : null);
+  }, [target]);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
       <p className="pl-3.5 font-medium text-[0.8125rem] text-ink-3">
         {all ? t("start.setup.steps", { n: left }) : t("start.setup.left", { n: left })}
       </p>
-      <ol className="grid gap-0.5">
+      <ol className="relative grid gap-0.5" onMouseLeave={() => setHover(null)}>
+        {box ? (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 rounded-2xl bg-paper shadow-soft ring-1 ring-border-soft transition-[transform,height] duration-300 ease-out"
+            style={{ transform: `translateY(${box.top}px)`, height: box.height, top: 0 }}
+          />
+        ) : null}
         {setup.pages.map((p) => {
           const done = setup.done[p];
           const now = p === setup.current;
           const { title, line } = step(me, p);
           return (
-            <li key={p}>
+            <li
+              key={p}
+              ref={(el) => {
+                if (el) {
+                  rows.current.set(p, el);
+                } else {
+                  rows.current.delete(p);
+                }
+              }}
+              onMouseEnter={() => setHover(p)}
+              className="relative"
+            >
               <button
                 type="button"
                 aria-current={now ? "step" : undefined}
                 onClick={() => setup.onPick(p)}
                 className={cn(
                   "flex w-full items-center gap-3.5 rounded-2xl px-3.5 py-2 text-left transition",
-                  now ? "bg-paper shadow-soft ring-1 ring-border-soft" : "hover:bg-ink/5",
+                  "relative",
                 )}
               >
                 <span className={cn("relative size-[3.25rem] shrink-0", done && "opacity-50")}>
