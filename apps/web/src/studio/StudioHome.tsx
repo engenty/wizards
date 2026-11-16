@@ -9,9 +9,11 @@ import { useFeature } from "../lib/features";
 import { type Key, lang, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
 import { type Me, type Space, useCurrentSpace, useIsAdmin, useMe } from "../lib/session";
-import { Button, cn, Textarea } from "../ui";
+import { Button, cn, Dialog, Textarea } from "../ui";
 import { useCrumbs } from "./AppFrame";
+import { useAssistant } from "./assistant/chat";
 import { useSpaceConnections } from "./capabilities/ConnectorsSection";
+import { NewWizardPage } from "./NewWizardPage";
 import { useKnowledge } from "./space/Knowledge";
 import { useResults } from "./space/Results";
 import { useSkills } from "./space/Skills";
@@ -150,6 +152,11 @@ export function StudioHome() {
                 setSkipped([...new Set([...skipped, ...(current === "info" ? open : [current])])]);
                 setAt(null);
               },
+              // Every open step put off: Home keeps the next one as a line below.
+              onHide: () => {
+                setSkipped([...new Set([...skipped, ...open])]);
+                setAt(null);
+              },
             }
           : null
       }
@@ -175,6 +182,7 @@ interface Setup {
   current: PageId;
   onPick: (page: PageId) => void;
   onLater: () => void;
+  onHide: () => void;
 }
 
 /** What a typed name looks like when it is a website: one word with a dot in it. */
@@ -188,20 +196,66 @@ function isWebsite(text: string): boolean {
  * Beside both, the steps with what is done.
  */
 function SetupCard({ me, space, setup }: { me: Me; space: Space; setup: Setup }) {
+  const [hiding, setHiding] = useState(false);
   return (
-    <section className="grid grid-cols-[minmax(0,1fr)] items-center gap-8 rounded-[1.75rem] bg-card p-6 shadow-soft ring-1 ring-border-soft md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:gap-11 md:p-10">
+    <section className="relative grid grid-cols-[minmax(0,1fr)] items-center gap-8 rounded-[1.75rem] bg-card p-6 pt-12 shadow-soft ring-1 ring-border-soft md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:gap-11 md:p-12 lg:p-16">
+      <button
+        type="button"
+        onClick={() => setHiding(true)}
+        className="absolute top-4 right-5 text-[0.8125rem] text-ink-3 underline hover:text-ink md:top-5 md:right-6"
+      >
+        {t("start.hide")}
+      </button>
       {setup.current === "info" ? (
-        <FirstStep space={space} onLater={setup.onLater} />
+        <FirstStep space={space} />
       ) : (
         <NextStep me={me} space={space} setup={setup} />
       )}
       <Steps me={me} setup={setup} />
+      <HideSetup open={hiding} onClose={() => setHiding(false)} onHide={setup.onHide} />
     </section>
   );
 }
 
+/** Asks before the setup leaves Home: the person sets it up alone, or with Goose. */
+function HideSetup({
+  open,
+  onClose,
+  onHide,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onHide: () => void;
+}) {
+  const assistant = useAssistant();
+  return (
+    <Dialog open={open} onClose={onClose} title={t("start.hide.title")}>
+      <p className="text-[0.9375rem] text-ink-2 leading-relaxed">{t("start.hide.detail")}</p>
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>
+          {t("confirm.cancel")}
+        </Button>
+        {assistant ? (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              onHide();
+              assistant.setOpen(true);
+            }}
+          >
+            {t("start.hide.goose")}
+          </Button>
+        ) : null}
+        <Button autoFocus onClick={onHide}>
+          {t("start.hide.self")}
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
 /** Before anything is set up: the engenty offers its help, the name or website starts it. */
-function FirstStep({ space, onLater }: { space: Space; onLater: () => void }) {
+function FirstStep({ space }: { space: Space }) {
   const qc = useQueryClient();
   const [value, setValue] = useState("");
   const start = useMutation({
@@ -248,12 +302,7 @@ function FirstStep({ space, onLater }: { space: Space; onLater: () => void }) {
         {start.error ? (
           <p className="pl-4 text-[0.8125rem] text-rose">{(start.error as Error).message}</p>
         ) : null}
-        <p className="pl-4 text-[0.875rem] text-ink-3">
-          {t("start.setup.example")} ·{" "}
-          <button type="button" onClick={onLater} className="underline hover:text-ink">
-            {t("start.later")}
-          </button>
-        </p>
+        <p className="pl-4 text-[0.875rem] text-ink-3">{t("start.setup.example")}</p>
       </form>
     </div>
   );
@@ -493,44 +542,60 @@ function Dashboard({
     }
   };
   return (
-    <div className="mx-auto grid w-full max-w-4xl animate-rise grid-cols-[minmax(0,1fr)] gap-7">
-      <div className="flex items-center gap-4">
-        {setup ? null : <Mascot kind="drop" size={56} />}
-        <div className="grid gap-0.5">
-          <h1 className="font-display font-semibold text-[1.75rem] leading-tight tracking-tight">
-            {greeting(name)}
-          </h1>
-          <p className="text-[0.875rem] text-ink-3">{t("start.week", { n: runs.length })}</p>
+    <div
+      className={cn(
+        "mx-auto grid w-full animate-rise grid-cols-[minmax(0,1fr)] gap-7",
+        // The setup takes the page's width; without it Home keeps its column.
+        setup ? "max-w-7xl" : "max-w-4xl",
+      )}
+    >
+      {setup ? (
+        <SetupCard me={me} space={space} setup={setup} />
+      ) : (
+        <div className="flex items-center gap-4">
+          <Mascot kind="drop" size={56} />
+          <div className="grid gap-0.5">
+            <h1 className="font-display font-semibold text-[1.75rem] leading-tight tracking-tight">
+              {greeting(name)}
+            </h1>
+            <p className="text-[0.875rem] text-ink-3">{t("start.week", { n: runs.length })}</p>
+          </div>
         </div>
-      </div>
-      {setup ? <SetupCard me={me} space={space} setup={setup} /> : null}
-      <form onSubmit={start} className="grid gap-2.5">
-        {first ? (
-          <label htmlFor="start-wish" className="font-medium text-[0.9375rem]">
-            {t("start.firstWizard")}
-          </label>
-        ) : null}
-        <div className="flex items-end gap-2 rounded-2xl bg-card p-3 pl-4 shadow-soft ring-1 ring-border-soft">
-          <Textarea
-            id="start-wish"
-            minRows={1}
-            value={wish}
-            maxLength={2000}
-            placeholder={t(first ? "start.firstWish" : "start.wish")}
-            aria-label={first ? undefined : t("start.wish")}
-            onChange={(e) => setWish(e.target.value)}
-            className="min-h-0 flex-1 resize-none border-0 bg-transparent p-1 shadow-none ring-0 focus-visible:ring-0"
-          />
-          <button
-            type="submit"
-            aria-label={t("home.new")}
-            disabled={!wish.trim()}
-            className="grid size-9 shrink-0 place-items-center rounded-full bg-ember-strong text-white transition disabled:opacity-40"
-          >
-            <ArrowUp className="size-4" />
-          </button>
+      )}
+      {/* While the setup shows, a new wizard as on its own page; after it, one field. */}
+      {setup ? (
+        <div className="mt-6">
+          <NewWizardPage embedded />
         </div>
-      </form>
+      ) : (
+        <form onSubmit={start} className="grid gap-2.5">
+          {first ? (
+            <label htmlFor="start-wish" className="font-medium text-[0.9375rem]">
+              {t("start.firstWizard")}
+            </label>
+          ) : null}
+          <div className="flex items-end gap-2 rounded-2xl bg-card p-3 pl-4 shadow-soft ring-1 ring-border-soft">
+            <Textarea
+              id="start-wish"
+              minRows={1}
+              value={wish}
+              maxLength={2000}
+              placeholder={t(first ? "start.firstWish" : "start.wish")}
+              aria-label={first ? undefined : t("start.wish")}
+              onChange={(e) => setWish(e.target.value)}
+              className="min-h-0 flex-1 resize-none border-0 bg-transparent p-1 shadow-none ring-0 focus-visible:ring-0"
+            />
+            <button
+              type="submit"
+              aria-label={t("home.new")}
+              disabled={!wish.trim()}
+              className="grid size-9 shrink-0 place-items-center rounded-full bg-ember-strong text-white transition disabled:opacity-40"
+            >
+              <ArrowUp className="size-4" />
+            </button>
+          </div>
+        </form>
+      )}
       {/* A new organization with nothing yet: the card alone, no empty lists below it. */}
       {setup && !needs.length && !runs.length ? null : (
         <div className="grid gap-7 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
