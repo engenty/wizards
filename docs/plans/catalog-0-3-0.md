@@ -1,7 +1,9 @@
 # Plan: the marketplace's templates in version 0.3.0
 
-Status: started 2026-11-16. Six templates are converted, walked through on the dev data and stored
-as entries of version 0.3.0 on the manage branch `feat/catalog-0-3-0`. Nothing of it is live.
+Status: started 2026-11-16. Nine templates are converted and one is merged from four, walked
+through on the dev data and stored as entries of version 0.3.0 on the manage branch
+`feat/catalog-0-3-0`. Nothing of it is live. The notes of each walk-through are in
+[catalog-0-3-0/](catalog-0-3-0/).
 
 Scope: the 31 entries in `engenty-wizards-manage/apps/marketplace/entries`, which templates stay,
 which are merged, which become simple wizards, and how each reaches the marketplace in version
@@ -14,8 +16,9 @@ no translations yet).
 
 - All 31 convert with `toKernel`, compile and run to their end with stand-ins
   (`packages/kernel/src/convert.test.ts`). That proves the converter, not the templates.
-- Six were converted, reworked by hand and walked through with real models on the dev data:
-  quote, invoice, research-briefing, x-post, damage-report, property-photo-tour.
+- Converted, reworked by hand and walked through with real models on the dev data: quote,
+  invoice, research-briefing, x-post, damage-report, property-photo-tour, menu-plan, receipts,
+  explainer-video, and claim from the four claims.
 - The live marketplace serves all 31 as version 1 (0.2.0).
 
 ## How a template reaches the marketplace in 0.3.0
@@ -73,11 +76,11 @@ shows it.
 | x-post | converted |
 | damage-report | converted |
 | property-photo-tour | converted; the merge with the films is open |
-| menu-plan | open |
-| receipts | open |
-| explainer-video | open |
+| menu-plan | converted |
+| receipts | converted; the mail and portal steps not walked (no mail account, a person at the portal's login) |
+| explainer-video | converted; the film has no voice-over (see below) |
 | site-visit-booking | open; needs the appointments plugin on the dev stack |
-| claim | open; the merge |
+| claim | merged and converted; Auslagen and Arztrechnungen walked, Schaden and Zuschuss not |
 | appointment-booking | open; the merge, needs the appointments plugin |
 
 Result: about 12 step wizards and 11 simple ones, from 31.
@@ -85,7 +88,7 @@ Result: about 12 step wizards and 11 simple ones, from 31.
 ## Order
 
 1. Store the six converted ones as entries. Done.
-2. Convert menu-plan, receipts, explainer-video, and build claim from the four claims.
+2. Convert menu-plan, receipts, explainer-video, and build claim from the four claims. Done.
 3. Merge the films into property-photo-tour, window-quote into quote.
 4. The two booking wizards, once the appointments plugin runs on the dev stack.
 5. The simple wizards, once the studio shows a one-prompt wizard as a prompt.
@@ -103,11 +106,21 @@ The ones that recur:
 - A review ask has no place for a sentence on what to check.
 - A download of a finished 0.3.0 run's step answers 404 (`serveDownload` looks in
   `run.definition.steps`).
+- A run's grant took hosts, tools and connections only from version 1's steps, so a 0.3.0 run
+  could reach no host its file names. Fixed.
+- The converter renames a connection but not the field that names it, and gives a connection no
+  actions.
+- The film step gets nothing of the steps before it: the recorded voice never reaches the film.
+  The converter writes its inputs as values, which makes the step fail.
+- A step file cannot read or write a list without a model.
+- Events of a step are filed under the step before it.
 
 ## Open questions
 
 1. A one-prompt wizard: a step file with one ask, shown in the studio as its prompt? Or its own
    shape in the file, without `steps/`?
 2. Merged entries: `unlisted`, or removed with a redirect from their pages?
-3. English: wait for translations in 0.3.0, or keep `wizard.en.json` as version 0.2.0 beside a
+3. claim: one wizard for four kinds, or four small wizards that share one file of step code, as
+   an organization offers mostly one kind?
+4. English: wait for translations in 0.3.0, or keep `wizard.en.json` as version 0.2.0 beside a
    German 0.3.0?
