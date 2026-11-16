@@ -1479,6 +1479,9 @@ const de: Record<Key, Line> = {
   "start.now.connect.go": "Anmelden",
   "start.later": "Später",
   "start.hide": "Ausblenden",
+  "start.finish": "Fertig und schließen",
+  "start.stepOf": "Schritt {n} von {all}",
+  "start.next": "Weiter",
   "start.hide.title": "Einrichtung ausblenden?",
   "start.hide.detail":
     "Du richtest alles selbst ein, oder Goose hilft dir dabei. Die offenen Schritte bleiben unten auf Home.",
@@ -6578,6 +6581,9 @@ const en = {
   "start.now.connect.go": "Sign in",
   "start.later": "Later",
   "start.hide": "Hide",
+  "start.finish": "Done, close",
+  "start.stepOf": "Step {n} of {all}",
+  "start.next": "Next",
   "start.hide.title": "Hide the setup?",
   "start.hide.detail":
     "You set everything up yourself, or Goose helps you with it. The open steps stay at the bottom of Home.",

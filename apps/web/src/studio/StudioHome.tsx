@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ArrowUp, Check, ChevronRight, Sparkles, X } from "lucide-react";
+import { ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, Sparkles, X } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Mascot } from "../brand";
@@ -130,7 +130,8 @@ export function StudioHome() {
   // Only an admin sets the organization up; everyone else sees the dashboard alone.
   const open = admin ? pages.filter((p) => !done[p]) : [];
   const ahead = open.filter((p) => !skipped.includes(p));
-  const current = at && ahead.includes(at) ? at : (ahead[0] ?? null);
+  // Shown while a step is open; then any step can be opened from the list, done ones too.
+  const current = ahead.length ? (at && pages.includes(at) ? at : ahead[0]) : null;
   // A step picked again counts as not put off.
   const pick = (page: PageId) => {
     setSkipped(skipped.filter((p) => p !== page));
@@ -197,8 +198,27 @@ function isWebsite(text: string): boolean {
  */
 function SetupCard({ me, space, setup }: { me: Me; space: Space; setup: Setup }) {
   const [hiding, setHiding] = useState(false);
+  const at = setup.pages.indexOf(setup.current);
+  const go = (by: number) => {
+    const next = setup.pages[at + by];
+    if (next) {
+      setup.onPick(next);
+    }
+  };
+  // On a phone one step at a time: a swipe or the arrows go to the next or the one before.
+  const [touch, setTouch] = useState<number | null>(null);
   return (
-    <section className="relative grid grid-cols-[minmax(0,1fr)] items-center gap-8 rounded-xl bg-card p-6 pt-12 shadow-soft ring-1 ring-border-soft md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:gap-11 md:p-12 lg:p-16">
+    <section
+      className="relative grid grid-cols-[minmax(0,1fr)] items-start gap-8 rounded-xl bg-card p-6 pt-14 shadow-soft ring-1 ring-border-soft md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] md:items-center md:gap-11 md:p-12 lg:p-16"
+      onTouchStart={(e) => setTouch(e.touches[0]?.clientX ?? null)}
+      onTouchEnd={(e) => {
+        const end = e.changedTouches[0]?.clientX;
+        if (touch !== null && end !== undefined && Math.abs(end - touch) > 60) {
+          go(end < touch ? 1 : -1);
+        }
+        setTouch(null);
+      }}
+    >
       <button
         type="button"
         aria-label={t("start.hide")}
@@ -208,12 +228,39 @@ function SetupCard({ me, space, setup }: { me: Me; space: Space; setup: Setup })
       >
         <X className="size-5" />
       </button>
-      {setup.current === "info" ? (
-        <FirstStep space={space} />
-      ) : (
-        <NextStep me={me} space={space} setup={setup} />
-      )}
-      <Steps me={me} setup={setup} />
+      <div className="hidden md:block">
+        <Steps me={me} setup={setup} />
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
+        {setup.current === "info" ? (
+          <FirstStep space={space} />
+        ) : (
+          <NextStep me={me} space={space} setup={setup} />
+        )}
+        <div className="flex items-center gap-2 md:hidden">
+          <button
+            type="button"
+            aria-label={t("start.back")}
+            disabled={at <= 0}
+            onClick={() => go(-1)}
+            className="grid size-10 place-items-center rounded-full ring-1 ring-border transition disabled:opacity-30"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <span className="flex-1 text-center text-[0.8125rem] text-ink-3">
+            {t("start.stepOf", { n: at + 1, all: setup.pages.length })}
+          </span>
+          <button
+            type="button"
+            aria-label={t("start.next")}
+            disabled={at >= setup.pages.length - 1}
+            onClick={() => go(1)}
+            className="grid size-10 place-items-center rounded-full ring-1 ring-border transition disabled:opacity-30"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+      </div>
       <HideSetup open={hiding} onClose={() => setHiding(false)} onHide={setup.onHide} />
     </section>
   );
@@ -411,12 +458,11 @@ function Steps({ me, setup }: { me: Me; setup: Setup }) {
             <li key={p}>
               <button
                 type="button"
-                disabled={done}
                 aria-current={now ? "step" : undefined}
                 onClick={() => setup.onPick(p)}
                 className={cn(
                   "flex w-full items-center gap-3.5 rounded-2xl px-3.5 py-2 text-left transition",
-                  now ? "bg-paper shadow-soft ring-1 ring-border-soft" : "enabled:hover:bg-ink/5",
+                  now ? "bg-paper shadow-soft ring-1 ring-border-soft" : "hover:bg-ink/5",
                 )}
               >
                 <span className={cn("relative size-[3.25rem] shrink-0", done && "opacity-50")}>
@@ -462,6 +508,13 @@ function Steps({ me, setup }: { me: Me; setup: Setup }) {
           );
         })}
       </ol>
+      <button
+        type="button"
+        onClick={setup.onHide}
+        className="mt-3 justify-self-start pl-3.5 font-medium text-[0.875rem] text-ink-3 hover:text-ink"
+      >
+        {t("start.finish")}
+      </button>
     </div>
   );
 }
