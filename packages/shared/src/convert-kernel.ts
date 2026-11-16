@@ -73,6 +73,9 @@ import { stepClasses } from "./requires.js";
  * - A connection is named by its kind or its connector. Its actions keep their policy.
  * - An action without a policy asks first. A tool step calls `"<connection>.<action>"`.
  */
+/** What a step of version 1 may do with a mailbox that names no action: only read it. */
+const MAIL_READS = ["search", "read", "get_attachment"];
+
 /**
  * How a language writes an amount in a currency, read once here so that a step's code needs no
  * `Intl`: the separators, and what stands before and after the number (`1.234,50 €`).
@@ -1045,6 +1048,10 @@ export function toKernel(definition: WizardDefinition): {
     connectionNames.set(connection.id, name);
     connections[name] ??= {};
     const actions = [...(connection.actions ?? []), ...Object.keys(connection.policy ?? {})];
+    // A mailbox that names no action is read, as version 1 reads it: search, read, attachments.
+    if (!actions.length && connection.kind === "mail") {
+      for (const action of MAIL_READS) connections[name][action] = "allow";
+    }
     for (const action of actions) {
       if (!connection.policy?.[action])
         say(`The action "${name}.${action}" has no policy. It asks the user first.`);
@@ -1283,7 +1290,15 @@ export function toKernel(definition: WizardDefinition): {
               ? { title: opening.title }
               : {}),
             ...(opening.description ? { description: opening.description } : {}),
-            fields: opening.fields,
+            // A connection field names the connection as the file names it.
+            fields: opening.fields.map((field) =>
+              field.connection
+                ? {
+                    ...field,
+                    connection: connectionNames.get(field.connection) ?? field.connection,
+                  }
+                : field,
+            ),
             // The page as the first form lays it out.
             ...(opening.groups ? { groups: opening.groups } : {}),
             ...(opening.cta ? { cta: opening.cta } : {}),

@@ -337,6 +337,38 @@ describe("a hand-written wizard", () => {
     expect(run.output?.day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  it("a mailbox that names no action is read, and the first page's field names it as the file does", async () => {
+    const { file, files, notes } = await convert({
+      title: "Receipts",
+      connections: [{ id: "mailbox", kind: "mail", title: "Mailbox" }],
+      steps: [
+        {
+          id: "start",
+          type: "form",
+          title: "Start",
+          fields: [
+            name,
+            { id: "box", label: "Mailbox", kind: "connection", connection: "mailbox" },
+          ],
+        },
+        {
+          id: "find",
+          type: "agent",
+          title: "Find",
+          instructions: "Find the receipts.",
+          connections: ["mailbox"],
+        },
+        result({ data: { text: "steps.find" } }),
+      ],
+    });
+    expect(file.connections).toEqual({
+      mail: { search: "allow", read: "allow", get_attachment: "allow" },
+    });
+    expect(file.input?.fields?.find((f) => f.id === "box")).toMatchObject({ connection: "mail" });
+    expect(files["steps/find.ts"]).toContain('"mail.search"');
+    expect(notes.join("\n")).not.toContain("names no action");
+  });
+
   it("a tool step calls its connection's action, and the user is asked where the policy says so", async () => {
     const { file, wizard } = await convert({
       title: "Contact",
