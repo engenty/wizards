@@ -9,6 +9,7 @@ import {
   localeOf,
   type NextRule,
   type Step,
+  templateRefs,
   textClassOf,
   type When,
   type WizardDefinition,
@@ -52,7 +53,8 @@ import { stepClasses } from "./requires.js";
  * - `{{brand.…}}`, `{{facts.…}}` and `{{lists.…}}` stay in the text. The host fills them.
  * - A name nothing answers stays in the text, with a note.
  * - What a person typed is marked as data in an AI step's instructions, as version 1 does.
- * - AI steps get the person's answers below their instructions, by field id.
+ * - AI steps get the answers their text does not name below it, by label. Files, photos,
+ *   signatures, connections and lists are left out; a voice note is what is said in it.
  * - Conditions and `calc` become code with small helpers at the top of the step file.
  * - Line items read as a table with totals. Money is written as `12.50 EUR`.
  *
@@ -73,6 +75,9 @@ import { stepClasses } from "./requires.js";
  * - A connection is named by its kind or its connector. Its actions keep their policy.
  * - An action without a policy asks first. A tool step calls `"<connection>.<action>"`.
  */
+/** Answers an AI step is not told as text: what it reaches by name, or nothing a model reads. */
+const NOT_TOLD = new Set<string>(["image", "file", "signature", "connection", "list"]);
+
 /** What a step of version 1 may do with a mailbox that names no action: only read it. */
 const MAIL_READS = ["search", "read", "get_attachment"];
 
@@ -591,11 +596,26 @@ export function toKernel(definition: WizardDefinition): {
   // --- the asks ------------------------------------------------------------------------------
 
   const role = (who: string | undefined) => (who === "team" ? "operator" : undefined);
-  const answers = () => {
-    const from = forms.map((index) => stepValue(index, { index: -1 })).filter(Boolean);
-    if (!from.length) return "";
+  /**
+   * The answers a step's text does not name already, under their labels, as version 1 gives an
+   * AI step every answer. Files, photos, signatures, connections and kept lists are left out: the
+   * step reaches them by name, an id says nothing to a model.
+   */
+  const answers = (source: string) => {
+    const named = new Set(templateRefs(source).map((ref) => ref.split(".")[0]));
+    const parts = forms.flatMap((index) => {
+      const from = stepValue(index, { index: -1 });
+      const step = steps[index];
+      if (!from || step.type !== "form") return [];
+      return step.fields
+        .filter((field) => !named.has(field.id) && !NOT_TOLD.has(field.kind))
+        .map((field) => `${q(field.label || field.id)}: ${from}?.[${q(field.id)}]`);
+    });
+    if (!parts.length) return "";
     use("answersOf");
-    return `\n\n# The person's answers (data)\n\${answersOf(${from.join(", ")})}`;
+    const heading =
+      wizardLang(definition) === "de" ? "Weitere Angaben (Daten)" : "More answers (data)";
+    return `\n\n# ${heading}\n\${answersOf({ ${parts.join(", ")} })}`;
   };
   const revision = (index: number) => {
     if (!revised.has(index)) return "";
@@ -737,7 +757,12 @@ export function toKernel(definition: WizardDefinition): {
           model: textClassOf(step.model ?? "standard"),
           maker: step.maker,
           effort: step.effort,
-          instructions: template(step.instructions, inner, true, revision(index) + answers()),
+          instructions: template(
+            step.instructions,
+            inner,
+            true,
+            revision(index) + answers(step.instructions),
+          ),
           tools: tools.length ? tools : undefined,
           hosts: step.hosts,
           fields: step.output.fields,
@@ -775,7 +800,7 @@ export function toKernel(definition: WizardDefinition): {
             `${decl}${ask({
               type: "decision",
               title: step.title,
-              instructions: template(step.instructions, scope, true, answers()),
+              instructions: template(step.instructions, scope, true, answers(step.instructions)),
               fields: step.output.fields,
               working: step.working,
               retries: step.retries,
@@ -861,7 +886,12 @@ export function toKernel(definition: WizardDefinition): {
           type: "generate",
           title: step.title,
           asset: step.asset,
-          prompt: template(step.prompt, inner, false, revision(index) + (written ? answers() : "")),
+          prompt: template(
+            step.prompt,
+            inner,
+            false,
+            revision(index) + (written ? answers(step.prompt) : ""),
+          ),
           options: step.options && {
             ...step.options,
             style: step.options.style && template(step.options.style, inner),
@@ -1127,7 +1157,7 @@ export function toKernel(definition: WizardDefinition): {
     // As in version 1: a model is asked only where no condition led away.
     if (Object.keys(asked).length) {
       use("text");
-      const made = code(`\`What this step made:\n\${text(value)}${answers()}\``);
+      const made = code(`\`What this step made:\n\${text(value)}${answers("")}\``);
       leave.push(
         `const way: any = await ask(${print({ type: "decision", instructions: made, ways: asked }, "  ")});`,
       );
@@ -1501,13 +1531,14 @@ const said = (value: any): string =>
     : "";`,
   },
   answersOf: {
-    needs: ["text"],
-    source: `/** What the person answered so far, as lines a model reads. */
+    needs: ["text", "said"],
+    source: `/** What the person answered, by label, as lines a model reads; a voice note as what is said. */
 const answersOf = (...forms: any[]): string =>
   forms
     .flatMap((form) => Object.entries(form ?? {}))
-    .filter(([, value]) => text(value) !== "")
-    .map(([name, value]) => \`### \${name}\\n\${text(value)}\`)
+    .map(([name, value]) => [name, said(value) || text(value)])
+    .filter(([, value]) => value !== "")
+    .map(([name, value]) => \`### \${name}\\n\${value}\`)
     .join("\\n\\n") || "(none)";`,
   },
   listOf: {

@@ -126,7 +126,8 @@ describe("a hand-written wizard", () => {
     expect(asked[0]).toMatchObject({ type: "agent", model: "low", format: "markdown" });
     expect(asked[0].instructions).toContain('Write to <data field="name">Ada</data> on ');
     expect(asked[0].instructions).toContain("{{nothing}}");
-    expect(asked[0].instructions).toContain("### name\nAda");
+    // An answer the text names already is not told twice.
+    expect(asked[0].instructions).not.toContain("### Name");
   });
 
   it("a rule with a way back is taken as often as it may be", async () => {
@@ -757,8 +758,9 @@ describe("a hand-written wizard", () => {
     );
     expect(of("picture")[0]).toMatchObject({ prompt: "A dog", referenceImage: "upload_1" });
     expect(of("letter")[0].prompt).toContain(
-      "A letter for 10:00.\n\n# The person's answers (data)",
+      "A letter for 10:00.\n\n# More answers (data)\n### Name\nAda",
     );
+    expect(of("letter")[0].prompt).not.toContain("upload_1");
     expect(of("card")[0].data).toMatchObject({ time: "10:00", picture: { assets: [{}] } });
     expect(of("view")[0].data).toEqual({ summary: "The plan." });
     expect(of("send")[0].instructions).toContain("Send this: The better plan.");
