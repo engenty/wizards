@@ -1200,7 +1200,8 @@ export async function makeContext(
     resources,
     ask: own.ask ?? ((ask) => askOf(run, ask, stepId, signal)),
     emit:
-      own.emit ?? ((type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset)),
+      own.emit ??
+      ((type, message, asset) => emitEvent(run.id, stepId || null, type, message, asset)),
     call: { runId: run.id, stepId },
     ...(own.share ? { share: true } : {}),
     saveState: async () => {
