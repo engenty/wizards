@@ -168,7 +168,7 @@ const config :Workerd.Config = (
     (name = "wizard", worker = .wizard),
     (name = "runs", disk = (path = ".workerd/runs", writable = true)),
     (name = "assets", disk = (path = "dist/assets")),
-    (name = "net", network = (allow = ["public", "private", "local"])),
+    (name = "net", network = (allow = ["public", "private", "local"], tlsOptions = (trustBrowserCas = true))),
   ],
   sockets = [(name = "http", address = "127.0.0.1:8788", http = (), service = "wizard")],
 );
