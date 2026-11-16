@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ArrowUp, Check, ChevronRight, Sparkles } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, Sparkles, X } from "lucide-react";
+import { type FormEvent, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Mascot } from "../brand";
 import type { EngentyKind } from "../engenty/colors";
@@ -9,9 +9,11 @@ import { useFeature } from "../lib/features";
 import { type Key, lang, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
 import { type Me, type Space, useCurrentSpace, useIsAdmin, useMe } from "../lib/session";
-import { Button, cn, Textarea } from "../ui";
+import { Button, cn, Dialog, Textarea } from "../ui";
 import { useCrumbs } from "./AppFrame";
+import { useAssistant } from "./assistant/chat";
 import { useSpaceConnections } from "./capabilities/ConnectorsSection";
+import { NewWizardPage } from "./NewWizardPage";
 import { useKnowledge } from "./space/Knowledge";
 import { useResults } from "./space/Results";
 import { useSkills } from "./space/Skills";
@@ -128,7 +130,8 @@ export function StudioHome() {
   // Only an admin sets the organization up; everyone else sees the dashboard alone.
   const open = admin ? pages.filter((p) => !done[p]) : [];
   const ahead = open.filter((p) => !skipped.includes(p));
-  const current = at && ahead.includes(at) ? at : (ahead[0] ?? null);
+  // Shown while a step is open; then any step can be opened from the list, done ones too.
+  const current = ahead.length ? (at && pages.includes(at) ? at : ahead[0]) : null;
   // A step picked again counts as not put off.
   const pick = (page: PageId) => {
     setSkipped(skipped.filter((p) => p !== page));
@@ -148,6 +151,11 @@ export function StudioHome() {
               // Before the first step Later puts the whole setup off, after it only this step.
               onLater: () => {
                 setSkipped([...new Set([...skipped, ...(current === "info" ? open : [current])])]);
+                setAt(null);
+              },
+              // Every open step put off: Home keeps the next one as a line below.
+              onHide: () => {
+                setSkipped([...new Set([...skipped, ...open])]);
                 setAt(null);
               },
             }
@@ -175,6 +183,7 @@ interface Setup {
   current: PageId;
   onPick: (page: PageId) => void;
   onLater: () => void;
+  onHide: () => void;
 }
 
 /** What a typed name looks like when it is a website: one word with a dot in it. */
@@ -188,21 +197,149 @@ function isWebsite(text: string): boolean {
  * Beside both, the steps with what is done.
  */
 function SetupCard({ me, space, setup }: { me: Me; space: Space; setup: Setup }) {
+  const [hiding, setHiding] = useState(false);
+  const at = setup.pages.indexOf(setup.current);
+  const go = (by: number) => {
+    const next = setup.pages[at + by];
+    if (next) {
+      setup.onPick(next);
+    }
+  };
+  // On a phone the list comes first; a step slides in its details, where a swipe or the arrows
+  // go to the next or the one before.
+  const [details, setDetails] = useState(false);
+  const open = {
+    ...setup,
+    onPick: (page: PageId) => {
+      setup.onPick(page);
+      setDetails(true);
+    },
+  };
+  const [touch, setTouch] = useState<number | null>(null);
   return (
-    <section className="grid grid-cols-[minmax(0,1fr)] items-center gap-8 rounded-[1.75rem] bg-card p-6 shadow-soft ring-1 ring-border-soft md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:gap-11 md:p-10">
-      {setup.current === "info" ? (
-        <FirstStep space={space} onLater={setup.onLater} />
-      ) : (
-        <NextStep me={me} space={space} setup={setup} />
-      )}
-      <Steps me={me} setup={setup} />
+    <section
+      className="relative grid grid-cols-[minmax(0,1fr)] items-start gap-8 rounded-xl bg-card p-6 pt-14 shadow-soft ring-1 ring-border-soft md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] md:items-center md:gap-11 md:p-12 lg:p-16"
+      onTouchStart={(e) => setTouch(e.touches[0]?.clientX ?? null)}
+      onTouchEnd={(e) => {
+        const end = e.changedTouches[0]?.clientX;
+        if (details && touch !== null && end !== undefined && Math.abs(end - touch) > 60) {
+          go(end < touch ? 1 : -1);
+        }
+        setTouch(null);
+      }}
+    >
+      <button
+        type="button"
+        aria-label={t("start.hide")}
+        title={t("start.hide")}
+        onClick={() => setHiding(true)}
+        className="absolute top-3 right-3 grid size-9 place-items-center rounded-full text-ink-3 transition hover:bg-ink/5 hover:text-ink md:top-4 md:right-4"
+      >
+        <X className="size-5" />
+      </button>
+      <div className="-mx-1 overflow-x-clip px-1 md:contents">
+        <div
+          className={cn(
+            "flex transition-transform duration-300 ease-out md:contents",
+            details && "-translate-x-full",
+          )}
+        >
+          {/* The side a phone doesn't show is hidden too, so nothing of it peeks in or takes focus. */}
+          <div className={cn("w-full shrink-0 md:w-auto", details && "max-md:invisible")}>
+            <Steps me={me} setup={open} />
+          </div>
+          <div
+            className={cn(
+              "grid w-full shrink-0 grid-cols-[minmax(0,1fr)] content-start gap-6 md:w-auto",
+              !details && "max-md:invisible",
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => setDetails(false)}
+              className="-ml-1 flex items-center gap-1 justify-self-start text-[0.875rem] text-ink-3 hover:text-ink md:hidden"
+            >
+              <ChevronLeft className="size-4" />
+              {t("start.allSteps")}
+            </button>
+            {setup.current === "info" ? (
+              <FirstStep space={space} />
+            ) : (
+              <NextStep me={me} space={space} setup={setup} />
+            )}
+            <div className="flex items-center gap-2 md:hidden">
+              <button
+                type="button"
+                aria-label={t("start.back")}
+                disabled={at <= 0}
+                onClick={() => go(-1)}
+                className="grid size-10 place-items-center rounded-full ring-1 ring-border transition disabled:opacity-30"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <span className="flex-1 text-center text-[0.8125rem] text-ink-3">
+                {t("start.stepOf", { n: at + 1, all: setup.pages.length })}
+              </span>
+              <button
+                type="button"
+                aria-label={t("start.next")}
+                disabled={at >= setup.pages.length - 1}
+                onClick={() => go(1)}
+                className="grid size-10 place-items-center rounded-full ring-1 ring-border transition disabled:opacity-30"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <HideSetup open={hiding} onClose={() => setHiding(false)} onHide={setup.onHide} />
     </section>
   );
 }
 
+/** Asks before the setup leaves Home: the person sets it up alone, or with Goose. */
+function HideSetup({
+  open,
+  onClose,
+  onHide,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onHide: () => void;
+}) {
+  const assistant = useAssistant();
+  return (
+    <Dialog open={open} onClose={onClose} title={t("start.hide.title")}>
+      <p className="text-[0.9375rem] text-ink-2 leading-relaxed">{t("start.hide.detail")}</p>
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>
+          {t("confirm.cancel")}
+        </Button>
+        {assistant ? (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              onHide();
+              assistant.setOpen(true);
+            }}
+          >
+            {t("start.hide.goose")}
+          </Button>
+        ) : null}
+        <Button autoFocus onClick={onHide}>
+          {t("start.hide.self")}
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
 /** Before anything is set up: the engenty offers its help, the name or website starts it. */
-function FirstStep({ space, onLater }: { space: Space; onLater: () => void }) {
+function FirstStep({ space }: { space: Space }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const assistant = useAssistant();
   const [value, setValue] = useState("");
   const start = useMutation({
     mutationFn: (text: string) =>
@@ -211,18 +348,32 @@ function FirstStep({ space, onLater }: { space: Space; onLater: () => void }) {
         : api.patch(`/api/studio/spaces/${space.id}`, { brand: { name: text } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.spaces() }),
   });
+  // With Goose the name or address goes to it: it finds the website and fills Space › Info while
+  // the person watches there, and asks back when the organization isn't clear. Without it, the
+  // studio reads the website (or keeps the name) itself.
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (value.trim()) {
-      start.mutate(value.trim());
+    const text = value.trim();
+    if (!text) {
+      return;
     }
+    if (assistant) {
+      navigate("/space/info");
+      void assistant.send(t("start.setup.ask", { name: text }));
+      return;
+    }
+    start.mutate(text);
   };
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
-      <Mascot kind="round" size={88} fluffy />
-      <h2 className="text-balance font-display font-semibold text-[2rem] leading-[1.08] tracking-tight md:text-[2.5rem]">
-        {t("start.setup.title")}
-      </h2>
+      <div className="flex items-center gap-4">
+        <h2 className="min-w-0 flex-1 text-balance font-display font-semibold text-[2rem] leading-[1.08] tracking-tight md:text-[2.5rem]">
+          {t("start.setup.title")}
+        </h2>
+        <span className="shrink-0">
+          <Mascot kind="round" size={88} fluffy />
+        </span>
+      </div>
       <p className="text-[1rem] text-ink-2 leading-relaxed">{t("start.setup.hint")}</p>
       <form onSubmit={submit} className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2.5">
         <div className="flex items-center gap-2 rounded-full bg-paper p-1.5 pl-4 ring-[1.5px] ring-ember-strong">
@@ -248,12 +399,10 @@ function FirstStep({ space, onLater }: { space: Space; onLater: () => void }) {
         {start.error ? (
           <p className="pl-4 text-[0.8125rem] text-rose">{(start.error as Error).message}</p>
         ) : null}
-        <p className="pl-4 text-[0.875rem] text-ink-3">
-          {t("start.setup.example")} ·{" "}
-          <button type="button" onClick={onLater} className="underline hover:text-ink">
-            {t("start.later")}
-          </button>
-        </p>
+        <p className="pl-4 text-[0.875rem] text-ink-3">{t("start.setup.example")}</p>
+        {assistant ? (
+          <p className="mt-2 text-[0.875rem] text-ink-2 leading-relaxed">{t("start.setup.what")}</p>
+        ) : null}
       </form>
     </div>
   );
@@ -346,26 +495,52 @@ function NextStep({ me, space, setup }: { me: Me; space: Space; setup: Setup }) 
 function Steps({ me, setup }: { me: Me; setup: Setup }) {
   const left = setup.pages.filter((p) => !setup.done[p]).length;
   const all = left === setup.pages.length;
+  // One raised background slides to the step under the pointer, and back to the open one.
+  const [hover, setHover] = useState<PageId | null>(null);
+  const rows = useRef(new Map<PageId, HTMLLIElement>());
+  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
+  const target = hover ?? setup.current;
+  useLayoutEffect(() => {
+    const row = rows.current.get(target);
+    setBox(row ? { top: row.offsetTop, height: row.offsetHeight } : null);
+  }, [target]);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
       <p className="pl-3.5 font-medium text-[0.8125rem] text-ink-3">
         {all ? t("start.setup.steps", { n: left }) : t("start.setup.left", { n: left })}
       </p>
-      <ol className="grid gap-0.5">
+      <ol className="relative grid gap-0.5" onMouseLeave={() => setHover(null)}>
+        {box ? (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 rounded-2xl bg-paper shadow-soft ring-1 ring-border-soft transition-[transform,height] duration-300 ease-out"
+            style={{ transform: `translateY(${box.top}px)`, height: box.height, top: 0 }}
+          />
+        ) : null}
         {setup.pages.map((p) => {
           const done = setup.done[p];
           const now = p === setup.current;
           const { title, line } = step(me, p);
           return (
-            <li key={p}>
+            <li
+              key={p}
+              ref={(el) => {
+                if (el) {
+                  rows.current.set(p, el);
+                } else {
+                  rows.current.delete(p);
+                }
+              }}
+              onMouseEnter={() => setHover(p)}
+              className="relative"
+            >
               <button
                 type="button"
-                disabled={done}
                 aria-current={now ? "step" : undefined}
                 onClick={() => setup.onPick(p)}
                 className={cn(
                   "flex w-full items-center gap-3.5 rounded-2xl px-3.5 py-2 text-left transition",
-                  now ? "bg-paper shadow-soft ring-1 ring-border-soft" : "enabled:hover:bg-ink/5",
+                  "relative",
                 )}
               >
                 <span className={cn("relative size-[3.25rem] shrink-0", done && "opacity-50")}>
@@ -411,6 +586,13 @@ function Steps({ me, setup }: { me: Me; setup: Setup }) {
           );
         })}
       </ol>
+      <button
+        type="button"
+        onClick={setup.onHide}
+        className="mt-3 justify-self-start pl-3.5 font-medium text-[0.875rem] text-ink-3 hover:text-ink"
+      >
+        {t("start.finish")}
+      </button>
     </div>
   );
 }
@@ -493,44 +675,60 @@ function Dashboard({
     }
   };
   return (
-    <div className="mx-auto grid w-full max-w-4xl animate-rise grid-cols-[minmax(0,1fr)] gap-7">
-      <div className="flex items-center gap-4">
-        {setup ? null : <Mascot kind="drop" size={56} />}
-        <div className="grid gap-0.5">
-          <h1 className="font-display font-semibold text-[1.75rem] leading-tight tracking-tight">
-            {greeting(name)}
-          </h1>
-          <p className="text-[0.875rem] text-ink-3">{t("start.week", { n: runs.length })}</p>
+    <div
+      className={cn(
+        "mx-auto grid w-full animate-rise grid-cols-[minmax(0,1fr)] gap-7",
+        // The setup takes the page's whole width; without it Home keeps its column.
+        setup ? "max-w-none" : "max-w-4xl",
+      )}
+    >
+      {setup ? (
+        <SetupCard me={me} space={space} setup={setup} />
+      ) : (
+        <div className="flex items-center gap-4">
+          <Mascot kind="drop" size={56} />
+          <div className="grid gap-0.5">
+            <h1 className="font-display font-semibold text-[1.75rem] leading-tight tracking-tight">
+              {greeting(name)}
+            </h1>
+            <p className="text-[0.875rem] text-ink-3">{t("start.week", { n: runs.length })}</p>
+          </div>
         </div>
-      </div>
-      {setup ? <SetupCard me={me} space={space} setup={setup} /> : null}
-      <form onSubmit={start} className="grid gap-2.5">
-        {first ? (
-          <label htmlFor="start-wish" className="font-medium text-[0.9375rem]">
-            {t("start.firstWizard")}
-          </label>
-        ) : null}
-        <div className="flex items-end gap-2 rounded-2xl bg-card p-3 pl-4 shadow-soft ring-1 ring-border-soft">
-          <Textarea
-            id="start-wish"
-            minRows={1}
-            value={wish}
-            maxLength={2000}
-            placeholder={t(first ? "start.firstWish" : "start.wish")}
-            aria-label={first ? undefined : t("start.wish")}
-            onChange={(e) => setWish(e.target.value)}
-            className="min-h-0 flex-1 resize-none border-0 bg-transparent p-1 shadow-none ring-0 focus-visible:ring-0"
-          />
-          <button
-            type="submit"
-            aria-label={t("home.new")}
-            disabled={!wish.trim()}
-            className="grid size-9 shrink-0 place-items-center rounded-full bg-ember-strong text-white transition disabled:opacity-40"
-          >
-            <ArrowUp className="size-4" />
-          </button>
+      )}
+      {/* While the setup shows, a new wizard as on its own page; after it, one field. */}
+      {setup ? (
+        <div className="mt-6">
+          <NewWizardPage embedded />
         </div>
-      </form>
+      ) : (
+        <form onSubmit={start} className="grid gap-2.5">
+          {first ? (
+            <label htmlFor="start-wish" className="font-medium text-[0.9375rem]">
+              {t("start.firstWizard")}
+            </label>
+          ) : null}
+          <div className="flex items-end gap-2 rounded-2xl bg-card p-3 pl-4 shadow-soft ring-1 ring-border-soft">
+            <Textarea
+              id="start-wish"
+              minRows={1}
+              value={wish}
+              maxLength={2000}
+              placeholder={t(first ? "start.firstWish" : "start.wish")}
+              aria-label={first ? undefined : t("start.wish")}
+              onChange={(e) => setWish(e.target.value)}
+              className="min-h-0 flex-1 resize-none border-0 bg-transparent p-1 shadow-none ring-0 focus-visible:ring-0"
+            />
+            <button
+              type="submit"
+              aria-label={t("home.new")}
+              disabled={!wish.trim()}
+              className="grid size-9 shrink-0 place-items-center rounded-full bg-ember-strong text-white transition disabled:opacity-40"
+            >
+              <ArrowUp className="size-4" />
+            </button>
+          </div>
+        </form>
+      )}
       {/* A new organization with nothing yet: the card alone, no empty lists below it. */}
       {setup && !needs.length && !runs.length ? null : (
         <div className="grid gap-7 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
