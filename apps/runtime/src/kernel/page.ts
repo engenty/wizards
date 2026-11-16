@@ -121,7 +121,8 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
       .map((path) => path.split(".")[0])
       .filter((id, i, all) => outputs[id] && all.indexOf(id) === i);
     const from = named.length ? named : steps.map((s) => s.id).slice(-1);
-    // The downloads the file names, each from a step that left something or from a list.
+    // The downloads the file names, each from a step that left something or from a list. A run
+    // that took another way, with none of them, shows what its output reads.
     const downloads = file?.result?.downloads?.filter(
       (one) => one.from.startsWith("lists.") || outputs[one.from],
     );
@@ -130,7 +131,9 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
       type: "result",
       title: file?.result?.title ?? file?.title ?? run.definition.title,
       ...(file?.result?.message ? { message: file.result.message } : {}),
-      deliverables: downloads ?? from.map((id) => ({ from: id, formats: ["md"] })),
+      deliverables: downloads?.length
+        ? downloads
+        : from.map((id) => ({ from: id, formats: ["md"] })),
     } as unknown as Step);
     cursor = "result";
   } else if (page?.type === "form") {

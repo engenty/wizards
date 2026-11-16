@@ -67,4 +67,27 @@ describe("a run of version 0.3.0 on its page", () => {
       working: "Writes the letter …",
     });
   });
+
+  it("shows what a run's output reads when it took a way without the named downloads", () => {
+    const booking = {
+      ...file,
+      start: "free",
+      edges: { free: ["book", "full"], book: ["end"], full: ["end"] },
+      output: { book: "book", full: "full" },
+      result: { title: "Thanks", downloads: [{ from: "book", formats: ["pdf"] }] },
+    } as unknown as KernelFile;
+    const done = kernelPage(
+      { ...run, definition: kernelShell(booking) } as RunRow,
+      view(
+        [
+          { n: 0, step: "free", left: true, value: { slots: [] }, to: "full" },
+          { n: 1, step: "full", left: true, value: "We will call you.", to: "end" },
+        ],
+        "end",
+        { status: "done", waiting: [] },
+      ),
+    );
+    const result = done.definition.steps.find((s) => s.id === "result") as { deliverables: unknown };
+    expect(result.deliverables).toEqual([{ from: "full", formats: ["md"] }]);
+  });
 });
