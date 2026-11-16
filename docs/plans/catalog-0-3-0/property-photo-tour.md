@@ -77,3 +77,30 @@ Photos: the two from Matthias's run (a bookshelf, a shelf with boxes, both portr
 5. Portrait photos: the film is 16:9 and the image step is told 16:9. Refuse portrait photos on the first page, or let the film show them with bars?
 6. „Kontakt“ is asked in every run. Take it from the space's facts when it is there?
 7. The English template (`wizard.en.json`) is not converted. Same changes there once these are agreed?
+
+## Films merged (2026-11-16)
+
+Of the three entries, only property-film is the same job as this one: a tour from property photos. facebook-video-ad and photo-ad advertise a product, from a product idea and an optional product photo. They share the film kit, not the job, so they became one wizard of their own (`facebook-video-ad`, see its notes), and photo-ad is unlisted there.
+
+**property-film into the photo tour.** Wizard `EJflAo3AoyKm`, entry `property-photo-tour`; property-film is `unlisted`, its use cases and search words are on the photo tour.
+
+| property-film had | Now |
+|---|---|
+| Camera move per room by a video model, 720p or 480p | "Bewegung" on the second page: "Fotos mit sanftem Schwenk" (default, as before), "Kamerafahrt durch jeden Raum" (720p), "Kamerafahrt, günstiger (480p)". One `clips` step, resolution from the choice, from the retouched image of each room (or the photo where they stayed). |
+| Voice-over | "Mit Sprecherstimme" (off by default). `plan` writes the text only then; the review shows it under "Sprecherstimme"; `voice` speaks it; the film takes it (fixed in db7cd4a6). |
+| Light choice (golden hour, evening) | Not kept: the photo tour lights rooms in plain daylight on purpose (notes above). |
+| Two clip steps and two reviews after the film | One `clips` step, no review after the film (as the photo tour). |
+| `tour.html` with clips and voice | One `tour.html`: clips where there are, else the stills, else the photos; voice where there is. |
+
+Runs (real models, photos `wohnzimmer.jpg`, `kueche.jpg`):
+- `D_7PYzjGolwsHYyU9b`: photos with a pan, with voice. Done. Film 18 s, 1280×720, voice heard (mean −18 dB). Frames: `walk-voice/frames.png`. The voice text says only what the photos and facts hold.
+- `zdrD9shwIaeyRAlqKJ`: camera moves 480p, no voice. Done. Two clips, film 11 s. Frames: `walk-clips/frames.png`. The kitchen clip shows a balcony door the photo does not show: the video model extends the room as it moves. The prompt forbids it; the model does it anyway.
+
+Findings:
+1. The plan model puts the place into the facts at the end ("Graz · St. Leonhard" as a fact line, though it is the opening line too). Small; the prompt says "aus den Eckdaten".
+2. A video model invents what lies outside the frame when the camera moves. Nothing in a prompt stops it. A shorter, slower move would show less.
+3. The runtime reloads when its source changes; a widget that is rendering then fails with "Target page, context or browser has been closed" (seen on the ad run). Retry finished it.
+
+Questions:
+1. Should the camera moves stay at all, given finding 2? They cost much more and are the only part that can show something that is not there.
+2. Default for the voice: off (as here) or on (as property-film had)?

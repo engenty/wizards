@@ -66,3 +66,29 @@ Answers: Tischlerei Huber GmbH, Frau Martina Berger, Linz; a new website; four s
 5. The text is written in the „wir“ form. A freelancer writes „ich“. Ask, or read from the space?
 6. No offer number. 0.2.0 had none either. Wanted?
 7. The wizard's title is the first page's heading. „Angebot (0.3.0)“ is for comparing; the real title would be „Angebot schreiben“?
+
+## Fenstertausch folded in (2026-11-16)
+
+window-quote (Fenstertausch, 0.2.0) is now a path of this wizard. Wizard `UoednjjAjrXv` on the dev stack; export `angebot-0.3.0.wizard`; entry `quote` in manage `feat/catalog-0-3-0`. window-quote's `entry.json` is `unlisted`; its sectors, use cases and search terms are on quote's.
+
+What changed
+- First page: „Was für ein Angebot?“ (Allgemein / Fenstertausch), default Allgemein. `start` is the new step `windows`.
+- `windows`: returns at once to `positions` for Allgemein. For Fenstertausch, two pages in one step: photos, voice note, typed measures, place; then material, colour, extras.
+- `survey`: the model only copies the elements (room, count, width, height, kind, opening, named extras) and the price list rows. Code picks the size class, the article per material, the colour surcharge, the extras' quantities (all elements / windows only / where named, else all windows and doors) and the travel line. A missing price is 0 with an open point. The opening the person names replaces the one the price list describes.
+- `positions`: for Fenstertausch titled „Stimmen die Positionen?“, the open points in the page's description, the positions as default, and „Lieferzeit ab Auftrag“.
+- `pitch`: its own task for Fenstertausch (neue Fenster, Ablauf, Noch zu klären, Förderung), no figures, no U-values, no savings.
+- `offer`: title, place, lead time, up to four photos as „Bestand“, signature lines.
+- `fenster/preisliste.csv` is a file of the wizard.
+- The general path is unchanged.
+
+Runs
+- `SypO_PVxrFXLE4V8y0`: Allgemein, done. 1.450,00 + 18 × 92,50 + 12 × 92,50 + 12 × 24,90 = 4.523,80 € net, 904,76 € tax, 5.428,56 € total; valid until 16.12.2026. Document matches.
+- `p7o5dRaBdSkT9l_6E4`: Fenstertausch, Kunststoff-Alu, Anthrazit, five extras, two photos, done. Positions as computed by hand: KA-L 2 × 930, BT-KA 1.160, KA-M 710, KA-S 540, Farbe 5 × 85, DEMO 5 × 95, MONT 5 × 210, FBA 4 × 85, ROLL 2 × 520 (named), INS 5 × 95 (not named: all windows and doors), ANF 180 = 8.255,00 € net, 1.651,00 € tax, 9.906,00 € total. Document matches; both photos in it.
+- `lWLDiXA2WUasAFtZJL`: after the fix, to the positions page, then cancelled. „Kipp“ kept, 3,15 m² Holz → HO-XL 1.540 €, material no longer an open point.
+
+Findings
+- The document repeats its title („Angebot Fenstertausch“ in the header and above the text), as in claim.
+- The general path's text adds details nobody gave (a map view, notifications per order). Unchanged here.
+- A voice note was not walked: the dev stack's API takes no recorded audio without a browser.
+- The model writes the whole price list back each run; a step file cannot read a file of the wizard. With file reads in a step, the price list would never pass through a model.
+- Prefill by `default` with a list of rows works for an items field in 0.3.0, although the field schema's `default` names strings only.
