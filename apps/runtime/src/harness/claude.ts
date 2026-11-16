@@ -131,7 +131,9 @@ class ClaudeCodeModel extends HarnessModel {
       args.push("--effort", call.effort);
     }
     if (call.schema) {
-      args.push("--json-schema", JSON.stringify(call.schema));
+      // The CLI checks the schema with no dialects loaded: one that names its own is refused.
+      const { $schema: _dialect, ...schema } = call.schema as Record<string, unknown>;
+      args.push("--json-schema", JSON.stringify(schema));
     }
     if (call.bridgeUrl) {
       args.push(
