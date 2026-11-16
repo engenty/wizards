@@ -205,7 +205,16 @@ function SetupCard({ me, space, setup }: { me: Me; space: Space; setup: Setup })
       setup.onPick(next);
     }
   };
-  // On a phone one step at a time: a swipe or the arrows go to the next or the one before.
+  // On a phone the list comes first; a step slides in its details, where a swipe or the arrows
+  // go to the next or the one before.
+  const [details, setDetails] = useState(false);
+  const open = {
+    ...setup,
+    onPick: (page: PageId) => {
+      setup.onPick(page);
+      setDetails(true);
+    },
+  };
   const [touch, setTouch] = useState<number | null>(null);
   return (
     <section
@@ -213,7 +222,7 @@ function SetupCard({ me, space, setup }: { me: Me; space: Space; setup: Setup })
       onTouchStart={(e) => setTouch(e.touches[0]?.clientX ?? null)}
       onTouchEnd={(e) => {
         const end = e.changedTouches[0]?.clientX;
-        if (touch !== null && end !== undefined && Math.abs(end - touch) > 60) {
+        if (details && touch !== null && end !== undefined && Math.abs(end - touch) > 60) {
           go(end < touch ? 1 : -1);
         }
         setTouch(null);
@@ -228,37 +237,60 @@ function SetupCard({ me, space, setup }: { me: Me; space: Space; setup: Setup })
       >
         <X className="size-5" />
       </button>
-      <div className="hidden md:block">
-        <Steps me={me} setup={setup} />
-      </div>
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
-        {setup.current === "info" ? (
-          <FirstStep space={space} />
-        ) : (
-          <NextStep me={me} space={space} setup={setup} />
-        )}
-        <div className="flex items-center gap-2 md:hidden">
-          <button
-            type="button"
-            aria-label={t("start.back")}
-            disabled={at <= 0}
-            onClick={() => go(-1)}
-            className="grid size-10 place-items-center rounded-full ring-1 ring-border transition disabled:opacity-30"
+      <div className="-mx-1 overflow-x-clip px-1 md:contents">
+        <div
+          className={cn(
+            "flex transition-transform duration-300 ease-out md:contents",
+            details && "-translate-x-full",
+          )}
+        >
+          {/* The side a phone doesn't show is hidden too, so nothing of it peeks in or takes focus. */}
+          <div className={cn("w-full shrink-0 md:w-auto", details && "max-md:invisible")}>
+            <Steps me={me} setup={open} />
+          </div>
+          <div
+            className={cn(
+              "grid w-full shrink-0 grid-cols-[minmax(0,1fr)] content-start gap-6 md:w-auto",
+              !details && "max-md:invisible",
+            )}
           >
-            <ChevronLeft className="size-4" />
-          </button>
-          <span className="flex-1 text-center text-[0.8125rem] text-ink-3">
-            {t("start.stepOf", { n: at + 1, all: setup.pages.length })}
-          </span>
-          <button
-            type="button"
-            aria-label={t("start.next")}
-            disabled={at >= setup.pages.length - 1}
-            onClick={() => go(1)}
-            className="grid size-10 place-items-center rounded-full ring-1 ring-border transition disabled:opacity-30"
-          >
-            <ChevronRight className="size-4" />
-          </button>
+            <button
+              type="button"
+              onClick={() => setDetails(false)}
+              className="-ml-1 flex items-center gap-1 justify-self-start text-[0.875rem] text-ink-3 hover:text-ink md:hidden"
+            >
+              <ChevronLeft className="size-4" />
+              {t("start.allSteps")}
+            </button>
+            {setup.current === "info" ? (
+              <FirstStep space={space} />
+            ) : (
+              <NextStep me={me} space={space} setup={setup} />
+            )}
+            <div className="flex items-center gap-2 md:hidden">
+              <button
+                type="button"
+                aria-label={t("start.back")}
+                disabled={at <= 0}
+                onClick={() => go(-1)}
+                className="grid size-10 place-items-center rounded-full ring-1 ring-border transition disabled:opacity-30"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <span className="flex-1 text-center text-[0.8125rem] text-ink-3">
+                {t("start.stepOf", { n: at + 1, all: setup.pages.length })}
+              </span>
+              <button
+                type="button"
+                aria-label={t("start.next")}
+                disabled={at >= setup.pages.length - 1}
+                onClick={() => go(1)}
+                className="grid size-10 place-items-center rounded-full ring-1 ring-border transition disabled:opacity-30"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       <HideSetup open={hiding} onClose={() => setHiding(false)} onHide={setup.onHide} />
@@ -322,10 +354,14 @@ function FirstStep({ space }: { space: Space }) {
   };
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
-      <Mascot kind="round" size={88} fluffy />
-      <h2 className="text-balance font-display font-semibold text-[2rem] leading-[1.08] tracking-tight md:text-[2.5rem]">
-        {t("start.setup.title")}
-      </h2>
+      <div className="flex items-center gap-4">
+        <h2 className="min-w-0 flex-1 text-balance font-display font-semibold text-[2rem] leading-[1.08] tracking-tight md:text-[2.5rem]">
+          {t("start.setup.title")}
+        </h2>
+        <span className="shrink-0">
+          <Mascot kind="round" size={88} fluffy />
+        </span>
+      </div>
       <p className="text-[1rem] text-ink-2 leading-relaxed">{t("start.setup.hint")}</p>
       <form onSubmit={submit} className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-2.5">
         <div className="flex items-center gap-2 rounded-full bg-paper p-1.5 pl-4 ring-[1.5px] ring-ember-strong">

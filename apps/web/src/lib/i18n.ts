@@ -1482,6 +1482,7 @@ const de: Record<Key, Line> = {
   "start.finish": "Fertig und schließen",
   "start.stepOf": "Schritt {n} von {all}",
   "start.next": "Weiter",
+  "start.allSteps": "Alle Schritte",
   "start.hide.title": "Einrichtung ausblenden?",
   "start.hide.detail":
     "Du richtest alles selbst ein, oder Goose hilft dir dabei. Die offenen Schritte bleiben unten auf Home.",
@@ -6584,6 +6585,7 @@ const en = {
   "start.finish": "Done, close",
   "start.stepOf": "Step {n} of {all}",
   "start.next": "Next",
+  "start.allSteps": "All steps",
   "start.hide.title": "Hide the setup?",
   "start.hide.detail":
     "You set everything up yourself, or Goose helps you with it. The open steps stay at the bottom of Home.",
