@@ -198,7 +198,7 @@ function isWebsite(text: string): boolean {
 function SetupCard({ me, space, setup }: { me: Me; space: Space; setup: Setup }) {
   const [hiding, setHiding] = useState(false);
   return (
-    <section className="relative grid grid-cols-[minmax(0,1fr)] items-center gap-8 rounded-[1.75rem] bg-card p-6 pt-12 shadow-soft ring-1 ring-border-soft md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:gap-11 md:p-12 lg:p-16">
+    <section className="relative grid grid-cols-[minmax(0,1fr)] items-center gap-8 rounded-xl bg-card p-6 pt-12 shadow-soft ring-1 ring-border-soft md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:gap-11 md:p-12 lg:p-16">
       <button
         type="button"
         aria-label={t("start.hide")}
