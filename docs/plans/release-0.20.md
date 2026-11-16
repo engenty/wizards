@@ -73,8 +73,9 @@ switch until step 7.
 
 ## Open
 
-1. **The version.** v0.20.0 is being cut from `main` now (#702), without Work or the page. Does
-   this line ship as 0.20.1 and on, or does #702 wait and become this line's first release?
+1. **The version** (decided 2026-11-16). Work on this line is pushed, not released: no release
+   is cut until step 8 is in. v0.20.0 (#702) was tagged from `main` on 2026-11-16, without Work
+   or the page.
 2. **Client mode.** The Client mode comes with the page (`workMode`'s hint). Does
    `clientSpaces` and the portal's phase 2 (`docs/plans/client-portal.md`: streaming, hand-off,
    uploads, mails) ride in 0.20, or come later?
