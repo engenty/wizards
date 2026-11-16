@@ -85,6 +85,16 @@ Fixed on `feat/kernel`:
 - A converted AI step was given every answer again, ids of files and voice notes as JSON included.
   Now only the answers its text does not name, by label, a voice note as what is said.
 - Claude Code 2.1.317 refuses an output schema that names its dialect (`$schema`). Also on `main`.
+- What a step says while it works was filed under the step before it.
+- Removing a step file left its name in `start` and `edges`. Now a way to it goes where it led,
+  and the draft gets a new revision.
+- A finished run that took a way without the named downloads showed nothing. Now it shows what
+  its output reads.
+- A download of a finished run's step answered 404: fixed on 2026-11-15, before the notes said so.
+
+Fixed in the booking entries: with no free time in three weeks, the time page had a required
+slot field with no options. Now a page „Gerade ist nichts frei“ takes name and e-mail (and the
+address for a site visit), and the run ends with „wir melden uns“.
 
 Open:
 
@@ -92,12 +102,7 @@ Open:
 - A step file cannot read the space's brand, the wizard's own files, or a list, and cannot write
   a list row without a model.
 - A review ask has no place for a sentence on what to check.
-- A download of a finished 0.3.0 run's step answers 404 (`serveDownload` looks in
-  `run.definition.steps`).
 - A change request for a film starts it over; a downloaded step value leaves out a review's edits.
-- Events of a step are filed under the step before it.
-- Removing a step file leaves its name in `start` and `edges`.
-- A time page with no free times leaves the person stuck.
 - The converter keeps a review loop limit of 21, writes `<data>` tags into headings, and in
   facebook-video-ad made clips twice.
 
