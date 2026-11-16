@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ArrowUp, Check, ChevronRight, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUp, Check, ChevronRight, Sparkles, X } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Mascot } from "../brand";
@@ -201,10 +201,12 @@ function SetupCard({ me, space, setup }: { me: Me; space: Space; setup: Setup })
     <section className="relative grid grid-cols-[minmax(0,1fr)] items-center gap-8 rounded-[1.75rem] bg-card p-6 pt-12 shadow-soft ring-1 ring-border-soft md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:gap-11 md:p-12 lg:p-16">
       <button
         type="button"
+        aria-label={t("start.hide")}
+        title={t("start.hide")}
         onClick={() => setHiding(true)}
-        className="absolute top-4 right-5 text-[0.8125rem] text-ink-3 underline hover:text-ink md:top-5 md:right-6"
+        className="absolute top-3 right-3 grid size-9 place-items-center rounded-full text-ink-3 transition hover:bg-ink/5 hover:text-ink md:top-4 md:right-4"
       >
-        {t("start.hide")}
+        <X className="size-5" />
       </button>
       {setup.current === "info" ? (
         <FirstStep space={space} />
@@ -545,8 +547,8 @@ function Dashboard({
     <div
       className={cn(
         "mx-auto grid w-full animate-rise grid-cols-[minmax(0,1fr)] gap-7",
-        // The setup takes the page's width; without it Home keeps its column.
-        setup ? "max-w-7xl" : "max-w-4xl",
+        // The setup takes the page's whole width; without it Home keeps its column.
+        setup ? "max-w-none" : "max-w-4xl",
       )}
     >
       {setup ? (
