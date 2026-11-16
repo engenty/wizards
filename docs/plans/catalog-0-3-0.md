@@ -67,9 +67,9 @@ Result: 24 entries from 31, 11 of them one-prompt wizards.
 
 ## What is left
 
-1. The appointments plugin offers its own starters (`plugins/appointments/src/starter.ts`), still
-   in version 0.2.0. A runtime with the plugin shows those instead of the entries, so the 0.3.0
-   booking wizards do not reach people there. The starters become the entries' wizards.
+1. Done: the appointments plugin's starters are the two booking entries, written into
+   `src/starters.gen.ts` by `plugins/appointments/scripts/starters.mjs`. The starter `link` is
+   gone; the booking wizard with one service is the booking link.
 2. Rewrite the landing pages (`landing.json`) of every changed entry: most describe the old pages.
 3. Walk what was not walked: receipts' mail and portal, claim's Schaden and Zuschuss, the ad's
    clips, explainer-video once more with its voice.
