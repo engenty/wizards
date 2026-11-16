@@ -1,4 +1,5 @@
-import { type AskRow, type Battery, NeedsLeave, type Run } from "@engenty/wizards-kernel";
+import { createHash } from "node:crypto";
+import { type AskRow, type Battery, NeedsLeave, type Run, view } from "@engenty/wizards-kernel";
 import type { Field, Step, WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { RunState, StepOutput } from "@engenty/wizards-shared/run";
 import { runAutomaticStep } from "../engine/steps.js";
@@ -171,6 +172,65 @@ function givenFiles(run: RunRow, kernelRun: Run) {
   return { fields: [...fields.values()], values };
 }
 
+/** A step's value as the output today's executors read: its text, or its data with its files. */
+function outputOfValue(value: unknown, at: string): StepOutput {
+  if (typeof value === "string") return { text: value, at };
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const { assets, ...rest } = value as Record<string, unknown>;
+    if (Array.isArray(assets)) {
+      const only = Object.keys(rest);
+      return only.length === 1 && typeof rest.text === "string"
+        ? { text: rest.text, assets: assets as StepOutput["assets"], at }
+        : { json: rest, assets: assets as StepOutput["assets"], at };
+    }
+  }
+  return { json: value ?? {}, at };
+}
+
+/**
+ * A film's material as today's executor finds it: each input in the state under a name of its
+ * own. An input is a value the step passes, or a text naming one: `steps.<id>` for what a step
+ * made, a field's id for what the person gave.
+ */
+export function motionInputs(row: AskRow, kernelRun: Run, state: RunState): Record<string, string> {
+  const seen = view(kernelRun);
+  const answers: Record<string, unknown> = { ...kernelRun.input };
+  for (const one of kernelRun.rows) {
+    if (!("left" in one) && one.type === "form" && one.answer && typeof one.answer === "object") {
+      Object.assign(answers, one.answer);
+    }
+  }
+  const refs: Record<string, string> = {};
+  for (const [name, raw] of Object.entries((row.inputs ?? {}) as Record<string, unknown>)) {
+    let value = raw;
+    if (typeof raw === "string") {
+      const [head, id, ...rest] = raw.trim().split(".");
+      if (head === "steps" && id && id in seen.steps) {
+        value = rest.reduce<unknown>(
+          (at, key) => (at as Record<string, unknown> | undefined)?.[key],
+          seen.steps[id],
+        );
+      } else if (raw.trim() in answers) {
+        value = answers[raw.trim()];
+      }
+    }
+    const key = `arg__${name}`;
+    const files = [value].flat();
+    if (value != null && files.every((one) => typeof one === "string")) {
+      state.values[key] = value;
+      refs[name] = key;
+    } else {
+      // The same value, the same mark: a film made from it is gone on with, not made anew.
+      const at = createHash("sha256")
+        .update(JSON.stringify(value ?? null))
+        .digest("hex");
+      state.outputs[key] = outputOfValue(value, at);
+      refs[name] = `steps.${key}`;
+    }
+  }
+  return refs;
+}
+
 export function kernelBatteries(
   run: RunRow,
   space: SpaceRow,
@@ -190,7 +250,12 @@ export function kernelBatteries(
           ],
         } as WizardDefinition)
       : def;
-    const state = { ...emptyState(), values: given.values };
+    const state = { ...emptyState(), values: { ...given.values } };
+    // A film reads its material from the state: what the step passes is put there.
+    const asks =
+      row.type === "motion-graphics"
+        ? { ...row, inputs: motionInputs(row, kernelRun, state) }
+        : row;
     const ctx = await makeContext({ ...run, definition: asked }, space, state, signal, {
       stepId: row.step,
       // A step that wants the person's yes for what it is about to do: the kernel asks, as a row.
@@ -206,7 +271,7 @@ export function kernelBatteries(
         throw new NeedsLeave();
       },
     });
-    return answerOf(await runAutomaticStep(stepOf(def, row), ctx));
+    return answerOf(await runAutomaticStep(stepOf(def, asks), ctx));
   };
   return {
     agent: battery,
