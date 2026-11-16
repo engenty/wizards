@@ -4,6 +4,26 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.20.0] - 2026-11-16
+- ADDED **[shared]** A wizard's version is the format's, 0.2.0, with a Version filter on the templates behind the kernel switch (#700) **[breaking]**
+- ADDED **[studio]** Shared previews the page as visitors see it, with the page's own look and words (#693)
+- ADDED **[runner]** The connect card at a run's start, a choice among several accounts, and an admin connects for the space (#690)
+- ADDED **[studio]** Shared's panel stands beside the page, the page is a drawn preview, named after the organization (#692)
+- ADDED **[studio]** Shared, the admins' place for the organization's page and the wizards shared by link (#691)
+- ADDED **[studio]** A wizard's needs with the space's choice for runs nobody watches, and a person's own connections (#689)
+- ADDED **[studio]** A client is a client space beside the team spaces, made with „Kund:in anlegen“ (#687)
+- ADDED **[studio]** The organization's own space, Mein Space, the path bar and Ordner are on by default (#685)
+- ADDED **[studio]** Brand sections, rules and typography for everyone; Goose and the new Wissen on unless a plan says no (#684)
+- ADDED **[runtime]** A run's accounts become a person's connections, with a remembered choice and one lookup (#680)
+- ADDED **[runner]** A run that waits for a sign-in shows the connect card (#682)
+- ADDED **[studio]** A connector that can't connect here is named before a run, and the architect knows which can (#681)
+- CHANGED **[runtime]** Clients are in spaces under the organization's own space; client spaces go (#686) **[breaking]**
+- DOCS Documentation updates (#679, #698, #699)
+- FIXED **[runtime]** Claude Code takes a step's output schema without the dialect it refuses (#701)
+- FIXED **[runtime]** A channel's run uses the space's choice, and a run nobody watches can't pick the space's connection itself (#696)
+- FIXED **[runtime]** A run a start began uses the space's choice, and a link visitor without a cookie never does (#695)
+- FIXED **[runtime]** A fixed step uses its person's sign-in; a person's account follows the space's rules; held space connections are bound by the grant (#688)
+
 ## [0.19.1] - 2026-11-14
 - ADDED **[studio]** The architect adds model and image steps only where a wish needs them (#623)
 - FIXED An ended run, chat turn or share job keeps the state it reached (#676)

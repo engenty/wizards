@@ -1,7 +1,139 @@
 [
   {
+    "version": "v0.20.0",
+    "timestamp": 1794845343,
+    "commits": [
+      {
+        "id": "4bbbfd0",
+        "message": "Claude Code takes a step's output schema without the dialect it refuses (#701)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "a8e53d2",
+        "message": "a wizard's version is the format's, 0.2.0, with a Version filter on the templates behind the kernel switch (#700)",
+        "group": "Added",
+        "scope": "shared",
+        "breaking": true
+      },
+      {
+        "id": "64d5ac5",
+        "message": "documentation updates (#679, #698, #699)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "a74d2cc",
+        "message": "a channel's run uses the space's choice, and a run nobody watches can't pick the space's connection itself (#696)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "443af1e",
+        "message": "a run a start began uses the space's choice, and a link visitor without a cookie never does (#695)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "3e46be2",
+        "message": "Shared previews the page as visitors see it, with the page's own look and words (#693)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "3ab11e4",
+        "message": "the connect card at a run's start, a choice among several accounts, and an admin connects for the space (#690)",
+        "group": "Added",
+        "scope": "runner",
+        "breaking": false
+      },
+      {
+        "id": "47c4be7",
+        "message": "Shared's panel stands beside the page, the page is a drawn preview, named after the organization (#692)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "2979a4f",
+        "message": "Shared, the admins' place for the organization's page and the wizards shared by link (#691)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "078d715",
+        "message": "a wizard's needs with the space's choice for runs nobody watches, and a person's own connections (#689)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "94144e3",
+        "message": "a fixed step uses its person's sign-in; a person's account follows the space's rules; held space connections are bound by the grant (#688)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "3459911",
+        "message": "a client is a client space beside the team spaces, made with „Kund:in anlegen“ (#687)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "965ac67",
+        "message": "clients are in spaces under the organization's own space; client spaces go (#686)",
+        "group": "Changed",
+        "scope": "runtime",
+        "breaking": true
+      },
+      {
+        "id": "0174902",
+        "message": "the organization's own space, Mein Space, the path bar and Ordner are on by default (#685)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "e35e812",
+        "message": "brand sections, rules and typography for everyone; Goose and the new Wissen on unless a plan says no (#684)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "2e18eca",
+        "message": "a run's accounts become a person's connections, with a remembered choice and one lookup (#680)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "170eba3",
+        "message": "a run that waits for a sign-in shows the connect card (#682)",
+        "group": "Added",
+        "scope": "runner",
+        "breaking": false
+      },
+      {
+        "id": "a6d93c6",
+        "message": "a connector that can't connect here is named before a run, and the architect knows which can (#681)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.19.1",
-    "timestamp": 1794645386,
+    "timestamp": 1794646108,
     "commits": [
       {
         "id": "45491ce",
@@ -29,6 +161,13 @@
         "message": "a template card that lacks a setup wraps its notice and links to that setup (#615)",
         "group": "Fixed",
         "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "fc97e35",
+        "message": "agents and workflows elsewhere as a step, over MCP and A2A (#613)",
+        "group": "Docs",
+        "scope": "plans",
         "breaking": false
       }
     ]
