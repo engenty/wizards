@@ -34,7 +34,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createPortal, flushSync } from "react-dom";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { Mascot } from "../../brand";
 import { lang, t } from "../../lib/i18n";
 import { spokenText } from "../../lib/read-aloud";
@@ -210,7 +210,7 @@ function AnswerCard({ card, send }: { card: ChatCard; send: (message: string) =>
     return <ExtraEffortCard reason={String((card.data as { reason?: string }).reason ?? "")} />;
   }
   if (!card.plugin && card.tool === "replies") {
-    const { replies } = card.data as { replies: { label: string; message?: string }[] };
+    const { replies } = card.data as { replies: Reply[] };
     return <RepliesCard replies={replies} send={send} />;
   }
   if (!card.plugin && card.tool === "sourceProposal") {
@@ -227,14 +227,16 @@ function AnswerCard({ card, send }: { card: ChatCard; send: (message: string) =>
   return <PluginCard card={card} send={send} />;
 }
 
+interface Reply {
+  label: string;
+  message?: string;
+  /** A page of the studio the button opens first. */
+  to?: string;
+}
+
 /** Goose's short answers as buttons: one click sends it, and the buttons step aside. */
-function RepliesCard({
-  replies,
-  send,
-}: {
-  replies: { label: string; message?: string }[];
-  send: (message: string) => void;
-}) {
+function RepliesCard({ replies, send }: { replies: Reply[]; send: (message: string) => void }) {
+  const navigate = useNavigate();
   const [sent, setSent] = useState(false);
   if (sent) {
     return null;
@@ -247,7 +249,12 @@ function RepliesCard({
           type="button"
           onClick={() => {
             setSent(true);
-            send(r.message ?? r.label);
+            if (r.to?.startsWith("/") && !r.to.startsWith("//")) {
+              navigate(r.to);
+            }
+            if (r.message || !r.to) {
+              send(r.message ?? r.label);
+            }
           }}
           className={cn(
             "inline-flex h-8 items-center rounded-full px-3.5 font-medium text-[0.8125rem] transition",

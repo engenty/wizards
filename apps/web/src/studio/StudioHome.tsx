@@ -1,22 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, Sparkles, X } from "lucide-react";
 import { type FormEvent, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Mascot } from "../brand";
 import type { EngentyKind } from "../engenty/colors";
 import { api } from "../lib/api";
-import { useFeature } from "../lib/features";
 import { type Key, lang, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
 import { type Me, type Space, useCurrentSpace, useIsAdmin, useMe } from "../lib/session";
 import { Button, cn, Dialog, Textarea } from "../ui";
 import { useCrumbs } from "./AppFrame";
 import { useAssistant } from "./assistant/chat";
-import { useSpaceConnections } from "./capabilities/ConnectorsSection";
 import { NewWizardPage } from "./NewWizardPage";
-import { useKnowledge } from "./space/Knowledge";
+import { GO, type PageId, step, useDone, usePages, useSkipped } from "./setup";
 import { useResults } from "./space/Results";
-import { useSkills } from "./space/Skills";
 import { useWaiting } from "./work/chats";
 import { greeting, RunCard } from "./work/WorkHome";
 
@@ -28,10 +25,6 @@ import { greeting, RunCard } from "./work/WorkHome";
  * `/wizards`. The first wizard is no step: the field under the card builds it.
  */
 
-type PageId = "info" | "knowledge" | "connections" | "skills" | "team";
-
-const PAGES: PageId[] = ["info", "knowledge", "connections", "skills", "team"];
-
 /** The engenty beside each step; the team is three of them. */
 const FIGURE: Record<Exclude<PageId, "team">, EngentyKind> = {
   info: "round",
@@ -41,79 +34,6 @@ const FIGURE: Record<Exclude<PageId, "team">, EngentyKind> = {
 };
 
 const TEAM: EngentyKind[] = ["flame", "oval", "pebble"];
-
-/** Where each step is done; on a local install the last one signs in instead. */
-const GO: Record<Exclude<PageId, "info">, string> = {
-  knowledge: "/space/knowledge",
-  connections: "/capabilities/connectors",
-  skills: "/capabilities/skills",
-  team: "/settings/organization",
-};
-
-interface Organization {
-  members: { userId: string }[];
-  invitations: { id: string }[];
-}
-
-/** The steps there are: Skills only behind its switch. */
-function usePages(): PageId[] {
-  const skills = useFeature("skills");
-  return skills ? PAGES : PAGES.filter((p) => p !== "skills");
-}
-
-/** The steps the person put off, kept in this browser per organization. */
-function useSkipped(me: Me | null | undefined) {
-  const key = me ? `wizards.home.skipped:${me.tenant.id}:${me.user.id}` : "";
-  const read = (): PageId[] => {
-    try {
-      return JSON.parse(localStorage.getItem(key) ?? "[]") as PageId[];
-    } catch {
-      return [];
-    }
-  };
-  const [skipped, setSkipped] = useState<PageId[]>(read);
-  const write = (next: PageId[]) => {
-    setSkipped(next);
-    try {
-      localStorage.setItem(key, JSON.stringify(next));
-    } catch {
-      // kept for this visit only
-    }
-  };
-  return [skipped, write] as const;
-}
-
-/** Which steps are done, from what the studio holds. Null: not known yet. */
-function useDone(me: Me | null | undefined, space: Space | null) {
-  const knowledge = useKnowledge(space?.id);
-  const connections = useSpaceConnections(space?.id ?? "");
-  const skills = useSkills(space?.id);
-  const managed = me?.mode === "managed";
-  const organization = useQuery({
-    queryKey: ["organization", me?.tenant.id],
-    queryFn: () => api.get<Organization>("/api/studio/organization"),
-    enabled: managed,
-  });
-  if (
-    !me ||
-    !space ||
-    knowledge.isPending ||
-    connections.isPending ||
-    skills.isPending ||
-    (managed && organization.isPending)
-  ) {
-    return null;
-  }
-  const people =
-    (organization.data?.members.length ?? 1) + (organization.data?.invitations.length ?? 0);
-  return {
-    info: Boolean(space.brand.name?.trim()) || space.brandFrom === "root",
-    knowledge: (knowledge.data?.items.length ?? 0) > 0,
-    connections: (connections.data?.connections.length ?? 0) > 0,
-    skills: (skills.data?.skills.length ?? 0) > 0,
-    team: managed ? people > 1 : Boolean(me.account?.signedIn),
-  } satisfies Record<PageId, boolean>;
-}
 
 export function StudioHome() {
   const me = useMe().data;
@@ -166,15 +86,6 @@ export function StudioHome() {
       onResume={pick}
     />
   );
-}
-
-/** A step's name and line as the list shows them; on a local install the team is the organization. */
-function step(me: Me, page: PageId): { title: string; line: string } {
-  const id = page === "team" && me.mode === "local" ? "connect" : page;
-  return {
-    title: t(`start.step.${id}` as Key),
-    line: t(`start.step.${id}.line` as Key),
-  };
 }
 
 interface Setup {

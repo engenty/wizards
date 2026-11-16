@@ -162,6 +162,7 @@ function system(capabilities: boolean): string {
     }),
     prompt("goose", "knows"),
     prompt("goose", "page"),
+    prompt("goose", "setup"),
     prompt("goose", "space"),
     prompt("goose", "work"),
     contentPolicy(),
@@ -1023,13 +1024,18 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   tools.offer_replies = createTool({
     id: "offer_replies",
     description:
-      "Puts up to three short answers as buttons under your answer; a click sends that answer as the person's next message. Call it once, at the end, when your answer ends with a question the person answers with one of a few choices, or when there is an obvious next step (the next part of the setup, checking what you just filled in). Labels in the person's language, one to four words; `message` is what is sent, a full sentence where the label alone would be unclear. Don't list the buttons in your text.",
+      "Puts up to three short answers as buttons under your answer; a click sends that answer as the person's next message. Call it once, at the end, when your answer ends with a question the person answers with one of a few choices, or when there is an obvious next step (the next part of the setup, checking what you just filled in). Labels in the person's language, one to four words; `message` is what is sent, a full sentence where the label alone would be unclear. `to` opens a page of the studio first (a path such as `/` for Home or a setup step's `to`); with `to` and no `message` the button only opens the page. Don't list the buttons in your text.",
     inputSchema: z.object({
       replies: z
         .array(
           z.object({
             label: z.string().min(1).max(40),
             message: z.string().min(1).max(300).optional(),
+            to: z
+              .string()
+              .regex(/^\/(?!\/)[^\s]*$/)
+              .max(200)
+              .optional(),
           }),
         )
         .min(1)
