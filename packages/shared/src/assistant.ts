@@ -37,6 +37,24 @@ export const assistantPageSchema = z.object({
     .optional(),
   /** The plugin whose page it is. */
   plugin: z.string().max(60).optional(),
+  /** The organization's setup while it is open: its steps and the one the person is on. */
+  setup: z
+    .object({
+      current: z.string().max(40).nullable(),
+      steps: z
+        .array(
+          z.object({
+            id: z.string().max(40),
+            title: z.string().max(80),
+            done: z.boolean(),
+            skipped: z.boolean(),
+            /** The studio's page where the step is done. */
+            to: z.string().max(200),
+          }),
+        )
+        .max(10),
+    })
+    .optional(),
 });
 export type AssistantPage = z.infer<typeof assistantPageSchema>;
 

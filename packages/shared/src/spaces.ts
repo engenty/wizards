@@ -106,8 +106,35 @@ export const BASIC_FACTS = [
   "e_mail",
   "website",
   "iban",
+  "bic",
+  "bank",
 ] as const;
 export type BasicFact = (typeof BASIC_FACTS)[number];
+
+/** The labels a common fact goes by, German and English, so a written fact lands on its key. */
+export const BASIC_FACT_LABELS: Record<BasicFact, string[]> = {
+  adresse: ["Adresse", "Address"],
+  plz: ["PLZ", "Postleitzahl", "Postcode", "Postal code", "ZIP"],
+  ort: ["Ort", "Stadt", "City", "Town"],
+  uid: ["USt-IdNr.", "UID", "UID-Nummer", "VAT ID", "VAT number"],
+  telefon: ["Telefon", "Phone", "Telephone"],
+  e_mail: ["E-Mail", "Email", "E-mail"],
+  website: ["Website", "Webseite", "Homepage"],
+  iban: ["IBAN"],
+  bic: ["BIC", "SWIFT", "BIC/SWIFT"],
+  bank: ["Bank", "Kreditinstitut", "Bankinstitut"],
+};
+
+/** The common fact a label names, if any. */
+export function basicFactOf(label: string): BasicFact | null {
+  const wanted = label.trim().toLowerCase();
+  for (const key of BASIC_FACTS) {
+    if (BASIC_FACT_LABELS[key].some((l) => l.toLowerCase() === wanted)) {
+      return key;
+    }
+  }
+  return null;
+}
 
 // --- the public page -----------------------------------------------------------------
 // A space's page at `<organization>.wizards.page/<slug>` (docs/plans/wizards-page-launch.md in the
