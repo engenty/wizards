@@ -101,6 +101,19 @@ export function grantOf(definition: WizardDefinition): Grant {
       }
     }
   }
+  // A wizard in version 0.3.0 names what it reaches in its file, not in steps.
+  const file = definition.kernel;
+  if (file) {
+    for (const host of file.requires?.hosts ?? []) {
+      hosts.add(host.trim().toLowerCase());
+    }
+    for (const tool of file.requires?.tools ?? []) {
+      tools.add(tool);
+    }
+    for (const [id, actions] of Object.entries(file.connections ?? {})) {
+      connections[id] = [...new Set([...(connections[id] ?? []), ...Object.keys(actions)])].sort();
+    }
+  }
   return { connections, hosts: [...hosts].sort(), tools: [...tools].sort(), channels };
 }
 
