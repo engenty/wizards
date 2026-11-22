@@ -21,6 +21,7 @@ import {
   type UserProfile,
 } from "../lib/session";
 import { Button, Chip, cn, IconButton, Input, Label, Spinner, Textarea } from "../ui";
+import { GroundPick } from "./GroundPick";
 import { LangPick } from "./LangSwitch";
 import { openExternal } from "./LocalRuntime";
 import { OrganizationFace } from "./Organizations";
@@ -530,6 +531,10 @@ export function Account({ me }: { me: Me }) {
           <div className="flex items-center justify-between gap-4 pt-4">
             <span className="font-medium text-[0.875rem]">{t("nav.theme")}</span>
             <ThemeSwitch />
+          </div>
+          <div className="flex items-center justify-between gap-4 pt-4">
+            <span className="font-medium text-[0.875rem]">{t("theme.ground")}</span>
+            <GroundPick />
           </div>
         </div>
       </Section>
