@@ -101,7 +101,8 @@ jobs:
         if: matrix.check == 'typecheck'
         run: pnpm copy:check --strict
 
-      # The MIT packages (packages/runner, decision-model, search-index, search-libsql, goose)
+      # The MIT packages (packages/runner, decision-model, search-index, search-libsql, goose, vault,
+      # plugins)
       # depend only on MIT or permissive packages: scripts/mit-deps-check.mjs.
       - name: MIT dependencies
         if: matrix.check == 'typecheck'
