@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.20.1] - 2026-11-22
+- ADDED **[cli]** Wizards bot installs wizards.bot on this computer – install, setup, status, update, uninstall (#709)
+
 ## [0.20.0] - 2026-11-16
 - ADDED **[shared]** A wizard's version is the format's, 0.2.0, with a Version filter on the templates behind the kernel switch (#700) **[breaking]**
 - ADDED **[studio]** Shared previews the page as visitors see it, with the page's own look and words (#693)

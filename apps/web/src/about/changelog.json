@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.20.1",
+    "timestamp": 1795378697,
+    "commits": [
+      {
+        "id": "15eb961",
+        "message": "wizards bot installs wizards.bot on this computer – install, setup, status, update, uninstall (#709)",
+        "group": "Added",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.20.0",
-    "timestamp": 1794845343,
+    "timestamp": 1794845850,
     "commits": [
       {
         "id": "4bbbfd0",
