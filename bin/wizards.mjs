@@ -210,6 +210,12 @@ function handOver() {
   });
 }
 
+// `wizards bot …` runs here, in the launcher as in the runtime: it installs wizards.bot, which
+// needs no engenty wizards, so `npx wizards bot install` installs nothing else first.
+if (args[0] === "bot") {
+  const { main } = await import("./bot.mjs");
+  process.exit(await main(args.slice(1)));
+}
 const command = commandOf(args);
 if (command === "version") {
   console.log(versionOf(root));
