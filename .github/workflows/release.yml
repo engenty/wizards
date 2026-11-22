@@ -4,14 +4,14 @@ name: Release
 # of on the GitHub release: the runtime, the npm package @engenty/wizards-runtime, as a tarball
 # (and the launcher `wizards`, the package `@engenty/wizards` and the MIT libraries
 # `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`,
-# `@engenty/goose` and `@engenty/vault` beside it). The installer
+# `@engenty/goose`, `@engenty/vault` and `@engenty/plugins` beside it). The installer
 # (apps/web/public/install.sh) fetches the runtime from there. People install the studio as a Chrome app. The installer itself reaches
 # engenty.ai with the deploy the same tag starts (ci.yml).
 #
 # The packages also go to npm while the repository variable PUBLISH_NPM is `true` and the secret
 # NPM_TOKEN holds a token that may publish `wizards`, `@engenty/wizards-runtime`,
 # `@engenty/wizards` and the MIT libraries `@engenty/decision-model`, `@engenty/search-index`,
-# `@engenty/search-libsql`, `@engenty/goose` and `@engenty/vault` without a second factor: the
+# `@engenty/search-libsql`, `@engenty/goose`, `@engenty/vault` and `@engenty/plugins` without a second factor: the
 # runtime for the updates and the launcher, then the launcher for `npx wizards`, then what code
 # outside the repo imports (scripts/npm-package.mjs).
 # Run by hand (workflow_dispatch), it builds and tests everything and publishes nothing. On a pull
@@ -434,7 +434,7 @@ jobs:
           served wizards "wizards-$version.tgz"
           publish @engenty/wizards "engenty-wizards-$version.tgz"
           served @engenty/wizards "wizards-$version.tgz"
-          libraries="decision-model search-index search-libsql goose vault"
+          libraries="decision-model search-index search-libsql goose vault plugins"
           for library in $libraries; do
             publish "@engenty/$library" "engenty-$library-$version.tgz"
           done

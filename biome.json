@@ -27,6 +27,8 @@
       "packages/goose/*.ts",
       "packages/vault/src/**",
       "packages/vault/*.ts",
+      "packages/plugins/src/**",
+      "packages/plugins/*.ts",
       "examples/openui-chat/src/**",
       "examples/openui-chat/*.ts",
       "scripts/*.ts",

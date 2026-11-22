@@ -10,7 +10,7 @@
 //   @engenty/wizards          what code outside this repo imports: packages/wizards/dist as its
 //                             build leaves it (packages/wizards/scripts/build.mjs)
 //   @engenty/decision-model, @engenty/search-index, @engenty/search-libsql, @engenty/goose,
-//   @engenty/vault
+//   @engenty/vault, @engenty/plugins
 //                             the MIT libraries in packages/: each its dist/ as tsc leaves it
 //                             (tsconfig.build.json), its LICENSE and README, at the release's
 //                             version. search-libsql names the other two at that version.
@@ -53,7 +53,7 @@ const launcherStage = join(outDir, "wizards");
 const libraryStage = join(outDir, "engenty-wizards");
 const RUNTIME = "@engenty/wizards-runtime";
 // The MIT libraries, by their folder in packages/; one that another needs comes first.
-const LIBRARIES = ["decision-model", "search-index", "search-libsql", "goose", "vault"];
+const LIBRARIES = ["decision-model", "search-index", "search-libsql", "goose", "vault", "plugins"];
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);

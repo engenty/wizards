@@ -45,7 +45,7 @@ A pnpm workspace:
 | `scripts/` | `npm-package.mjs` (the npm packages: the runtime, the launcher, `@engenty/wizards` and the MIT libraries) |
 | `packages/shared/` | types and schemas the server and the SPA both use |
 | `packages/wizards/` | `@engenty/wizards`, the one package code outside this repo imports: `/plugin` (a plugin’s server half), `/plugin/studio`, `/plugin/thread`, `/openui` (wizards in OpenUI chats), `/openui/server` |
-| `packages/decision-model/`, `search-index/`, `search-libsql/`, `goose/`, `vault/` | the MIT libraries of the engenty framework, each on npm under its own name (below) |
+| `packages/decision-model/`, `search-index/`, `search-libsql/`, `goose/`, `vault/`, `plugins/` | the MIT libraries of the engenty framework, each on npm under its own name (below) |
 | `modules/` | plugins that ship with the runtime |
 | `examples/plugins/` | example plugins; loaded with `PLUGINS_DIR=examples/plugins` |
 | `scripts/build-plugin.mjs` | builds a plugin's studio half |
@@ -61,7 +61,7 @@ A pnpm workspace:
 | `wizards` | The launcher people run with `npx wizards`: it installs the runtime and hands over. Built by `scripts/npm-package.mjs` |
 | `@engenty/wizards-runtime` | The runtime the installer and the updates install: `apps/runtime`, built by `scripts/npm-package.mjs` beside the launcher |
 | `@engenty/wizards` | What code outside this repo imports, one subpath per use: `/plugin`, `/openui`. Inside the repo the runtime and the studio import it by the same name |
-| `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/goose`, `@engenty/vault` | The MIT libraries in `packages/`, published with each release at its version by `scripts/npm-package.mjs`. Their runtime dependencies stay MIT or as permissive (`pnpm mit-deps:check`) |
+| `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/goose`, `@engenty/vault`, `@engenty/plugins` | The MIT libraries in `packages/`, published with each release at its version by `scripts/npm-package.mjs`. Their runtime dependencies stay MIT or as permissive (`pnpm mit-deps:check`) |
 | `@engenty/wizards-*` | The workspace’s other parts, named after the product, never published: `wizards-studio` (`apps/web`), `wizards-docs`, `wizards-shared`, `wizards-runner`, and the examples `wizards-example-run-log` and `wizards-example-openui-chat`. The folders keep their names |
 
 A new thing for outside code goes into `packages/wizards/` as a subpath, not into a package of
