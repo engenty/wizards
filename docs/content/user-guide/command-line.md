@@ -1,7 +1,7 @@
 ---
 title: Command line
 description: The wizards command – start, setup, status, update – and the settings file on your computer.
-version: 0.18.0
+version: 0.20.0
 ---
 
 ## Commands
@@ -28,6 +28,7 @@ version: 0.18.0
 | `wizards disconnect [app …]` | Takes them out again |
 | `wizards mcp` | Runs the MCP server over stdio. AI apps start it; you don’t |
 | `wizards uninstall` | Takes engenty wizards off this computer. It shows what it will remove first and asks about your data on its own; your data is kept unless you choose to delete it. `--dry-run` only shows the plan, `--yes` asks nothing and keeps your data, `--yes --delete-data` deletes it too. See [Remove](./install.md#remove) |
+| `wizards bot` | Installs [wizards.bot](https://github.com/engenty/wizards-bot), your own agent in a home of your own, on this computer. It doesn’t need engenty wizards: `npx wizards bot install` works on its own. `install` puts the home into `~/.engenty/wizards/bot`, starts it with your computer on port 4747 (or the next free one) and opens its setup. `setup` opens the setup again and shows a code for your phone. `setup --link <address> <code>` links this computer to your home on wizards.bot, so it uses this computer’s models while this computer is on. `status`, `update` and `uninstall` do what they say. Your home’s data stays in `~/.wizards-bot` unless you add `--purge`, which asks first. On Windows it isn’t available yet |
 | `wizards move-files` | Once, after the update to 0.16: moves the files of your spaces (logos, assets, documents) to where they are kept now, by their content, so the same file is stored once. Until then they don’t open. Running it again moves only what is left |
 | `wizards move-folder-sources` | Once, with Dateien and the new Wissen switched on: each folder the Sources plugin read into Wissen becomes a mounted folder in Dateien, and Wissen takes it from there. What you changed by hand stays yours. Running it again converts only what is left |
 | `wizards validate <path …>` | Checks wizards without the studio: `.wizard` files, unpacked wizard files, or a wizard’s JSON. `--json` prints the problems as JSON |

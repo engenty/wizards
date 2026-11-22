@@ -323,10 +323,13 @@ writeFileSync(
 );
 
 // --- 4. the launcher ---------------------------------------------------------------------
-// bin/wizards.mjs as it is (it tells the launcher from the runtime by what is beside it) and the
-// installer it runs. No engines: it runs on an older Node too, and the installer brings a new one.
+// bin/wizards.mjs as it is (it tells the launcher from the runtime by what is beside it), `wizards
+// bot` (bin/bot.mjs) and the installer it runs. No engines: it runs on an older Node too, and the
+// installer brings a new one.
 mkdirSync(join(launcherStage, "bin"), { recursive: true });
-cpSync(join(root, "bin", "wizards.mjs"), join(launcherStage, "bin", "wizards.mjs"));
+for (const file of ["wizards.mjs", "bot.mjs"]) {
+  cpSync(join(root, "bin", file), join(launcherStage, "bin", file));
+}
 chmodSync(join(launcherStage, "bin", "wizards.mjs"), 0o755);
 for (const file of ["install.sh", "install.ps1"]) {
   cpSync(join(root, "apps", "web", "public", file), join(launcherStage, file));
