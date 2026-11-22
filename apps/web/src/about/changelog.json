@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.20.3",
+    "timestamp": 1795390451,
+    "commits": [
+      {
+        "id": "7244cf2",
+        "message": "MIT library @engenty/plugins, the plugin contract engenty wizards and wizards.bot both load (#716)",
+        "group": "Added",
+        "scope": "plugins",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.20.2",
-    "timestamp": 1795385015,
+    "timestamp": 1795385378,
     "commits": [
       {
         "id": "fee7c1f",
