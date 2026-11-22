@@ -1,4 +1,4 @@
-import { Moon, Palette, Sun } from "lucide-react";
+import { ChevronDown, Moon, Palette, Sun } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { t } from "../lib/i18n";
 import { setTheme, type ThemeMode, usePreferredTheme, useThemeMode } from "../lib/theme";
@@ -15,7 +15,7 @@ const EASE = "cubic-bezier(0.3, 0.7, 0.2, 1)";
 /**
  * Light · branded · dark in the look of the language switch: a thumb slides to the pick. `surface`: on a
  * card or menu; `ground`: on a vivid page, which shows dark whatever the pick — so it lights the pick.
- * The branded button, pressed again, opens the colours of the branded theme.
+ * The branded button opens a small menu of its colours, and picks the branded theme as well.
  */
 export function ThemeSwitch({ tone = "surface" }: { tone?: "ground" | "surface" }) {
   const shown = useThemeMode();
@@ -82,22 +82,34 @@ export function ThemeSwitch({ tone = "surface" }: { tone?: "ground" | "surface" 
             )}
             key={option}
             aria-expanded={option === "branded" ? colours : undefined}
+            aria-haspopup={option === "branded" ? "true" : undefined}
             onClick={() => {
-              if (option === "branded" && theme === "branded") {
+              if (option === "branded") {
+                if (theme !== "branded") {
+                  setTheme(option);
+                }
                 setColours((open) => !open);
                 return;
               }
+              setColours(false);
               setTheme(option);
             }}
-            title={option === "branded" && theme === "branded" ? t("theme.groundOpen") : t(label)}
+            title={option === "branded" ? t("theme.groundOpen") : t(label)}
             type="button"
           >
-            <Icon className="size-3.5" />
+            {option === "branded" ? (
+              <span className="flex items-center gap-px">
+                <Icon className="size-3.5" />
+                <ChevronDown className="size-2.5" strokeWidth={2.5} />
+              </span>
+            ) : (
+              <Icon className="size-3.5" />
+            )}
           </button>
         ))}
       </fieldset>
       {colours ? (
-        <div className="absolute top-full right-0 z-50 mt-2 w-max animate-rise rounded-xl bg-card p-2.5 shadow-overlay ring-1 ring-border-soft">
+        <div className="absolute top-full right-0 z-50 mt-2 w-max animate-rise rounded-xl bg-card p-2 shadow-overlay ring-1 ring-border-soft">
           <GroundPick onPick={() => setColours(false)} />
         </div>
       ) : null}
