@@ -25,6 +25,8 @@
       "packages/search-libsql/*.ts",
       "packages/goose/src/**",
       "packages/goose/*.ts",
+      "packages/vault/src/**",
+      "packages/vault/*.ts",
       "examples/openui-chat/src/**",
       "examples/openui-chat/*.ts",
       "scripts/*.ts",
