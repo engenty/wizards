@@ -1,7 +1,34 @@
 [
   {
+    "version": "v0.20.2",
+    "timestamp": 1795385015,
+    "commits": [
+      {
+        "id": "fee7c1f",
+        "message": "the branded button opens its colours as a small menu (#713)",
+        "group": "Added",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "bb823c1",
+        "message": "MIT library @engenty/vault for sealed secrets, key rings and a redactor (#712)",
+        "group": "Added",
+        "scope": "vault",
+        "breaking": false
+      },
+      {
+        "id": "1e86828",
+        "message": "seven colours for the branded theme (#711)",
+        "group": "Added",
+        "scope": "web",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.20.1",
-    "timestamp": 1795378697,
+    "timestamp": 1795379082,
     "commits": [
       {
         "id": "15eb961",
