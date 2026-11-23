@@ -261,7 +261,7 @@ export function homeAddress(text) {
 }
 
 /** The PATH without what npm put in for running this command. */
-function cleanPath(env = process.env) {
+export function cleanPath(env = process.env) {
   return (env.PATH || "")
     .split(delimiter)
     .filter((dir) => dir && !/[\\/](node_modules[\\/]\.bin|node-gyp-bin)$/.test(dir))
@@ -581,9 +581,68 @@ function saveSettings(paths, settings) {
 const xml = (text) =>
   String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
+/** The commands a home thinks with, which its service has to find. */
+export const AGENT_COMMANDS = ["claude", "codex", "ollama", "goose"];
+
+function runnable(file) {
+  try {
+    return statSync(file).isFile() && (statSync(file).mode & 0o111) !== 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Folders where those commands are often installed without being on the PATH of the shell that
+ * ran this command: Node version managers (nvm's newest first), global npm and pnpm folders,
+ * Bun, Homebrew.
+ */
+function commandFolders(home, system) {
+  const nvm = join(home, ".nvm", "versions", "node");
+  const versions = listDir(nvm)
+    .filter((name) => /^v\d+/.test(name))
+    .sort((a, b) => (older(a.slice(1), b.slice(1)) ? 1 : older(b.slice(1), a.slice(1)) ? -1 : 0))
+    .map((name) => join(nvm, name, "bin"));
+  return [
+    ...versions,
+    join(home, ".volta", "bin"),
+    join(home, ".npm-global", "bin"),
+    join(home, "Library", "pnpm"),
+    join(home, ".local", "share", "pnpm"),
+    join(home, ".bun", "bin"),
+    join(home, ".local", "bin"),
+    ...system,
+  ];
+}
+
+/** Homebrew's folders, where Ollama usually is. */
+const SYSTEM_FOLDERS = ["/opt/homebrew/bin", "/usr/local/bin"];
+
+/**
+ * The folders to add to a service's PATH so it finds Claude, Codex, Ollama and Goose that the
+ * PATH of this shell misses: a Codex installed with npm under nvm, say, when nvm wasn't loaded.
+ */
+export function agentFolders(env = process.env, home = homedir(), system = SYSTEM_FOLDERS) {
+  const path = cleanPath(env).split(delimiter);
+  const found = [];
+  for (const name of AGENT_COMMANDS) {
+    if (path.some((dir) => runnable(join(dir, name)))) {
+      continue;
+    }
+    const dir = commandFolders(home, system).find((folder) => runnable(join(folder, name)));
+    if (dir && !found.includes(dir)) {
+      found.push(dir);
+    }
+  }
+  return found;
+}
+
 /** The environment a service gets: your PATH (for Ollama, Claude and Codex) and your home folder. */
 function serviceEnv(paths) {
-  return { PATH: cleanPath(), HOME: paths.user };
+  return {
+    PATH: [cleanPath(), ...agentFolders(process.env, paths.user)].filter(Boolean).join(delimiter),
+    HOME: paths.user,
+  };
 }
 
 /** The LaunchAgent: `wizards-bot <args>`, started at login and again when it fails. */
