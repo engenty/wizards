@@ -336,7 +336,7 @@ writeFileSync(
 // bot` (bin/bot.mjs) and the installer it runs. No engines: it runs on an older Node too, and the
 // installer brings a new one.
 mkdirSync(join(launcherStage, "bin"), { recursive: true });
-for (const file of ["wizards.mjs", "bot.mjs"]) {
+for (const file of ["wizards.mjs", "bot.mjs", "bot-tunnel.mjs"]) {
   cpSync(join(root, "bin", file), join(launcherStage, "bin", file));
 }
 chmodSync(join(launcherStage, "bin", "wizards.mjs"), 0o755);
