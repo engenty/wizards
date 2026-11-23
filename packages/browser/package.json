@@ -1,0 +1,48 @@
+{
+  "name": "@engenty/browser",
+  "version": "0.1.0",
+  "description": "A browser for agents: Mastra's agent-browser provider with its tools in a form any tool system takes, no JavaScript of the model's on a page, and a private fill that types a value into a field only when the field is on the expected website.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/engenty/wizards.git",
+    "directory": "packages/browser"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "wizards-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@mastra/agent-browser": "0.6.0"
+  },
+  "peerDependencies": {
+    "@mastra/core": ">=1.22.0 <2.0.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@mastra/core": "1.82.0",
+    "@types/node": "^26.6.6",
+    "typescript": "~7.0.2",
+    "vitest": "^5.1.0",
+    "zod": "4.6.7"
+  }
+}

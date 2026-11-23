@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.20.3] - 2026-11-22
+- ADDED **[plugins]** MIT library @engenty/plugins, the plugin contract engenty wizards and wizards.bot both load (#716)
+
 ## [0.20.2] - 2026-11-22
 - ADDED **[web]** The branded button opens its colours as a small menu (#713)
 - ADDED **[vault]** MIT library @engenty/vault for sealed secrets, key rings and a redactor (#712)
