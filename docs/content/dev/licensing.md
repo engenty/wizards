@@ -17,7 +17,7 @@ Use it, change it and share it in any app, open or closed. Keep the licence text
 | The wizard format | eighteen files in `packages/shared/src` | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT)) |
 | The runner | `@engenty/wizards-runner` in `packages/runner` | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/packages/runner/LICENSE)) |
 | The plugin for the AI apps | `plugin/`, without the engenty figures in it | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/plugin/LICENSE)) |
-| The libraries | `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/goose`, `@engenty/vault` and `@engenty/plugins` in `packages/` | MIT (the `LICENSE` in each folder) |
+| The libraries | `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/goose`, `@engenty/vault`, `@engenty/plugins` and `@engenty/browser` in `packages/` | MIT (the `LICENSE` in each folder) |
 
 ### The wizard format
 
@@ -44,7 +44,7 @@ MIT, the format files it bundles included. Your own app can draw runs with it
 
 ### The libraries
 
-Six libraries go to npm with each release, at its version:
+Seven libraries go to npm with each release, at its version:
 
 - `@engenty/decision-model`: one request to a decision model, by whichever way is set up (the
   Vercel AI Gateway, TypeSafe’s API or Ollama)
@@ -53,11 +53,15 @@ Six libraries go to npm with each release, at its version:
 - `@engenty/goose`: Goose, the copilot: a chat with tools and adapters for the Anthropic and
   OpenAI SDKs and the Vercel AI SDK
 - `@engenty/vault`: secrets sealed with AES-256-GCM and bound to where they belong, key rings
-  for a new key, keys from the environment, a private file or the macOS Keychain, and a
-  redactor that keeps secret values out of text
+  for a new key, keys from the environment, a private file or the macOS Keychain, a
+  redactor that keeps secret values out of text, and what a password vault needs: which
+  websites a login fits, authenticator codes and the CSV exports of password managers
 - `@engenty/plugins`: the plugin contract engenty wizards and wizards.bot both load: the
   manifest, finding plugins in folders, a plugin’s tools, and a host that runs them in a Node
   process with fewer rights
+- `@engenty/browser`: a browser for agents on Mastra’s agent-browser provider: its tools for any
+  tool system, none that runs the model’s JavaScript, and a private fill that types a password
+  or a code only into a field on the expected website
 
 They depend only on each other and on packages under MIT or a licence as permissive.
 

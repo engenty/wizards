@@ -29,6 +29,8 @@
       "packages/vault/*.ts",
       "packages/plugins/src/**",
       "packages/plugins/*.ts",
+      "packages/browser/src/**",
+      "packages/browser/*.ts",
       "examples/openui-chat/src/**",
       "examples/openui-chat/*.ts",
       "scripts/*.ts",

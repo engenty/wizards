@@ -1,7 +1,7 @@
 {
   "name": "@engenty/vault",
   "version": "0.1.0",
-  "description": "Secrets sealed with AES-256-GCM and bound to where they belong, key rings for rotation, keys from the environment, a private file or the macOS Keychain, and a redactor that keeps secret values out of text.",
+  "description": "Secrets sealed with AES-256-GCM and bound to where they belong, key rings for rotation, keys from the environment, a private file or the macOS Keychain, a redactor that keeps secret values out of text, and what a password vault needs: website matching, authenticator codes and password-manager CSV import.",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -30,6 +30,9 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "tldts": "7.4.24"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
