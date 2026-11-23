@@ -53,7 +53,15 @@ const launcherStage = join(outDir, "wizards");
 const libraryStage = join(outDir, "engenty-wizards");
 const RUNTIME = "@engenty/wizards-runtime";
 // The MIT libraries, by their folder in packages/; one that another needs comes first.
-const LIBRARIES = ["decision-model", "search-index", "search-libsql", "goose", "vault", "plugins", "browser"];
+const LIBRARIES = [
+  "decision-model",
+  "search-index",
+  "search-libsql",
+  "goose",
+  "vault",
+  "plugins",
+  "browser",
+];
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
