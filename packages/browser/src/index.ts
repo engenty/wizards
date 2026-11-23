@@ -118,7 +118,10 @@ const TOOLS: { name: string; description: string; input: z.ZodType; call: Call }
     name: "browser_close",
     description: "Close the browser when you are done with it.",
     input: closeInputSchema,
-    call: (b, _input, t) => b.closeThreadSession(t),
+    call: async (b, _input, t) => {
+      await b.closeThreadSession(t);
+      return { success: true };
+    },
   },
 ];
 
