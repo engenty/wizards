@@ -1,10 +1,24 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { createServer as createHttpServer, type IncomingMessage } from "node:http";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // @ts-expect-error: plain JavaScript beside the launcher, without types
 import * as bot from "../../../bin/bot.mjs";
+// @ts-expect-error: plain JavaScript beside the launcher, without types
+import * as relay from "../../../bin/bot-tunnel.mjs";
 
 // `wizards bot`, without a release, a service or npm: what it reads and writes. Every test has a
 // home folder of its own; the install itself is proven by hand (the PR says how).
@@ -287,4 +301,272 @@ describe("wizards bot", () => {
     const full = { TCP: { 443: {}, 8443: {}, 10000: {} } };
     expect(bot.funnelPort(full, host, 4748)).toBeNull();
   });
+});
+
+// The tunnel through our relay at <name>.wizards.host: what `wizards bot tunnel` writes and asks
+// the account (Manage's /v1/tunnels/*), against a fake account. The relay itself isn't here.
+
+const openssl = spawnSync("openssl", ["version"]).status === 0;
+
+/** A self-signed certificate that ends in `days`, made with openssl. */
+function certFor(days: number) {
+  const made = spawnSync(
+    "openssl",
+    ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", String(days), "-subj", "/CN=ada.wizards.host", "-keyout", "/dev/null"],
+    { encoding: "utf8" },
+  );
+  return made.stdout;
+}
+
+type Fake = { url: string; calls: { method: string; path: string; auth?: string; body: unknown }[]; close: () => void };
+
+/** The account's tunnel API, as the contract has it: each answer pending once, then ready. */
+async function fakeAccount(cert: string): Promise<Fake> {
+  const calls: Fake["calls"] = [];
+  let redeemed = 0;
+  let asked = 0;
+  const server = createHttpServer(async (req: IncomingMessage, res) => {
+    let text = "";
+    for await (const chunk of req) text += chunk;
+    const body = text ? JSON.parse(text) : null;
+    calls.push({ method: req.method || "", path: req.url || "", auth: req.headers.authorization, body });
+    const json = (status: number, data: unknown) => {
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(JSON.stringify(data));
+    };
+    if (req.url === "/v1/tunnels/start") {
+      return json(200, { deviceCode: "dc1", userCode: "K7QF-2MXD", url: `${fake.url}/tunnel?code=K7QF-2MXD`, interval: 3, expiresIn: 900 });
+    }
+    if (req.url === "/v1/tunnels/redeem") {
+      return ++redeemed < 2
+        ? json(202, { state: "pending" })
+        : json(200, { key: "wbn_test", name: "test01.ada.wizards.host", server: "wizards.host", serverPort: 443 });
+    }
+    if (req.url === "/v1/tunnels/cert" && req.method === "POST") {
+      return json(202, { id: "o1", state: "pending" });
+    }
+    if (req.url === "/v1/tunnels/cert/o1") {
+      return ++asked < 2 ? json(200, { state: "pending" }) : json(200, { state: "ready", cert, notAfter: "2027-02-21T00:00:00Z" });
+    }
+    if (req.url === "/v1/tunnels/key" && req.method === "DELETE") {
+      res.writeHead(204);
+      return res.end();
+    }
+    json(404, { error: "Not found.", code: "unknown" });
+  });
+  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  const fake: Fake = {
+    url: `http://127.0.0.1:${(server.address() as { port: number }).port}`,
+    calls,
+    close: () => server.close(),
+  };
+  return fake;
+}
+
+describe("wizards bot tunnel", () => {
+  it("reads --name and --tailscale", () => {
+    expect(bot.parse(["tunnel", "./t", "--name", "Test01"])).toMatchObject({ folder: "./t", name: "test01" });
+    expect(bot.parse(["tunnel", "--tailscale"])).toMatchObject({ tailscale: true, name: null });
+    expect(() => bot.parse(["tunnel", "--name"])).toThrow("--name needs a word");
+    expect(bot.labelOk("test01")).toBe(true);
+    expect(bot.labelOk("a-b")).toBe(true);
+    expect(bot.labelOk("-a")).toBe(false);
+    expect(bot.labelOk("a.b")).toBe(false);
+    expect(bot.labelOk("x".repeat(33))).toBe(false);
+    expect(bot.accountUrl({})).toBe("https://engenty.ai");
+    expect(bot.accountUrl({ WIZARDS_ACCOUNT_URL: "http://localhost:5182/" })).toBe("http://localhost:5182");
+  });
+
+  it("pins frpc's checksum for every machine it downloads for", () => {
+    expect(bot.FRP_VERSION).toBe("0.72.0");
+    expect(Object.keys(bot.FRP_SHA256).sort()).toEqual(
+      ["darwin_amd64", "darwin_arm64", "linux_amd64", "linux_arm64", "windows_amd64"],
+    );
+    for (const sum of Object.values(bot.FRP_SHA256)) {
+      expect(sum).toMatch(/^[0-9a-f]{64}$/);
+    }
+    expect(bot.frpMachine("darwin", "arm64")).toBe("darwin_arm64");
+    expect(bot.frpMachine("linux", "x64")).toBe("linux_amd64");
+    expect(bot.frpMachine("win32", "x64")).toBe("windows_amd64");
+  });
+
+  it("writes frpc's settings: wss to the relay, the key, TLS ended here", () => {
+    const text = relay.frpcConfig({
+      dir: "/h/tunnel",
+      name: "ada.wizards.host",
+      key: "wbn_x",
+      server: "wizards.host",
+      serverPort: 443,
+      port: 4748,
+      adminPort: 23456,
+      adminPassword: "pw",
+    });
+    for (const line of [
+      'serverAddr = "wizards.host"',
+      "serverPort = 443",
+      'transport.protocol = "wss"',
+      "transport.tls.useSystemCa = true",
+      "transport.heartbeatInterval = 30",
+      'metadatas.token = "wbn_x"',
+      'webServer.addr = "127.0.0.1"',
+      "webServer.port = 23456",
+      'name = "ada.wizards.host"',
+      'type = "https"',
+      'customDomains = ["ada.wizards.host"]',
+      'type = "https2http"',
+      'localAddr = "127.0.0.1:4748"',
+      'crtPath = "/h/tunnel/cert.pem"',
+      'keyPath = "/h/tunnel/key.pem"',
+    ]) {
+      expect(text).toContain(line);
+    }
+    expect(text).not.toContain("hostHeaderRewrite");
+    expect(text).not.toContain("auth.token");
+  });
+
+  it("makes a certificate request for the name with a key that stays here", () => {
+    const key = relay.makeKey();
+    expect(key).toContain("BEGIN PRIVATE KEY");
+    const csr = relay.csrFor("test01.ada.wizards.host", key);
+    expect(csr).toMatch(/^-----BEGIN CERTIFICATE REQUEST-----\n/);
+    if (!openssl) {
+      return;
+    }
+    const file = join(user, "t.csr");
+    writeFileSync(file, csr);
+    const read = spawnSync("openssl", ["req", "-in", file, "-verify", "-noout", "-text"], { encoding: "utf8" });
+    expect(read.status).toBe(0);
+    expect(`${read.stdout}${read.stderr}`).toMatch(/verify OK/i);
+    expect(read.stdout).toContain("CN=test01.ada.wizards.host");
+    expect(read.stdout).toContain("DNS:test01.ada.wizards.host");
+    expect(read.stdout).toContain("ecdsa-with-SHA256");
+  });
+
+  it("names the tunnel's service after the home's and keeps it out of the folder homes", () => {
+    const main = bot.layout(process.env);
+    expect(main.tunnelLabel).toBe(`${bot.LABEL}.tunnel`);
+    expect(main.tunnelUnitName).toBe("wizards-bot-tunnel.service");
+    expect(main.tunnel).toBe(join(user, ".wizards-bot", "tunnel"));
+    const dir = join(user, "demo", "test01");
+    const paths = bot.layout(process.env, dir);
+    expect(paths.tunnelLabel).toBe(`${paths.label}.tunnel`);
+    expect(paths.tunnelUnitName).toMatch(/^wizards-bot-test01-[0-9a-f]{6}-tunnel\.service$/);
+    expect(paths.tunnel).toBe(join(dir, "tunnel"));
+    const agent = bot.agentText(paths, paths.tunnelLabel, [join(paths.tunnel, "run.mjs"), paths.tunnel], paths.tunnelLog, "/n/bin/node");
+    expect(agent).toContain(`<string>/n/bin/node</string>\n    <string>${join(paths.tunnel, "run.mjs")}</string>`);
+    const unit = bot.unitText(paths, "wizards.bot, the tunnel", ["run.mjs"], "/n/bin/node");
+    expect(unit).toContain('ExecStart="/n/bin/node" "run.mjs"');
+    // The tunnel's own service is no home in a folder.
+    mkdirSync(dirname(paths.agent), { recursive: true });
+    mkdirSync(dirname(paths.unit), { recursive: true });
+    for (const p of [main, paths]) {
+      writeFileSync(p.tunnelAgent, bot.agentText(p, p.tunnelLabel, ["x"], "/l", "/n/bin/node"));
+      writeFileSync(p.tunnelUnit, bot.unitText(p, "t", ["x"], "/n/bin/node"));
+    }
+    expect(bot.folderInstalls(main)).toEqual([]);
+  });
+
+  it("writes the tunnel's files, the secret ones for you alone", () => {
+    const dir = join(user, "demo", "tunnel");
+    bot.writeTunnel(dir, { name: "ada.wizards.host", key: "wbn_x", server: "wizards.host", serverPort: 443, port: 4748, adminPort: 23456, adminPassword: "pw" });
+    expect(statSync(join(dir, "tunnel.json")).mode & 0o777).toBe(0o600);
+    expect(statSync(join(dir, "frpc.toml")).mode & 0o777).toBe(0o600);
+    expect(readFileSync(join(dir, "frpc.toml"), "utf8")).toContain('metadatas.token = "wbn_x"');
+    expect(readFileSync(join(dir, "run.mjs"), "utf8")).toContain("export async function run(dir)");
+  });
+
+  it("refuses to open a tunnel while no device is paired", async () => {
+    const dir = join(user, "demo", "test01");
+    const paths = bot.layout(process.env, dir);
+    const health = createHttpServer((_req, res) => {
+      res.writeHead(200);
+      res.end("{}");
+    });
+    await new Promise<void>((done) => health.listen(0, "127.0.0.1", done));
+    const port = (health.address() as { port: number }).port;
+    const account = await fakeAccount("");
+    process.env.WIZARDS_ACCOUNT_URL = account.url;
+    try {
+      mkdirSync(join(paths.bot, "0.1.4"), { recursive: true });
+      writeFileSync(join(paths.bot, "0.1.4", "package.json"), JSON.stringify({ version: "0.1.4" }));
+      symlinkSync("0.1.4", paths.current);
+      writeFileSync(paths.settings, JSON.stringify({ port, data: paths.data, node: process.execPath, bin: "cli.ts" }));
+      writeFileSync(paths.command, '#!/bin/sh\nprintf "Devices\\n  none\\n"\n');
+      chmodSync(paths.command, 0o755);
+      expect(await bot.main(["tunnel", dir])).toBe(1);
+      expect(said.join("\n")).toContain("No device is paired with this home yet");
+      expect(account.calls).toEqual([]);
+      expect(existsSync(paths.tunnel)).toBe(false);
+    } finally {
+      health.close();
+      account.close();
+    }
+  });
+
+  it("gets a name and a certificate from the account", async () => {
+    const cert = openssl ? certFor(90) : "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n";
+    const account = await fakeAccount(cert);
+    try {
+      const given = await bot.signIn(account.url, { label: "test01", open: false, every: 10 });
+      expect(given).toEqual({ key: "wbn_test", name: "test01.ada.wizards.host", server: "wizards.host", serverPort: 443 });
+      expect(account.calls[0]).toMatchObject({ method: "POST", path: "/v1/tunnels/start", body: { label: "test01" } });
+      expect(said.join("\n")).toContain("K7QF-2MXD");
+      expect(account.calls.filter((c) => c.path === "/v1/tunnels/redeem")).toHaveLength(2);
+
+      const key = relay.makeKey();
+      const got = await relay.orderCertificate(account.url, "wbn_test", relay.csrFor(given.name, key), { every: 10 });
+      expect(got).toBe(cert);
+      const order = account.calls.find((c) => c.path === "/v1/tunnels/cert");
+      expect(order?.auth).toBe("Bearer wbn_test");
+      expect((order?.body as { csr: string }).csr).toContain("BEGIN CERTIFICATE REQUEST");
+      expect(account.calls.filter((c) => c.path === "/v1/tunnels/cert/o1")).toHaveLength(2);
+    } finally {
+      account.close();
+    }
+  });
+
+  it("says why a name wasn't given", async () => {
+    const server = createHttpServer((req, res) => {
+      res.writeHead(req.url === "/v1/tunnels/start" ? 200 : 403, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify(
+          req.url === "/v1/tunnels/start"
+            ? { deviceCode: "d", userCode: "A", url: "u", interval: 1, expiresIn: 60 }
+            : { error: "Declined.", code: "denied" },
+        ),
+      );
+    });
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    try {
+      await expect(
+        bot.signIn(`http://127.0.0.1:${(server.address() as { port: number }).port}`, { open: false, every: 10 }),
+      ).rejects.toThrow("declined on the account page");
+    } finally {
+      server.close();
+    }
+  });
+
+  it.skipIf(!openssl)("renews the certificate 30 days before it ends", async () => {
+    const fresh = certFor(90);
+    const account = await fakeAccount(fresh);
+    const dir = join(user, "tunnel");
+    mkdirSync(dir);
+    writeFileSync(join(dir, "key.pem"), relay.makeKey());
+    const tunnel = { dir, account: account.url, key: "wbn_test", name: "ada.wizards.host" };
+    try {
+      writeFileSync(join(dir, "cert.pem"), fresh);
+      expect(relay.needsRenewal(fresh)).toBe(false);
+      expect(await relay.renewIfDue(tunnel)).toBe(false);
+      expect(account.calls).toEqual([]);
+      const ending = certFor(10);
+      expect(relay.needsRenewal(ending)).toBe(true);
+      expect(relay.needsRenewal(null)).toBe(true);
+      writeFileSync(join(dir, "cert.pem"), ending);
+      // Waits 3 s between asks in the service; the fake answers on the second.
+      expect(await relay.renewIfDue(tunnel)).toBe(true);
+      expect(readFileSync(join(dir, "cert.pem"), "utf8")).toBe(fresh);
+    } finally {
+      account.close();
+    }
+  }, 15_000);
 });
