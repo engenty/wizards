@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.20.5",
+    "timestamp": 1795423230,
+    "commits": [
+      {
+        "id": "8f76f0b",
+        "message": "wizards bot install <folder>, a port check and wizards bot tunnel (#721)",
+        "group": "Added",
+        "scope": "bot",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.20.4",
-    "timestamp": 1795417814,
+    "timestamp": 1795418177,
     "commits": [
       {
         "id": "db5890b",
