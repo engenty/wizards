@@ -570,3 +570,30 @@ describe("wizards bot tunnel", () => {
     }
   }, 15_000);
 });
+
+describe("the service's PATH", () => {
+  /** A runnable file at `<home>/<rel>`. */
+  function command(home: string, rel: string) {
+    const file = join(home, rel);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, "#!/bin/sh\n");
+    chmodSync(file, 0o755);
+  }
+
+  it("adds the folder of a Codex under nvm that the shell's PATH misses, the newest Node first", () => {
+    const home = mkdtempSync(join(tmpdir(), "bot-path-"));
+    command(home, ".nvm/versions/node/v22.3.0/bin/codex");
+    command(home, ".nvm/versions/node/v24.14.0/bin/codex");
+    command(home, ".local/bin/claude");
+    const env = { PATH: ["/usr/bin", join(home, ".local/bin")].join(":") };
+    expect(bot.agentFolders(env, home, [])).toEqual([join(home, ".nvm/versions/node/v24.14.0/bin")]);
+  });
+
+  it("adds nothing when the commands are on the PATH already, or nowhere", () => {
+    const home = mkdtempSync(join(tmpdir(), "bot-path-"));
+    command(home, "tools/codex");
+    expect(bot.agentFolders({ PATH: join(home, "tools") }, home, [])).toEqual([]);
+    const empty = mkdtempSync(join(tmpdir(), "bot-path-"));
+    expect(bot.agentFolders({ PATH: "/nowhere" }, empty, [])).toEqual([]);
+  });
+});
