@@ -373,7 +373,7 @@ describe("wizards bot tunnel", () => {
     expect(bot.labelOk("-a")).toBe(false);
     expect(bot.labelOk("a.b")).toBe(false);
     expect(bot.labelOk("x".repeat(33))).toBe(false);
-    expect(bot.accountUrl({})).toBe("https://engenty.ai");
+    expect(bot.accountUrl({})).toBe("https://account.engenty.ai");
     expect(bot.accountUrl({ WIZARDS_ACCOUNT_URL: "http://localhost:5182/" })).toBe("http://localhost:5182");
   });
 

@@ -29,7 +29,7 @@
 // the home's `tunnel/` folder: <folder>/tunnel, or <data>/tunnel for the home above.
 //
 // For tests: WIZARDS_BOT_TARBALL (a path or an address of a tarball instead of the release's),
-// ENGENTY_HOME, WIZARDS_BOT_DATA, WIZARDS_ACCOUNT_URL (the account, https://engenty.ai),
+// ENGENTY_HOME, WIZARDS_BOT_DATA, WIZARDS_ACCOUNT_URL (the account, https://account.engenty.ai),
 // WIZARDS_BOT_FRPC (an frpc to use instead of downloading one).
 import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
@@ -80,7 +80,7 @@ export const LINK_LABEL = "com.engenty.wizards.bot.link";
 export const UNIT = "wizards-bot.service";
 export const LINK_UNIT = "wizards-bot-link.service";
 /** The account that gives out names at wizards.host and their certificates. */
-export const ACCOUNT_URL = "https://engenty.ai";
+export const ACCOUNT_URL = "https://account.engenty.ai";
 /** frp (github.com/fatedier/frp, Apache-2.0): the relay's frps and this computer's frpc. */
 export const FRP_VERSION = "0.72.0";
 /** sha256 of frp's release files, from the release's frp_sha256_checksums.txt. */
@@ -1567,7 +1567,7 @@ function closeFunnel(settings) {
   }
 }
 
-/** The account that gives out tunnel names: WIZARDS_ACCOUNT_URL, or engenty.ai. */
+/** The account that gives out tunnel names: WIZARDS_ACCOUNT_URL, or account.engenty.ai. */
 export function accountUrl(env = process.env) {
   return ((env.WIZARDS_ACCOUNT_URL || "").trim() || ACCOUNT_URL).replace(/\/+$/, "");
 }
