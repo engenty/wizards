@@ -1,7 +1,7 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // @ts-expect-error: plain JavaScript beside the launcher, without types
 import * as bot from "../../../bin/bot.mjs";
@@ -127,5 +127,164 @@ describe("wizards bot", () => {
     } finally {
       taken.close();
     }
+  });
+
+  it("puts a home into a folder of its own, named after the folder", () => {
+    process.env.WIZARDS_BOT_DATA = join(user, "elsewhere");
+    const dir = join(user, "demo", "test01");
+    const paths = bot.layout(process.env, dir);
+    expect(paths.folder).toBe(dir);
+    expect(paths.current).toBe(join(dir, "program", "current"));
+    expect(paths.settings).toBe(join(dir, "wizards-bot.json"));
+    expect(paths.command).toBe(join(dir, "wizards-bot"));
+    expect(paths.data).toBe(join(dir, "data"));
+    expect(paths.log).toBe(join(dir, "logs", "bot.log"));
+    expect(paths.pathLink).toBeNull();
+    expect(paths.label).toMatch(/^com\.engenty\.wizards\.bot\.test01-[0-9a-f]{6}$/);
+    expect(paths.linkLabel).toBe(`${paths.label}.link`);
+    expect(paths.unitName).toMatch(/^wizards-bot-test01-[0-9a-f]{6}\.service$/);
+    // Two folders of the same name are two homes; the one without a folder keeps its names.
+    const other = bot.layout(process.env, join(user, "other", "test01"));
+    expect(other.label).not.toBe(paths.label);
+    expect(bot.layout(process.env).label).toBe(bot.LABEL);
+    expect(bot.folderId("/x/My Bot Server!")).toMatch(/^my-bot-server-[0-9a-f]{6}$/);
+    expect(bot.folderId("/x/...")).toMatch(/^folder-[0-9a-f]{6}$/);
+  });
+
+  it("reads a folder after the command", () => {
+    expect(bot.parse(["install", "."])).toMatchObject({ command: "install", folder: "." });
+    expect(bot.parse(["install", "./test01", "--port", "4800"])).toMatchObject({
+      folder: "./test01",
+      port: 4800,
+    });
+    expect(bot.parse(["setup", "--link", "ada", "K7QM-2RXD", "./test01"])).toMatchObject({
+      link: ["ada", "K7QM-2RXD"],
+      folder: "./test01",
+    });
+    expect(bot.parse(["tunnel", "--off"])).toMatchObject({ command: "tunnel", off: true });
+    expect(() => bot.parse(["install", "a", "b"])).toThrow("One folder at a time");
+  });
+
+  it("keeps a home out of your home folder and the other homes' folders", () => {
+    const refused = (dir: string) => bot.folderRefusal(bot.layout(process.env, dir));
+    expect(refused(user)).toContain("too wide");
+    expect(refused(join(user, ".engenty", "wizards-bot", "x"))).toContain("Mac app");
+    expect(refused(join(user, ".wizards-bot"))).toContain("wizards bot install");
+    expect(refused(join(user, ".engenty", "wizards", "bot"))).toContain("engenty wizards");
+    expect(refused(join(user, "demo", "test01"))).toBeNull();
+  });
+
+  it("never takes 4747, the Mac app's port, nor a port another home keeps", async () => {
+    expect(await bot.freePort(bot.MAC_APP_PORT)).not.toBe(bot.MAC_APP_PORT);
+    const probe: Server = createServer();
+    await new Promise<void>((done) => probe.listen({ port: 0, host: "127.0.0.1" }, done));
+    const port = (probe.address() as { port: number }).port;
+    // Something on 127.0.0.1 alone holds the port too.
+    expect(await bot.portFree(port)).toBe(false);
+    probe.close();
+    await new Promise((done) => setTimeout(done, 50));
+    expect(await bot.freePort(port, new Map([[port, "the Bot Server in ~/x"]]))).toBeGreaterThan(port);
+    expect(await bot.main(["install", join(user, "t"), "--port", String(bot.MAC_APP_PORT)])).toBe(1);
+    expect(said.join("\n")).toContain("4747 is the port of the wizards.bot Mac app");
+    expect(existsSync(join(user, "t"))).toBe(false);
+  });
+
+  it("says which program holds a port", async () => {
+    const taken: Server = createServer();
+    await new Promise<void>((done) => taken.listen({ port: 0, host: "0.0.0.0" }, done));
+    const port = (taken.address() as { port: number }).port;
+    try {
+      expect(bot.portHolder(port)).toContain(`pid ${process.pid}`);
+      expect(await bot.main(["install", join(user, "t"), "--port", String(port)])).toBe(1);
+      expect(said.join("\n")).toContain(`Port ${port} is taken by`);
+    } finally {
+      taken.close();
+    }
+    expect(
+      bot.programName("/Applications/wizards.app/Contents/Resources/node/bin/node /x/cli.ts start"),
+    ).toBe("wizards.app");
+    expect(bot.programName("/usr/bin/python3 -m http.server")).toBe("python3");
+    expect(bot.programName(`/n/bin/node ${user}/a/cli.ts start`)).toBe("node ~/a/cli.ts");
+  });
+
+  it("finds the homes in folders by their services, with the ports they keep", async () => {
+    const dir = join(user, "demo", "test01");
+    const paths = bot.layout(process.env, dir);
+    mkdirSync(dirname(paths.agent), { recursive: true });
+    mkdirSync(dirname(paths.unit), { recursive: true });
+    writeFileSync(paths.agent, bot.agentText(paths, paths.label, ["start"], paths.log));
+    writeFileSync(paths.unit, bot.unitText(paths, "wizards.bot", ["start"]));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(paths.settings, JSON.stringify({ port: 4790, data: paths.data }));
+    const main = bot.layout(process.env);
+    expect(bot.folderInstalls(main)).toEqual([dir]);
+    expect(bot.folderInstalls(paths)).toEqual([]);
+    expect(bot.claimedPorts(main).get(4790)).toBe("the Bot Server in ~/demo/test01");
+    expect(await bot.main(["status"])).toBe(0);
+    expect(said.join("\n")).toContain("In folders");
+    expect(said.join("\n")).toContain("~/demo/test01");
+  });
+
+  it("takes a folder's home away and keeps its data", async () => {
+    const dir = join(user, "demo", "test01");
+    const paths = bot.layout(process.env, dir);
+    mkdirSync(join(paths.bot, "0.1.4"), { recursive: true });
+    mkdirSync(paths.data, { recursive: true });
+    mkdirSync(paths.logs, { recursive: true });
+    writeFileSync(join(paths.data, "home.db"), "");
+    writeFileSync(paths.command, "#!/bin/sh\n");
+    writeFileSync(paths.log, "");
+    writeFileSync(paths.settings, JSON.stringify({ port: 4790, data: paths.data }));
+    expect(await bot.main(["uninstall", dir])).toBe(0);
+    expect(existsSync(paths.bot)).toBe(false);
+    expect(existsSync(paths.command)).toBe(false);
+    expect(existsSync(paths.settings)).toBe(false);
+    expect(existsSync(paths.logs)).toBe(false);
+    expect(existsSync(join(paths.data, "home.db"))).toBe(true);
+    expect(said.join("\n")).toContain("wizards.bot is off ~/demo/test01");
+    expect(await bot.main(["setup", dir])).toBe(1);
+    expect(said.join("\n")).toContain("No wizards.bot is installed in ~/demo/test01");
+  });
+
+  it("writes the public address into the command once a tunnel is open", () => {
+    const paths = bot.layout(process.env, join(user, "t"));
+    const text = bot.commandText(paths, {
+      node: "/n/bin/node",
+      bin: "cli.ts",
+      port: 4749,
+      data: paths.data,
+      url: "https://mac.tail1.ts.net:8443",
+    });
+    expect(text).toContain('export WIZARDS_BOT_URL="${WIZARDS_BOT_URL:-https://mac.tail1.ts.net:8443}"');
+  });
+
+  it("reads the paired devices from wizards-bot status", () => {
+    const status = (devices: string) =>
+      `Bot Server at http://x:4748\n\nAgents\n  Ada (main): 0 waiting for you\n\nDevices\n${devices}\nModels, in the order the Bot Server tries them\n  ollama/x\n`;
+    expect(bot.devicesIn(status("  none\n"))).toBe(0);
+    expect(bot.devicesIn(status("  iPhone (phone), last seen 2026-11-23\n  Mac (computer), last seen 2026-11-23\n"))).toBe(2);
+    expect(bot.devicesIn("something else")).toBeNull();
+  });
+
+  it("opens Funnel on a port that serves this home or nothing", () => {
+    const host = "mac.tail1.ts.net";
+    expect(bot.funnelPort({}, host, 4748)).toBe(443);
+    expect(bot.funnelPort(null, host, 4748)).toBe(443);
+    const busy = {
+      TCP: { 443: { HTTPS: true } },
+      Web: { [`${host}:443`]: { Handlers: { "/": { Proxy: "http://127.0.0.1:3000" } } } },
+    };
+    expect(bot.funnelPort(busy, host, 4748)).toBe(8443);
+    const ours = {
+      TCP: { 443: { HTTPS: true }, 8443: { HTTPS: true } },
+      Web: {
+        [`${host}:443`]: { Handlers: { "/": { Proxy: "http://127.0.0.1:3000" } } },
+        [`${host}:8443`]: { Handlers: { "/": { Proxy: "http://127.0.0.1:4748" } } },
+      },
+    };
+    expect(bot.funnelPort(ours, host, 4748)).toBe(8443);
+    expect(bot.funnelPort(ours, host, 4749)).toBe(10000);
+    const full = { TCP: { 443: {}, 8443: {}, 10000: {} } };
+    expect(bot.funnelPort(full, host, 4748)).toBeNull();
   });
 });
