@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { discoverPlugins } from "./discovery.js";
 import { MANIFEST_FILE } from "./manifest.js";
-import { type PluginProcess, startPluginProcess } from "./process.js";
+import { type PluginProcess, startPluginProcess, zodPaths } from "./process.js";
 
 let dir: string;
 let data: string;
@@ -157,5 +157,21 @@ describe("startPluginProcess", () => {
     );
     await expect(process.call("die", {})).rejects.toThrow(/stopped \(ended with code 3\)/);
     expect(process.running()).toBe(false);
+  });
+});
+
+describe("zodPaths", () => {
+  it("allows zod where Node finds it through a link, as pnpm installs it, and where the link leads", () => {
+    const store = join(dir, "store", "zod");
+    mkdirSync(store, { recursive: true });
+    writeFileSync(join(store, "package.json"), JSON.stringify({ name: "zod", main: "index.js" }));
+    writeFileSync(join(store, "index.js"), "");
+    const pkg = join(dir, ".pnpm", "plugins", "node_modules");
+    mkdirSync(join(pkg, "@engenty", "plugins", "dist"), { recursive: true });
+    symlinkSync(store, join(pkg, "zod"), "dir");
+    expect(zodPaths(join(pkg, "@engenty", "plugins", "dist"))).toEqual([
+      join(pkg, "zod"),
+      realpathSync(store),
+    ]);
   });
 });
