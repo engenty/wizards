@@ -41,11 +41,11 @@
   },
   "dependencies": {
     "@engenty/wizards-shared": "workspace:*",
-    "dompurify": "^3.4.17",
+    "dompurify": "^3.4.18",
     "fflate": "0.8.3",
-    "lucide-react": "^1.69.0",
-    "marked": "^18.1.3",
-    "pdfmake": "0.3.13",
+    "lucide-react": "^1.76.0",
+    "marked": "^18.2.1",
+    "pdfmake": "0.3.14",
     "qr-scanner": "1.4.2"
   },
   "peerDependencies": {
@@ -53,17 +53,17 @@
     "react-dom": "^18.3.0 || ^19.0.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.4",
+    "@tailwindcss/postcss": "^4.3.5",
     "@types/pdfmake": "0.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.2.1",
-    "postcss": "^8.5.32",
+    "@vitejs/plugin-react": "^6.3.0",
+    "postcss": "^8.5.33",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "tailwindcss": "^4.3.4",
+    "tailwindcss": "^4.3.5",
     "typescript": "~7.0.2",
-    "vite": "^8.3.6",
-    "vitest": "^5.1.0"
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
   }
 }
