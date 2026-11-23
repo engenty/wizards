@@ -642,6 +642,32 @@
           "homepage": "https://sheetjs.com/"
         }
       ]
+    },
+    {
+      "id": "packages/browser",
+      "kind": "package",
+      "label": "packages/browser",
+      "packages": [
+        {
+          "name": "@mastra/agent-browser",
+          "version": "0.6.0",
+          "license": "Apache-2.0",
+          "homepage": "https://mastra.ai"
+        }
+      ]
+    },
+    {
+      "id": "packages/vault",
+      "kind": "package",
+      "label": "packages/vault",
+      "packages": [
+        {
+          "name": "tldts",
+          "version": "7.4.24",
+          "license": "MIT",
+          "homepage": "https://github.com/remusao/tldts#readme"
+        }
+      ]
     }
   ]
 }

@@ -190,6 +190,18 @@ Declared by two or more of the workspaces below:
 | [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT |
 | [xlsx](https://sheetjs.com/) | 0.20.3 | Apache-2.0 |
 
+### packages/browser (packages/browser)
+
+| Package | Version | Licence |
+|---|---|---|
+| [@mastra/agent-browser](https://mastra.ai) | 0.6.0 | Apache-2.0 |
+
+### packages/vault (packages/vault)
+
+| Package | Version | Licence |
+|---|---|---|
+| [tldts](https://github.com/remusao/tldts#readme) | 7.4.24 | MIT |
+
 ### Development only
 
 Used to build, check and test; not part of what people run:
