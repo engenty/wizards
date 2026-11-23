@@ -1,7 +1,27 @@
 [
   {
+    "version": "v0.20.4",
+    "timestamp": 1795417814,
+    "commits": [
+      {
+        "id": "db5890b",
+        "message": "logins for @engenty/vault and a new @engenty/browser for agents (#718)",
+        "group": "Added",
+        "scope": "vault,browser",
+        "breaking": false
+      },
+      {
+        "id": "3f1480d",
+        "message": "the plugin's process may read zod through the link pnpm installs beside the package (#719)",
+        "group": "Fixed",
+        "scope": "plugins",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.20.3",
-    "timestamp": 1795390451,
+    "timestamp": 1795390892,
     "commits": [
       {
         "id": "7244cf2",
