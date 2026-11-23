@@ -1,5 +1,5 @@
 import { type ChildProcess, fork } from "node:child_process";
-import { mkdirSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,9 +25,24 @@ const CHILD = join(dirname(here), here.endsWith(".ts") ? "child.ts" : "child.js"
 /** This package's folder: the child reads its index and package.json there. */
 const PACKAGE_ROOT = realpathSync(dirname(dirname(here)));
 
-function zodRoot(): string {
-  const require = createRequire(CHILD);
-  return realpathSync(dirname(require.resolve("zod/package.json")));
+/**
+ * The folders the child reads zod from: the path Node resolves it through from the child's
+ * folder, and where that path leads. With pnpm the first is a link beside this package
+ * (`.pnpm/@engenty+plugins@…/node_modules/zod`), and Node checks the permission on the path it
+ * reads, not on the link's target.
+ */
+export function zodPaths(from = dirname(CHILD)): string[] {
+  const require = createRequire(join(from, "_.js"));
+  const real = realpathSync(dirname(require.resolve("zod/package.json")));
+  for (let dir = from; ; dir = dirname(dir)) {
+    const linked = join(dir, "node_modules", "zod");
+    if (existsSync(join(linked, "package.json"))) {
+      return linked === real ? [real] : [linked, real];
+    }
+    if (dirname(dir) === dir) {
+      return [real];
+    }
+  }
 }
 
 export interface PluginProcessOptions {
@@ -87,7 +102,7 @@ export function permissionFlags(
   const readable = [
     realpathSync(options.source.root),
     PACKAGE_ROOT,
-    zodRoot(),
+    ...zodPaths(),
     realpathSync(options.dataDir),
     ...(options.readable ?? []).map((path) => realpathSync(path)),
   ];
