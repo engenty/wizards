@@ -6,6 +6,8 @@ import { createGateway } from "@ai-sdk/gateway";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createReplicate } from "@ai-sdk/replicate";
+import { ClientModel } from "@engenty/local-models/clients";
+import { ollamaRoot } from "@engenty/local-models/ollama";
 import type { Lang, VideoResolution } from "@engenty/wizards-shared/definition";
 import {
   DEFINITION_VERSION,
@@ -54,7 +56,7 @@ import {
   type TranscriptionModel,
 } from "ai";
 import { accountToken, linkedAccount } from "./auth/account.js";
-import { LOCAL_DECISION_MODEL, ollamaDecisionModel, ollamaRoot } from "./decision-model.js";
+import { LOCAL_DECISION_MODEL, ollamaDecisionModel } from "./decision-model.js";
 import { DeviceModel, deviceThinks } from "./engine/device.js";
 import { env } from "./env.js";
 import { feature, remoteFeatures } from "./features.js";
@@ -68,12 +70,10 @@ import {
   detectHarness,
   type Harness,
   type HarnessId,
-  HarnessModel,
   harness,
   isHarnessVendor,
-  notInstalled,
-  signedOut,
 } from "./harness/index.js";
+import { notInstalled, signedOut } from "./harness/model.js";
 import { managed, tenantInfo } from "./manage.js";
 import { hasFfmpeg } from "./media/ffmpeg.js";
 import { ModelUnavailableError, saidOf } from "./model-errors.js";
@@ -1165,7 +1165,7 @@ export function attachTools(
   tools: Record<string, unknown>,
   ignorable = false,
 ) {
-  if (resolved.model instanceof HarnessModel) {
+  if (resolved.model instanceof ClientModel) {
     resolved.model.attach(tools);
   } else if (resolved.model instanceof DeviceModel) {
     resolved.model.attach(tools, ignorable);
@@ -1175,7 +1175,7 @@ export function attachTools(
 /** A model whose tool loop runs in a process of its own: an installed client, the run's device. */
 export function keepsOwnLoop(resolved: ResolvedModel<unknown>): boolean {
   return (
-    resolved.model instanceof HarnessModel ||
+    resolved.model instanceof ClientModel ||
     resolved.model instanceof DeviceModel ||
     isHarnessVendor(resolved.vendor)
   );
@@ -1183,7 +1183,7 @@ export function keepsOwnLoop(resolved: ResolvedModel<unknown>): boolean {
 
 /** Whether the model can call tools: an installed client that runs none cannot. */
 export function takesTools(resolved: ResolvedModel<unknown>): boolean {
-  return !(resolved.model instanceof HarnessModel) || resolved.model.takesTools;
+  return !(resolved.model instanceof ClientModel) || resolved.model.takesTools;
 }
 
 /** Gemini image models of the gateway are chat models answering with image files. */

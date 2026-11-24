@@ -31,6 +31,8 @@
       "packages/plugins/*.ts",
       "packages/browser/src/**",
       "packages/browser/*.ts",
+      "packages/local-models/src/**",
+      "packages/local-models/*.ts",
       "examples/openui-chat/src/**",
       "examples/openui-chat/*.ts",
       "scripts/*.ts",

@@ -17,7 +17,7 @@ Use it, change it and share it in any app, open or closed. Keep the licence text
 | The wizard format | eighteen files in `packages/shared/src` | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT)) |
 | The runner | `@engenty/wizards-runner` in `packages/runner` | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/packages/runner/LICENSE)) |
 | The plugin for the AI apps | `plugin/`, without the engenty figures in it | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/plugin/LICENSE)) |
-| The libraries | `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/goose`, `@engenty/vault`, `@engenty/plugins` and `@engenty/browser` in `packages/` | MIT (the `LICENSE` in each folder) |
+| The libraries | `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/goose`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser` and `@engenty/local-models` in `packages/` | MIT (the `LICENSE` in each folder) |
 
 ### The wizard format
 
@@ -44,7 +44,7 @@ MIT, the format files it bundles included. Your own app can draw runs with it
 
 ### The libraries
 
-Seven libraries go to npm with each release, at its version:
+Eight libraries go to npm with each release, at its version:
 
 - `@engenty/decision-model`: one request to a decision model, by whichever way is set up (the
   Vercel AI Gateway, TypeSafe’s API or Ollama)
@@ -62,6 +62,11 @@ Seven libraries go to npm with each release, at its version:
 - `@engenty/browser`: a browser for agents on Mastra’s agent-browser provider: its tools for any
   tool system, none that runs the model’s JavaScript, and a private fill that types a password
   or a code only into a field on the expected website
+- `@engenty/local-models`: the models on a person’s own computer: Ollama (its models, what each
+  can do, which fits the memory, downloads, and a model on its own chat API with the context
+  length set), the AI clients signed in on their subscription (Claude Code, Codex, Cursor
+  Agent: found, signed in, run headless as a model or as a chat with one MCP server), and a
+  short real call that says whether each answers
 
 They depend only on each other and on packages under MIT or a licence as permissive.
 

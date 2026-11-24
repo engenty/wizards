@@ -1,4 +1,5 @@
 import { anthropic } from "@ai-sdk/anthropic";
+import { ClientModel } from "@engenty/local-models/clients";
 import { surfaceComponentsSchema, validateSurface } from "@engenty/wizards-shared/surface";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
@@ -7,7 +8,6 @@ import { chatTurnWay } from "../agents/subscription.js";
 import { personCaller } from "../elements/caller.js";
 import { elementTools } from "../elements/catalogue.js";
 import { currentFeatures } from "../features.js";
-import { HarnessModel } from "../harness/index.js";
 import { managed, type Role } from "../manage.js";
 import {
   attachTools,
@@ -387,7 +387,7 @@ export async function workTurn(
     ),
     turn,
   );
-  const tools = resolved.model instanceof HarnessModel ? steps.wrap(made) : made;
+  const tools = resolved.model instanceof ClientModel ? steps.wrap(made) : made;
   attachTools(resolved, tools);
   const skills = client ? null : await spaceSkills(turn.space.id);
   const block = skills

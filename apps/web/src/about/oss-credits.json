@@ -103,6 +103,12 @@
       "homepage": "https://ai-sdk.dev/docs"
     },
     {
+      "name": "cross-spawn",
+      "version": "7.0.6",
+      "license": "MIT",
+      "homepage": "https://github.com/moxystudio/node-cross-spawn"
+    },
+    {
       "name": "dompurify",
       "version": "3.4.17",
       "license": "(MPL-2.0 OR Apache-2.0)",
@@ -294,12 +300,6 @@
           "version": "1.0.20",
           "license": "MIT",
           "homepage": "https://github.com/mhart/aws4fetch#readme"
-        },
-        {
-          "name": "cross-spawn",
-          "version": "7.0.6",
-          "license": "MIT",
-          "homepage": "https://github.com/moxystudio/node-cross-spawn"
         },
         {
           "name": "drizzle-orm",

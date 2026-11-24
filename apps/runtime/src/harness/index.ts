@@ -1,17 +1,38 @@
 import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import {
+  type ClientAuth,
+  type ClientStatus,
+  detectClient,
+  loginShellEnv,
+  setClientFolders,
+} from "@engenty/local-models/clients";
 import { installCommand, POWERSHELL } from "../cli/clients.js";
 import { inherited, runtimePath } from "../cli/environment.js";
 import { layout } from "../cli/home.js";
 import { CLIENTS, vendorApp } from "../cli/machine.js";
 import { antigravity } from "./antigravity.js";
-import { claude } from "./claude.js";
-import { codex } from "./codex.js";
-import { cursor } from "./cursor.js";
-import { forgetEnv, loginShellEnv, ProbeUndecided, resolveEnv } from "./env.js";
-import type { Harness, HarnessAuth, HarnessId } from "./types.js";
+import { claude, codex, cursor } from "./clients.js";
+import type { Harness, HarnessId } from "./types.js";
 
-export { HarnessModel, notInstalled, signedOut } from "./model.js";
-export { HARNESS_IDS, type Harness, type HarnessAuth, type HarnessId } from "./types.js";
+export { HARNESS_IDS, type Harness, type HarnessId } from "./types.js";
+
+/**
+ * Where the setup installs clients, whoever started this runtime: npm's prefix (on Windows the
+ * prefix itself), and on Windows where Claude Code and Cursor Agent put themselves. A client's
+ * environment finds them before the shell's PATH.
+ */
+setClientFolders(() => {
+  if (process.platform !== "win32") {
+    return [join(layout().clients, "bin")];
+  }
+  const { USERPROFILE: home, LOCALAPPDATA: local } = process.env;
+  return [
+    layout().clients,
+    ...(home ? [join(home, ".local", "bin")] : []),
+    ...(local ? [join(local, "cursor-agent"), join(local, "agy", "bin")] : []),
+  ];
+});
 
 /**
  * The AI clients this runtime can run as a model, in the order the setup offers them. The first
@@ -38,14 +59,15 @@ export interface HarnessStatus {
   app: string | null;
   /** Null: not installed. */
   version: string | null;
-  auth: HarnessAuth;
+  auth: ClientAuth;
   /** The sign-in opens the client's own app, which the person ends. */
   interactiveLogin: boolean;
   /** It makes images on the sign-in as well (Codex); video and audio no client makes. */
   images: boolean;
 }
 
-const detected = new Map<HarnessId, { at: number; value: HarnessStatus }>();
+/** The status last made of each client's detection, kept while the detection holds. */
+const statuses = new Map<HarnessId, { of: ClientStatus; value: HarnessStatus }>();
 
 /** One client, as it is now; asked again after a minute — it may get installed or signed in meanwhile. */
 export async function detectHarness(id: HarnessId, force = false): Promise<HarnessStatus | null> {
@@ -53,38 +75,23 @@ export async function detectHarness(id: HarnessId, force = false): Promise<Harne
   if (!h) {
     return null;
   }
-  const hit = detected.get(id);
-  if (!force && hit && Date.now() - hit.at < 60_000) {
-    return hit.value;
-  }
-  if (force) {
-    // The person may just have signed in or set a key in their shell.
-    forgetEnv(id);
+  const status = await detectClient(h, force);
+  const kept = statuses.get(id);
+  if (kept?.of === status) {
+    return kept.value;
   }
   const client = CLIENTS.find((c) => c.id === id);
-  let value: HarnessStatus = {
+  const value: HarnessStatus = {
     id,
     name: h.name,
     install: client ? installCommand(client, layout()) : "",
     app: client ? vendorApp(client) : null,
-    version: null,
-    auth: "none",
+    version: status.version,
+    auth: status.auth,
     interactiveLogin: h.login.interactive,
     images: Boolean(h.image),
   };
-  try {
-    const { env, auth } = await resolveEnv(h);
-    const version = await h.version(env);
-    if (version) {
-      value = { ...value, version, auth };
-    }
-  } catch (err) {
-    if (err instanceof ProbeUndecided && hit?.value.version) {
-      // The machine is busy (another client is working): the client was there, it still is.
-      value = hit.value;
-    }
-  }
-  detected.set(id, { at: Date.now(), value });
+  statuses.set(id, { of: status, value });
   return value;
 }
 

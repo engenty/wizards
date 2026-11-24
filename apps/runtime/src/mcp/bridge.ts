@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes } from "node:crypto";
+import type { BridgeTool } from "@engenty/local-models/clients";
 import {
   type CallToolResult,
   createMcpHandler,
@@ -14,15 +15,6 @@ import { env } from "../env.js";
  * through a random path on the loopback address, and closes with it. Nothing but this process
  * knows the path; the client works through the tools itself and comes back with the answer.
  */
-export interface BridgeTool {
-  name: string;
-  description?: string;
-  /** JSON Schema of the input, as the model call declares it. */
-  inputSchema: Record<string, unknown>;
-  execute(input: unknown): Promise<unknown>;
-  /** What the model gets to see of a result where a tool shapes it (a screenshot, say). */
-  toModelOutput?: (output: unknown) => unknown;
-}
 
 type Handler = { fetch(request: Request): Promise<Response> };
 

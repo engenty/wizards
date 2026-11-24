@@ -1,15 +1,9 @@
-import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
-import { note } from "@engenty/wizards-shared/run";
-import { probeVersion, resolveEnv, run } from "./env.js";
-import {
-  failureOf,
-  type HarnessAnswer,
-  type HarnessCall,
-  HarnessModel,
-  lastJson,
-  runClient,
-} from "./model.js";
-import type { EnvSpec, Harness, HarnessAuth } from "./types.js";
+import { type ChatEvent, issuesIn, parseLine, record } from "./chat.js";
+import type { Client } from "./client.js";
+import { type ClientAuth, type EnvSpec, probeVersion, resolveEnv, run } from "./env.js";
+import { clientFailure } from "./failure.js";
+import { type ClientAnswer, type ClientCall, ClientModel } from "./model.js";
+import { lastJson, runClient } from "./run.js";
 
 /**
  * Claude Code: `claude -p` answers on the person's sign-in — the client's keychain, or the key
@@ -19,19 +13,12 @@ import type { EnvSpec, Harness, HarnessAuth } from "./types.js";
 
 export const CLAUDE_BIN = process.env.CLAUDE_BIN?.trim() || "claude";
 
-const CLASSES: Record<TextClass, string> = {
-  classifier: "haiku",
-  low: "sonnet",
-  standard: "opus",
-  high: "opus",
-};
-
 const spec: EnvSpec = {
   id: "claude",
   passThrough:
     /^(ANTHROPIC_|CLAUDE_CODE_OAUTH_TOKEN$|CLAUDE_CODE_USE_|CLAUDE_CONFIG_DIR$|AWS_(PROFILE|REGION|DEFAULT_REGION|ACCESS_KEY_ID|SECRET_ACCESS_KEY|SESSION_TOKEN)$|GOOGLE_APPLICATION_CREDENTIALS$|CLOUD_ML_REGION$)/,
   keyVars: ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"],
-  async auth(env): Promise<HarnessAuth> {
+  async auth(env): Promise<ClientAuth> {
     try {
       const { stdout } = await run(CLAUDE_BIN, ["auth", "status", "--json"], {
         timeout: 15_000,
@@ -47,10 +34,6 @@ const spec: EnvSpec = {
     }
   },
 };
-
-export async function claudeEnv(): Promise<NodeJS.ProcessEnv> {
-  return (await resolveEnv(spec)).env;
-}
 
 /** What the client prints last with `--output-format json`. */
 export interface ClaudeResult {
@@ -75,7 +58,7 @@ export interface ClaudeResult {
 }
 
 /** The client's result as the model call wants it: text (or the structured output as JSON) and usage. */
-export function claudeAnswer(event: ClaudeResult): HarnessAnswer {
+export function claudeAnswer(event: ClaudeResult): ClientAnswer {
   const u = event.usage ?? {};
   const cacheRead = u.cache_read_input_tokens ?? 0;
   const cacheWrite = u.cache_creation_input_tokens ?? 0;
@@ -98,11 +81,11 @@ export function claudeAnswer(event: ClaudeResult): HarnessAnswer {
   };
 }
 
-class ClaudeCodeModel extends HarnessModel {
+class ClaudeCodeModel extends ClientModel {
   readonly provider = "claude-code";
   protected override readonly nativeSchema = true;
 
-  protected async invoke(call: HarnessCall): Promise<HarnessAnswer> {
+  protected async invoke(call: ClientCall): Promise<ClientAnswer> {
     const builtin: string[] = [];
     if (call.files.length) {
       builtin.push("Read");
@@ -150,13 +133,13 @@ class ClaudeCodeModel extends HarnessModel {
     }
     const { stdout, stderr, code } = await runClient(CLAUDE_BIN, args, {
       cwd: call.dir,
-      env: await claudeEnv(),
+      env: (await resolveEnv(spec)).env,
       signal: call.signal,
       stdin: call.prompt,
     });
     const event = lastJson<ClaudeResult>(stdout);
     if (!event) {
-      throw failureOf(this.harness, stderr.trim() || `exit ${code}`);
+      throw clientFailure(this.client, stderr.trim() || `exit ${code}`);
     }
     if (event.is_error) {
       // A failed run carries no result, only why (subtype) and sometimes what (errors).
@@ -166,21 +149,128 @@ class ClaudeCodeModel extends HarnessModel {
         ...(event.errors ?? []).map((e) => (typeof e === "string" ? e : JSON.stringify(e))),
         event.num_turns ? `after ${event.num_turns} turns` : "",
       ].filter(Boolean);
-      console.warn("[claude] the client failed:", JSON.stringify(event).slice(0, 2000));
-      throw failureOf(this.harness, why.join(" – ") || "error");
+      throw clientFailure(
+        this.client,
+        why.join(" – ") || "error",
+        JSON.stringify(event).slice(0, 2000),
+      );
     }
     return claudeAnswer(event);
   }
 }
 
-export const claude: Harness = {
+export const claude: Client = {
   ...spec,
+  id: "claude",
   name: "Claude Code",
   bin: CLAUDE_BIN,
-  classes: CLASSES,
   version: (env) =>
     probeVersion(CLAUDE_BIN, env, (stdout) => stdout.trim().split(/\s+/)[0] || stdout.trim()),
   login: { args: ["auth", "login"], interactive: false },
-  model: (alias: string, effort?: Effort) => new ClaudeCodeModel(claude, alias || "sonnet", effort),
-  exhausted: note("anthropicAccountClaudeCode"),
+  model: (alias, options) => new ClaudeCodeModel(claude, alias || "sonnet", options),
+  args: (call) => [
+    // The message comes on stdin, so pictures can go with it.
+    "-p",
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    // Names a tool as it starts and streams the thinking; whole messages still follow.
+    "--include-partial-messages",
+    // No built-in tools: `--allowedTools` alone would not take them away.
+    "--tools",
+    "",
+    "--strict-mcp-config",
+    ...(call.mcp
+      ? ["--mcp-config", call.mcp.configFile ?? "", "--allowedTools", `mcp__${call.mcp.name}`]
+      : []),
+    "--disable-slash-commands",
+    "--setting-sources",
+    "",
+    "--append-system-prompt",
+    call.system,
+    ...(call.model ? ["--model", call.model] : []),
+    ...(call.session ? ["--resume", call.session] : []),
+  ],
+  stdin: (call) =>
+    `${JSON.stringify({
+      type: "user",
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: call.message },
+          ...call.images.map((i) => ({
+            type: "image",
+            source: { type: "base64", media_type: i.mime, data: i.base64 },
+          })),
+        ],
+      },
+    })}\n`,
+  events(line) {
+    const event = parseLine(line);
+    if (!event) {
+      return [];
+    }
+    if (event.type === "stream_event") {
+      const e = event.event ?? {};
+      if (e.type === "content_block_start" && e.content_block?.type === "tool_use") {
+        return [
+          { kind: "tool", name: String(e.content_block.name ?? ""), args: {}, started: false },
+        ];
+      }
+      if (e.type === "content_block_start" && e.content_block?.type === "thinking") {
+        return [{ kind: "thinkingStart" }];
+      }
+      if (e.type === "content_block_delta" && e.delta?.type === "thinking_delta") {
+        return [{ kind: "thinking", text: e.delta.thinking ?? "" }];
+      }
+      if (e.type === "content_block_delta" && e.delta?.type === "text_delta") {
+        return [{ kind: "writing", text: String(e.delta.text ?? "") }];
+      }
+      return [];
+    }
+    if (event.type === "user") {
+      const out: ChatEvent[] = [];
+      for (const block of event.message?.content ?? []) {
+        if (block.type === "tool_result") {
+          const text = Array.isArray(block.content)
+            ? block.content.find((c: { type?: string }) => c.type === "text")?.text
+            : block.content;
+          out.push({ kind: "toolDone", issues: issuesIn(text) });
+        }
+      }
+      return out;
+    }
+    if (event.type === "assistant") {
+      const out: ChatEvent[] = [];
+      for (const block of event.message?.content ?? []) {
+        if (block.type === "text" && block.text) {
+          out.push({ kind: "text", text: block.text });
+        } else if (block.type === "tool_use") {
+          out.push({
+            kind: "tool",
+            name: String(block.name ?? ""),
+            args: record(block.input),
+            started: true,
+          });
+        }
+      }
+      return out;
+    }
+    if (event.type === "result") {
+      const out: ChatEvent[] = [];
+      if (event.session_id) {
+        out.push({ kind: "session", id: String(event.session_id) });
+      }
+      if (event.is_error) {
+        out.push({ kind: "failure", detail: String(event.result ?? "error") });
+      } else if (typeof event.result === "string") {
+        out.push({ kind: "result", text: event.result });
+      }
+      return out;
+    }
+    return [];
+  },
+  signedOut: (detail) => /authenticat|log ?in|oauth|credential/i.test(detail),
 };

@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { homedir, totalmem } from "node:os";
 import { delimiter, join } from "node:path";
 import * as p from "@clack/prompts";
+import { ollamaAddress, pullModel } from "@engenty/local-models/ollama";
 import { LOCAL_DECISION_MODEL } from "../decision-model.js";
 import { installAll, ON_DEMAND } from "../on-demand.js";
 import { accountStep } from "./account.js";
@@ -36,8 +37,7 @@ import {
   decisionModelProblem,
   freeGb,
   installOllama,
-  ollamaState,
-  pullModel,
+  localOllama,
   servesDecisions,
   startOllama,
 } from "./ollama.js";
@@ -267,7 +267,7 @@ async function decisionModelStep(
   paths: Layout,
   interactive: boolean,
 ): Promise<"cancelled" | undefined> {
-  const state = await ollamaState();
+  const state = await localOllama();
   if (state.version && !servesDecisions(state.version)) {
     p.log.warn(
       `Ollama ${state.version} is too old for a decision model (it needs 0.35 or newer).\n${dim(`Update Ollama, then run ${cmd("setup")} again.`)}`,
@@ -336,7 +336,7 @@ async function decisionModelStep(
     const installed = `Ollama installed ${dim(tilde(outcome.message))}`;
     task ? task.success(installed) : p.log.success(installed);
     // Linux's installer starts it as a service already.
-    ({ path: ollama, version } = await ollamaState());
+    ({ path: ollama, version } = await localOllama());
   }
   if (!version) {
     if (appAsksForPassword(ollama)) {
@@ -360,7 +360,7 @@ async function decisionModelStep(
   const spinner = p.spinner();
   spinner.start(`Downloading ${model}`);
   try {
-    await pullModel(model, (done, total) =>
+    await pullModel(ollamaAddress(), model, (done, total) =>
       spinner.message(`Downloading ${model}  ${gb(done)} of ${gb(total)} GB`),
     );
     spinner.stop(`Decision model: ${model} ${dim(`in Ollama ${version}`)}`);

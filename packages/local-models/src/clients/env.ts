@@ -1,10 +1,64 @@
-import { spawn } from "node:child_process";
-import { join } from "node:path";
-import { runFile } from "../cli/exec.js";
-import { layout } from "../cli/home.js";
-import type { EnvSpec, HarnessAuth } from "./types.js";
+import { spawn as spawnDetached } from "node:child_process";
+// cross-spawn: on Windows a command from npm is a .cmd file, which only cmd.exe starts, with
+// its arguments quoted the way cmd.exe reads them. Elsewhere it is child_process.spawn.
+import spawn from "cross-spawn";
 
-export const run = runFile;
+/** How a client is signed in: with the person's subscription, with a key from their shell, or not at all. */
+export type ClientAuth = "subscription" | "api_key" | "none";
+
+/** What the login shell decides about a client: its environment and its sign-in. */
+export interface EnvSpec {
+  id: string;
+  /** Variables of the login shell the client may see: how it signs in and where it talks to. */
+  passThrough: RegExp;
+  /** Of those, the keys and tokens: held back while the client is signed in without them. */
+  keyVars: string[];
+  auth(env: NodeJS.ProcessEnv): Promise<ClientAuth>;
+}
+
+/**
+ * Runs a file and gives what it printed, like execFile: it rejects when the file is not there,
+ * ends with another code than 0, or takes longer than `timeout` (then with `killed` and `signal`
+ * set, as execFile does).
+ */
+export function run(
+  file: string,
+  args: string[],
+  options: { env?: NodeJS.ProcessEnv; cwd?: string; timeout?: number } = {},
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(file, args, {
+      env: options.env,
+      cwd: options.cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: options.timeout,
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+      } else {
+        reject(
+          Object.assign(new Error(`${file} ended with ${signal ?? code}`), {
+            code,
+            signal,
+            killed: child.killed,
+            stdout,
+            stderr,
+          }),
+        );
+      }
+    });
+  });
+}
 
 /** A version probe that could not finish: the machine is busy, the client may well be there. */
 export class ProbeUndecided extends Error {}
@@ -39,16 +93,16 @@ let shellEnv: Promise<Record<string, string>> | null = null;
 /** The person's login shell, asked once: a desktop app and a bare dev server start without its variables. */
 export function loginShellEnv(): Promise<Record<string, string>> {
   shellEnv ??= new Promise<Record<string, string>>((done) => {
-    // Windows has no login shell to ask: the runtime's own environment is the person's.
+    // Windows has no login shell to ask: the process's own environment is the person's.
     if (process.platform === "win32") {
       done({});
       return;
     }
     const shell = process.env.SHELL || "/bin/zsh";
-    // In a session of its own, away from the terminal `wizards` runs in: an interactive
+    // In a session of its own, away from the terminal this process runs in: an interactive
     // shell takes over that terminal for its job control and keeps it when it ends, and Ctrl-C
     // then reaches nobody. (execFile cannot do this: it drops `detached`.)
-    const child = spawn(shell, ["-l", "-i", "-c", "env"], {
+    const child = spawnDetached(shell, ["-l", "-i", "-c", "env"], {
       detached: true,
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 10_000,
@@ -80,15 +134,22 @@ export function loginShellEnv(): Promise<Record<string, string>> {
 }
 
 /**
+ * What a Windows program needs of the environment to start at all: the system's folders, the
+ * user's folders, and how commands are found and run (a .cmd needs ComSpec).
+ */
+const WINDOWS_BASE =
+  /^(SystemRoot|SystemDrive|windir|ComSpec|PATHEXT|TEMP|TMP|USERPROFILE|USERNAME|USERDOMAIN|HOMEDRIVE|HOMEPATH|APPDATA|LOCALAPPDATA|ProgramData|ProgramFiles|ProgramFiles\(x86\)|ProgramW6432|CommonProgramFiles|CommonProgramFiles\(x86\)|CommonProgramW6432|COMPUTERNAME|OS|PROCESSOR_ARCHITECTURE|NUMBER_OF_PROCESSORS)$/i;
+
+/**
  * The environment a client gets: its sign-in as the login shell sets it (else as this process
  * has it), PATH as the shell has it so the client is found from a GUI app too, and nothing else —
- * no key of ours, no session of a parent client.
+ * no key of the host's, no session of a parent client.
  */
-export function pickEnv(
+export function clientEnv(
   shell: Record<string, string | undefined>,
   own: Record<string, string | undefined>,
   passThrough: RegExp,
-  /** Folders before the shell's PATH: the clients the setup installed. */
+  /** Folders before the shell's PATH: the clients the host installed. */
   first: string[] = [],
   platform: NodeJS.Platform = process.platform,
 ): NodeJS.ProcessEnv {
@@ -120,13 +181,7 @@ export function pickEnv(
   };
 }
 
-/**
- * What a Windows program needs of the environment to start at all: the system's folders, the
- * user's folders, and how commands are found and run (a .cmd needs ComSpec).
- */
-const WINDOWS_BASE =
-  /^(SystemRoot|SystemDrive|windir|ComSpec|PATHEXT|TEMP|TMP|USERPROFILE|USERNAME|USERDOMAIN|HOMEDRIVE|HOMEPATH|APPDATA|LOCALAPPDATA|ProgramData|ProgramFiles|ProgramFiles\(x86\)|ProgramW6432|CommonProgramFiles|CommonProgramFiles\(x86\)|CommonProgramW6432|COMPUTERNAME|OS|PROCESSOR_ARCHITECTURE|NUMBER_OF_PROCESSORS)$/i;
-
+/** The environment without the named keys. */
 export function stripKeys(env: NodeJS.ProcessEnv, keyVars: string[]): NodeJS.ProcessEnv {
   const bare = { ...env };
   for (const key of keyVars) {
@@ -135,25 +190,19 @@ export function stripKeys(env: NodeJS.ProcessEnv, keyVars: string[]): NodeJS.Pro
   return bare;
 }
 
+let folders: () => string[] = () => [];
+
 /**
- * Where the setup installs clients, whoever started this runtime: npm's prefix (on Windows the
- * prefix itself), and on Windows where Claude Code and Cursor Agent put themselves.
+ * Where the host installs clients, searched before the shell's PATH: a setup that installs a
+ * client into a folder of its own names the folder here, once, before any client runs.
  */
-const installed = () => {
-  if (process.platform !== "win32") {
-    return [join(layout().clients, "bin")];
-  }
-  const { USERPROFILE: home, LOCALAPPDATA: local } = process.env;
-  return [
-    layout().clients,
-    ...(home ? [join(home, ".local", "bin")] : []),
-    ...(local ? [join(local, "cursor-agent"), join(local, "agy", "bin")] : []),
-  ];
-};
+export function setClientFolders(list: () => string[]) {
+  folders = list;
+}
 
 export interface ResolvedEnv {
   env: NodeJS.ProcessEnv;
-  auth: HarnessAuth;
+  auth: ClientAuth;
 }
 
 const resolved = new Map<string, Promise<ResolvedEnv>>();
@@ -167,7 +216,7 @@ export function resolveEnv(spec: EnvSpec): Promise<ResolvedEnv> {
   let pending = resolved.get(spec.id);
   if (!pending) {
     pending = (async () => {
-      const withKey = pickEnv(await loginShellEnv(), process.env, spec.passThrough, installed());
+      const withKey = clientEnv(await loginShellEnv(), process.env, spec.passThrough, folders());
       const bare = stripKeys(withKey, spec.keyVars);
       const own = await spec.auth(bare);
       if (own !== "none") {
@@ -189,14 +238,14 @@ export function resolveEnv(spec: EnvSpec): Promise<ResolvedEnv> {
 /** The environment of a sign-in: the client on its own, without a key of the shell, in a real terminal. */
 export async function loginEnv(spec: EnvSpec): Promise<NodeJS.ProcessEnv> {
   const bare = stripKeys(
-    pickEnv(await loginShellEnv(), process.env, spec.passThrough, installed()),
+    clientEnv(await loginShellEnv(), process.env, spec.passThrough, folders()),
     spec.keyVars,
   );
   return { ...bare, TERM: "xterm-256color", COLORTERM: "truecolor" };
 }
 
 /** The client's sign-in right now, on its own: asked again and again while the person signs in. */
-export async function freshAuth(spec: EnvSpec): Promise<HarnessAuth> {
+export async function freshAuth(spec: EnvSpec): Promise<ClientAuth> {
   return spec.auth(await loginEnv(spec));
 }
 
