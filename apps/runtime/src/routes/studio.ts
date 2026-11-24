@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { freshAuth, loginEnv } from "@engenty/local-models/clients";
 import {
   ASSISTANT_LAYOUTS,
   ASSISTANT_PAGE_BYTES,
@@ -80,7 +81,6 @@ import {
 import { env } from "../env.js";
 import { feature, features, forgetAccountFeatures } from "../features.js";
 import { appleStatus } from "../harness/apple.js";
-import { freshAuth, loginEnv } from "../harness/env.js";
 import {
   detectHarness,
   detectHarnesses,

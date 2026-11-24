@@ -1,0 +1,62 @@
+{
+  "name": "@engenty/local-models",
+  "version": "0.1.0",
+  "description": "The models on a person's own computer: Ollama (its models, what each can do, downloads, a model on its native chat API with the context length set) and the AI clients signed in on their subscription (Claude Code, Codex, Cursor Agent: found, signed in, run headless as a model or as a chat with one MCP server), and a short real call that says whether each answers.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/engenty/wizards.git",
+    "directory": "packages/local-models"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "wizards-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./ollama": {
+      "wizards-source": "./src/ollama/index.ts",
+      "types": "./dist/ollama/index.d.ts",
+      "default": "./dist/ollama/index.js"
+    },
+    "./clients": {
+      "wizards-source": "./src/clients/index.ts",
+      "types": "./dist/clients/index.d.ts",
+      "default": "./dist/clients/index.js"
+    },
+    "./probe": {
+      "wizards-source": "./src/probe.ts",
+      "types": "./dist/probe.d.ts",
+      "default": "./dist/probe.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "cross-spawn": "7.0.6"
+  },
+  "peerDependencies": {
+    "ai": ">=7.0.0"
+  },
+  "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
+    "@types/node": "^26.6.6",
+    "ai": "7.0.163",
+    "typescript": "~7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

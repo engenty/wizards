@@ -13,7 +13,8 @@ import { statfs } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { decisionModelIn, ollamaRoot } from "../decision-model.js";
+import { ollamaAddress, ollamaState } from "@engenty/local-models/ollama";
+import { decisionModelIn } from "../decision-model.js";
 import { runLogged } from "./exec.js";
 import type { Layout } from "./home.js";
 import { findOnPath } from "./machine.js";
@@ -43,18 +44,13 @@ const LINUX_ZSTD = [
   "fi",
 ].join("\n");
 
-export interface OllamaState {
+export interface LocalOllamaState {
   /** The `ollama` command; null where Ollama is not installed. */
   path: string | null;
   /** The version of the server that answers; null where none does. */
   version: string | null;
   /** The decision model it holds, as Ollama names it. */
   model: string | null;
-}
-
-/** Where Ollama answers: OLLAMA_URL as the runtime takes it (…/v1), without the /v1. */
-export function ollamaAddress(env: NodeJS.ProcessEnv = process.env): string {
-  return ollamaRoot(env.OLLAMA_URL || "http://127.0.0.1:11434/v1");
 }
 
 function executable(file: string): boolean {
@@ -77,24 +73,10 @@ export function findOllama(env: NodeJS.ProcessEnv = process.env): string | null 
   );
 }
 
-async function getJson<T>(url: string): Promise<T | null> {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
-    return res.ok ? ((await res.json()) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
-export async function ollamaState(env: NodeJS.ProcessEnv = process.env): Promise<OllamaState> {
-  const root = ollamaAddress(env);
-  const version = (await getJson<{ version?: string }>(`${root}/api/version`))?.version ?? null;
-  const tags = version ? await getJson<{ models?: { name: string }[] }>(`${root}/api/tags`) : null;
-  return {
-    path: findOllama(env),
-    version,
-    model: decisionModelIn((tags?.models ?? []).map((m) => m.name)),
-  };
+/** Ollama on this computer: its command, the server that answers at OLLAMA_URL, and its decision model. */
+export async function localOllama(env: NodeJS.ProcessEnv = process.env): Promise<LocalOllamaState> {
+  const { version, models } = await ollamaState(ollamaAddress(env));
+  return { path: findOllama(env), version, model: decisionModelIn(models) };
 }
 
 /** Whether this Ollama is new enough to answer decision questions. */
@@ -241,7 +223,7 @@ export async function startOllama(path: string | null, paths: Layout): Promise<s
   }
   const deadline = Date.now() + (app ? 180_000 : 30_000);
   while (Date.now() < deadline) {
-    const { version } = await ollamaState();
+    const { version } = await localOllama();
     if (version) {
       return version;
     }
@@ -281,68 +263,5 @@ export async function decisionModelProblem(
     }
   } catch (error) {
     return (error as Error).message;
-  }
-}
-
-/**
- * Pulls a model into the running Ollama; `onProgress` hears the bytes so far and in all as they
- * come. Rejects with Ollama's own reason.
- */
-export async function pullModel(
-  model: string,
-  onProgress: (done: number, total: number) => void,
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<void> {
-  const res = await fetch(`${ollamaAddress(env)}/api/pull`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ model, stream: true }),
-  });
-  if (!(res.ok && res.body)) {
-    throw new Error(`Ollama answered ${res.status}. ${await res.text().catch(() => "")}`.trim());
-  }
-  // Each part of the model reports on its own; the sum is the download.
-  const parts = new Map<string, { total: number; completed: number }>();
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let pending = "";
-  let finished = false;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-    pending += decoder.decode(value, { stream: true });
-    const lines = pending.split("\n");
-    pending = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.trim()) {
-        continue;
-      }
-      const event = JSON.parse(line) as {
-        status?: string;
-        digest?: string;
-        total?: number;
-        completed?: number;
-        error?: string;
-      };
-      if (event.error) {
-        throw new Error(event.error);
-      }
-      if (event.digest && event.total) {
-        parts.set(event.digest, { total: event.total, completed: event.completed ?? 0 });
-        let sum = 0;
-        let all = 0;
-        for (const part of parts.values()) {
-          sum += part.completed;
-          all += part.total;
-        }
-        onProgress(sum, all);
-      }
-      finished ||= event.status === "success";
-    }
-  }
-  if (!finished) {
-    throw new Error("The download broke off.");
   }
 }

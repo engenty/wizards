@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, normalize } from "node:path";
+import { type BridgeTool, CLAUDE_BIN, CLIENTS, resolveEnv } from "@engenty/local-models/clients";
 import {
   MOTION_SIZES,
   type MotionGraphicsStep,
@@ -10,9 +11,8 @@ import {
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
 import { type StepContext, StepError } from "../engine/types.js";
-import { CLAUDE_BIN, claudeEnv } from "../harness/claude.js";
 import { failureOf } from "../harness/model.js";
-import { type BridgeTool, openBridge } from "../mcp/bridge.js";
+import { openBridge } from "../mcp/bridge.js";
 import { saidOf } from "../model-errors.js";
 import { motionClient } from "../models.js";
 import { prompt } from "../prompts.js";
@@ -192,7 +192,7 @@ export async function runMotionGraphicsStep(
       void (async () => {
         const child = spawn(CLAUDE_BIN, args, {
           cwd: root,
-          env: await claudeEnv(),
+          env: (await resolveEnv(CLIENTS.claude)).env,
           stdio: ["pipe", "pipe", "pipe"],
           signal: limit,
         });

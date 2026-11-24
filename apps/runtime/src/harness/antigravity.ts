@@ -1,15 +1,20 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
-import { probeVersion, resolveEnv, run } from "./env.js";
 import {
-  failureOf,
-  type HarnessAnswer,
-  type HarnessCall,
-  HarnessModel,
+  type ClientAnswer,
+  type ClientAuth,
+  type ClientCall,
+  ClientModel,
+  clientFailure,
+  type EnvSpec,
+  probeVersion,
+  resolveEnv,
+  run,
   runClient,
-} from "./model.js";
-import type { EnvSpec, Harness, HarnessAuth } from "./types.js";
+} from "@engenty/local-models/clients";
+import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
+import { modelOptions } from "./model.js";
+import type { Harness } from "./types.js";
 
 /**
  * Antigravity CLI: `agy` answers on the Google sign-in it cached — the Google AI subscription,
@@ -41,7 +46,7 @@ const spec: EnvSpec = {
   keyVars: [],
   // No status command, and a call without a sign-in waits a minute for one in the browser:
   // listing the models is quick, and refuses at once when nobody is signed in.
-  async auth(env): Promise<HarnessAuth> {
+  async auth(env): Promise<ClientAuth> {
     try {
       await run(AGY_BIN, ["models"], { timeout: 20_000, env });
       return "subscription";
@@ -89,15 +94,15 @@ export function antigravityMessage(system: string, request: string): string {
   return `${JSON.stringify({ event: "user", message: { content } })}\n`;
 }
 
-class AntigravityModel extends HarnessModel {
+class AntigravityModel extends ClientModel {
   readonly provider = "antigravity";
   protected override readonly nativeSchema = true;
   protected override readonly usesTools = false;
 
-  protected async invoke(call: HarnessCall): Promise<HarnessAnswer> {
+  protected async invoke(call: ClientCall): Promise<ClientAnswer> {
     const { env, auth } = await resolveEnv(spec);
     if (auth === "none") {
-      throw failureOf(this.harness, "not logged in");
+      throw clientFailure(this.client, "not logged in");
     }
     const args = [
       "--input-format",
@@ -121,10 +126,10 @@ class AntigravityModel extends HarnessModel {
     });
     const result = antigravityAnswer(stdout);
     if (!result) {
-      throw failureOf(this.harness, stderr.trim() || `exit ${code}`);
+      throw clientFailure(this.client, stderr.trim() || `exit ${code}`);
     }
     if (result.status !== "SUCCESS") {
-      throw failureOf(this.harness, result.error || stderr.trim() || result.status || "error");
+      throw clientFailure(this.client, result.error || stderr.trim() || result.status || "error");
     }
     const u = result.usage ?? {};
     return {
@@ -145,6 +150,7 @@ class AntigravityModel extends HarnessModel {
 
 export const antigravity: Harness = {
   ...spec,
+  id: "antigravity",
   name: "Antigravity",
   bin: AGY_BIN,
   classes: CLASSES,
@@ -153,5 +159,8 @@ export const antigravity: Harness = {
   // No login command: the client asks for the Google sign-in when it starts without one.
   login: { args: [], interactive: true },
   model: (alias: string, effort?: Effort) =>
-    new AntigravityModel(antigravity, alias || CLASSES.low, effort),
+    new AntigravityModel(antigravity, alias || CLASSES.low, {
+      ...modelOptions(antigravity),
+      effort,
+    }),
 };

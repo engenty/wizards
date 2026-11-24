@@ -4,6 +4,13 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.20.5] - 2026-11-23
+- ADDED **[bot]** Wizards bot install <folder>, a port check and wizards bot tunnel (#721)
+
+## [0.20.4] - 2026-11-23
+- ADDED **[vault,browser]** Logins for @engenty/vault and a new @engenty/browser for agents (#718)
+- FIXED **[plugins]** The plugin's process may read zod through the link pnpm installs beside the package (#719)
+
 ## [0.20.3] - 2026-11-22
 - ADDED **[plugins]** MIT library @engenty/plugins, the plugin contract engenty wizards and wizards.bot both load (#716)
 

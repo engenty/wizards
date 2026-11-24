@@ -1,28 +1,28 @@
 import { describe, expect, it } from "vitest";
-import {
-  CHAT_CLIENTS,
-  type ChatCall,
-  CODEX_KEY_VAR,
-  cursorWorkspace,
-} from "../src/agents/chat-clients";
+import { type ChatCall, CLIENTS, cursorWorkspace } from "./index.js";
+
+const KEY_VAR = "WIZARDS_MCP_KEY";
 
 const call = (over: Partial<ChatCall> = {}): ChatCall => ({
   system: 'Work on wizard "w1".\nAnswer briefly.',
   message: "Bau etwas",
   session: null,
-  mcpUrl: "http://127.0.0.1:4000/api/mcp",
   dir: "/data/subscription",
-  mcpConfigFile: "/data/subscription/mcp.json",
+  mcp: {
+    name: "wizards",
+    url: "http://127.0.0.1:4000/api/mcp",
+    keyVar: KEY_VAR,
+    configFile: "/data/subscription/mcp.json",
+  },
   images: [],
   ...over,
 });
 
 /** The values of every `-c key=value` pair. */
-const configs = (args: string[]) =>
-  args.flatMap((a, i) => (args[i - 1] === "-c" ? [a] : []));
+const configs = (args: string[]) => args.flatMap((a, i) => (args[i - 1] === "-c" ? [a] : []));
 
-describe("Claude Code in the studio chat", () => {
-  const claude = CHAT_CLIENTS.claude;
+describe("Claude Code in a chat", () => {
+  const claude = CLIENTS.claude;
 
   it("says when a tool answered and how many issues it names, for the turn's clock", () => {
     const answer = (content: unknown) =>
@@ -79,7 +79,9 @@ describe("Claude Code in the studio chat", () => {
       { kind: "text", text: "Fertig." },
     ]);
     expect(
-      claude.events(JSON.stringify({ type: "result", is_error: true, session_id: "s", result: "x" })),
+      claude.events(
+        JSON.stringify({ type: "result", is_error: true, session_id: "s", result: "x" }),
+      ),
     ).toEqual([
       { kind: "session", id: "s" },
       { kind: "failure", detail: "x" },
@@ -93,8 +95,8 @@ describe("Claude Code in the studio chat", () => {
   });
 });
 
-describe("Codex in the studio chat", () => {
-  const codex = CHAT_CLIENTS.codex;
+describe("Codex in a chat", () => {
+  const codex = CLIENTS.codex;
 
   it("runs read-only with our MCP server, its key from the environment", () => {
     const args = codex.args(call());
@@ -110,7 +112,7 @@ describe("Codex in the studio chat", () => {
         "features.shell_tool=false",
         "features.unified_exec=false",
         'mcp_servers.wizards.url="http://127.0.0.1:4000/api/mcp"',
-        `mcp_servers.wizards.bearer_token_env_var="${CODEX_KEY_VAR}"`,
+        `mcp_servers.wizards.bearer_token_env_var="${KEY_VAR}"`,
         'mcp_servers.wizards.default_tools_approval_mode="approve"',
       ]),
     );
@@ -190,8 +192,8 @@ describe("Codex in the studio chat", () => {
   });
 });
 
-describe("Cursor Agent in the studio chat", () => {
-  const cursor = CHAT_CLIENTS.cursor;
+describe("Cursor Agent in a chat", () => {
+  const cursor = CLIENTS.cursor;
 
   it("works in the wizard's workspace and continues its chat", () => {
     expect(cursor.args(call({ dir: "/data/subscription/cursor/w1" }))).toEqual([
@@ -208,7 +210,7 @@ describe("Cursor Agent in the studio chat", () => {
   it("allows our MCP server only and denies the person's own", () => {
     const files = cursorWorkspace({
       system: "Work on w1.",
-      mcpUrl: "http://127.0.0.1:4000/api/mcp",
+      mcp: { name: "wizards", url: "http://127.0.0.1:4000/api/mcp" },
       key: "wiz_k",
       ownServers: ["engenty-wizards", "github", "wizards"],
     });
@@ -261,7 +263,10 @@ describe("Cursor Agent in the studio chat", () => {
         },
       },
       { type: "tool_call", subtype: "completed", call_id: "1", tool_call: {} },
-      { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "Ok." }] } },
+      {
+        type: "assistant",
+        message: { role: "assistant", content: [{ type: "text", text: "Ok." }] },
+      },
       { type: "result", subtype: "success", is_error: false, result: "Ok.", session_id: "c-1" },
     ].flatMap((l) => cursor.events(JSON.stringify(l)));
     expect(lines).toEqual([
@@ -281,5 +286,49 @@ describe("Cursor Agent in the studio chat", () => {
       ),
     ).toBe(true);
     expect(cursor.signedOut("Error: chat not found")).toBe(false);
+  });
+});
+
+describe("the host's MCP server", () => {
+  const home = call({
+    mcp: {
+      name: "home",
+      url: "http://127.0.0.1:4848/mcp",
+      keyVar: "WIZARDS_BOT_MCP_KEY",
+      configFile: "/tmp/mcp.json",
+    },
+  });
+
+  it("goes by the name and key variable the host gives it", () => {
+    const claude = CLIENTS.claude.args(home);
+    expect(claude[claude.indexOf("--allowedTools") + 1]).toBe("mcp__home");
+    expect(claude[claude.indexOf("--mcp-config") + 1]).toBe("/tmp/mcp.json");
+    const codex = configs(CLIENTS.codex.args(home));
+    expect(codex).toEqual(
+      expect.arrayContaining([
+        'mcp_servers.home.url="http://127.0.0.1:4848/mcp"',
+        'mcp_servers.home.bearer_token_env_var="WIZARDS_BOT_MCP_KEY"',
+        'mcp_servers.home.default_tools_approval_mode="approve"',
+      ]),
+    );
+    expect(codex.join(" ")).not.toMatch(/wizards/);
+    const files = cursorWorkspace({
+      system: "",
+      mcp: { name: "home", url: "http://127.0.0.1:4848/mcp" },
+      key: "k",
+      ownServers: ["home", "github"],
+    });
+    expect(Object.keys(JSON.parse(files[".cursor/mcp.json"]).mcpServers)).toEqual(["home"]);
+    expect(JSON.parse(files[".cursor/cli.json"]).permissions.allow).toEqual(["Mcp(home:*)"]);
+    expect(JSON.parse(files[".cursor/cli.json"]).permissions.deny).toContain("Mcp(github:*)");
+  });
+
+  it("is left out of a call without one: no tools at all", () => {
+    const bare = call({ mcp: undefined });
+    const claude = CLIENTS.claude.args(bare);
+    expect(claude).not.toContain("--mcp-config");
+    expect(claude).not.toContain("--allowedTools");
+    expect(configs(CLIENTS.codex.args(bare)).join(" ")).not.toMatch(/mcp_servers/);
+    expect(CLIENTS.cursor.args(bare)).not.toContain("--approve-mcps");
   });
 });

@@ -10,7 +10,7 @@
 //   @engenty/wizards          what code outside this repo imports: packages/wizards/dist as its
 //                             build leaves it (packages/wizards/scripts/build.mjs)
 //   @engenty/decision-model, @engenty/search-index, @engenty/search-libsql, @engenty/goose,
-//   @engenty/vault, @engenty/plugins, @engenty/browser
+//   @engenty/vault, @engenty/plugins, @engenty/browser, @engenty/local-models
 //                             the MIT libraries in packages/: each its dist/ as tsc leaves it
 //                             (tsconfig.build.json), its LICENSE and README, at the release's
 //                             version. search-libsql names the other two at that version.
@@ -61,6 +61,7 @@ const LIBRARIES = [
   "vault",
   "plugins",
   "browser",
+  "local-models",
 ];
 
 const args = process.argv.slice(2);
@@ -336,7 +337,7 @@ writeFileSync(
 // bot` (bin/bot.mjs) and the installer it runs. No engines: it runs on an older Node too, and the
 // installer brings a new one.
 mkdirSync(join(launcherStage, "bin"), { recursive: true });
-for (const file of ["wizards.mjs", "bot.mjs"]) {
+for (const file of ["wizards.mjs", "bot.mjs", "bot-tunnel.mjs"]) {
   cpSync(join(root, "bin", file), join(launcherStage, "bin", file));
 }
 chmodSync(join(launcherStage, "bin", "wizards.mjs"), 0o755);
