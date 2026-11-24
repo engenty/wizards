@@ -1,7 +1,7 @@
+import { formatBytes } from "@engenty/chatviews/numbers";
 import type { Format } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables/columns";
 import { formatTableCell } from "@engenty/wizards-shared/engenty/data-tables/columns-format";
-import { formatBytes } from "@engenty/wizards-shared/numbers";
 import type { RunView, ShownList } from "@engenty/wizards-shared/run";
 import {
   type ConnectionCandidate,

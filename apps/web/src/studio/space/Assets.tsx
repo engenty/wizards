@@ -1,4 +1,4 @@
-import { formatBytes } from "@engenty/wizards-shared/numbers";
+import { formatBytes } from "@engenty/chatviews/numbers";
 import {
   type AssetSection,
   SPACE_LIMITS,

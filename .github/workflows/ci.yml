@@ -254,7 +254,7 @@ jobs:
             deploy/Dockerfile.docs.dockerignore pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json
           # A team's host: deploy/Dockerfile.portal with the image (apps/portal/Dockerfile) built
           # above.
-          move deploy/portal apps/portal packages/shared packages/runner deploy/Dockerfile.portal \
+          move deploy/portal apps/portal packages/chatviews packages/shared packages/runner deploy/Dockerfile.portal \
             deploy/Dockerfile.portal.dockerignore pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json
 
       # A repository that builds on the release's images (its own image on top of the runtime's)

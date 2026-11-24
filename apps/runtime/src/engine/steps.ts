@@ -1,3 +1,14 @@
+import {
+  fitData,
+  labelOf,
+  type ObjectShape,
+  recordsOf,
+  shapeJsonSchema,
+  shapeLines,
+  shapeZod,
+  titleKey,
+} from "@engenty/chatviews/shape";
+import { type Surface, type SurfaceComponent, validateSurface } from "@engenty/chatviews/surface";
 import { type DecisionQuestion, pOf } from "@engenty/wizards-shared/decision";
 import {
   type AgentStep,
@@ -18,22 +29,7 @@ import {
 } from "@engenty/wizards-shared/definition";
 import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
-import {
-  fitData,
-  labelOf,
-  type ObjectShape,
-  recordsOf,
-  shapeJsonSchema,
-  shapeLines,
-  shapeZod,
-  titleKey,
-} from "@engenty/wizards-shared/shape";
 import { mainLogo, ruleLines, runTheme } from "@engenty/wizards-shared/spaces";
-import {
-  type Surface,
-  type SurfaceComponent,
-  validateSurface,
-} from "@engenty/wizards-shared/surface";
 import { Agent } from "@mastra/core/agent";
 import { generateText, type JSONSchema7, jsonSchema, Output, parsePartialJson } from "ai";
 import type { z } from "zod";

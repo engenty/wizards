@@ -1,3 +1,4 @@
+import { formatMoney } from "@engenty/chatviews/numbers";
 import {
   type CardOption,
   type Field,
@@ -7,7 +8,6 @@ import {
   slotDayText,
   slotTime,
 } from "@engenty/wizards-shared/definition";
-import { formatMoney } from "@engenty/wizards-shared/numbers";
 import type { ClosedChoice, RunView } from "@engenty/wizards-shared/run";
 import {
   Camera,

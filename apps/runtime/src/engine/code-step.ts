@@ -1,13 +1,13 @@
-import { type CodeStep, dataRef, stepShape } from "@engenty/wizards-shared/definition";
-import type { StepOutput } from "@engenty/wizards-shared/run";
-import { note } from "@engenty/wizards-shared/run";
 import {
   type FieldShape,
   fitData,
   type ListShape,
   recordsOf,
   shapeZod,
-} from "@engenty/wizards-shared/shape";
+} from "@engenty/chatviews/shape";
+import { type CodeStep, dataRef, stepShape } from "@engenty/wizards-shared/definition";
+import type { StepOutput } from "@engenty/wizards-shared/run";
+import { note } from "@engenty/wizards-shared/run";
 import { snapshotFile } from "../services/files.js";
 import { runStepData } from "./data-step.js";
 import { moduleBody, quickJs, WIZARD_CODE_MEMORY_MB } from "./quickjs.js";

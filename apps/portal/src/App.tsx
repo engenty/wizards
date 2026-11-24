@@ -1,5 +1,5 @@
+import type { SurfaceComponent } from "@engenty/chatviews/surface";
 import { Markdown, RunnerBody, type SurfaceChat, SurfaceView } from "@engenty/wizards-runner";
-import type { SurfaceComponent } from "@engenty/wizards-shared/surface";
 import {
   type FormEvent,
   type ReactNode,

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
+
+import { readNumber } from "@engenty/chatviews/numbers";
 import type { TableColumn } from "./engenty/data-tables/columns.js";
 import { coerceRowValues, mergeRowValues } from "./engenty/data-tables/columns-value.js";
-import { readNumber } from "./numbers.js";
 
 /**
  * What a wizard keeps between runs for one person: lists (tabular data), files and connected

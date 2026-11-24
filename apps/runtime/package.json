@@ -20,6 +20,7 @@
     "@ai-sdk/openai": "^4.0.109",
     "@ai-sdk/replicate": "3.0.76",
     "@clack/prompts": "^1.8.1",
+    "@engenty/chatviews": "workspace:*",
     "@engenty/local-models": "workspace:*",
     "@engenty/wizards": "workspace:*",
     "@engenty/wizards-shared": "workspace:*",

@@ -1,6 +1,6 @@
 import { anthropic } from "@ai-sdk/anthropic";
+import { surfaceComponentsSchema, validateSurface } from "@engenty/chatviews/surface";
 import { ClientModel } from "@engenty/local-models/clients";
-import { surfaceComponentsSchema, validateSurface } from "@engenty/wizards-shared/surface";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { sortedTools } from "../agents/space-agent.js";

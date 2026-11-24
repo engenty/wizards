@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
+
+import { SURFACE_COMPONENTS, SURFACE_REQUIRED } from "@engenty/chatviews/surface";
 import type { z } from "zod";
 import {
   fieldSchema,
@@ -7,7 +9,6 @@ import {
   stepSchema,
   wizardShapeSchema,
 } from "./definition.js";
-import { SURFACE_COMPONENTS, SURFACE_REQUIRED } from "./surface.js";
 import { OUTPUT_TAGS, STEP_TAGS, STEP_TEXT } from "./wizard-text.js";
 
 /**

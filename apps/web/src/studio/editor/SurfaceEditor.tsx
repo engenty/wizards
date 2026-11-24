@@ -1,3 +1,5 @@
+import type { FieldShape, ListShape } from "@engenty/chatviews/shape";
+import type { SurfaceComponent } from "@engenty/chatviews/surface";
 import { SurfaceView } from "@engenty/wizards-runner";
 import {
   assembleSurface,
@@ -7,8 +9,6 @@ import {
   type Step,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
-import type { FieldShape, ListShape } from "@engenty/wizards-shared/shape";
-import type { SurfaceComponent } from "@engenty/wizards-shared/surface";
 import { Code2, Eye } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { lang, t } from "../../lib/i18n";

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-MIT OR MIT
+// SPDX-License-Identifier: MIT
 
 /**
  * Numbers as people write and read them: what a phone's number pad, a table cell or a document

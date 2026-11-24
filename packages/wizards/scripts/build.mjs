@@ -1,7 +1,7 @@
 // dist/ as @engenty/wizards ships (scripts/npm-package.mjs stages and packs it):
 //
 //   plugin/   tsc's output as it is
-//   openui/   index.js and server.js with the runner and the shared modules bundled in (Vite,
+//   openui/   index.js and server.js with the runner, the views and the shared modules bundled in (Vite,
 //             vite.config.ts), every other package left as an import; one .d.ts per entry with
 //             the types of those modules inlined (API Extractor); styles.css, the runner's
 //             runner.css; LICENSE-MIT, the runner's licence
@@ -19,7 +19,7 @@ const root = resolve(import.meta.dirname, "..");
 const dist = join(root, "dist");
 const tsc = join(dist, ".tsc");
 const runner = join(root, "..", "runner");
-const WORKSPACE = ["@engenty/wizards-runner", "@engenty/wizards-shared"];
+const WORKSPACE = ["@engenty/wizards-runner", "@engenty/wizards-shared", "@engenty/chatviews"];
 
 const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, stdio: "inherit" });
 

@@ -1,5 +1,5 @@
+import { formatBytes } from "@engenty/chatviews/numbers";
 import { Markdown } from "@engenty/wizards-runner";
-import { formatBytes } from "@engenty/wizards-shared/numbers";
 import type { SpaceFileView } from "@engenty/wizards-shared/spaces";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, RefreshCw, Trash2 } from "lucide-react";

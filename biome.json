@@ -25,6 +25,8 @@
       "packages/search-libsql/*.ts",
       "packages/goose/src/**",
       "packages/goose/*.ts",
+      "packages/chatviews/src/**",
+      "packages/chatviews/*.ts",
       "packages/vault/src/**",
       "packages/vault/*.ts",
       "packages/plugins/src/**",
