@@ -70,6 +70,13 @@ describe("the setup's routes", () => {
     expect(test).not.toHaveBeenCalled();
   });
 
+  it("list the host's clients without asking a model", async () => {
+    const { app, test } = host();
+    const res = await app.request("/local/clients");
+    expect(await res.json()).toMatchObject({ clients: [{ id: "codex", version: null }] });
+    expect(test).not.toHaveBeenCalled();
+  });
+
   it("know no client the host does not have, and run nothing for it", async () => {
     const { post } = host();
     for (const job of ["detect", "install", "login"]) {

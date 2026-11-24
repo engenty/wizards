@@ -9,6 +9,7 @@
 @source "../";
 @source "../../../../packages/runner/src";
 @source "../../../../packages/chatviews/src/react";
+@source "../../../../packages/model-setup/src/react";
 
 /* The app bar is the shell's ground: in light one step below the page's paper, so the page
    beside it reads as the raised card. Dark sets its own step, below the stage (`.dark` below). */

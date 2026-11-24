@@ -115,6 +115,7 @@ export function setupRoutes(host: SetupHost): Hono {
         return c.json(outcome);
       })
       // --- the AI clients on this computer: looked at afresh, installed and signed in --------
+      .get("/clients", async (c) => c.json({ clients: await clients.detectAll() }))
       .post("/harness/:id/detect", async (c) => {
         const id = c.req.param("id");
         return clients.client(id)

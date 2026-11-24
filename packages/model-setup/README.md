@@ -11,6 +11,15 @@ wizards.bot show the same one, so a new way to think is added here and both have
   shows; `setupRoutes(host)` are the Hono routes the page asks. `Tested` keeps which sources a
   test call has worked on.
 
+- **React** (`@engenty/model-setup/react`). The page in parts: `SetupColumns` (the question, the
+  list, and beside it what the picked choice needs), `ClientPanel` (found, installed, signed in
+  through the terminal, tested), `OwnKeys`, `OllamaAddress`, `ModelTest`. A host wraps them in
+  `SetupProvider` with its calls and its language, sets one of the tones (`SETUP_ON_GROUND`,
+  `SETUP_ON_PAPER`, `SETUP_ON_THEME`) and gives its title, figures and last button. Tailwind
+  reads the classes: `@source` this package's `dist/react`. The terminal needs `@xterm/xterm`
+  and its fit and web-links add-ons.
+- **Words** (`@engenty/model-setup/texts`), English and German.
+
 Three rules the routes keep:
 
 1. Finding a client never runs a model.
