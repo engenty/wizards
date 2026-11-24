@@ -1,11 +1,9 @@
-import { chatLibrarySpec } from "@engenty/chatviews/chat";
-import { WizardSpec } from "./server.js";
+import { chatLibrary } from "@engenty/chatviews/react/chat";
+import { Wizard } from "./Wizard.js";
 
 /**
- * The views of engenty's chats (@engenty/chatviews, `engenty:core/1`) with the Wizard component
- * among them, as the model sees them: a chat server writes its prompt from this library, the
- * browser draws with `wizardsChatLibrary` (`@engenty/wizards/openui`). Both make the same prompt.
+ * The views of engenty's chats with the Wizard component among them, drawn: a person's OpenUI
+ * chat shows key figures, lists, cards and forms with engenty's components, and runs a wizard
+ * inline where the model starts one.
  */
-export const wizardsChatLibrarySpec = chatLibrarySpec.extend({
-  components: { add: [WizardSpec as never] },
-});
+export const wizardsChatLibrary = chatLibrary.extend({ components: { add: [Wizard] } });
