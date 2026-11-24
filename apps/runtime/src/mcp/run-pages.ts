@@ -30,7 +30,7 @@ import type { Principal } from "./auth.js";
  */
 
 /** Where a run was when its page went to the person. Sealed: it comes back through the client. */
-interface PageState {
+export interface PageState {
   runId: string;
   kind: "form" | "review" | "ask" | "question" | "page";
   /** The form's or review's step, the ask's id. */
@@ -140,7 +140,7 @@ function onThePage(report: RunReport, title: string): InputRequest | null {
 }
 
 /** What the person is asked for the page the run waits on; nothing when it waits on no one. */
-function pageOf(report: RunReport): { state: PageState; request: InputRequest } | null {
+export function pageOf(report: RunReport): { state: PageState; request: InputRequest } | null {
   const w = (report as { waitingFor?: Waiting }).waitingFor;
   if (!w) {
     return null;
@@ -240,7 +240,7 @@ function pageOf(report: RunReport): { state: PageState; request: InputRequest } 
 }
 
 /** Puts the person's answer into the run. Answered elsewhere meanwhile: nothing to do. */
-async function answerPage(
+export async function answerPage(
   userId: string,
   state: PageState,
   content: Record<string, unknown>,
