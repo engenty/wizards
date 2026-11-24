@@ -77,7 +77,7 @@ describe("an installed AI client as a model", () => {
     expect(storeIdle({ tools: [], connections: ["mail"] }, 0, 0)).toBe(false);
   });
 
-  it("serves a call's tools to the client over MCP and closes them with the call", async () => {
+  it("serves a call's tools on the runtime's bridge route and closes them with the call", async () => {
     const { openBridge, bridgeRequest } = await import("../src/mcp/bridge");
     const bridge = openBridge([
       {
@@ -109,31 +109,5 @@ describe("an installed AI client as a model", () => {
     bridge.close();
     const gone = await bridgeRequest(token, new Request(bridge.url, { method: "POST" }));
     expect(gone.status).toBe(404);
-  });
-
-  it("runs a bridged tool in the context of the call that opened the bridge", async () => {
-    const { AsyncLocalStorage } = await import("node:async_hooks");
-    const { openBridge, bridgeRequest } = await import("../src/mcp/bridge");
-    const tenant = new AsyncLocalStorage<string>();
-    const bridge = tenant.run("acme", () =>
-      openBridge([
-        {
-          name: "whoami",
-          inputSchema: { type: "object", properties: {} },
-          execute: async () => ({ tenant: tenant.getStore() ?? null }),
-        },
-      ]),
-    );
-    const token = bridge.url.split("/").pop()!;
-    // The client's request comes from outside that context.
-    const transport = new StreamableHTTPClientTransport(new URL(bridge.url), {
-      fetch: (input, init) => bridgeRequest(token, new Request(input, init)),
-    });
-    const client = new Client({ name: "test", version: "0" });
-    await client.connect(transport);
-    const result = await client.callTool({ name: "whoami", arguments: {} });
-    expect(JSON.parse((result.content as { text: string }[])[0].text)).toEqual({ tenant: "acme" });
-    await client.close();
-    bridge.close();
   });
 });

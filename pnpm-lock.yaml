@@ -781,10 +781,16 @@ importers:
 
   packages/local-models:
     dependencies:
+      '@modelcontextprotocol/server':
+        specifier: 2.4.0
+        version: 2.4.0
       cross-spawn:
         specifier: 7.0.6
         version: 7.0.6
     devDependencies:
+      '@modelcontextprotocol/client':
+        specifier: 2.4.0
+        version: 2.4.0
       '@types/cross-spawn':
         specifier: ^6.0.6
         version: 6.0.6
