@@ -3,8 +3,10 @@ import { z } from "zod";
 import { callOutside, RUN_COMMAND } from "../elements/outside.js";
 import { ELEMENT_SPECS, ELEMENT_TOOL_NAMES } from "../elements/specs.js";
 import { prompt } from "../prompts.js";
+import type { RunReport } from "../services/runs.js";
 import { listSpaces, spaceIs } from "../services/spaces.js";
 import type { Principal } from "./auth.js";
+import { FLOW_VIEW_KEY, flowAppMeta, flowView } from "./flow-app.js";
 
 /**
  * The space's elements as MCP tools (docs/plans/modular.md, phase 2): what a Work chat uses,
@@ -32,6 +34,28 @@ const READ_ONLY = new Set<string>([
   "wizard_list",
 ]);
 
+/**
+ * A run `wizard_run` started, with the flow widget's data: hosts that render MCP Apps show the
+ * run and the person answers its pages there. Without a view (a wizard the person can't open
+ * as a diagram) the run comes back as text alone.
+ */
+async function withFlow(userId: string, answered: CallToolResult, result: unknown) {
+  const report = result as RunReport | undefined;
+  if (answered.isError || !report?.runId || !report.wizardId) {
+    return answered;
+  }
+  try {
+    const view = await flowView(userId, report.wizardId, { run: report });
+    return {
+      ...answered,
+      structuredContent: report as unknown as Record<string, unknown>,
+      _meta: { [FLOW_VIEW_KEY]: view },
+    };
+  } catch {
+    return answered;
+  }
+}
+
 function answer(result: Awaited<ReturnType<typeof callOutside>>): CallToolResult {
   const body = result.ok
     ? result.result
@@ -55,12 +79,15 @@ export function registerElementTools(server: McpServer, who: Principal) {
       return;
     }
     const withSpace = input.extend({ spaceId });
+    const runs = name === "wizard_run";
     server.registerTool(
       name,
       {
         title: name.replace(/_/g, " "),
-        description,
+        // Over MCP the client answers the run's pages itself, with the run tools (mcp/runs.ts).
+        description: runs ? prompt("mcp", "tool.wizard_run") : description,
         inputSchema: withSpace,
+        ...(runs ? { _meta: flowAppMeta } : {}),
         annotations: {
           readOnlyHint: READ_ONLY.has(name),
           // A connection's action may write, send or delete in a connected account.
@@ -71,15 +98,15 @@ export function registerElementTools(server: McpServer, who: Principal) {
       },
       (async (args: Record<string, unknown>) => {
         const { spaceId: space, ...rest } = args;
-        return answer(
-          await callOutside(
-            outside,
-            typeof space === "string" ? space : undefined,
-            name,
-            rest,
-            AbortSignal.timeout(10 * 60_000),
-          ),
+        const result = await callOutside(
+          outside,
+          typeof space === "string" ? space : undefined,
+          name,
+          rest,
+          AbortSignal.timeout(10 * 60_000),
         );
+        const answered = answer(result);
+        return runs && result.ok ? withFlow(who.userId, answered, result.result) : answered;
       }) as ToolCallback<typeof withSpace>,
     );
   };
