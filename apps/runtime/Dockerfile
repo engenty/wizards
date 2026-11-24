@@ -22,6 +22,7 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/wizards/package.json packages/wizards/
 COPY packages/runner/package.json packages/runner/
 COPY packages/local-models/package.json packages/local-models/
+COPY packages/model-setup/package.json packages/model-setup/
 RUN sed -i 's/"version": *"[^"]*"/"version": "0.0.0"/' package.json
 
 # Everything the build needs.
@@ -79,9 +80,10 @@ COPY --from=prod-deps /app/apps/runtime/node_modules ./apps/runtime/node_modules
 COPY --from=prod-deps /app/packages/chatviews/node_modules ./packages/chatviews/node_modules
 COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=prod-deps /app/packages/local-models/node_modules ./packages/local-models/node_modules
-# The built-in terminal (apps/runtime/src/harness/terminal.ts) needs node-pty's binary for this
+COPY --from=prod-deps /app/packages/model-setup/node_modules ./packages/model-setup/node_modules
+# The built-in terminal (packages/model-setup/src/server/terminal.ts) needs node-pty's binary for this
 # platform: an image whose terminal cannot start a command is not built.
-RUN cd apps/runtime && node -e "require('@lydell/node-pty').spawn('/bin/sh', ['-c', 'exit 0'], {}).onExit((e) => process.exit(e.exitCode))"
+RUN cd packages/model-setup && node -e "require('@lydell/node-pty').spawn('/bin/sh', ['-c', 'exit 0'], {}).onExit((e) => process.exit(e.exitCode))"
 COPY --from=build /app/apps/runtime/package.json ./apps/runtime/
 COPY --from=build /app/apps/runtime/dist ./apps/runtime/dist
 COPY --from=build /app/packages/chatviews/package.json ./packages/chatviews/
@@ -92,6 +94,8 @@ COPY --from=build /app/packages/wizards/package.json ./packages/wizards/
 COPY --from=build /app/packages/wizards/dist ./packages/wizards/dist
 COPY --from=build /app/packages/local-models/package.json ./packages/local-models/
 COPY --from=build /app/packages/local-models/dist ./packages/local-models/dist
+COPY --from=build /app/packages/model-setup/package.json ./packages/model-setup/
+COPY --from=build /app/packages/model-setup/dist ./packages/model-setup/dist
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/plugin ./plugin
 # The plugins that ship with the runtime. Further ones go into a folder of PLUGINS_DIR.

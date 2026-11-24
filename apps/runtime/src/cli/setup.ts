@@ -3,11 +3,13 @@ import { homedir, totalmem } from "node:os";
 import { delimiter, join } from "node:path";
 import * as p from "@clack/prompts";
 import { ollamaAddress, pullModel } from "@engenty/local-models/ollama";
+import { CLIENTS, type ClientEntry, installCommand } from "@engenty/model-setup";
+import { suggestedClient, vendorApp } from "@engenty/model-setup/server";
 import { LOCAL_DECISION_MODEL } from "../decision-model.js";
 import { installAll, ON_DEMAND } from "../on-demand.js";
 import { accountStep } from "./account.js";
 import { autostartForStatus, setAutostart } from "./autostart.js";
-import { installClient, installCommand } from "./clients.js";
+import { installClient } from "./clients.js";
 import { appStates, connectApps } from "./connect.js";
 import { runLogged } from "./exec.js";
 import {
@@ -20,17 +22,7 @@ import {
   readInstallNote,
   writeInstallNote,
 } from "./home.js";
-import {
-  CLIENTS,
-  type Client,
-  type ClientState,
-  detectClients,
-  findChrome,
-  findFfmpeg,
-  findOnPath,
-  suggestedClient,
-  vendorApp,
-} from "./machine.js";
+import { type ClientState, detectClients, findChrome, findFfmpeg, findOnPath } from "./machine.js";
 import {
   appAsksForPassword,
   DECISION_MODEL_GB,
@@ -70,9 +62,9 @@ function cancelled<T>(value: T | symbol): value is symbol {
   return false;
 }
 
-async function install(client: Client, paths: Layout): Promise<boolean> {
+async function install(client: ClientEntry, paths: Layout): Promise<boolean> {
   const task = p.taskLog({ title: `Installing ${client.name}`, limit: 6 });
-  task.message(dim(installCommand(client, paths)));
+  task.message(dim(installCommand(client, paths.clients, process.platform)));
   const { code, tail } = await installClient(client, paths, (line) => task.message(line));
   const installed = (await detectClients(paths)).find((state) => state.client.id === client.id);
   if (code === 0 && installed?.path) {
