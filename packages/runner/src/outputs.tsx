@@ -1,7 +1,7 @@
+import { labelOf } from "@engenty/chatviews/shape";
 import type { Format, Step } from "@engenty/wizards-shared/definition";
 import { asAgent, isDataStep, outputOf, stepShape } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
-import { labelOf } from "@engenty/wizards-shared/shape";
 import DOMPurify from "dompurify";
 import { Check, Copy, Download, FileText, Maximize2, Printer, Share } from "lucide-react";
 import { marked } from "marked";

@@ -1,3 +1,4 @@
+import { readNumber } from "@engenty/chatviews/numbers";
 import { DataMenu, editableData, HtmlFrame, JsonSchemaDialog } from "@engenty/wizards-runner";
 import type { StepWarning } from "@engenty/wizards-shared/connectors";
 import {
@@ -37,7 +38,6 @@ import {
   whenCalc,
   whenText,
 } from "@engenty/wizards-shared/definition";
-import { readNumber } from "@engenty/wizards-shared/numbers";
 import type { BranchDecision, RunEstimate } from "@engenty/wizards-shared/run";
 import { wizardToolId, wizardToolsIn } from "@engenty/wizards-shared/wizard-code";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";

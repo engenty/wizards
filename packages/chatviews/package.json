@@ -1,0 +1,55 @@
+{
+  "name": "@engenty/chatviews",
+  "version": "0.1.0",
+  "description": "Views in a chat and in a wizard: surfaces from a catalog of components bound to data by JSON pointer and calculations, their checks, and the calc language.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/engenty/wizards.git",
+    "directory": "packages/chatviews"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    "./surface": {
+      "wizards-source": "./src/surface.ts",
+      "types": "./dist/surface.d.ts",
+      "default": "./dist/surface.js"
+    },
+    "./calc": {
+      "wizards-source": "./src/calc.ts",
+      "types": "./dist/calc.d.ts",
+      "default": "./dist/calc.js"
+    },
+    "./shape": {
+      "wizards-source": "./src/shape.ts",
+      "types": "./dist/shape.d.ts",
+      "default": "./dist/shape.js"
+    },
+    "./numbers": {
+      "wizards-source": "./src/numbers.ts",
+      "types": "./dist/numbers.d.ts",
+      "default": "./dist/numbers.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "~7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

@@ -54,6 +54,7 @@ const libraryStage = join(outDir, "engenty-wizards");
 const RUNTIME = "@engenty/wizards-runtime";
 // The MIT libraries, by their folder in packages/; one that another needs comes first.
 const LIBRARIES = [
+  "chatviews",
   "decision-model",
   "search-index",
   "search-libsql",

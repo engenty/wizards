@@ -8,17 +8,17 @@ company, run it, change it — just don't offer it to others as a competing prod
 Each release becomes MIT two years after it is published. Every package of the workspace names
 its licence in its `package.json`.
 
-The wizard format is open to everyone now: the eighteen files that define a wizard, read it and
-pack it as a `.wizard` file (`packages/shared/src/definition.ts`, `fit.ts`, `numbers.ts`,
-`run.ts`, `run-schema.ts`, `runner-texts.ts`, `shape.ts`, `sharing.ts`, `store.ts`, `surface.ts`, `texts.ts`,
+The wizard format is open to everyone now: the fifteen files that define a wizard, read it and
+pack it as a `.wizard` file (`packages/shared/src/definition.ts`, `fit.ts`,
+`run.ts`, `run-schema.ts`, `runner-texts.ts`, `sharing.ts`, `store.ts`, `texts.ts`,
 `theme.ts`, `translation.ts`, `wizard-data.ts`, `wizard-package.ts` and `engenty/data-tables/columns.ts`,
 `columns-format.ts`, `columns-value.ts`) are also under the MIT licence, at the
 choice of whoever uses them (`FSL-1.1-MIT OR MIT`, [packages/shared/LICENSE-MIT](packages/shared/LICENSE-MIT)).
 Each says so in its first line. The runner package (`packages/runner`, MIT) bundles them under MIT.
 `@engenty/wizards` on npm is `FSL-1.1-MIT`; its `/openui` bundles the runner, whose MIT licence
 ships beside it (`dist/openui/LICENSE-MIT`).
-Eight libraries are under the MIT licence, each with its own `LICENSE`, and go to npm with each
-release: `packages/decision-model` (`@engenty/decision-model`), `packages/search-index`
+Nine libraries are under the MIT licence, each with its own `LICENSE`, and go to npm with each
+release: `packages/chatviews` (`@engenty/chatviews`), `packages/decision-model` (`@engenty/decision-model`), `packages/search-index`
 (`@engenty/search-index`), `packages/search-libsql` (`@engenty/search-libsql`),
 `packages/goose` (`@engenty/goose`), `packages/vault` (`@engenty/vault`),
 `packages/plugins` (`@engenty/plugins`), `packages/browser` (`@engenty/browser`) and

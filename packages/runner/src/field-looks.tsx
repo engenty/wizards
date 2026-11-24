@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
-import { readNumber } from "@engenty/wizards-shared/numbers";
+import { readNumber } from "@engenty/chatviews/numbers";
 import { lang, t } from "./i18n.js";
 import { cn, Input } from "./ui.js";
 

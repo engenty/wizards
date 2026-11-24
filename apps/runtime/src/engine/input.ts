@@ -1,3 +1,4 @@
+import { readNumber } from "@engenty/chatviews/numbers";
 import {
   type AudioValue,
   type CardOption,
@@ -12,7 +13,6 @@ import {
   offeredSlot,
   shownFields,
 } from "@engenty/wizards-shared/definition";
-import { readNumber } from "@engenty/wizards-shared/numbers";
 import type { Said } from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
 

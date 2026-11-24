@@ -1,4 +1,4 @@
-import { formatBytes } from "@engenty/wizards-shared/numbers";
+import { formatBytes } from "@engenty/chatviews/numbers";
 import { skillScript } from "@engenty/wizards-shared/skills";
 import { wizardToolId, wizardToolOfPath } from "@engenty/wizards-shared/wizard-code";
 import { wizardSkillFolders } from "@engenty/wizards-shared/wizard-skills";

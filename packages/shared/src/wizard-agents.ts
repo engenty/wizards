@@ -1,3 +1,4 @@
+import { type ObjectSchema, outputSchemaSchema } from "@engenty/chatviews/shape";
 import {
   type AgentStep,
   pluginToolOf,
@@ -5,7 +6,6 @@ import {
   type StepClass,
   TOOL_IDS,
 } from "./definition.js";
-import { type ObjectSchema, outputSchemaSchema } from "./shape.js";
 import { stepAgents, wizardAgentPath, wizardCodeOf, wizardToolsIn } from "./wizard-code.js";
 
 /**

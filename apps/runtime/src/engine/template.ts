@@ -1,3 +1,4 @@
+import { formatMoney } from "@engenty/chatviews/numbers";
 import {
   allFields,
   type Field,
@@ -9,7 +10,6 @@ import {
   type WizardDefinition,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import { formatMoney } from "@engenty/wizards-shared/numbers";
 import type { RunState } from "@engenty/wizards-shared/run";
 import {
   type AssetSection,

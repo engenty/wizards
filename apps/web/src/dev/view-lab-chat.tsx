@@ -1,4 +1,4 @@
-import { validateSurface } from "@engenty/wizards-shared/surface";
+import { validateSurface } from "@engenty/chatviews/surface";
 import { useEffect, useMemo, useState } from "react";
 import { ChatViewPart, ViewContext, type ViewHost } from "../studio/work/View";
 

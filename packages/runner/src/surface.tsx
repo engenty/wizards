@@ -1,6 +1,6 @@
-import { calcTruthy } from "@engenty/wizards-shared/calc";
-import type { Surface, SurfaceComponent } from "@engenty/wizards-shared/surface";
-import { bound as boundTo } from "@engenty/wizards-shared/surface";
+import { calcTruthy } from "@engenty/chatviews/calc";
+import type { Surface, SurfaceComponent } from "@engenty/chatviews/surface";
+import { bound as boundTo } from "@engenty/chatviews/surface";
 import {
   Check,
   ChevronRight,
@@ -24,7 +24,7 @@ import { cn, Dialog, Segmented, Tabs as Segments, Switch } from "./ui.js";
 const bound = (value: unknown, data: unknown, row?: unknown) => boundTo(value, data, row, lang);
 
 /**
- * A surface drawn with the runner's own components: the catalog in shared/surface.ts, nothing
+ * A surface drawn with the runner's own components: the catalog in @engenty/chatviews/surface, nothing
  * else. Unknown components render nothing; a prop that is not there shows empty.
  */
 

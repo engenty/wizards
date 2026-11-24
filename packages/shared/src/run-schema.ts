@@ -1,4 +1,11 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
+
+import {
+  type FieldShape,
+  type ListShape,
+  shapeJsonSchema,
+  shapeZod,
+} from "@engenty/chatviews/shape";
 import { z } from "zod";
 import {
   dataRef,
@@ -13,7 +20,6 @@ import {
   stepShape,
   type WizardDefinition,
 } from "./definition.js";
-import { type FieldShape, type ListShape, shapeJsonSchema, shapeZod } from "./shape.js";
 
 /**
  * What a wizard takes and what it gives, as JSON Schema (draft 2020-12): for whoever starts a
