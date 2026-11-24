@@ -24,6 +24,8 @@ const EN = {
   "surface.files": "{n} files",
   "surface.foundIn": "Found in",
   "surface.openFile": "Open",
+  "surface.required": "This one is still empty.",
+  "surface.sentBy": "Sent by {name}",
 };
 
 type Vars = Record<string, string | number>;
