@@ -39,7 +39,8 @@ export interface BridgeTool {
   description?: string;
   /** JSON Schema of the input, as the model call declares it. */
   inputSchema: Record<string, unknown>;
-  execute(input: unknown): Promise<unknown>;
+  /** `signal`: aborted when the bridge closes or the client gives the call up. */
+  execute(input: unknown, options?: { signal?: AbortSignal }): Promise<unknown>;
   /** What the model gets to see of a result where a tool shapes it (a screenshot, say). */
   toModelOutput?: (output: unknown) => unknown;
 }
