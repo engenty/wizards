@@ -76,6 +76,7 @@
     }
   },
   "devDependencies": {
+    "@engenty/chatviews": "workspace:*",
     "@engenty/wizards-runner": "workspace:*",
     "@engenty/wizards-shared": "workspace:*",
     "@libsql/client": "^0.18.0",

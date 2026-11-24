@@ -970,6 +970,9 @@ importers:
         specifier: 1.4.2
         version: 1.4.2
     devDependencies:
+      '@engenty/chatviews':
+        specifier: workspace:*
+        version: link:../chatviews
       '@engenty/wizards-runner':
         specifier: workspace:*
         version: link:../runner
