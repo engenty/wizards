@@ -57,6 +57,32 @@ async function connect(token: string): Promise<Client> {
   return client;
 }
 
+/** A client on protocol 2026-07-28 that shows forms: it answers each page as `answer` says. */
+async function connectAsking(
+  token: string,
+  answer: (request: { message: string; requestedSchema?: any; mode?: string }) => any,
+  asked: unknown[],
+): Promise<Client> {
+  const client = new Client(
+    { name: "vitest-home", version: "1.0.0" },
+    {
+      capabilities: { elicitation: { form: {}, url: {} } },
+      versionNegotiation: { mode: "auto" },
+    },
+  );
+  client.setRequestHandler("elicitation/create", async (request: any) => {
+    asked.push(request.params);
+    return answer(request.params);
+  });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL(MCP_URL), {
+      fetch: (url, init) => Promise.resolve(app.fetch(new Request(url, init))),
+      requestInit: { headers: { authorization: `Bearer ${token}` } },
+    }),
+  );
+  return client;
+}
+
 async function call(client: Client, name: string, args: Record<string, unknown> = {}) {
   const res = await client.callTool({ name, arguments: args });
   const text = (res.content as { type: string; text: string }[])[0]?.text ?? "";
@@ -164,5 +190,31 @@ describe("a client that uses a space", () => {
     });
     expect(done.isError, JSON.stringify(done.body)).toBe(false);
     expect(done.body.status).toBe("done");
+  });
+
+  it("asks a client that shows forms each page itself, and the answers go into the run", async () => {
+    const asked: any[] = [];
+    const client = await connectAsking(
+      USE_TOKEN,
+      (request) => ({
+        action: "accept",
+        content: request.requestedSchema?.properties?.name ? { name: "Lena" } : { what: "Ausweis" },
+      }),
+      asked,
+    );
+    const done = await call(client, "wizard_run", { wizardId, waitSeconds: 5 });
+    expect(done.isError, JSON.stringify(done.body)).toBe(false);
+    expect(done.body.status).toBe("done");
+    expect(asked.map((a) => a.message)).toEqual(["Wer kommt", "Mitbringen"]);
+    expect(asked[0].requestedSchema.properties.name).toMatchObject({ type: "string", title: "Name" });
+    expect((done.raw._meta as any)?.["engenty/flow"]?.run?.status).toBe("done");
+  });
+
+  it("leaves the run waiting when the person puts a page off", async () => {
+    const client = await connectAsking(USE_TOKEN, () => ({ action: "cancel" }), []);
+    const left = await call(client, "wizard_run", { wizardId, waitSeconds: 5 });
+    expect(left.isError, JSON.stringify(left.body)).toBe(false);
+    expect(left.body).toMatchObject({ status: "waiting_input", unanswered: true });
+    expect(left.body.waitingFor?.form).toBe("who");
   });
 });

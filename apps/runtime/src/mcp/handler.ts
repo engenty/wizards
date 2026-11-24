@@ -15,6 +15,7 @@ import { serverText } from "../texts.js";
 import { authenticate, type Principal, principalOf } from "./auth.js";
 import { registerElementTools } from "./elements.js";
 import { registerFlowApp } from "./flow-app.js";
+import { requestStateVerify } from "./run-pages.js";
 import { registerRunTools } from "./runs.js";
 import { appKind, clientNameOf, noteChecked, noteRequest } from "./seen.js";
 import { registerPrompts, registerTools } from "./tools.js";
@@ -87,6 +88,8 @@ export function mcpHandler(): (request: Request) => Promise<Response> {
         {
           instructions: prompt("mcp", "instructions"),
           capabilities: { tools: {}, prompts: {}, resources: {} },
+          // A run's page asked of the person comes back with its sealed state (mcp/run-pages.ts).
+          requestState: { verify: requestStateVerify },
         },
       );
       const who = principalOf(ctx.authInfo!);

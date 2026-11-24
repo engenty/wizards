@@ -1,4 +1,4 @@
-import type { McpServer, ToolCallback } from "@modelcontextprotocol/server";
+import type { McpServer, ServerContext, ToolCallback } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { prompt } from "../prompts.js";
 import {
@@ -6,10 +6,12 @@ import {
   answerRunForm,
   answerRunQuestion,
   controlRun,
+  type RunReport,
   reviewRun,
   runReport,
 } from "../services/runs.js";
 import type { Principal } from "./auth.js";
+import { withPages } from "./run-pages.js";
 import { annotationsOf, failure, ok } from "./tools.js";
 
 /**
@@ -31,6 +33,8 @@ export function registerRunTools(server: McpServer, who: Principal) {
       readOnly?: boolean;
       destructive?: boolean;
       openWorld?: boolean;
+      /** The run's next page goes to the person, where the client asks them (mcp/run-pages.ts). */
+      pages?: boolean;
     },
     run: (args: z.infer<S>) => Promise<unknown>,
   ) => {
@@ -42,8 +46,16 @@ export function registerRunTools(server: McpServer, who: Principal) {
         inputSchema: config.input,
         annotations: annotationsOf(config),
       },
-      (async (args: z.infer<S>) => {
+      (async (args: z.infer<S>, ctx: ServerContext) => {
         try {
+          if (config.pages) {
+            return await withPages(
+              ctx,
+              who,
+              async () => (await run(args)) as RunReport,
+              (report) => ok(report),
+            );
+          }
           return ok(await run(args));
         } catch (err) {
           return failure(err);
@@ -83,6 +95,7 @@ export function registerRunTools(server: McpServer, who: Principal) {
         waitSeconds,
       }),
       openWorld: true,
+      pages: true,
     },
     async ({ runId, stepId, values, waitSeconds }) => {
       await answerRunForm(who.userId, runId, stepId, values);
@@ -117,6 +130,7 @@ export function registerRunTools(server: McpServer, who: Principal) {
         waitSeconds,
       }),
       openWorld: true,
+      pages: true,
     },
     async ({ runId, stepId, action, waitSeconds }) => {
       await reviewRun(who.userId, runId, stepId, action);
@@ -137,6 +151,7 @@ export function registerRunTools(server: McpServer, who: Principal) {
       }),
       destructive: true,
       openWorld: true,
+      pages: true,
     },
     async ({ runId, askId, answer, waitSeconds }) => {
       await answerRunAsk(who.userId, runId, askId, answer);
@@ -152,6 +167,7 @@ export function registerRunTools(server: McpServer, who: Principal) {
       input: z.object({ runId: z.string(), answer: z.string().min(1), waitSeconds }),
       destructive: false,
       openWorld: true,
+      pages: true,
     },
     async ({ runId, answer, waitSeconds }) => {
       await answerRunQuestion(who.userId, runId, answer);
