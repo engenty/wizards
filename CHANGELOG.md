@@ -4,6 +4,13 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.20.6] - 2026-11-24
+- ADDED **[local-models]** @engenty/local-models, Ollama and subscription clients for the runtime and wizards.bot (#732)
+- ADDED **[bot]** Wizards bot tunnel needs no account: a name of its own at wizards.host (#731)
+- ADDED **[bot]** Wizards bot tunnel through our relay at <name>.wizards.host (#723)
+- FIXED **[bot]** A Bot Server finds Codex and Claude installed under nvm, npm, pnpm or Bun (#725)
+- FIXED **[bot]** Wizards bot tunnel asks account.engenty.ai, where the account answers (#724)
+
 ## [0.20.5] - 2026-11-23
 - ADDED **[bot]** Wizards bot install <folder>, a port check and wizards bot tunnel (#721)
 
