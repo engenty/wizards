@@ -4,6 +4,11 @@ Status: plan, written on 2026-10-28 against v0.11.13 (`@mastra/core` 1.77; 1.80 
 steps 1 (#265) and 2 (#266) open. Concept: engenty-dev `concepts/` (Studio / Work / Client, Work
 deep dive). Behind `workMode`.
 
+Frozen on 2026-11-24: Work's engine takes no new features. The wizards.bot home
+(engenty/wizards-bot) becomes the engine for Work: the studio will open the team's or the person's
+home, with the space as its connection there, and then Work's engine is removed. Until then
+`workMode` and `workWip` stay off, and Work's pages stay as they are.
+
 ## Goals
 
 - Chats are multi-user and durable, in a shared space.

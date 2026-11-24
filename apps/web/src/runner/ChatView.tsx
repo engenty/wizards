@@ -1,3 +1,4 @@
+import { readNumber } from "@engenty/chatviews/numbers";
 import {
   AskPanel,
   choiceLabel,
@@ -32,7 +33,6 @@ import {
   type ReviewStep,
   shownFields,
 } from "@engenty/wizards-shared/definition";
-import { readNumber } from "@engenty/wizards-shared/numbers";
 import type { RunEvent, RunNoteCode, RunView } from "@engenty/wizards-shared/run";
 import {
   ArrowUp,

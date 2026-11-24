@@ -17,6 +17,13 @@ The models on a person's own computer. MIT.
   call (`client.model(alias, options)`, the call's tools served over the host's MCP bridge), and
   each as a chat turn with one MCP server, whose name and key variable the host gives
   (`client.args(call)`, `client.events(line)`).
+- **Bridge** (`@engenty/local-models/bridge`). The tools of one call or one turn, served over MCP
+  to a client while it answers. `new Bridges()` holds the open ones; `open(tools, { token })`
+  opens one (the tools run in the async context of the code that opens it) and `close()` ends it;
+  `fetch(request, token?)` is the one route the host mounts, with the token from the path or the
+  bearer header; `at(baseUrl)` is a client model's `bridge` option, each call at
+  `<baseUrl>/<token>`. A tool's `toModelOutput` shapes its MCP content (text, JSON, pictures,
+  errors). What a person sees of a call stays the host's, in the tool's `execute`.
 - **Probe** (`@engenty/local-models/probe`). `probe(source)` makes one short real call and
   returns a state: `ok`, `absent`, `signed_out`, `no_model`, `too_big` or `failed`, with what the
   source said. No words for people: each app words the states itself.

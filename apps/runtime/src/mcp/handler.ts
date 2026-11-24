@@ -15,6 +15,9 @@ import { serverText } from "../texts.js";
 import { authenticate, type Principal, principalOf } from "./auth.js";
 import { registerElementTools } from "./elements.js";
 import { registerFlowApp } from "./flow-app.js";
+import { requestStateVerify } from "./run-pages.js";
+import { runTaskRequest } from "./run-tasks.js";
+import { registerRunTools } from "./runs.js";
 import { appKind, clientNameOf, noteChecked, noteRequest } from "./seen.js";
 import { registerPrompts, registerTools } from "./tools.js";
 
@@ -86,11 +89,14 @@ export function mcpHandler(): (request: Request) => Promise<Response> {
         {
           instructions: prompt("mcp", "instructions"),
           capabilities: { tools: {}, prompts: {}, resources: {} },
+          // A run's page asked of the person comes back with its sealed state (mcp/run-pages.ts).
+          requestState: { verify: requestStateVerify },
         },
       );
       const who = principalOf(ctx.authInfo!);
       registerTools(server, who);
       registerElementTools(server, who);
+      registerRunTools(server, who);
       registerPrompts(server);
       registerFlowApp(server);
       return server;
@@ -123,6 +129,14 @@ export function mcpHandler(): (request: Request) => Promise<Response> {
       const refused = await appRefusal(who, clientNameOf(authInfo.clientId, who.client), body);
       if (refused) {
         return refused;
+      }
+      // Runs followed as tasks: the SDK has no runtime for the Tasks extension (mcp/run-tasks.ts).
+      const tasked = await withTenant(who.tenantId, () =>
+        asRole(who.role, () => runTaskRequest(who, body)),
+      );
+      if (tasked) {
+        nudge(who.tenantId);
+        return tasked;
       }
     }
     const answer = await withTenant(who.tenantId, () =>

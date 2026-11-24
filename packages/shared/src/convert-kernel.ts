@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
-import { type CalcNode, parseCalc } from "./calc.js";
+import { type CalcNode, parseCalc } from "@engenty/chatviews/calc";
+import { readNumber } from "@engenty/chatviews/numbers";
 import {
   type Condition,
   dataRef,
@@ -17,7 +18,6 @@ import {
   whenNames,
   wizardLang,
 } from "./definition.js";
-import { readNumber } from "./numbers.js";
 import { stepClasses } from "./requires.js";
 
 /**

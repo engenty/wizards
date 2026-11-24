@@ -112,6 +112,9 @@ importers:
         specifier: ^4.13.16
         version: 4.13.16
     devDependencies:
+      '@engenty/chatviews':
+        specifier: workspace:*
+        version: link:../../packages/chatviews
       '@engenty/wizards-runner':
         specifier: workspace:*
         version: link:../../packages/runner
@@ -178,9 +181,15 @@ importers:
       '@clack/prompts':
         specifier: ^1.8.1
         version: 1.8.1
+      '@engenty/chatviews':
+        specifier: workspace:*
+        version: link:../../packages/chatviews
       '@engenty/local-models':
         specifier: workspace:*
         version: link:../../packages/local-models
+      '@engenty/model-setup':
+        specifier: workspace:*
+        version: link:../../packages/model-setup
       '@engenty/wizards':
         specifier: workspace:*
         version: link:../../packages/wizards
@@ -241,9 +250,6 @@ importers:
       '@llamaindex/liteparse':
         specifier: 2.18.0
         version: 2.18.0
-      '@lydell/node-pty':
-        specifier: 1.1.0
-        version: 1.1.0
       '@mastra/ai-sdk':
         specifier: 1.11.3
         version: 1.11.3(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))(zod@4.6.7)
@@ -440,6 +446,9 @@ importers:
       '@dagrejs/dagre':
         specifier: ^3.1.3
         version: 3.1.3
+      '@engenty/chatviews':
+        specifier: workspace:*
+        version: link:../../packages/chatviews
       '@engenty/wizards':
         specifier: workspace:*
         version: link:../../packages/wizards
@@ -723,6 +732,55 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
+  packages/chatviews:
+    dependencies:
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@a2ui/web_core':
+        specifier: 0.16.1
+        version: 0.16.1
+      '@openuidev/lang-core':
+        specifier: 1.1.0
+        version: 1.1.0(zod@4.6.7)
+      '@openuidev/react-lang':
+        specifier: 1.1.0
+        version: 1.1.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(zod@4.6.7)
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+      dompurify:
+        specifier: ^3.4.17
+        version: 3.4.17
+      lucide-react:
+        specifier: ^1.69.0
+        version: 1.69.0(@types/react@19.3.0)(react@19.3.1)
+      marked:
+        specifier: ^18.1.3
+        version: 18.1.3
+      react:
+        specifier: 19.3.1
+        version: 19.3.1
+      react-dom:
+        specifier: 19.3.1
+        version: 19.3.1(react@19.3.1)
+      typescript:
+        specifier: ~7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/decision-model:
     dependencies:
       undici:
@@ -808,10 +866,16 @@ importers:
 
   packages/local-models:
     dependencies:
+      '@modelcontextprotocol/server':
+        specifier: 2.4.0
+        version: 2.4.0
       cross-spawn:
         specifier: 7.0.6
         version: 7.0.6
     devDependencies:
+      '@modelcontextprotocol/client':
+        specifier: 2.4.0
+        version: 2.4.0
       '@types/cross-spawn':
         specifier: ^6.0.6
         version: 6.0.6
@@ -827,6 +891,34 @@ importers:
       vitest:
         specifier: ^5.1.0
         version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/model-setup:
+    dependencies:
+      '@engenty/local-models':
+        specifier: workspace:*
+        version: link:../local-models
+      '@lydell/node-pty':
+        specifier: 1.1.0
+        version: 1.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      ai:
+        specifier: 7.0.163
+        version: 7.0.163(zod@4.6.7)
+      hono:
+        specifier: ^4.13.16
+        version: 4.13.16
+      typescript:
+        specifier: ~7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
 
   packages/plugins:
     devDependencies:
@@ -845,6 +937,9 @@ importers:
 
   packages/runner:
     dependencies:
+      '@engenty/chatviews':
+        specifier: workspace:*
+        version: link:../chatviews
       '@engenty/wizards-shared':
         specifier: workspace:*
         version: link:../shared
@@ -949,6 +1044,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@engenty/chatviews':
+        specifier: workspace:*
+        version: link:../chatviews
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -991,6 +1089,9 @@ importers:
         specifier: 1.4.2
         version: 1.4.2
     devDependencies:
+      '@engenty/chatviews':
+        specifier: workspace:*
+        version: link:../chatviews
       '@engenty/wizards-runner':
         specifier: workspace:*
         version: link:../runner
@@ -1003,6 +1104,9 @@ importers:
       '@microsoft/api-extractor':
         specifier: 7.60.1
         version: 7.60.1(@types/node@26.6.6)
+      '@openuidev/lang-core':
+        specifier: 1.1.0
+        version: 1.1.0(zod@4.6.7)
       '@openuidev/react-lang':
         specifier: 1.1.0
         version: 1.1.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(zod@4.6.7)
@@ -1071,6 +1175,9 @@ packages:
         optional: true
       express:
         optional: true
+
+  '@a2ui/web_core@0.16.1':
+    resolution: {integrity: sha512-sdQ8q4RNAaKla18AAXIGdAvfbzpE8+qay2vXMSPmgnBVUMZmi7ZwguzVsoCeRQSzvyAgNMjde/CcclARv7SzQw==}
 
   '@ag-ui/core@0.0.53':
     resolution: {integrity: sha512-11UocR7fFdMWw503bWCX2IOK15vbWfxT11Mn9xOiPBVO/UVcn57ywGrlLL4UaBlPgmUTvuzr2yYR2ElSqiN2wQ==}
@@ -2606,6 +2713,15 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@lit-labs/ssr-dom-shim@1.6.0':
+    resolution: {integrity: sha512-VHb0ALPMTlgKjM6yIxxoQNnpKyUKLD04VzeQdsiXkMqkvYlAHxq9glGLmgbb889/1GsohSOAjvQYoiBppXFqrQ==}
+
+  '@lit/context@1.1.6':
+    resolution: {integrity: sha512-M26qDE6UkQbZA2mQ3RjJ3Gzd8TxP+/0obMgE5HfkfLhEEyYE3Bui4A5XHiGPjy0MUGAyxB3QgVuw2ciS0kHn6A==}
+
+  '@lit/reactive-element@2.1.2':
+    resolution: {integrity: sha512-pbCDiVMnne1lYUIaYNN5wrwQXDtHaYtg7YEFPeW+hws6U47WeFvISGUWekPGKWOP1ygrs0ef0o1VJMk1exos5A==}
+
   '@llamaindex/liteparse-darwin-arm64@2.18.0':
     resolution: {integrity: sha512-ykrY+Zkhs+Wj9IHFYLTyMtgZ9khHxyd0g43VGkZZRXvDfoYSipkKxaPhwBeQzCCbfkV1rIq3qYnk3LFOg48nfg==}
     cpu: [arm64]
@@ -3212,6 +3328,9 @@ packages:
 
   '@posthog/types@1.420.0':
     resolution: {integrity: sha512-WrfsR3hynbNOkQor6TrQJrI+7UzStZs2rjFzQ+xK9mRCUH6TLMLfBSR+ibGoKreatb76Uh30b6lSZLWbOgdTsg==}
+
+  '@preact/signals-core@1.14.5':
+    resolution: {integrity: sha512-vcRv7Ityz5JVmeiVqIluLFzT/PDS/AlhHUpw3/aUWqcVUs6bDGIPXE/6RSC4evBNWYvnniozg5Syfj33al3gkg==}
 
   '@promptbook/utils@0.69.5':
     resolution: {integrity: sha512-xm5Ti/Hp3o4xHrsK9Yy3MS6KbDxYbq485hDsFvxqaNA7equHLPdo8H8faTitTeb14QCDfLW4iwCxdVYu5sn6YQ==}
@@ -7437,6 +7556,15 @@ packages:
   listenercount@1.0.1:
     resolution: {integrity: sha512-3mk/Zag0+IJxeDrxSgaDPy4zZ3w05PRZeJNnlWhzFz5OkX49J4krc+A8X2d2M69vGMBEX0uyl8M+W+8gH+kBqQ==}
 
+  lit-element@4.2.2:
+    resolution: {integrity: sha512-aFKhNToWxoyhkNDmWZwEva2SlQia+jfG0fjIWV//YeTaWrVnOxD89dPKfigCUspXFmjzOEUQpOkejH5Ly6sG0w==}
+
+  lit-html@3.3.3:
+    resolution: {integrity: sha512-el8M6jK2o3RXBnrSHX3ZKrsN8zEV63pSExTO1wYJz7QndGYZ8353e2a5PPX+qHe2aGayfnchQmkAojaWAREOIA==}
+
+  lit@3.3.3:
+    resolution: {integrity: sha512-fycuvZg/hkpozL00lm1pEJH5nN/lr9ZXd6mJI2HSN4+Bzc+LDNdEApJ6HFbPkdFNHLvOplIIuJvxkS4XUxqirw==}
+
   locate-app@2.5.0:
     resolution: {integrity: sha512-xIqbzPMBYArJRmPGUZD9CzV9wOqmVtQnaAn3wrj3s6WYW0bQvPI7x+sPYUGmDTYMHefVK//zc6HEYZ1qnxIK+Q==}
 
@@ -9438,6 +9566,9 @@ packages:
     deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
+  validate-color@2.2.4:
+    resolution: {integrity: sha512-Znolz+b6CwW6eBXYld7MFM3O7funcdyRfjKC/X9hqYV/0VcC5LB/L45mff7m3dIn9wdGdNOAQ/fybNuD5P/HDw==}
+
   vary@1.1.2:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
     engines: {node: '>= 0.8'}
@@ -9818,6 +9949,15 @@ snapshots:
     optionalDependencies:
       '@grpc/grpc-js': 1.14.7
       express: 5.2.1
+
+  '@a2ui/web_core@0.16.1':
+    dependencies:
+      '@lit/context': 1.1.6
+      '@preact/signals-core': 1.14.5
+      lit: 3.3.3
+      validate-color: 2.2.4
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
 
   '@ag-ui/core@0.0.53':
     dependencies:
@@ -11260,6 +11400,16 @@ snapshots:
   '@libsql/win32-x64-msvc@0.5.29':
     optional: true
 
+  '@lit-labs/ssr-dom-shim@1.6.0': {}
+
+  '@lit/context@1.1.6':
+    dependencies:
+      '@lit/reactive-element': 2.1.2
+
+  '@lit/reactive-element@2.1.2':
+    dependencies:
+      '@lit-labs/ssr-dom-shim': 1.6.0
+
   '@llamaindex/liteparse-darwin-arm64@2.18.0':
     optional: true
 
@@ -11909,6 +12059,8 @@ snapshots:
       '@posthog/types': 1.420.0
 
   '@posthog/types@1.420.0': {}
+
+  '@preact/signals-core@1.14.5': {}
 
   '@promptbook/utils@0.69.5':
     dependencies:
@@ -13441,8 +13593,7 @@ snapshots:
 
   '@types/sinonjs__fake-timers@8.1.5': {}
 
-  '@types/trusted-types@2.0.7':
-    optional: true
+  '@types/trusted-types@2.0.7': {}
 
   '@types/turndown@5.0.6': {}
 
@@ -16277,6 +16428,22 @@ snapshots:
 
   listenercount@1.0.1: {}
 
+  lit-element@4.2.2:
+    dependencies:
+      '@lit-labs/ssr-dom-shim': 1.6.0
+      '@lit/reactive-element': 2.1.2
+      lit-html: 3.3.3
+
+  lit-html@3.3.3:
+    dependencies:
+      '@types/trusted-types': 2.0.7
+
+  lit@3.3.3:
+    dependencies:
+      '@lit/reactive-element': 2.1.2
+      lit-element: 4.2.2
+      lit-html: 3.3.3
+
   locate-app@2.5.0:
     dependencies:
       '@promptbook/utils': 0.69.5
@@ -18806,6 +18973,8 @@ snapshots:
 
   uuid@8.3.2: {}
 
+  validate-color@2.2.4: {}
+
   vary@1.1.2:
     optional: true
 
@@ -19140,6 +19309,10 @@ snapshots:
   zod-from-json-schema@0.5.2:
     dependencies:
       zod: 4.6.7
+
+  zod-to-json-schema@3.25.2(zod@3.25.76):
+    dependencies:
+      zod: 3.25.76
 
   zod-to-json-schema@3.25.2(zod@4.6.7):
     dependencies:

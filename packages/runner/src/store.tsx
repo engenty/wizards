@@ -1,7 +1,8 @@
+import { formatBytes } from "@engenty/chatviews/numbers";
+import { Button, cn, Dialog, IconButton, Input, Label, Spinner } from "@engenty/chatviews/react/ui";
 import type { Format } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables/columns";
 import { formatTableCell } from "@engenty/wizards-shared/engenty/data-tables/columns-format";
-import { formatBytes } from "@engenty/wizards-shared/numbers";
 import type { RunView, ShownList } from "@engenty/wizards-shared/run";
 import {
   type ConnectionCandidate,
@@ -15,7 +16,6 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "./api.js";
 import { api, appCall, appCan, runBase, withBase } from "./env.js";
 import { lang, t } from "./i18n.js";
-import { Button, cn, Dialog, IconButton, Input, Label, Spinner } from "./ui.js";
 
 // --- connecting an account -------------------------------------------------------
 

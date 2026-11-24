@@ -10,7 +10,8 @@
 //   @engenty/wizards          what code outside this repo imports: packages/wizards/dist as its
 //                             build leaves it (packages/wizards/scripts/build.mjs)
 //   @engenty/decision-model, @engenty/search-index, @engenty/search-libsql, @engenty/goose,
-//   @engenty/vault, @engenty/plugins, @engenty/browser, @engenty/local-models
+//   @engenty/vault, @engenty/plugins, @engenty/browser, @engenty/local-models,
+//   @engenty/model-setup
 //                             the MIT libraries in packages/: each its dist/ as tsc leaves it
 //                             (tsconfig.build.json), its LICENSE and README, at the release's
 //                             version. search-libsql names the other two at that version.
@@ -54,6 +55,7 @@ const libraryStage = join(outDir, "engenty-wizards");
 const RUNTIME = "@engenty/wizards-runtime";
 // The MIT libraries, by their folder in packages/; one that another needs comes first.
 const LIBRARIES = [
+  "chatviews",
   "decision-model",
   "search-index",
   "search-libsql",
@@ -62,6 +64,7 @@ const LIBRARIES = [
   "plugins",
   "browser",
   "local-models",
+  "model-setup",
 ];
 
 const args = process.argv.slice(2);
@@ -168,6 +171,9 @@ const collect = (dir) => {
       const linked = installed[name]?.path;
       if (!linked) {
         throw new Error(`${name} (${dir}) is not linked — run pnpm install.`);
+      }
+      if (bundled.includes(name)) {
+        continue;
       }
       const from = relative(root, linked);
       const manifest = readJson(`${from}/package.json`);

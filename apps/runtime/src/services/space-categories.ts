@@ -1,3 +1,4 @@
+import { readNumber } from "@engenty/chatviews/numbers";
 import {
   CATEGORY_TYPES,
   type CategoryCell,
@@ -9,7 +10,6 @@ import {
   type Where,
   type WhereValue,
 } from "@engenty/wizards-shared/knowledge";
-import { readNumber } from "@engenty/wizards-shared/numbers";
 import { note } from "@engenty/wizards-shared/run";
 import { and, asc, eq, inArray, isNotNull, or, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";

@@ -1,5 +1,5 @@
+import type { SurfaceComponent } from "@engenty/chatviews/surface";
 import { type SurfaceChat, type SurfaceFormAnswer, SurfaceView } from "@engenty/wizards-runner";
-import type { SurfaceComponent } from "@engenty/wizards-shared/surface";
 import { LayoutDashboard } from "lucide-react";
 import { createContext, useContext } from "react";
 import { useHref, useNavigate } from "react-router";

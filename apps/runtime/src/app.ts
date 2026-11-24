@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { TerminalError } from "@engenty/model-setup/server";
 import { BUILT_IN_RUNNERS, RUNNER_ID } from "@engenty/wizards-shared/runners";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { and, eq } from "drizzle-orm";
@@ -39,6 +40,7 @@ import { internalRoutes } from "./routes/internal.js";
 import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
 import { liveRoutes } from "./routes/live.js";
 import { marketplaceGuest, marketplaceStudio } from "./routes/marketplace.js";
+import { terminalRefused } from "./routes/model-setup.js";
 import { organizationRoutes } from "./routes/organization.js";
 import { peerRoutes } from "./routes/peer.js";
 import { personRoutes } from "./routes/person.js";
@@ -80,7 +82,8 @@ app.use("*", async (c, next) => {
   }
 });
 
-app.onError((err, c) => {
+app.onError((thrown, c) => {
+  const err = thrown instanceof TerminalError ? terminalRefused(thrown) : thrown;
   if (err instanceof ServiceError) {
     const body = err.toJSON(requestLang(c));
     return c.json({ ...body, error: spelledFor(c, body.error) }, err.status);

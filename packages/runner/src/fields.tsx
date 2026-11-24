@@ -1,3 +1,21 @@
+import { formatMoney } from "@engenty/chatviews/numbers";
+import {
+  ListChoice,
+  NumberInput,
+  NumberSlider,
+  NumberStepper,
+} from "@engenty/chatviews/react/field-looks";
+import {
+  cn,
+  IconButton,
+  Input,
+  Label,
+  Segmented,
+  Select,
+  Swatch,
+  Switch,
+  Textarea,
+} from "@engenty/chatviews/react/ui";
 import {
   type CardOption,
   type Field,
@@ -7,7 +25,6 @@ import {
   slotDayText,
   slotTime,
 } from "@engenty/wizards-shared/definition";
-import { formatMoney } from "@engenty/wizards-shared/numbers";
 import type { ClosedChoice, RunView } from "@engenty/wizards-shared/run";
 import {
   Camera,
@@ -25,13 +42,11 @@ import { useEffect, useRef, useState } from "react";
 import { CameraDialog, canRecordClips, shrinkImage } from "./camera";
 import { canUseMedia, isTouch } from "./device";
 import { api, runBase, withBase } from "./env.js";
-import { ListChoice, NumberInput, NumberSlider, NumberStepper } from "./field-looks.js";
 import { choiceLabel, lang, t } from "./i18n.js";
 import { LocationField } from "./location";
 import { ScanDialog } from "./scan";
 import { SignatureField } from "./signature";
 import { ConnectionField, ListTable } from "./store";
-import { cn, IconButton, Input, Label, Segmented, Select, Swatch, Switch, Textarea } from "./ui.js";
 import { VoiceField } from "./voice";
 
 export type Values = Record<string, unknown>;

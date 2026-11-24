@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
+
+import type { Surface } from "@engenty/chatviews/surface";
 import {
   type AheadForm,
   type CardOption,
@@ -13,7 +15,6 @@ import {
 import type { ShareJobView } from "./sharing.js";
 import type { StartEvent } from "./starts.js";
 import type { ConnectionKind, ConnectionView, ListDef, ListRow } from "./store.js";
-import type { Surface } from "./surface.js";
 import { type Gap, type Line, lineText, type Texts, type TextTable, textOf } from "./texts.js";
 import type { ThemeColours, ThemeEffect, ThemeShape } from "./theme.js";
 

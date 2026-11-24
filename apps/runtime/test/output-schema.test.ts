@@ -4,8 +4,8 @@ import {
   type ObjectSchema,
   shapeJsonSchema,
   shapeOfFields,
-} from "@engenty/wizards-shared/shape";
-import { bound, validateSurface } from "@engenty/wizards-shared/surface";
+} from "@engenty/chatviews/shape";
+import { bound, validateSurface } from "@engenty/chatviews/surface";
 import { describe, expect, it, vi } from "vitest";
 import { fridgeSchema, fridgeShape } from "../../web/src/dev/data-shape";
 import { fridgePlan, fridgeView } from "../../web/src/dev/view-lab-sample";

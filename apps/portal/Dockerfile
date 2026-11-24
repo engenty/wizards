@@ -17,6 +17,7 @@ RUN npm install -g corepack@0.36.0 && corepack enable
 FROM base AS manifests
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/portal/package.json apps/portal/
+COPY packages/chatviews/package.json packages/chatviews/
 COPY packages/shared/package.json packages/shared/
 COPY packages/runner/package.json packages/runner/
 RUN sed -i 's/"version": *"[^"]*"/"version": "0.0.0"/' package.json
@@ -25,6 +26,7 @@ FROM base AS build
 COPY --from=manifests /app ./
 RUN pnpm install --frozen-lockfile --filter "@engenty/wizards-portal..."
 COPY tsconfig.base.json ./
+COPY packages/chatviews packages/chatviews
 COPY packages/shared packages/shared
 COPY packages/runner packages/runner
 COPY apps/portal apps/portal

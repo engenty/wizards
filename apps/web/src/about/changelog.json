@@ -1,7 +1,48 @@
 [
   {
+    "version": "v0.20.6",
+    "timestamp": 1795500055,
+    "commits": [
+      {
+        "id": "02e3675",
+        "message": "@engenty/local-models, Ollama and subscription clients for the runtime and wizards.bot (#732)",
+        "group": "Added",
+        "scope": "local-models",
+        "breaking": false
+      },
+      {
+        "id": "d55eb3e",
+        "message": "wizards bot tunnel needs no account: a name of its own at wizards.host (#731)",
+        "group": "Added",
+        "scope": "bot",
+        "breaking": false
+      },
+      {
+        "id": "fa24b33",
+        "message": "a Bot Server finds Codex and Claude installed under nvm, npm, pnpm or Bun (#725)",
+        "group": "Fixed",
+        "scope": "bot",
+        "breaking": false
+      },
+      {
+        "id": "8e446df",
+        "message": "wizards bot tunnel asks account.engenty.ai, where the account answers (#724)",
+        "group": "Fixed",
+        "scope": "bot",
+        "breaking": false
+      },
+      {
+        "id": "dc0f208",
+        "message": "wizards bot tunnel through our relay at <name>.wizards.host (#723)",
+        "group": "Added",
+        "scope": "bot",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.20.5",
-    "timestamp": 1795423230,
+    "timestamp": 1795423681,
     "commits": [
       {
         "id": "8f76f0b",

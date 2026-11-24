@@ -1,4 +1,5 @@
 // First: drops Node's `localStorage` before a dependency reads it (no-webstorage.ts).
+import { CLIENTS } from "@engenty/model-setup";
 import "../no-webstorage.js";
 import "./install-env.js";
 import { accountCommand } from "./account.js";
@@ -7,7 +8,7 @@ import { findExternal, runExternal } from "./external.js";
 import { featuresCommand } from "./features.js";
 import { command, layout, packageVersion, readInstallNote } from "./home.js";
 import { startedIn } from "./install-env.js";
-import { CLIENTS, nodeIsCurrent } from "./machine.js";
+import { nodeIsCurrent } from "./machine.js";
 import { mcp } from "./mcp.js";
 import { menu } from "./menu.js";
 import { logsCommand, reportCommand } from "./report.js";

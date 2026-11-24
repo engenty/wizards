@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { homedir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { promisify } from "node:util";
+import { macAppPresent } from "@engenty/model-setup/server";
 import {
   commandFile,
   installedByScript,
@@ -10,7 +11,7 @@ import {
   type Layout,
   packageRoot,
 } from "./home.js";
-import { findOnPath, macAppPresent } from "./machine.js";
+import { findOnPath } from "./machine.js";
 import { bad, cmd, dim, ok, tilde } from "./ui.js";
 
 const run = promisify(execFile);

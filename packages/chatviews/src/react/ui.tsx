@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 import {
   type ButtonHTMLAttributes,
   forwardRef,
@@ -9,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { t } from "./i18n.js";
+import { t } from "./texts.js";
 
 export function cn(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");

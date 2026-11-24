@@ -1,3 +1,4 @@
+import { shapeOfSchema } from "@engenty/chatviews/shape";
 import {
   asAgent,
   type Format,
@@ -7,7 +8,6 @@ import {
   widgetSize,
 } from "@engenty/wizards-shared/definition";
 import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
-import { shapeOfSchema } from "@engenty/wizards-shared/shape";
 import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
 import { listAsMarkdown } from "@engenty/wizards-shared/store";
 import { and, eq } from "drizzle-orm";

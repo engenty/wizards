@@ -1,3 +1,12 @@
+import { Button, cn, Dialog, Tabs } from "@engenty/chatviews/react/ui";
+import {
+  type FieldShape,
+  type ListShape,
+  labelOf,
+  type ObjectShape,
+  shapeJsonSchema,
+  titleKey,
+} from "@engenty/chatviews/shape";
 import {
   type AgentStep,
   asAgent,
@@ -6,14 +15,6 @@ import {
   stepShape,
 } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
-import {
-  type FieldShape,
-  type ListShape,
-  labelOf,
-  type ObjectShape,
-  shapeJsonSchema,
-  titleKey,
-} from "@engenty/wizards-shared/shape";
 import {
   Braces,
   Check,
@@ -30,7 +31,6 @@ import {
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { api, runBase } from "./env.js";
 import { t } from "./i18n.js";
-import { Button, cn, Dialog, Tabs } from "./ui.js";
 
 /**
  * A json step's data, shown and edited by its schema: lists of flat entries are tables as in

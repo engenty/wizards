@@ -1,0 +1,1034 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engenty.ai/schema/chatviews/engenty-core-1.json",
+  "catalogId": "https://engenty.ai/schema/chatviews/engenty-core-1.json",
+  "protocolVersion": "1.0",
+  "title": "engenty:core",
+  "description": "The views of engenty wizards and wizards.bot (@engenty/chatviews): their components with what they show worked out.",
+  "components": {
+    "Column": {
+      "type": "object",
+      "description": "Components one under the other; the root of a view",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Column"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Text": {
+      "type": "object",
+      "description": "One line of plain text; \"lead\" is the one opening line",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Text"
+        },
+        "text": {
+          "type": "string"
+        },
+        "variant": {
+          "type": "string",
+          "enum": [
+            "h3",
+            "h4",
+            "lead",
+            "body",
+            "muted"
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "text"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Markdown": {
+      "type": "object",
+      "description": "Formatted text: bold, lists, links",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Markdown"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "text"
+      ],
+      "unevaluatedProperties": false
+    },
+    "List": {
+      "type": "object",
+      "description": "Rows one under the other",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "List"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Row": {
+      "type": "object",
+      "description": "One row of a List",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Row"
+        },
+        "title": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "subtitle": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "meta": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "badge": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "image": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "title"
+      ],
+      "unevaluatedProperties": false
+    },
+    "DetailGrid": {
+      "type": "object",
+      "description": "Facts as label and value",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "DetailGrid"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "value": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "label",
+              "value"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "component",
+        "rows"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Badge": {
+      "type": "object",
+      "description": "A short mark",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Badge"
+        },
+        "label": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "tone": {
+          "type": "string",
+          "enum": [
+            "default",
+            "success",
+            "warning",
+            "accent"
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "label"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Grid": {
+      "type": "object",
+      "description": "Tiles side by side; min: the narrowest a tile gets in rem (14 for cards)",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Grid"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        },
+        "columns": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Metric": {
+      "type": "object",
+      "description": "A key figure",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Metric"
+        },
+        "label": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "caption": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "label",
+        "value"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Table": {
+      "type": "object",
+      "description": "Figures people compare across columns; never a table of things",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Table"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "component",
+        "rows"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Image": {
+      "type": "object",
+      "description": "A picture of the space's files",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Image"
+        },
+        "src": {
+          "type": "string"
+        },
+        "alt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "src"
+      ],
+      "unevaluatedProperties": false
+    },
+    "BarChart": {
+      "type": "object",
+      "description": "Bars; labelKey/valueKey name the columns of points that hold label and number",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "BarChart"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "title": {
+          "type": "string"
+        },
+        "labelKey": {
+          "type": "string"
+        },
+        "valueKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "points"
+      ],
+      "unevaluatedProperties": false
+    },
+    "LineChart": {
+      "type": "object",
+      "description": "A line over points; labelKey/valueKey as for BarChart",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "LineChart"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "title": {
+          "type": "string"
+        },
+        "labelKey": {
+          "type": "string"
+        },
+        "valueKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "points"
+      ],
+      "unevaluatedProperties": false
+    },
+    "DonutChart": {
+      "type": "object",
+      "description": "Shares of a whole; labelKey/valueKey as for BarChart",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "DonutChart"
+        },
+        "slices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "title": {
+          "type": "string"
+        },
+        "labelKey": {
+          "type": "string"
+        },
+        "valueKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "slices"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Callout": {
+      "type": "object",
+      "description": "A note that stands out",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Callout"
+        },
+        "text": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "tone": {
+          "type": "string",
+          "enum": [
+            "tip",
+            "note",
+            "warning"
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "text"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Chips": {
+      "type": "object",
+      "description": "Short things at a glance; flagKey marks some",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Chips"
+        },
+        "items": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        },
+        "labelKey": {
+          "type": "string"
+        },
+        "flagKey": {
+          "type": "string"
+        },
+        "flag": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "items"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Steps": {
+      "type": "object",
+      "description": "Ordered work, numbered, with times",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Steps"
+        },
+        "items": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        },
+        "textKey": {
+          "type": "string"
+        },
+        "minutesKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "items"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Tabs": {
+      "type": "object",
+      "description": "Two to four views of one answer",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Tabs"
+        },
+        "tabs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "child": {
+                "$ref": "common_types.json#/$defs/ComponentId"
+              },
+              "count": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "label",
+              "child"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "component",
+        "tabs"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Card": {
+      "type": "object",
+      "description": "One thing: a day, an offer, a person",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Card"
+        },
+        "title": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        },
+        "eyebrow": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "subtitle": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "image": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "title"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Fold": {
+      "type": "object",
+      "description": "Details that open on a tap",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Fold"
+        },
+        "title": {
+          "type": "string"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        },
+        "open": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "component",
+        "title",
+        "children"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Sources": {
+      "type": "object",
+      "description": "Where it was found, as small chips",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Sources"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "open": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "component",
+        "items"
+      ],
+      "unevaluatedProperties": false
+    },
+    "File": {
+      "type": "object",
+      "description": "A file of the space with its name; a PDF or picture shows itself",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "File"
+        },
+        "file": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "preview": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "component",
+        "file",
+        "name"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Ref": {
+      "type": "object",
+      "description": "A thing of the space: open is what space_search gave as \"open\" (\"p:…\", \"t:…\", \"f:…\"), or \"chat:<id>\", \"wizard:<id>\"",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Ref"
+        },
+        "title": {
+          "type": "string"
+        },
+        "open": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "meta": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "title",
+        "open"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Actions": {
+      "type": "object",
+      "description": "Buttons side by side",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Actions"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Button": {
+      "type": "object",
+      "description": "A button; its action is @ToAssistant(\"what the person says\") to ask you, @Open(ref) to open a thing of the space, @OpenUrl(url)",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Button"
+        },
+        "label": {
+          "type": "string"
+        },
+        "action": {}
+      },
+      "required": [
+        "component",
+        "label",
+        "action"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Form": {
+      "type": "object",
+      "description": "Asks for answers: its Fields and a send button; the answers come back as the person's message",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Form"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        },
+        "submit": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "children",
+        "submit"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Field": {
+      "type": "object",
+      "description": "One answer of a Form; select and multiselect need options; value prefills what you know",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Field"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "text",
+            "textarea",
+            "number",
+            "select",
+            "multiselect",
+            "date",
+            "email",
+            "url",
+            "toggle",
+            "color"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "value": {},
+        "placeholder": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "name",
+        "kind",
+        "label"
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "functions": {},
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/Column"
+        },
+        {
+          "$ref": "#/components/Text"
+        },
+        {
+          "$ref": "#/components/Markdown"
+        },
+        {
+          "$ref": "#/components/List"
+        },
+        {
+          "$ref": "#/components/Row"
+        },
+        {
+          "$ref": "#/components/DetailGrid"
+        },
+        {
+          "$ref": "#/components/Badge"
+        },
+        {
+          "$ref": "#/components/Grid"
+        },
+        {
+          "$ref": "#/components/Metric"
+        },
+        {
+          "$ref": "#/components/Table"
+        },
+        {
+          "$ref": "#/components/Image"
+        },
+        {
+          "$ref": "#/components/BarChart"
+        },
+        {
+          "$ref": "#/components/LineChart"
+        },
+        {
+          "$ref": "#/components/DonutChart"
+        },
+        {
+          "$ref": "#/components/Callout"
+        },
+        {
+          "$ref": "#/components/Chips"
+        },
+        {
+          "$ref": "#/components/Steps"
+        },
+        {
+          "$ref": "#/components/Tabs"
+        },
+        {
+          "$ref": "#/components/Card"
+        },
+        {
+          "$ref": "#/components/Fold"
+        },
+        {
+          "$ref": "#/components/Sources"
+        },
+        {
+          "$ref": "#/components/File"
+        },
+        {
+          "$ref": "#/components/Ref"
+        },
+        {
+          "$ref": "#/components/Actions"
+        },
+        {
+          "$ref": "#/components/Button"
+        },
+        {
+          "$ref": "#/components/Form"
+        },
+        {
+          "$ref": "#/components/Field"
+        }
+      ]
+    },
+    "anyFunction": false
+  }
+}

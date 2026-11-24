@@ -1,3 +1,4 @@
+import { validateSurface } from "@engenty/chatviews/surface";
 import {
   DataEditor,
   DataMenu,
@@ -8,7 +9,6 @@ import {
 } from "@engenty/wizards-runner";
 import type { Step } from "@engenty/wizards-shared/definition";
 import type { RunTheme } from "@engenty/wizards-shared/run";
-import { validateSurface } from "@engenty/wizards-shared/surface";
 import { Braces } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Mascot } from "../brand";

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-MIT OR MIT
+// SPDX-License-Identifier: MIT
 import { z } from "zod";
 
 /**

@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
+import { fitData } from "@engenty/chatviews/shape";
 import {
   type ChoiceAnswer,
   type DecisionQuestion,
@@ -64,7 +65,6 @@ import {
   saidText,
 } from "@engenty/wizards-shared/run";
 import { CONVERSATION_RUNNERS, DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
-import { fitData } from "@engenty/wizards-shared/shape";
 import type { StartEvent, StartedBy } from "@engenty/wizards-shared/starts";
 import type {
   ConnectionDef,

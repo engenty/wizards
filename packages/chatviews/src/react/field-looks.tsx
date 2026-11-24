@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: FSL-1.1-MIT OR MIT
-import { readNumber } from "@engenty/wizards-shared/numbers";
-import { lang, t } from "./i18n.js";
+// SPDX-License-Identifier: MIT
+import { readNumber } from "../numbers.js";
+import { t, viewLang } from "./texts.js";
 import { cn, Input } from "./ui.js";
 
 /** The answer as a number, or undefined while there is none: a field holds what was typed. */
@@ -12,7 +12,7 @@ const numberOf = (value: unknown): number | undefined => {
 };
 
 const written = (n: number | undefined, unit?: string) =>
-  n === undefined ? "–" : `${new Intl.NumberFormat(lang).format(n)}${unit ? ` ${unit}` : ""}`;
+  n === undefined ? "–" : `${new Intl.NumberFormat(viewLang()).format(n)}${unit ? ` ${unit}` : ""}`;
 
 /** A number stays clean through repeated steps: 0.1 + 0.2 is 0.3 here. */
 const tidy = (n: number) => Number(n.toFixed(6));

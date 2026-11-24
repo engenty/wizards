@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
-import { type CalcNode, parseCalc } from "./calc.js";
+import { type CalcNode, parseCalc } from "@engenty/chatviews/calc";
+import { SURFACE_COMPONENTS } from "@engenty/chatviews/surface";
 import type { Condition, When, WizardDefinition } from "./definition.js";
-import { SURFACE_COMPONENTS } from "./surface.js";
 
 /**
  * The text form of a definition: what a model writes instead of JSON, compiled to the definition

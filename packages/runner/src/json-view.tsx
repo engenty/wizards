@@ -1,13 +1,13 @@
-import { type AgentStep, stepShape } from "@engenty/wizards-shared/definition";
+import { cn } from "@engenty/chatviews/react/ui";
 import {
   type FieldShape,
   type ListShape,
   labelOf,
   type ObjectShape,
   titleKey,
-} from "@engenty/wizards-shared/shape";
+} from "@engenty/chatviews/shape";
+import { type AgentStep, stepShape } from "@engenty/wizards-shared/definition";
 import { lang, t } from "./i18n.js";
-import { cn } from "./ui.js";
 
 /**
  * A json result without a view of its own, drawn from the step's shape: things as cards (title,

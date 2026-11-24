@@ -1,12 +1,29 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
+
+import {
+  calcNames,
+  calcSchema,
+  calcScope,
+  calcTruthy,
+  calcValue,
+  parsedCalc,
+} from "@engenty/chatviews/calc";
+import { readNumber } from "@engenty/chatviews/numbers";
+import {
+  type ObjectShape,
+  outputSchemaSchema,
+  shapeOfFields,
+  shapeOfSchema,
+} from "@engenty/chatviews/shape";
+import {
+  type SurfaceComponent,
+  surfaceComponentsSchema,
+  validateSurface,
+} from "@engenty/chatviews/surface";
 import { z } from "zod";
-import { calcNames, calcSchema, calcScope, calcTruthy, calcValue, parsedCalc } from "./calc.js";
 import { tableColumnsSchema } from "./engenty/data-tables/columns.js";
-import { readNumber } from "./numbers.js";
-import { type ObjectShape, outputSchemaSchema, shapeOfFields, shapeOfSchema } from "./shape.js";
 import { isShareTargetId } from "./sharing.js";
 import { CONNECTION_KINDS } from "./store.js";
-import { type SurfaceComponent, surfaceComponentsSchema, validateSurface } from "./surface.js";
 import {
   hasWizardCodePrefix,
   WIZARD_CODE_NAME,

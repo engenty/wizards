@@ -1,5 +1,5 @@
+import { formatBytes } from "@engenty/chatviews/numbers";
 import type { KnowledgeItem, SpaceCategory } from "@engenty/wizards-shared/knowledge";
-import { formatBytes } from "@engenty/wizards-shared/numbers";
 import { useQuery } from "@tanstack/react-query";
 import {
   BookPlus,

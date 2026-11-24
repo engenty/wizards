@@ -102,7 +102,7 @@ jobs:
         run: pnpm copy:check --strict
 
       # The MIT packages (packages/runner, decision-model, search-index, search-libsql, goose, vault,
-      # plugins, browser, local-models)
+      # plugins, browser, local-models, model-setup)
       # depend only on MIT or permissive packages: scripts/mit-deps-check.mjs.
       - name: MIT dependencies
         if: matrix.check == 'typecheck'
@@ -254,7 +254,7 @@ jobs:
             deploy/Dockerfile.docs.dockerignore pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json
           # A team's host: deploy/Dockerfile.portal with the image (apps/portal/Dockerfile) built
           # above.
-          move deploy/portal apps/portal packages/shared packages/runner deploy/Dockerfile.portal \
+          move deploy/portal apps/portal packages/chatviews packages/shared packages/runner deploy/Dockerfile.portal \
             deploy/Dockerfile.portal.dockerignore pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json
 
       # A repository that builds on the release's images (its own image on top of the runtime's)

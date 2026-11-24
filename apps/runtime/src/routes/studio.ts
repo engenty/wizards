@@ -1,6 +1,3 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { freshAuth, loginEnv } from "@engenty/local-models/clients";
 import {
   ASSISTANT_LAYOUTS,
   ASSISTANT_PAGE_BYTES,
@@ -26,7 +23,6 @@ import { SPACE_FILE_KINDS } from "@engenty/wizards-shared/spaces";
 import {
   MAX_MASK_LABEL_CHARS,
   MAX_MASK_LABELS,
-  type ModelPolicy,
   modelPolicySchema,
 } from "@engenty/wizards-shared/tiers";
 import {
@@ -81,21 +77,7 @@ import {
 import { env } from "../env.js";
 import { feature, features, forgetAccountFeatures } from "../features.js";
 import { appleStatus } from "../harness/apple.js";
-import {
-  detectHarness,
-  detectHarnesses,
-  HARNESS_IDS,
-  type HarnessId,
-  harness,
-  installSpec,
-} from "../harness/index.js";
-import {
-  closeTerminal,
-  openTerminal,
-  resizeTerminal,
-  subscribeTerminal,
-  writeTerminal,
-} from "../harness/terminal.js";
+import { detectHarness, detectHarnesses, harness } from "../harness/index.js";
 import { editStep, kernelOutline } from "../kernel/outline.js";
 import {
   connectorsView,
@@ -136,8 +118,6 @@ import {
   checkKey,
   classProblem,
   classWays,
-  DECISION_CHOICES,
-  EMBEDDING_CHOICES,
   embeddingModel,
   hasTextModel,
   LOCAL_KEYS,
@@ -147,8 +127,6 @@ import {
   ownKeysThroughGateway,
   saveLocalModels,
   saveModels,
-  setUpKey,
-  setUpOllama,
   storedKey,
   textModel,
 } from "../models.js";
@@ -323,7 +301,7 @@ import {
   writableWizard,
   writeDraft,
 } from "../services/wizards.js";
-import { deleteTenantSetting, readSetting, writeSetting, writeTenantSetting } from "../settings.js";
+import { deleteTenantSetting, writeTenantSetting } from "../settings.js";
 import { sharePreview, spaceShareTargets } from "../sharing/index.js";
 import {
   keepCloudForAll,
@@ -344,6 +322,7 @@ import { serverText } from "../texts.js";
 import { applyUpdate, updateStatus } from "../update.js";
 import { spaceFileResponse } from "./delivery.js";
 import { notFoundAnswer, requestLang, say } from "./lang.js";
+import { localSetup, modelsInput, testedSources } from "./model-setup.js";
 import { addKey, changeKey, checkKeyOf, listKeys, removeKey, setFallback } from "./own-keys.js";
 import { mayChangeRuntime } from "./runtime-settings.js";
 
@@ -368,19 +347,6 @@ const reader = (c: Context<Vars>): Reader => ({
   who: whoOf(c),
 });
 
-/** The model sources a test call has worked on: the setup is done for those, not for the others. */
-async function testedSources(): Promise<string[]> {
-  const tested = await readSetting<unknown>("setup-done");
-  return Array.isArray(tested) ? (tested as string[]) : [];
-}
-
-async function markTested(source: string) {
-  const tested = await testedSources();
-  if (!tested.includes(source)) {
-    await writeSetting("setup-done", [...tested, source]);
-  }
-}
-
 /**
  * The chosen source has passed a test call and can still answer: its client is there and signed
  * in. Where Apple Intelligence thinks the short classes, the test ran there; a client behind
@@ -388,7 +354,7 @@ async function markTested(source: string) {
  */
 async function setupDone(): Promise<boolean> {
   const { source, bindings } = localModelSettings();
-  if (!(await testedSources()).includes(source)) {
+  if (!(await testedSources.has(source))) {
     return false;
   }
   const client = bindings.low.startsWith("apple:") ? null : harness(source);
@@ -409,18 +375,6 @@ const localModelName = z
 
 /** The Manage-App's masking errors, passed on as it sends them: 502 labels, 503 the detector. */
 const MASKING_CODES = new Set(["labels_unavailable", "masking_unavailable"]);
-
-const modelsInput = z.object({
-  source: z.enum([...HARNESS_IDS, "account", "own"]).optional(),
-  bindings: z.partialRecord(z.enum(MODEL_CLASSES), z.string().max(160)).optional(),
-  ollamaUrl: z.string().max(200).optional(),
-  creditFallback: z.boolean().optional(),
-  decision: z.enum(DECISION_CHOICES).optional(),
-  embedding: z.enum(EMBEDDING_CHOICES).optional(),
-  decisionLocal: z.string().max(120).optional(),
-  embeddingLocal: z.string().max(120).optional(),
-  keys: z.partialRecord(z.enum(LOCAL_KEYS), z.string().max(400)).optional(),
-});
 
 /** Alone the person changes everything; in an organization its owner and admins. */
 function mayChangeModels(user: SessionUser): boolean {
@@ -556,11 +510,6 @@ async function testClass(cls: (typeof MODEL_CLASSES)[number], lang: Lang): Promi
 export async function assistantDevFor(user: SessionUser): Promise<boolean> {
   return managed ? (await userInfo(user.id)).admin : env.assistantDev;
 }
-
-const terminalSize = z.object({
-  cols: z.number().int().min(10).max(500).optional(),
-  rows: z.number().int().min(4).max(200).optional(),
-});
 
 /** How the person settled a conflict: one side, a choice per place, or a version of their own. */
 const resolutionSchema = z.union([
@@ -2209,14 +2158,8 @@ export const studio = new Hono<Vars>()
     }
     return c.json({ apps: await checkedApps(user.tenantId) });
   })
-  .get("/local/models", (c) => (managed ? c.notFound() : c.json(localModelSettings())))
-  .put("/local/models", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    await saveLocalModels(modelsInput.parse(await c.req.json()));
-    return c.json(localModelSettings());
-  })
+  // The setup and the settings of the clients, keys and models on this machine.
+  .route("/local", managed ? new Hono() : localSetup)
   // --- models: where each class runs, own API keys, the credits behind them -----------------
   // Alone for this machine; on a Manage-App's runtime for the organization, whose admins change it.
   .get("/models", async (c) => c.json(await settingsFor(c)))
@@ -2471,167 +2414,6 @@ export const studio = new Hono<Vars>()
       .object({ cls: z.enum(MODEL_CLASSES), lang: z.enum(LANGS).default("en") })
       .parse(await c.req.json());
     return c.json(await testClass(cls, lang));
-  })
-  // The setup's test of one key, or of Ollama: a working one is put to use and ends the setup.
-  .post("/local/keys/:provider", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const provider = z.enum(LOCAL_KEYS).parse(c.req.param("provider"));
-    const { key } = z
-      .object({ key: z.string().max(400).optional() })
-      .parse(await c.req.json().catch(() => ({})));
-    const result = await setUpKey(provider, key, requestLang(c));
-    if (result.ok && result.text) {
-      await markTested("own");
-    }
-    return c.json(result);
-  })
-  .post("/local/ollama", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const { url } = z.object({ url: z.string().url().max(200) }).parse(await c.req.json());
-    const result = await setUpOllama(url, requestLang(c));
-    if (result.ok) {
-      await markTested("own");
-    }
-    return c.json(result);
-  })
-  // One short call on a class, as a run would make it: shows that the way to the model is open.
-  .post("/local/models/test", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const { cls } = z
-      .object({ cls: z.enum(TEXT_CLASSES).default("classifier") })
-      .parse(await c.req.json().catch(() => ({})));
-    const started = Date.now();
-    // The source this call runs on: the person may pick another one while it is under way.
-    const source = localModelSettings().source;
-    try {
-      const resolved = await textModel(cls);
-      const result = await generateText({
-        model: resolved.model,
-        prompt: "Reply with the single word: OK",
-        maxOutputTokens: 20,
-        abortSignal: AbortSignal.timeout(120_000),
-      });
-      // A working call is what ends the setup — for the source it ran on.
-      await markTested(source);
-      return c.json({
-        ok: true,
-        ref: resolved.ref,
-        reply: result.text.trim().slice(0, 200),
-        ms: Date.now() - started,
-      });
-    } catch (err) {
-      const message = (err as Error)?.message ?? String(err);
-      return c.json({ ok: false, error: message.slice(0, 500), ms: Date.now() - started });
-    }
-  })
-  // --- the AI clients on this machine: looked at afresh, signed in through the inline terminal ----
-  .post("/local/harness/:id/detect", async (c) => {
-    const id = c.req.param("id") as HarnessId;
-    if (managed || !harness(id)) {
-      return c.notFound();
-    }
-    return c.json({ harness: await detectHarness(id, true) });
-  })
-  .post("/local/harness/:id/install", async (c) => {
-    const spec = managed ? null : await installSpec(c.req.param("id"));
-    if (!spec) {
-      return c.notFound();
-    }
-    const { cols, rows } = terminalSize.parse(await c.req.json().catch(() => ({})));
-    const cwd = join(env.dataDir, "harness");
-    mkdirSync(cwd, { recursive: true });
-    // The page asks again once the command is over: then the client is there, or its output says why not.
-    const terminal = await openTerminal({ ...spec, cwd, cols, rows });
-    return c.json({ terminal });
-  })
-  .post("/local/harness/:id/login", async (c) => {
-    const id = c.req.param("id") as HarnessId;
-    const client = harness(id);
-    if (managed || !client) {
-      return c.notFound();
-    }
-    const { cols, rows } = terminalSize.parse(await c.req.json().catch(() => ({})));
-    const cwd = join(env.dataDir, "harness");
-    mkdirSync(cwd, { recursive: true });
-    const terminal = await openTerminal({
-      bin: client.bin,
-      args: client.login.args,
-      cwd,
-      env: { ...(await loginEnv(client)), ...client.login.env },
-      cols,
-      rows,
-      // Signed in: the client says so on its own, and the settings learn it right away.
-      until: async () => (await freshAuth(client)) !== "none",
-      onDone: () => void detectHarness(id, true),
-    });
-    return c.json({ terminal });
-  })
-  .get("/local/terminal/:id/stream", (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const id = c.req.param("id");
-    return streamSSE(c, async (stream) => {
-      let ended = false;
-      // One write after the other, and all of them out before the stream ends: the last one is
-      // the exit, and a page that comes after the end gets everything at once.
-      let written = Promise.resolve();
-      const done = new Promise<void>((resolve) => {
-        const unsubscribe = subscribeTerminal(id, (event) => {
-          written = written.then(() =>
-            stream.writeSSE({ event: event.type, data: JSON.stringify(event) }),
-          );
-          if (event.type === "exit") {
-            ended = true;
-            resolve();
-          }
-        });
-        stream.onAbort(() => {
-          unsubscribe();
-          resolve();
-        });
-      });
-      // The page keeps the stream open while the terminal lives; a heartbeat keeps proxies from closing it.
-      const beat = setInterval(() => {
-        if (!ended) {
-          void stream.writeSSE({ event: "ping", data: "" });
-        }
-      }, 15_000);
-      await done;
-      clearInterval(beat);
-      await written;
-    });
-  })
-  .post("/local/terminal/:id/input", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const { data } = z.object({ data: z.string().max(10_000) }).parse(await c.req.json());
-    writeTerminal(c.req.param("id"), data);
-    return c.json({ ok: true });
-  })
-  .post("/local/terminal/:id/resize", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const { cols, rows } = z
-      .object({ cols: z.number().int().min(10).max(500), rows: z.number().int().min(4).max(200) })
-      .parse(await c.req.json());
-    resizeTerminal(c.req.param("id"), cols, rows);
-    return c.json({ ok: true });
-  })
-  .delete("/local/terminal/:id", (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    closeTerminal(c.req.param("id"));
-    return c.json({ ok: true });
   })
   .put("/local/chat-models", async (c) => {
     if (managed) {

@@ -17,7 +17,7 @@
       "default": "./dist/check.js"
     },
     "./ui": {
-      "wizards-source": "./src/ui.tsx",
+      "wizards-source": "./src/ui.ts",
       "types": "./dist/ui.d.ts",
       "default": "./dist/ui.js"
     },
@@ -40,6 +40,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@engenty/chatviews": "workspace:*",
     "@engenty/wizards-shared": "workspace:*",
     "dompurify": "^3.4.17",
     "fflate": "0.8.3",
