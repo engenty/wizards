@@ -1,8 +1,8 @@
+import { cn, Spinner } from "@engenty/chatviews/react/ui";
 import { Camera, Check, Flashlight, FlashlightOff, SwitchCamera, Video, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { isTouch } from "./device";
 import { t } from "./i18n.js";
-import { cn, Spinner } from "./ui.js";
 
 /**
  * A photo as small as a reader needs it: phone pictures are several megabytes, which is slow to

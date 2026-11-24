@@ -1,9 +1,9 @@
+import { cn, Input } from "@engenty/chatviews/react/ui";
 import type { BrowserAct } from "@engenty/wizards-shared/run";
 import { ArrowDown, ArrowUp, CornerDownLeft, MousePointerClick } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api, runBase, withBase } from "./env.js";
 import { t } from "./i18n.js";
-import { cn, Input } from "./ui.js";
 
 /** Scrolling in the page is sent at most this often; the wheel's movement in between adds up. */
 const WHEEL_EVERY_MS = 250;

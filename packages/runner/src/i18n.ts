@@ -1,3 +1,4 @@
+import { configureViews } from "@engenty/chatviews/react/texts";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { noteText, type RunNote } from "@engenty/wizards-shared/run";
 import { RUNNER_TEXTS, type RunnerKey } from "@engenty/wizards-shared/runner-texts";
@@ -106,3 +107,7 @@ export function t(key: RunnerKey, vars?: Record<string, string | number>): strin
   }
   return textOf(RUNNER_TEXTS, key, table ? "en" : lang, vars);
 }
+
+// The views (@engenty/chatviews) say their few words and write their numbers as the runner does,
+// with the wizard's translation.
+configureViews({ text: (key, vars) => t(key, vars), lang: runnerLangCode });

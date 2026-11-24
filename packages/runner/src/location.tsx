@@ -1,9 +1,9 @@
+import { Button, IconButton, Input } from "@engenty/chatviews/react/ui";
 import { isLocationValue, type LocationValue } from "@engenty/wizards-shared/definition";
 import { ExternalLink, LocateFixed, MapPin, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./env.js";
 import { lang, t } from "./i18n.js";
-import { Button, IconButton, Input } from "./ui.js";
 
 /** Good enough for an address; the device keeps refining until then or until it has tried long enough. */
 const GOOD_METRES = 25;

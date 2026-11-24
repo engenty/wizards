@@ -1,3 +1,4 @@
+import { Button, Card, cn, LinkedText, Spinner, Textarea } from "@engenty/chatviews/react/ui";
 import {
   type FormStep,
   isDecidedField,
@@ -43,7 +44,6 @@ import { eventText, noteLine, runnerLangCode, setChoiceLabels, t } from "./i18n.
 import { DownloadButtons, OutputView } from "./outputs";
 import { ListCheck, ListDownloads, ListTable, SignInCard, StartCard, StoreButton } from "./store";
 import { SurfaceView } from "./surface.js";
-import { Button, Card, cn, LinkedText, Spinner, Textarea } from "./ui.js";
 
 /**
  * A run as the runner drives it: the view, and the commands a person can give. `useRun` in the

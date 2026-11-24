@@ -1,29 +1,17 @@
+import { Markdown } from "@engenty/chatviews/react/markdown";
+import { cn, Spinner, Textarea } from "@engenty/chatviews/react/ui";
 import { labelOf } from "@engenty/chatviews/shape";
 import type { Format, Step } from "@engenty/wizards-shared/definition";
 import { asAgent, isDataStep, outputOf, stepShape } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
-import DOMPurify from "dompurify";
 import { Check, Copy, Download, FileText, Maximize2, Printer, Share } from "lucide-react";
-import { marked } from "marked";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { canShareFiles } from "./device";
 import { appCall, appCan, appDownload, asset, standalone, withBase } from "./env.js";
 import { t } from "./i18n.js";
 import { JsonView } from "./json-view.js";
 import { type Written, writePdf } from "./pdf.js";
-import { type SurfaceAction, SurfaceView } from "./surface";
-import { cn, Spinner, Textarea } from "./ui.js";
-
-export function Markdown({ text, className }: { text: string; className?: string }) {
-  const html = useMemo(
-    () => DOMPurify.sanitize(marked.parse(text, { async: false }) as string),
-    [text],
-  );
-  return (
-    // biome-ignore lint/security/noDangerouslySetInnerHtml: model output, sanitised by DOMPurify above
-    <div className={cn("prose-zen", className)} dangerouslySetInnerHTML={{ __html: html }} />
-  );
-}
+import { type SurfaceAction, SurfaceView } from "./surface.js";
 
 /**
  * Generated HTML in a sandboxed frame: scripts run (scrubbers, tabs, animations) but in an opaque

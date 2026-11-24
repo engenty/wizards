@@ -18,7 +18,7 @@ export default defineConfig({
       entry: {
         index: fileURLToPath(new URL("./src/index.ts", import.meta.url)),
         check: fileURLToPath(new URL("./src/check.ts", import.meta.url)),
-        ui: fileURLToPath(new URL("./src/ui.tsx", import.meta.url)),
+        ui: fileURLToPath(new URL("./src/ui.ts", import.meta.url)),
         i18n: fileURLToPath(new URL("./src/i18n.ts", import.meta.url)),
       },
       formats: ["es"],

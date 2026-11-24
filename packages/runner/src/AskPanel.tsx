@@ -1,3 +1,4 @@
+import { Button, cn, Input, Label, Switch, Textarea } from "@engenty/chatviews/react/ui";
 import type { AskAnswer, ConfirmAsk, LoginAsk, RunAsk } from "@engenty/wizards-shared/run";
 import {
   ArrowRight,
@@ -11,7 +12,6 @@ import { useState } from "react";
 import { LiveBrowser } from "./browser-live.js";
 import { api, runBase } from "./env.js";
 import { t } from "./i18n.js";
-import { Button, cn, Input, Label, Switch, Textarea } from "./ui.js";
 
 /**
  * What a durable step asks the person. The run waits, with no process behind it, so the panel can
