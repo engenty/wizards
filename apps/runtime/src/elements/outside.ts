@@ -145,7 +145,8 @@ export async function callOutside(
   }
   try {
     const result = await tool.execute(data);
-    if (result && typeof result === "object" && "error" in result) {
+    // A run's report carries `error: null` while nothing failed.
+    if (result && typeof result === "object" && "error" in result && result.error != null) {
       const { error, ...data } = result as { error: string };
       return { ok: false, error, data };
     }

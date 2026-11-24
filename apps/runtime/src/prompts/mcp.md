@@ -87,8 +87,11 @@ Status, recent events, outputs (text clipped) with signed download links valid o
 <!-- section: tool.show_wizard -->
 Show a wizard as its flow diagram: its pages, AI steps, reviews and branches. The published version when there is one, else the draft. Also returns the steps as text.
 
+<!-- section: tool.wizard_run -->
+Runs one of the space's published wizards as the person, with answers for its first page (field ids from waitingFor). Then follow waitingFor until the run is done: form → ask the person the fields with inChat=true, answer_form (other fields: the run page at browserUrl); review → show the outputs, review_step; ask → answer_ask after the person said; question → answer_question in their words. While status is running, get_run with waitSeconds. Hosts with MCP Apps show the run as a widget the person answers in.
+
 <!-- section: tool.run_wizard -->
-Start a run of a published wizard for the person, here in the chat. Spends credits like any run.
+For the wizard's author: try the published version. To use a space's wizard, wizard_run. Start a run of a published wizard for the person, here in the chat. Spends credits like any run.
 Start it right away — no show_wizard first: the widget shows the wizard's pages and the person can answer there. What the person already said goes to the first page with answer_form, using the field ids in waitingFor. Then follow waitingFor:
 - form: ask the person for the fields with inChat=true, in order, answer_form; fields with inChat=false (files, recordings, signatures) need the run page at browserUrl. A field with a when is asked only while its condition holds on the answers so far (shown says so for what is known now); fields the wizard decided against are not listed
 - review: show the outputs, then review_step
