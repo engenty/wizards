@@ -1,5 +1,11 @@
 import { totalmem } from "node:os";
-import { ollamaRoot } from "./decision-model.js";
+import {
+  fits,
+  installedModels as ollamaModels,
+  ollamaRoot,
+  ollamaState,
+  pullModel,
+} from "@engenty/local-models/ollama";
 import { env } from "./env.js";
 import { forgetLocalModels, localOllamaUrl } from "./models.js";
 
@@ -62,57 +68,26 @@ const JOB_OF: Record<string, LocalJob> = {
 
 const gb = (bytes: number) => Math.round((bytes / 1e9) * 10) / 10;
 
-async function getJson<T>(url: string, init?: RequestInit, timeoutMs = 2000): Promise<T | null> {
+async function getJson<T>(url: string, timeoutMs: number): Promise<T | null> {
   try {
-    const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     return res.ok ? ((await res.json()) as T) : null;
   } catch {
     return null;
   }
 }
 
-interface ShowAnswer {
-  capabilities?: string[];
-  details?: { runner?: string; quantization_level?: string };
-}
-
-/** What `/api/show` said about a model, by its digest: it does not change while the digest stays. */
-const shown = new Map<string, ShowAnswer>();
-
+/** The models Ollama holds, with the jobs each can do here. */
 async function installedModels(root: string): Promise<InstalledModel[]> {
-  const [tags, ps] = await Promise.all([
-    getJson<{ models?: { name: string; size: number; digest: string }[] }>(`${root}/api/tags`),
-    getJson<{ models?: { name: string }[] }>(`${root}/api/ps`),
-  ]);
-  const loaded = new Set((ps?.models ?? []).map((m) => m.name));
-  return Promise.all(
-    (tags?.models ?? []).map(async (m) => {
-      let show = shown.get(m.digest);
-      if (!show) {
-        show =
-          (await getJson<ShowAnswer>(
-            `${root}/api/show`,
-            {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ model: m.name }),
-            },
-            5000,
-          )) ?? {};
-        shown.set(m.digest, show);
-      }
-      const capabilities = show.capabilities ?? [];
-      return {
-        name: m.name,
-        size: gb(m.size),
-        jobs: LOCAL_JOBS.filter((job) => capabilities.some((c) => JOB_OF[c] === job)),
-        capabilities,
-        runner: show.details?.runner || null,
-        quantization: show.details?.quantization_level || null,
-        loaded: loaded.has(m.name),
-      };
-    }),
-  );
+  return (await ollamaModels(root)).map((m) => ({
+    name: m.name,
+    size: gb(m.size),
+    jobs: LOCAL_JOBS.filter((job) => m.capabilities.some((c) => JOB_OF[c] === job)),
+    capabilities: m.capabilities,
+    runner: m.runner,
+    quantization: m.quantization,
+    loaded: m.running,
+  }));
 }
 
 /** The Manage-App's list at the last look: kept for an hour, asked again after five minutes when it did not answer. */
@@ -124,7 +99,6 @@ async function offeredModels(): Promise<OfferedModel[] | null> {
   }
   const body = await getJson<{ models?: OfferedModel[] }>(
     `${env.local.accountUrl}/v1/local-models`,
-    undefined,
     3000,
   );
   const models = body?.models?.filter((m) => LOCAL_JOBS.includes(m.job)) ?? null;
@@ -142,7 +116,7 @@ export async function localModels() {
   const url = await localOllamaUrl();
   const root = ollamaRoot(url);
   const { findOllama, freeGb } = await import("./cli/ollama.js");
-  const version = (await getJson<{ version?: string }>(`${root}/api/version`))?.version ?? null;
+  const { version } = await ollamaState(root);
   const memory = Math.round(totalmem() / 2 ** 30);
   const installed = version ? await installedModels(root) : [];
   const held = new Set(installed.map((m) => m.name));
@@ -167,7 +141,7 @@ export async function localModels() {
       list?.map((m) => ({
         ...m,
         installed: held.has(m.name) || held.has(`${m.name}:latest`),
-        fits: m.memory <= memory * MEMORY_SHARE,
+        fits: fits(m.memory, memory, MEMORY_SHARE),
       })) ?? null,
     downloads: [...downloads.values()],
   };
@@ -184,15 +158,10 @@ export async function downloadLocalModel(model: string, then?: () => Promise<voi
   }
   const state: LocalDownload = { model, done: 0, total: 0, error: null, finished: false };
   downloads.set(model, state);
-  const { pullModel } = await import("./cli/ollama.js");
-  void pullModel(
-    model,
-    (done, total) => {
-      state.done = done;
-      state.total = total;
-    },
-    { OLLAMA_URL: await localOllamaUrl() },
-  )
+  void pullModel(await localOllamaUrl(), model, (done, total) => {
+    state.done = done;
+    state.total = total;
+  })
     .then(async () => {
       forgetLocalModels();
       state.finished = true;

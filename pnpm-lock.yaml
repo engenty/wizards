@@ -178,6 +178,9 @@ importers:
       '@clack/prompts':
         specifier: ^1.8.1
         version: 1.8.1
+      '@engenty/local-models':
+        specifier: workspace:*
+        version: link:../../packages/local-models
       '@engenty/wizards':
         specifier: workspace:*
         version: link:../../packages/wizards
@@ -750,6 +753,28 @@ importers:
       zod:
         specifier: 4.6.7
         version: 4.6.7
+
+  packages/local-models:
+    dependencies:
+      cross-spawn:
+        specifier: 7.0.6
+        version: 7.0.6
+    devDependencies:
+      '@types/cross-spawn':
+        specifier: ^6.0.6
+        version: 6.0.6
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      ai:
+        specifier: 7.0.163
+        version: 7.0.163(zod@4.6.7)
+      typescript:
+        specifier: ~7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/plugins:
     devDependencies:

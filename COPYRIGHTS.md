@@ -17,11 +17,12 @@ choice of whoever uses them (`FSL-1.1-MIT OR MIT`, [packages/shared/LICENSE-MIT]
 Each says so in its first line. The runner package (`packages/runner`, MIT) bundles them under MIT.
 `@engenty/wizards` on npm is `FSL-1.1-MIT`; its `/openui` bundles the runner, whose MIT licence
 ships beside it (`dist/openui/LICENSE-MIT`).
-Seven libraries are under the MIT licence, each with its own `LICENSE`, and go to npm with each
+Eight libraries are under the MIT licence, each with its own `LICENSE`, and go to npm with each
 release: `packages/decision-model` (`@engenty/decision-model`), `packages/search-index`
 (`@engenty/search-index`), `packages/search-libsql` (`@engenty/search-libsql`),
 `packages/goose` (`@engenty/goose`), `packages/vault` (`@engenty/vault`),
-`packages/plugins` (`@engenty/plugins`) and `packages/browser` (`@engenty/browser`). They depend only on each other and on MIT or permissive
+`packages/plugins` (`@engenty/plugins`), `packages/browser` (`@engenty/browser`) and
+`packages/local-models` (`@engenty/local-models`). They depend only on each other and on MIT or permissive
 packages (`pnpm mit-deps:check`).
 The plugin for the AI apps (`plugin/`, published as engenty/wizards-plugins) is under the MIT
 licence ([plugin/LICENSE](plugin/LICENSE)), except the engenty figures in it.
@@ -79,6 +80,7 @@ Declared by two or more of the workspaces below:
 | [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.4.0 | Apache-2.0 |
 | [@modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps) | 2.0.4 | MIT |
 | [ai](https://ai-sdk.dev/docs) | 7.0.163 | Apache-2.0 |
+| [cross-spawn](https://github.com/moxystudio/node-cross-spawn) | 7.0.6 | MIT |
 | [dompurify](https://github.com/cure53/DOMPurify) | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
 | [fflate](https://101arrowz.github.io/fflate) | 0.8.3 | MIT |
 | [hono](https://hono.dev) | 4.13.16 | MIT |
@@ -128,7 +130,6 @@ Declared by two or more of the workspaces below:
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 1.0.13 | MIT |
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.3 | MIT |
 | [aws4fetch](https://github.com/mhart/aws4fetch#readme) | 1.0.20 | MIT |
-| [cross-spawn](https://github.com/moxystudio/node-cross-spawn) | 7.0.6 | MIT |
 | [drizzle-orm](https://orm.drizzle.team) | 0.45.4 | Apache-2.0 |
 | [effect](https://effect.website) | 4.0.0-beta.59 | MIT |
 | [exceljs](https://github.com/exceljs/exceljs#readme) | 4.4.0 | MIT |
