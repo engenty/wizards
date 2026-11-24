@@ -1,8 +1,8 @@
+import { Button, Dialog, IconButton } from "@engenty/chatviews/react/ui";
 import { Eraser, PenLine, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api, withBase } from "./env.js";
 import { t } from "./i18n.js";
-import { Button, Dialog, IconButton } from "./ui.js";
 
 type Point = { x: number; y: number };
 /** Strokes in pad units: x from 0 to 1, y from 0 to 1 — they survive a rotated phone. */

@@ -1,3 +1,4 @@
+import { Button, Spinner } from "@engenty/chatviews/react/ui";
 import { type AudioValue, isAudioValue } from "@engenty/wizards-shared/definition";
 import { FileAudio, Mic, RotateCcw, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -5,7 +6,6 @@ import { stamp } from "./camera";
 import { canUseMedia } from "./device";
 import { api, appCall, appCan, runnerEnv } from "./env.js";
 import { t } from "./i18n.js";
-import { Button, Spinner } from "./ui.js";
 
 const MAX_SECONDS = 300;
 

@@ -4,6 +4,7 @@
  * drives it over a server-sent stream, the WordPress plugin over its own REST routes.
  */
 
+export { Markdown } from "@engenty/chatviews/react/markdown";
 export { AskPanel, QuestionPanel } from "./AskPanel.js";
 export { type Api, ApiError, createApi, isOffline, safeJson } from "./api.js";
 export { LiveBrowser } from "./browser-live.js";
@@ -56,7 +57,6 @@ export {
   DownloadButtons,
   FORMAT_LABEL,
   HtmlFrame,
-  Markdown,
   OutputView,
 } from "./outputs.js";
 export {

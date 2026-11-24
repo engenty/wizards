@@ -17,7 +17,7 @@
       "default": "./dist/check.js"
     },
     "./ui": {
-      "wizards-source": "./src/ui.tsx",
+      "wizards-source": "./src/ui.ts",
       "types": "./dist/ui.d.ts",
       "default": "./dist/ui.js"
     },
