@@ -35,6 +35,11 @@
       "wizards-source": "./src/probe.ts",
       "types": "./dist/probe.d.ts",
       "default": "./dist/probe.js"
+    },
+    "./bridge": {
+      "wizards-source": "./src/bridge/index.ts",
+      "types": "./dist/bridge/index.d.ts",
+      "default": "./dist/bridge/index.js"
     }
   },
   "files": [
@@ -47,12 +52,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
     "cross-spawn": "7.0.6"
   },
   "peerDependencies": {
     "ai": ">=7.0.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@types/cross-spawn": "^6.0.6",
     "@types/node": "^26.6.6",
     "ai": "7.0.163",
