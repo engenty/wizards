@@ -39,7 +39,9 @@ COPY . .
 # The path the app is served under (https://example.com/wizards: /wizards); empty at an origin's root.
 ARG APP_BASE_PATH=""
 ENV APP_BASE_PATH=$APP_BASE_PATH
-RUN pnpm build
+# The runtime, the studio and the workspace packages they use. The other libraries are not
+# installed here (their manifests are not copied above), so they are not built either.
+RUN pnpm --filter "@engenty/wizards-runtime..." --filter "@engenty/wizards-studio..." build
 
 # Sandbox engines that aren't part of the runtime (docs/plans/agentos-sandbox.md), only those
 # named: `--build-arg SANDBOX_ENGINES=agentos` (about 820 MB). Its own stage, fed with just the
