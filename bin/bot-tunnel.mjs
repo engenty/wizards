@@ -4,15 +4,18 @@
 // home as `tunnel/run.mjs`; run there by the home's tunnel service, it keeps frpc running and
 // renews the certificate before it ends. Like bot.mjs it needs nothing but Node.
 //
-//   tunnel/tunnel.json   the account, the name, the key for it, frpc and the home's port (0600)
+//   tunnel/claim.pem     the tunnel's own Ed25519 key (0600): its name is made from it, and it
+//                        claims the name again after --off; losing it loses the name
+//   tunnel/tunnel.json   the API, the name, the key for it, frpc and the home's port (0600)
 //   tunnel/frpc.toml     frpc's settings (0600: it holds the key)
 //   tunnel/key.pem       this computer's private key for the name (0600); it never leaves it
-//   tunnel/cert.pem      the certificate for the name, from Let's Encrypt through the account
+//   tunnel/cert.pem      the certificate for the name, from Let's Encrypt through wizards.host
 //
 // The relay ends no TLS: frpc's https2http plugin ends it here, with key.pem and cert.pem, and
 // hands plain HTTP to the home on 127.0.0.1.
 import { spawn, spawnSync } from "node:child_process";
 import {
+  createHash,
   createPrivateKey,
   createPublicKey,
   generateKeyPairSync,
@@ -23,10 +26,78 @@ import { chmodSync, existsSync, readFileSync, renameSync, writeFileSync } from "
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+/** Where tunnels get their names and certificates: WIZARDS_TUNNEL_URL changes it. */
+export const TUNNEL_URL = "https://wizards.host";
 /** Renew this long before a certificate ends. */
 export const RENEW_BEFORE = 30 * 24 * 3600_000;
 /** How often the running tunnel looks at its certificate. */
 const CHECK_EVERY = 12 * 3600_000;
+
+// --- the tunnel's own key, and the name it gets ---------------------------------------------
+
+const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
+
+/** RFC 4648 base32, lower case, without padding. */
+function base32(bytes) {
+  let bits = 0;
+  let value = 0;
+  let out = "";
+  for (const byte of bytes) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      out += BASE32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) {
+    out += BASE32[(value << (5 - bits)) & 31];
+  }
+  return out;
+}
+
+/** The name a key claims: the first 10 characters of base32(sha256(raw public key)). */
+export function claimName(publicKeyRaw) {
+  return base32(createHash("sha256").update(publicKeyRaw).digest()).slice(0, 10);
+}
+
+/** The tunnel's Ed25519 key in `claim.pem`, made the first time; it stays for you alone. */
+export function claimKey(file) {
+  if (!existsSync(file)) {
+    const { privateKey } = generateKeyPairSync("ed25519");
+    writeFileAtomic(file, privateKey.export({ type: "pkcs8", format: "pem" }), true);
+  }
+  return createPrivateKey(readFileSync(file, "utf8"));
+}
+
+/** A key's raw 32-byte public half, base64url. */
+export function publicKeyOf(privateKey) {
+  return createPublicKey(privateKey).export({ format: "jwk" }).x;
+}
+
+/** What a claim signs. */
+export const claimText = (publicKey, timestamp) => `wizards.host claim ${publicKey} ${timestamp}`;
+
+/** The body of `POST /v1/tunnels/claim`: the public key, now, and the signature over both. */
+export function claimBody(privateKey, now = Date.now()) {
+  const publicKey = publicKeyOf(privateKey);
+  const signature = sign(null, Buffer.from(claimText(publicKey, now)), privateKey).toString(
+    "base64url",
+  );
+  return { publicKey, timestamp: now, signature };
+}
+
+/**
+ * Claims the name of the key in `file`: no account, no browser. Every claim gives a fresh key
+ * for the relay; the name stays the key's.
+ */
+export async function claim(api, file, computer) {
+  const { data } = await call(api, "/v1/tunnels/claim", {
+    method: "POST",
+    body: { ...claimBody(claimKey(file)), ...(computer ? { computer } : {}) },
+  });
+  return data;
+}
 
 // --- a key and a certificate request ---------------------------------------------------------
 
@@ -109,7 +180,7 @@ export function needsRenewal(certPem, now = Date.now()) {
   return !end || end.getTime() - now < RENEW_BEFORE;
 }
 
-/** Something the account said no to, with its sentence for people and its code. */
+/** Something the tunnel API said no to, with its sentence for people and its code. */
 export class AccountError extends Error {
   constructor(message, code, status) {
     super(message);
@@ -118,11 +189,11 @@ export class AccountError extends Error {
   }
 }
 
-/** A call to the account's tunnel API: its JSON, or an AccountError. */
-export async function call(account, path, { method = "GET", key, body } = {}) {
+/** A call to the tunnel API at `api` (wizards.host): its JSON, or an AccountError. */
+export async function call(api, path, { method = "GET", key, body } = {}) {
   let res;
   try {
-    res = await fetch(`${account}${path}`, {
+    res = await fetch(`${api}${path}`, {
       method,
       headers: {
         ...(body ? { "content-type": "application/json" } : {}),
@@ -133,12 +204,12 @@ export async function call(account, path, { method = "GET", key, body } = {}) {
       signal: AbortSignal.timeout(30_000),
     });
   } catch (error) {
-    throw new AccountError(`${account} didn’t answer: ${error.message}`, "unreachable", 0);
+    throw new AccountError(`${api} didn’t answer: ${error.message}`, "unreachable", 0);
   }
   const data = res.status === 204 ? {} : await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new AccountError(
-      data.error || `${account} answered ${res.status}.`,
+      data.error || `${api} answered ${res.status}.`,
       data.code || "error",
       res.status,
     );
@@ -150,17 +221,17 @@ const pause = (ms) => new Promise((done) => setTimeout(done, ms));
 
 /**
  * A certificate for the key's name: posts the request, then asks every `every` ms until the
- * account has it (Let's Encrypt checks the name's DNS meanwhile). Returns the PEM chain.
+ * API has it (Let's Encrypt checks the name's DNS meanwhile). Returns the PEM chain.
  */
-export async function orderCertificate(account, key, csr, { every = 3000, within = 300_000 } = {}) {
-  const { data: order } = await call(account, "/v1/tunnels/cert", {
+export async function orderCertificate(api, key, csr, { every = 3000, within = 300_000 } = {}) {
+  const { data: order } = await call(api, "/v1/tunnels/cert", {
     method: "POST",
     key,
     body: { csr },
   });
   const until = Date.now() + within;
   while (Date.now() < until) {
-    const { data } = await call(account, `/v1/tunnels/cert/${encodeURIComponent(order.id)}`, {
+    const { data } = await call(api, `/v1/tunnels/cert/${encodeURIComponent(order.id)}`, {
       key,
     });
     if (data.state === "ready" && data.cert) {
@@ -236,7 +307,7 @@ export async function renewIfDue(tunnel, now = Date.now()) {
     return false;
   }
   const keyPem = readFileSync(join(tunnel.dir, "key.pem"), "utf8");
-  const cert = await orderCertificate(tunnel.account, tunnel.key, csrFor(tunnel.name, keyPem));
+  const cert = await orderCertificate(tunnel.api, tunnel.key, csrFor(tunnel.name, keyPem));
   writeFileAtomic(certFile, cert);
   return true;
 }
