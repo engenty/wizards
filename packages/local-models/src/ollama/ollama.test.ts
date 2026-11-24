@@ -200,6 +200,42 @@ describe("a model of Ollama on its own chat API", () => {
     expect(result.usage.outputTokens.total).toBe(3);
   });
 
+  it("streams what a thinking model thinks as reasoning, apart from its answer", async () => {
+    const model = ollamaModel({
+      url: "http://ollama.test:11434/v1",
+      model: "qwen3:8b",
+      thinking: true,
+      fetch: async () =>
+        stream([
+          { message: { content: "", thinking: "Trains " } },
+          { message: { content: "", thinking: "first." } },
+          { message: { content: "The 7:10." } },
+          { done: true, done_reason: "stop", prompt_eval_count: 4, eval_count: 6 },
+        ]),
+    });
+    const prompt = [{ role: "user" as const, content: [{ type: "text" as const, text: "Hi" }] }];
+    const { stream: parts } = await model.doStream({ prompt });
+    const seen: string[] = [];
+    for await (const part of parts) {
+      if (part.type === "reasoning-delta") seen.push(`thinks:${part.delta}`);
+      else if (part.type === "text-delta") seen.push(`says:${part.delta}`);
+      else if (part.type === "reasoning-start" || part.type === "reasoning-end")
+        seen.push(part.type);
+    }
+    expect(seen).toEqual([
+      "reasoning-start",
+      "thinks:Trains ",
+      "thinks:first.",
+      "reasoning-end",
+      "says:The 7:10.",
+    ]);
+    const result = await model.doGenerate({ prompt });
+    expect(result.content).toEqual([
+      { type: "reasoning", text: "Trains first." },
+      { type: "text", text: "The 7:10." },
+    ]);
+  });
+
   it("sends pictures with the newest message only, and names older ones", () => {
     const picture = { type: "file" as const, mediaType: "image/png", data: "AAAA" };
     const messages = ollamaMessages([
