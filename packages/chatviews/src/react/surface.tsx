@@ -65,6 +65,8 @@ interface Ctx {
   chat?: SurfaceChat;
   /** A page's layout: draws one of its fields where a `Field` places it. */
   field?: (name: string) => React.ReactNode;
+  /** Ids drawn by the host instead of a component of the surface (a chat view's children). */
+  slots?: ReadonlyMap<string, ReactNode>;
 }
 
 // A yes/no without words of its own reads as yes or no, never as true or false.
@@ -660,6 +662,10 @@ function ChoiceInput({ c, ctx }: { c: SurfaceComponent; ctx: Ctx }) {
 }
 
 function Node({ id, ctx, row }: { id: string; ctx: Ctx; row?: unknown }) {
+  const slot = ctx.slots?.get(id);
+  if (slot !== undefined) {
+    return <>{slot}</>;
+  }
   const c = ctx.byId.get(id);
   if (!c) {
     return null;
@@ -1202,6 +1208,7 @@ export function SurfaceView({
   onState,
   chat,
   field,
+  slots,
 }: {
   surface: Surface;
   assetUrl: (id: string) => string;
@@ -1214,6 +1221,8 @@ export function SurfaceView({
   onState?: (next: SurfaceState) => void;
   /** A page's layout: draws one of its fields where a `Field` places it. */
   field?: (name: string) => React.ReactNode;
+  /** Ids drawn by the host instead of a component of the surface (a chat view's children). */
+  slots?: ReadonlyMap<string, ReactNode>;
 }) {
   const [state, setState] = useState<SurfaceState>(initial ?? {});
   const [sheet, setSheet] = useState<{ view: string; row: unknown } | null>(null);
@@ -1231,6 +1240,7 @@ export function SurfaceView({
     open: (view, row) => setSheet({ view, row }),
     chat,
     field,
+    slots,
   };
   return (
     <>
