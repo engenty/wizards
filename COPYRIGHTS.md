@@ -17,12 +17,12 @@ choice of whoever uses them (`FSL-1.1-MIT OR MIT`, [packages/shared/LICENSE-MIT]
 Each says so in its first line. The runner package (`packages/runner`, MIT) bundles them under MIT.
 `@engenty/wizards` on npm is `FSL-1.1-MIT`; its `/openui` bundles the runner, whose MIT licence
 ships beside it (`dist/openui/LICENSE-MIT`).
-Nine libraries are under the MIT licence, each with its own `LICENSE`, and go to npm with each
+Ten libraries are under the MIT licence, each with its own `LICENSE`, and go to npm with each
 release: `packages/chatviews` (`@engenty/chatviews`), `packages/decision-model` (`@engenty/decision-model`), `packages/search-index`
 (`@engenty/search-index`), `packages/search-libsql` (`@engenty/search-libsql`),
 `packages/goose` (`@engenty/goose`), `packages/vault` (`@engenty/vault`),
-`packages/plugins` (`@engenty/plugins`), `packages/browser` (`@engenty/browser`) and
-`packages/local-models` (`@engenty/local-models`). They depend only on each other and on MIT or permissive
+`packages/plugins` (`@engenty/plugins`), `packages/browser` (`@engenty/browser`),
+`packages/local-models` (`@engenty/local-models`) and `packages/model-setup` (`@engenty/model-setup`). They depend only on each other and on MIT or permissive
 packages (`pnpm mit-deps:check`).
 The plugin for the AI apps (`plugin/`, published as engenty/wizards-plugins) is under the MIT
 licence ([plugin/LICENSE](plugin/LICENSE)), except the engenty figures in it.

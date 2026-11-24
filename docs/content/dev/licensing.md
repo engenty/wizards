@@ -17,7 +17,7 @@ Use it, change it and share it in any app, open or closed. Keep the licence text
 | The wizard format | fifteen files in `packages/shared/src` | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT)) |
 | The runner | `@engenty/wizards-runner` in `packages/runner` | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/packages/runner/LICENSE)) |
 | The plugin for the AI apps | `plugin/`, without the engenty figures in it | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/plugin/LICENSE)) |
-| The libraries | `@engenty/chatviews`, `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/goose`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser` and `@engenty/local-models` in `packages/` | MIT (the `LICENSE` in each folder) |
+| The libraries | `@engenty/chatviews`, `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/goose`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/local-models` and `@engenty/model-setup` in `packages/` | MIT (the `LICENSE` in each folder) |
 
 ### The wizard format
 
@@ -67,6 +67,9 @@ Eight libraries go to npm with each release, at its version:
   length set), the AI clients signed in on their subscription (Claude Code, Codex, Cursor
   Agent: found, signed in, run headless as a model or as a chat with one MCP server), and a
   short real call that says whether each answers
+- `@engenty/model-setup`: the setup in which a person picks what an app thinks with, shared by
+  engenty wizards and wizards.bot: the AI clients it offers, how each is found, installed and
+  signed in through a terminal in the page, and the routes the page asks
 
 They depend only on each other and on packages under MIT or a licence as permissive.
 

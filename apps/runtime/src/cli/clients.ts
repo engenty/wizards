@@ -1,42 +1,10 @@
 import { mkdirSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
+import { type ClientEntry, installCommand, POWERSHELL } from "@engenty/model-setup";
 import { runtimePath, withPath } from "./environment.js";
 import { type Logged, runLogged } from "./exec.js";
 import type { Layout } from "./home.js";
-import { type Client, findOnPath } from "./machine.js";
-
-/** A word for the shell: quoted when it holds anything but plain characters. */
-const shellWord = (word: string) =>
-  /^[\w@%+=:,./-]+$/.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`;
-
-/** A word for PowerShell: in single quotes, which take everything but a single quote as it is. */
-const powershellWord = (word: string) =>
-  /^[\w@%+=:,./\\-]+$/.test(word) ? word : `'${word.replaceAll("'", "''")}'`;
-
-/** The command the setup runs for a client, as the person would type it (PowerShell on Windows). */
-export function installCommand(
-  client: Client,
-  paths: Layout,
-  platform: NodeJS.Platform = process.platform,
-): string {
-  const windows = platform === "win32";
-  if (client.install.kind === "npm") {
-    const prefix = windows ? powershellWord(paths.clients) : shellWord(paths.clients);
-    return `npm install --global --prefix ${prefix} ${client.install.pkg}`;
-  }
-  return windows
-    ? `irm ${powershellWord(client.install.windows)} | iex`
-    : `curl -fsSL ${client.install.url} | bash`;
-}
-
-/** PowerShell, for a command written for it: without the person's profile, scripts allowed. */
-export const POWERSHELL = [
-  "powershell.exe",
-  "-NoProfile",
-  "-ExecutionPolicy",
-  "Bypass",
-  "-Command",
-];
+import { findOnPath } from "./machine.js";
 
 /**
  * Installs an AI client. One that comes from npm goes into the install's own prefix
@@ -44,7 +12,7 @@ export const POWERSHELL = [
  * Node, if they have one, is touched. The others bring their own installer.
  */
 export function installClient(
-  client: Client,
+  client: ClientEntry,
   paths: Layout,
   onLine?: (line: string) => void,
 ): Promise<Logged> {
@@ -52,7 +20,11 @@ export function installClient(
   const env = withPath(process.env, runtimePath(paths, process.env));
   if (client.install.kind === "script" && process.platform === "win32") {
     const [shell, ...args] = POWERSHELL;
-    return runLogged(shell, [...args, installCommand(client, paths)], { env, logFile, onLine });
+    return runLogged(shell, [...args, installCommand(client, paths.clients, process.platform)], {
+      env,
+      logFile,
+      onLine,
+    });
   }
   if (client.install.kind === "script") {
     return runLogged("bash", ["-c", `set -o pipefail; curl -fsSL ${client.install.url} | bash`], {

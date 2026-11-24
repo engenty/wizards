@@ -187,6 +187,9 @@ importers:
       '@engenty/local-models':
         specifier: workspace:*
         version: link:../../packages/local-models
+      '@engenty/model-setup':
+        specifier: workspace:*
+        version: link:../../packages/model-setup
       '@engenty/wizards':
         specifier: workspace:*
         version: link:../../packages/wizards
@@ -244,9 +247,6 @@ importers:
       '@llamaindex/liteparse':
         specifier: 2.18.0
         version: 2.18.0
-      '@lydell/node-pty':
-        specifier: 1.1.0
-        version: 1.1.0
       '@mastra/ai-sdk':
         specifier: 1.11.3
         version: 1.11.3(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))(zod@4.6.7)
@@ -839,6 +839,34 @@ importers:
       vitest:
         specifier: ^5.1.0
         version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/model-setup:
+    dependencies:
+      '@engenty/local-models':
+        specifier: workspace:*
+        version: link:../local-models
+      '@lydell/node-pty':
+        specifier: 1.1.0
+        version: 1.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      ai:
+        specifier: 7.0.163
+        version: 7.0.163(zod@4.6.7)
+      hono:
+        specifier: ^4.13.16
+        version: 4.13.16
+      typescript:
+        specifier: ~7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
 
   packages/plugins:
     devDependencies:
