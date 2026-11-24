@@ -217,4 +217,93 @@ describe("a client that uses a space", () => {
     expect(left.body).toMatchObject({ status: "waiting_input", unanswered: true });
     expect(left.body.waitingFor?.form).toBe("who");
   });
+
+  it("follows a run as a task: input_required with its pages, completed with its report", async () => {
+    let id = 0;
+    const rpc = async (method: string, params: Record<string, unknown>) => {
+      const res = await app.fetch(
+        new Request(MCP_URL, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${USE_TOKEN}`,
+            "content-type": "application/json",
+            accept: "application/json, text/event-stream",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
+        }),
+      );
+      return ((await res.json()) as any).result;
+    };
+    const tasks = {
+      "io.modelcontextprotocol/clientCapabilities": {
+        extensions: { "io.modelcontextprotocol/tasks": {} },
+        elicitation: { form: {} },
+      },
+    };
+    const handle = await rpc("tools/call", {
+      name: "wizard_run",
+      arguments: { wizardId },
+      _meta: tasks,
+    });
+    expect(handle).toMatchObject({ resultType: "task", status: "input_required" });
+    const taskId = handle.taskId;
+
+    const first = await rpc("tasks/get", { taskId });
+    expect(first.status).toBe("input_required");
+    expect(first.inputRequests.page).toMatchObject({
+      method: "elicitation/create",
+      params: { message: "Wer kommt" },
+    });
+    await rpc("tasks/update", {
+      taskId,
+      inputResponses: { page: { action: "accept", content: { name: "Lena" } } },
+    });
+    let next = await rpc("tasks/get", { taskId });
+    for (let i = 0; i < 20 && next.status === "working"; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      next = await rpc("tasks/get", { taskId });
+    }
+    expect(next.inputRequests?.page?.params?.message).toBe("Mitbringen");
+    await rpc("tasks/update", {
+      taskId,
+      inputResponses: { page: { action: "accept", content: { what: "Ausweis" } } },
+    });
+    let done = await rpc("tasks/get", { taskId });
+    for (let i = 0; i < 20 && done.status !== "completed"; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      done = await rpc("tasks/get", { taskId });
+    }
+    expect(done.status).toBe("completed");
+    expect(done.result._meta["engenty/flow"].run.status).toBe("done");
+
+    expect(await rpc("tasks/get", { taskId: "nope" })).toBeUndefined();
+  });
+
+  it("cancels a run followed as a task", async () => {
+    const res = await app.fetch(
+      new Request(MCP_URL, {
+        method: "POST",
+        headers: { authorization: `Bearer ${USE_TOKEN}`, "content-type": "application/json", accept: "application/json, text/event-stream" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: {
+            name: "wizard_run",
+            arguments: { wizardId },
+            _meta: { "io.modelcontextprotocol/clientCapabilities": { extensions: { "io.modelcontextprotocol/tasks": {} } } },
+          },
+        }),
+      }),
+    );
+    const { taskId } = ((await res.json()) as any).result;
+    const cancel = await app.fetch(
+      new Request(MCP_URL, {
+        method: "POST",
+        headers: { authorization: `Bearer ${USE_TOKEN}`, "content-type": "application/json", accept: "application/json, text/event-stream" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tasks/cancel", params: { taskId } }),
+      }),
+    );
+    expect(((await cancel.json()) as any).result.status).toBe("cancelled");
+  });
 });

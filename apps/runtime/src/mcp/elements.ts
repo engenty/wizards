@@ -45,7 +45,7 @@ const READ_ONLY = new Set<string>([
  * run and the person answers its pages there. Without a view (a wizard the person can't open
  * as a diagram) the run comes back as text alone.
  */
-async function withFlow(userId: string, answered: CallToolResult, result: unknown) {
+export async function withFlow(userId: string, answered: CallToolResult, result: unknown) {
   const report = result as RunReport | undefined;
   if (answered.isError || !report?.runId || !report.wizardId) {
     return answered;
@@ -62,7 +62,7 @@ async function withFlow(userId: string, answered: CallToolResult, result: unknow
   }
 }
 
-function answer(result: Awaited<ReturnType<typeof callOutside>>): CallToolResult {
+export function answer(result: Awaited<ReturnType<typeof callOutside>>): CallToolResult {
   const body = result.ok
     ? result.result
     : { error: result.error, ...(result.data ? { data: result.data } : {}) };
