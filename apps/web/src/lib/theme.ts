@@ -43,7 +43,15 @@ const system = window.matchMedia("(prefers-color-scheme: dark)");
 const SHARED_COOKIE = "engenty_theme";
 
 function sharedPick(): string | null {
-  const raw = document.cookie
+  // A page closed off without its own origin (an AI app's widget, a home's view) has no
+  // cookies: reading them throws.
+  let cookie = "";
+  try {
+    cookie = document.cookie;
+  } catch {
+    return null;
+  }
+  const raw = cookie
     .split(";")
     .map((part) => part.trim())
     .find((part) => part.startsWith(`${SHARED_COOKIE}=`))
@@ -58,8 +66,12 @@ function sharePick(value: ThemeMode | "system") {
   const named = labels.length > 1 && !/^\d+$/.test(labels[labels.length - 1]);
   const parent = named ? (labels.length > 2 ? labels.slice(1).join(".") : host) : "";
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
-  // biome-ignore lint/suspicious/noDocumentCookie: the Cookie Store API is missing in Safari and Firefox
-  document.cookie = `${SHARED_COOKIE}=${value}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax${parent ? `; Domain=${parent}` : ""}${secure}`;
+  try {
+    // biome-ignore lint/suspicious/noDocumentCookie: the Cookie Store API is missing in Safari and Firefox
+    document.cookie = `${SHARED_COOKIE}=${value}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax${parent ? `; Domain=${parent}` : ""}${secure}`;
+  } catch {
+    // No cookies here: the choice stays with this page.
+  }
 }
 
 /**
