@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createPrivateKey, createPublicKey, verify } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -325,6 +326,7 @@ async function fakeAccount(cert: string): Promise<Fake> {
   const calls: Fake["calls"] = [];
   let redeemed = 0;
   let asked = 0;
+  let claims = 0;
   const server = createHttpServer(async (req: IncomingMessage, res) => {
     let text = "";
     for await (const chunk of req) text += chunk;
@@ -334,6 +336,30 @@ async function fakeAccount(cert: string): Promise<Fake> {
       res.writeHead(status, { "content-type": "application/json" });
       res.end(JSON.stringify(data));
     };
+    if (req.url === "/v1/tunnels/claim") {
+      const { publicKey, timestamp, signature } = body as {
+        publicKey: string;
+        timestamp: number;
+        signature: string;
+      };
+      const key = createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: publicKey }, format: "jwk" });
+      const ok = verify(
+        null,
+        Buffer.from(`wizards.host claim ${publicKey} ${timestamp}`),
+        key,
+        Buffer.from(signature, "base64url"),
+      );
+      if (!ok) {
+        return json(400, { error: "The signature doesn’t match.", code: "bad_signature" });
+      }
+      claims += 1;
+      return json(200, {
+        key: `wbn_claim${claims}`,
+        name: `${relay.claimName(Buffer.from(publicKey, "base64url"))}.wizards.host`,
+        server: "wizards.host",
+        serverPort: 443,
+      });
+    }
     if (req.url === "/v1/tunnels/start") {
       return json(200, { deviceCode: "dc1", userCode: "K7QF-2MXD", url: `${fake.url}/tunnel?code=K7QF-2MXD`, interval: 3, expiresIn: 900 });
     }
@@ -364,17 +390,68 @@ async function fakeAccount(cert: string): Promise<Fake> {
 }
 
 describe("wizards bot tunnel", () => {
-  it("reads --name and --tailscale", () => {
-    expect(bot.parse(["tunnel", "./t", "--name", "Test01"])).toMatchObject({ folder: "./t", name: "test01" });
-    expect(bot.parse(["tunnel", "--tailscale"])).toMatchObject({ tailscale: true, name: null });
+  it("reads --account, --name and --tailscale", () => {
+    expect(bot.parse(["tunnel", "./t", "--account", "--name", "Test01"])).toMatchObject({
+      folder: "./t",
+      account: true,
+      name: "test01",
+    });
+    expect(bot.parse(["tunnel", "--tailscale"])).toMatchObject({ tailscale: true, account: false, name: null });
     expect(() => bot.parse(["tunnel", "--name"])).toThrow("--name needs a word");
     expect(bot.labelOk("test01")).toBe(true);
     expect(bot.labelOk("a-b")).toBe(true);
     expect(bot.labelOk("-a")).toBe(false);
     expect(bot.labelOk("a.b")).toBe(false);
     expect(bot.labelOk("x".repeat(33))).toBe(false);
-    expect(bot.accountUrl({})).toBe("https://account.engenty.ai");
-    expect(bot.accountUrl({ WIZARDS_ACCOUNT_URL: "http://localhost:5182/" })).toBe("http://localhost:5182");
+    expect(bot.tunnelUrl({})).toBe("https://wizards.host");
+    expect(bot.tunnelUrl({ WIZARDS_TUNNEL_URL: "http://localhost:5182/" })).toBe("http://localhost:5182");
+  });
+
+  it("names a tunnel after its own key: base32 of sha256, 10 characters", () => {
+    // Worked out apart from this code: base32(sha256(bytes 0..31)), lower case.
+    expect(relay.claimName(Buffer.from(Array.from({ length: 32 }, (_, i) => i)))).toBe("mmg42klgyq");
+  });
+
+  it("signs a claim: the key, the time in ms and the text wizards.host checks", () => {
+    const file = join(user, "claim.pem");
+    const key = relay.claimKey(file);
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    const body = relay.claimBody(key, 1_790_000_000_000);
+    expect(body.timestamp).toBe(1_790_000_000_000);
+    expect(Buffer.from(body.publicKey, "base64url")).toHaveLength(32);
+    const pub = createPublicKey(createPrivateKey(readFileSync(file, "utf8")));
+    const text = `wizards.host claim ${body.publicKey} 1790000000000`;
+    expect(relay.claimText(body.publicKey, 1_790_000_000_000)).toBe(text);
+    expect(verify(null, Buffer.from(text), pub, Buffer.from(body.signature, "base64url"))).toBe(true);
+    expect(verify(null, Buffer.from(`${text}1`), pub, Buffer.from(body.signature, "base64url"))).toBe(false);
+    // The same file, the same key.
+    expect(relay.publicKeyOf(relay.claimKey(file))).toBe(body.publicKey);
+  });
+
+  it("claims a name at wizards.host without a browser, and the same name again with its key", async () => {
+    const account = await fakeAccount("");
+    const dir = join(user, "home", "tunnel");
+    try {
+      const first = await bot.nameTunnel(dir, { account: false, open: true }, { WIZARDS_TUNNEL_URL: account.url });
+      expect(first).toMatchObject({ api: account.url, key: "wbn_claim1", server: "wizards.host", serverPort: 443 });
+      expect(first.name).toMatch(/^[a-z2-7]{10}\.wizards\.host$/);
+      expect(account.calls.map((c) => c.path)).toEqual(["/v1/tunnels/claim"]);
+      expect(said.join("\n")).not.toContain("sign in");
+      const pem = readFileSync(join(dir, bot.CLAIM_FILE), "utf8");
+      const again = await bot.nameTunnel(dir, { account: false }, { WIZARDS_TUNNEL_URL: account.url });
+      expect(again.name).toBe(first.name);
+      expect(again.key).toBe("wbn_claim2");
+      expect(readFileSync(join(dir, bot.CLAIM_FILE), "utf8")).toBe(pem);
+      const [a, b] = account.calls.map((c) => (c.body as { publicKey: string }).publicKey);
+      expect(a).toBe(b);
+    } finally {
+      account.close();
+    }
+  });
+
+  it("takes --name only with --account", async () => {
+    expect(await bot.main(["tunnel", join(user, "t"), "--name", "test01"])).toBe(1);
+    expect(said.join("\n")).toContain("goes with --account");
   });
 
   it("pins frpc's checksum for every machine it downloads for", () => {
@@ -485,7 +562,7 @@ describe("wizards bot tunnel", () => {
     await new Promise<void>((done) => health.listen(0, "127.0.0.1", done));
     const port = (health.address() as { port: number }).port;
     const account = await fakeAccount("");
-    process.env.WIZARDS_ACCOUNT_URL = account.url;
+    process.env.WIZARDS_TUNNEL_URL = account.url;
     try {
       mkdirSync(join(paths.bot, "0.1.4"), { recursive: true });
       writeFileSync(join(paths.bot, "0.1.4", "package.json"), JSON.stringify({ version: "0.1.4" }));
@@ -552,7 +629,7 @@ describe("wizards bot tunnel", () => {
     const dir = join(user, "tunnel");
     mkdirSync(dir);
     writeFileSync(join(dir, "key.pem"), relay.makeKey());
-    const tunnel = { dir, account: account.url, key: "wbn_test", name: "ada.wizards.host" };
+    const tunnel = { dir, api: account.url, key: "wbn_test", name: "ada.wizards.host" };
     try {
       writeFileSync(join(dir, "cert.pem"), fresh);
       expect(relay.needsRenewal(fresh)).toBe(false);

@@ -29,7 +29,7 @@
 // the home's `tunnel/` folder: <folder>/tunnel, or <data>/tunnel for the home above.
 //
 // For tests: WIZARDS_BOT_TARBALL (a path or an address of a tarball instead of the release's),
-// ENGENTY_HOME, WIZARDS_BOT_DATA, WIZARDS_ACCOUNT_URL (the account, https://account.engenty.ai),
+// ENGENTY_HOME, WIZARDS_BOT_DATA, WIZARDS_TUNNEL_URL (the tunnel API, https://wizards.host),
 // WIZARDS_BOT_FRPC (an frpc to use instead of downloading one).
 import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
@@ -59,10 +59,12 @@ import { fileURLToPath } from "node:url";
 import {
   AccountError,
   call,
+  claim,
   csrFor,
   frpcConfig,
   makeKey,
   orderCertificate,
+  TUNNEL_URL,
   writeFileAtomic,
 } from "./bot-tunnel.mjs";
 
@@ -79,8 +81,6 @@ export const LABEL = "com.engenty.wizards.bot";
 export const LINK_LABEL = "com.engenty.wizards.bot.link";
 export const UNIT = "wizards-bot.service";
 export const LINK_UNIT = "wizards-bot-link.service";
-/** The account that gives out names at wizards.host and their certificates. */
-export const ACCOUNT_URL = "https://account.engenty.ai";
 /** frp (github.com/fatedier/frp, Apache-2.0): the relay's frps and this computer's frpc. */
 export const FRP_VERSION = "0.72.0";
 /** sha256 of frp's release files, from the release's frp_sha256_checksums.txt. */
@@ -1544,6 +1544,8 @@ async function uninstall(paths, options) {
   }
   if (purge) {
     rmSync(data, { recursive: true, force: true });
+    // The tunnel's own key goes with the data: its name is given up.
+    rmSync(paths.tunnel, { recursive: true, force: true });
   }
   if (paths.folder) {
     dropEmpty(paths.folder);
@@ -1626,9 +1628,9 @@ function closeFunnel(settings) {
   }
 }
 
-/** The account that gives out tunnel names: WIZARDS_ACCOUNT_URL, or account.engenty.ai. */
-export function accountUrl(env = process.env) {
-  return ((env.WIZARDS_ACCOUNT_URL || "").trim() || ACCOUNT_URL).replace(/\/+$/, "");
+/** Where tunnels get their names and certificates: WIZARDS_TUNNEL_URL, or wizards.host. */
+export function tunnelUrl(env = process.env) {
+  return ((env.WIZARDS_TUNNEL_URL || "").trim() || TUNNEL_URL).replace(/\/+$/, "");
 }
 
 /** Whether a word can go before a team's name: `test01` in test01.ada.wizards.host. */
@@ -1638,24 +1640,33 @@ export function labelOk(label) {
 
 /**
  * Closes a home's tunnel, whichever it is: Funnel goes off; the relay's service goes, its key
- * is given back to the account (best effort) and the tunnel folder goes.
+ * is given back (best effort) and the tunnel's files go, all but `claim.pem`: with it, the next
+ * `tunnel` gets the same name again.
  */
 async function closeTunnel(paths, settings) {
   if (settings.tunnel?.by === "relay") {
     await removeService(services(paths).tunnel);
     const saved = readJson(join(paths.tunnel, "tunnel.json"));
-    if (saved?.key && saved.account) {
+    if (saved?.key && saved.api) {
       try {
-        await call(saved.account, "/v1/tunnels/key", { method: "DELETE", key: saved.key });
+        await call(saved.api, "/v1/tunnels/key", { method: "DELETE", key: saved.key });
       } catch (error) {
-        note(`The account didn’t take the tunnel’s key back: ${error.message}`);
+        note(`wizards.host didn’t take the tunnel’s key back: ${error.message}`);
       }
     }
-    rmSync(paths.tunnel, { recursive: true, force: true });
+    for (const name of listDir(paths.tunnel)) {
+      if (name !== CLAIM_FILE) {
+        rmSync(join(paths.tunnel, name), { recursive: true, force: true });
+      }
+    }
+    dropEmpty(paths.tunnel);
     return;
   }
   closeFunnel(settings);
 }
+
+/** The tunnel's own key, in the home's tunnel folder: its name comes from it. */
+export const CLAIM_FILE = "claim.pem";
 
 /** Refuses while the home doesn't run, or while no device is paired with it. */
 async function requirePaired(paths, settings) {
@@ -1723,8 +1734,8 @@ function findFrpc(paths, env = process.env) {
  * Signs in for a name: the account shows a code, you confirm it there, and this gets the
  * name's key. `label` asks for <label>.<team>.wizards.host.
  */
-export async function signIn(account, { label, open = true, every } = {}) {
-  const { data: started } = await call(account, "/v1/tunnels/start", {
+export async function signIn(api, { label, open = true, every } = {}) {
+  const { data: started } = await call(api, "/v1/tunnels/start", {
     method: "POST",
     body: { ...(label ? { label } : {}), computer: hostname().replace(/\.local$/, "") },
   });
@@ -1739,7 +1750,7 @@ export async function signIn(account, { label, open = true, every } = {}) {
   while (Date.now() < until) {
     let answer;
     try {
-      answer = await call(account, "/v1/tunnels/redeem", {
+      answer = await call(api, "/v1/tunnels/redeem", {
         method: "POST",
         body: { deviceCode: started.deviceCode },
       });
@@ -1791,7 +1802,7 @@ async function certificate(dir, tunnel) {
   note(`Getting a certificate for ${tunnel.name} (Let’s Encrypt, up to a minute)`);
   try {
     const cert = await orderCertificate(
-      tunnel.account,
+      tunnel.api,
       tunnel.key,
       csrFor(tunnel.name, readFileSync(keyFile, "utf8")),
     );
@@ -1806,13 +1817,19 @@ async function certificate(dir, tunnel) {
 }
 
 /**
- * `tunnel`: puts a home on the internet at https://<name>.wizards.host, through our relay. frpc
- * dials out (no port opens on the router), and TLS ends on this computer: the relay passes it on
- * by name, unread. It refuses while no device is paired: whoever reaches the address then still
- * needs a pairing code or a device's token. `--tailscale` uses Tailscale Funnel instead, and
- * `tunnel --off` closes either.
+ * `tunnel`: puts a home on the internet at https://<name>.wizards.host, through our relay. The
+ * name is the tunnel key's own, with no account; `--account` takes your team's name instead,
+ * after you sign in. frpc dials out (no port opens on the router), and TLS ends on this computer:
+ * the relay passes it on by name, unread. It refuses while no device is paired: whoever reaches
+ * the address then still needs a pairing code or a device's token. `--tailscale` uses Tailscale
+ * Funnel instead, and `tunnel --off` closes either.
  */
 async function tunnel(paths, options, env = process.env) {
+  if (options.name && !options.account) {
+    throw new Refusal(
+      `--name picks a word before your team’s name, so it goes with --account: ${cyan("wizards bot tunnel --account --name test01")}`,
+    );
+  }
   windowsRefusal();
   const settings = installed(paths);
   if (options.off) {
@@ -1865,7 +1882,35 @@ async function tunnel(paths, options, env = process.env) {
   );
 }
 
-/** The relay: a name from the account, a certificate for it, frpc as a service. */
+/**
+ * A name for the home's tunnel. Without --account it is the tunnel key's own, at wizards.host:
+ * no sign-in. With --account the name is your team's, after you sign in to your wizards account.
+ */
+export async function nameTunnel(dir, options, env = process.env) {
+  const api = tunnelUrl(env);
+  const computer = hostname().replace(/\.local$/, "");
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  let given;
+  try {
+    given = options.account
+      ? await signIn(api, { label: options.name, open: options.open })
+      : await claim(api, join(dir, CLAIM_FILE), computer);
+  } catch (error) {
+    if (error instanceof AccountError) {
+      throw new Refusal(`No name at wizards.host: ${error.message}`);
+    }
+    throw error;
+  }
+  return {
+    api,
+    name: given.name,
+    key: given.key,
+    server: given.server,
+    serverPort: given.serverPort,
+  };
+}
+
+/** The relay: a name at wizards.host, a certificate for it, frpc as a service. */
 async function openRelay(paths, settings, options, env) {
   const dir = paths.tunnel;
   const saved = readJson(join(dir, "tunnel.json"));
@@ -1877,16 +1922,8 @@ async function openRelay(paths, settings, options, env) {
   }
   let tunnel = saved?.key ? saved : null;
   if (!tunnel) {
-    const account = accountUrl(env);
-    const given = await signIn(account, { label: wanted, open: options.open });
-    tunnel = {
-      account,
-      name: given.name,
-      key: given.key,
-      server: given.server,
-      serverPort: given.serverPort,
-    };
-    step("Name", given.name);
+    tunnel = await nameTunnel(dir, options, env);
+    step("Name", tunnel.name);
   }
   tunnel = {
     ...tunnel,
@@ -1970,9 +2007,10 @@ Commands
   ${cyan("wizards bot stop")}        stop the home until you log in again or start it
   ${cyan("wizards bot start")}       start it again
   ${cyan("wizards bot tunnel")}      put the home on the internet at https://<name>.wizards.host, once
-                          a device is paired: sign in to your wizards account for the name
-                          (--name test01 for test01.<name>.wizards.host, --tailscale for
-                          Tailscale Funnel instead, --off closes it)
+                          a device is paired; the name is its own, no account needed
+                          (--account for your team’s name after you sign in, with --name test01
+                          for test01.<team>.wizards.host; --tailscale for Tailscale Funnel
+                          instead; --off closes it)
   ${cyan("wizards bot update")}      install the newest version and restart the home, your data is kept
   ${cyan("wizards bot uninstall")}   take the home off this computer, your data in ~/.wizards-bot is kept
                           (--purge deletes it too, after asking)
@@ -2008,6 +2046,7 @@ export function parse(argv) {
     purge: false,
     off: false,
     tailscale: false,
+    account: false,
     name: null,
     link: null,
     version: null,
@@ -2028,6 +2067,8 @@ export function parse(argv) {
       options.off = true;
     } else if (arg === "--tailscale") {
       options.tailscale = true;
+    } else if (arg === "--account") {
+      options.account = true;
     } else if (arg === "--name") {
       options.name = (argv[++i] || "").toLowerCase();
       if (!options.name) {
