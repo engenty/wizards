@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { callOutside } from "../elements/outside.js";
 import { ELEMENT_SPECS } from "../elements/specs.js";
@@ -45,6 +46,20 @@ function followsTasks(rpc: Rpc): boolean {
   return Boolean(caps?.extensions?.[EXTENSION]);
 }
 
+/**
+ * The key of the page a run waits on. The extension wants a key unique over the task's life: a
+ * client keeps the answers by it, so a later page under the same key would count as answered.
+ * The key names the page and what it holds now, so the same page again (after going back) is
+ * a new key.
+ */
+function pageKey(report: RunReport, page: { state: { kind: string; id: string } }): string {
+  const fields = (report as { waitingFor?: { fields?: { id: string; value?: unknown }[] } })
+    .waitingFor?.fields;
+  const values = JSON.stringify((fields ?? []).map((f) => [f.id, f.value ?? null]));
+  const digest = createHash("sha256").update(values).digest("base64url").slice(0, 12);
+  return `${page.state.kind}-${page.state.id}-${(report.passed ?? []).length}-${digest}`;
+}
+
 /** The run as a task: how it stands, what it asks, what it came to. */
 async function taskOf(who: Principal, report: RunReport): Promise<Record<string, unknown>> {
   const now = new Date().toISOString();
@@ -77,7 +92,7 @@ async function taskOf(who: Principal, report: RunReport): Promise<Record<string,
       ...base,
       status: "input_required",
       statusMessage: report.step?.title,
-      inputRequests: { page: page.request },
+      inputRequests: { [pageKey(report, page)]: page.request },
     };
   }
   return { ...base, status: "working", statusMessage: report.step?.title };
@@ -151,7 +166,8 @@ export async function runTaskRequest(who: Principal, body: unknown): Promise<Res
   }
   if (method === "tasks/update") {
     const page = pageOf(report);
-    const response = inputResponses?.page as
+    // The answer to the page the run waits on now; one to an earlier page finds it answered.
+    const response = (page ? inputResponses?.[pageKey(report, page)] : undefined) as
       | { action?: string; content?: Record<string, unknown> }
       | undefined;
     if (page && response?.action === "accept" && page.state.kind !== "page") {

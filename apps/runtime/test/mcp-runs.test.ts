@@ -250,23 +250,27 @@ describe("a client that uses a space", () => {
 
     const first = await rpc("tasks/get", { taskId });
     expect(first.status).toBe("input_required");
-    expect(first.inputRequests.page).toMatchObject({
+    const firstKey = Object.keys(first.inputRequests)[0];
+    expect(first.inputRequests[firstKey]).toMatchObject({
       method: "elicitation/create",
       params: { message: "Wer kommt" },
     });
     await rpc("tasks/update", {
       taskId,
-      inputResponses: { page: { action: "accept", content: { name: "Lena" } } },
+      inputResponses: { [firstKey]: { action: "accept", content: { name: "Lena" } } },
     });
     let next = await rpc("tasks/get", { taskId });
     for (let i = 0; i < 20 && next.status === "working"; i++) {
       await new Promise((r) => setTimeout(r, 100));
       next = await rpc("tasks/get", { taskId });
     }
-    expect(next.inputRequests?.page?.params?.message).toBe("Mitbringen");
+    const nextKey = Object.keys(next.inputRequests ?? {})[0];
+    // Each page has a key of its own over the task's life.
+    expect(nextKey).not.toBe(firstKey);
+    expect(next.inputRequests[nextKey].params.message).toBe("Mitbringen");
     await rpc("tasks/update", {
       taskId,
-      inputResponses: { page: { action: "accept", content: { what: "Ausweis" } } },
+      inputResponses: { [nextKey]: { action: "accept", content: { what: "Ausweis" } } },
     });
     let done = await rpc("tasks/get", { taskId });
     for (let i = 0; i < 20 && done.status !== "completed"; i++) {
