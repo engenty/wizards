@@ -32,11 +32,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "tldts": "7.4.24"
+    "tldts": "7.5.5"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "typescript": "~7.0.2",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.1"
   }
 }

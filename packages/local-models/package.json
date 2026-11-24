@@ -62,8 +62,8 @@
     "@modelcontextprotocol/client": "2.4.0",
     "@types/cross-spawn": "^6.0.6",
     "@types/node": "^26.6.6",
-    "ai": "7.0.163",
+    "ai": "7.0.179",
     "typescript": "~7.0.2",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.1"
   }
 }
