@@ -1,4 +1,9 @@
-import type { CallToolResult, McpServer, ToolCallback } from "@modelcontextprotocol/server";
+import type {
+  CallToolResult,
+  McpServer,
+  ServerContext,
+  ToolCallback,
+} from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { callOutside, RUN_COMMAND } from "../elements/outside.js";
 import { ELEMENT_SPECS, ELEMENT_TOOL_NAMES } from "../elements/specs.js";
@@ -7,6 +12,7 @@ import type { RunReport } from "../services/runs.js";
 import { listSpaces, spaceIs } from "../services/spaces.js";
 import type { Principal } from "./auth.js";
 import { FLOW_VIEW_KEY, flowAppMeta, flowView } from "./flow-app.js";
+import { withPages } from "./run-pages.js";
 
 /**
  * The space's elements as MCP tools (docs/plans/modular.md, phase 2): what a Work chat uses,
@@ -96,17 +102,29 @@ export function registerElementTools(server: McpServer, who: Principal) {
           openWorldHint: !READ_ONLY.has(name),
         },
       },
-      (async (args: Record<string, unknown>) => {
+      (async (args: Record<string, unknown>, ctx: ServerContext) => {
         const { spaceId: space, ...rest } = args;
-        const result = await callOutside(
-          outside,
-          typeof space === "string" ? space : undefined,
-          name,
-          rest,
-          AbortSignal.timeout(10 * 60_000),
+        const call = () =>
+          callOutside(
+            outside,
+            typeof space === "string" ? space : undefined,
+            name,
+            rest,
+            AbortSignal.timeout(10 * 60_000),
+          );
+        if (!runs) {
+          return answer(await call());
+        }
+        // The run's pages go to the person where the client asks them, then the run's report.
+        return withPages(
+          ctx,
+          who,
+          async () => {
+            const result = await call();
+            return result.ok ? (result.result as RunReport) : { failed: answer(result) };
+          },
+          (report) => withFlow(who.userId, answer({ ok: true, result: report }), report),
         );
-        const answered = answer(result);
-        return runs && result.ok ? withFlow(who.userId, answered, result.result) : answered;
       }) as ToolCallback<typeof withSpace>,
     );
   };
