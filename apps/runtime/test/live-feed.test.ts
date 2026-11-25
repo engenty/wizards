@@ -161,20 +161,10 @@ describe("the triggers", () => {
   });
 
   it("are the ones the generator writes", async () => {
-    const { CHAT_TABLES, LIVE_TABLES, liveTriggerSql, PRESENCE_TABLE } = await import(
-      "../src/db/live-triggers"
-    );
+    const { LIVE_TABLES, liveTriggerSql, PRESENCE_TABLE } = await import("../src/db/live-triggers");
     // 0031 made them all again under the space's names.
     const space = readFileSync(join(migrations, "0031_space.sql"), "utf8");
     expect(space).toContain(liveTriggerSql(LIVE_TABLES));
     expect(space).toContain(liveTriggerSql([PRESENCE_TABLE]));
-    // The table of held calls was made anew since (0064 to 0066), and 0067 made its triggers again.
-    const held = (t: { table: string }) => t.table === "approval";
-    for (const table of CHAT_TABLES.filter((t) => !held(t))) {
-      expect(space).toContain(liveTriggerSql([table]));
-    }
-    expect(readFileSync(join(migrations, "0067_approval_live.sql"), "utf8")).toContain(
-      liveTriggerSql(CHAT_TABLES.filter(held)),
-    );
   });
 });

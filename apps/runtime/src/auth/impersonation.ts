@@ -27,7 +27,8 @@ export function currentImpersonator(): Impersonating | null {
 /**
  * The Manage-App's calls that change the person's account or their organization: people,
  * address, domains, API keys, name, connected apps and computers, the organization's name and
- * profile, the install mail, phone numbers — and the invoices, which carry payment details.
+ * profile, the install mail, phone numbers, the pass to the team's Bot Server — and the invoices,
+ * which carry payment details.
  */
 const OFF: [RegExp, RegExp][] = [
   [/^(POST|DELETE)$/, /^\/v1\/tenants\/[^/]+\/invitations(\/|$)/],
@@ -41,6 +42,7 @@ const OFF: [RegExp, RegExp][] = [
   [/^PATCH$/, /^\/v1\/users\/[^/]+$/],
   [/^DELETE$/, /^\/v1\/users\/[^/]+\/(connections|computers)\//],
   [/^POST$/, /^\/v1\/install-mail$/],
+  [/^POST$/, /^\/v1\/tenants\/[^/]+\/home\/pass$/],
 ];
 
 /** Whether a call to the Manage-App stays off while an admin is signed in as the person. */

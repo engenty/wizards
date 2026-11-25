@@ -1,7 +1,7 @@
 ---
 title: The API
 description: What a program may rely on when it talks to a runtime, and what is private.
-version: 0.19.1
+version: 0.21.0
 ---
 
 A runtime answers HTTP under `/api`. Three parts are a contract: they are versioned, documented
@@ -13,14 +13,14 @@ and change with notice. Everything else is the studio’s own and changes withou
 |---|---|---|
 | `/api/v1/…` | programs that build and publish wizards: the spaces of a local install, importing a wizard | an access token of the account, with scopes (`wizards:read`, `wizards:write`, `wizards:publish`, `runs:test`); see [the Manage-App contract](https://github.com/engenty/engenty-wizards/blob/main/docs/manage-contract.md) |
 | `/api/v1/spaces/:spaceId/elements` | programs that use a space: search its knowledge, read its skills, call its connections, run its wizards (see below) | the same tokens, with `data:read`, `elements:read`, `elements:run` |
-| `/api/v1/client/…` | apps for a firm’s clients, like the client portal: their client spaces, what waits for them, chats, files, results, the wizards opened to them (see below) | a token of a person with the role `client`, with `data:read`, `elements:read`, `elements:run` |
+| `/api/v1/client/…` | apps for a firm’s clients, like the client portal: their client spaces, what waits for them, files, results, the wizards opened to them (see below) | a token of a person with the role `client`, with `data:read`, `elements:read`, `elements:run` |
 | `/api/mcp` | AI apps: every tool of [the MCP server](../user-guide/ai-apps.md), the space’s elements among them | the same tokens, or the local ticket `wizards mcp` carries |
 | The public run API: `/api/public/wizards/:token`, `/api/public/wizards/:token/runs`, `/api/public/codes/:code`, `/api/runs/:id/…` | running a published wizard by its link: what the runner in a browser does | nobody; a visitor cookie, or the `x-wizards-visitor` header where a cookie does not survive |
 
 ## A space’s elements
 
 What Studio makes in a space – its knowledge, skills, connections and published wizards – is open
-to programs and AI apps the way a Work chat uses it, as the person the token belongs to.
+to programs and AI apps, as the person the token belongs to.
 `GET /api/v1/spaces/:spaceId/elements` lists the calls the token may make, each with its scope
 and its input as JSON Schema. `POST /api/v1/spaces/:spaceId/elements/:name` with
 `{ "input": { … } }` makes one and answers `{ "result": … }`, or an error with why. The MCP
@@ -53,8 +53,6 @@ with `{ "input": { … } }`; it answers `{ "result": … }`, or an error with wh
 | `for_you` | `data:read` | Your runs waiting on a page or an answer, the results the firm shared, the wizards you can start |
 | `wizards`, `wizard_start` | `elements:read`, `elements:run` | The client space’s wizards and those the organization opened to clients, each with its engenty (`avatar`) and its number of steps; a start runs it in your client space |
 | `results`, `run_open` | `data:read` | Your finished runs and those the firm shared; a ticket for one run’s own routes (`/api/runs/:id/…?rt=…`) |
-| `chats`, `chat_messages` | `data:read` | Your chats in the client space and their messages: each message’s `parts` in the order they were written, its text and the views and runs of the firm’s AI as cards |
-| `chat_post` | `elements:run` | Writes in one of your chats, or starts one. The firm’s AI answers every message as you, with the client space’s Knowledge and what the organization opened to clients, the wizards and views; the firm’s people read the chat too |
 | `files` | `data:read` | The client space’s files. One file’s bytes: `GET /api/v1/client/spaces/:spaceId/files/:fileId` |
 
 Only a person with the role `client` gets an answer (`403 clients_only` otherwise). A space that is

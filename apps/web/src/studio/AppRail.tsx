@@ -58,8 +58,8 @@ import { SpaceFace, SpaceMenu, UserMenu, useDismiss, useOneSpace } from "./AppFr
 import { EngentyMenu } from "./EngentyMenu";
 import { ModeSwitch } from "./ModeSwitch";
 import { type PrimaryAction, useCurrentPrimaryAction } from "./primary-action";
-import { useWaiting } from "./work/chats";
 import { EngentyGlyph, WORK_PLACES, type WorkPlace } from "./work/WorkPages";
+import { useWaiting } from "./work/waiting";
 
 const AboutDialog = lazy(() =>
   import("../about/AboutDialog").then((m) => ({ default: m.AboutDialog })),
@@ -351,8 +351,8 @@ const WORK_ICON: Record<WorkPlace, LucideIcon | typeof EngentyGlyph> = {
 
 /**
  * Work's places in the bar: Chats, Engenties, Files, Data, Results, then the bell with what waits
- * for the person (the calls held for their approval, and for an admin the broker's critical lines
- * they have not seen; its count shows from one on).
+ * for the person (the runs that need them, and for an admin the broker's critical lines they have
+ * not seen; its count shows from one on).
  */
 function WorkRail({
   labels,
@@ -364,8 +364,7 @@ function WorkRail({
   nav: ReturnType<typeof useStudioPlugins>["nav"];
 }) {
   const bell = useWaiting().data;
-  const waiting =
-    (bell?.approvals.length ?? 0) + (bell?.runs?.needs.length ?? 0) + (bell?.unseen ?? 0);
+  const waiting = (bell?.runs?.needs.length ?? 0) + (bell?.unseen ?? 0);
   // The places past the chats aren't built yet: behind `workWip`.
   const wip = useFeature("workWip");
   const places = wip ? WORK_PLACES : WORK_PLACES.filter((p) => p.place === "chats");

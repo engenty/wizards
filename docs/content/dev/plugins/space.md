@@ -1,7 +1,7 @@
 ---
 title: The space
 description: Knowledge a plugin writes, kinds of mounts of Dateien, a block and tools for every AI step of a space, texts in its search index, tools and cards of its assistant.
-version: 0.15.0
+version: 0.21.0
 ---
 
 A space holds what all its wizards share: a name, its brand (logos, colours, fonts), facts, and
@@ -63,7 +63,7 @@ const doc = await server.spaceData.putDocument({ space, key, label, name, mime, 
 ### What a plugin reads
 
 `readPages`, `files` and `readFile` read for someone, and the space’s rules decide what
-([the broker](../broker.md#rwx-and-the-broker-switch)). A tool in a step or a Work chat reads as
+([the broker](../broker.md#rwx-and-the-broker-switch)). A tool in a step or in Goose’s chat reads as
 the person or guest it was called for, an HTTP route as the person it answers, a job
 (`server.every`) as the runtime itself, which may read everything. The plugin is asked beside
 them: a rule that forbids the plugin a page, a folder or a document holds everywhere, in a job
@@ -315,12 +315,12 @@ server.registerAssistantTool({
 
 `risk` says what a call does: `read` only reads, `space` changes the space’s own data,
 `outside` reaches past the space (sends, books, cancels with someone, publishes, deletes on a
-connected service). In a Work chat, a call of an `outside` tool, or of a tool without `risk`,
-doesn’t run when the AI makes it: a person approves or denies it first, and an approved call runs
-once.
+connected service). `label` is what a call does, in a few words:
+`{ de: "Mail senden", en: "Send a mail" }`.
 
-`label` is what a call does, in a few words, as a Work chat’s step line and its approval say it:
-`{ de: "Mail senden", en: "Send a mail" }`. Without it they show the plugin’s name and the tool’s.
+The runtime keeps both with the tool. Goose runs a tool whatever its `risk`: no call waits for an
+approval. A call to a connection still meets the connection’s rules in
+[the broker](../broker.md#decide).
 
 ### A card in the chat
 

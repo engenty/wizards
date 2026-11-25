@@ -506,17 +506,16 @@ export function spaceIs(p: {
   return p.kind === "personal" ? "personal" : p.kind === "client" ? "client" : "space";
 }
 
-/** Whether a space holds nothing yet: no wizard, no page, no chat. */
+/** Whether a space holds nothing yet: no wizard, no page. */
 async function emptySpace(spaceId: string): Promise<boolean> {
-  const [wizard, page, chat] = await Promise.all([
+  const [wizard, page] = await Promise.all([
     db.query.wizard.findFirst({ columns: { id: true }, where: eq(schema.wizard.spaceId, spaceId) }),
     db.query.spacePage.findFirst({
       columns: { id: true },
       where: eq(schema.spacePage.spaceId, spaceId),
     }),
-    db.query.chat.findFirst({ columns: { id: true }, where: eq(schema.chat.spaceId, spaceId) }),
   ]);
-  return !(wizard || page || chat);
+  return !(wizard || page);
 }
 
 /**

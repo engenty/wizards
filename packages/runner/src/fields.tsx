@@ -756,8 +756,8 @@ export function FieldInput({
   values: Values;
   runId: string;
   /**
-   * Where uploads, pictures and places go instead of the run's routes: a Work chat's
-   * (`/api/work/chats/<id>`), with the same `uploads`, `assets/<id>` and `geocode` below it.
+   * Where uploads, pictures and places go instead of the run's routes: a base with the same
+   * `uploads`, `assets/<id>` and `geocode` below it.
    */
   base?: string;
   /** Answers that lead to a step this app has no model for: shown, not to be picked. */

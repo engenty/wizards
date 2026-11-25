@@ -547,6 +547,13 @@
       "when": 1794664300321,
       "tag": "0077_client_spaces_at_root",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "6",
+      "when": 1795639642428,
+      "tag": "0078_work_chats_gone",
+      "breakpoints": true
     }
   ]
 }

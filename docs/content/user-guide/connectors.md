@@ -1,13 +1,12 @@
 ---
 title: Connectors
 description: Services a wizard works in for the person who runs it – built in, from the registry, by their address or brought by a plugin with its skills.
-version: 0.17.1
+version: 0.21.0
 ---
 
-**[Capabilities](./capabilities.md) › Connectors** lists the services the space’s wizards, Work
-chats and Goose can work in. Each space has its own connectors. In the cloud, a space you publish
-from your computer shows its connectors without letting you change them: you change them on your
-computer.
+**[Capabilities](./capabilities.md) › Connectors** lists the services the space’s wizards and
+Goose can work in. Each space has its own connectors. In the cloud, a space you publish from your
+computer shows its connectors without letting you change them: you change them on your computer.
 
 A wizard reaches a service in one of two ways:
 
@@ -202,16 +201,16 @@ A connection on a connector that is “not checked” starts with Admins.
 
 | Kind | What it covers |
 |---|---|
-| Read | Searching and reading, in AI steps and chats |
-| Change | Creating and changing, only in fixed steps or as a confirmed action |
+| Read | Searching and reading, in AI steps, with Goose and from connected apps |
+| Change | Creating and changing. Where the space signs in, a wizard’s AI step never does it: a fixed step does |
 | Delete | Removing something for good |
 | Send | Sending emails and messages to others |
 
 Each rule is Allowed, With approval or Never. A new connection reads freely, asks for approval
-before a change or a send, and never deletes. With approval asks the space’s admins. In a Work
-chat the action waits until one of them agrees. A wizard’s run doesn’t wait: a fixed step with
-such a rule fails there, and the editor warns you on that step
-([Capabilities](./capabilities.md#connectors)).
+before a change or a send, and never deletes. Where each person signs in, With approval asks that
+person. Where the space signs in, it leaves the decision to the space’s admins. Nothing asks them,
+so the call doesn’t run: a fixed step with such a rule fails in a run, and the editor warns you
+on that step ([Capabilities](./capabilities.md#connectors)).
 
 **How often.** An admin can limit a connection’s calls per run and per day. Empty means no limit.
 [Limits](./capabilities.md#limits) has the details.
@@ -223,8 +222,8 @@ signs in, they sign in right there.
 
 A space’s admins set up a connection and choose how it signs in: once as the space, or each
 person for themselves. Your menu › Connections lists the connections of your spaces that are open
-to you. Where each person signs in, you sign in or out there; your chats, your runs and your Goose
-then act as you, and nobody else sees your sign-in. Where the space signs in, you see its account
+to you. Where each person signs in, you sign in or out there. Your runs and your Goose then act
+as you, and nobody else sees your sign-in. Where the space signs in, you see its account
 and who set it up. You set up no connection there: that stays with the space’s admins.
 
 ## The person’s mailbox

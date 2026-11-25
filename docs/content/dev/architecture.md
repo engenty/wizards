@@ -1,7 +1,7 @@
 ---
 title: Architecture
 description: How engenty wizards is built – the runtime and its roles, your computer and the cloud, tenants and spaces, the engine and its sandboxes, skills, plugins, the broker and the feature switches.
-version: 0.18.0
+version: 0.21.0
 ---
 
 engenty wizards is one server program, the **runtime**, and one web app, the **studio**, that it
@@ -194,7 +194,7 @@ its own, made on first use and thrown away when the run stops (`engine/resources
 `SANDBOX` picks the engine: `docker`, `agentos`, `off`, or nothing for the first one that is ready.
 `SANDBOX_GUESTS` picks the engine for a guest’s run, one that nobody signed in for: `off` (the
 default) or `agentos`, never Docker. With `off`, a guest’s run has no sandbox. A member’s run and
-a Work chat use the server’s engine.
+an outside client’s `run_command` use the server’s engine.
 
 ## Skills
 
@@ -214,8 +214,8 @@ through `server.connections.call`, which goes through the broker as its caller.
 ## The broker
 
 Every call to a connected service goes through one function, `brokerCall`
-(`apps/runtime/src/broker/call.ts`): from a wizard step, a Work chat, Goose, a share target or a
-plugin. It reads the account’s secret (nothing else does), decides allow, ask or deny, runs the
+(`apps/runtime/src/broker/call.ts`): from a wizard step, Goose, a share target, a plugin or
+an outside client. It reads the account’s secret (nothing else does), decides allow, ask or deny, runs the
 action and writes one line of the log. Model calls don’t pass it.
 
 - **Connections belong to the space.** A connection signs in as the space or as each person,
@@ -235,8 +235,8 @@ action and writes one line of the log. Model calls don’t pass it.
 ## The tool catalogue
 
 A space’s elements reach every AI through one list (`apps/runtime/src/elements/`): its knowledge,
-its skills, its published wizards and, for outside clients, its connections. A wizard’s step, a
-Work chat, Goose and the MCP and API clients take their tools from it, for a caller fixed before
+its skills, its published wizards and, for outside clients, its connections. A wizard’s step,
+Goose and the MCP and API clients take their tools from it, for a caller fixed before
 a model sees a tool: no tool takes who calls or for whom. Every call goes through the broker’s
 gate, which decides wizards (`x` to run), skills (`r` to read, `x` for their scripts) and a
 space’s setup (`w`, Goose’s writes) by the RWX rules, and writes a line of the log with the
@@ -244,22 +244,23 @@ client’s name.
 
 ## Work mode
 
-Work mode has chats with the space’s AI (`services/work-chats.ts`, `services/work-ai.ts`,
-`apps/web/src/studio/work/`). A chat is a Mastra memory thread in the tenant’s database: the
-thread is the chat, the resource is the space. A turn of the space’s AI gets the space’s tools:
-its knowledge, its skills, the chat’s sandbox, the connections open to the person who asked, the
-plugins’ tools and the web. A tool that acts outside the space doesn’t run when it is called. The
-call is held until a person approves it, on every model, also on an AI client that runs the tools
-itself.
+Work’s chats run on the team’s Bot Server (wizards.bot, a home of `engenty/wizards-bot`), not in
+the runtime. The studio shows that server’s own page in a frame (`apps/web/src/studio/work/TeamHome.tsx`).
+The runtime only finds the server and signs the person in (`routes/work.ts`):
 
-One turn of the space’s AI with a held call:
+| Step | Who | What |
+|---|---|---|
+| Find | Runtime → Manage-App | `GET /v1/tenants/:id/home` with the runtime’s service key: the server’s state and origin |
+| Sign in | Runtime → Manage-App | `POST /v1/tenants/:id/home/pass`: a link with a pass for this person, good once and for five minutes |
+| Show | Studio | The link in a frame. The server’s page pairs the browser as the person and keeps its own token |
 
-![A call outside the space waits at the gate. After Approve the chat runs it once through the broker and tells the AI the outcome](../../assets/diagrams/architecture-work-turn.svg)
+The Bot Server allows the frame only for the studio the Manage-App names for its team. Owners and
+admins get a pass. Members and clients have no chats on a Bot Server yet. A runtime without a
+Manage-App has no Bot Server to show.
 
-Each chat gets its own sandbox on its first command. It stays while the chat is in use, so a file
-one turn writes is there for the next, and goes after 30 minutes without a command.
-[Work mode](../user-guide/work-mode.md) shows it from the person’s side. It is behind the
-`workMode` switch.
+The bell (`GET /api/studio/work/approvals`) stays the runtime’s: the runs that wait for the person
+and, for an admin, the broker’s critical lines. [Work mode](../user-guide/work-mode.md) shows it
+from the person’s side. It is behind the `workMode` switch.
 
 ## Feature switches
 

@@ -1,12 +1,12 @@
 ---
 title: Capabilities
-description: One place for what your wizards, Work chats and Goose may use – skills, the space’s connections to other services, the audit of every call, who may read, change and run what, and a search for more.
-version: 0.17.1
+description: One place for what your wizards and Goose may use – skills, the space’s connections to other services, the audit of every call, who may read, change and run what, and a search for more.
+version: 0.21.0
 ---
 
-**Capabilities** in the app bar, after Resources, holds what a space’s wizards, Work chats and
-Goose may use. On a phone you find it in the “More” menu. It belongs to the space you are in, and
-each space has its own.
+**Capabilities** in the app bar, after Resources, holds what a space’s wizards and Goose may
+use. On a phone you find it in the “More” menu. It belongs to the space you are in, and each
+space has its own.
 
 It opens on the **Overview**, then has four more sections. None of them has a menu of its own:
 the list of sections stays beside the page.
@@ -67,7 +67,7 @@ set what it may do.
 
 | Signs in | What it means |
 |---|---|
-| As the space | An admin signs in once, with an API key, an app token or a team account such as orders@. Everyone uses that account, also when nobody is watching. The AI only reads through it. Changes come from fixed steps or from an action a person confirms in a Work chat |
+| As the space | An admin signs in once, with an API key, an app token or a team account such as orders@. Everyone uses that account, also when nobody is watching. A wizard’s AI step only reads through it. Changes come from fixed steps, or from a connected app such as Claude where the rule says Allowed |
 | Each person signs in | Each person signs in once with their own account, on the connection’s page or in their menu. The connection then acts as that person, and asks them before it changes something |
 
 An admin can change this later on the connection’s page. The change removes the sign-ins made
@@ -106,13 +106,15 @@ or a send, and never deletes.
 
 ![A call to a connection meets its rule: Allowed runs, With approval waits for a yes, Never doesn’t run, and the Log keeps every call](../../assets/diagrams/capabilities-call.svg)
 
-With approval on a connection that signs in as the space asks the space’s admins. The call waits
-under the bell in Work until one of them agrees. Where each person signs in, With approval asks
-that person.
+Where each person signs in, With approval asks that person: in the run, or on a card in Goose’s
+chat. A connected app such as Claude can’t ask you, so the call is refused there.
 
-A wizard’s run doesn’t wait for the admins. A fixed step whose rule is With approval fails in a
-run. The editor warns you on such a step: it names the connection and the rule, and leads to the
-connection’s page. An admin sets the rule to Allowed there. A member asks an admin. The warning
+On a connection that signs in as the space, With approval leaves the decision to the space’s
+admins. Nothing asks them, so the call doesn’t run. The Audit lists it as *waiting for the
+admins’ approval*.
+
+A fixed step whose rule is With approval fails in a run for that reason. The editor warns you on
+such a step: it names the connection and the rule, and leads to the connection’s page. An admin sets the rule to Allowed there. A member asks an admin. The warning
 is no error: the wizard still saves and publishes.
 
 **What a guest’s run may send.** A guest starts a wizard from its link, and nobody of your team
@@ -141,7 +143,7 @@ its rules:
 | Limit | Counts |
 |---|---|
 | Calls per run | Each run of a wizard for itself |
-| Calls per day | All runs, chats and plugins together. The day starts at midnight UTC |
+| Calls per day | All runs, Goose, connected apps and plugins together. The day starts at midnight UTC |
 
 An empty field means no limit, and a new connection has none. A limit holds for everyone: admins,
 members, guests, AI steps, fixed steps, Goose and what a plugin does by itself. A call counts once
@@ -159,7 +161,7 @@ A guest’s emails keep their own numbers, described above. The connection’s l
 
 An admin can pause a connection without removing it. “Pause connection” is at the bottom of the
 connection’s page, beside “Remove connection”. While it’s paused, nobody reaches it: no wizard, no
-chat, no plugin. A step that was already running is refused at its next call. Nothing is lost. The
+plugin, not Goose. A step that was already running is refused at its next call. Nothing is lost. The
 sign-ins, the rules and who may use it stay as they are.
 
 The page says on top that the connection is paused, since when and who paused it. “Resume” there
@@ -173,16 +175,16 @@ is paused”.
 Your own menu, behind your avatar in the top bar, has **Connections**. It lists, for each of your spaces, the
 connections open to you:
 
-- Where each person signs in, you sign in or out. Your chats, your runs and your Goose then act as
-  you, and nobody else sees your sign-in.
+- Where each person signs in, you sign in or out. Your runs and your Goose then act as you,
+  and nobody else sees your sign-in.
 - Where the space signs in, you see its account and who set it up.
 
 You set up no connection there. That stays with the space’s admins.
 
 ## Audit
 
-The Audit shows every call your space’s wizards, Work chats and Goose made to a connection, one line
-each, whether it ran or not. Critical lines, such as a refused change, reach the admins under the
+The Audit shows every call your space’s wizards and Goose made to a connection, one line each,
+whether it ran or not. Critical lines, such as a refused change, reach the admins under the
 bell in Work. **Who may do what?** tries a rule before anything runs, for the owner and the admins.
 
 The owner and the admins see every line. A member sees only their own: what they called, what
@@ -215,10 +217,10 @@ far as the check goes.
 
 | Right | What it covers |
 |---|---|
-| “Read documents”, “Read pages and folders”, “Read tables” | Reading Knowledge, wherever it is read: the studio, a wizard’s step, a Work chat, Goose, the search, a shared link |
+| “Read documents”, “Read pages and folders”, “Read tables” | Reading Knowledge, wherever it is read: the studio, a wizard’s step, Goose, the search, a shared link |
 | “Have Goose change pages”, “Have Goose change the space’s setup” | Goose writes a page of Knowledge or the space’s info and brand for you only with this right. Someone who writes in the studio themselves doesn’t need it |
 | “Let the AI find wizards”, “Let the AI start wizards” | The AI in Work and in connected apps such as Claude or Codex lists and starts a wizard for you only with this right. A member starts any wizard themselves in Work and in the studio, and a guest reaches a wizard by its link. For clients the rights read “See wizards” and “Start wizards”, and hold in their client space |
-| “Use skills”, “Run the scripts of skills” | A wizard’s step, a Work chat and Goose read a skill for you, and a skill’s scripts run in your runs and chats |
+| “Use skills”, “Run the scripts of skills” | A wizard’s step and Goose read a skill for you, and a skill’s scripts run in your runs |
 
 A switch that is off means that nothing allows it for the whole group. An exception can still
 allow it for one person or one thing. The AI in Work and Goose may do what the person they work
@@ -277,7 +279,7 @@ space. There is no switch for one person.
 | Studio | Yes | Yes | No, Work only |
 | Wizards | Build, test, publish and share | Build and test | Run them in Work |
 | Skills, knowledge, data | Add and change | Add and change | – |
-| Connections | Set up, choose how they sign in, set the rules and who may use them | Use the ones open to members. The rules are locked | Their Work chats use the ones open to them |
+| Connections | Set up, choose how they sign in, set the rules and who may use them | Use the ones open to members. The rules are locked | Their runs use the ones open to members |
 | Audit | Every line, **Who may do what?** and the notifications | Their own lines | No |
 | Rights | See and change them | No | No |
 | Own sign-ins | In their menu | In their menu | In their menu |

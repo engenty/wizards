@@ -1,11 +1,11 @@
 ---
 title: The broker
 description: The one path every connector call takes in engenty wizards – who calls, what decides, what a run may reach, what is logged and heard, the RWX rules and the routes the studio uses.
-version: 0.17.1
+version: 0.21.0
 ---
 
-Every call a wizard step, a Work chat, Goose, a share target or a plugin makes to a connected
-service goes through one function: `brokerCall` in `apps/runtime/src/broker/call.ts`. The broker
+Every call a wizard step, Goose, a share target, a plugin or an outside client makes to a
+connected service goes through one function: `brokerCall` in `apps/runtime/src/broker/call.ts`. The broker
 reads the account’s secret (nothing else does), decides *allow*, *ask* or *deny*, asks where the
 rules say so, runs the action and writes one row of `broker_log`, whatever came of it. Model calls
 don’t pass it.
@@ -22,7 +22,7 @@ exports comes from `apps/runtime/src/broker/index.ts`. The words the studio shar
 | Connection | A space’s account at a service (`space_connection`), set up by the space’s admins. It signs in as the space or as each person |
 | A wizard’s own connection | A `connections` entry of a wizard definition. The person running the wizard signs in during the run (`store_secret`) |
 | Grant | What a run may reach outside, fixed when the run is created (`run.grant`) |
-| Approval | An admin’s yes to a call held by „Mit Freigabe“ (With approval) on a connection that signs in as the space |
+| Approval | An admin’s yes, which „Mit Freigabe“ (With approval) asks for on a connection that signs in as the space. No caller collects one, so such a call is refused with `needs_approval` |
 | Critical | A log row someone should hear of: one of `CRITICAL_KINDS` |
 | RWX rule | One row of a space’s `subject × resource × r w x` table, behind the `broker` switch |
 | Guest, member, admin | A guest runs a wizard from its link and has no role. A member or an admin (the owner counts as one) is signed in to the organization |
@@ -142,8 +142,8 @@ connection has none.
   fails counts, and one still under way. A call that is refused, one that waits for an approval
   and a changed rule count for nothing. `counted()` in `broker/log.ts` says so in one place, from
   the lines of `broker_log`: there is no counter beside the log.
-- **Per run** counts the lines of that connection with the call’s `run_id`. A call with no run (a
-  Work chat, Goose, a plugin’s job) is bound by the day only.
+- **Per run** counts the lines of that connection with the call’s `run_id`. A call with no run
+  (Goose, an outside client, a plugin’s job) is bound by the day only.
 - **Per day** counts the connection’s lines since midnight UTC (`startOfToday`), runs, chats and
   jobs together.
 - **One write.** A call that would run takes its place first: `takePlace` writes the call’s line
@@ -179,7 +179,8 @@ admins `admins: true`. The checks run in this order:
    - a caller outside the audience: deny, `audience`;
    - an action the connection is not for: deny, `actions`;
    - a change, delete or send by an AI step on a connection that signs in as the space: deny,
-     `ai_step_writes`. Only a fixed `call` step or a Work chat’s confirmed action writes there;
+     `ai_step_writes`. In a run only a fixed `call` step writes there. A call outside a run, such
+     as an outside client’s `connection_call`, is no AI step: the rule below decides it;
    - otherwise the connection’s rule for the kind, `rules.<kind>`: *deny*, *allow*, or *ask*. An
      ask goes to the person where each person signs in, and to the space’s admins where the space
      signs in.
@@ -208,8 +209,9 @@ In order, it:
 5. refuses a missing account (`not_connected`) or an unknown action (`no_action`);
 6. asks `decide`. A deny returns its refusal;
 7. checks a guest’s send (`guestSendCheck`, below);
-8. on an ask of the admins, runs only with `ctx.approved`. Otherwise it refuses with
-   `needs_approval`, and the caller holds the call (a Work chat in `chat_approval`, under the bell);
+8. on an ask of the admins, runs only with `ctx.approved`. Only the runtime’s own mail of
+   critical lines sets it (`services/broker-notify.ts`). Every other call is refused with
+   `needs_approval`;
 9. on an ask of the person, runs when `ctx.allowed` holds `<connection>:<action>` (“for the rest of
    the run”) or `ctx.confirmed` is set and the call deletes nothing. Otherwise it calls `ctx.ask`.
    With no one to ask it refuses with `nobody`, and on a no with `declined`;
@@ -238,7 +240,7 @@ has words for each:
 | `denied` | A rule says no: the audience, the connection’s actions, *Nie*, or the grant in `decide` |
 | `declined` | The person asked said no |
 | `nobody` | The rules say ask, and nobody can be asked |
-| `needs_approval` | *Mit Freigabe* on a connection that signs in as the space: the call waits for an admin |
+| `needs_approval` | *Mit Freigabe* on a connection that signs in as the space: the rule asks the space’s admins, and no caller can ask them |
 | `ai_step_writes` | An AI step wanted to change, delete or send as the space |
 | `not_allowed_recipient` | A guest’s send to an address that is neither the run’s own nor in the space’s mail domains, or a send that names no recipient |
 | `channel_not_fixed` | A guest’s post to a channel that the published step does not fix |
@@ -265,8 +267,9 @@ told of mails where a connection’s calls ran out.
 
 ### A fixed step that would wait
 
-„Mit Freigabe“ holds a call only in a Work chat. In a run nothing waits: a fixed step whose call
-asks the space’s admins gets `needs_approval` and fails. `stepWarnings(spaceId, draft)` in
+No caller holds a call for the space’s admins. A fixed step whose call asks them gets
+`needs_approval` and fails. An outside client’s `connection_call` answers the refusal in words
+(`note.connector_needs_approval`), and a plugin’s call throws the broker’s reason. `stepWarnings(spaceId, draft)` in
 `services/wizards.ts` finds these steps before a run does. For each fixed step on a space
 connection it asks `decide` as the step of an admin’s run, and warns where the answer is an ask of
 the admins. It reads the rule as it is, so the warning is gone once the rule says *Erlaubt*. A
@@ -388,8 +391,8 @@ A critical row goes four ways:
 - a warning line in the runtime’s own log, so the log ring and `wizards report` carry it;
 - `onCritical` listeners: `services/manage-reports.ts` posts a guest’s rows to the Manage-App at
   once and the rest daily, to `POST /v1/broker/:tenant`;
-- the bell in Work: `GET /api/studio/work/approvals` answers `{ approvals, critical, unseen }` for
-  an admin, and `POST /api/studio/work/approvals/seen` marks the lines seen;
+- the bell in Work: `GET /api/studio/work/approvals` answers `{ runs, critical, unseen }`, with
+  the critical lines for an admin, and `POST /api/studio/work/approvals/seen` marks the lines seen;
 - an hourly mail to the space’s admins (`services/broker-notify.ts`), only when none of them was in
   the app since. It goes through the space’s mail connection that signs in as the space, else the
   server’s address. `space.notify` (`{ bell, mail: "hourly" | "off" }`, `PATCH
@@ -412,7 +415,7 @@ kind with an id, or `*` for all of the kind), and `r`, `w`, `x` each `allow`, `d
 | `role` | `member`, `admin`, `owner`, `client` | Everyone with that role in the organization |
 | `person` | The user’s id | One person |
 | `goose` | The user’s id | Goose working for that person |
-| `agent` | none | An AI working for a person: a Work chat, a client’s chat, Claude or Codex through MCP |
+| `agent` | none | An AI working for a person: Claude or Codex through MCP, a program on `/api/v1` |
 | `wizard` | The wizard’s id, or `*` | A run of that wizard |
 | `plugin` | The plugin’s id | A plugin, beside whom it was called for |
 
@@ -439,7 +442,7 @@ outside it (`refusalOf`), and the studio offers nothing else.
 | `page` | `r` | every subject | Every reader of Knowledge; a plugin’s `readPages` |
 | `page` | `w` | `person`, `role`, `goose` | Goose’s `write_knowledge_page` |
 | `table` | `r` | every subject but `plugin` | The readers of Knowledge and Daten, shared lists |
-| `wizard` | `r`, `x` | `person`, `role`, `agent` | `wizard_list` and `wizard_run` in a Work chat and for outside clients; the client portal |
+| `wizard` | `r`, `x` | `person`, `role`, `agent` | `wizard_list` and `wizard_run` for outside clients; the client portal |
 | `skill` | `r` | every subject but `plugin` | `skill_list`, `skill_load`, `skill_read` |
 | `skill` | `x` | `guest`, `person`, `role`, `wizard`, `agent` | A skill’s scripts placed in a sandbox |
 | `setup` | `w` | `person`, `role`, `goose` | Goose’s writes to the space’s setup |
@@ -481,7 +484,7 @@ the categories with their values and ranges (`knowledgeBlock`), and what `space_
 hold only what the run’s holder and wizard may read.
 
 A plugin reading the space’s pages and documents (`server.spaceData.readPages`, `.files`,
-`.readFile`) reads as whom it serves, and as itself: a tool in a step or a Work chat as its
+`.readFile`) reads as whom it serves, and as itself: a tool in a step or in Goose’s chat as its
 caller (`subjectsOfCaller`), an HTTP route as the person it answers, a job as the runtime itself.
 Anything else reads as the plugin alone, which no seed allows: the lists come back empty and
 `readFile` is refused. The runtime itself is the subject `SYSTEM`, set with

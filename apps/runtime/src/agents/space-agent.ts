@@ -2,9 +2,8 @@ import { Agent } from "@mastra/core/agent";
 import { agentModel, attachTools, type ResolvedModel } from "../models.js";
 
 /**
- * The agent that acts in a space: the studio assistant (Goose) today, Work's chats next
- * (docs/plans/work-chats.md). Made the same way for both, so that each request starts with the
- * one before and the provider's prompt cache holds: the tools sorted by name, the instructions
+ * The agent that acts in a space: the studio assistant (Goose). Each request starts with the one
+ * before, so the provider's prompt cache holds: the tools sorted by name, the instructions
  * marked, and the end of what the chat already said marked.
  */
 

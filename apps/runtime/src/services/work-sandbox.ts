@@ -1,8 +1,8 @@
 import { createSandbox, type Sandbox } from "../sandbox/index.js";
 
 /**
- * A Work chat's sandbox, where the space's AI runs commands and the scripts of the space's skills
- * (docs/plans/skills.md). One per chat, made on its first command and kept while the chat is in
+ * A chat's sandbox, where the AI that calls `run_command` runs commands and the scripts of the
+ * space's skills (docs/plans/skills.md). One per chat, made on its first command and kept while the chat is in
  * use, so a file one turn writes is there for the next; gone after IDLE_MS without a command, or
  * when the runtime stops.
  */
@@ -38,9 +38,6 @@ export function chatSandbox(chatId: string): Sandbox {
   k.timer = setTimeout(() => drop(chatId), IDLE_MS).unref();
   return k.sandbox;
 }
-
-/** Ends a chat's sandbox now: the chat was deleted. */
-export const dropChatSandbox = drop;
 
 /** Ends every chat's sandbox: the runtime stops. */
 export async function dropChatSandboxes(): Promise<void> {

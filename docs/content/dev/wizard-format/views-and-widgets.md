@@ -1,7 +1,7 @@
 ---
 title: Views and widgets
 description: Surfaces built from the catalog, a view of an agent step's result, nested output, and HTML widgets.
-version: 0.18.0
+version: 0.21.0
 ---
 
 A result can show as a view instead of a plain table. There are three ways:
@@ -47,8 +47,7 @@ their children by id. A prop is a value, or `{ "path": "/key/…" }` into the da
 | `Image`, `Gallery`, `Video`, `Audio`, `File` | A picture, pictures side by side, a clip, a recording, a file with its name (a PDF or picture shows itself) |
 | `Actions`, `Button` | Buttons that make the result again or open a file |
 
-A view in a [Work chat](#views-in-a-work-chat) has three more components and one more button. A wizard’s
-views can [ask for a value](#inputs-in-a-view) that changes the view.
+A wizard’s views can [ask for a value](#inputs-in-a-view) that changes the view.
 
 `candidates` replaces `components` when the view should change per run. Each candidate is a piece
 with a `description`, and a decision picks the pieces that fit: no chart when there is nothing to
@@ -70,7 +69,7 @@ with the run, so a reload or another device shows the same view.
 
 `state` names the value. Paths and [calculations](#calculated-values) read it by that name, like a
 data key. It is unique in its view and is not also a data key. These inputs work in surface steps
-and in a step’s `output.surface`, not on pages, where a field asks, and not in a Work chat.
+and in a step’s `output.surface`, not on pages, where a field asks.
 
 ```json
 [
@@ -108,22 +107,6 @@ that place.
 A calculation takes the same `map` and `format` as a path. `as` writes a number in the viewer’s
 language: `number` with its separators, `percent` as a share (0.5 is 50 %). It works on a path too.
 In `format`, `{}` is the value and `{column}` a column of the entry it is drawn in.
-
-### Views in a Work chat
-
-In a Work chat, the space’s AI shows a view with its tool `show_view`. It uses the same catalog,
-and the data is what the AI found. Everyone in the chat sees the view. A chat’s view can also ask
-the team, which a wizard’s view never does, because a wizard asks on its pages:
-
-| Component | For |
-|---|---|
-| `Form` with `Field`s | Questions to the team. A Field is one of the wizard’s field kinds that needs no run: text, number, choices, a date, a picture or the camera, a file, the place, a recording, a signature. Whoever is in the chat sends it, and the answers become their message. |
-| `Ref` | A thing of the space that opens in the studio: a page, table or file of Knowledge, a chat, a wizard |
-| `Button` with `"action": "ask"` | The person who taps it asks the AI the button’s `prompt`, or its label |
-
-A chat’s view shows the space’s own files only, never a picture from an address on the web.
-`show_view` checks a view before the chat draws it. When the check fails, the AI gets the
-problems back and tries again.
 
 ## A view of an agent step’s result
 

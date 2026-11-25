@@ -180,7 +180,7 @@ describe("the client contract", () => {
     const res = await app.fetch(new Request("http://localhost:5181/api/v1/client"));
     const { calls } = (await res.json()) as any;
     const names = calls.map((c: any) => c.name);
-    expect(names).toEqual(expect.arrayContaining(["me", "spaces", "for_you", "wizard_start", "chat_post", "files"]));
+    expect(names).toEqual(expect.arrayContaining(["me", "spaces", "for_you", "wizard_start", "files"]));
     const start = calls.find((c: any) => c.name === "wizard_start");
     expect(start).toMatchObject({ scope: "elements:run", path: "/api/v1/client/spaces/{spaceId}/wizard_start" });
     expect(start.input.properties.wizardId).toBeTruthy();
@@ -287,22 +287,6 @@ describe("the client contract", () => {
     expect([mine.spaceId, theirs.spaceId, firm.spaceId]).toEqual([wagner, berger, spaceId]);
   });
 
-  it("chats with the firm's AI: a client sees their own chats, never the firm's internal ones", async () => {
-    const posted = await call("tok-wagner", "chat_post", wagner, { text: "Wann ist der nächste Termin?" });
-    expect(posted.status, JSON.stringify(posted.body)).toBe(200);
-    const { chatId } = posted.result;
-    const work = await import("../src/services/work-chats");
-    const owner = { id: "local", tenantId: "local", role: "owner" as const, name: "Anna", email: "" };
-    await local(() => work.createChat(owner, { spaceId: wagner, title: "Intern: Honorar" }));
-    const chats = (await call("tok-wagner", "chats", wagner)).result;
-    expect(chats.map((c: any) => c.id)).toEqual([chatId]);
-    const read = (await call("tok-wagner", "chat_messages", undefined, { chatId })).result;
-    expect(read.spaceId).toBe(wagner);
-    expect(read.messages[0]).toEqual(expect.objectContaining({ text: "Wann ist der nächste Termin?", author: expect.objectContaining({ me: true }) }));
-    expect((await call("tok-berger", "chat_messages", undefined, { chatId })).status).toBe(404);
-    expect((await call("tok-berger", "chats", berger)).result).toEqual([]);
-  });
-
   it("hands out the client space's files, to that client only", async () => {
     const files = await import("../src/services/space-files");
     const png = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64"));
@@ -321,12 +305,10 @@ describe("the client contract", () => {
   it("answers a foreign item exactly as a missing one: the same status and body", async () => {
     const { eq } = await import("drizzle-orm");
     const runs = await local(() => db.db.query.run.findMany({ where: eq(db.schema.run.clientSpaceId, wagner) }));
-    const chats = await local(() => db.db.query.chat.findMany({ where: eq(db.schema.chat.spaceId, wagner) }));
     const pairs: [string, string | undefined, Record<string, string>, Record<string, string>][] = [
       ["for_you", wagner, {}, {}],
       ["files", wagner, {}, {}],
       ["run_open", undefined, { runId: runs[0].id }, { runId: "nothing-here-1" }],
-      ["chat_messages", undefined, { chatId: chats[0].id }, { chatId: "nothing-here-2" }],
       ["file", undefined, { fileId: files_.id ?? "" }, { fileId: "nothing-here-3" }],
     ];
     for (const [name, space, foreign, missing] of pairs) {

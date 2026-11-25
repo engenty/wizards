@@ -14,8 +14,8 @@ import { useAssistant } from "./assistant/chat";
 import { NewWizardPage } from "./NewWizardPage";
 import { GO, type PageId, step, useDone, usePages, useSkipped } from "./setup";
 import { useResults } from "./space/Results";
-import { useWaiting } from "./work/chats";
-import { greeting, RunCard } from "./work/WorkHome";
+import { greeting, RunCard } from "./work/runs";
+import { useWaiting } from "./work/waiting";
 
 /*
  * The studio's Home (docs/plans/org-spaces.md, the Studio Home design): what waits, what finished

@@ -111,38 +111,6 @@ export interface ForYou {
   wizards: Wizard[];
 }
 
-export interface Chat {
-  id: string;
-  title: string;
-  updatedAt: string;
-  last: { name: string; text: string } | null;
-  answering: boolean;
-}
-
-/** A view the AI showed, or a run it started, in its message. */
-export type Card =
-  | {
-      kind: "view";
-      id: string;
-      title: string | null;
-      components: unknown[];
-      data: Record<string, unknown>;
-    }
-  | { kind: "run"; runId: string; wizardId: string; title: string; avatar: string; status: string };
-
-export interface ChatMessages {
-  spaceId: string;
-  chat: { id: string; title: string; answering: boolean };
-  messages: {
-    id: string;
-    author: { kind: "person" | "ai"; name: string; me: boolean };
-    text: string;
-    /** The message in the order it was written: its text, the AI's views and runs. */
-    parts: ({ kind: "text"; text: string } | Card)[];
-    createdAt: string;
-  }[];
-}
-
 export interface SpaceFile {
   id: string;
   name: string;
