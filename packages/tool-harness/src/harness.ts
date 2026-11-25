@@ -21,6 +21,11 @@ export interface HarnessOptions<T extends HarnessTool> {
   /** What the model that answers can be trusted with. */
   level: Level;
   search: CatalogSearch;
+  /**
+   * What a model is told of tools beyond its level. Without it: that it needs a more capable one.
+   * A host that offers one when such a tool is called says so here.
+   */
+  beyond?: string;
   /** Below this many characters of schemas the rest stays in the prompt too. */
   foldFrom?: number;
 }
@@ -35,7 +40,7 @@ export interface MetaTool {
 export type Resolved<T> =
   | { ok: true; tool: T; input: Record<string, unknown> }
   /** `say`: what the model reads instead. */
-  | { ok: false; say: string };
+  | { ok: false; say: string; beyond?: T };
 
 export interface ToolHarness<T extends HarnessTool> {
   /** The real tools in the prompt, by name: the same order keeps a provider's cache. */
@@ -147,7 +152,7 @@ export function createToolHarness<T extends HarnessTool>(
 
   const outOfReach = (tools: HarnessTool[]) =>
     tools.length
-      ? `Not for the model that answers now (it needs a more capable one; tell the person so, and that they can choose one): ${tools.map((tool) => tool.name).join(", ")}.`
+      ? `${options.beyond ?? "Not for the model that answers now (it needs a more capable one; tell the person so, and that they can choose one)"}: ${tools.map((tool) => tool.name).join(", ")}.`
       : "";
 
   return {
@@ -225,7 +230,7 @@ export function createToolHarness<T extends HarnessTool>(
         };
       }
       if (beyond.includes(tool)) {
-        return { ok: false, say: `Nothing was done. ${outOfReach([tool])}` };
+        return { ok: false, say: `Nothing was done. ${outOfReach([tool])}`, beyond: tool };
       }
       if (name === TOOL_CALL || name === TOOL_SEARCH) {
         return { ok: false, say: "Nothing was done. Call that tool directly." };
