@@ -869,6 +869,67 @@ describe("a runtime of a Manage-App", () => {
       expect(await (await list("Bearer wz_key_of_b")).text()).not.toContain("outside EU Private");
       const { checkedApps } = await import("../src/mcp/seen");
       expect(await checkedApps("tenant-b")).toMatchObject([{ kind: "subscription", allowed: 1, refused: 1 }]);
+      // The team's Bot Server is none of those apps. Under the same refusal its token, issued for
+      // one person, still reads the space as that person; any other client's is still refused.
+      tierOfB = { ...tierOfB, modelPolicy: { apps: { local: true, subscriptions: false } } };
+      forgetTenant("tenant-b");
+      const { db, withTenant } = await import("../src/db/client");
+      const { defaultSpace } = await import("../src/services/spaces");
+      const { createPage } = await import("../src/services/space-data");
+      await withTenant("tenant-b", async () =>
+        createPage("user-b", (await defaultSpace("user-b")).id, {
+          title: "Opening hours",
+          markdown: "The workshop is open from 8 to 17.",
+        }),
+      );
+      const search = async (azp: string) =>
+        app.fetch(
+          new Request(`${RUNTIME}/api/mcp`, {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${await token(
+                {
+                  sub: "user-b",
+                  tenant: "tenant-b",
+                  role: "owner",
+                  name: "User B",
+                  azp,
+                  scope: "data:read elements:read elements:run",
+                },
+                `${RUNTIME}/api/mcp`,
+              )}`,
+              "content-type": "application/json",
+              accept: "application/json, text/event-stream",
+            },
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 2,
+              method: "tools/call",
+              params: { name: "space_search", arguments: { query: "opening hours" } },
+            }),
+          }),
+        );
+      const asHome = await search("wizards-bot-home");
+      expect(asHome.status).toBe(200);
+      const found = await asHome.text();
+      expect(found).not.toContain("outside EU Private");
+      expect(found).not.toContain('"isError":true');
+      expect(await (await search("some-agent")).json()).toMatchObject({
+        id: 2,
+        result: { isError: true, content: [{ text: expect.stringContaining("outside EU Private") }] },
+      });
+      // It is named as people know it: among the apps seen, and in the log of calls.
+      expect(await checkedApps("tenant-b")).toMatchObject(
+        expect.arrayContaining([
+          expect.objectContaining({ app: "wizards.bot", person: "User B", allowed: 1, refused: 0 }),
+          expect.objectContaining({ app: "some-agent", person: "User B", allowed: 0, refused: 1 }),
+        ]),
+      );
+      const { brokerLog } = await import("../src/db/schema");
+      const lines = await withTenant("tenant-b", () => db.select().from(brokerLog));
+      expect(lines.filter((l) => l.actionId === "space_search")).toMatchObject([
+        { client: "wizards.bot", whoId: "user-b", outcome: "allow" },
+      ]);
       // When the Manage-App can't say what the policy allows, the app waits.
       tenantBDown = true;
       forgetTenant("tenant-b");

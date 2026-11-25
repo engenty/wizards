@@ -1,18 +1,26 @@
 import { createTool } from "@mastra/core/tools";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { chatConnectionTools } from "../services/work-connections.js";
-import { callConnection, connectionResult } from "../tools/connections.js";
+import type { Who } from "../broker/index.js";
+import { listSpaceConnections } from "../connectors/space-connections.js";
+import { db, schema } from "../db/client.js";
+import {
+  callConnection,
+  connectionResult,
+  connectionToolsOf,
+  usableConnections,
+} from "../tools/connections.js";
 import { attempt } from "../tools/shared.js";
 import type { ElementCaller } from "./caller.js";
 import { ELEMENT_SPECS } from "./specs.js";
 
 /**
  * The space's connections for an outside client (docs/plans/modular.md, phase 3): the actions the
- * person may use, as a Work chat has them, behind two calls. Each call is the broker's
+ * person may use, behind two calls. Each call is the broker's
  * (`brokerCall`), which decides it by the connection's audience and rules and writes its line
- * with the client's name. A write, a send or a delete runs only where the rules say *Immer*: the
- * person's yes is never taken from the client (I4), and a call that waits for the space's
- * admins („Mit Freigabe“) is refused with why. Its secret stays in the broker (I5).
+ * with the client's name. A write, a send or a delete runs only where the rule says Erlaubt: the
+ * person's yes is never taken from the client (I4), so a call the rule would ask them about
+ * („Mit Freigabe“) is refused with why. Its secret stays in the broker (I5).
  */
 
 const personOf = (caller: ElementCaller) =>
@@ -20,12 +28,32 @@ const personOf = (caller: ElementCaller) =>
     ? caller.who.id
     : null;
 
+/**
+ * The connections of the space the caller's person reaches: those open to their role, and of the
+ * ones in which each person signs in, only those they signed in to.
+ */
+async function reachableConnectionTools(spaceId: string, userId: string, who: Who) {
+  const rows = await listSpaceConnections(spaceId);
+  const own = rows.some((r) => r.signIn === "person")
+    ? new Set(
+        (
+          await db.query.spaceConnectionSignIn.findMany({
+            where: eq(schema.spaceConnectionSignIn.userId, userId),
+            columns: { connectionId: true },
+          })
+        ).map((s) => s.connectionId),
+      )
+    : new Set<string>();
+  const reachable = rows.filter((r) => r.signIn === "space" || own.has(r.id));
+  return connectionToolsOf(await usableConnections(reachable, who));
+}
+
 export async function connectionElementTools(caller: ElementCaller): Promise<Record<string, any>> {
   const userId = personOf(caller);
   if (!userId) {
     return {};
   }
-  const tools = await chatConnectionTools(caller.space.id, userId, caller.who);
+  const tools = await reachableConnectionTools(caller.space.id, userId, caller.who);
   if (!tools.length) {
     return {};
   }

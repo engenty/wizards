@@ -5,6 +5,7 @@ import { env } from "../env.js";
 import { grantActive, managed, type Role, verifyKey, verifyToken } from "../manage.js";
 import { LOCAL_TENANT } from "../tenants/tenant.js";
 import { MCP_RESOURCE, SCOPES, type Scope } from "./scopes.js";
+import { HOME_CLIENT, HOME_NAME } from "./seen.js";
 
 /** The admin an MCP request acts for, their tenant, and the client acting (shown in the studio thread). */
 export interface Principal {
@@ -139,7 +140,7 @@ async function tokenAuth(token: string): Promise<AuthInfo | Response> {
     userId: claims.userId,
     tenantId: claims.tenantId,
     role: claims.role,
-    client: claims.clientId || "MCP",
+    client: claims.clientId === HOME_CLIENT ? HOME_NAME : claims.clientId || "MCP",
     scopes: SCOPES.filter((s) => granted.has(s)),
     name: claims.name,
     email: claims.email,

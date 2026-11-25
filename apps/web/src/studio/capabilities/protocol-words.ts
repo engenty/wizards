@@ -331,7 +331,7 @@ export function actionWord(
 
 /** „Was darf …?“'s answer in one sentence. */
 export function answerSentence(
-  answer: Pick<BrokerAnswer, "outcome" | "rule" | "refused" | "admins" | "action">,
+  answer: Pick<BrokerAnswer, "outcome" | "rule" | "refused" | "action">,
   names: { who: string; connection: string; audience?: string | null },
 ): string {
   const vars = {
@@ -343,7 +343,7 @@ export function answerSentence(
     return t("protocol.ask.allow", vars);
   }
   if (answer.outcome === "ask") {
-    return t(answer.admins ? "protocol.ask.askAdmins" : "protocol.ask.askPerson", vars);
+    return t("protocol.ask.askPerson", vars);
   }
   return t("protocol.ask.deny", {
     ...vars,

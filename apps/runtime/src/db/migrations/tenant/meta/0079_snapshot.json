@@ -1,8 +1,8 @@
 {
+  "id": "04a0846f-2596-4c1f-87e7-6085a558b660",
+  "prevId": "8f924895-d0da-4ea7-83ac-b85f6c063018",
   "version": "6",
   "dialect": "sqlite",
-  "id": "6b92b777-e346-482c-87dc-c27fd33dc66a",
-  "prevId": "8f924895-d0da-4ea7-83ac-b85f6c063018",
   "tables": {
     "approval": {
       "name": "approval",
@@ -124,15 +124,15 @@
         "approval_run_id_run_id_fk": {
           "name": "approval_run_id_run_id_fk",
           "tableFrom": "approval",
-          "tableTo": "run",
           "columnsFrom": [
             "run_id"
           ],
+          "tableTo": "run",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -389,15 +389,15 @@
         "assistant_message_chat_id_assistant_chat_id_fk": {
           "name": "assistant_message_chat_id_assistant_chat_id_fk",
           "tableFrom": "assistant_message",
-          "tableTo": "assistant_chat",
           "columnsFrom": [
             "chat_id"
           ],
+          "tableTo": "assistant_chat",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -671,41 +671,41 @@
         "connection_choice_wizard_id_wizard_id_fk": {
           "name": "connection_choice_wizard_id_wizard_id_fk",
           "tableFrom": "connection_choice",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "connection_choice_person_connection_id_person_connection_id_fk": {
           "name": "connection_choice_person_connection_id_person_connection_id_fk",
           "tableFrom": "connection_choice",
-          "tableTo": "person_connection",
           "columnsFrom": [
             "person_connection_id"
           ],
+          "tableTo": "person_connection",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "connection_choice_space_connection_id_space_connection_id_fk": {
           "name": "connection_choice_space_connection_id_space_connection_id_fk",
           "tableFrom": "connection_choice",
-          "tableTo": "space_connection",
           "columnsFrom": [
             "space_connection_id"
           ],
+          "tableTo": "space_connection",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -788,15 +788,15 @@
         "device_call_run_id_run_id_fk": {
           "name": "device_call_run_id_run_id_fk",
           "tableFrom": "device_call",
-          "tableTo": "run",
           "columnsFrom": [
             "run_id"
           ],
+          "tableTo": "run",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -857,15 +857,15 @@
         "draft_change_wizard_id_wizard_id_fk": {
           "name": "draft_change_wizard_id_wizard_id_fk",
           "tableFrom": "draft_change",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1106,15 +1106,15 @@
         "mail_cursor_connection_id_space_connection_id_fk": {
           "name": "mail_cursor_connection_id_space_connection_id_fk",
           "tableFrom": "mail_cursor",
-          "tableTo": "space_connection",
           "columnsFrom": [
             "connection_id"
           ],
+          "tableTo": "space_connection",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1423,28 +1423,28 @@
         "notice_wizard_id_wizard_id_fk": {
           "name": "notice_wizard_id_wizard_id_fk",
           "tableFrom": "notice",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "notice_run_id_run_id_fk": {
           "name": "notice_run_id_run_id_fk",
           "tableFrom": "notice",
-          "tableTo": "run",
           "columnsFrom": [
             "run_id"
           ],
+          "tableTo": "run",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1911,28 +1911,28 @@
         "run_wizard_id_wizard_id_fk": {
           "name": "run_wizard_id_wizard_id_fk",
           "tableFrom": "run",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "run_client_space_id_space_id_fk": {
           "name": "run_client_space_id_space_id_fk",
           "tableFrom": "run",
-          "tableTo": "space",
           "columnsFrom": [
             "client_space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1970,15 +1970,15 @@
         "run_cost_run_id_run_id_fk": {
           "name": "run_cost_run_id_run_id_fk",
           "tableFrom": "run_cost",
-          "tableTo": "run",
           "columnsFrom": [
             "run_id"
           ],
+          "tableTo": "run",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -2059,15 +2059,15 @@
         "run_effect_run_id_run_id_fk": {
           "name": "run_effect_run_id_run_id_fk",
           "tableFrom": "run_effect",
-          "tableTo": "run",
           "columnsFrom": [
             "run_id"
           ],
+          "tableTo": "run",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -2149,174 +2149,18 @@
         "run_event_run_id_run_id_fk": {
           "name": "run_event_run_id_run_id_fk",
           "tableFrom": "run_event",
-          "tableTo": "run",
           "columnsFrom": [
             "run_id"
           ],
+          "tableTo": "run",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "run_row": {
-      "name": "run_row",
-      "columns": {
-        "run_id": {
-          "name": "run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "n": {
-          "name": "n",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "step": {
-          "name": "step",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "data": {
-          "name": "data",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "at": {
-          "name": "at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "run_row_run_id_run_id_fk": {
-          "name": "run_row_run_id_run_id_fk",
-          "tableFrom": "run_row",
-          "tableTo": "run",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "run_row_run_id_n_pk": {
-          "columns": [
-            "run_id",
-            "n"
-          ],
-          "name": "run_row_run_id_n_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "run_score": {
-      "name": "run_score",
-      "columns": {
-        "run_id": {
-          "name": "run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "eval": {
-          "name": "eval",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "row": {
-          "name": "row",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "score": {
-          "name": "score",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "data": {
-          "name": "data",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "at": {
-          "name": "at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "run_score_run_id_run_id_fk": {
-          "name": "run_score_run_id_run_id_fk",
-          "tableFrom": "run_score",
-          "tableTo": "run",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "run_score_run_id_eval_row_pk": {
-          "columns": [
-            "run_id",
-            "eval",
-            "row"
-          ],
-          "name": "run_score_run_id_eval_row_pk"
-        }
-      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -2497,15 +2341,15 @@
         "run_wait_run_id_run_id_fk": {
           "name": "run_wait_run_id_run_id_fk",
           "tableFrom": "run_wait",
-          "tableTo": "run",
           "columnsFrom": [
             "run_id"
           ],
+          "tableTo": "run",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -2625,15 +2469,15 @@
         "rwx_rule_space_id_space_id_fk": {
           "name": "rwx_rule_space_id_space_id_fk",
           "tableFrom": "rwx_rule",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -2776,15 +2620,15 @@
         "share_job_run_id_run_id_fk": {
           "name": "share_job_run_id_run_id_fk",
           "tableFrom": "share_job",
-          "tableTo": "run",
           "columnsFrom": [
             "run_id"
           ],
+          "tableTo": "run",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -2959,15 +2803,15 @@
         "space_parent_id_space_id_fk": {
           "name": "space_parent_id_space_id_fk",
           "tableFrom": "space",
-          "tableTo": "space",
           "columnsFrom": [
             "parent_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -3085,15 +2929,15 @@
         "space_bundle_space_id_space_id_fk": {
           "name": "space_bundle_space_id_space_id_fk",
           "tableFrom": "space_bundle",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -3236,28 +3080,28 @@
         "space_category_space_id_space_id_fk": {
           "name": "space_category_space_id_space_id_fk",
           "tableFrom": "space_category",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_category_table_id_space_table_id_fk": {
           "name": "space_category_table_id_space_table_id_fk",
           "tableFrom": "space_category",
-          "tableTo": "space_table",
           "columnsFrom": [
             "table_id"
           ],
+          "tableTo": "space_table",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -3333,15 +3177,15 @@
         "space_category_value_category_id_space_category_id_fk": {
           "name": "space_category_value_category_id_space_category_id_fk",
           "tableFrom": "space_category_value",
-          "tableTo": "space_category",
           "columnsFrom": [
             "category_id"
           ],
+          "tableTo": "space_category",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -3536,80 +3380,80 @@
         "space_chunk_space_id_space_id_fk": {
           "name": "space_chunk_space_id_space_id_fk",
           "tableFrom": "space_chunk",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_chunk_file_id_space_file_id_fk": {
           "name": "space_chunk_file_id_space_file_id_fk",
           "tableFrom": "space_chunk",
-          "tableTo": "space_file",
           "columnsFrom": [
             "file_id"
           ],
+          "tableTo": "space_file",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_chunk_page_id_space_page_id_fk": {
           "name": "space_chunk_page_id_space_page_id_fk",
           "tableFrom": "space_chunk",
-          "tableTo": "space_page",
           "columnsFrom": [
             "page_id"
           ],
+          "tableTo": "space_page",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_chunk_row_id_space_table_row_id_fk": {
           "name": "space_chunk_row_id_space_table_row_id_fk",
           "tableFrom": "space_chunk",
-          "tableTo": "space_table_row",
           "columnsFrom": [
             "row_id"
           ],
+          "tableTo": "space_table_row",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_chunk_table_id_space_table_id_fk": {
           "name": "space_chunk_table_id_space_table_id_fk",
           "tableFrom": "space_chunk",
-          "tableTo": "space_table",
           "columnsFrom": [
             "table_id"
           ],
+          "tableTo": "space_table",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_chunk_value_id_space_category_value_id_fk": {
           "name": "space_chunk_value_id_space_category_value_id_fk",
           "tableFrom": "space_chunk",
-          "tableTo": "space_category_value",
           "columnsFrom": [
             "value_id"
           ],
+          "tableTo": "space_category_value",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -3784,15 +3628,15 @@
         "space_connection_space_id_space_id_fk": {
           "name": "space_connection_space_id_space_id_fk",
           "tableFrom": "space_connection",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -3852,15 +3696,15 @@
         "space_connection_sign_in_connection_id_space_connection_id_fk": {
           "name": "space_connection_sign_in_connection_id_space_connection_id_fk",
           "tableFrom": "space_connection_sign_in",
-          "tableTo": "space_connection",
           "columnsFrom": [
             "connection_id"
           ],
+          "tableTo": "space_connection",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -3928,15 +3772,15 @@
         "space_connector_space_id_space_id_fk": {
           "name": "space_connector_space_id_space_id_fk",
           "tableFrom": "space_connector",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -4145,28 +3989,28 @@
         "space_file_space_id_space_id_fk": {
           "name": "space_file_space_id_space_id_fk",
           "tableFrom": "space_file",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_file_parent_id_space_page_id_fk": {
           "name": "space_file_parent_id_space_page_id_fk",
           "tableFrom": "space_file",
-          "tableTo": "space_page",
           "columnsFrom": [
             "parent_id"
           ],
+          "tableTo": "space_page",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -4325,106 +4169,106 @@
         "space_item_category_space_id_space_id_fk": {
           "name": "space_item_category_space_id_space_id_fk",
           "tableFrom": "space_item_category",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_item_category_category_id_space_category_id_fk": {
           "name": "space_item_category_category_id_space_category_id_fk",
           "tableFrom": "space_item_category",
-          "tableTo": "space_category",
           "columnsFrom": [
             "category_id"
           ],
+          "tableTo": "space_category",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_item_category_page_id_space_page_id_fk": {
           "name": "space_item_category_page_id_space_page_id_fk",
           "tableFrom": "space_item_category",
-          "tableTo": "space_page",
           "columnsFrom": [
             "page_id"
           ],
+          "tableTo": "space_page",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_item_category_row_id_space_table_row_id_fk": {
           "name": "space_item_category_row_id_space_table_row_id_fk",
           "tableFrom": "space_item_category",
-          "tableTo": "space_table_row",
           "columnsFrom": [
             "row_id"
           ],
+          "tableTo": "space_table_row",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_item_category_table_id_space_table_id_fk": {
           "name": "space_item_category_table_id_space_table_id_fk",
           "tableFrom": "space_item_category",
-          "tableTo": "space_table",
           "columnsFrom": [
             "table_id"
           ],
+          "tableTo": "space_table",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_item_category_file_id_space_file_id_fk": {
           "name": "space_item_category_file_id_space_file_id_fk",
           "tableFrom": "space_item_category",
-          "tableTo": "space_file",
           "columnsFrom": [
             "file_id"
           ],
+          "tableTo": "space_file",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_item_category_mount_file_id_space_mount_file_id_fk": {
           "name": "space_item_category_mount_file_id_space_mount_file_id_fk",
           "tableFrom": "space_item_category",
-          "tableTo": "space_mount_file",
           "columnsFrom": [
             "mount_file_id"
           ],
+          "tableTo": "space_mount_file",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_item_category_value_id_space_category_value_id_fk": {
           "name": "space_item_category_value_id_space_category_value_id_fk",
           "tableFrom": "space_item_category",
-          "tableTo": "space_category_value",
           "columnsFrom": [
             "value_id"
           ],
+          "tableTo": "space_category_value",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -4513,15 +4357,15 @@
         "space_member_space_id_space_id_fk": {
           "name": "space_member_space_id_space_id_fk",
           "tableFrom": "space_member",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -4676,28 +4520,28 @@
         "space_mount_space_id_space_id_fk": {
           "name": "space_mount_space_id_space_id_fk",
           "tableFrom": "space_mount",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_mount_folder_category_id_space_category_id_fk": {
           "name": "space_mount_folder_category_id_space_category_id_fk",
           "tableFrom": "space_mount",
-          "tableTo": "space_category",
           "columnsFrom": [
             "folder_category_id"
           ],
+          "tableTo": "space_category",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -4828,41 +4672,41 @@
         "space_mount_draft_space_id_space_id_fk": {
           "name": "space_mount_draft_space_id_space_id_fk",
           "tableFrom": "space_mount_draft",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_mount_draft_mount_id_space_mount_id_fk": {
           "name": "space_mount_draft_mount_id_space_mount_id_fk",
           "tableFrom": "space_mount_draft",
-          "tableTo": "space_mount",
           "columnsFrom": [
             "mount_id"
           ],
+          "tableTo": "space_mount",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_mount_draft_file_id_space_mount_file_id_fk": {
           "name": "space_mount_draft_file_id_space_mount_file_id_fk",
           "tableFrom": "space_mount_draft",
-          "tableTo": "space_mount_file",
           "columnsFrom": [
             "file_id"
           ],
+          "tableTo": "space_mount_file",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -5034,28 +4878,28 @@
         "space_mount_file_mount_id_space_mount_id_fk": {
           "name": "space_mount_file_mount_id_space_mount_id_fk",
           "tableFrom": "space_mount_file",
-          "tableTo": "space_mount",
           "columnsFrom": [
             "mount_id"
           ],
+          "tableTo": "space_mount",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_mount_file_space_id_space_id_fk": {
           "name": "space_mount_file_space_id_space_id_fk",
           "tableFrom": "space_mount_file",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -5171,41 +5015,41 @@
         "space_mount_unit_space_id_space_id_fk": {
           "name": "space_mount_unit_space_id_space_id_fk",
           "tableFrom": "space_mount_unit",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_mount_unit_mount_id_space_mount_id_fk": {
           "name": "space_mount_unit_mount_id_space_mount_id_fk",
           "tableFrom": "space_mount_unit",
-          "tableTo": "space_mount",
           "columnsFrom": [
             "mount_id"
           ],
+          "tableTo": "space_mount",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_mount_unit_file_id_space_mount_file_id_fk": {
           "name": "space_mount_unit_file_id_space_mount_file_id_fk",
           "tableFrom": "space_mount_unit",
-          "tableTo": "space_mount_file",
           "columnsFrom": [
             "file_id"
           ],
+          "tableTo": "space_mount_file",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -5371,54 +5215,54 @@
         "space_page_space_id_space_id_fk": {
           "name": "space_page_space_id_space_id_fk",
           "tableFrom": "space_page",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_page_wizard_id_wizard_id_fk": {
           "name": "space_page_wizard_id_wizard_id_fk",
           "tableFrom": "space_page",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_page_parent_id_space_page_id_fk": {
           "name": "space_page_parent_id_space_page_id_fk",
           "tableFrom": "space_page",
-          "tableTo": "space_page",
           "columnsFrom": [
             "parent_id"
           ],
+          "tableTo": "space_page",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_page_file_id_space_file_id_fk": {
           "name": "space_page_file_id_space_file_id_fk",
           "tableFrom": "space_page",
-          "tableTo": "space_file",
           "columnsFrom": [
             "file_id"
           ],
+          "tableTo": "space_file",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -5571,15 +5415,15 @@
         "space_skill_space_id_space_id_fk": {
           "name": "space_skill_space_id_space_id_fk",
           "tableFrom": "space_skill",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -5731,15 +5575,15 @@
         "space_source_space_id_space_id_fk": {
           "name": "space_source_space_id_space_id_fk",
           "tableFrom": "space_source",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -5863,15 +5707,15 @@
         "space_source_entry_source_id_space_source_id_fk": {
           "name": "space_source_entry_source_id_space_source_id_fk",
           "tableFrom": "space_source_entry",
-          "tableTo": "space_source",
           "columnsFrom": [
             "source_id"
           ],
+          "tableTo": "space_source",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -5966,15 +5810,15 @@
         "space_source_run_source_id_space_source_id_fk": {
           "name": "space_source_run_source_id_space_source_id_fk",
           "tableFrom": "space_source_run",
-          "tableTo": "space_source",
           "columnsFrom": [
             "source_id"
           ],
+          "tableTo": "space_source",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -6161,54 +6005,54 @@
         "space_table_space_id_space_id_fk": {
           "name": "space_table_space_id_space_id_fk",
           "tableFrom": "space_table",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_table_wizard_id_wizard_id_fk": {
           "name": "space_table_wizard_id_wizard_id_fk",
           "tableFrom": "space_table",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "space_table_parent_id_space_page_id_fk": {
           "name": "space_table_parent_id_space_page_id_fk",
           "tableFrom": "space_table",
-          "tableTo": "space_page",
           "columnsFrom": [
             "parent_id"
           ],
+          "tableTo": "space_page",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         },
         "space_table_file_id_space_file_id_fk": {
           "name": "space_table_file_id_space_file_id_fk",
           "tableFrom": "space_table",
-          "tableTo": "space_file",
           "columnsFrom": [
             "file_id"
           ],
+          "tableTo": "space_file",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -6285,15 +6129,15 @@
         "space_table_row_table_id_space_table_id_fk": {
           "name": "space_table_row_table_id_space_table_id_fk",
           "tableFrom": "space_table_row",
-          "tableTo": "space_table",
           "columnsFrom": [
             "table_id"
           ],
+          "tableTo": "space_table",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -6363,15 +6207,15 @@
         "store_database_wizard_id_wizard_id_fk": {
           "name": "store_database_wizard_id_wizard_id_fk",
           "tableFrom": "store_database",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -6444,15 +6288,15 @@
         "store_file_wizard_id_wizard_id_fk": {
           "name": "store_file_wizard_id_wizard_id_fk",
           "tableFrom": "store_file",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -6507,15 +6351,15 @@
         "store_holder_wizard_id_wizard_id_fk": {
           "name": "store_holder_wizard_id_wizard_id_fk",
           "tableFrom": "store_holder",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -6618,15 +6462,15 @@
         "store_row_wizard_id_wizard_id_fk": {
           "name": "store_row_wizard_id_wizard_id_fk",
           "tableFrom": "store_row",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -6717,15 +6561,15 @@
         "store_secret_wizard_id_wizard_id_fk": {
           "name": "store_secret_wizard_id_wizard_id_fk",
           "tableFrom": "store_secret",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -7229,15 +7073,15 @@
         "wizard_space_id_space_id_fk": {
           "name": "wizard_space_id_space_id_fk",
           "tableFrom": "wizard",
-          "tableTo": "space",
           "columnsFrom": [
             "space_id"
           ],
+          "tableTo": "space",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -7296,15 +7140,15 @@
         "wizard_file_wizard_id_wizard_id_fk": {
           "name": "wizard_file_wizard_id_wizard_id_fk",
           "tableFrom": "wizard_file",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -7396,15 +7240,15 @@
         "wizard_message_wizard_id_wizard_id_fk": {
           "name": "wizard_message_wizard_id_wizard_id_fk",
           "tableFrom": "wizard_message",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -7456,15 +7300,15 @@
         "wizard_translation_wizard_id_wizard_id_fk": {
           "name": "wizard_translation_wizard_id_wizard_id_fk",
           "tableFrom": "wizard_translation",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -7541,15 +7385,15 @@
         "wizard_version_wizard_id_wizard_id_fk": {
           "name": "wizard_version_wizard_id_wizard_id_fk",
           "tableFrom": "wizard_version",
-          "tableTo": "wizard",
           "columnsFrom": [
             "wizard_id"
           ],
+          "tableTo": "wizard",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -7560,9 +7404,9 @@
   "views": {},
   "enums": {},
   "_meta": {
+    "columns": {},
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {}
   },
   "internal": {
     "indexes": {}

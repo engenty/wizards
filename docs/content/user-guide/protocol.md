@@ -1,7 +1,7 @@
 ---
 title: Audit
 description: Every time a wizard or Goose used a connection of your space, allowed or not – what critical means, what a member sees, and how to try a rule before anything runs.
-version: 0.21.0
+version: 0.21.1
 ---
 
 **[Capabilities](./capabilities.md) › Audit** shows every call your space’s wizards and Goose made
@@ -21,9 +21,8 @@ A line reads like a sentence:
   action, such as “Create a contact”.
 - **On which connection**, such as “HubSpot · Sales”.
 - **Where**: in a run of a wizard, in a test run or with Goose.
-- **What came of it**: *done*, *refused* with the reason in words, or *waiting for the admins’
-  approval*. A call that waits for the admins did not run: nothing asks them
-  ([Capabilities](./capabilities.md#connectors)). A call through a connection with a
+- **What came of it**: *done*, or *refused* with the reason in words. An older line can read
+  *waiting for the admins’ approval*: that call did not run. A call through a connection with a
   [limit](./capabilities.md#limits) reads *still running* until it ends.
 
 A refused line has a red frame. A critical line has an orange one and the mark *critical*.

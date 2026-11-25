@@ -1,7 +1,27 @@
 [
   {
+    "version": "v0.21.1",
+    "timestamp": 1795642273,
+    "commits": [
+      {
+        "id": "f91d434",
+        "message": "Work's chats are the team's Bot Server, and the studio's own chat engine goes (#755)",
+        "group": "Added",
+        "scope": "work",
+        "breaking": false
+      },
+      {
+        "id": "6d9040f",
+        "message": "Goose guides Home's setup with buttons, and the setup takes the page's width (#754)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.21.0",
-    "timestamp": 1795616445,
+    "timestamp": 1795616935,
     "commits": [
       {
         "id": "4f907e1",

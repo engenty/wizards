@@ -1,5 +1,5 @@
 import { FileQuestion, ShieldAlert } from "lucide-react";
-import { type ReactNode, type SVGProps, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { Navigate, NavLink, useParams } from "react-router";
 import { useFeature } from "../../lib/features";
 import { type Key, lang, t } from "../../lib/i18n";
@@ -14,47 +14,15 @@ import { type CriticalItem, useBellOpened, useWaiting } from "./waiting";
 
 /**
  * Work mode's places (behind `workMode`): Chats, which are the chats of the team's Bot Server
- * (wizards.bot) shown here, then the engenties, files, data and results of the space, empty in
- * this step, and the bell with what waits for the person.
+ * (wizards.bot) shown here, and the bell with what waits for the person.
  */
 
-export type WorkPlace = "chats" | "engenties" | "files" | "data" | "results" | "waiting";
+export type WorkPlace = "chats" | "waiting";
 
 export const WORK_PLACES: readonly { place: WorkPlace; to: string; label: Key }[] = [
   { place: "chats", to: "/work", label: "work.chats" },
-  { place: "engenties", to: "/work/engenties", label: "work.engenties" },
-  { place: "files", to: "/work/files", label: "work.files" },
-  { place: "data", to: "/work/data", label: "work.data" },
-  { place: "results", to: "/work/results", label: "work.results" },
   { place: "waiting", to: "/work/waiting", label: "work.waiting" },
 ];
-
-const EMPTY: Record<Exclude<WorkPlace, "chats">, Key> = {
-  engenties: "work.engentiesEmpty",
-  files: "work.filesEmpty",
-  data: "work.dataEmpty",
-  results: "work.resultsEmpty",
-  waiting: "work.waitingEmpty",
-};
-
-/** An engenty as a line glyph, with its one eye, beside the bar's other glyphs. */
-export function EngentyGlyph(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <path d="M12 3.2Q19 7.6 19 14q0 6.5-7 6.9Q5 20.5 5 14q0-6.4 7-10.8z" />
-      <circle cx="12" cy="12.6" r="2.2" />
-    </svg>
-  );
-}
 
 /** A page of one mode: in another mode it goes to that mode's start. */
 export function InMode({ mode, children }: { mode: Mode; children: ReactNode }) {
@@ -62,19 +30,13 @@ export function InMode({ mode, children }: { mode: Mode; children: ReactNode }) 
   return current === mode ? children : <Navigate to={MODE_HOME[current]} replace />;
 }
 
-/** `/work/:place?`: Chats without a place, else one of the others. */
+/** `/work/:place?`: Chats without a place, the bell at `waiting`; any other address leads to the chats. */
 export function WorkPage() {
   const { place } = useParams();
-  const wip = useFeature("workWip");
-  // The places past the chats come with `workWip`; without it their addresses lead to the chats.
-  const known = wip ? WORK_PLACES.find((p) => p.place === place && p.place !== "chats") : undefined;
-  if (place && !known) {
-    return <Navigate to="/work" replace />;
-  }
-  if (known?.place === "waiting") {
+  if (place === "waiting") {
     return <WaitingPlace />;
   }
-  return known ? <EmptyPlace place={known.place as keyof typeof EMPTY} /> : <ChatsPage />;
+  return place ? <Navigate to="/work" replace /> : <ChatsPage />;
 }
 
 /**
@@ -95,12 +57,6 @@ function ChatsPage() {
       </div>
     </div>
   );
-}
-
-function EmptyPlace({ place }: { place: keyof typeof EMPTY }) {
-  const label = WORK_PLACES.find((p) => p.place === place)?.label ?? "work.chats";
-  useCrumbs([{ label: t(label) }]);
-  return <Empty>{t(EMPTY[place])}</Empty>;
 }
 
 const item =
@@ -217,7 +173,7 @@ export function WorkRunPage() {
   ) : null;
 }
 
-/** Client mode: one placeholder until the client's view is built. */
+/** A place with nothing in it: one sentence. */
 function Empty({ children }: { children: ReactNode }) {
   return <p className="py-24 text-center text-[0.9375rem] text-ink-3">{children}</p>;
 }

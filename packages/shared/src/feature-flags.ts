@@ -111,13 +111,7 @@ export const FEATURES = {
     kind: "release",
     default: false,
     label: "Work mode",
-    hint: "The switch between Studio and Work in the app bar, and Work's chats. Client comes with the public page (`pages`).",
-  },
-  workWip: {
-    kind: "release",
-    default: false,
-    label: "Work – WiP",
-    hint: "Work's places that aren't built yet, in the app bar under the chats: engenties, files, data, results and the bell.",
+    hint: "The switch between Studio and Work in the app bar, and Work's places: the chats and the bell.",
   },
   modelTiers: {
     kind: "release",

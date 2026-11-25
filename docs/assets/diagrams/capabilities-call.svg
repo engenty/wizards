@@ -12,8 +12,8 @@
 <path d="M580,140 L580.0,166.0" class="d-line"/>
 <path class="d-box" d="M210,209 A75.0,9 0 0 1 360,209 V261 A75.0,9 0 0 1 210,261 Z"/><path class="d-box" d="M210,209 A75.0,9 0 0 0 360,209"/>
 <path d="M285,158 L285.0,194.0" class="d-line"/>
-<text x="100.0" y="105.0" class="d-t" text-anchor="middle">A wizard, a chat</text>
-<text x="100.0" y="123.0" class="d-t" text-anchor="middle">or Goose</text>
+<text x="100.0" y="105.0" class="d-t" text-anchor="middle">A wizard, Goose</text>
+<text x="100.0" y="123.0" class="d-t" text-anchor="middle">or a connected app</text>
 <text x="100.0" y="139.5" class="d-s" text-anchor="middle">calls a connection</text>
 <text x="285.0" y="106.0" class="d-t" text-anchor="middle">The rule</text>
 <text x="285.0" y="122.5" class="d-s" text-anchor="middle">for Read, Change,</text>

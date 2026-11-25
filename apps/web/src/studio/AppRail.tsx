@@ -2,9 +2,7 @@ import {
   Bell,
   Check,
   ChevronsUpDown,
-  Database,
   Ellipsis,
-  Folder,
   Home,
   Inbox,
   Info,
@@ -58,7 +56,7 @@ import { SpaceFace, SpaceMenu, UserMenu, useDismiss, useOneSpace } from "./AppFr
 import { EngentyMenu } from "./EngentyMenu";
 import { ModeSwitch } from "./ModeSwitch";
 import { type PrimaryAction, useCurrentPrimaryAction } from "./primary-action";
-import { EngentyGlyph, WORK_PLACES, type WorkPlace } from "./work/WorkPages";
+import { WORK_PLACES, type WorkPlace } from "./work/WorkPages";
 import { useWaiting } from "./work/waiting";
 
 const AboutDialog = lazy(() =>
@@ -340,19 +338,15 @@ function usePlace():
   return pathname === "/space" || pathname.startsWith("/space/") ? "space" : null;
 }
 
-const WORK_ICON: Record<WorkPlace, LucideIcon | typeof EngentyGlyph> = {
+const WORK_ICON: Record<WorkPlace, LucideIcon> = {
   chats: MessageSquare,
-  engenties: EngentyGlyph,
-  files: Folder,
-  data: Database,
-  results: Inbox,
   waiting: Bell,
 };
 
 /**
- * Work's places in the bar: Chats, Engenties, Files, Data, Results, then the bell with what waits
- * for the person (the runs that need them, and for an admin the broker's critical lines they have
- * not seen; its count shows from one on).
+ * Work's places in the bar: Chats, then the bell with what waits for the person (the runs that
+ * need them, and for an admin the broker's critical lines they have not seen; its count shows
+ * from one on).
  */
 function WorkRail({
   labels,
@@ -365,9 +359,6 @@ function WorkRail({
 }) {
   const bell = useWaiting().data;
   const waiting = (bell?.runs?.needs.length ?? 0) + (bell?.unseen ?? 0);
-  // The places past the chats aren't built yet: behind `workWip`.
-  const wip = useFeature("workWip");
-  const places = wip ? WORK_PLACES : WORK_PLACES.filter((p) => p.place === "chats");
   return (
     <nav
       className={cn(
@@ -376,7 +367,7 @@ function WorkRail({
         horizontal ? "ml-1.5 flex-row gap-1.5 overflow-x-auto" : "mt-2 flex-col gap-2",
       )}
     >
-      {places.map(({ place, to, label }) => {
+      {WORK_PLACES.map(({ place, to, label }) => {
         const Icon = WORK_ICON[place];
         return (
           <NavLink

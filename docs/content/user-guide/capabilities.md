@@ -1,7 +1,7 @@
 ---
 title: Capabilities
 description: One place for what your wizards and Goose may use – skills, the space’s connections to other services, the audit of every call, who may read, change and run what, and a search for more.
-version: 0.21.0
+version: 0.21.1
 ---
 
 **Capabilities** in the app bar, after Resources, holds what a space’s wizards and Goose may
@@ -101,21 +101,22 @@ narrow it: once the connection is for members only, the plugin can’t reach it 
 a wizard. What the plugin does by itself, such as keeping a calendar in step, goes on.
 
 **What it may do.** One rule for each kind of action: Read, Change, Delete and Send. Each rule is
-Allowed, With approval or Never. A new connection reads freely, asks for approval before a change
-or a send, and never deletes.
+Allowed or Never. Where each person signs in, a rule can also be With approval. A new connection
+reads freely and never deletes. Where each person signs in, it asks for approval before a change
+or a send. As the space, it changes and sends nothing until an admin sets the rule to Allowed.
 
 ![A call to a connection meets its rule: Allowed runs, With approval waits for a yes, Never doesn’t run, and the Log keeps every call](../../assets/diagrams/capabilities-call.svg)
 
 Where each person signs in, With approval asks that person: in the run, or on a card in Goose’s
 chat. A connected app such as Claude can’t ask you, so the call is refused there.
 
-On a connection that signs in as the space, With approval leaves the decision to the space’s
-admins. Nothing asks them, so the call doesn’t run. The Audit lists it as *waiting for the
-admins’ approval*.
+A connection that signs in as the space has no With approval, because nobody would be asked
+there.
 
-A fixed step whose rule is With approval fails in a run for that reason. The editor warns you on
-such a step: it names the connection and the rule, and leads to the connection’s page. An admin sets the rule to Allowed there. A member asks an admin. The warning
-is no error: the wizard still saves and publishes.
+A fixed step whose rule is Never fails in a run. The editor warns you on such a step: it names
+the connection and the rule, and leads to the connection’s page. An admin sets the rule to
+Allowed there. A member asks an admin. The warning is no error: the wizard still saves and
+publishes.
 
 **What a guest’s run may send.** A guest starts a wizard from its link, and nobody of your team
 watches the run. So the rules above are not all that counts for it:
@@ -147,8 +148,8 @@ its rules:
 
 An empty field means no limit, and a new connection has none. A limit holds for everyone: admins,
 members, guests, AI steps, fixed steps, Goose and what a plugin does by itself. A call counts once
-it reaches the service, even when the service then fails. A call that a rule refused, or that
-waits for approval, doesn’t count.
+it reaches the service, even when the service then fails. A call that a rule refused doesn’t
+count.
 
 Once a limit is reached, the connection refuses further calls, in that run or until the next day.
 The [Audit](./protocol.md) shows each refused call with its reason, and the admins hear of the
@@ -284,9 +285,7 @@ space. There is no switch for one person.
 | Rights | See and change them | No | No |
 | Own sign-ins | In their menu | In their menu | In their menu |
 
-Approvals always go to the space’s admins, never to a member. On your computer you are the only
-person, so the rule doesn’t come up. [Working together](./together.md#members-in-the-studio) says
-more about members.
+[Working together](./together.md#members-in-the-studio) says more about members.
 
 ## Switch it off
 

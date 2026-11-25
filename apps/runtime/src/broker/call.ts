@@ -60,10 +60,8 @@ import { channelOf, guestSendCheck, postsToChannel, recipientsOf } from "./send.
  * and where, reads the account's secret (the only reader), decides allow / ask / deny, runs the
  * action and writes one line of the log. A connection of the space (A5 of
  * docs/plans/capabilities.md) decides by its audience and rules; a wizard's own sign-in by the
- * rules the code had before. „Mit Freigabe“ on a connection that signs in as the space is an
- * `ask` of the space's admins: the broker answers `needs_approval` and the caller holds the call
- * (a Work chat: `approval`, the bell); once an admin approved it, the same call runs with
- * `ctx.approved` (A7).
+ * rules the code had before. „Mit Freigabe“ asks the person who signed in, so only a connection
+ * in which each person signs in has it; one that signs in as the space allows or never does.
  *
  * Two things are asked before any of it, on every call (docs/plans/capabilities-next.md, 2a):
  * whether the call's run is over (`over.ts`: stopping a run is the revoke), and whether a
@@ -165,8 +163,6 @@ export interface BrokerContext {
   allowed?: Set<string>;
   /** The person asked for exactly this themselves (a share job's form): a write runs without a further ask. */
   confirmed?: boolean;
-  /** An admin of the space approved exactly this call (a held call, decided): „Mit Freigabe“ is met. */
-  approved?: boolean;
   /** Which call this is, so that an action that is no read happens once (broker/effect.ts). */
   effect?: EffectCall;
 }
@@ -186,9 +182,8 @@ export interface BrokerCallInput<T = unknown> {
 
 /**
  * Why a call did not run, one of `BROKER_REFUSALS` (shared/connectors), so the Protokoll page has
- * words for each: `needs_approval` – the connection's rule says „Mit Freigabe“, the call waits for
- * an admin of the space and the caller holds it; `ai_step_writes` – an AI step wanted to write as
- * the space, which only a fixed `call` step does (A4); `not_allowed_recipient` – a guest's send to
+ * words for each: `ai_step_writes` – an AI step wanted to write as the space, which only a fixed
+ * `call` step does (A4); `not_allowed_recipient` – a guest's send to
  * an address that is neither the run's own nor in the space's domains; `channel_not_fixed` – a
  * guest's post to a channel its published step does not fix; `run_limit` – a guest's run has sent
  * its mails and posts; `day_limit` – the wizard's guests have sent today's; `calls_per_run` – the
@@ -218,8 +213,6 @@ export interface Decision {
   reason: string;
   /** A deny's refusal where it is more than "denied". */
   refused?: Refusal;
-  /** An ask of the space's admins („Mit Freigabe“ as the space), not of the person calling. */
-  admins?: boolean;
 }
 
 /**
@@ -295,11 +288,11 @@ export function inAudience(audience: SpaceConnectionRow["audience"], who: Who): 
  *
  * A connection of the space: a pause is asked first, for every caller and before a plugin's own
  * job: nobody reaches a connection an admin paused. Outside its audience nothing runs, nor an
- * action the connection is not for. Its rules say per kind of action Erlaubt, Mit Freigabe or Nie. On a connection that
- * signs in as the space an AI step only reads: a write there comes from a fixed `call` step (the
- * wizard's fields, no model) or a Work chat's confirmed action, and never asks the person running;
- * „Mit Freigabe“ there asks the space's admins (`admins`). Where each person signs in, „Mit
- * Freigabe“ asks that person. A plugin's own job on a connection it set up runs as before.
+ * action the connection is not for. Its rules say per kind of action Erlaubt or Nie, and where
+ * each person signs in also Mit Freigabe, which asks that person. On a connection that signs in
+ * as the space an AI step only reads: a write there comes from a fixed `call` step (the wizard's
+ * fields, no model) and never asks the person running. A plugin's own job on a connection it set
+ * up runs as before.
  *
  * A wizard's need on a person's own account, in a space that has connections of its service: the
  * space's rules, pause and limits count (`space`), not its audience. Else reads run, writes and
@@ -367,13 +360,6 @@ export function decide(call: {
     }
     const rule = row.rules[kind] ?? "deny";
     const named = `rules.${kind}`;
-    if (rule === "deny") {
-      return {
-        outcome: "deny",
-        rule: named,
-        reason: `The connection's rule: ${VERB[kind]} never.`,
-      };
-    }
     if (rule === "allow") {
       return {
         outcome: "allow",
@@ -381,7 +367,8 @@ export function decide(call: {
         reason: `The connection's rule: ${VERB[kind]} allowed.`,
       };
     }
-    if (row.signIn === "person") {
+    // Only the person who signed in can be asked: as the space, anything but Erlaubt is Nie.
+    if (rule === "ask" && row.signIn === "person") {
       return {
         outcome: "ask",
         rule: named,
@@ -389,10 +376,9 @@ export function decide(call: {
       };
     }
     return {
-      outcome: "ask",
+      outcome: "deny",
       rule: named,
-      admins: true,
-      reason: `The connection's rule: ${VERB[kind]} asks the space's admins.`,
+      reason: `The connection's rule: ${VERB[kind]} never.`,
     };
   }
   if (call.space) {
@@ -524,7 +510,7 @@ function decideRuntime(connection: BrokerConnection, kind: ActionKind): Decision
 /**
  * Whether a call in a run comes from an AI step: a model's tool call, made as the person running
  * (a guest, a person, an admin), or a plugin tool it called. A fixed step calls as `step`; a
- * plugin's own job and a Work chat are no run.
+ * plugin's own job is no run.
  */
 function aiStep(who: Who, where: Where): boolean {
   return !!where.runId && who.kind !== "step";
@@ -794,15 +780,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     await sayUnsure();
     return { ok: false, refused: "may_have_happened", reason: MAY_HAVE_HAPPENED };
   }
-  if (decision.outcome === "ask" && decision.admins) {
-    // „Mit Freigabe“ as the space: the person's own yes is not enough; an admin's is.
-    if (ctx.approved) {
-      decision.reason = "An admin of the space approved it.";
-    } else {
-      await line(kind, "ask", rule, decision.reason, "needs_approval");
-      return { ok: false, refused: "needs_approval", reason: decision.reason };
-    }
-  } else if (again) {
+  if (again) {
     decision.reason = "The person allowed it again.";
   } else if (decision.outcome === "ask") {
     const key = `${connectionId}:${call.action.id}`;

@@ -1,7 +1,7 @@
 ---
 title: Work mode
 description: The Studio · Work · Client switch, Work’s chats on your team’s Bot Server, what waits for you, and what Client shows.
-version: 0.21.0
+version: 0.21.1
 ---
 
 Work mode is where your team works: you chat with the agents of your team’s Bot Server and
@@ -16,8 +16,7 @@ workMode=on
 
 Without it, the studio looks as before: Studio alone, with no switch.
 
-Client comes with the public page, so it shows only where `pages=on` is set as well. Work’s
-places past the chats aren’t finished. They show with `workWip=on`.
+Client comes with the public page, so it shows only where `pages=on` is set as well.
 
 ## Studio, Work and Client
 
@@ -40,8 +39,7 @@ a space that doesn’t let them in lands in Work. The studio remembers your mode
 
 ## Work’s places
 
-Work’s app bar has Chats. With `workWip=on` it also has Engenties, Files, Data, Results and
-**Waiting for you**. Engenties, Files, Data and Results show nothing yet.
+Work’s app bar has Chats and **Waiting for you**.
 
 ## Chats
 
@@ -58,6 +56,15 @@ iPhone.
 
 For now, the owners and admins of a team chat on its Bot Server. In an organization of one, the
 Bot Server is your own, and its page asks for its pairing code the first time.
+
+The chat knows the space that is open in the studio’s top bar, and it acts there as you. Ask what
+the space knows about a topic, and the answer comes from that space’s Resources. Tell it to run a
+wizard, and it asks you once before the run starts. It reads and runs only what you may read and
+run in the space. Switch the space, and the chat works in the other one from your next message.
+
+You don’t connect anything for this: the Bot Server knows your team’s studio. It is your team’s
+own, so it keeps working where your organization keeps apps on members’ subscriptions out of its
+spaces.
 
 Chats need the cloud: a studio on your computer that isn’t connected to an account has no Bot
 Server to show.

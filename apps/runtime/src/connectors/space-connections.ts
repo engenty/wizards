@@ -5,9 +5,10 @@ import {
   CONNECTION_OUTCOMES,
   CONNECTION_SIGN_INS,
   type ConnectionRules,
-  DEFAULT_CONNECTION_RULES,
   type MailboxView,
+  rulesForSignIn,
   type SpaceConnectionView,
+  startConnectionRules,
 } from "@engenty/wizards-shared/connectors";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { featureOn } from "@engenty/wizards-shared/features";
@@ -81,7 +82,8 @@ export const newConnectionSchema = z.object({
   signIn: z.enum(CONNECTION_SIGN_INS),
   /** Left out: the members, and the admins on a connector that came from a pasted address. */
   audience: z.enum(CONNECTION_AUDIENCES).optional(),
-  rules: rulesSchema.default(DEFAULT_CONNECTION_RULES),
+  /** Left out: what a connection of this sign-in starts with. „Mit Freigabe“ as the space is kept as Nie. */
+  rules: rulesSchema.optional(),
   /** The connector's actions it is for; left out: every action. */
   actions: z.array(z.string().max(200)).max(200).default([]),
 });
@@ -355,7 +357,7 @@ export async function createSpaceConnection(
       signIn: input.signIn,
       // A server nobody checked reaches the AI with its own texts: the admins use it first.
       audience: input.audience ?? (found.fromAddress ? "admins" : "members"),
-      rules: input.rules,
+      rules: rulesForSignIn(input.rules ?? startConnectionRules(input.signIn), input.signIn),
       actions: knownActions(found.connector, input.actions),
       setUpBy: userId,
     })
@@ -440,6 +442,11 @@ export async function updateSpaceConnection(
   if (switched && !(row.signIn === "space" && (await connectorOfRow(row)).stream)) {
     throw new ServiceError("invalid", note("connectionNoMailbox"));
   }
+  // A connection that signs in as the space keeps „Mit Freigabe“ as Nie: nobody would be asked.
+  const rules =
+    patch.rules !== undefined || signInChanged
+      ? rulesForSignIn(patch.rules ?? row.rules, patch.signIn ?? row.signIn)
+      : undefined;
   const [updated] = await db
     .update(schema.spaceConnection)
     .set({
@@ -447,7 +454,7 @@ export async function updateSpaceConnection(
       // The space's own sign-in goes with the way it leaves; a person's has none on the row.
       ...(signInChanged ? { signIn: patch.signIn, secret: null, label: null } : {}),
       ...(patch.audience !== undefined ? { audience: patch.audience } : {}),
-      ...(patch.rules !== undefined ? { rules: patch.rules } : {}),
+      ...(rules !== undefined ? { rules } : {}),
       ...(actions !== undefined ? { actions } : {}),
       ...(patch.callsPerRun !== undefined ? { callsPerRun: patch.callsPerRun } : {}),
       ...(patch.callsPerDay !== undefined ? { callsPerDay: patch.callsPerDay } : {}),
@@ -471,7 +478,7 @@ export async function updateSpaceConnection(
   // How it signs in, who may use it, what each kind of action may do and how many calls it takes:
   // a change there is heard of.
   const rulesChanged =
-    patch.rules !== undefined && JSON.stringify(patch.rules) !== JSON.stringify(row.rules);
+    rules !== undefined && CONNECTION_ACTION_KINDS.some((kind) => rules[kind] !== row.rules[kind]);
   const audienceChanged = patch.audience !== undefined && patch.audience !== row.audience;
   const limits = changedLimits(row, updated);
   if (rulesChanged || audienceChanged || signInChanged || limits || switched) {

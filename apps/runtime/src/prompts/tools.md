@@ -290,9 +290,6 @@ This action was interrupted before and may have happened already in ${service}. 
 <!-- section: note.connector_refused -->
 The rules of ${service} do not allow this action here. Do not try it again or another way; say in your result that it was not done.
 
-<!-- section: note.connector_needs_approval -->
-This action on ${service} needs the approval of the space's admins, which cannot be asked for here. Do not try it again or another way; say in your result that it waits for them.
-
 <!-- section: note.connector_paused -->
 ${service} is paused: an admin of the space stopped all use of it for now. Do not try it again or another way; say in your result that it waits until the connection is resumed.
 

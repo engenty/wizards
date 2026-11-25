@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULT_CONNECTION_RULES } from "@engenty/wizards-shared/connectors";
+import { startConnectionRules } from "@engenty/wizards-shared/connectors";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -426,18 +426,18 @@ describe("a connection's limits", () => {
     });
   });
 
-  it("gives a place only to a call that reaches the service: a failed one took it, a refused or held one did not", async () => {
-    const id = await spaceConnection("Nur was läuft", { write: "ask", send: "deny" });
+  it("gives a place only to a call that reaches the service: a failed one took it, a refused one did not", async () => {
+    const id = await spaceConnection("Nur was läuft", { write: "deny", send: "deny" });
     await setLimits(id, { callsPerDay: 3 });
     const connection = await held(id);
     const chat = { who: member, where: { chatId: "chat-m", spaceId: space } };
-    // „Nie“, „Mit Freigabe“ (held for the admins) and an action the connector has not: no place.
+    // „Nie“ and an action the connector has not: no place.
     expect(await call(connection, { ...chat, action: "send_mail" })).toMatchObject({ refused: "denied" });
     expect(
       await inTenant(() =>
         broker.brokerCall({ ...chat, connection, action: { id: "create_contact" }, input: {} }),
       ),
-    ).toMatchObject({ refused: "needs_approval" });
+    ).toMatchObject({ refused: "denied" });
     expect(await call(connection, { ...chat, action: "no_such_action" })).toMatchObject({
       refused: "no_action",
     });
@@ -451,20 +451,8 @@ describe("a connection's limits", () => {
     during = async () => {};
     expect((await logOf(id)).at(-1)).toMatchObject({ outcome: "allow", result: "TypeError" });
     expect((await call(connection, chat)).ok).toBe(true);
-    // An admin approved the held call: it runs now, and takes the last place.
-    expect(
-      (
-        await inTenant(() =>
-          broker.brokerCall({
-            ...chat,
-            connection,
-            action: { id: "create_contact" },
-            input: {},
-            ctx: { approved: true },
-          }),
-        )
-      ).ok,
-    ).toBe(true);
+    // The next one takes the last place.
+    expect((await call(connection, chat)).ok).toBe(true);
     expect(await call(connection, chat)).toMatchObject({ refused: "calls_per_day" });
     expect((await viewOf(await appAs("owner"), id)).callsToday).toBe(3);
   });
@@ -662,26 +650,26 @@ describe("the editor's warning for a fixed step", () => {
     return inTenant(() => wizards.stepWarnings(space, def as never));
   };
 
-  it("warns where the rule is „Mit Freigabe“, and reads the rule as it is now", async () => {
-    // A new connection starts with Ändern and Senden on „Mit Freigabe“.
+  it("warns where the rule is „Nie“, and reads the rule as it is now", async () => {
+    // A new connection that signs in as the space starts with Ändern and Senden on „Nie“.
     const row = await inTenant(() =>
       service.createSpaceConnection("user-a", space, {
         connectorId: "hubspot",
         name: "CRM",
         signIn: "space",
-        rules: DEFAULT_CONNECTION_RULES,
+        rules: startConnectionRules("space"),
         actions: [],
       }),
     );
     expect(await warningsOf(row.id)).toEqual([
       {
         stepId: "save",
-        kind: "needs_approval",
+        kind: "rule_never",
         connection: { id: row.id, name: "CRM" },
         action: { id: "create_contact", kind: "write" },
       },
     ]);
-    // A read never waits; a send does.
+    // A read is allowed; a send is not.
     expect(
       await warningsOf(row.id, (def) => {
         def.steps[2].call = { connection: "crm", action: "list_contacts", input: {} } as never;
@@ -695,17 +683,17 @@ describe("the editor's warning for a fixed step", () => {
 
     await inTenant(() =>
       service.updateSpaceConnection("user-a", row.id, {
-        rules: { read: "allow", write: "allow", destructive: "deny", send: "ask" },
+        rules: { read: "allow", write: "allow", destructive: "deny", send: "deny" },
       }),
     );
     expect(await warningsOf(row.id)).toEqual([]);
-    // „Nie“ is another matter, and so is a pause: the step is refused there, not held.
+    // Back on „Nie“ it warns again.
     await inTenant(() =>
       service.updateSpaceConnection("user-a", row.id, {
-        rules: { read: "allow", write: "deny", destructive: "deny", send: "ask" },
+        rules: { read: "allow", write: "deny", destructive: "deny", send: "deny" },
       }),
     );
-    expect(await warningsOf(row.id)).toEqual([]);
+    expect(await warningsOf(row.id)).toMatchObject([{ stepId: "save", kind: "rule_never" }]);
   });
 
   it("never warns for a wizard's own connection, and is no issue: the draft saves and publishes", async () => {
@@ -720,7 +708,7 @@ describe("the editor's warning for a fixed step", () => {
         connectorId: "hubspot",
         name: "Bestellungen",
         signIn: "space",
-        rules: DEFAULT_CONNECTION_RULES,
+        rules: startConnectionRules("space"),
         actions: [],
       }),
     );

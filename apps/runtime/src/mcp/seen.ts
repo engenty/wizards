@@ -30,6 +30,15 @@ const CLIENT_NAMES: [id: string, name: RegExp][] = [
   ["lm-studio", /lm[- ]?studio/i],
 ];
 
+/**
+ * The client of the tokens the Manage-App issues for a team's Bot Server (wizards.bot), one per
+ * person the server acts for. It belongs to the team: it is none of the AI apps people connect.
+ */
+export const HOME_CLIENT = "wizards-bot-home";
+
+/** The Bot Server as people know it: in the log of calls and among the apps seen. */
+export const HOME_NAME = "wizards.bot";
+
 /** The apps a client's name stands for; mostly one. */
 export function appIdsOf(client: string): string[] {
   return CLIENT_NAMES.filter(([, name]) => name.test(client)).map(([id]) => id);
@@ -66,7 +75,7 @@ export async function noteRequest(
   if (given) {
     names.set(signIn, given);
   }
-  const apps = appIdsOf(names.get(signIn) ?? client);
+  const apps = appIdsOf(clientNameOf(signIn, client));
   if (!apps.length) {
     return;
   }
@@ -102,9 +111,12 @@ export async function seenApps(tenantId: string): Promise<Record<string, Seen>> 
   );
 }
 
-/** The name a sign-in's client gave on `initialize`, else the one its sign-in carries. */
+/**
+ * The name a sign-in's client gave on `initialize`, else the one its sign-in carries. The team's
+ * Bot Server has one name, whatever its MCP client calls itself.
+ */
 export function clientNameOf(signIn: string, client: string): string {
-  return names.get(signIn) ?? client;
+  return signIn === HOME_CLIENT ? HOME_NAME : (names.get(signIn) ?? client);
 }
 
 /**

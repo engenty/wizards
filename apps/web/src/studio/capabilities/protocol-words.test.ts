@@ -3,6 +3,9 @@ import {
   CONNECTION_ACTION_KINDS,
   CONNECTION_OUTCOMES,
   CRITICAL_KINDS,
+  connectionOutcomes,
+  rulesForSignIn,
+  startConnectionRules,
 } from "@engenty/wizards-shared/connectors";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { type Key, lang, setLang, t } from "../../lib/i18n";
@@ -103,7 +106,6 @@ describe.each(["de", "en"] as const)("the Protokoll's words in %s", (language) =
             outcome,
             rule: outcome === "deny" ? "audience" : `rules.${kind}`,
             action: { id: "x", kind, known: true },
-            admins: outcome === "ask" ? true : undefined,
           },
           names,
         );
@@ -120,6 +122,39 @@ describe.each(["de", "en"] as const)("the Protokoll's words in %s", (language) =
     const condition = answerCondition({ fixedChannel: true });
     expect(condition).toMatch(/Kanal|channel/);
     expect(condition).not.toMatch(/protocol\./);
+  });
+});
+
+describe("a connection's rules by how it signs in", () => {
+  it("offers „Mit Freigabe“ only where each person signs in", () => {
+    expect(connectionOutcomes("person")).toEqual(["allow", "ask", "deny"]);
+    expect(connectionOutcomes("space")).toEqual(["allow", "deny"]);
+  });
+
+  it("starts a change and a mail on „Mit Freigabe“ for a person, on „Nie“ as the space", () => {
+    expect(startConnectionRules("person")).toEqual({
+      read: "allow",
+      write: "ask",
+      destructive: "deny",
+      send: "ask",
+    });
+    expect(startConnectionRules("space")).toEqual({
+      read: "allow",
+      write: "deny",
+      destructive: "deny",
+      send: "deny",
+    });
+  });
+
+  it("keeps „Mit Freigabe“ as „Nie“ as the space, and every rule where each person signs in", () => {
+    const rules = { read: "allow", write: "ask", destructive: "ask", send: "allow" } as const;
+    expect(rulesForSignIn(rules, "person")).toEqual(rules);
+    expect(rulesForSignIn(rules, "space")).toEqual({
+      read: "allow",
+      write: "deny",
+      destructive: "deny",
+      send: "allow",
+    });
   });
 });
 
@@ -142,12 +177,11 @@ describe("plain words", () => {
         {
           outcome: "ask",
           rule: "rules.send",
-          admins: true,
           action: { id: "x", kind: "send", known: true },
         },
         { who: "Julia", connection: "Gmail" },
       ),
-    ).toBe("Julia darf in Gmail senden – mit Freigabe durch die Admins.");
+    ).toBe("Julia darf in Gmail senden – wenn die Person zustimmt.");
   });
 
   it("in German: a run that was stopped, a connection that pauses", () => {
