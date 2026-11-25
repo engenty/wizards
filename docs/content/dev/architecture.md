@@ -254,9 +254,10 @@ The runtime only finds the server and signs the person in (`routes/work.ts`):
 | Sign in | Runtime → Manage-App | `POST /v1/tenants/:id/home/pass`: a link with a pass for this person, good once and for five minutes |
 | Show | Studio | The link in a frame. The server’s page pairs the browser as the person and keeps its own token |
 
-The Bot Server allows the frame only for the studio the Manage-App names for its team. Owners and
-admins get a pass. Members and clients have no chats on a Bot Server yet. A runtime without a
-Manage-App has no Bot Server to show.
+The Bot Server allows the frame only for the studio the Manage-App names for its team. Everyone
+of the team gets a pass and chats as themselves: owners and admins in the team’s chats, a member
+in chats of their own. A client has no chats on a Bot Server. A runtime without a Manage-App has
+no Bot Server to show.
 
 The chat knows the space open in the studio and acts there as the person:
 

@@ -54,8 +54,10 @@ iPhone.
 | Doesn’t exist yet | An owner or admin sees **Set up the Bot Server**, which leads to the account pages. A member is told to ask them |
 | Is being set up or is stopped | A note that says so |
 
-For now, the owners and admins of a team chat on its Bot Server. In an organization of one, the
-Bot Server is your own, and its page asks for its pairing code the first time.
+Everyone of the team chats on its Bot Server, each as themselves. An owner or admin shares the
+team’s chats with the other owners and admins. A member has a chat of their own with each of the
+team’s agents, which nobody else reads. In an organization of one, the Bot Server is your own, and
+its page asks for its pairing code the first time.
 
 The chat knows the space that is open in the studio’s top bar, and it acts there as you. Ask what
 the space knows about a topic, and the answer comes from that space’s Resources. Tell it to run a

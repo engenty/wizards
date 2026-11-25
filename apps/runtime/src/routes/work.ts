@@ -9,6 +9,9 @@ import { say } from "./lang.js";
 
 type Vars = { Variables: { user: SessionUser } };
 
+/** Who chats on the team's Bot Server: its owners, admins and members. A client has no chats there. */
+const chats = (role: SessionUser["role"]) => role !== "client";
+
 /**
  * Work (behind `workMode`): its chats are the chats of the team's Bot Server (wizards.bot), whose
  * own page the studio shows. The runtime says where that server is and fetches the pass that
@@ -21,20 +24,25 @@ export const workRoutes = new Hono<Vars>()
     }
     await next();
   })
-  // Where the team's Bot Server is. `may`: the person runs it, so they chat there; a member's
-  // and a client's chats on it are not built. A runtime without a Manage-App has none.
+  // Where the team's Bot Server is. `may`: the person chats there, which everyone of the team
+  // does but a client. `runs`: they are an owner or admin of it. A runtime without a
+  // Manage-App has none.
   .get("/home", async (c) => {
     const user = c.get("user");
     if (!managed) {
       return c.json({ state: "unmanaged" });
     }
-    return c.json({ ...(await teamHome(user.tenantId, user.id)), may: isAdminRole(user.role) });
+    return c.json({
+      ...(await teamHome(user.tenantId, user.id)),
+      may: chats(user.role),
+      runs: isAdminRole(user.role),
+    });
   })
   // The address the studio shows: the server's page, with the pass that pairs this browser as
   // the person. A person's own server takes no pass and asks for its code itself.
   .post("/home/pass", async (c) => {
     const user = c.get("user");
-    if (!(managed && isAdminRole(user.role))) {
+    if (!(managed && chats(user.role))) {
       return c.json({ error: say(c, "notFound"), code: "not_found" }, 404);
     }
     try {

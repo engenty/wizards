@@ -886,8 +886,7 @@ const de: Record<Key, Line> = {
   "work.home.making": "Der Bot Server wird eingerichtet. Das dauert etwa eine Minute.",
   "work.home.stopped": "Der Bot Server läuft gerade nicht. Die Chats sind da, sobald er läuft.",
   "work.home.manage": "Bot Server öffnen",
-  "work.home.adminsOnly":
-    "Auf dem Bot Server deines Teams chatten derzeit Inhaber:innen und Admins.",
+  "work.home.noChats": "Kund:innen haben auf dem Bot Server des Teams keine Chats.",
   "work.home.unmanaged":
     "Die Chats laufen auf dem Bot Server eines Teams. Dieses Studio hat keinen.",
   "work.waiting.runs": "Läufe",
@@ -5801,7 +5800,7 @@ const en = {
   "work.home.making": "The Bot Server is being set up. This takes about a minute.",
   "work.home.stopped": "The Bot Server isn’t running. The chats are back once it runs.",
   "work.home.manage": "Open the Bot Server",
-  "work.home.adminsOnly": "For now, owners and admins chat on your team’s Bot Server.",
+  "work.home.noChats": "Clients have no chats on the team’s Bot Server.",
   "work.home.unmanaged": "The chats run on a team’s Bot Server. This studio has none.",
   "work.waiting.runs": "Runs",
   "shared.emptyTitle": "A page for your wizards",
