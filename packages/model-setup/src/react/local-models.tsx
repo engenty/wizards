@@ -48,7 +48,7 @@ function Chip({ children, tone }: { children: ReactNode; tone?: "done" }) {
   return (
     <span
       className={cn(
-        "inline-flex h-5 items-center rounded-full px-2 text-[0.6875rem]",
+        "inline-flex min-h-5 items-center rounded-full px-2 py-[3px] text-[0.6875rem] leading-tight",
         tone === "done" ? "bg-moss-tint text-moss" : "bg-paper-2 text-ink-3",
       )}
     >
@@ -278,7 +278,7 @@ export function LocalModels({
                   </>
                 }
               >
-                <span className="truncate font-mono text-[0.8125rem]">{m.name}</span>
+                <span className="break-all font-mono text-[0.8125rem]">{m.name}</span>
                 <span className="flex flex-wrap gap-1">
                   {job ? null : m.jobs.map((j) => <Chip key={j}>{t(JOB_LABEL[j])}</Chip>)}
                   <Chip>{t("models.local.size", { size: gb(m.size) })}</Chip>
@@ -355,7 +355,7 @@ export function LocalModels({
                 }
               >
                 <span className="flex flex-wrap items-center gap-2">
-                  <span className="truncate font-mono text-[0.8125rem]">{m.name}</span>
+                  <span className="break-all font-mono text-[0.8125rem]">{m.name}</span>
                   {suggested.has(m.name) ? (
                     <Chip tone="done">{t("models.local.suggested")}</Chip>
                   ) : null}
