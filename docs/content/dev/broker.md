@@ -1,7 +1,7 @@
 ---
 title: The broker
 description: The one path every connector call takes in engenty wizards – who calls, what decides, what a run may reach, what is logged and heard, the RWX rules and the routes the studio uses.
-version: 0.21.0
+version: 0.21.1
 ---
 
 Every call a wizard step, Goose, a share target, a plugin or an outside client makes to a
@@ -22,7 +22,7 @@ exports comes from `apps/runtime/src/broker/index.ts`. The words the studio shar
 | Connection | A space’s account at a service (`space_connection`), set up by the space’s admins. It signs in as the space or as each person |
 | A wizard’s own connection | A `connections` entry of a wizard definition. The person running the wizard signs in during the run (`store_secret`) |
 | Grant | What a run may reach outside, fixed when the run is created (`run.grant`) |
-| Approval | An admin’s yes, which „Mit Freigabe“ (With approval) asks for on a connection that signs in as the space. No caller collects one, so such a call is refused with `needs_approval` |
+| Approval | The yes of the person who signed in, which „Mit Freigabe“ (With approval) asks for. Only a connection in which each person signs in has that rule. One that signs in as the space has nobody to ask: its rules are *Erlaubt* or *Nie* |
 | Critical | A log row someone should hear of: one of `CRITICAL_KINDS` |
 | RWX rule | One row of a space’s `subject × resource × r w x` table, behind the `broker` switch |
 | Guest, member, admin | A guest runs a wizard from its link and has no role. A member or an admin (the owner counts as one) is signed in to the organization |
@@ -139,8 +139,8 @@ admin, a member, a guest, an AI step, a fixed step, Goose, a plugin’s own job.
 connection has none.
 
 - **What counts.** A call the broker lets through to the service, whatever comes of it: one that
-  fails counts, and one still under way. A call that is refused, one that waits for an approval
-  and a changed rule count for nothing. `counted()` in `broker/log.ts` says so in one place, from
+  fails counts, and one still under way. A call that is refused and a changed rule count for
+  nothing. `counted()` in `broker/log.ts` says so in one place, from
   the lines of `broker_log`: there is no counter beside the log.
 - **Per run** counts the lines of that connection with the call’s `run_id`. A call with no run
   (Goose, an outside client, a plugin’s job) is bound by the day only.
@@ -181,9 +181,11 @@ admins `admins: true`. The checks run in this order:
    - a change, delete or send by an AI step on a connection that signs in as the space: deny,
      `ai_step_writes`. In a run only a fixed `call` step writes there. A call outside a run, such
      as an outside client’s `connection_call`, is no AI step: the rule below decides it;
-   - otherwise the connection’s rule for the kind, `rules.<kind>`: *deny*, *allow*, or *ask*. An
-     ask goes to the person where each person signs in, and to the space’s admins where the space
-     signs in.
+   - otherwise the connection’s rule for the kind, `rules.<kind>`: *deny*, *allow*, or, where
+     each person signs in, *ask*, which goes to that person. Where the space signs in there is
+     nobody to ask, so anything but *allow* is a deny (`connectionOutcomes` and `rulesForSignIn`
+     in `packages/shared/src/connectors.ts`; a new connection starts with
+     `startConnectionRules`).
 3. **A wizard’s own connection:** deleting always asks (`destructive`). Otherwise the wizard’s
    `connection.policy` for the action decides (`policy.<action>`). Without one, reading is
    allowed (`read`) and anything else asks the person running (`policy`).
@@ -209,15 +211,12 @@ In order, it:
 5. refuses a missing account (`not_connected`) or an unknown action (`no_action`);
 6. asks `decide`. A deny returns its refusal;
 7. checks a guest’s send (`guestSendCheck`, below);
-8. on an ask of the admins, runs only with `ctx.approved`. Only the runtime’s own mail of
-   critical lines sets it (`services/broker-notify.ts`). Every other call is refused with
-   `needs_approval`;
-9. on an ask of the person, runs when `ctx.allowed` holds `<connection>:<action>` (“for the rest of
+8. on an ask of the person, runs when `ctx.allowed` holds `<connection>:<action>` (“for the rest of
    the run”) or `ctx.confirmed` is set and the call deletes nothing. Otherwise it calls `ctx.ask`.
    With no one to ask it refuses with `nobody`, and on a no with `declined`;
-10. takes the call’s place under a space connection’s limits (`takePlace`, above). With none left
+9. takes the call’s place under a space connection’s limits (`takePlace`, above). With none left
     it refuses with `calls_per_run` or `calls_per_day`;
-11. runs the action (the connector’s handler, or `handler`), marks the space connection used and
+10. runs the action (the connector’s handler, or `handler`), marks the space connection used and
     logs the call. An error the action throws is logged and thrown on. A 401 or a lost OAuth grant
     is logged as `sign_in_failed`.
 
@@ -240,7 +239,7 @@ has words for each:
 | `denied` | A rule says no: the audience, the connection’s actions, *Nie*, or the grant in `decide` |
 | `declined` | The person asked said no |
 | `nobody` | The rules say ask, and nobody can be asked |
-| `needs_approval` | *Mit Freigabe* on a connection that signs in as the space: the rule asks the space’s admins, and no caller can ask them |
+| `needs_approval` | Only in lines of the log: a call that waited for the space’s admins. The broker never answers it |
 | `ai_step_writes` | An AI step wanted to change, delete or send as the space |
 | `not_allowed_recipient` | A guest’s send to an address that is neither the run’s own nor in the space’s mail domains, or a send that names no recipient |
 | `channel_not_fixed` | A guest’s post to a channel that the published step does not fix |
@@ -265,20 +264,18 @@ readers word a refusal (the Audit, a model, a fixed step, the Audit’s filter b
 of them see the refusal alone, not the rule beside it. With one name for both, a model would be
 told of mails where a connection’s calls ran out.
 
-### A fixed step that would wait
+### A fixed step the rule refuses
 
-No caller holds a call for the space’s admins. A fixed step whose call asks them gets
-`needs_approval` and fails. An outside client’s `connection_call` answers the refusal in words
-(`note.connector_needs_approval`), and a plugin’s call throws the broker’s reason. `stepWarnings(spaceId, draft)` in
-`services/wizards.ts` finds these steps before a run does. For each fixed step on a space
-connection it asks `decide` as the step of an admin’s run, and warns where the answer is an ask of
-the admins. It reads the rule as it is, so the warning is gone once the rule says *Erlaubt*. A
-read, a rule on *Nie*, a paused connection and a wizard’s own connection never warn. The warnings
+A fixed step whose call meets a rule on *Nie* is refused and fails. `stepWarnings(spaceId, draft)`
+in `services/wizards.ts` finds these steps before a run does. For each fixed step on a space
+connection it asks `decide` as the step of an admin’s run, and warns where the connection’s rule
+for the kind denies (`rule_never`). It reads the rule as it is, so the warning is gone once the
+rule says *Erlaubt*. A paused connection and a wizard’s own connection never warn. The warnings
 are `StepWarning[]` (shared) on the wizard’s state and on the answer of `PUT /wizards/:id/draft`,
 beside `issues`. They are no issue: the draft saves and publishes. The editor words them in
 `apps/web/src/studio/editor/step-warnings.ts`. MCP’s `get_wizard`, `edit_wizard` and
 `replace_wizard` answer them too, each with a `message` a model can read
-(`note.step_needs_approval` in `prompts/mcp.md`).
+(`note.step_rule_never` in `prompts/mcp.md`).
 
 ## The run’s grant
 
@@ -394,8 +391,8 @@ A critical row goes four ways:
 - the bell in Work: `GET /api/studio/work/approvals` answers `{ runs, critical, unseen }`, with
   the critical lines for an admin, and `POST /api/studio/work/approvals/seen` marks the lines seen;
 - an hourly mail to the space’s admins (`services/broker-notify.ts`), only when none of them was in
-  the app since. It goes through the space’s mail connection that signs in as the space, else the
-  server’s address. `space.notify` (`{ bell, mail: "hourly" | "off" }`, `PATCH
+  the app since. It goes through the space’s mail connection that signs in as the space where
+  its rule for sending says *Erlaubt*, else from the server’s address. `space.notify` (`{ bell, mail: "hourly" | "off" }`, `PATCH
   /api/studio/spaces/:id`) turns it off.
 
 ### The walk test

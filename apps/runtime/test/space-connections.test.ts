@@ -92,11 +92,13 @@ const admin = { kind: "admin" as const, id: "user-a" };
 const member = { kind: "person" as const, id: "user-m" };
 const guest = { kind: "guest" as const, id: "visitor-1" };
 const memberRun = { runId: "run-m", spaceId: "", mode: "live" as const, guest: false };
-/** A Work chat: no run, so a write is a confirmed action, not an AI step's (A7). */
+/** Outside a run: a write is no AI step's (A4). */
 const memberChat = { chatId: "chat-m", spaceId: "" };
 const guestRun = { runId: "run-g", spaceId: "", mode: "live" as const, guest: true };
 
 const RULES = { read: "allow", write: "ask", destructive: "deny", send: "ask" } as const;
+/** What a connection that signs in as the space keeps of them: „Mit Freigabe“ is „Nie“ there. */
+const AS_SPACE = { read: "allow", write: "deny", destructive: "deny", send: "deny" } as const;
 
 async function logOf(connectionId: string) {
   return inTenant(() =>
@@ -168,6 +170,47 @@ describe("the conversion: plugin connections become connections of the space", (
   });
 });
 
+describe("migration 0079", () => {
+  it("turns „Mit Freigabe“ into „Nie“ where a connection signs in as the space, and nowhere else", async () => {
+    const db = createClient({ url: ":memory:" });
+    await db.executeMultiple(`
+      CREATE TABLE space_connection (id text PRIMARY KEY NOT NULL, sign_in text NOT NULL, rules text NOT NULL);
+      INSERT INTO space_connection VALUES
+        ('as-space', 'space', '${JSON.stringify(RULES)}'),
+        ('all-ask', 'space', '{"read":"ask","write":"ask","destructive":"ask","send":"ask"}'),
+        ('allowed', 'space', '{"read":"allow","write":"allow","destructive":"deny","send":"allow"}'),
+        ('each-person', 'person', '${JSON.stringify(RULES)}');
+    `);
+    const sql = readFileSync(
+      join(import.meta.dirname, "../src/db/migrations/tenant/0079_space_rules_never.sql"),
+      "utf8",
+    );
+    const run = async () => {
+      for (const statement of sql.split("--> statement-breakpoint")) {
+        await db.execute(statement.trim());
+      }
+    };
+    await run();
+    const rulesOf = async () =>
+      Object.fromEntries(
+        (await db.execute("SELECT id, rules FROM space_connection")).rows.map((r) => [
+          r.id,
+          JSON.parse(String(r.rules)),
+        ]),
+      );
+    const after = {
+      "as-space": AS_SPACE,
+      "all-ask": { read: "deny", write: "deny", destructive: "deny", send: "deny" },
+      allowed: { read: "allow", write: "allow", destructive: "deny", send: "allow" },
+      "each-person": RULES,
+    };
+    expect(await rulesOf()).toEqual(after);
+    // A second time changes nothing.
+    await run();
+    expect(await rulesOf()).toEqual(after);
+  });
+});
+
 describe("a connection that signs in as the space", () => {
   let id = "";
 
@@ -184,6 +227,8 @@ describe("a connection that signs in as the space", () => {
     );
     id = row.id;
     expect(row).toMatchObject({ setUpBy: "user-a", label: null, secret: null, lastUsedAt: null });
+    // Nobody would be asked as the space: „Mit Freigabe“ is kept as „Nie“.
+    expect(row.rules).toEqual(AS_SPACE);
   });
 
   const call = (
@@ -225,7 +270,7 @@ describe("a connection that signs in as the space", () => {
       name: "Vertrieb",
       signIn: "space",
       audience: "members",
-      rules: RULES,
+      rules: AS_SPACE,
       account: { label: "HubSpot 9" },
       mySignIn: null,
       setUpBy: "user-a",
@@ -255,29 +300,33 @@ describe("a connection that signs in as the space", () => {
     expect((await logOf(id)).at(-1)).toMatchObject({ whoKind: "guest", outcome: "deny" });
   });
 
-  it("asks the admins before a write („Mit Freigabe“): the caller holds it, an admin's yes runs it", async () => {
+  it("asks nobody before a write: without „Erlaubt“ it does not run", async () => {
     calls.length = 0;
     const ask = vi.fn();
     const out = await call(member, memberChat, "create_contact", { ask, confirmed: true });
-    expect(out).toMatchObject({ ok: false, refused: "needs_approval" });
-    expect(out.ok || out.reason).toMatch(/asks the space's admins/);
-    // The person's own yes does not stand in for the admins', and nobody else is asked.
+    expect(out).toMatchObject({ ok: false, refused: "denied" });
+    expect(out.ok || out.reason).toMatch(/writing never/);
+    // The person's own yes does not stand in for the rule.
     expect(ask).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
     expect((await logOf(id)).at(-1)).toMatchObject({
       kind: "write",
-      outcome: "ask",
-      result: "needs_approval",
-      critical: false,
+      outcome: "deny",
+      rule: "rules.write",
+      result: "denied",
     });
-    const approved = await call(member, memberChat, "create_contact", { approved: true });
-    expect(approved.ok).toBe(true);
-    expect(calls.map((c) => c.action)).toEqual(["create_contact"]);
-    expect((await logOf(id)).at(-1)).toMatchObject({
-      outcome: "ask",
-      reason: "An admin of the space approved it.",
-      result: "ok",
-    });
+  });
+
+  it("reads a rule that still says „Mit Freigabe“ as „Nie“", async () => {
+    const row = await inTenant(() => service.spaceConnectionById(id));
+    const connection = {
+      kind: "space_connection" as const,
+      row: { ...row, rules: RULES },
+      connector: {} as never,
+    };
+    expect(
+      broker.decide({ who: admin, where: memberChat, connection, actionId: "x", kind: "write" }),
+    ).toMatchObject({ outcome: "deny", rule: "rules.write" });
   });
 
   it("runs a write the rules allow, never a delete the rules deny", async () => {
@@ -286,7 +335,7 @@ describe("a connection that signs in as the space", () => {
         rules: { ...RULES, write: "allow" },
       }),
     );
-    // In a Work chat (A7): an AI step never writes as the space (A4).
+    // Outside a run: an AI step never writes as the space (A4).
     const written = await call(member, memberChat, "create_contact");
     expect(written.ok).toBe(true);
     expect(calls.at(-1)?.action).toBe("create_contact");
@@ -325,7 +374,7 @@ describe("a connection that signs in as the space", () => {
     ).toMatchObject({ outcome: "deny" });
     expect(
       broker.decide({ who: admin, where: memberChat, connection, actionId: "x", kind: "send" }),
-    ).toMatchObject({ outcome: "ask", admins: true });
+    ).toMatchObject({ outcome: "deny", rule: "rules.send" });
     await inTenant(() => service.removeSpaceConnection("user-a", id));
     await expect(inTenant(() => service.spaceConnectionById(id))).rejects.toMatchObject({
       code: "not_found",
@@ -443,7 +492,7 @@ describe("the studio's routes", () => {
     });
     expect(made.status).toBe(200);
     const view = await made.json();
-    expect(view).toMatchObject({ name: "Bestellungen", audience: "members", rules: RULES });
+    expect(view).toMatchObject({ name: "Bestellungen", audience: "members", rules: AS_SPACE });
 
     for (const [method, path, body] of [
       ["POST", `/spaces/${space}/connections`, { connectorId: "hubspot", name: "X", signIn: "space" }],
@@ -471,7 +520,7 @@ describe("the studio's routes", () => {
     });
     expect(await changed.json()).toMatchObject({
       audience: "all",
-      rules: { ...RULES, destructive: "allow" },
+      rules: { ...AS_SPACE, destructive: "allow" },
     });
     const signedIn = await send(owner, "POST", `/connections/${view.id}/sign-in`, {
       credentials: { access_token: TOKEN },
@@ -817,7 +866,8 @@ describe("each person signing in, where the plan leaves it out", () => {
       expect(await asMember(each)).toMatchObject({ ok: false, refused: "not_connected" });
       expect((await logOf(each)).find((l) => l.actionId === "change_rules")).toMatchObject({
         critical: true,
-        reason: "It now signs in as the space.",
+        // „Mit Freigabe“ asked each person; as the space nobody is asked, so it is „Nie“.
+        reason: "It now signs in as the space. The rules changed: write: ask → deny, send: ask → deny.",
       });
       const back = await send(owner, "PATCH", `/connections/${each}`, { signIn: "person" });
       expect(back.status).toBe(403);

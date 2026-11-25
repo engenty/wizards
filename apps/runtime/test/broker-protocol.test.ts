@@ -318,14 +318,14 @@ describe("the Protokoll's log", () => {
 
   it("answers a mail over SMTP with the connection's send rule, not its delete rule", async () => {
     const service = await import("../src/connectors/space-connections");
-    const { DEFAULT_CONNECTION_RULES } = await import("@engenty/wizards-shared/connectors");
+    const { startConnectionRules } = await import("@engenty/wizards-shared/connectors");
     const smtp = await inTenant(() =>
       service.createSpaceConnection("user-a", space, {
         connectorId: "smtp",
         name: "Postfach",
         signIn: "space",
         audience: "all",
-        rules: DEFAULT_CONNECTION_RULES,
+        rules: { ...startConnectionRules("space"), send: "allow" },
         actions: [],
       }),
     );
@@ -336,11 +336,10 @@ describe("the Protokoll's log", () => {
     );
     expect(asked.body).toMatchObject({
       action: { id: "send_message", kind: "send", known: true },
-      outcome: "ask",
+      outcome: "allow",
       rule: "rules.send",
-      admins: true,
     });
-    expect(asked.body.reason).toMatch(/sending asks/);
+    expect(asked.body.reason).toMatch(/sending allowed/);
     const choices = await get(app, `/spaces/${space}/broker/choices`);
     const listed = choices.body.connections.find((c: { id: string }) => c.id === smtp.id);
     expect(listed.actions).toEqual([{ id: "send_message", name: "Send an e-mail", kind: "send" }]);

@@ -138,7 +138,7 @@ export function annotationsOf(config: {
 function worded(warnings: StepWarning[]) {
   return warnings.map((warning) => ({
     ...warning,
-    message: prompt("mcp", "note.step_needs_approval", {
+    message: prompt("mcp", "note.step_rule_never", {
       step: warning.stepId,
       connection: warning.connection.name,
       action: warning.action.id,

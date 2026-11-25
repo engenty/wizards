@@ -138,9 +138,9 @@ Load a widget step of the draft in a real browser with its sample data (or the d
 <!-- section: param.run_wizard.theme -->
 The widget's look: the id of a theme the wizard names (its definition's themes), brand or default. Left out: host, this app's own look. Only when the person asks for the wizard's look.
 
-<!-- section: note.step_needs_approval -->
-<!-- A warning on a draft: a fixed step on a connection of the space whose rule asks the admins. kind: read | write | destructive | send. -->
-Step "${step}" will fail in a run: the connection "${connection}" asks the space's admins before the action "${action}" (${kind}), and a run does not wait for them. An admin of the space can set that rule to allowed on the connection's page; tell your user.
+<!-- section: note.step_rule_never -->
+<!-- A warning on a draft: a fixed step on a connection of the space whose rule for the action's kind is never. kind: read | write | destructive | send. -->
+Step "${step}" will fail in a run: the connection "${connection}" never allows the action "${action}" (${kind}). An admin of the space can set that rule to allowed on the connection's page; tell your user.
 
 <!-- section: note.present -->
 <!-- In a tool result on a wizard while people edit it; who: "Ana (page 2), Ben", verb: is | are. -->

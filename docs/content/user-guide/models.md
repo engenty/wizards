@@ -1,7 +1,7 @@
 ---
 title: Models and account
 description: What runs the AI in your wizards – an AI client on your computer, your own API keys, a local model or credits.
-version: 0.18.0
+version: 0.21.1
 ---
 
 Settings → Models decides what runs the AI in your wizards. On your computer you set it up
@@ -226,14 +226,14 @@ and the sub-processors of each tier.
 
 ## Model choice
 
-“Model choice” sets how the admins share out the tier, for wizards, Goose and work chats. Running
-work finishes as it started.
+“Model choice” sets how the admins share out the tier, for wizards and Goose. Running work
+finishes as it started.
 
 | Way | Means |
 |---|---|
 | Preselection | People choose from the tier’s preselection: Auto and a few models that fit best. New models join on their own |
 | You set defaults | A default per task. People switch to any model in the tier, up to the effort you allow |
-| Expert mode | The admins decide which models people choose from, separately for wizards, Goose and work chats, with the efforts they allow. New models join only when they approve them |
+| Expert mode | The admins decide which models people choose from, separately for wizards and Goose, with the efforts they allow. New models join only when they approve them |
 
 The model menus in the editor and in Goose’s message box offer what the way allows.
 

@@ -3,7 +3,7 @@ import type {
   PluginConnections,
   PluginConnectorOffer,
 } from "@engenty/wizards/plugin";
-import { DEFAULT_CONNECTION_RULES } from "@engenty/wizards-shared/connectors";
+import { startConnectionRules } from "@engenty/wizards-shared/connectors";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -150,7 +150,7 @@ async function keep(input: {
       label: input.label,
       signIn: "space",
       audience: "all",
-      rules: DEFAULT_CONNECTION_RULES,
+      rules: startConnectionRules("space"),
       actions: input.actions,
       secret: seal(input.stored),
       setUpBy: null,

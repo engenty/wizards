@@ -1,7 +1,7 @@
 ---
 title: User Guide
 description: Install engenty wizards, build a wizard, run and share it.
-version: 0.21.0
+version: 0.21.1
 ---
 
 engenty wizards turns something you do again and again into a wizard: pages that ask what it
@@ -42,7 +42,7 @@ briefing, an invoice, a quote, a damage report.
 | Work mode | Where your team works, beside Studio: the chats of your team’s Bot Server and what waits for you. Not on for everyone yet ([Work mode](./work-mode.md)) |
 | Capabilities | The place in the studio for what a space’s wizards and Goose may use: skills, connections, the log and a search for more ([Capabilities](./capabilities.md)) |
 | Connection | One account at another service that a space uses, such as Gmail · Orders. The space’s admins set it up |
-| Owner, admin, member | The roles in an organization. The owner and the admins set up connections and approve what waits for approval |
+| Owner, admin, member | The roles in an organization. The owner and the admins set up connections and set their rules |
 | Guest | Someone who runs a wizard from its link without being a member |
 
 ## Two places it runs

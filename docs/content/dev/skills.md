@@ -1,7 +1,7 @@
 ---
 title: Skills
 description: The skills of a space – the SKILL.md engenty wizards reads, its limits, the studio’s routes, the two tools a step reads skills with and how their scripts run in the sandbox.
-version: 0.21.0
+version: 0.21.1
 ---
 
 A space’s skills are instructions in the Agent Skills format that its AI steps follow. They sit
@@ -93,7 +93,7 @@ one: `run_command` runs there, and `skill_load` writes a skill’s folder there 
 is one sandbox per person, space and client (`outsideSandbox` in
 `apps/runtime/src/elements/outside.ts`). It is made on its first use and kept while it is used,
 so a file one call writes is there for the next. It is gone after 30 minutes without a use, or
-when the runtime stops (`apps/runtime/src/services/work-sandbox.ts`).
+when the runtime stops (`apps/runtime/src/services/outside-sandbox.ts`).
 
 ## Routes
 
