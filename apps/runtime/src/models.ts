@@ -77,6 +77,7 @@ import {
   isHarnessVendor,
 } from "./harness/index.js";
 import { notInstalled, signedOut } from "./harness/model.js";
+import { localCall } from "./local-call.js";
 import { managed, tenantInfo } from "./manage.js";
 import { hasFfmpeg } from "./media/ffmpeg.js";
 import { ModelUnavailableError, saidOf } from "./model-errors.js";
@@ -1028,6 +1029,17 @@ async function installedClient(ref: string) {
 /** Tokens a model of LM Studio is loaded to read: a step's documents, its tools and its answer. */
 const LMSTUDIO_CONTEXT = 32_768;
 
+/** A model of MLX whose calls say what they wait for, to whoever made them (local-call.ts). */
+function mlxLanguageModel(folder: string, model: string): LanguageModel {
+  type Model = ReturnType<typeof mlxModel>;
+  const made = (): Model => mlxModel({ folder, model, ...localCall() });
+  return {
+    ...made(),
+    doStream: (options: Parameters<Model["doStream"]>[0]) => made().doStream(options),
+    doGenerate: (options: Parameters<Model["doGenerate"]>[0]) => made().doGenerate(options),
+  };
+}
+
 async function ownLanguageModel(
   cfg: ModelConfig,
   ref: string,
@@ -1059,7 +1071,7 @@ async function ownLanguageModel(
       };
     }
     case "mlx":
-      return { model: mlxModel({ folder: serverUrl(cfg, "mlx"), model: id }), gateway: false };
+      return { model: mlxLanguageModel(serverUrl(cfg, "mlx"), id), gateway: false };
     case "apple": {
       const status = await appleStatus();
       if (!status.available) {
