@@ -21,6 +21,7 @@ import { pluginsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
 import { type ExecResult, sandboxCapabilities, shellToolDescription } from "../sandbox/index.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { harnessed, harnessedModel, oneOfMany } from "../tools/harness.js";
 import { assistantToolPlugin, assistantToolRisk, assistantToolsOf } from "../tools/plugin.js";
 import { clip } from "../tools/shared.js";
 import { skillsBlock } from "../tools/skills.js";
@@ -373,21 +374,24 @@ export async function workTurn(
     choice.web !== false ? toolAccess() : null,
   ]);
   const client = turn.role === "client";
-  const made = gated(
-    await toolsFor(
-      resolved,
-      turn.space,
-      turn.userId,
-      signal,
-      choice,
-      turn.chatId,
-      null,
-      turn.role ?? null,
-      web,
-    ),
-    turn,
+  const all = await toolsFor(
+    resolved,
+    turn.space,
+    turn.userId,
+    signal,
+    choice,
+    turn.chatId,
+    null,
+    turn.role ?? null,
+    web,
   );
-  const tools = resolved.model instanceof ClientModel ? steps.wrap(made) : made;
+  // The connections' actions and the plugins' tools: many, and few of them in one chat.
+  const many = new Set(Object.keys(all).filter((name) => oneOfMany(all[name])));
+  const made = gated(all, turn);
+  const tools =
+    resolved.model instanceof ClientModel
+      ? steps.wrap(made)
+      : sortedTools(harnessed(made, resolved, (name) => many.has(name)).tools);
   attachTools(resolved, tools);
   const skills = client ? null : await spaceSkills(turn.space.id);
   const block = skills
@@ -409,7 +413,7 @@ export async function workTurn(
         .join("\n")
     : "";
   return {
-    resolved,
+    resolved: harnessedModel(resolved),
     tools,
     instructions: [
       instructionsFor(turn.space.name, block, "space_search" in tools, client),

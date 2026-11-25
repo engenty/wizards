@@ -9,10 +9,10 @@ import { CLIENTS, type Client, type ClientId } from "./clients/index.js";
 import {
   fits,
   type InstalledModel,
-  installedModels,
-  ollamaRoot,
-  ollamaState,
-} from "./ollama/api.js";
+  SERVERS,
+  type ServerId,
+  type ServerTrouble,
+} from "./servers/index.js";
 
 /**
  * One short, real call per source of models: a tiny prompt, a timeout, and what came of it. A
@@ -22,9 +22,9 @@ import {
 
 /**
  * - `ok`: it answered.
- * - `absent`: the client is not installed, or Ollama does not answer at the address.
+ * - `absent`: the client is not installed, or the server does not answer at the address.
  * - `signed_out`: the client is installed but not signed in.
- * - `no_model`: Ollama runs but holds no model to talk with (or not the one named).
+ * - `no_model`: the server runs but holds no model to talk with (or not the one named).
  * - `too_big`: the model takes more of the computer's memory than the share allows.
  * - `failed`: it was asked and did not answer; `detail` says what it said.
  */
@@ -32,8 +32,10 @@ export type ProbeState = "ok" | "absent" | "signed_out" | "no_model" | "too_big"
 
 export interface ProbeResult {
   state: ProbeState;
-  /** What the client or Ollama said, as it said it. */
+  /** What the client or the server said, as it said it. */
   detail?: string;
+  /** Why a server that runs was not asked. */
+  trouble?: ServerTrouble;
   /** The model that was asked, or that would have been. */
   model?: string;
   /** It did not answer within the timeout. */
@@ -50,8 +52,9 @@ export type ProbeSource =
       timeoutMs?: number;
     }
   | {
-      kind: "ollama";
-      /** Ollama's address: its root or `…/v1`. */
+      kind: "server";
+      server: ServerId;
+      /** The server's address: its root or `…/v1`. */
       url: string;
       /** The model to ask; left out, the one a host would pick first (see `preferredModel`). */
       model?: string;
@@ -66,11 +69,11 @@ export const PROMPT = "Answer with the single word ok.";
 const SYSTEM = "You check whether you can answer. Answer with one word.";
 
 export const CLIENT_TIMEOUT = 90_000;
-export const OLLAMA_TIMEOUT = 120_000;
+export const SERVER_TIMEOUT = 120_000;
 
 /** Whether the source answers a short call now. */
 export function probe(source: ProbeSource): Promise<ProbeResult> {
-  return source.kind === "client" ? probeClient(source) : probeOllama(source);
+  return source.kind === "client" ? probeClient(source) : probeServer(source);
 }
 
 async function probeClient(source: Extract<ProbeSource, { kind: "client" }>): Promise<ProbeResult> {
@@ -180,7 +183,7 @@ async function probeClient(source: Extract<ProbeSource, { kind: "client" }>): Pr
 }
 
 /**
- * The model a host asks first among Ollama's models that write text: one that takes tools, then
+ * The model a host asks first among a server's models that write text: one that takes tools, then
  * the largest that fits the computer, then the smallest of those that do not.
  */
 export function preferredModel(
@@ -199,15 +202,17 @@ export function preferredModel(
     )[0];
 }
 
-async function probeOllama(source: Extract<ProbeSource, { kind: "ollama" }>): Promise<ProbeResult> {
-  const doFetch = source.fetch ?? fetch;
-  const root = ollamaRoot(source.url);
-  const timeout = source.timeoutMs ?? OLLAMA_TIMEOUT;
-  const state = await ollamaState(root, { fetch: doFetch });
-  if (!state.version) {
+async function probeServer(source: Extract<ProbeSource, { kind: "server" }>): Promise<ProbeResult> {
+  const server = SERVERS[source.server];
+  const options = source.fetch ? { fetch: source.fetch } : {};
+  const { running, trouble } = await server.state(source.url, options);
+  if (!running) {
     return { state: "absent" };
   }
-  const models = await installedModels(root, { fetch: doFetch });
+  if (trouble) {
+    return { state: "failed", trouble };
+  }
+  const models = await server.models(source.url, options);
   const sized = source.memory !== undefined && source.share !== undefined;
   const model = source.model
     ? models.find((m) => m.name === source.model || m.name === `${source.model}:latest`)
@@ -219,30 +224,9 @@ async function probeOllama(source: Extract<ProbeSource, { kind: "ollama" }>): Pr
     return { state: "too_big", model: model.name };
   }
   try {
-    const response = await doFetch(`${root}/api/chat`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        model: model.name,
-        messages: [{ role: "user", content: PROMPT }],
-        stream: false,
-        ...(model.thinking ? { think: false } : {}),
-        options: { num_predict: 16 },
-      }),
-      signal: AbortSignal.timeout(timeout),
-    });
-    const body = (await response.json().catch(() => ({}))) as {
-      error?: string;
-      message?: { content?: string };
-    };
-    if (!response.ok || body.error) {
-      return {
-        state: "failed",
-        model: model.name,
-        detail: body.error ?? `status ${response.status}`,
-      };
-    }
-    return { state: "ok", model: model.name, detail: body.message?.content?.trim() };
+    const signal = AbortSignal.timeout(source.timeoutMs ?? SERVER_TIMEOUT);
+    const detail = await server.ask(source.url, model, PROMPT, { ...options, signal });
+    return { state: "ok", model: model.name, detail };
   } catch (error) {
     const timedOut = (error as Error).name === "TimeoutError";
     return {

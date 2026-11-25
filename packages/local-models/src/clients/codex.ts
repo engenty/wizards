@@ -186,6 +186,7 @@ export const codex: Client = {
   id: "codex",
   name: "Codex",
   bin: CODEX_BIN,
+  tools: true,
   version: (env) =>
     probeVersion(CODEX_BIN, env, (stdout) => {
       const words = stdout.trim().split(/\s+/);

@@ -17,7 +17,7 @@ Use it, change it and share it in any app, open or closed. Keep the licence text
 | The wizard format | fifteen files in `packages/shared/src` | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT)) |
 | The runner | `@engenty/wizards-runner` in `packages/runner` | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/packages/runner/LICENSE)) |
 | The plugin for the AI apps | `plugin/`, without the engenty figures in it | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/plugin/LICENSE)) |
-| The libraries | `@engenty/chatviews`, `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/goose`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/local-models` and `@engenty/model-setup` in `packages/` | MIT (the `LICENSE` in each folder) |
+| The libraries | `@engenty/chatviews`, `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/tool-harness`, `@engenty/goose`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/local-models` and `@engenty/model-setup` in `packages/` | MIT (the `LICENSE` in each folder) |
 
 ### The wizard format
 
@@ -44,12 +44,15 @@ MIT, the format files it bundles included. Your own app can draw runs with it
 
 ### The libraries
 
-Eight libraries go to npm with each release, at its version:
+Eleven libraries go to npm with each release, at its version:
 
 - `@engenty/decision-model`: one request to a decision model, by whichever way is set up (the
   Vercel AI Gateway, TypeSafe’s API or Ollama)
-- `@engenty/search-index`: what every search index meets, chunks, scoring and embedders
+- `@engenty/search-index`: what every search index meets, chunks, scoring, embedders and the ways
+  to one, and a search over a catalogue in memory by words and meaning
 - `@engenty/search-libsql`: a search index on libSQL, full text and vectors
+- `@engenty/tool-harness`: one harness around an agent’s tools: the few it always has, a search
+  for the rest, one call that runs what was found, and what a model of which level may use
 - `@engenty/goose`: Goose, the copilot: a chat with tools and adapters for the Anthropic and
   OpenAI SDKs and the Vercel AI SDK
 - `@engenty/vault`: secrets sealed with AES-256-GCM and bound to where they belong, key rings

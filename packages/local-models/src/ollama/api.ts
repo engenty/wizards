@@ -3,6 +3,8 @@
  * what each can do, which of them fits the computer's memory, and downloads.
  */
 
+import { getJson, type InstalledModel, type ServerOptions } from "../servers/server.js";
+
 /** Where Ollama answers when nothing names another address. */
 export const OLLAMA_DEFAULT = "http://127.0.0.1:11434";
 
@@ -36,25 +38,6 @@ export function ollamaAddress(env: NodeJS.ProcessEnv = process.env): string {
   return ollamaRoot(env.OLLAMA_URL || OLLAMA_DEFAULT);
 }
 
-export interface OllamaRequestOptions {
-  /** Another fetch, such as a test's. */
-  fetch?: typeof fetch;
-}
-
-async function getJson<T>(
-  doFetch: typeof fetch,
-  url: string,
-  init?: RequestInit,
-  timeoutMs = 2000,
-): Promise<T | null> {
-  try {
-    const res = await doFetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
-    return res.ok ? ((await res.json()) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
 export interface OllamaState {
   /** The version of the Ollama that answers; null where none does. */
   version: string | null;
@@ -63,10 +46,7 @@ export interface OllamaState {
 }
 
 /** Whether Ollama answers at `url`, and the models it holds. */
-export async function ollamaState(
-  url: string,
-  options: OllamaRequestOptions = {},
-): Promise<OllamaState> {
+export async function ollamaState(url: string, options: ServerOptions = {}): Promise<OllamaState> {
   const doFetch = options.fetch ?? fetch;
   const root = ollamaRoot(url);
   const version =
@@ -75,29 +55,6 @@ export async function ollamaState(
     ? await getJson<{ models?: { name: string }[] }>(doFetch, `${root}/api/tags`)
     : null;
   return { version, models: (tags?.models ?? []).map((m) => m.name) };
-}
-
-/** A model Ollama holds, as Ollama describes it. */
-export interface InstalledModel {
-  name: string;
-  /** On disk, in bytes: about the memory it takes while it answers, too. */
-  size: number;
-  digest: string;
-  /** As Ollama says: `completion`, `tools`, `vision`, `thinking`, `audio`, `embedding`, … */
-  capabilities: string[];
-  /** It writes text. */
-  completion: boolean;
-  /** It takes tools. */
-  tools: boolean;
-  /** It takes pictures. */
-  vision: boolean;
-  /** It can think before it answers. */
-  thinking: boolean;
-  /** `mlx` or `llamacpp`; null where Ollama does not say. */
-  runner: string | null;
-  quantization: string | null;
-  /** In memory right now. */
-  running: boolean;
 }
 
 interface ShowAnswer {
@@ -115,7 +72,7 @@ const shown = new Map<string, ShowAnswer>();
  */
 export async function installedModels(
   url: string,
-  options: OllamaRequestOptions = {},
+  options: ServerOptions = {},
 ): Promise<InstalledModel[]> {
   const doFetch = options.fetch ?? fetch;
   const root = ollamaRoot(url);
@@ -165,16 +122,6 @@ export async function installedModels(
 }
 
 /**
- * Whether a model fits a computer: it takes at most `share` of the memory, and leaves the rest to
- * everything else that runs there. Size and memory in the same unit; the model's size on disk
- * is about what it takes while it answers.
- */
-export function fits(model: number | { size: number }, memory: number, share: number): boolean {
-  const size = typeof model === "number" ? model : model.size;
-  return size <= memory * share;
-}
-
-/**
  * Pulls a model into the Ollama at `url`; `onProgress` hears the bytes so far and in all as they
  * come, summed over the model's parts. Rejects with Ollama's own reason.
  */
@@ -182,7 +129,7 @@ export async function pullModel(
   url: string,
   model: string,
   onProgress: (done: number, total: number) => void,
-  options: OllamaRequestOptions & { signal?: AbortSignal } = {},
+  options: ServerOptions & { signal?: AbortSignal } = {},
 ): Promise<void> {
   const doFetch = options.fetch ?? fetch;
   const res = await doFetch(`${ollamaRoot(url)}/api/pull`, {

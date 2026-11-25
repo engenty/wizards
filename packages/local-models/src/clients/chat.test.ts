@@ -332,3 +332,55 @@ describe("the host's MCP server", () => {
     expect(CLIENTS.cursor.args(bare)).not.toContain("--approve-mcps");
   });
 });
+
+describe("Antigravity in a chat", () => {
+  const { antigravity } = CLIENTS;
+  const call: ChatCall = {
+    system: "Be brief.",
+    message: "Hi",
+    session: null,
+    dir: "/tmp/a",
+    images: [],
+  };
+
+  it("only writes: every tool of its own and of the person's is denied", () => {
+    const args = antigravity.args(call);
+    const { deny } = JSON.parse(args[args.indexOf("--settings") + 1] as string).permissions;
+    expect(deny).toEqual(
+      expect.arrayContaining(["command(*)", "read_file(*)", "write_file(*)", "mcp(*)"]),
+    );
+    expect(antigravity.tools).toBe(false);
+    expect(args).not.toContain("--conversation");
+  });
+
+  it("gets the instructions once, with the first message of a conversation", () => {
+    expect(antigravity.stdin(call)).toContain("Be brief.");
+    const next = { ...call, session: "a1" };
+    expect(antigravity.stdin(next)).not.toContain("Be brief.");
+    expect(antigravity.args(next).slice(-2)).toEqual(["--conversation", "a1"]);
+  });
+
+  it("reads the conversation, the text as it streams and how it ended", () => {
+    const read = (event: unknown) => antigravity.events(JSON.stringify(event));
+    expect(read({ event: "init", conversation_id: "a1" })).toEqual([{ kind: "session", id: "a1" }]);
+    expect(
+      read({
+        event: "step_update",
+        step_update: { step_type: "agent_response", text_delta: "Hel" },
+      }),
+    ).toEqual([{ kind: "writing", text: "Hel" }]);
+    expect(read({ event: "step_update", step_update: { step_type: "checkpoint" } })).toEqual([]);
+    expect(
+      read({
+        event: "result",
+        result: { conversation_id: "a1", status: "SUCCESS", response: "Hello" },
+      }),
+    ).toEqual([
+      { kind: "session", id: "a1" },
+      { kind: "result", text: "Hello" },
+    ]);
+    expect(read({ event: "result", result: { status: "ERROR", error: "not logged in" } })).toEqual([
+      { kind: "failure", detail: "not logged in" },
+    ]);
+  });
+});

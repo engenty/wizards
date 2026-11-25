@@ -20,7 +20,7 @@ import { modelOptions } from "./model.js";
 import type { Harness } from "./types.js";
 
 /**
- * Claude Code, Codex and Cursor Agent as the runtime runs them: the clients of
+ * Claude Code, Codex, Antigravity and Cursor Agent as the runtime runs them: the clients of
  * @engenty/local-models/clients with the model each text class runs on, what the person reads
  * when the account cannot pay, and Codex's images.
  */
@@ -126,6 +126,16 @@ export const codex: Harness = harnessOf(CLIENTS.codex, {
   image: {
     alias: "image",
     model: (alias: string) => new CodexImageModel(codex, alias || "image", modelOptions(codex)),
+  },
+});
+
+/** The models carry their effort in the name (`withEffort`). */
+export const antigravity = harnessOf(CLIENTS.antigravity, {
+  classes: {
+    classifier: "gemini-3.8-flash-low",
+    low: "gemini-3.8-flash-medium",
+    standard: "gemini-3.8-flash-high",
+    high: "gemini-3.8-flash-high",
   },
 });
 

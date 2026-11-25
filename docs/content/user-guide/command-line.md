@@ -77,6 +77,9 @@ the studio doesn’t: one `NAME=value` per line. Restart engenty wizards after a
 | `SANDBOX_DATA_URL` | The HTTPS address where the sandbox reaches engenty wizards for a wizard’s own database | `PUBLIC_URL` when it is HTTPS |
 | `SANDBOX_GUESTS` | The sandbox for runs by people without an account – a wizard’s link, WhatsApp, SMS: `off` or `agentos`, never Docker. With `off`, such a run works without code and says so in its log; with `agentos`, only when agentOS is installed. Your own runs keep the server’s sandbox | `off` |
 | `OLLAMA_URL` | Where Ollama answers | `http://127.0.0.1:11434/v1` |
+| `LMSTUDIO_URL` | Where LM Studio answers | `http://127.0.0.1:1234/v1` |
+| `LM_API_TOKEN` | LM Studio’s API token, where its server asks for one | none |
+| `MLX_MODELS` | The folder of MLX’s models (Mac with Apple silicon) | `~/.engenty/models/mlx` |
 | `PLUGINS_DIR` | Folders with plugins, comma-separated. If you set it, it replaces the default | `~/.engenty/wizards/plugins` |
 | `PLUGINS_WATCH` | With `0`, plugins no longer load again when their files change | `1` |
 | `GEOCODER_URL` | Finds the place of a location (street, town). If it is not set, a location is only coordinates, and no position leaves your computer | not set |

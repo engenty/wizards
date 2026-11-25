@@ -7,7 +7,10 @@ import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createReplicate } from "@ai-sdk/replicate";
 import { ClientModel } from "@engenty/local-models/clients";
+import { lmStudioFetch, lmStudioRoot } from "@engenty/local-models/lmstudio";
+import { mlxModel } from "@engenty/local-models/mlx";
 import { ollamaRoot } from "@engenty/local-models/ollama";
+import { SERVERS, type ServerId } from "@engenty/local-models/servers";
 import type { Lang, VideoResolution } from "@engenty/wizards-shared/definition";
 import {
   DEFINITION_VERSION,
@@ -74,6 +77,7 @@ import {
   isHarnessVendor,
 } from "./harness/index.js";
 import { notInstalled, signedOut } from "./harness/model.js";
+import { localCall } from "./local-call.js";
 import { managed, tenantInfo } from "./manage.js";
 import { hasFfmpeg } from "./media/ffmpeg.js";
 import { ModelUnavailableError, saidOf } from "./model-errors.js";
@@ -95,7 +99,8 @@ export { isHarnessVendor } from "./harness/index.js";
  *     tenant of a Manage-App's runtime, or on the account a runtime that runs alone is linked to.
  * A runtime of a Manage-App keeps a tenant's own keys (sealed) and runs on its credits where it
  * has none. A binding is `[provider:]vendor/model`, e.g. `anthropic/claude-haiku-4.5` (AI
- * Gateway), `openai:gpt-5.4-mini`, `fal:fal-ai/flux/schnell`, `ollama:qwen3`, `claude/sonnet`
+ * Gateway), `openai:gpt-5.4-mini`, `fal:fal-ai/flux/schnell`, `ollama:qwen3`,
+ * `lmstudio:google/gemma-4-12b`, `mlx:mlx-community/Qwen3-4B-4bit`, `claude/sonnet`
  * (an installed client), or `credits`.
  */
 export { ModelUnavailableError } from "./model-errors.js";
@@ -140,6 +145,7 @@ export interface LocalModelSettings {
   source: LocalSource;
   bindings: Partial<Record<ModelClass, string>>;
   ollamaUrl?: string;
+  lmstudioUrl?: string;
   /** The credits of the linked account step in for a class without a way of its own. Default: on. */
   creditFallback?: boolean;
   /** Which decision model answers decisions (`DecisionChoice`). Default: `auto`. */
@@ -190,6 +196,7 @@ export interface ModelSettingsInput {
   source?: LocalSource;
   bindings?: Partial<Record<ModelClass, string>>;
   ollamaUrl?: string;
+  lmstudioUrl?: string;
   creditFallback?: boolean;
   decision?: DecisionChoice;
   decisionLocal?: string;
@@ -370,6 +377,23 @@ function mergeBindings(
   return bindings;
 }
 
+/** Where a server answers for this machine, as the settings name it. */
+function serverUrl(cfg: ModelConfig, id: ServerId): string {
+  switch (id) {
+    case "ollama":
+      return cfg.settings.ollamaUrl ?? env.ollamaUrl;
+    case "lmstudio":
+      return cfg.settings.lmstudioUrl ?? env.lmstudioUrl;
+    case "mlx":
+      return SERVERS.mlx.address();
+  }
+}
+
+/** Where a server answers for this machine. */
+export async function localServerUrl(id: ServerId): Promise<string> {
+  return serverUrl(await config(), id);
+}
+
 export function localModelSettings() {
   return {
     ...local.settings,
@@ -377,7 +401,8 @@ export function localModelSettings() {
     bindings: Object.fromEntries(
       MODEL_CLASSES.map((c) => [c, ownRef(local, c) || local.settings.bindings[c] || ""]),
     ) as Record<ModelClass, string>,
-    ollamaUrl: local.settings.ollamaUrl ?? env.ollamaUrl,
+    ollamaUrl: serverUrl(local, "ollama"),
+    lmstudioUrl: serverUrl(local, "lmstudio"),
     keys: Object.fromEntries(LOCAL_KEYS.map((k) => [k, Boolean(local.keys[k])])) as Record<
       LocalKey,
       boolean
@@ -390,6 +415,7 @@ export async function saveLocalModels(input: ModelSettingsInput) {
     source: input.source ?? local.settings.source,
     bindings: mergeBindings(local.settings.bindings, input.bindings),
     ollamaUrl: input.ollamaUrl?.trim() || local.settings.ollamaUrl,
+    lmstudioUrl: input.lmstudioUrl?.trim() || local.settings.lmstudioUrl,
     creditFallback: input.creditFallback ?? local.settings.creditFallback,
     decision: input.decision ?? local.settings.decision,
     decisionLocal: input.decisionLocal?.trim() || local.settings.decisionLocal,
@@ -460,8 +486,12 @@ function parse(ref: string): { provider: string | null; id: string; vendor: stri
 
 const vendorOf = (ref: string) => parse(ref).vendor;
 
-/** A model on this machine: Ollama, or Apple Intelligence on a Mac (harness/apple.ts). */
-const isLocalProvider = (provider: string | null) => provider === "ollama" || provider === "apple";
+/** A server for open models on this machine (@engenty/local-models). */
+const isServer = (provider: string | null): provider is ServerId =>
+  provider !== null && Object.hasOwn(SERVERS, provider);
+
+/** A model on this machine: a server's, or Apple Intelligence on a Mac (harness/apple.ts). */
+const isLocalProvider = (provider: string | null) => isServer(provider) || provider === "apple";
 
 /** The part of `codex/default` after the client. */
 const aliasOf = (id: string) => id.split("/").slice(1).join("/");
@@ -996,6 +1026,20 @@ async function installedClient(ref: string) {
   return client;
 }
 
+/** Tokens a model of LM Studio is loaded to read: a step's documents, its tools and its answer. */
+const LMSTUDIO_CONTEXT = 32_768;
+
+/** A model of MLX whose calls say what they wait for, to whoever made them (local-call.ts). */
+function mlxLanguageModel(folder: string, model: string): LanguageModel {
+  type Model = ReturnType<typeof mlxModel>;
+  const made = (): Model => mlxModel({ folder, model, ...localCall() });
+  return {
+    ...made(),
+    doStream: (options: Parameters<Model["doStream"]>[0]) => made().doStream(options),
+    doGenerate: (options: Parameters<Model["doGenerate"]>[0]) => made().doGenerate(options),
+  };
+}
+
 async function ownLanguageModel(
   cfg: ModelConfig,
   ref: string,
@@ -1010,11 +1054,24 @@ async function ownLanguageModel(
     case "ollama":
       return {
         model: createOpenAI({
-          baseURL: cfg.settings.ollamaUrl ?? env.ollamaUrl,
+          baseURL: serverUrl(cfg, "ollama"),
           apiKey: "ollama",
         }).chat(id),
         gateway: false,
       };
+    case "lmstudio": {
+      const root = lmStudioRoot(serverUrl(cfg, "lmstudio"));
+      return {
+        model: createOpenAI({
+          baseURL: `${root}/v1`,
+          apiKey: "lmstudio",
+          fetch: lmStudioFetch(root, { context: LMSTUDIO_CONTEXT }),
+        }).chat(id),
+        gateway: false,
+      };
+    }
+    case "mlx":
+      return { model: mlxLanguageModel(serverUrl(cfg, "mlx"), id), gateway: false };
     case "apple": {
       const status = await appleStatus();
       if (!status.available) {
@@ -1409,11 +1466,6 @@ export function forgetLocalModels() {
   localDecision = null;
 }
 
-/** Where Ollama answers for this machine (…/v1), as the settings name it. */
-export async function localOllamaUrl(): Promise<string> {
-  return (await config()).settings.ollamaUrl ?? env.ollamaUrl;
-}
-
 /**
  * An embedding model, with `embedImage` where it embeds pictures too, into the same space as
  * text (EmbeddingGemma 2): a question then finds a photo or a PDF page by what it shows.
@@ -1513,7 +1565,7 @@ async function embeddingBy(
       };
     }
     case "local": {
-      const url = cfg.settings.ollamaUrl ?? env.ollamaUrl;
+      const url = serverUrl(cfg, "ollama");
       const name = localEmbeddingName(cfg);
       const capabilities = await ollamaHolds(url, name);
       if (!capabilities) {
@@ -1700,7 +1752,7 @@ async function decisionBy(
           }
         : null;
     case "local": {
-      const ollama = cfg.settings.ollamaUrl ?? env.ollamaUrl;
+      const ollama = serverUrl(cfg, "ollama");
       const model = await localDecisionModel(ollama, cfg.settings.decisionLocal);
       return model
         ? {
@@ -1791,7 +1843,7 @@ async function decisionSettings(cfg: ModelConfig) {
     /** The decision model asked for in Ollama on this computer. */
     local:
       cfg.settings.decisionLocal ??
-      (managed ? null : await ollamaDecisionModel(cfg.settings.ollamaUrl ?? env.ollamaUrl)) ??
+      (managed ? null : await ollamaDecisionModel(serverUrl(cfg, "ollama"))) ??
       LOCAL_DECISION_MODEL,
   };
 }
@@ -2113,7 +2165,8 @@ export async function modelSettings(lang: Lang = "en") {
   return {
     source: cfg.settings.source,
     bindings: stored.settings.bindings,
-    ollamaUrl: cfg.settings.ollamaUrl ?? env.ollamaUrl,
+    ollamaUrl: serverUrl(cfg, "ollama"),
+    lmstudioUrl: serverUrl(cfg, "lmstudio"),
     creditFallback: cfg.settings.creditFallback !== false,
     keys: Object.fromEntries(LOCAL_KEYS.map((k) => [k, Boolean(stored.keys[k])])) as Record<
       LocalKey,
@@ -2254,24 +2307,31 @@ export async function setUpKey(
   return setupOutcome();
 }
 
-/** The setup's test of Ollama: it answers at the address and has a model to think with. */
-export async function setUpOllama(url: string, lang: Lang = "en"): Promise<SetupOutcome> {
+/** The setup's test of a server: it answers at the address and has a model to think with. */
+export async function setUpServer(
+  id: ServerId,
+  url: string,
+  lang: Lang = "en",
+): Promise<SetupOutcome> {
+  const server = SERVERS[id];
   const base = url.trim().replace(/\/+$/, "");
-  let models: string[];
-  try {
-    const res = await fetch(`${base}/models`, { signal: AbortSignal.timeout(5_000) });
-    const body = (await res.json()) as { data?: { id: string }[] };
-    models = (body.data ?? []).map((m) => m.id);
-  } catch {
-    return { ok: false, message: serverText(lang, "ollamaUnreachable"), text: null };
+  const { running } = await server.state(base);
+  if (!running) {
+    const message = serverText(lang, "serverUnreachable", { name: server.name });
+    return { ok: false, message, text: null };
   }
+  const models = (await server.models(base)).filter((m) => m.completion).map((m) => m.name);
   if (!models.length) {
-    return { ok: false, message: serverText(lang, "ollamaNoModel"), text: null };
+    const message = serverText(lang, "serverNoModel", { name: server.name });
+    return { ok: false, message, text: null };
   }
-  const bound = local.settings.bindings.low?.replace(/^ollama:/, "");
+  const bound = local.settings.bindings.low?.replace(`${id}:`, "");
   const model = bound && models.includes(bound) ? bound : models[0];
-  const text = Object.fromEntries(TEXT_CLASSES.map((c) => [c, `ollama:${model}`]));
-  await saveLocalModels({ ollamaUrl: base, bindings: freeClasses(text) });
+  const text = Object.fromEntries(TEXT_CLASSES.map((c) => [c, `${id}:${model}`]));
+  await saveLocalModels({
+    ...(id === "mlx" ? {} : { [`${id}Url`]: base }),
+    bindings: freeClasses(text),
+  });
   return setupOutcome();
 }
 

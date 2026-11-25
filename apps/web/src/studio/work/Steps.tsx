@@ -196,23 +196,44 @@ function phaseOf(part: ToolPart, live: boolean, held: string | null, approval?: 
   }
 }
 
+/** What a `tool_call` runs (@engenty/tool-harness): the tool's name and its input. */
+function throughCall(raw: unknown): { name: string; input: Record<string, unknown> } | null {
+  const call = (raw ?? {}) as { name?: unknown; input?: unknown };
+  return typeof call.name === "string" && call.name
+    ? { name: call.name, input: (call.input ?? {}) as Record<string, unknown> }
+    : null;
+}
+
 function toolView(
   part: ToolPart,
   live: boolean,
   approvals: Map<string, Approval>,
   tools: Record<string, ToolLabel>,
 ): StepView {
-  const name = part.type.slice("tool-".length);
+  // A tool the harness found runs as `tool_call`: the step is the tool's own.
+  const through = part.type === "tool-tool_call" ? throughCall(part.input) : null;
+  const name = through?.name ?? part.type.slice("tool-".length);
   const held = part.state === "output-available" ? heldBy(part) : null;
   const approval = held ? approvals.get(held) : undefined;
   const phase = phaseOf(part, live, held, approval);
   const output = held ? approval?.output : part.output;
-  const input = (part.input ?? {}) as Record<string, unknown>;
+  const input = through?.input ?? ((part.input ?? {}) as Record<string, unknown>);
   const said = PHASE_WORD[phase] ? t(PHASE_WORD[phase]) : null;
   const error = phase === "failed" ? (part.errorText ?? errorOf(output)) : null;
   const errorBody = error ? <p className="text-[0.8125rem] text-danger">{error}</p> : null;
   const base = { key: part.toolCallId, phase };
 
+  if (name === "tool_search") {
+    const query = typeof input.query === "string" ? input.query : "";
+    return {
+      ...base,
+      icon: Search,
+      title: t(phase === "running" ? "work.step.findingTool" : "work.step.foundTool", { query }),
+      detail: said,
+      body: errorBody,
+      raw: { input: part.input, output: output ?? error ?? undefined },
+    };
+  }
   // The catalogue's search; chats from before it say search_space.
   if (name === "space_search" || name === "search_space") {
     const query = typeof input.query === "string" ? input.query : "";

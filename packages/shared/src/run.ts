@@ -338,6 +338,8 @@ const NOTES_EN = {
   noSandbox: "Working without the sandbox – this run can’t run code",
   noDurable: "This step starts over after an interruption: its model can’t go on where it stopped",
   turnWentOn: "Went on after an interruption",
+  loadsModel: "Loading the model",
+  modelReads: "The model reads what the step holds",
   turnAsked: "Asks you: {question}",
   turnAnswered: "Goes on with your answer",
   // What the run may reach outside, from its grant (broker/grant.ts), as its log opens.
@@ -878,6 +880,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   noDurable:
     "Dieser Schritt beginnt nach einer Unterbrechung neu: sein Modell kann nicht dort weitermachen",
   turnWentOn: "Nach einer Unterbrechung weitergemacht",
+  loadsModel: "Lädt das Modell",
+  modelReads: "Das Modell liest, was der Schritt enthält",
   turnAsked: "Fragt dich: {question}",
   turnAnswered: "Macht mit deiner Antwort weiter",
   grant: "Dieser Lauf darf: {what}",

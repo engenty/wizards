@@ -26,6 +26,8 @@
       "packages/kernel/src/**",
       "packages/kernel/examples/**",
       "packages/kernel/*.ts",
+      "packages/tool-harness/src/**",
+      "packages/tool-harness/*.ts",
       "packages/goose/src/**",
       "packages/goose/*.ts",
       "packages/chatviews/src/**",
