@@ -41,8 +41,15 @@ if (!existsSync(kernels)) {
 }
 rmSync(bin, { recursive: true, force: true });
 mkdirSync(bin, { recursive: true });
-copyFileSync(join(products, "wizards-mlx"), join(bin, "wizards-mlx"));
-execFileSync("strip", ["-x", join(bin, "wizards-mlx")]);
-execFileSync("codesign", ["--force", "--sign", "-", join(bin, "wizards-mlx")]);
+const helper = join(bin, "wizards-mlx");
+copyFileSync(join(products, "wizards-mlx"), helper);
+execFileSync("strip", ["-x", helper]);
+// The Swift libraries an older macOS does not bring go beside it.
+execFileSync("xcrun", [
+  ...["swift-stdlib-tool", "--copy", "--platform", "macosx"],
+  ...["--scan-executable", helper, "--destination", bin],
+]);
+execFileSync("install_name_tool", ["-add_rpath", "@executable_path", helper]);
+execFileSync("codesign", ["--force", "--sign", "-", helper]);
 copyFileSync(kernels, join(bin, "mlx.metallib"));
 console.log(`wizards-mlx: built ${bin}`);
