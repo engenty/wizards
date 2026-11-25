@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ViewRenderer } from "./chat.js";
+import { fieldFilled, ViewRenderer } from "./chat.js";
 
 const draw = (program: string) =>
   renderToStaticMarkup(<ViewRenderer program={program} host={{ assetUrl: (id) => `/f/${id}` }} />);
@@ -34,5 +34,16 @@ describe("ViewRenderer", () => {
     expect(html).toContain("A question");
     expect(html).toContain("Your note");
     expect(html).toContain("Send");
+  });
+});
+
+describe("a Field of a Form", () => {
+  it("that must be answered is sent only when it holds something", () => {
+    expect(fieldFilled({ required: true, value: undefined })).toBe(false);
+    expect(fieldFilled({ required: true, value: "" })).toBe(false);
+    expect(fieldFilled({ required: true, value: [] })).toBe(false);
+    expect(fieldFilled({ required: true, value: "Monday" })).toBe(true);
+    expect(fieldFilled({ required: true, value: false })).toBe(true);
+    expect(fieldFilled({ required: false, value: undefined })).toBe(true);
   });
 });

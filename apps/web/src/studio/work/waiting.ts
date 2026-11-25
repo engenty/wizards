@@ -92,11 +92,12 @@ export function useBellOpened() {
 
 /**
  * The team's Bot Server as the runtime answers it. `team`: it takes a pass for each of its
- * people; a person's own asks for its code. `may`: the person runs it, so they chat there.
+ * people; a person's own asks for its code. `may`: the person chats there. `runs`: they are an
+ * owner or admin of it.
  */
 export type TeamHome =
   | { state: "unmanaged" }
-  | { state: "none"; mayMake: boolean; makeUrl: string; may: boolean }
+  | { state: "none"; mayMake: boolean; makeUrl: string; may: boolean; runs: boolean }
   | {
       state: "making" | "running" | "stopped";
       address: string;
@@ -104,6 +105,7 @@ export type TeamHome =
       team: boolean;
       makeUrl: string;
       may: boolean;
+      runs: boolean;
     };
 
 /** Where the team's Bot Server is; asked again while it is being made. */
