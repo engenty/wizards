@@ -17,7 +17,5 @@ apps/runtime/test
 examples
 # MIT libraries that go to npm on their own (scripts/npm-package.mjs) and that the runtime doesn't
 # use: left out of the image's build context.
-packages/decision-model
-packages/search-index
 packages/search-libsql
 packages/goose

@@ -23,6 +23,8 @@
       "packages/search-index/*.ts",
       "packages/search-libsql/src/**",
       "packages/search-libsql/*.ts",
+      "packages/tool-harness/src/**",
+      "packages/tool-harness/*.ts",
       "packages/goose/src/**",
       "packages/goose/*.ts",
       "packages/chatviews/src/**",
