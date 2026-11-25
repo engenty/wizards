@@ -386,10 +386,9 @@ jobs:
             artifacts/npm-package/*.tgz artifacts/templates.tgz artifacts/runner.tgz \
             artifacts/agent-plugins-openai.zip
 
-      # The runtime first, the launcher once npm serves it: the launcher installs the runtime of
-      # its own version from npm. @engenty/wizards needs neither. The MIT libraries come last, all
-      # at the release's version; search-libsql names decision-model and search-index at it, so
-      # those two go first.
+      # Everything but the launcher at once, so npm takes them in side by side; the launcher once npm
+      # serves the runtime, which it installs at its own version. search-libsql names decision-model
+      # and search-index at the release's version, so those two go before it.
       #
       # npm takes a few minutes to serve a version it accepted. Each package counts once `latest`
       # names it and its tarball downloads, so a green release means `npx wizards` and the updates
@@ -428,16 +427,16 @@ jobs:
               npm publish "artifacts/npm-package/$2" --access public
             fi
           }
-          publish @engenty/wizards-runtime "engenty-wizards-runtime-$version.tgz"
-          served @engenty/wizards-runtime "wizards-runtime-$version.tgz"
-          publish wizards "wizards-$version.tgz"
-          served wizards "wizards-$version.tgz"
-          publish @engenty/wizards "engenty-wizards-$version.tgz"
-          served @engenty/wizards "wizards-$version.tgz"
           libraries="chatviews decision-model search-index search-libsql tool-harness goose vault plugins browser local-models model-setup"
+          publish @engenty/wizards-runtime "engenty-wizards-runtime-$version.tgz"
+          publish @engenty/wizards "engenty-wizards-$version.tgz"
           for library in $libraries; do
             publish "@engenty/$library" "engenty-$library-$version.tgz"
           done
+          served @engenty/wizards-runtime "wizards-runtime-$version.tgz"
+          publish wizards "wizards-$version.tgz"
+          served wizards "wizards-$version.tgz"
+          served @engenty/wizards "wizards-$version.tgz"
           for library in $libraries; do
             served "@engenty/$library" "$library-$version.tgz"
           done
