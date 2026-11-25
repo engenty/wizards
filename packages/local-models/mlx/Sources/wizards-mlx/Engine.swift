@@ -38,6 +38,9 @@ actor Engine {
 
     /// How many prompts stay read: the conversation and what runs beside it.
     static let kept = 2
+    /// How many tokens are read at a time: after each, the caller hears how far it is, and a call
+    /// given up ends.
+    static let piece = 512
 
     private func model(_ dir: String) async throws -> Held {
         if let held, held.dir == dir { return held }
@@ -71,7 +74,11 @@ actor Engine {
     }
 
     private func answer(_ id: String, _ request: ChatRequest) async throws {
+        if held?.dir != request.model {
+            await Out.shared.send(Chunk(id: id, wait: .init(state: "loading")))
+        }
         let held = try await model(request.model)
+        try Task.checkCancellation()
         let chat = Box(try request.messages.map(Self.message))
         let tools = request.tools?.compactMap { $0.object?.mapValues { $0.sendable } }
         let options = request.options
@@ -83,7 +90,12 @@ actor Engine {
             topK: options?.top_k ?? 0,
             seed: options?.seed)
         let started = Date()
+        if request.warm == true {
+            try await warm(id, held, chat, tools, context, parameters)
+            return
+        }
         if let schema = request.schema {
+            await Out.shared.send(Chunk(id: id, wait: .init(state: "reading")))
             let input = Box(
                 try await held.container.prepare(
                     input: UserInput(chat: chat.value, tools: tools, additionalContext: context)))
@@ -108,7 +120,7 @@ actor Engine {
                     chat: chat.value + [.assistant("x")], tools: tools, additionalContext: context))
             let stable = min(
                 Self.common(tokens, next.text.tokens.asArray(Int.self)), tokens.count - 1)
-            let (cache, known) = try held.cache(for: tokens, upTo: stable, model, parameters)
+            let (cache, known) = try await held.cache(id, tokens, upTo: stable, model, parameters)
             let rest = MLXArray(tokens[stable...].map { Int32($0) })
             let stream = try MLXLMCommon.generate(
                 input: LMInput(tokens: rest), cache: cache, parameters: parameters, context: model,
@@ -146,6 +158,26 @@ actor Engine {
         }
         // A call given up ends the stream without a word.
         try Task.checkCancellation()
+    }
+
+    /// Reads what a chat starts with whatever the person writes next. The last message stands for it.
+    private func warm(
+        _ id: String, _ held: Held, _ chat: Box<[Chat.Message]>, _ tools: [ToolSpec]?,
+        _ context: [String: any Sendable]?, _ parameters: GenerateParameters
+    ) async throws {
+        let known = try await held.container.perform { model in
+            let before = Array(chat.value.dropLast())
+            var prompts: [[Int]] = []
+            for text in ["a", "b"] {
+                let input = try await model.processor.prepare(
+                    input: UserInput(
+                        chat: before + [.user(text)], tools: tools, additionalContext: context))
+                prompts.append(input.text.tokens.asArray(Int.self))
+            }
+            let shared = Self.common(prompts[0], prompts[1])
+            return try await held.cache(id, prompts[0], upTo: shared, model, parameters).1
+        }
+        await Out.shared.send(Chunk(id: id, done: true, done_reason: "stop", cached: known))
     }
 
     /// How many tokens two prompts start with in common.
@@ -231,10 +263,11 @@ final class Box<T>: @unchecked Sendable {
 
 extension Engine.Held {
     /// A cache that holds the first `upTo` tokens of a prompt: from what the model has read
-    /// already, the rest read now and kept. Also how many it knew.
+    /// already, the rest read now and kept, also of a call given up. Also how many it knew.
     func cache(
-        for tokens: [Int], upTo: Int, _ context: ModelContext, _ parameters: GenerateParameters
-    ) throws -> ([KVCache], Int) {
+        _ id: String, _ tokens: [Int], upTo: Int, _ context: ModelContext,
+        _ parameters: GenerateParameters
+    ) async throws -> ([KVCache], Int) {
         var known = 0
         var cache: [KVCache]?
         for entry in read {
@@ -249,20 +282,29 @@ extension Engine.Held {
             known = shared
         }
         let filled = try cache ?? context.model.newCache(parameters: parameters)
-        if known < upTo {
-            let part = LMInput(tokens: MLXArray(tokens[known..<upTo].map { Int32($0) }))
-            switch try context.model.prepare(part, cache: filled, state: nil, prefill: parameters.prefill) {
-            case .tokens(let left):
-                let out = context.model(left[text: .newAxis], cache: filled, state: nil)
-                eval(out.logits)
-            case .logits(let out):
-                eval(out.logits)
-            }
-            read.removeAll { Engine.common($0.tokens, tokens) == $0.tokens.count }
-            read.append(Engine.Read(tokens: Array(tokens[..<upTo]), cache: filled.map { $0.copy() }))
-            if read.count > Engine.kept { read.removeFirst() }
+        var at = known
+        defer { if at > known { keep(Array(tokens[..<at]), filled) } }
+        var state: LMOutput.State?
+        while at < upTo {
+            await Out.shared.send(
+                Chunk(
+                    id: id,
+                    wait: .init(state: "reading", done: at - known, total: tokens.count - known)))
+            try Task.checkCancellation()
+            let end = min(at + Engine.piece, upTo)
+            let part = LMInput.Text(tokens: MLXArray(tokens[at..<end].map { Int32($0) }))
+            state = context.model(part[text: .newAxis], cache: filled, state: state).state
+            eval(filled.flatMap { $0.state })
+            at = end
         }
         return (filled, known)
+    }
+
+    /// Keeps a prompt that was read, in the place of those it starts with.
+    private func keep(_ tokens: [Int], _ cache: [KVCache]) {
+        read.removeAll { Engine.common($0.tokens, tokens) == $0.tokens.count }
+        read.append(Engine.Read(tokens: tokens, cache: cache.map { $0.copy() }))
+        if read.count > Engine.kept { read.removeFirst() }
     }
 }
 

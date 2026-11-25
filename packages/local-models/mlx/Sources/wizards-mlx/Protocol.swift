@@ -41,6 +41,8 @@ struct ChatRequest: Decodable {
     /// The JSON schema the answer has to match, as text: its order is the answer's.
     var schema: String?
     var think: Bool?
+    /// Reads all but the last message and answers nothing: the next call starts at once.
+    var warm: Bool?
     var options: Options?
 }
 
@@ -58,7 +60,14 @@ struct Chunk: Encodable {
         var thinking: String?
         var tool_calls: [Call]?
     }
+    /// What the caller waits for: the model is loaded, or reads, of `total` tokens `done`.
+    struct Wait: Encodable {
+        var state: String
+        var done: Int?
+        var total: Int?
+    }
     var id: String
+    var wait: Wait?
     var message: Message?
     var done: Bool?
     var done_reason: String?

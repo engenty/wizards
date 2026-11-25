@@ -29,9 +29,17 @@ export function mlxSupported(): boolean {
 /** A pipe no longer keeps this process alive. */
 const unref = (pipe: unknown) => (pipe as { unref?: () => void } | undefined)?.unref?.();
 
+/** What a call waits for: the model is loaded, or reads, of `total` tokens `done`. */
+export interface Waiting {
+  state: "loading" | "reading";
+  done?: number;
+  total?: number;
+}
+
 /** What the helper says of a call, in the shape of Ollama's chat API. */
 export interface HelperChunk {
   id: string;
+  wait?: Waiting;
   message?: {
     content?: string;
     thinking?: string;
@@ -49,6 +57,8 @@ type Listener = (chunk: HelperChunk) => void;
 export class Helper {
   private child: ChildProcess | undefined;
   private readonly calls = new Map<string, Listener>();
+  /** The call that only reads ahead. What it has read stays read when another call ends it. */
+  private ahead: string | undefined;
   private clock: ReturnType<typeof setTimeout> | undefined;
   private next = 0;
   /** The folder of the model in memory. */
@@ -128,6 +138,9 @@ export class Helper {
     clearTimeout(this.clock);
     const over = () => {
       this.calls.delete(id);
+      if (this.ahead === id) {
+        this.ahead = undefined;
+      }
       signal?.removeEventListener("abort", abort);
       this.rest();
     };
@@ -157,6 +170,10 @@ export class Helper {
         fail = (reason) => controller.error(reason);
         signal?.addEventListener("abort", abort, { once: true });
         this.model = chat.model;
+        if (this.ahead !== undefined) {
+          this.write({ id: this.ahead, cancel: true });
+        }
+        this.ahead = chat.warm ? id : undefined;
         this.write({ id, chat });
       },
       cancel: () => {

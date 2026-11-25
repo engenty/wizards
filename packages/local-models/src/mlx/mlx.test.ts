@@ -61,6 +61,7 @@ rl.on("line", (line) => {
   const text = chat.messages.at(-1).content;
   if (text === "die") { console.error("out of memory"); process.exit(3); }
   if (text === "wait") return;
+  if (text === "read") { say({ id, wait: { state: "loading" } }); say({ id, wait: { state: "reading", done: 0, total: 9 } }); }
   if (chat.tools) say({ id, message: { tool_calls: [{ function: { name: "add", arguments: { a: 1 } } }] } });
   else if (chat.schema) say({ id, message: { content: chat.schema } });
   else { say({ id, message: { thinking: "hm" } }); say({ id, message: { content: "o" } }); say({ id, message: { content: "k" } }); }
@@ -190,6 +191,24 @@ describe.runIf(process.platform === "darwin" && process.arch === "arm64")("a mod
       model: MODEL,
       detail: "ok",
     });
+  });
+
+  it("says what it waits for, until it begins to answer", async () => {
+    const seen: unknown[] = [];
+    const read = mlxModel({ folder: root, model: MODEL, onWaiting: (w) => seen.push(w) });
+    expect((await read.doGenerate({ prompt: user("read") })).content.at(-1)).toMatchObject({
+      text: "ok",
+    });
+    await read.doGenerate({ prompt: user("hi") });
+    expect(seen).toEqual([{ state: "loading" }, { state: "reading", done: 0, total: 9 }, null]);
+  });
+
+  it("reads ahead until another call comes", async () => {
+    const ahead = mlxModel({ folder: root, model: MODEL, warm: true });
+    const warming = ahead.doGenerate({ prompt: user("wait") });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect((await model().doGenerate({ prompt: user("hi") })).content).toHaveLength(1);
+    expect((await warming).content).toEqual([]);
   });
 
   it("is given up when its caller gives up", async () => {
