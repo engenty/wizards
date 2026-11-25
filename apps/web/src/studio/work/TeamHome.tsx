@@ -44,14 +44,14 @@ function Shown({ home }: { home: Home }) {
   }
   if (home.state === "stopped") {
     return (
-      <Note action={home.may ? { label: "work.home.manage", url: home.makeUrl } : undefined}>
+      <Note action={home.runs ? { label: "work.home.manage", url: home.makeUrl } : undefined}>
         {t("work.home.stopped")}
       </Note>
     );
   }
-  // A team's server is run by its owners and admins; a person's own server is theirs.
+  // Everyone of the team chats on its server, each as themselves; a client has no chats there.
   if (home.team && !home.may) {
-    return <Note>{t("work.home.adminsOnly")}</Note>;
+    return <Note>{t("work.home.noChats")}</Note>;
   }
   return home.team ? <Paired origin={home.origin} /> : <Page address={home.origin} />;
 }

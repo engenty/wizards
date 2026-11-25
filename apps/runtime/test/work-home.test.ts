@@ -182,13 +182,13 @@ afterAll(() => {
 describe("Work's chats on the team's Bot Server", () => {
   it("says that the team has none yet, and who runs one", async () => {
     const forOwner = await (await get("/api/studio/work/home", owner)).json();
-    expect(forOwner).toEqual({ state: "none", mayMake: true, makeUrl: MAKE, may: true });
+    expect(forOwner).toEqual({ state: "none", mayMake: true, makeUrl: MAKE, may: true, runs: true });
     const forMember = await (await get("/api/studio/work/home", member)).json();
-    expect(forMember).toMatchObject({ state: "none", may: false });
+    expect(forMember).toMatchObject({ state: "none", may: true, runs: false });
     expect(asked).toEqual(["home user-o", "home user-m"]);
   });
 
-  it("gives an owner the address that pairs their browser, and a member none", async () => {
+  it("gives everyone of the team the address that pairs their browser, as themselves", async () => {
     home = { state: "running", address: "club", origin: ORIGIN, team: true, mayMake: false, makeUrl: MAKE };
     expect(await (await get("/api/studio/work/home", owner)).json()).toMatchObject({
       state: "running",
@@ -200,8 +200,12 @@ describe("Work's chats on the team's Bot Server", () => {
     expect(pass.status).toBe(200);
     expect(pass.headers.get("cache-control")).toBe("no-store");
     expect(await pass.json()).toEqual({ url: `${ORIGIN}/#admin=pass-of-user-o` });
-    expect((await send("POST", "/api/studio/work/home/pass", member)).status).toBe(404);
-    expect(asked).not.toContain("pass user-m");
+    const forMember = await send("POST", "/api/studio/work/home/pass", member);
+    expect(await forMember.json()).toEqual({ url: `${ORIGIN}/#admin=pass-of-user-m` });
+    expect(await (await get("/api/studio/work/home", member)).json()).toMatchObject({
+      may: true,
+      runs: false,
+    });
   });
 
   it("says so when the Bot Server does not run", async () => {
