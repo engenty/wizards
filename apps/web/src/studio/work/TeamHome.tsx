@@ -1,9 +1,12 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { type Key, t } from "../../lib/i18n";
+import { useCurrentSpace, useMe } from "../../lib/session";
 import { Button } from "../../ui";
 import { useCrumbs } from "../AppFrame";
 import { useAssistantPage } from "../assistant/page";
 import { openExternal } from "../LocalRuntime";
+import { spaceLabel } from "../SpacePath";
+import { tellSpace } from "./open-space";
 import { type TeamHome as Home, useHomeAddress, useTeamHome } from "./waiting";
 
 /**
@@ -62,10 +65,36 @@ function Paired({ origin }: { origin: string }) {
   return address.data ? <Page address={address.data.url} /> : null;
 }
 
-/** The server's own page. What it may use is what its chats use: the microphone, the camera. */
+/**
+ * The server's own page. What it may use is what its chats use: the microphone, the camera. Once
+ * the page says it listens it is told the space open in the top bar, and each one opened after
+ * it, so its chats work in that space (open-space.ts).
+ */
 function Page({ address }: { address: string }) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  const telling = useRef<ReturnType<typeof tellSpace> | null>(null);
+  const origin = new URL(address).origin;
+  const me = useMe().data;
+  const { space } = useCurrentSpace();
+  const id = space?.id;
+  const name = space && me ? spaceLabel(me, space) : undefined;
+  useEffect(() => {
+    const told = tellSpace(window, () => frame.current?.contentWindow ?? null, origin);
+    telling.current = told;
+    return () => {
+      told.stop();
+      telling.current = null;
+    };
+  }, [origin]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a server at another origin has a listener of its own to tell.
+  useEffect(() => {
+    if (id && name) {
+      telling.current?.open({ id, name });
+    }
+  }, [id, name, origin]);
   return (
     <iframe
+      ref={frame}
       title={t("work.chats")}
       src={address}
       allow="microphone; camera; clipboard-read; clipboard-write; fullscreen"
