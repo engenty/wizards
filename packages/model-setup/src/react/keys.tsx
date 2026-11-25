@@ -1,9 +1,10 @@
 import { Button, cn, Input, Label } from "@engenty/chatviews/react/ui";
+import type { ServerId } from "@engenty/local-models/servers";
 import { Check, ExternalLink } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useCall, useSetupHost, useText } from "./host.js";
 
-/** What the test of a key or of Ollama answered. */
+/** What the test of a key or of a server answered. */
 export interface SourceResult {
   ok: boolean;
   message: string | null;
@@ -49,7 +50,7 @@ export function OwnKeys({
   hint?: string;
   /** Below the rows: where to change it later. */
   later?: string;
-  /** More rows, e.g. Ollama's. */
+  /** More rows. */
   children?: ReactNode;
 }) {
   const t = useText();
@@ -157,24 +158,28 @@ function KeyRow({
   );
 }
 
-/** Ollama at an address of the person's. */
-export function OllamaAddress({
+/** A server for open models at an address of the person's. */
+export function ServerAddress({
+  id,
+  name,
   url: saved,
   modelName,
 }: {
+  id: ServerId;
+  name: string;
   url: string;
   modelName?: Names["modelName"];
 }) {
   const t = useText();
   const [url, setUrl] = useState(saved);
-  const test = useSourceTest("/ollama");
+  const test = useSourceTest(`/servers/${id}/address`);
   return (
     <Row
-      label="Ollama"
-      sub={t("local.ollamaWhere")}
+      label={t("local.address")}
+      sub={t("local.serverWhere")}
       input={
         <Input
-          aria-label="Ollama"
+          aria-label={name}
           className="min-w-0 flex-1 font-mono text-[0.8125rem]"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
@@ -190,7 +195,7 @@ export function OllamaAddress({
           {t("local.test")}
         </Button>
       }
-      said={useSaid(test, { modelName, mine: (ref) => ref.startsWith("ollama:") })}
+      said={useSaid(test, { modelName, mine: (ref) => ref.startsWith(`${id}:`) })}
     />
   );
 }

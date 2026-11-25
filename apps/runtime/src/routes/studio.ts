@@ -2131,6 +2131,7 @@ export const studio = new Hono<Vars>()
       managed &&
       (input.source ||
         input.ollamaUrl ||
+        input.lmstudioUrl ||
         Object.values(input.bindings ?? {}).some((ref) => ref && !cloudBinding(ref)))
     ) {
       return c.json(

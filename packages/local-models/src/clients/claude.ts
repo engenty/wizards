@@ -164,6 +164,7 @@ export const claude: Client = {
   id: "claude",
   name: "Claude Code",
   bin: CLAUDE_BIN,
+  tools: true,
   version: (env) =>
     probeVersion(CLAUDE_BIN, env, (stdout) => stdout.trim().split(/\s+/)[0] || stdout.trim()),
   login: { args: ["auth", "login"], interactive: false },

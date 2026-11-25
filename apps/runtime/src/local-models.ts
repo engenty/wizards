@@ -1,13 +1,14 @@
-import { MODEL_JOBS, type OfferedModel } from "@engenty/model-setup";
-import { OllamaModels } from "@engenty/model-setup/server";
+import { SERVERS } from "@engenty/local-models/servers";
+import { MODEL_JOBS, OFFERED_MODELS, type OfferedModel } from "@engenty/model-setup";
+import { LocalModels } from "@engenty/model-setup/server";
 import { layout } from "./cli/home.js";
 import { env } from "./env.js";
-import { embeddingModel, forgetLocalModels, localOllamaUrl } from "./models.js";
+import { embeddingModel, forgetLocalModels, localServerUrl } from "./models.js";
 
 /**
- * The models in Ollama on this computer (@engenty/model-setup), with the ones the Manage-App
- * offers per job (`GET /v1/local-models` of the account's Manage-App). Text, search and decisions
- * each pick their model from it.
+ * The servers for open models on this computer (@engenty/model-setup). Ollama's models come with
+ * the ones the Manage-App offers per job (`GET /v1/local-models` of the account's Manage-App):
+ * text, search and decisions each pick their model from it. LM Studio's are for text.
  */
 
 /** The share of the computer's memory a model may take and still leave room for the rest. */
@@ -37,8 +38,9 @@ async function offeredModels(): Promise<OfferedModel[] | null> {
 /** The model the spaces are indexed with now. */
 const embeddedBy = async () => (await embeddingModel().catch(() => null))?.ref ?? null;
 
-export const ollamaModels = new OllamaModels({
-  url: localOllamaUrl,
+const ollama = new LocalModels({
+  server: SERVERS.ollama,
+  url: () => localServerUrl("ollama"),
   offered: offeredModels,
   share: MEMORY_SHARE,
   logs: () => layout().logs,
@@ -54,3 +56,13 @@ export const ollamaModels = new OllamaModels({
     };
   },
 });
+
+const lmStudio = new LocalModels({
+  server: SERVERS.lmstudio,
+  url: () => localServerUrl("lmstudio"),
+  offered: () => OFFERED_MODELS.lmstudio,
+  share: MEMORY_SHARE,
+  logs: () => layout().logs,
+});
+
+export const localServers: readonly LocalModels[] = [ollama, lmStudio];

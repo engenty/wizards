@@ -1,5 +1,5 @@
 import { Button, cn } from "@engenty/chatviews/react/ui";
-import { ArrowLeft, ArrowRight, Check, RefreshCw } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, RefreshCw } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import { useText } from "./host.js";
 
@@ -30,6 +30,8 @@ export interface SetupChoice {
   badge?: string;
   /** How the choice stands right now, at the row's end. */
   note?: string;
+  /** It cannot answer as it is: shown once the person asks for more. */
+  more?: boolean;
 }
 
 export function Choice({
@@ -220,6 +222,11 @@ export function SetupColumns({
   const root = useRef<HTMLDivElement>(null);
   // A narrow page shows the opened choice alone; the person goes back to the choices from there.
   const [listOpen, setListOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const rest = choices.filter((choice) => choice.more && choice.id !== marked);
+  const first = choices.filter((choice) => !rest.includes(choice));
+  // The rest comes after what stood there already: no row moves.
+  const shown = moreOpen ? [...first, ...rest] : first;
   /** On a narrow page: the opened choice is all there is to see. */
   const panelOnly = selected !== null && !listOpen;
   const pick = async (id: string) => {
@@ -327,7 +334,7 @@ export function SetupColumns({
             </div>
           ) : null}
           <div className="mt-5 flex flex-col gap-2.5">
-            {choices.map((choice) => (
+            {shown.map((choice) => (
               <Choice
                 key={choice.id}
                 choice={choice}
@@ -336,8 +343,23 @@ export function SetupColumns({
               />
             ))}
           </div>
+          {rest.length ? (
+            <div className="mt-3 flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-expanded={moreOpen}
+                onClick={() => setMoreOpen(!moreOpen)}
+              >
+                <ChevronDown
+                  className={cn("size-3.5 transition-transform", moreOpen ? "rotate-180" : "")}
+                />
+                {moreOpen ? t("setup.less") : t("setup.more")}
+              </Button>
+            </div>
+          ) : null}
           {recheck ? (
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-(color:--on)/60 text-[0.8125rem]">
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-(color:--on)/60 text-[0.8125rem]">
               <span>{recheck.note}</span>
               <Button variant="ghost" size="sm" busy={recheck.busy} onClick={recheck.run}>
                 <RefreshCw className="size-3.5" /> {t("local.recheck")}

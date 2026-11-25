@@ -26,7 +26,7 @@ describe("an installed AI client as a model", () => {
   });
 
   it("reads the result Antigravity prints after its step events", async () => {
-    const { antigravityAnswer } = await import("../src/harness/antigravity");
+    const { antigravityAnswer } = await import("@engenty/local-models/clients");
     const r = antigravityAnswer(
       [
         '{"event":"init","conversation_id":"a1","init":{"tools":[]}}',
@@ -41,7 +41,7 @@ describe("an installed AI client as a model", () => {
   });
 
   it("puts the instructions in front of the one message Antigravity reads", async () => {
-    const { antigravityMessage, withEffort } = await import("../src/harness/antigravity");
+    const { antigravityMessage, withEffort } = await import("@engenty/local-models/clients");
     const line = antigravityMessage("Be brief.", "Hi");
     expect(JSON.parse(line)).toEqual({
       event: "user",

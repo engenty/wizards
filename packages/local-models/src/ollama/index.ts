@@ -1,9 +1,6 @@
 export {
-  fits,
-  type InstalledModel,
   installedModels,
   OLLAMA_DEFAULT,
-  type OllamaRequestOptions,
   type OllamaState,
   ollamaAddress,
   ollamaRoot,
@@ -22,3 +19,4 @@ export {
   type StreamPart,
   type StreamResult,
 } from "./model.js";
+export { ollama } from "./server.js";

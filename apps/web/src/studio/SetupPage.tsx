@@ -6,12 +6,17 @@ import {
   SETUP_GROUND_INK,
   SETUP_ON_GROUND,
   SETUP_ON_PAPER,
+  ServerAddress,
   type SetupChoice,
   SetupColumns,
   SetupReady,
   useClientChoices,
   useClientStage,
+  useServerChoices,
+  useText,
 } from "@engenty/model-setup/react";
+import { TEXT_CLASSES } from "@engenty/wizards-shared/definition";
+import { modelLabel } from "@engenty/wizards-shared/providers";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, Cloud } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -34,12 +39,28 @@ import { Button, cn } from "../ui";
 import { LinkStatus, useAccountLink } from "./Account";
 import { StudioSetup } from "./Harness";
 import { LangSwitch } from "./LangSwitch";
+import { LocalModels as LocalModelList, type ServerId, useLocalModels } from "./LocalModels";
 import { OwnModels, openExternal } from "./LocalRuntime";
 import { ThemeSwitch } from "./ThemeSwitch";
 
 type Source = LocalModels["source"];
-/** What the setup offers: a source, or Apple Intelligence — the short classes bound on this Mac. */
-type Pick = Source | "apple";
+/**
+ * What the setup offers: a source, a server for open models (own models, bound to it), or Apple
+ * Intelligence — the short classes bound on this Mac.
+ */
+type Pick = Source | ServerId | "apple";
+
+const isServer = (pick: string | null): pick is ServerId =>
+  pick === "ollama" || pick === "lmstudio";
+
+/** The bindings with the text classes that name a model on this computer unbound. */
+function withoutLocal(bindings: LocalModels["bindings"]) {
+  return Object.fromEntries(
+    TEXT_CLASSES.filter((cls) => /^(ollama|lmstudio|apple):/.test(bindings[cls] ?? "")).map(
+      (cls) => [cls, ""],
+    ),
+  );
+}
 
 /** The colour of a step reached. */
 const STEP_DONE = "var(--step-done)";
@@ -53,6 +74,8 @@ const HOSTS: Record<Pick, string> = {
   claude: "oval",
   antigravity: "wedge",
   cursor: "sprout",
+  ollama: "pebble",
+  lmstudio: "round",
   own: "bean",
   account: "drop",
   apple: "pebble",
@@ -242,16 +265,21 @@ function Setup({ me, models }: { me: Me; models: LocalModels }) {
   const [picked, setPicked] = useState(ownPicked);
   // Without an account, the way to the studio asks once whether to sign in first.
   const [asking, setAsking] = useState(false);
+  // A server is opened before it is picked: the model the person chooses picks it.
+  const [opened, setOpened] = useState<ServerId | null>(null);
+  const ollama = useLocalModels("ollama");
+  const lmStudio = useLocalModels("lmstudio");
+  const servers = [ollama.data, lmStudio.data].flatMap((local) => (local ? [local.server] : []));
   const choose = useMutation({
     // Apple Intelligence is the short classes bound on this Mac; the source stays and keeps Standard
     // and High. Another choice after it unbinds them.
-    mutationFn: (pick: Pick) =>
+    mutationFn: (pick: Exclude<Pick, ServerId>) =>
       api.put(
         "/api/studio/local/models",
         pick === "apple"
           ? { bindings: { classifier: "apple:default", low: "apple:default" } }
           : pick === "own"
-            ? { source: "own", bindings: { classifier: "", low: "" } }
+            ? { source: "own", bindings: withoutLocal(models.bindings) }
             : { source: pick, bindings: withoutApple(models.bindings) },
       ),
     onSuccess: async (_saved, source) => {
@@ -259,39 +287,66 @@ function Setup({ me, models }: { me: Me; models: LocalModels }) {
       // never for a moment on the source it replaced.
       await qc.invalidateQueries({ queryKey: ["me"] });
       setPicked(true);
+      setOpened(null);
       rememberOwn(source === "own");
     },
+  });
+  const chooseModel = useMutation({
+    mutationFn: ({ server, model }: { server: ServerId; model: string }) =>
+      api.put("/api/studio/local/models", {
+        source: "own",
+        bindings: Object.fromEntries(TEXT_CLASSES.map((cls) => [cls, `${server}:${model}`])),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
   });
   const rescan = useMutation({
     mutationFn: () =>
       Promise.all(me.harnesses.map((h) => api.post(`/api/studio/local/harness/${h.id}/detect`))),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ["me"] }),
+        qc.invalidateQueries({ queryKey: ["models", "local"] }),
+      ]),
   });
+  const said = useText();
+  const serverRows = useServerChoices(servers);
   const clients = useClientChoices(me.harnesses);
   const installed = me.harnesses.some((h) => h.version !== null);
   // A first start has nothing chosen yet; a source picked earlier (here or in the settings) stays picked.
   const apple = me.apple;
   const appleChosen = models.bindings.low?.startsWith("apple:");
-  const selected: Pick | null = appleChosen
+  const bound = models.bindings.low?.split(":")[0] ?? "";
+  /** The server the text runs on now. */
+  const onServer = models.source === "own" && isServer(bound) ? bound : null;
+  const inEffect: Pick | null = appleChosen
     ? "apple"
-    : picked || me.setupDone || models.source !== "own"
-      ? models.source
-      : null;
+    : onServer
+      ? onServer
+      : picked || me.setupDone || models.source !== "own"
+        ? models.source
+        : null;
+  const selected: Pick | null = opened ?? inEffect;
   const client = me.harnesses.find((h) => h.id === selected);
+  const server = servers.find((s) => s.id === selected);
   // Beside Apple the source stays: Standard and High think on the client or the credits picked before.
   const keeps =
     models.source === "account"
       ? t("models.creditsName")
-      : (me.harnesses.find((h) => h.id === models.source)?.name ?? null);
-  const works = me.setupDone;
+      : (me.harnesses.find((h) => h.id === models.source)?.label ?? null);
+  const works = me.setupDone && selected === inEffect;
   const hasKey = Object.values(models.keys).some(Boolean);
   // Connect, test, done: where the chosen source stands. Apple has nothing to connect.
   const standing = useClientStage(client, works);
   const { stage, heading } =
-    selected === "own" && !works && !hasKey ? { stage: 0, heading: t("setup.h.keys") } : standing;
+    selected === "own" && !works && !hasKey
+      ? { stage: 0, heading: t("setup.h.keys") }
+      : isServer(selected) && !works && onServer !== selected
+        ? { stage: 0, heading: said("server.heading") }
+        : standing;
   const site = siteOn ? config.data?.site : null;
   const sourceName =
-    client?.name ??
+    client?.label ??
+    server?.name ??
     (selected === "apple"
       ? t("models.optApple")
       : selected === "account"
@@ -301,6 +356,7 @@ function Setup({ me, models }: { me: Me; models: LocalModels }) {
   const credits = me.account?.credits ?? null;
   const choices: SetupChoice[] = [
     ...clients,
+    ...serverRows,
     ...(apple?.supported
       ? [
           {
@@ -414,7 +470,9 @@ function Setup({ me, models }: { me: Me; models: LocalModels }) {
           choices={choices}
           selected={selected}
           marked={marked}
-          onPick={(id) => choose.mutateAsync(id as Pick)}
+          onPick={(id) =>
+            isServer(id) ? setOpened(id) : choose.mutateAsync(id as Exclude<Pick, ServerId>)
+          }
           recheck={{
             busy: rescan.isPending,
             run: () => rescan.mutate(),
@@ -431,6 +489,41 @@ function Setup({ me, models }: { me: Me; models: LocalModels }) {
                   figure: <Mascot kind={HOSTS[selected]} size={120} fluffy coat="fur" />,
                   content: client ? (
                     <ClientPanel client={client} autoTest={!works} />
+                  ) : isServer(selected) ? (
+                    <div className="flex flex-col gap-5">
+                      <p className="text-[0.8125rem] text-ink-3">
+                        {said("server.hint", { name: sourceName })}
+                      </p>
+                      <LocalModelList
+                        key={selected}
+                        server={selected}
+                        job="text"
+                        inUse={
+                          onServer === selected
+                            ? [(models.bindings.low ?? "").slice(selected.length + 1)]
+                            : []
+                        }
+                        disabled={chooseModel.isPending}
+                        onChoose={(model) => chooseModel.mutate({ server: selected, model })}
+                        onlyHeld
+                      />
+                      {chooseModel.isError ? (
+                        <p className="text-[0.875rem] text-rose">
+                          {(chooseModel.error as Error).message}
+                        </p>
+                      ) : null}
+                      {onServer === selected ? (
+                        <ModelTest key={models.bindings.low} auto={!works} />
+                      ) : null}
+                      {server && !server.running ? (
+                        <ServerAddress
+                          id={selected}
+                          name={sourceName}
+                          url={models[`${selected}Url`]}
+                          modelName={modelLabel}
+                        />
+                      ) : null}
+                    </div>
                   ) : selected === "apple" ? (
                     <div className="flex flex-col gap-5">
                       <p className="text-[0.875rem] text-ink-2 leading-relaxed">

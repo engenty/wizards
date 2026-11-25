@@ -38,7 +38,14 @@ beforeAll(async () => {
         if (!net.ollama) {
           throw new Error("ECONNREFUSED");
         }
-        return new Response(JSON.stringify({ data: net.ollama.map((id) => ({ id })) }));
+        const models = net.ollama.map((name) => ({ name, size: 1e9, digest: name }));
+        return Response.json(
+          String(url).endsWith("/api/version")
+            ? { version: "0.40.12" }
+            : String(url).endsWith("/api/show")
+              ? { capabilities: ["completion"] }
+              : { models },
+        );
       }
       return new Response("{}", { status: net.status });
     }),
@@ -101,7 +108,7 @@ describe("the setup's test of a key", () => {
 describe("the setup's test of Ollama", () => {
   it("binds the text classes to the first model Ollama has", async () => {
     net.ollama = ["llama3.2", "qwen3"];
-    const result = await models.setUpOllama("http://127.0.0.1:11434/v1/");
+    const result = await models.setUpServer("ollama", "http://127.0.0.1:11434/v1/");
     expect(result).toEqual({ ok: true, message: null, text: "ollama:llama3.2" });
     expect(bindings().high).toBe("ollama:llama3.2");
     expect(models.localModelSettings().ollamaUrl).toBe("http://127.0.0.1:11434/v1");
@@ -109,9 +116,9 @@ describe("the setup's test of Ollama", () => {
 
   it("says so when Ollama has no model or does not answer", async () => {
     net.ollama = [];
-    expect((await models.setUpOllama("http://127.0.0.1:11434/v1")).ok).toBe(false);
+    expect((await models.setUpServer("ollama", "http://127.0.0.1:11434/v1")).ok).toBe(false);
     net.ollama = null;
-    expect((await models.setUpOllama("http://127.0.0.1:11434/v1")).ok).toBe(false);
+    expect((await models.setUpServer("ollama", "http://127.0.0.1:11434/v1")).ok).toBe(false);
     expect(bindings().low).toBe("");
   });
 });

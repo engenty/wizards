@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import {
@@ -10,6 +9,7 @@ import {
   CLIENTS,
   type ClientId,
   cursorWorkspace,
+  ownCursorServers,
   resolveEnv,
 } from "@engenty/local-models/clients";
 import type { Lang } from "@engenty/wizards-shared/definition";
@@ -45,8 +45,8 @@ import type { TurnClock } from "./turn-clock.js";
  */
 export type SubscriptionClient = ClientId;
 
-/** The clients whose subscription can answer the studio chat. */
-const SUBSCRIPTION_CLIENTS = CLIENT_IDS;
+/** The clients whose subscription can answer the studio chat: those that take its MCP tools. */
+const SUBSCRIPTION_CLIENTS = CLIENT_IDS.filter((id) => CLIENTS[id].tools);
 
 /** The environment variable Codex reads this server's bearer key from. */
 const CODEX_KEY_VAR = "WIZARDS_MCP_KEY";
@@ -87,18 +87,6 @@ function mcpConfig(): string {
     { mode: 0o600 },
   );
   return file;
-}
-
-/** The server names in the person's own Cursor config, which the chat's workspace denies. */
-function ownCursorServers(): string[] {
-  const file = join(homedir(), ".cursor", "mcp.json");
-  try {
-    return existsSync(file)
-      ? Object.keys(JSON.parse(readFileSync(file, "utf8")).mcpServers ?? {})
-      : [];
-  } catch {
-    return [];
-  }
 }
 
 const SYSTEM = (wizardId: string) =>

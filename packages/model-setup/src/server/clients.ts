@@ -70,6 +70,7 @@ export class ClientSetup {
     const value: ClientSetupStatus<ClientId> = {
       id: client.id,
       name: client.name,
+      label: entry?.label ?? client.name,
       install: entry ? installCommand(entry, this.options.folder(), process.platform) : "",
       app: entry ? vendorApp(entry) : null,
       version: status.version,

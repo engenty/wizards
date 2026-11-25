@@ -1,10 +1,11 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { SERVERS } from "@engenty/local-models/servers";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
-import { OFFERED_TEXT_MODELS } from "../index.js";
-import { ClientSetup, OllamaModels, setupRoutes, Terminals, Tested } from "./index.js";
+import { OFFERED_MODELS } from "../index.js";
+import { ClientSetup, LocalModels, setupRoutes, Terminals, Tested } from "./index.js";
 
 const signIn = { signedIn: false };
 const dir = mkdtempSync(join(tmpdir(), "model-setup-"));
@@ -37,13 +38,17 @@ function host() {
         tested.splice(0, tested.length, ...sources);
       },
     }),
-    ollama: new OllamaModels({
-      url: () => "http://127.0.0.1:9",
-      offered: () => OFFERED_TEXT_MODELS,
-      share: 0.5,
-      logs: () => join(dir, "logs"),
-      memory: () => 16 * 2 ** 30,
-    }),
+    servers: (["ollama", "lmstudio"] as const).map(
+      (id) =>
+        new LocalModels({
+          server: SERVERS[id],
+          url: () => "http://127.0.0.1:9",
+          offered: () => OFFERED_MODELS[id],
+          share: 0.5,
+          logs: () => join(dir, "logs"),
+          memory: () => 16 * 2 ** 30,
+        }),
+    ),
     models: {
       source: () => "codex",
       settings: () => ({ source: "codex" }),
@@ -52,7 +57,7 @@ function host() {
       test,
       providers: ["openai"],
       key: async (_c, _provider, key) => ({ ok: key === "good", message: null, text: "openai:m" }),
-      ollama: async () => ({ ok: true, message: null, text: null }),
+      server: async () => ({ ok: true, message: null, text: null }),
     },
   });
   const app = new Hono().route("/local", routes);
@@ -81,7 +86,13 @@ describe("the setup's routes", () => {
   it("list the host's clients without asking a model", async () => {
     const { app, test } = host();
     const res = await app.request("/local/clients");
-    expect(await res.json()).toMatchObject({ clients: [{ id: "codex", version: null }] });
+    expect(await res.json()).toMatchObject({
+      clients: [{ id: "codex", label: "OpenAI Codex", version: null }],
+      servers: [
+        { id: "ollama", name: "Ollama", running: false },
+        { id: "lmstudio", name: "LM Studio", running: false },
+      ],
+    });
     expect(test).not.toHaveBeenCalled();
   });
 
@@ -117,8 +128,8 @@ describe("the setup's routes", () => {
 
   it("list the models to download, marked as fitting this computer, without Ollama", async () => {
     const { app, test } = host();
-    const state = await (await app.request("/local/local-models")).json();
-    expect(state.ollama.version).toBeNull();
+    const state = await (await app.request("/local/servers/ollama")).json();
+    expect(state.server).toMatchObject({ id: "ollama", running: false, removes: true });
     expect(state.installed).toEqual([]);
     const fit = Object.fromEntries(
       state.offered.map((m: { name: string; fits: boolean }) => [m.name, m.fits]),
@@ -127,14 +138,24 @@ describe("the setup's routes", () => {
     expect(test).not.toHaveBeenCalled();
   });
 
+  it("offer LM Studio's own names, remove nothing there and know no other server", async () => {
+    const { app } = host();
+    const state = await (await app.request("/local/servers/lmstudio")).json();
+    expect(state.server).toMatchObject({ canInstall: false, removes: false });
+    expect(state.offered.map((m: { name: string }) => m.name)).toContain("google/gemma-4-e4b");
+    const gone = await app.request("/local/servers/lmstudio/models?model=a", { method: "DELETE" });
+    expect(gone.status).toBe(400);
+    expect((await app.request("/local/servers/vllm")).status).toBe(404);
+  });
+
   it("take only a model's name to download, and say when Ollama is not there", async () => {
     const { app, post } = host();
-    expect((await post("/local-models/pull", { model: "a b; rm" })).status).toBe(400);
-    await post("/local-models/pull", { model: "gemma4:e4b" });
+    expect((await post("/servers/ollama/pull", { model: "a b; rm" })).status).toBe(400);
+    await post("/servers/ollama/pull", { model: "gemma4:e4b" });
     await vi.waitFor(async () => {
-      const state = await (await app.request("/local/local-models")).json();
+      const state = await (await app.request("/local/servers/ollama")).json();
       expect(state.downloads).toMatchObject([
-        { model: "gemma4:e4b", error: "ollama", finished: true },
+        { model: "gemma4:e4b", error: "unreachable", finished: true },
       ]);
     });
   });

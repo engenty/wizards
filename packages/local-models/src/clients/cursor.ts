@@ -1,4 +1,5 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { type ChatEvent, issuesIn, parseLine, record } from "./chat.js";
 import type { Client } from "./client.js";
@@ -102,6 +103,7 @@ export const cursor: Client = {
   id: "cursor",
   name: "Cursor Agent",
   bin: CURSOR_BIN,
+  tools: true,
   version: (env) =>
     probeVersion(CURSOR_BIN, env, (stdout) => stdout.trim().split("\n").pop()?.trim() || null),
   login: { args: ["login"], interactive: false },
@@ -203,4 +205,14 @@ export function cursorWorkspace(input: {
       },
     }),
   };
+}
+
+/** The server names in the person's own ~/.cursor/mcp.json, which a chat's workspace denies. */
+export function ownCursorServers(home = homedir()): string[] {
+  try {
+    const config = JSON.parse(readFileSync(join(home, ".cursor", "mcp.json"), "utf8"));
+    return Object.keys(config.mcpServers ?? {});
+  } catch {
+    return [];
+  }
 }

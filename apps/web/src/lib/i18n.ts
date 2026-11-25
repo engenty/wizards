@@ -313,18 +313,20 @@ const de: Record<Key, Line> = {
   "models.searchCloudHint": "In der Cloud rechnet das Guthaben der Organisation die Vektoren.",
   "models.searchLocalHint": "{model} fehlt in Ollama.",
   "models.searchLocalReady": "{model} läuft in Ollama auf diesem Computer. Nichts verlässt ihn.",
-  "models.ollamaAddress": "Adresse von Ollama",
-  "models.ollamaOpen": "Ollama öffnen",
-  "models.ollamaLead":
+  "models.serverAddress": "Adresse von {name}",
+  "models.serverOpen": "{name} öffnen",
+  "models.serverLead.ollama":
     "Modelle auf diesem Computer für Text, Suche und Entscheidungen: kostenlos, und nichts verlässt ihn.",
-  "models.ollamaRuns": "Ollama {version}",
-  "models.ollamaStoppedShort": "läuft nicht",
-  "models.ollamaMissingShort": "nicht installiert",
-  "models.ollamaModels": "Modelle",
-  "models.ollamaModelsHint":
-    "Welches Modell eine Aufgabe nimmt, wählst du auf ihrer Seite: Text & Denken, Suche, Entscheidungen.",
-  "models.ollamaAddressHint":
+  "models.serverLead.lmstudio":
+    "Modelle auf diesem Computer für Text: kostenlos, und nichts verlässt ihn.",
+  "models.serverStoppedShort": "läuft nicht",
+  "models.serverMissingShort": "nicht installiert",
+  "models.serverModels": "Modelle",
+  "models.serverModelsHint": "Welches Modell eine Aufgabe nimmt, wählst du auf ihrer Seite.",
+  "models.serverAddressHint.ollama":
     "Wo Ollama antwortet. Auf diesem Computer ist das http://127.0.0.1:11434/v1.",
+  "models.serverAddressHint.lmstudio":
+    "Wo LM Studio antwortet. Auf diesem Computer ist das http://127.0.0.1:1234/v1.",
   "models.searchFallback": "Ohne Embedding-Modell",
   "models.searchFallbackHint":
     "Steht keins bereit oder antwortet es nicht, sucht die Suche nur nach Wörtern. Sie findet dann „Rechnung“, aber nicht „Beleg“.",
@@ -346,7 +348,7 @@ const de: Record<Key, Line> = {
   "models.optSubscription": "Dein Abo",
   "models.optKey": "Eigener API-Key",
   "models.optLocal": "Lokales Modell",
-  "models.optLocalNote": "Ollama auf diesem Computer",
+  "models.optLocalNote": "auf diesem Computer",
   "models.optApple": "Apple Intelligence",
   "models.optAppleNote": "auf diesem Mac, ohne Internet",
   "models.appleOff": "ausgeschaltet – Systemeinstellungen → Apple Intelligence & Siri",
@@ -437,8 +439,8 @@ const de: Record<Key, Line> = {
   "models.clientSignIn": "Anmeldung",
   "models.clientImages": "{name} erzeugt Bilder mit deinem {sub} – ohne eigenen API-Key.",
   "models.clientNotChosen": "Text läuft gerade nicht über {name}.",
-  "models.ollamaHint":
-    "Modelle in Ollama auf diesem Computer: kostenlos, und nichts verlässt ihn. Das gewählte Modell denkt für alle Klassen von Text & Denken.",
+  "models.serverHint":
+    "Modelle in {name} auf diesem Computer: kostenlos, und nichts verlässt ihn. Das gewählte Modell denkt für alle Klassen von Text & Denken.",
   "models.readOnly": "Nur Admins der Organisation ändern die Modelle.",
   "models.viewAs": "Vorschau als",
   "models.view.auto": "aktuell",
@@ -522,10 +524,11 @@ const de: Record<Key, Line> = {
   "overview.client.key": "mit API-Key",
   "overview.client.signIn": "Anmelden",
   "overview.apple.desc": "Das Modell auf diesem Mac, ohne Internet.",
-  "overview.ollama.desc":
+  "overview.server.desc.ollama":
     "Modelle auf diesem Computer, ohne Internet. Für Entscheidungen und Wissen.",
-  "overview.ollama.one": "1 Modell",
-  "overview.ollama.n": "{n} Modelle",
+  "overview.server.desc.lmstudio": "Modelle auf diesem Computer, ohne Internet. Für Text.",
+  "overview.server.one": "1 Modell",
+  "overview.server.n": "{n} Modelle",
   "overview.keys.add": "Hinzufügen",
   "overview.keys.fromEnv": "Aus der Umgebungsvariable {env} auf diesem Computer.",
   "overview.keys.kept": "Im Studio gespeichert, verschlüsselt auf diesem Computer.",
@@ -791,7 +794,7 @@ const de: Record<Key, Line> = {
   "onboard.sectorHint": "Danach wählt das Studio deine Vorlagen:",
   "onboard.catalog": "Wizards für {sector}",
   "onboard.step": "Schritt {n} von {total}",
-  "setup.ownDesc": "OpenAI, Anthropic, Google, AI Gateway oder Ollama.",
+  "setup.ownDesc": "OpenAI, Anthropic, Google oder AI Gateway.",
   "setup.appleDesc": "Das Modell auf diesem Mac – ohne Konto, ohne Internet.",
   "setup.appleHint":
     "Kurze Texte und Entscheidungen übernimmt Apple Intelligence auf diesem Mac. Nichts verlässt ihn. Für Recherche, lange Dokumente und Code richtest du später unter Einstellungen → Modelle einen weiteren Zugang ein.",
@@ -5343,18 +5346,19 @@ const en = {
   "models.searchCloudHint": "In the cloud, the organization’s credits pay for the vectors.",
   "models.searchLocalHint": "Ollama doesn’t have {model}.",
   "models.searchLocalReady": "{model} runs in Ollama on this computer. Nothing leaves it.",
-  "models.ollamaAddress": "Ollama’s address",
-  "models.ollamaOpen": "Open Ollama",
-  "models.ollamaLead":
+  "models.serverAddress": "{name}’s address",
+  "models.serverOpen": "Open {name}",
+  "models.serverLead.ollama":
     "Models on this computer for text, search and decisions: free, and nothing leaves it.",
-  "models.ollamaRuns": "Ollama {version}",
-  "models.ollamaStoppedShort": "not running",
-  "models.ollamaMissingShort": "not installed",
-  "models.ollamaModels": "Models",
-  "models.ollamaModelsHint":
-    "Which model a job takes, you choose on its page: Text & reasoning, Search, Decisions.",
-  "models.ollamaAddressHint":
+  "models.serverLead.lmstudio": "Models on this computer for text: free, and nothing leaves it.",
+  "models.serverStoppedShort": "not running",
+  "models.serverMissingShort": "not installed",
+  "models.serverModels": "Models",
+  "models.serverModelsHint": "Which model a job takes, you choose on its page.",
+  "models.serverAddressHint.ollama":
     "Where Ollama answers. On this computer that is http://127.0.0.1:11434/v1.",
+  "models.serverAddressHint.lmstudio":
+    "Where LM Studio answers. On this computer that is http://127.0.0.1:1234/v1.",
   "models.searchFallback": "Without an embedding model",
   "models.searchFallbackHint":
     "When none is at hand or it doesn’t answer, the search looks for words only. It then finds “invoice” but not “receipt”.",
@@ -5376,7 +5380,7 @@ const en = {
   "models.optSubscription": "Your subscription",
   "models.optKey": "Your own API key",
   "models.optLocal": "Local model",
-  "models.optLocalNote": "Ollama on this computer",
+  "models.optLocalNote": "on this computer",
   "models.optApple": "Apple Intelligence",
   "models.optAppleNote": "on this Mac, offline",
   "models.appleOff": "switched off – System Settings → Apple Intelligence & Siri",
@@ -5468,8 +5472,8 @@ const en = {
   "models.clientSignIn": "Sign-in",
   "models.clientImages": "{name} makes images with your {sub} – no API key of your own.",
   "models.clientNotChosen": "Text doesn’t run on {name} right now.",
-  "models.ollamaHint":
-    "Models in Ollama on this computer: free, and nothing leaves it. The model you pick thinks for every class of Text & reasoning.",
+  "models.serverHint":
+    "Models in {name} on this computer: free, and nothing leaves it. The model you pick thinks for every class of Text & reasoning.",
   "models.readOnly": "Only the organization’s admins can change its models.",
   "models.viewAs": "Preview as",
   "models.view.auto": "as it is",
@@ -5550,9 +5554,10 @@ const en = {
   "overview.client.key": "with an API key",
   "overview.client.signIn": "Sign in",
   "overview.apple.desc": "The model on this Mac, offline.",
-  "overview.ollama.desc": "Models on this computer, offline. For decisions and knowledge.",
-  "overview.ollama.one": "1 model",
-  "overview.ollama.n": "{n} models",
+  "overview.server.desc.ollama": "Models on this computer, offline. For decisions and knowledge.",
+  "overview.server.desc.lmstudio": "Models on this computer, offline. For text.",
+  "overview.server.one": "1 model",
+  "overview.server.n": "{n} models",
   "overview.keys.add": "Add",
   "overview.keys.fromEnv": "From the environment variable {env} on this computer.",
   "overview.keys.kept": "Kept in the studio, encrypted on this computer.",
@@ -5809,7 +5814,7 @@ const en = {
   "onboard.sectorHint": "The studio picks your templates by it:",
   "onboard.catalog": "Wizards for {sector}",
   "onboard.step": "Step {n} of {total}",
-  "setup.ownDesc": "OpenAI, Anthropic, Google, AI Gateway or Ollama.",
+  "setup.ownDesc": "OpenAI, Anthropic, Google or AI Gateway.",
   "setup.appleDesc": "The model on this Mac – no account, no internet.",
   "setup.appleHint":
     "Apple Intelligence handles short texts and decisions on this Mac; nothing leaves it. For research, long documents and code, add another option later under Settings → Models.",

@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import {
   accessSync,
-  appendFileSync,
   constants,
   existsSync,
   mkdirSync,
@@ -10,11 +9,10 @@ import {
   realpathSync,
   rmSync,
 } from "node:fs";
-import { statfs } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
+import { join } from "node:path";
 import { ollamaAddress, ollamaState } from "@engenty/local-models/ollama";
+import { executable, findOnPath, lastLine, logged, type Outcome, until } from "./install.js";
 
 /** The Ollama app on a Mac: its server and its command are inside it. */
 const MAC_APPS = ["/Applications/Ollama.app", join(homedir(), "Applications", "Ollama.app")];
@@ -35,61 +33,6 @@ const LINUX_ZSTD = [
   "fi",
 ].join("\n");
 
-/** The first file of that name on a PATH that may be run. */
-function findOnPath(name: string, path: string): string | null {
-  return (
-    path
-      .split(delimiter)
-      .filter(Boolean)
-      .flatMap((dir) =>
-        process.platform === "win32" ? [join(dir, `${name}.exe`)] : [join(dir, name)],
-      )
-      .find(executable) ?? null
-  );
-}
-
-interface Ran {
-  code: number;
-  /** The end of what the command printed. */
-  tail: string;
-}
-
-/** Runs a command, what it prints into the log file; never rejects. */
-function logged(
-  command: string,
-  args: string[],
-  { logs, onLine }: { logs: string; onLine?: (line: string) => void },
-): Promise<Ran> {
-  mkdirSync(logs, { recursive: true });
-  const file = join(logs, "install.log");
-  appendFileSync(file, `\n$ ${command} ${args.join(" ")}\n`);
-  return new Promise((resolve) => {
-    let tail = "";
-    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
-    for (const stream of [child.stdout, child.stderr]) {
-      stream.on("data", (chunk: Buffer) => {
-        const text = chunk.toString("utf8");
-        tail = (tail + text).slice(-4000);
-        appendFileSync(file, text);
-        for (const line of text.split("\n").filter((l) => l.trim())) {
-          onLine?.(line);
-        }
-      });
-    }
-    child.on("error", (err) => resolve({ code: 127, tail: err.message }));
-    child.on("close", (code) => resolve({ code: code ?? 1, tail: tail.trim() }));
-  });
-}
-
-function executable(file: string): boolean {
-  try {
-    accessSync(file, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /** The `ollama` command: on the PATH, or inside the app on a Mac that never linked it. */
 export function findOllama(env: NodeJS.ProcessEnv = process.env): string | null {
   const onPath = findOnPath("ollama", env.PATH ?? "");
@@ -99,16 +42,6 @@ export function findOllama(env: NodeJS.ProcessEnv = process.env): string | null 
   return (
     MAC_APPS.map((app) => join(app, "Contents", "Resources", "ollama")).find(executable) ?? null
   );
-}
-
-/** Free space where Ollama keeps its models (the home folder), in GB. */
-export async function freeGb(dir = homedir()): Promise<number | null> {
-  try {
-    const stats = await statfs(dir);
-    return Math.floor((stats.bavail * stats.bsize) / 2 ** 30);
-  } catch {
-    return null;
-  }
 }
 
 /** The app an `ollama` command belongs to on a Mac; null for one from Homebrew or elsewhere. */
@@ -126,11 +59,6 @@ function macApp(path: string | null): string | null {
   } catch {
     return null;
   }
-}
-
-export interface Outcome {
-  ok: boolean;
-  message: string;
 }
 
 /**
@@ -181,8 +109,6 @@ export async function installOllama(
   return { ok: false, message: "Ollama is installed by this setup on macOS and Linux only." };
 }
 
-const lastLine = (text: string) => text.split("\n").pop() ?? "";
-
 /**
  * Whether the Ollama app asks for the Mac's password when it starts: the first time, it wants to
  * link its `ollama` command into /usr/local/bin, and its server waits for the answer (cancel
@@ -226,13 +152,7 @@ export async function startOllama(path: string | null, logs: string): Promise<st
   } else {
     return null;
   }
-  const deadline = Date.now() + (app ? 180_000 : 30_000);
-  while (Date.now() < deadline) {
-    const { version } = await ollamaState(ollamaAddress());
-    if (version) {
-      return version;
-    }
-    await sleep(500);
-  }
-  return null;
+  const answers = async () => (await ollamaState(ollamaAddress())).version !== null;
+  await until(answers, app ? 180_000 : 30_000);
+  return (await ollamaState(ollamaAddress())).version;
 }

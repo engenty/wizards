@@ -4,7 +4,7 @@ import type { ClientMeta } from "./failure.js";
 import type { ClientModel, ClientModelOptions } from "./model.js";
 
 /** The AI clients a person signs in to with their own subscription. */
-export const CLIENT_IDS = ["claude", "codex", "cursor"] as const;
+export const CLIENT_IDS = ["claude", "codex", "antigravity", "cursor"] as const;
 export type ClientId = (typeof CLIENT_IDS)[number];
 
 /**
@@ -16,6 +16,8 @@ export type ClientId = (typeof CLIENT_IDS)[number];
 export interface Client extends EnvSpec, ChatClient, ClientMeta {
   id: ClientId;
   bin: string;
+  /** It takes the host's MCP server in a chat; without it, it only writes. */
+  tools: boolean;
   /** Null: not installed. Throws ProbeUndecided when the probe could not finish on a busy machine. */
   version(env: NodeJS.ProcessEnv): Promise<string | null>;
   /**

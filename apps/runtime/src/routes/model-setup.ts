@@ -6,7 +6,7 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { env } from "../env.js";
 import { clientSetup, HARNESS_IDS } from "../harness/index.js";
-import { ollamaModels } from "../local-models.js";
+import { localServers } from "../local-models.js";
 import {
   DECISION_CHOICES,
   EMBEDDING_CHOICES,
@@ -15,7 +15,7 @@ import {
   localModelSettings,
   saveLocalModels,
   setUpKey,
-  setUpOllama,
+  setUpServer,
   textModel,
 } from "../models.js";
 import { ServiceError } from "../services/errors.js";
@@ -32,6 +32,7 @@ export const modelsInput = z.object({
   source: z.enum([...HARNESS_IDS, "account", "own"]).optional(),
   bindings: z.partialRecord(z.enum(MODEL_CLASSES), z.string().max(160)).optional(),
   ollamaUrl: z.string().max(200).optional(),
+  lmstudioUrl: z.string().max(200).optional(),
   creditFallback: z.boolean().optional(),
   decision: z.enum(DECISION_CHOICES).optional(),
   embedding: z.enum(EMBEDDING_CHOICES).optional(),
@@ -54,7 +55,7 @@ export const localSetup = setupRoutes({
   terminals: new Terminals(),
   workDir: () => join(env.dataDir, "harness"),
   tested: testedSources,
-  ollama: ollamaModels,
+  servers: localServers,
   models: {
     source: () => localModelSettings().source,
     settings: () => localModelSettings(),
@@ -74,7 +75,7 @@ export const localSetup = setupRoutes({
     },
     providers: LOCAL_KEYS,
     key: (c, provider, key) => setUpKey(provider as LocalKey, key, requestLang(c)),
-    ollama: (c, url) => setUpOllama(url, requestLang(c)),
+    server: (c, id, url) => setUpServer(id, url, requestLang(c)),
   },
 });
 

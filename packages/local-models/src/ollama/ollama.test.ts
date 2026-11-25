@@ -1,8 +1,8 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, describe, expect, it } from "vitest";
+import { fits } from "../servers/index.js";
 import {
-  fits,
   installedModels,
   ollamaAddress,
   ollamaMessages,

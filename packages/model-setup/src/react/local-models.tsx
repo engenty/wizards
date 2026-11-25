@@ -1,10 +1,18 @@
 import { Button, cn, Input } from "@engenty/chatviews/react/ui";
-import { Trash2 } from "lucide-react";
+import type { ServerId } from "@engenty/local-models/servers";
+import { ExternalLink, Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { MODEL_JOBS, type ModelDownload, type ModelJob, type OllamaModelsState } from "../types.js";
+import { type LocalModelsState, MODEL_JOBS, type ModelDownload, type ModelJob } from "../types.js";
 import { useCall, useSetupHost, useText } from "./host.js";
 
-const LINUX_INSTALL = "curl -fsSL https://ollama.com/install.sh | sh";
+/** Ollama's own installer on Linux, which asks for a password in a terminal. */
+const OLLAMA_ON_LINUX = "curl -fsSL https://ollama.com/install.sh | sh";
+
+/** What the free field takes, by server. */
+const EXAMPLE: Record<ServerId, string> = {
+  ollama: "llama3.2:3b",
+  lmstudio: "openai/gpt-oss-20b",
+};
 
 /** A job's name. */
 const JOB_LABEL = {
@@ -13,10 +21,10 @@ const JOB_LABEL = {
   decision: "models.cap.decision",
 } as const satisfies Record<ModelJob, string>;
 
-/** Whether the state is still changing: a download runs, or Ollama starts. */
-export function modelsMoving(state: OllamaModelsState | undefined): boolean {
+/** Whether the state is still changing: a download runs, or the server starts. */
+export function modelsMoving(state: LocalModelsState | undefined): boolean {
   return Boolean(
-    state && (state.downloads.some((d) => !d.finished) || state.ollama.start?.running),
+    state && (state.downloads.some((d) => !d.finished) || state.server.start?.running),
   );
 }
 
@@ -68,14 +76,14 @@ function Row({ children, actions }: { children: ReactNode; actions: ReactNode })
   );
 }
 
-function DownloadState({ download }: { download: ModelDownload }) {
+function DownloadState({ download, server }: { download: ModelDownload; server: string }) {
   const t = useText();
   const { mb } = useNumbers();
   if (download.error) {
     return (
       <p className="text-[0.8125rem] text-rose">
-        {download.error === "ollama"
-          ? t("models.local.downloadNoOllama")
+        {download.error === "unreachable"
+          ? t("models.local.downloadUnreachable", { name: server })
           : t("models.local.downloadFailed", { error: download.error })}
       </p>
     );
@@ -90,10 +98,10 @@ function DownloadState({ download }: { download: ModelDownload }) {
 }
 
 /**
- * The models in Ollama on this computer. For one job: the ones there (to use or remove), the
- * ones the Manage-App offers (to download and use), and any other name from Ollama. Without a
- * job, all of them with the jobs each serves, to download or remove. Where Ollama does not
- * run, a way to start it — or to install it, on a Mac.
+ * The models of a server on this computer. For one job: the ones there (to use or remove), the
+ * ones offered (to download and use), and any other name the server knows. Without a job, all of
+ * them with the jobs each serves, to download or remove. Where the server does not run, a way to
+ * start it — or to get it.
  */
 export function LocalModels({
   state,
@@ -104,10 +112,10 @@ export function LocalModels({
   onChoose,
   onlyHeld = false,
 }: {
-  /** As `GET /local-models` answers it; asked again while `modelsMoving`. */
-  state: OllamaModelsState | undefined;
+  /** As `GET /servers/:id` answers it; asked again while `modelsMoving`. */
+  state: LocalModelsState | undefined;
   /** What a change answered. */
-  onState: (next: OllamaModelsState) => void;
+  onState: (next: LocalModelsState) => void;
   /** Absent: every job, and nothing to choose. */
   job?: ModelJob;
   /** The models in use; they are not removed. */
@@ -120,19 +128,20 @@ export function LocalModels({
   const host = useSetupHost();
   const t = useText();
   const { gb } = useNumbers();
+  const path = `/servers/${state?.server.id}`;
   const [other, setOther] = useState("");
   /** The model whose removal waits for a yes. */
   const [asking, setAsking] = useState<string | null>(null);
   const pull = useCall(async (model: string) =>
-    onState(await host.post<OllamaModelsState>("/local-models/pull", { model })),
+    onState(await host.post<LocalModelsState>(`${path}/pull`, { model })),
   );
   const remove = useCall(async (model: string) =>
     onState(
-      (await host.del(`/local-models?model=${encodeURIComponent(model)}`)) as OllamaModelsState,
+      (await host.del(`${path}/models?model=${encodeURIComponent(model)}`)) as LocalModelsState,
     ),
   );
   const start = useCall(async () =>
-    onState(await host.post<OllamaModelsState>("/local-models/ollama", {})),
+    onState(await host.post<LocalModelsState>(`${path}/start`, {})),
   );
   // A model that arrived or went changes what can answer.
   const held = state?.installed.map((m) => m.name).join(" ");
@@ -149,41 +158,56 @@ export function LocalModels({
   if (!state) {
     return null;
   }
-  const { ollama } = state;
-  if (!ollama.version) {
-    const starting = Boolean(ollama.start?.running) || start.busy;
+  const { server } = state;
+  const { name } = server;
+  if (!server.running) {
+    const starting = Boolean(server.start?.running) || start.busy;
     return (
       <div className="flex flex-col gap-2">
         <p className="text-[0.8125rem] text-ink-2">
-          {ollama.installed ? t("models.local.ollamaStopped") : t("models.local.noOllama")}
+          {t(server.installed ? "models.local.stopped" : "models.local.notHere", { name })}
         </p>
-        {ollama.installed || ollama.canInstall ? (
+        {server.installed || server.canInstall ? (
           <div className="flex flex-wrap items-center gap-3">
             <Button
               busy={starting}
               disabled={disabled || starting}
               onClick={() => void start.run()}
             >
-              {ollama.installed ? t("models.local.startOllama") : t("models.local.installOllama")}
+              {t(server.installed ? "models.local.start" : "models.local.install", { name })}
             </Button>
             {starting ? (
               <span className="text-[0.8125rem] text-ink-2">
-                {t("models.local.ollamaStarting")}
+                {t(`models.local.starts.${server.id}`)}
               </span>
             ) : null}
           </div>
         ) : (
-          <p className="text-[0.8125rem] text-ink-2">
-            {t("models.local.ollamaLinux")}{" "}
-            <code className="font-mono text-[0.75rem]">{LINUX_INSTALL}</code>
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={() => host.open(server.download)}>
+              {t("models.local.get", { name })} <ExternalLink className="size-3.5" />
+            </Button>
+            {server.id === "ollama" ? (
+              <span className="text-[0.8125rem] text-ink-2">
+                {t("harness.install")}{" "}
+                <code className="font-mono text-[0.75rem]">{OLLAMA_ON_LINUX}</code>
+              </span>
+            ) : null}
+          </div>
         )}
-        {ollama.start?.error ? (
+        {server.start?.error ? (
           <p className="text-[0.8125rem] text-rose">
-            {t("models.local.ollamaFailed", { error: ollama.start.error })}
+            {t("models.local.startFailed", { name, error: server.start.error })}
           </p>
         ) : null}
       </div>
+    );
+  }
+  if (server.trouble) {
+    return (
+      <p className="text-[0.8125rem] text-rose">
+        {t(`models.local.trouble.${server.trouble}`, { name })}
+      </p>
     );
   }
 
@@ -213,7 +237,11 @@ export function LocalModels({
 
   return (
     <div className="flex flex-col gap-4">
-      <Group title={t("models.local.here", { version: ollama.version })}>
+      <Group
+        title={[t("models.local.here"), [name, server.version].filter(Boolean).join(" ")].join(
+          " · ",
+        )}
+      >
         {here.length ? (
           here.map((m) => {
             const used = inUse.some((name) => sameModel(m.name, name));
@@ -234,12 +262,12 @@ export function LocalModels({
                         {t("models.local.use")}
                       </Button>
                     )}
-                    {asking === m.name ? null : (
+                    {asking === m.name || !server.removes ? null : (
                       <button
                         type="button"
                         className="grid size-8 place-items-center rounded-lg text-ink-3 hover:bg-paper-2 hover:text-rose disabled:opacity-50"
-                        title={t("models.local.remove")}
-                        aria-label={t("models.local.remove")}
+                        title={t("models.local.remove", { name })}
+                        aria-label={t("models.local.remove", { name })}
                         disabled={disabled || used || remove.busy}
                         onClick={() => setAsking(m.name)}
                       >
@@ -262,7 +290,11 @@ export function LocalModels({
                 </span>
                 {asking === m.name ? (
                   <span className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-ink-2">
-                    {t("models.local.removeConfirm", { name: m.name, size: gb(m.size) })}
+                    {t("models.local.removeConfirm", {
+                      name: m.name,
+                      server: name,
+                      size: gb(m.size),
+                    })}
                     <Button
                       variant="danger"
                       size="sm"
@@ -288,9 +320,13 @@ export function LocalModels({
       </Group>
       {remove.error ? (
         <p className="text-[0.8125rem] text-rose">
-          {t("models.local.removeFailed", { error: remove.error })}
+          {t("models.local.removeFailed", { name, error: remove.error })}
         </p>
       ) : null}
+
+      {server.removes || !here.length ? null : (
+        <p className="text-[0.8125rem] text-ink-3">{t("models.local.removeThere", { name })}</p>
+      )}
 
       {offered === null ? (
         <p className="text-[0.8125rem] text-ink-3">{t("models.local.offeredNone")}</p>
@@ -304,7 +340,7 @@ export function LocalModels({
                 key={m.name}
                 actions={
                   running && download ? (
-                    <DownloadState download={download} />
+                    <DownloadState download={download} server={name} />
                   ) : (
                     <Button
                       variant={suggested.has(m.name) ? "primary" : "secondary"}
@@ -331,7 +367,7 @@ export function LocalModels({
                     <Chip>{t("models.local.tooBig", { memory: gb(m.memory) })}</Chip>
                   )}
                 </span>
-                {download?.error ? <DownloadState download={download} /> : null}
+                {download?.error ? <DownloadState download={download} server={name} /> : null}
               </Row>
             );
           })}
@@ -339,7 +375,7 @@ export function LocalModels({
       ) : null}
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-[0.75rem] text-ink-3">{t("models.local.other")}</span>
+        <span className="text-[0.75rem] text-ink-3">{t("models.local.other", { name })}</span>
         <form
           className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"
           onSubmit={(e) => {
@@ -351,7 +387,7 @@ export function LocalModels({
           <Input
             className="font-mono text-[0.8125rem]"
             value={other}
-            placeholder={t("models.local.otherPlaceholder")}
+            placeholder={t("models.local.example", { model: EXAMPLE[server.id] })}
             disabled={disabled}
             onChange={(e) => setOther(e.target.value)}
           />
@@ -362,7 +398,7 @@ export function LocalModels({
         {others.map((d) => (
           <span key={d.model} className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[0.8125rem]">{d.model}</span>
-            <DownloadState download={d} />
+            <DownloadState download={d} server={name} />
           </span>
         ))}
       </div>

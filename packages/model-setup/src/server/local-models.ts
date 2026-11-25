@@ -1,22 +1,18 @@
 import { totalmem } from "node:os";
-import {
-  fits,
-  installedModels,
-  ollamaRoot,
-  ollamaState,
-  pullModel,
-} from "@engenty/local-models/ollama";
+import { fits, type LocalServer } from "@engenty/local-models/servers";
 import {
   type HeldModel,
+  type LocalModelsState,
   MODEL_JOBS,
   type ModelDownload,
   type ModelJob,
   type OfferedModel,
-  type OllamaModelsState,
+  type ServerStatus,
 } from "../types.js";
-import { findOllama, freeGb, installOllama, startOllama } from "./ollama.js";
+import { freeGb } from "./install.js";
+import { SERVER_APPS } from "./server-apps.js";
 
-/** The job a capability of Ollama's serves. */
+/** The job a capability serves. */
 const JOB_OF: Record<string, ModelJob> = {
   completion: "text",
   embedding: "search",
@@ -25,8 +21,9 @@ const JOB_OF: Record<string, ModelJob> = {
 
 const gb = (bytes: number) => Math.round((bytes / 1e9) * 10) / 10;
 
-export interface OllamaModelsOptions {
-  /** Where Ollama answers: a root or `…/v1`. */
+export interface LocalModelsOptions {
+  server: LocalServer;
+  /** Where the server answers: a root or `…/v1`. */
   url: () => Promise<string> | string;
   /** The models to download; null: the list is not reachable. */
   offered: () => Promise<readonly OfferedModel[] | null> | readonly OfferedModel[] | null;
@@ -34,7 +31,7 @@ export interface OllamaModelsOptions {
   share: number;
   /** A folder for the logs of an install. */
   logs: () => string;
-  /** A model came or went, or Ollama started. */
+  /** A model came or went, or the server started. */
   changed?: () => void;
   /** A download begins; what it answers runs once the download ended well. */
   pulling?: (model: string) => Promise<() => Promise<void> | void>;
@@ -43,33 +40,59 @@ export interface OllamaModelsOptions {
 }
 
 /**
- * The models in Ollama on this computer: what is there and what each can do, what to download,
- * the downloads and removals a page starts, and Ollama itself installed and started. Nothing
+ * The models of a server on this computer: what is there and what each can do, what to download,
+ * the downloads and removals a page starts, and the server itself installed and started. Nothing
  * here loads a model.
  */
-export class OllamaModels {
+export class LocalModels {
   private readonly downloads = new Map<string, ModelDownload>();
-  /** While Ollama is being installed or started, and how that ended. */
+  /** While the server is being installed or started, and how that ended. */
   private starting: { running: boolean; error: string | null } | null = null;
 
-  constructor(private readonly options: OllamaModelsOptions) {}
+  constructor(private readonly options: LocalModelsOptions) {}
 
-  async state(): Promise<OllamaModelsState> {
+  get id() {
+    return this.options.server.id;
+  }
+
+  private get app() {
+    return SERVER_APPS[this.id];
+  }
+
+  /** Whether it is on this computer, and whether it runs. */
+  async status(): Promise<ServerStatus> {
+    const { server, url } = this.options;
+    const { running } = await server.state(await url());
+    return {
+      id: server.id,
+      name: server.name,
+      installed: running || this.app.find() !== null,
+      running,
+    };
+  }
+
+  async state(): Promise<LocalModelsState> {
     const { options } = this;
+    const { server } = options;
     const url = await options.url();
-    const root = ollamaRoot(url);
-    const { version } = await ollamaState(root);
+    const { running, version, trouble } = await server.state(url);
     const bytes = options.memory?.() ?? totalmem();
     const memory = Math.round(bytes / 2 ** 30);
-    const installed = version ? await this.held(root, bytes) : [];
+    const installed = running ? await this.held(url, bytes) : [];
     const names = new Set(installed.map((m) => m.name));
     const list = await options.offered();
     return {
-      ollama: {
+      server: {
+        id: server.id,
+        name: server.name,
+        installed: running || this.app.find() !== null,
+        running,
         url,
         version,
-        installed: Boolean(version || findOllama()),
-        canInstall: process.platform === "darwin",
+        trouble,
+        canInstall: this.app.install !== undefined,
+        download: this.app.download,
+        removes: server.remove !== undefined,
         start: this.starting,
       },
       memory,
@@ -85,9 +108,9 @@ export class OllamaModels {
     };
   }
 
-  /** The models Ollama holds, with the jobs each can do here. */
-  private async held(root: string, memory: number): Promise<HeldModel[]> {
-    return (await installedModels(root)).map((m) => ({
+  /** The models the server holds, with the jobs each can do here. */
+  private async held(url: string, memory: number): Promise<HeldModel[]> {
+    return (await this.options.server.models(url)).map((m) => ({
       name: m.name,
       size: gb(m.size),
       jobs: MODEL_JOBS.filter((job) => m.capabilities.some((c) => JOB_OF[c] === job)),
@@ -100,8 +123,8 @@ export class OllamaModels {
   }
 
   /**
-   * Pulls a model into Ollama in the background. A download of the same model that runs already
-   * is left to finish.
+   * Downloads a model in the background. A download of the same model that runs already is left
+   * to finish.
    */
   async pull(model: string): Promise<void> {
     const running = this.downloads.get(model);
@@ -111,10 +134,11 @@ export class OllamaModels {
     const state: ModelDownload = { model, done: 0, total: 0, error: null, finished: false };
     this.downloads.set(model, state);
     const pulled = await this.options.pulling?.(model);
-    void pullModel(ollamaRoot(await this.options.url()), model, (done, total) => {
-      state.done = done;
-      state.total = total;
-    })
+    void this.options.server
+      .download(await this.options.url(), model, (done, total) => {
+        state.done = done;
+        state.total = total;
+      })
       .then(async () => {
         this.options.changed?.();
         state.finished = true;
@@ -124,54 +148,47 @@ export class OllamaModels {
       })
       .catch((err: Error) => {
         const unreachable = /fetch failed|ECONNREFUSED/i.test(`${err.message} ${err.cause ?? ""}`);
-        state.error = unreachable ? "ollama" : err.message;
+        state.error = unreachable ? "unreachable" : err.message;
         state.finished = true;
       });
   }
 
-  /** Removes a model from Ollama, and a download of it that failed; Ollama's reason where it refuses. */
+  /** Removes a model, and a download of it that failed; the server's reason where it refuses. */
   async remove(model: string): Promise<void> {
+    const { server, url } = this.options;
     this.downloads.delete(model);
     this.options.changed?.();
-    const res = await fetch(`${ollamaRoot(await this.options.url())}/api/delete`, {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) {
-      const text = (await res.text()).trim();
-      let reason = text;
-      try {
-        reason = (JSON.parse(text) as { error?: string }).error ?? text;
-      } catch {
-        // the text as it came
-      }
-      throw new Error(reason || `Ollama answered ${res.status}.`);
+    if (!server.remove) {
+      throw new Error(`${server.name} removes its models itself.`);
     }
+    await server.remove(await url(), model);
   }
 
-  /** Installs Ollama where it is missing (on a Mac) and starts it, in the background. */
+  /** Installs the server where it is missing and the host can, and starts it, in the background. */
   start(): void {
     if (this.starting?.running) {
       return;
     }
     const state = { running: true, error: null as string | null };
     this.starting = state;
-    const logs = this.options.logs();
+    const { server, url, logs, changed } = this.options;
+    const folder = logs();
     void (async () => {
-      let path = findOllama();
-      if (!path) {
-        const outcome = await installOllama(logs, () => undefined);
+      if (!this.app.find()) {
+        if (!this.app.install) {
+          throw new Error(`${server.name} isn’t on this computer.`);
+        }
+        const outcome = await this.app.install(folder, () => undefined);
         if (!outcome.ok) {
           throw new Error(outcome.message);
         }
-        path = findOllama();
       }
-      if (!(await startOllama(path, logs))) {
-        throw new Error("Ollama isn’t answering.");
+      const address = await url();
+      const answers = async () => (await server.state(address)).running;
+      if (!(await this.app.start(folder, answers))) {
+        throw new Error(`${server.name} isn’t answering.`);
       }
-      this.options.changed?.();
+      changed?.();
     })()
       .catch((err: Error) => {
         state.error = err.message;

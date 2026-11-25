@@ -238,6 +238,7 @@ export const env = {
    */
   browserFastLoop: str("BROWSER_FAST_LOOP") !== "off",
   ollamaUrl: str("OLLAMA_URL", "http://127.0.0.1:11434/v1"),
+  lmstudioUrl: str("LMSTUDIO_URL", "http://127.0.0.1:1234/v1"),
 
   /** What each model class runs on when this runtime resolves classes itself (own keys, Ollama). */
   models: {
