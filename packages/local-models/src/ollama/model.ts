@@ -24,7 +24,10 @@ export interface OllamaSetup {
   context?: number;
   /** Whether the model gets the call's tools. Without them it only talks. Default: true. */
   tools?: boolean;
-  /** Whether the model thinks before it answers; left out, Ollama decides. What it thinks is not part of the answer. */
+  /**
+   * Whether the model thinks before it answers; left out, Ollama decides. What it thinks streams
+   * as reasoning, apart from the answer.
+   */
   thinking?: boolean;
   fetch?: typeof fetch;
 }
@@ -39,7 +42,12 @@ interface OllamaMessage {
 }
 
 interface OllamaChunk {
-  message?: { content?: string; tool_calls?: { function: { name: string; arguments: unknown } }[] };
+  message?: {
+    content?: string;
+    /** What a thinking model thinks, beside the answer. */
+    thinking?: string;
+    tool_calls?: { function: { name: string; arguments: unknown } }[];
+  };
   done?: boolean;
   done_reason?: string;
   prompt_eval_count?: number;
@@ -223,7 +231,7 @@ export function ollamaModel(setup: OllamaSetup): ChatModel {
         ...(tools.length ? { tools } : {}),
         ...(format ? { format } : {}),
         stream: true,
-        // Thinking arrives beside the answer, as `message.thinking`, and is not read.
+        // Thinking arrives beside the answer, as `message.thinking`: it streams as reasoning.
         ...(setup.thinking === undefined ? {} : { think: setup.thinking }),
         options: {
           ...(setup.context ? { num_ctx: setup.context } : {}),
@@ -251,10 +259,33 @@ export function ollamaModel(setup: OllamaSetup): ChatModel {
         controller.enqueue({ type: "stream-start", warnings: [] });
         let textOpen = false;
         let called = false;
+        // What the model thinks, one block before each stretch of answer or tool call.
+        let thought: string | undefined;
+        let thoughts = 0;
+        const endThought = () => {
+          if (thought) {
+            controller.enqueue({ type: "reasoning-end", id: thought });
+          }
+          thought = undefined;
+        };
         try {
           for await (const chunk of lines(body)) {
             if (chunk.error) {
               throw new Error(chunk.error);
+            }
+            if (chunk.message?.thinking) {
+              if (!thought) {
+                thought = `reasoning-${thoughts++}`;
+                controller.enqueue({ type: "reasoning-start", id: thought });
+              }
+              controller.enqueue({
+                type: "reasoning-delta",
+                id: thought,
+                delta: chunk.message.thinking,
+              });
+            }
+            if (chunk.message?.content || chunk.message?.tool_calls?.length || chunk.done) {
+              endThought();
             }
             if (chunk.message?.content) {
               if (!textOpen) {
@@ -329,9 +360,12 @@ export async function generateFrom(
   let text = "";
   const content: GenerateResult["content"] = [];
   let finish: Extract<StreamPart, { type: "finish" }> | undefined;
+  let reasoning = "";
   for await (const part of stream) {
     if (part.type === "text-delta") {
       text += part.delta;
+    } else if (part.type === "reasoning-delta") {
+      reasoning += part.delta;
     } else if (part.type === "tool-call") {
       content.push(part);
     } else if (part.type === "finish") {
@@ -342,6 +376,9 @@ export async function generateFrom(
   }
   if (text) {
     content.unshift({ type: "text", text });
+  }
+  if (reasoning) {
+    content.unshift({ type: "reasoning", text: reasoning });
   }
   return {
     content,
