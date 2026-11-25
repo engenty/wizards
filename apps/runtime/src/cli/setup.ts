@@ -4,7 +4,14 @@ import { delimiter, join } from "node:path";
 import * as p from "@clack/prompts";
 import { ollamaAddress, pullModel } from "@engenty/local-models/ollama";
 import { CLIENTS, type ClientEntry, installCommand } from "@engenty/model-setup";
-import { suggestedClient, vendorApp } from "@engenty/model-setup/server";
+import {
+  appAsksForPassword,
+  freeGb,
+  installOllama,
+  startOllama,
+  suggestedClient,
+  vendorApp,
+} from "@engenty/model-setup/server";
 import { LOCAL_DECISION_MODEL } from "../decision-model.js";
 import { installAll, ON_DEMAND } from "../on-demand.js";
 import { accountStep } from "./account.js";
@@ -23,16 +30,7 @@ import {
   writeInstallNote,
 } from "./home.js";
 import { type ClientState, detectClients, findChrome, findFfmpeg, findOnPath } from "./machine.js";
-import {
-  appAsksForPassword,
-  DECISION_MODEL_GB,
-  decisionModelProblem,
-  freeGb,
-  installOllama,
-  localOllama,
-  servesDecisions,
-  startOllama,
-} from "./ollama.js";
+import { DECISION_MODEL_GB, decisionModelProblem, localOllama, servesDecisions } from "./ollama.js";
 import { runningRuntime, settings } from "./start.js";
 import { badge, busy, cmd, cyan, dim, tilde } from "./ui.js";
 
@@ -319,7 +317,7 @@ async function decisionModelStep(
     if (!task) {
       p.log.info("Ollama’s own installer runs now and asks for your password.");
     }
-    const outcome = await installOllama(paths, (line) => task?.message(line));
+    const outcome = await installOllama(paths.logs, (line) => task?.message(line));
     if (!outcome.ok) {
       const text = `Ollama didn’t install. ${outcome.message}`;
       task ? task.error(text) : p.log.error(text);
@@ -338,7 +336,7 @@ async function decisionModelStep(
     }
     const spinner = p.spinner();
     spinner.start("Waiting for Ollama");
-    version = await startOllama(ollama, paths);
+    version = await startOllama(ollama, paths.logs);
     if (!version) {
       spinner.error(`Ollama isn’t answering. Start it, then run ${cmd("setup")} again.`);
       return;

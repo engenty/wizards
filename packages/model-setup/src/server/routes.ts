@@ -1,8 +1,10 @@
 import { mkdirSync } from "node:fs";
+import type { ServerId } from "@engenty/local-models/servers";
 import { type Context, Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import type { ClientSetup } from "./clients.js";
+import type { LocalModels } from "./local-models.js";
 import type { Tested } from "./models.js";
 import type { Terminals } from "./terminal.js";
 
@@ -31,8 +33,8 @@ export interface SetupModels {
   providers: readonly [string, ...string[]];
   /** Tests a key (without one: the stored one) and keeps it when it works. */
   key(c: Context, provider: string, key: string | undefined): Promise<SourceOutcome>;
-  /** Tests an Ollama at that address and uses it when it works. */
-  ollama(c: Context, url: string): Promise<SourceOutcome>;
+  /** Tests a server at that address and uses it when it works. */
+  server(c: Context, id: ServerId, url: string): Promise<SourceOutcome>;
 }
 
 export interface SetupHost {
@@ -42,6 +44,8 @@ export interface SetupHost {
   workDir: () => string;
   models: SetupModels;
   tested: Tested;
+  /** The servers for open models on this computer, in the order the setup offers them. */
+  servers: readonly LocalModels[];
 }
 
 /** The source own keys and a local server stand for. */
@@ -52,6 +56,14 @@ const size = z.object({
   rows: z.number().int().min(4).max(200).optional(),
 });
 
+/** A model as a server names it: `name`, `name:tag`, `publisher/name@variant`, `hf.co/…`. */
+const modelName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(/^[\w.:/@-]+$/);
+
 /** The request's JSON; an empty object when it has none. */
 const bodyOf = (c: Context): Promise<unknown> => c.req.json().catch(() => ({}));
 
@@ -61,6 +73,7 @@ const bodyOf = (c: Context): Promise<unknown> => c.req.json().catch(() => ({}));
  */
 export function setupRoutes(host: SetupHost): Hono {
   const { clients, terminals, models, tested } = host;
+  const serverOf = (c: Context) => host.servers.find((server) => server.id === c.req.param("id"));
   const workDir = () => {
     const dir = host.workDir();
     mkdirSync(dir, { recursive: true });
@@ -96,7 +109,7 @@ export function setupRoutes(host: SetupHost): Hono {
           return c.json({ ok: false, error: message.slice(0, 500), ms: Date.now() - started });
         }
       })
-      // The test of one key, or of Ollama: a working one is put to use and ends the setup.
+      // The test of one key, or of a server at an address: a working one is put to use and ends the setup.
       .post("/keys/:provider", async (c) => {
         const provider = z.enum(models.providers).parse(c.req.param("provider"));
         const { key } = z.object({ key: z.string().max(400).optional() }).parse(await bodyOf(c));
@@ -106,16 +119,65 @@ export function setupRoutes(host: SetupHost): Hono {
         }
         return c.json(outcome);
       })
-      .post("/ollama", async (c) => {
+      .post("/servers/:id/address", async (c) => {
+        const server = serverOf(c);
+        if (!server) {
+          return c.notFound();
+        }
         const { url } = z.object({ url: z.string().url().max(200) }).parse(await c.req.json());
-        const outcome = await models.ollama(c, url);
+        const outcome = await models.server(c, server.id, url);
         if (outcome.ok) {
           await tested.mark(OWN);
         }
         return c.json(outcome);
       })
+      // --- the models of a server on this computer: listed, pulled, removed; none is loaded ---
+      .get("/servers/:id", async (c) => {
+        const server = serverOf(c);
+        return server ? c.json(await server.state()) : c.notFound();
+      })
+      .post("/servers/:id/pull", async (c) => {
+        const server = serverOf(c);
+        if (!server) {
+          return c.notFound();
+        }
+        const { model } = z.object({ model: modelName }).parse(await c.req.json());
+        await server.pull(model);
+        return c.json(await server.state());
+      })
+      .delete("/servers/:id/models", async (c) => {
+        const server = serverOf(c);
+        if (!server) {
+          return c.notFound();
+        }
+        try {
+          await server.remove(modelName.parse(c.req.query("model")));
+        } catch (err) {
+          if (err instanceof z.ZodError) {
+            throw err;
+          }
+          const { message } = err as Error;
+          return c.json({ error: message, message }, 400);
+        }
+        return c.json(await server.state());
+      })
+      // The server installed, where the host can, and started.
+      .post("/servers/:id/start", async (c) => {
+        const server = serverOf(c);
+        if (!server) {
+          return c.notFound();
+        }
+        server.start();
+        return c.json(await server.state());
+      })
       // --- the AI clients on this computer: looked at afresh, installed and signed in --------
-      .get("/clients", async (c) => c.json({ clients: await clients.detectAll() }))
+      .get("/clients", async (c) => {
+        const [found, servers] = await Promise.all([
+          clients.detectAll(),
+          Promise.all(host.servers.map((server) => server.status())),
+        ]);
+        return c.json({ clients: found, servers });
+      })
       .post("/harness/:id/detect", async (c) => {
         const id = c.req.param("id");
         return clients.client(id)

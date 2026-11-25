@@ -95,7 +95,8 @@ describe("a short real call to Ollama", () => {
       () => Response.json({ message: { content: "ok" } }),
     );
     const result = await probe({
-      kind: "ollama",
+      kind: "server",
+      server: "ollama",
       url: "http://ollama.test/v1",
       fetch: async (input, init) => {
         asked.push(String(input));
@@ -109,14 +110,16 @@ describe("a short real call to Ollama", () => {
   it("says when Ollama does not answer, holds no model, or the model is too big", async () => {
     expect(
       await probe({
-        kind: "ollama",
+        kind: "server",
+        server: "ollama",
         url: "http://ollama.test",
         fetch: async () => new Response("", { status: 502 }),
       }),
     ).toEqual({ state: "absent" });
     expect(
       await probe({
-        kind: "ollama",
+        kind: "server",
+        server: "ollama",
         url: "http://ollama.test",
         fetch: ollama([], () => Response.json({})),
       }),
@@ -127,7 +130,8 @@ describe("a short real call to Ollama", () => {
     );
     expect(
       await probe({
-        kind: "ollama",
+        kind: "server",
+        server: "ollama",
         url: "http://ollama.test",
         memory: 32e9,
         share: 0.55,
@@ -135,7 +139,13 @@ describe("a short real call to Ollama", () => {
       }),
     ).toEqual({ state: "too_big", model: "big:70b" });
     expect(
-      await probe({ kind: "ollama", url: "http://ollama.test", model: "other", fetch: big }),
+      await probe({
+        kind: "server",
+        server: "ollama",
+        url: "http://ollama.test",
+        model: "other",
+        fetch: big,
+      }),
     ).toEqual({ state: "no_model", model: "other" });
   });
 
@@ -143,7 +153,9 @@ describe("a short real call to Ollama", () => {
     const broken = ollama([{ name: "m:1b", size: 1e9, capabilities: ["completion"] }], () =>
       Response.json({ error: "model requires more system memory" }, { status: 500 }),
     );
-    expect(await probe({ kind: "ollama", url: "http://ollama.test", fetch: broken })).toEqual({
+    expect(
+      await probe({ kind: "server", server: "ollama", url: "http://ollama.test", fetch: broken }),
+    ).toEqual({
       state: "failed",
       model: "m:1b",
       detail: "model requires more system memory",

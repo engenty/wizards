@@ -84,9 +84,14 @@ beforeAll(async () => {
 afterAll(() => server.close());
 
 describe("the models in Ollama on this computer", () => {
+  let ollama: (typeof local.localServers)[number];
+  beforeAll(() => {
+    [ollama] = local.localServers;
+  });
+
   it("sorts them by job from what Ollama says each can do", async () => {
-    const state = await local.localModels();
-    expect(state.ollama.version).toBe("0.40.12");
+    const state = await ollama.state();
+    expect(state.server).toMatchObject({ id: "ollama", running: true, version: "0.40.12" });
     const byName = Object.fromEntries(state.installed.map((m) => [m.name, m]));
     expect(byName["embeddinggemma-2:740m"]).toMatchObject({
       jobs: ["search"],
@@ -100,7 +105,7 @@ describe("the models in Ollama on this computer", () => {
   });
 
   it("offers the Manage-App's models, marked as there and as fitting this computer", async () => {
-    const { offered } = await local.localModels();
+    const { offered } = await ollama.state();
     const byName = Object.fromEntries((offered ?? []).map((m) => [m.name, m]));
     expect(Object.keys(byName)).toEqual([
       "qwen3.8:27b",
@@ -116,9 +121,9 @@ describe("the models in Ollama on this computer", () => {
   });
 
   it("removes a model, and says Ollama's reason where it refuses", async () => {
-    await local.removeLocalModel("qwen3.8:27b-mlx");
+    await ollama.remove("qwen3.8:27b-mlx");
     expect(deleted).toEqual(["qwen3.8:27b-mlx"]);
-    await expect(local.removeLocalModel("nothing:here")).rejects.toThrow(
+    await expect(ollama.remove("nothing:here")).rejects.toThrow(
       "model 'nothing:here' not found",
     );
   });

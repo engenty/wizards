@@ -11,6 +11,8 @@ export type ClientId = (typeof CLIENT_IDS)[number];
 export interface ClientEntry {
   id: ClientId;
   name: string;
+  /** The name with its provider, where a list shows it: "Anthropic Claude Code". */
+  label: string;
   bin: string;
   /** The subscription it answers on. */
   account: string;
@@ -24,6 +26,7 @@ export const CLIENTS: readonly ClientEntry[] = [
   {
     id: "codex",
     name: "Codex",
+    label: "OpenAI Codex",
     bin: "codex",
     account: "ChatGPT",
     install: { kind: "npm", pkg: "@openai/codex" },
@@ -32,6 +35,7 @@ export const CLIENTS: readonly ClientEntry[] = [
   {
     id: "claude",
     name: "Claude Code",
+    label: "Anthropic Claude Code",
     bin: "claude",
     account: "Claude",
     install: {
@@ -44,6 +48,7 @@ export const CLIENTS: readonly ClientEntry[] = [
   {
     id: "antigravity",
     name: "Antigravity",
+    label: "Google Antigravity",
     bin: "agy",
     account: "Google AI",
     install: {
@@ -56,6 +61,7 @@ export const CLIENTS: readonly ClientEntry[] = [
   {
     id: "cursor",
     name: "Cursor Agent",
+    label: "Cursor Agent",
     bin: "cursor-agent",
     account: "Cursor",
     install: {

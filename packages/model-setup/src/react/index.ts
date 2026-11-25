@@ -15,7 +15,9 @@ export {
   Stages,
 } from "./columns.js";
 export { type SetupHostApi, SetupProvider, useCall, useSetupHost, useText } from "./host.js";
-export { type KeyProvider, OllamaAddress, OwnKeys, type SourceResult } from "./keys.js";
+export { type KeyProvider, OwnKeys, ServerAddress, type SourceResult } from "./keys.js";
+export { LocalModels, modelsMoving } from "./local-models.js";
+export { useServerChoices } from "./servers.js";
 export {
   SETUP_GROUND,
   SETUP_GROUND_INK,

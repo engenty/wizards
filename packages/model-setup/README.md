@@ -11,6 +11,9 @@ wizards.bot show the same one, so a new way to think is added here and both have
   shows; `setupRoutes(host)` are the Hono routes the page asks. `Tested` keeps which sources a
   test call has worked on.
 
+- **Ollama's models** (`OllamaModels` on the server, `LocalModels` in React): what Ollama holds and what each can do,
+  what fits the computer, downloads, removal, and Ollama itself installed on a Mac and started.
+  Listing loads no model. `OFFERED_TEXT_MODELS` is a list for a host that asks no one for one.
 - **React** (`@engenty/model-setup/react`). The page in parts: `SetupColumns` (the question, the
   list, and beside it what the picked choice needs), `ClientPanel` (found, installed, signed in
   through the terminal, tested), `OwnKeys`, `OllamaAddress`, `ModelTest`. A host wraps them in

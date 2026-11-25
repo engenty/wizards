@@ -1,20 +1,11 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  type ClientAnswer,
-  type ClientAuth,
-  type ClientCall,
-  ClientModel,
-  clientFailure,
-  type EnvSpec,
-  probeVersion,
-  resolveEnv,
-  run,
-  runClient,
-} from "@engenty/local-models/clients";
-import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
-import { modelOptions } from "./model.js";
-import type { Harness } from "./types.js";
+import { type ChatEvent, parseLine } from "./chat.js";
+import type { Client } from "./client.js";
+import { type ClientAuth, type EnvSpec, probeVersion, resolveEnv, run } from "./env.js";
+import { clientFailure } from "./failure.js";
+import { type ClientAnswer, type ClientCall, ClientModel, type Effort } from "./model.js";
+import { runClient } from "./run.js";
 
 /**
  * Antigravity CLI: `agy` answers on the Google sign-in it cached — the Google AI subscription,
@@ -27,15 +18,10 @@ import type { Harness } from "./types.js";
 
 export const AGY_BIN = process.env.AGY_BIN?.trim() || "agy";
 
-/** The models carry their effort in the name: `gemini-3.8-flash-<low|medium|high>`. */
-const CLASSES: Record<TextClass, string> = {
-  classifier: "gemini-3.8-flash-low",
-  low: "gemini-3.8-flash-medium",
-  standard: "gemini-3.8-flash-high",
-  high: "gemini-3.8-flash-high",
-};
-
-/** The model of that name at the effort a step asks for, where the name carries one. */
+/**
+ * The model of that name at the effort a call asks for: the models carry their effort in the
+ * name, `gemini-3.8-flash-<low|medium|high>`.
+ */
 export function withEffort(model: string, effort?: Effort): string {
   return effort ? model.replace(/-(low|medium|high)$/, `-${effort}`) : model;
 }
@@ -109,8 +95,7 @@ class AntigravityModel extends ClientModel {
       "stream-json",
       "--output-format",
       "stream-json",
-      "--model",
-      withEffort(this.modelId, call.effort),
+      ...(this.modelId === "default" ? [] : ["--model", withEffort(this.modelId, call.effort)]),
       "--disable-slash-commands",
     ];
     if (call.schema) {
@@ -148,19 +133,78 @@ class AntigravityModel extends ClientModel {
   }
 }
 
-export const antigravity: Harness = {
+/** In a chat it only writes: no command, no file, no page, none of the person's own MCP servers. */
+const CHAT_SETTINGS = JSON.stringify({
+  permissions: {
+    deny: [
+      "command(*)",
+      "read_file(*)",
+      "write_file(*)",
+      "read_url(*)",
+      "execute_url(*)",
+      "download_url(*)",
+      "mcp(*)",
+    ],
+  },
+});
+
+/** What one line of `agy --output-format stream-json` says. */
+interface AntigravityEvent {
+  event?: string;
+  conversation_id?: string;
+  step_update?: { conversation_id?: string; step_type?: string; text_delta?: string };
+  result?: AntigravityResult;
+}
+
+export const antigravity: Client = {
   ...spec,
   id: "antigravity",
   name: "Antigravity",
   bin: AGY_BIN,
-  classes: CLASSES,
+  tools: false,
   version: (env) =>
     probeVersion(AGY_BIN, env, (stdout) => stdout.trim().split("\n").pop()?.trim() || null),
   // No login command: the client asks for the Google sign-in when it starts without one.
   login: { args: [], interactive: true },
-  model: (alias: string, effort?: Effort) =>
-    new AntigravityModel(antigravity, alias || CLASSES.low, {
-      ...modelOptions(antigravity),
-      effort,
-    }),
+  model: (alias, options) => new AntigravityModel(antigravity, alias || "default", options),
+  args: (call) => [
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--disable-slash-commands",
+    "--mode",
+    "plan",
+    "--settings",
+    CHAT_SETTINGS,
+    ...(call.model ? ["--model", call.model] : []),
+    ...(call.session ? ["--conversation", call.session] : []),
+  ],
+  // A conversation it continues has read the instructions.
+  stdin: (call) => antigravityMessage(call.session ? "" : call.system, call.message),
+  events(line) {
+    const event = parseLine(line) as AntigravityEvent | null;
+    const out: ChatEvent[] = [];
+    if (event?.event === "init" && event.conversation_id) {
+      out.push({ kind: "session", id: event.conversation_id });
+    } else if (event?.event === "step_update") {
+      const { step_type, text_delta } = event.step_update ?? {};
+      if (step_type === "agent_response" && text_delta) {
+        out.push({ kind: "writing", text: text_delta });
+      }
+    } else if (event?.event === "result" && event.result) {
+      const { conversation_id, status, error, response } = event.result;
+      if (conversation_id) {
+        out.push({ kind: "session", id: conversation_id });
+      }
+      if (status !== "SUCCESS") {
+        out.push({ kind: "failure", detail: error || status || "error" });
+      } else if (response) {
+        out.push({ kind: "result", text: response });
+      }
+    }
+    return out;
+  },
+  signedOut: (detail) =>
+    /authenticat|log ?in|logged in|sign in|unauthori[sz]ed|\b401\b/i.test(detail),
 };

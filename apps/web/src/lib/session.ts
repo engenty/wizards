@@ -53,6 +53,8 @@ export type HarnessId = "claude" | "codex" | "antigravity" | "cursor";
 export interface HarnessStatus {
   id: HarnessId;
   name: string;
+  /** The name with its provider, where a list shows it. */
+  label: string;
   /** How to install it in a terminal; the setup's Install button runs the same command. */
   install: string;
   /** The vendor's desktop app on this machine ("Claude"): the subscription is most likely there. */
@@ -71,6 +73,7 @@ export interface LocalModels {
   source: HarnessId | "account" | "own";
   bindings: Record<ModelClass, string>;
   ollamaUrl: string;
+  lmstudioUrl: string;
   /** Which providers have a key stored, by provider id. */
   keys: Partial<Record<string, boolean>>;
 }

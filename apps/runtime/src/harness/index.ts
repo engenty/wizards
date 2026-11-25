@@ -4,8 +4,7 @@ import type { ClientSetupStatus } from "@engenty/model-setup";
 import { ClientSetup } from "@engenty/model-setup/server";
 import { inherited, runtimePath } from "../cli/environment.js";
 import { layout } from "../cli/home.js";
-import { antigravity } from "./antigravity.js";
-import { claude, codex, cursor } from "./clients.js";
+import { antigravity, claude, codex, cursor } from "./clients.js";
 import type { Harness, HarnessId } from "./types.js";
 
 export { HARNESS_IDS, type Harness, type HarnessId } from "./types.js";
