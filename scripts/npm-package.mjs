@@ -9,7 +9,7 @@
 //                             installer and hands over to it (bin/wizards.mjs).
 //   @engenty/wizards          what code outside this repo imports: packages/wizards/dist as its
 //                             build leaves it (packages/wizards/scripts/build.mjs)
-//   @engenty/decision-model, @engenty/search-index, @engenty/search-libsql, @engenty/tool-harness, @engenty/goose,
+//   @engenty/decision-model, @engenty/search-index, @engenty/search-libsql, @engenty/tool-harness,
 //   @engenty/vault, @engenty/plugins, @engenty/browser, @engenty/local-models,
 //   @engenty/model-setup
 //                             the MIT libraries in packages/: each its dist/ as tsc leaves it
@@ -60,7 +60,6 @@ const LIBRARIES = [
   "search-index",
   "search-libsql",
   "tool-harness",
-  "goose",
   "vault",
   "plugins",
   "browser",
