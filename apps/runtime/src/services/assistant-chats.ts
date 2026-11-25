@@ -378,12 +378,12 @@ export async function searchChats(user: SessionUser, query: string, limit = 8) {
   return hits;
 }
 
-/** Where the person keeps the assistant: at the bottom (the default), in a sidebar, or small. */
+/** Where the person keeps the assistant: at the bottom, in a sidebar, or small (the default). */
 export async function assistantLayout(user: SessionUser): Promise<AssistantLayout> {
   const stored = await readTenantSetting<string>(user.tenantId, `assistant-layout:${user.id}`);
   return (ASSISTANT_LAYOUTS as readonly string[]).includes(stored ?? "")
     ? (stored as AssistantLayout)
-    : "bottom";
+    : "avatar";
 }
 
 /**

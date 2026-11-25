@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
+import { t } from "../lib/i18n";
 import { useMediaQuery } from "../lib/media";
 import { cn } from "../ui";
 
@@ -102,49 +103,59 @@ export function LevelHead({
   const shown = open ?? root ?? null;
   const back = open ? onBack : undefined;
   return (
-    <div className="mb-2 flex h-9 min-w-0 items-center px-1">
-      <div
-        className={cn(
-          "shrink-0 overflow-hidden transition-[width,margin,opacity] duration-200 ease-out",
-          shown && back ? "-ml-1.5 mr-0.5 w-8 opacity-100" : "w-0 opacity-0",
-        )}
+    <>
+      {/* The way back to the studio's start, above every area's menu. */}
+      <Link
+        to="/"
+        className="mb-1 flex h-8 items-center gap-1.5 self-start px-1 text-[0.8125rem] text-ink-3 transition hover:text-ink"
       >
-        <button
-          type="button"
-          onClick={back}
-          aria-hidden={!(shown && back)}
-          tabIndex={shown && back ? undefined : -1}
-          aria-label={title}
-          className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-accent hover:text-ink"
-        >
-          <ArrowLeft className="size-4" />
-        </button>
-      </div>
-      {!open && root?.onOpen ? (
-        <button
-          type="button"
-          onClick={root.onOpen}
-          aria-current={root.current ? "page" : undefined}
-          // Highlighted as a row of the list below is: the whole width, the same height.
+        <ArrowLeft className="size-4" />
+        {t("mode.studio")}
+      </Link>
+      <div className="mb-2 flex h-9 min-w-0 items-center px-1">
+        <div
           className={cn(
-            "-mx-1 flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left font-medium text-[0.875rem] transition",
-            root.current ? "bg-paper-2 text-ink" : "hover:bg-accent",
+            "shrink-0 overflow-hidden transition-[width,margin,opacity] duration-200 ease-out",
+            shown && back ? "-ml-1.5 mr-0.5 w-8 opacity-100" : "w-0 opacity-0",
           )}
         >
-          <span className="grid size-7 shrink-0 place-items-center">
-            <root.icon className="size-4 text-ember-strong" />
+          <button
+            type="button"
+            onClick={back}
+            aria-hidden={!(shown && back)}
+            tabIndex={shown && back ? undefined : -1}
+            aria-label={title}
+            className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-accent hover:text-ink"
+          >
+            <ArrowLeft className="size-4" />
+          </button>
+        </div>
+        {!open && root?.onOpen ? (
+          <button
+            type="button"
+            onClick={root.onOpen}
+            aria-current={root.current ? "page" : undefined}
+            // Highlighted as a row of the list below is: the whole width, the same height.
+            className={cn(
+              "-mx-1 flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left font-medium text-[0.875rem] transition",
+              root.current ? "bg-paper-2 text-ink" : "hover:bg-accent",
+            )}
+          >
+            <span className="grid size-7 shrink-0 place-items-center">
+              <root.icon className="size-4 text-ember-strong" />
+            </span>
+            <span className="min-w-0 flex-1 truncate">{root.label}</span>
+          </button>
+        ) : shown ? (
+          <span className="flex min-w-0 items-center gap-2 font-medium text-[0.875rem]">
+            <shown.icon className="size-4 shrink-0 text-ember-strong" />
+            <span className="truncate">{shown.label}</span>
           </span>
-          <span className="min-w-0 flex-1 truncate">{root.label}</span>
-        </button>
-      ) : shown ? (
-        <span className="flex min-w-0 items-center gap-2 font-medium text-[0.875rem]">
-          <shown.icon className="size-4 shrink-0 text-ember-strong" />
-          <span className="truncate">{shown.label}</span>
-        </span>
-      ) : (
-        <span className="truncate font-medium text-[0.875rem]">{title}</span>
-      )}
-    </div>
+        ) : (
+          <span className="truncate font-medium text-[0.875rem]">{title}</span>
+        )}
+      </div>
+    </>
   );
 }
 

@@ -109,6 +109,13 @@ function sectionInView(): string | undefined {
 }
 
 /** The page as the next message sends it. */
+/** The organization's setup while it is open (studio/setup.tsx): it goes with every message. */
+let setupProgress: AssistantPage["setup"];
+
+export function setSetupProgress(next: AssistantPage["setup"]) {
+  setupProgress = next;
+}
+
 export function pageSnapshot(): AssistantPage {
   const {
     title: _title,
@@ -155,5 +162,6 @@ export function pageSnapshot(): AssistantPage {
         }
       : {}),
     ...(shown.plugin ? { plugin: shown.plugin } : {}),
+    ...(setupProgress ? { setup: setupProgress } : {}),
   };
 }

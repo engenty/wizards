@@ -23,8 +23,10 @@ import {
 import {
   createContext,
   Fragment,
+  lazy,
   type ReactNode,
   type RefObject,
+  Suspense,
   useContext,
   useEffect,
   useRef,
@@ -79,6 +81,9 @@ import { KnowledgePalette } from "./space/KnowledgePalette";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
 import { hostOf } from "./where";
+
+/** Hands the organization's setup to Goose; loaded apart, as it reads the space's parts. */
+const SetupReporter = lazy(() => import("./setup"));
 
 /** A step of the trail after the logo; the last one is the page itself. */
 export interface Crumb {
@@ -1080,6 +1085,9 @@ export function AppFrame({
                 ) : null}
                 <UpdateBanner />
                 <ConfirmHost />
+                <Suspense fallback={null}>
+                  <SetupReporter />
+                </Suspense>
                 <InstallBanner me={me} />
                 <CloudSyncBar me={me} />
                 {full ? (

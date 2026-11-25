@@ -239,7 +239,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     [qc, area],
   );
   const layout =
-    layouts[area] ?? savedLayout.data?.layouts?.[area] ?? savedLayout.data?.layout ?? "bottom";
+    layouts[area] ?? savedLayout.data?.layouts?.[area] ?? savedLayout.data?.layout ?? "avatar";
   const setWidth = useCallback(
     (next: number | null, save = true) => {
       setWidthState(next);

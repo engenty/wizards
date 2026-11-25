@@ -1353,6 +1353,20 @@ const de: Record<Key, Line> = {
   "start.setup.hint":
     "Im Studio erstellst du AI-Workflows für dein Team und Kunden. Sie arbeiten mit deinen Daten, Skills und Verbindungen.",
   "start.setup.field": "Name oder Website deiner Organisation",
+  "start.ask.knowledge":
+    "Richte das Wissen für meine Wizards ein. Schau dich zuerst um: meine Website und was schon in Wissen und in Dateien liegt. Sag mir dann, was du gefunden hast, und frag mich, was du davon übernehmen sollst. Leg erst danach Seiten in Wissen an. Gib mir Buttons für deine Fragen und für den nächsten Schritt.",
+  "start.ask.connections":
+    "Hilf mir mit den Verbindungen. Schau zuerst, welche es gibt und welche schon verbunden sind. Frag mich dann, welche Werkzeuge ich nutze, richte nur die gewählten ein und sag mir, was Wizards damit dürfen. Gib mir Buttons für deine Fragen und für den nächsten Schritt.",
+  "start.ask.skills":
+    "Hilf mir mit Skills. Schau dir zuerst meinen Auftritt und mein Wissen an. Schlag mir dann zwei, drei passende Skills vor und frag mich, welchen wir zusammen schreiben. Gib mir Buttons für deine Fragen und für den nächsten Schritt.",
+  "start.ask.team":
+    "Hilf mir, mein Team dazuzuholen. Frag mich, wen ich einladen will, und zeig mir, wo das geht. Gib mir Buttons für deine Fragen und für den nächsten Schritt.",
+  "start.ask.connect":
+    "Erklär mir in zwei Sätzen, was das Verbinden mit meiner Organisation bringt, und zeig mir, wo ich mich anmelde. Gib mir am Ende einen Button für Home.",
+  "start.setup.what":
+    "Goose sucht dann deine Website und übernimmt Name, Logo, Farben und das Wichtigste in Space › Info. Du siehst dabei zu. Ist etwas unklar, fragt Goose nach.",
+  "start.setup.ask":
+    "Richte den Auftritt für „{name}“ ein. Finde die Website, lies sie und übernimm Name, Logo, Farben, Schrift und die wichtigsten Fakten in Space › Info. Öffne dabei die Seite, die du gerade füllst, damit ich zusehen kann. Wenn du nicht sicher bist, welche Organisation gemeint ist, frag mich zuerst. Gib mir am Ende Buttons, um weiterzukommen: für deine Fragen und für den nächsten Schritt der Einrichtung.",
   "start.setup.placeholder": "Name oder Website",
   "start.setup.example": "z. B. Bäckerei Huber oder baeckerei-huber.at",
   "start.setup.go": "Starten",
@@ -1398,6 +1412,16 @@ const de: Record<Key, Line> = {
     "Dann laufen deine Wizards auch, wenn dieser Computer schläft, und dein Team arbeitet mit.",
   "start.now.connect.go": "Anmelden",
   "start.later": "Später",
+  "start.hide": "Ausblenden",
+  "start.finish": "Fertig und schließen",
+  "start.stepOf": "Schritt {n} von {all}",
+  "start.next": "Weiter",
+  "start.allSteps": "Alle Schritte",
+  "start.hide.title": "Einrichtung ausblenden?",
+  "start.hide.detail":
+    "Du richtest alles selbst ein, oder Goose hilft dir dabei. Die offenen Schritte bleiben unten auf Home.",
+  "start.hide.self": "Selbst einrichten",
+  "start.hide.goose": "Goose fragen",
   "start.back": "Zurück",
   "start.week": { one: "Diese Woche {n} Lauf", other: "Diese Woche {n} Läufe" },
   "start.wish": "Was soll ein neuer Wizard tun?",
@@ -4881,6 +4905,8 @@ const de: Record<Key, Line> = {
   "fact.e_mail": "E-Mail",
   "fact.website": "Website",
   "fact.iban": "IBAN",
+  "fact.bic": "BIC",
+  "fact.bank": "Bank",
   "space.factType": "Typ",
   "space.factAuto": "Automatisch",
   "space.type.text": "Text",
@@ -6371,6 +6397,20 @@ const en = {
   "start.setup.hint":
     "In the studio you build AI workflows for your team and clients. They work with your data, skills and connections.",
   "start.setup.field": "Your organization’s name or website",
+  "start.ask.knowledge":
+    "Set up the knowledge for my wizards. First look around: my website and what is already in Knowledge and in Files. Then tell me what you found and ask me what of it to take in. Only then add pages to Knowledge. Give me buttons for your questions and for the next step.",
+  "start.ask.connections":
+    "Help me with connections. First see which there are and which are connected already. Then ask me which tools I use, set up only the ones I pick and tell me what wizards may do with them. Give me buttons for your questions and for the next step.",
+  "start.ask.skills":
+    "Help me with skills. First look at my brand and my knowledge. Then suggest two or three skills that fit and ask me which one we write together. Give me buttons for your questions and for the next step.",
+  "start.ask.team":
+    "Help me bring my team in. Ask me whom to invite and show me where that is done. Give me buttons for your questions and for the next step.",
+  "start.ask.connect":
+    "Tell me in two sentences what connecting to my organization brings, and show me where I sign in. At the end, give me a button for Home.",
+  "start.setup.what":
+    "Goose then looks up your website and takes your name, logo, colours and the key facts into Space › Info. You can watch it happen. If something is unclear, Goose asks.",
+  "start.setup.ask":
+    "Set up the brand for “{name}”. Find the website, read it and take the name, logo, colours, typography and the key facts into Space › Info. Open the page you are filling as you go, so I can watch. If you are not sure which organization is meant, ask me first. At the end, give me buttons to move on: for your questions and for the next step of the setup.",
   "start.setup.placeholder": "Name or website",
   "start.setup.example": "e.g. Huber Bakery or huberbakery.com",
   "start.setup.go": "Start",
@@ -6413,6 +6453,16 @@ const en = {
     "Then your wizards keep running while this computer sleeps, and your team works with you.",
   "start.now.connect.go": "Sign in",
   "start.later": "Later",
+  "start.hide": "Hide",
+  "start.finish": "Done, close",
+  "start.stepOf": "Step {n} of {all}",
+  "start.next": "Next",
+  "start.allSteps": "All steps",
+  "start.hide.title": "Hide the setup?",
+  "start.hide.detail":
+    "You set everything up yourself, or Goose helps you with it. The open steps stay at the bottom of Home.",
+  "start.hide.self": "I’ll do it myself",
+  "start.hide.goose": "Ask Goose",
   "start.back": "Back",
   "start.week": { one: "{n} run this week", other: "{n} runs this week" },
   "start.wish": "What should a new wizard do?",
@@ -9811,6 +9861,8 @@ const en = {
   "fact.e_mail": "Email",
   "fact.website": "Website",
   "fact.iban": "IBAN",
+  "fact.bic": "BIC",
+  "fact.bank": "Bank",
   "space.factType": "Type",
   "space.factAuto": "Automatic",
   "space.type.text": "Text",
