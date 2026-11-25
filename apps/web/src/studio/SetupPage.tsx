@@ -51,12 +51,12 @@ type Source = LocalModels["source"];
 type Pick = Source | ServerId | "apple";
 
 const isServer = (pick: string | null): pick is ServerId =>
-  pick === "ollama" || pick === "lmstudio";
+  pick === "ollama" || pick === "lmstudio" || pick === "mlx";
 
 /** The bindings with the text classes that name a model on this computer unbound. */
 function withoutLocal(bindings: LocalModels["bindings"]) {
   return Object.fromEntries(
-    TEXT_CLASSES.filter((cls) => /^(ollama|lmstudio|apple):/.test(bindings[cls] ?? "")).map(
+    TEXT_CLASSES.filter((cls) => /^(ollama|lmstudio|mlx|apple):/.test(bindings[cls] ?? "")).map(
       (cls) => [cls, ""],
     ),
   );
@@ -76,6 +76,7 @@ const HOSTS: Record<Pick, string> = {
   cursor: "sprout",
   ollama: "pebble",
   lmstudio: "round",
+  mlx: "sprout",
   own: "bean",
   account: "drop",
   apple: "pebble",
@@ -269,7 +270,10 @@ function Setup({ me, models }: { me: Me; models: LocalModels }) {
   const [opened, setOpened] = useState<ServerId | null>(null);
   const ollama = useLocalModels("ollama");
   const lmStudio = useLocalModels("lmstudio");
-  const servers = [ollama.data, lmStudio.data].flatMap((local) => (local ? [local.server] : []));
+  const mlx = useLocalModels("mlx");
+  const servers = [ollama.data, lmStudio.data, mlx.data].flatMap((local) =>
+    local ? [local.server] : [],
+  );
   const choose = useMutation({
     // Apple Intelligence is the short classes bound on this Mac; the source stays and keeps Standard
     // and High. Another choice after it unbinds them.
@@ -515,7 +519,7 @@ function Setup({ me, models }: { me: Me; models: LocalModels }) {
                       {onServer === selected ? (
                         <ModelTest key={models.bindings.low} auto={!works} />
                       ) : null}
-                      {server && !server.running ? (
+                      {server && !server.running && selected !== "mlx" ? (
                         <ServerAddress
                           id={selected}
                           name={sourceName}

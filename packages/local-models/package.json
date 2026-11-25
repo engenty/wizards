@@ -1,7 +1,7 @@
 {
   "name": "@engenty/local-models",
   "version": "0.1.0",
-  "description": "The models on a person's own computer: Ollama and LM Studio (their models, what each can do, downloads, a model with the context length set) and the AI clients signed in on their subscription (Claude Code, Codex, Cursor Agent: found, signed in, run headless as a model or as a chat with one MCP server), and a short real call that says whether each answers.",
+  "description": "The models on a person's own computer: Ollama, LM Studio and Apple MLX (their models, what each can do, downloads, a model with the context length set) and the AI clients signed in on their subscription (Claude Code, Codex, Cursor Agent: found, signed in, run headless as a model or as a chat with one MCP server), and a short real call that says whether each answers.",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -31,6 +31,11 @@
       "types": "./dist/lmstudio/index.d.ts",
       "default": "./dist/lmstudio/index.js"
     },
+    "./mlx": {
+      "wizards-source": "./src/mlx/index.ts",
+      "types": "./dist/mlx/index.d.ts",
+      "default": "./dist/mlx/index.js"
+    },
     "./servers": {
       "wizards-source": "./src/servers/index.ts",
       "types": "./dist/servers/index.d.ts",
@@ -54,6 +59,7 @@
   },
   "files": [
     "dist",
+    "mlx/bin",
     "LICENSE"
   ],
   "scripts": {

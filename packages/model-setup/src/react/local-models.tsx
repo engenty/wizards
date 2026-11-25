@@ -12,6 +12,7 @@ const OLLAMA_ON_LINUX = "curl -fsSL https://ollama.com/install.sh | sh";
 const EXAMPLE: Record<ServerId, string> = {
   ollama: "llama3.2:3b",
   lmstudio: "openai/gpt-oss-20b",
+  mlx: "mlx-community/Qwen3-8B-4bit",
 };
 
 /** A job's name. */
@@ -178,7 +179,7 @@ export function LocalModels({
             </Button>
             {starting ? (
               <span className="text-[0.8125rem] text-ink-2">
-                {t(`models.local.starts.${server.id}`)}
+                {server.id === "mlx" ? null : t(`models.local.starts.${server.id}`)}
               </span>
             ) : null}
           </div>

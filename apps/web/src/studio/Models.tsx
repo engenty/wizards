@@ -213,6 +213,7 @@ type LocalBy = ServerId | "apple";
 const SERVERS: Record<ServerId, { name: string; first: string }> = {
   ollama: { name: "Ollama", first: "qwen3" },
   lmstudio: { name: "LM Studio", first: "google/gemma-4-12b" },
+  mlx: { name: "Apple MLX", first: "mlx-community/Qwen3-4B-4bit" },
 };
 const SERVER_IDS = Object.keys(SERVERS) as ServerId[];
 
@@ -1028,10 +1029,12 @@ function CapabilityPanel({
   );
   const providers = PROVIDERS.filter((p) => p.models[cap]?.length);
   const lmStudio = useLocalModels("lmstudio", isText(cap) && !place.cloud);
+  const mlx = useLocalModels("mlx", isText(cap) && !place.cloud);
   const servers = SERVER_IDS.filter(
     (id) =>
       id === "ollama" ||
-      lmStudio.data?.server.installed ||
+      (id === "lmstudio" && lmStudio.data?.server.installed) ||
+      (id === "mlx" && mlx.data?.server.installed) ||
       (chosen?.kind === "local" && chosen.by === id),
   );
 
@@ -1307,7 +1310,7 @@ function CapabilityPanel({
 function appleBindings(state: ModelsState): Partial<Record<ModelClass, string>> {
   const keep = (cls: ModelClass) => {
     const bound = state.bindings[cls] ?? "";
-    return /^(ollama|lmstudio|apple):/.test(bound) ? "" : bound;
+    return /^(ollama|lmstudio|mlx|apple):/.test(bound) ? "" : bound;
   };
   return {
     classifier: "apple:default",
@@ -1421,8 +1424,9 @@ function ServerAccessPanel({
   const save = useSave();
   const qc = useQueryClient();
   const { data: local } = useLocalModels(id);
-  const field = `${id}Url` as const;
-  const [url, setUrl] = useState(state[field]);
+  // MLX answers in the studio itself: it has no address.
+  const field = id === "mlx" ? null : (`${id}Url` as const);
+  const [url, setUrl] = useState(field ? state[field] : "");
   const { name } = SERVERS[id];
   const server = local?.server;
   return (
@@ -1451,33 +1455,35 @@ function ServerAccessPanel({
           <Hint>{t("models.serverModelsHint")}</Hint>
           <LocalModels server={id} inUse={serverInUse(id, state)} disabled={!place.canEdit} />
         </Part>
-        <Part title={t("models.serverAddress", { name })}>
-          <Hint>{t(`models.serverAddressHint.${id}`)}</Hint>
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <Input
-              className="font-mono text-[0.8125rem]"
-              value={url}
-              disabled={!place.canEdit}
-              onChange={(e) => setUrl(e.target.value)}
-            />
-            <Button
-              variant="secondary"
-              busy={save.isPending}
-              disabled={!place.canEdit || !url.trim() || url.trim() === state[field]}
-              onClick={() =>
-                save.mutate(
-                  { [field]: url },
-                  { onSuccess: () => qc.invalidateQueries({ queryKey: ["models", "local"] }) },
-                )
-              }
-            >
-              {t("settings.save")}
-            </Button>
-          </div>
-          {save.isError ? (
-            <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
-          ) : null}
-        </Part>
+        {field && id !== "mlx" ? (
+          <Part title={t("models.serverAddress", { name })}>
+            <Hint>{t(`models.serverAddressHint.${id}`)}</Hint>
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <Input
+                className="font-mono text-[0.8125rem]"
+                value={url}
+                disabled={!place.canEdit}
+                onChange={(e) => setUrl(e.target.value)}
+              />
+              <Button
+                variant="secondary"
+                busy={save.isPending}
+                disabled={!place.canEdit || !url.trim() || url.trim() === state[field]}
+                onClick={() =>
+                  save.mutate(
+                    { [field]: url },
+                    { onSuccess: () => qc.invalidateQueries({ queryKey: ["models", "local"] }) },
+                  )
+                }
+              >
+                {t("settings.save")}
+              </Button>
+            </div>
+            {save.isError ? (
+              <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+            ) : null}
+          </Part>
+        ) : null}
       </Card>
     </div>
   );
@@ -3179,7 +3185,7 @@ function LocalPanel({ s }: { s: Situation }) {
   }
   return (
     <div className="flex flex-col gap-10">
-      {SERVER_IDS.map((id) => (
+      {SERVER_IDS.filter((id) => id !== "mlx" || s.servers.some((x) => x.id === id)).map((id) => (
         <ServerAccessPanel key={id} id={id} state={state} place={place} />
       ))}
     </div>
@@ -3200,6 +3206,7 @@ export function Models() {
   const alone = Boolean(me.data) && me.data?.mode !== "managed";
   const ollama = useLocalModels("ollama", alone);
   const lmStudio = useLocalModels("lmstudio", alone);
+  const mlx = useLocalModels("mlx", alone);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [view, setView] = useState<View>("auto");
@@ -3242,7 +3249,7 @@ export function Models() {
     admin: place.cloud && place.canEdit && Boolean(tier),
     servers: place.cloud
       ? []
-      : [ollama.data, lmStudio.data].flatMap((local) =>
+      : [ollama.data, lmStudio.data, mlx.data].flatMap((local) =>
           local ? [{ ...local.server, models: local.installed.map(heldName) }] : [],
         ),
     accounts: place.accounts ? (accounts.data ?? null) : null,

@@ -1,5 +1,5 @@
-/** The servers on a computer that run open models. */
-export const SERVER_IDS = ["ollama", "lmstudio"] as const;
+/** What runs open models on a computer. */
+export const SERVER_IDS = ["ollama", "lmstudio", "mlx"] as const;
 export type ServerId = (typeof SERVER_IDS)[number];
 
 /** A model a server holds, as the server describes it. */
@@ -54,7 +54,7 @@ export interface LocalServer {
   id: ServerId;
   /** The product name, as the person knows it. */
   name: string;
-  /** Where it answers for this process, when nothing names another address. */
+  /** Where it answers for this process, when nothing names another address; MLX: its models' folder. */
   address(env?: NodeJS.ProcessEnv): string;
   state(url: string, options?: ServerOptions): Promise<ServerState>;
   /** The models it holds; empty where it does not answer. */

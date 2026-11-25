@@ -8,6 +8,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createReplicate } from "@ai-sdk/replicate";
 import { ClientModel } from "@engenty/local-models/clients";
 import { lmStudioFetch, lmStudioRoot } from "@engenty/local-models/lmstudio";
+import { mlxModel } from "@engenty/local-models/mlx";
 import { ollamaRoot } from "@engenty/local-models/ollama";
 import { SERVERS, type ServerId } from "@engenty/local-models/servers";
 import type { Lang, VideoResolution } from "@engenty/wizards-shared/definition";
@@ -98,7 +99,7 @@ export { isHarnessVendor } from "./harness/index.js";
  * A runtime of a Manage-App keeps a tenant's own keys (sealed) and runs on its credits where it
  * has none. A binding is `[provider:]vendor/model`, e.g. `anthropic/claude-haiku-4.5` (AI
  * Gateway), `openai:gpt-5.4-mini`, `fal:fal-ai/flux/schnell`, `ollama:qwen3`,
- * `lmstudio:google/gemma-4-12b`, `claude/sonnet`
+ * `lmstudio:google/gemma-4-12b`, `mlx:mlx-community/Qwen3-4B-4bit`, `claude/sonnet`
  * (an installed client), or `credits`.
  */
 export { ModelUnavailableError } from "./model-errors.js";
@@ -377,9 +378,14 @@ function mergeBindings(
 
 /** Where a server answers for this machine, as the settings name it. */
 function serverUrl(cfg: ModelConfig, id: ServerId): string {
-  return id === "ollama"
-    ? (cfg.settings.ollamaUrl ?? env.ollamaUrl)
-    : (cfg.settings.lmstudioUrl ?? env.lmstudioUrl);
+  switch (id) {
+    case "ollama":
+      return cfg.settings.ollamaUrl ?? env.ollamaUrl;
+    case "lmstudio":
+      return cfg.settings.lmstudioUrl ?? env.lmstudioUrl;
+    case "mlx":
+      return SERVERS.mlx.address();
+  }
 }
 
 /** Where a server answers for this machine. */
@@ -1052,6 +1058,8 @@ async function ownLanguageModel(
         gateway: false,
       };
     }
+    case "mlx":
+      return { model: mlxModel({ folder: serverUrl(cfg, "mlx"), model: id }), gateway: false };
     case "apple": {
       const status = await appleStatus();
       if (!status.available) {
@@ -2308,7 +2316,10 @@ export async function setUpServer(
   const bound = local.settings.bindings.low?.replace(`${id}:`, "");
   const model = bound && models.includes(bound) ? bound : models[0];
   const text = Object.fromEntries(TEXT_CLASSES.map((c) => [c, `${id}:${model}`]));
-  await saveLocalModels({ [`${id}Url`]: base, bindings: freeClasses(text) });
+  await saveLocalModels({
+    ...(id === "mlx" ? {} : { [`${id}Url`]: base }),
+    bindings: freeClasses(text),
+  });
   return setupOutcome();
 }
 

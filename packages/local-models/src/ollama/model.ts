@@ -15,6 +15,8 @@ export type StreamPart = StreamResult["stream"] extends ReadableStream<infer P> 
 export type GenerateResult = Awaited<ReturnType<ChatModel["doGenerate"]>>;
 
 export interface OllamaSetup {
+  /** Who answers, as the AI SDK names it. Default: `ollama`. */
+  provider?: string;
   /** Ollama's address: its root, or the OpenAI-compatible `…/v1`. */
   url: string;
   model: string;
@@ -310,7 +312,7 @@ export function ollamaModel(setup: OllamaSetup): ChatModel {
 
   return {
     specificationVersion: "v3",
-    provider: "ollama",
+    provider: setup.provider ?? "ollama",
     modelId: setup.model,
     supportedUrls: {},
     doStream,

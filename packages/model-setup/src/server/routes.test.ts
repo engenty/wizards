@@ -38,7 +38,7 @@ function host() {
         tested.splice(0, tested.length, ...sources);
       },
     }),
-    servers: (["ollama", "lmstudio"] as const).map(
+    servers: (["ollama", "lmstudio", "mlx"] as const).map(
       (id) =>
         new LocalModels({
           server: SERVERS[id],
@@ -91,6 +91,7 @@ describe("the setup's routes", () => {
       servers: [
         { id: "ollama", name: "Ollama", running: false },
         { id: "lmstudio", name: "LM Studio", running: false },
+        { id: "mlx", name: "Apple MLX" },
       ],
     });
     expect(test).not.toHaveBeenCalled();

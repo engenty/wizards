@@ -319,6 +319,8 @@ const de: Record<Key, Line> = {
     "Modelle auf diesem Computer für Text, Suche und Entscheidungen: kostenlos, und nichts verlässt ihn.",
   "models.serverLead.lmstudio":
     "Modelle auf diesem Computer für Text: kostenlos, und nichts verlässt ihn.",
+  "models.serverLead.mlx":
+    "Modelle für Text, die direkt auf dem Chip dieses Macs laufen, ohne weitere App. Nichts verlässt ihn.",
   "models.serverStoppedShort": "läuft nicht",
   "models.serverMissingShort": "nicht installiert",
   "models.serverModels": "Modelle",
@@ -527,6 +529,7 @@ const de: Record<Key, Line> = {
   "overview.server.desc.ollama":
     "Modelle auf diesem Computer, ohne Internet. Für Entscheidungen und Wissen.",
   "overview.server.desc.lmstudio": "Modelle auf diesem Computer, ohne Internet. Für Text.",
+  "overview.server.desc.mlx": "Modelle direkt auf dem Chip dieses Macs, ohne Internet. Für Text.",
   "overview.server.one": "1 Modell",
   "overview.server.n": "{n} Modelle",
   "overview.keys.add": "Hinzufügen",
@@ -5351,6 +5354,8 @@ const en = {
   "models.serverLead.ollama":
     "Models on this computer for text, search and decisions: free, and nothing leaves it.",
   "models.serverLead.lmstudio": "Models on this computer for text: free, and nothing leaves it.",
+  "models.serverLead.mlx":
+    "Models for text that run right on this Mac’s chip, without another app. Nothing leaves it.",
   "models.serverStoppedShort": "not running",
   "models.serverMissingShort": "not installed",
   "models.serverModels": "Models",
@@ -5556,6 +5561,7 @@ const en = {
   "overview.apple.desc": "The model on this Mac, offline.",
   "overview.server.desc.ollama": "Models on this computer, offline. For decisions and knowledge.",
   "overview.server.desc.lmstudio": "Models on this computer, offline. For text.",
+  "overview.server.desc.mlx": "Models right on this Mac’s chip, offline. For text.",
   "overview.server.one": "1 model",
   "overview.server.n": "{n} models",
   "overview.keys.add": "Add",

@@ -1,0 +1,287 @@
+import CoreImage
+import Foundation
+import MLX
+import MLXGuidedGeneration
+import MLXLLM
+import MLXLMCommon
+import MLXVLM
+
+/// The one model in memory. Another one takes its place. Its calls answer one after the other.
+actor Engine {
+    static let shared = Engine()
+    private var held: Held?
+    /// The call that answers now; the next one waits for it.
+    private var last: Task<Void, Never>?
+
+    final class Held: @unchecked Sendable {
+        let dir: String
+        let container: ModelContainer
+        /// Prompts the model has read already; the newest is last.
+        var read: [Read] = []
+        var bias: (closing: MLXArray, whitespace: MLXArray, ids: Set<Int>)?
+        var grammar: GrammarTokenizer?
+        init(dir: String, container: ModelContainer) {
+            self.dir = dir
+            self.container = container
+        }
+    }
+
+    /// The start of a prompt and what the model keeps of it.
+    final class Read: @unchecked Sendable {
+        let tokens: [Int]
+        let cache: [KVCache]
+        init(tokens: [Int], cache: [KVCache]) {
+            self.tokens = tokens
+            self.cache = cache
+        }
+    }
+
+    /// How many prompts stay read: the conversation and what runs beside it.
+    static let kept = 2
+
+    private func model(_ dir: String) async throws -> Held {
+        if let held, held.dir == dir { return held }
+        unload()
+        let container = try await loadModelContainer(
+            from: URL(fileURLWithPath: dir), using: HubTokenizerLoader())
+        let model = Held(dir: dir, container: container)
+        held = model
+        return model
+    }
+
+    func unload() {
+        held = nil
+        Memory.clearCache()
+    }
+
+    /// Runs a call once the ones before it are over.
+    func chat(_ id: String, _ request: ChatRequest) async throws {
+        let before = last
+        let call = Task { [self] in
+            await before?.value
+            try Task.checkCancellation()
+            try await answer(id, request)
+        }
+        last = Task { _ = try? await call.value }
+        try await withTaskCancellationHandler {
+            try await call.value
+        } onCancel: {
+            call.cancel()
+        }
+    }
+
+    private func answer(_ id: String, _ request: ChatRequest) async throws {
+        let held = try await model(request.model)
+        let chat = Box(try request.messages.map(Self.message))
+        let tools = request.tools?.compactMap { $0.object?.mapValues { $0.sendable } }
+        let options = request.options
+        let context: [String: any Sendable]? = request.think.map { ["enable_thinking": $0] }
+        let parameters = GenerateParameters(
+            maxTokens: options?.num_predict,
+            temperature: options?.temperature ?? 0.6,
+            topP: options?.top_p ?? 1,
+            topK: options?.top_k ?? 0,
+            seed: options?.seed)
+        let started = Date()
+        if let schema = request.schema {
+            let input = Box(
+                try await held.container.prepare(
+                    input: UserInput(chat: chat.value, tools: tools, additionalContext: context)))
+            try await guided(id, held, input, schema, options, parameters)
+            return
+        }
+        let pictures = chat.value.contains { !$0.images.isEmpty }
+        let (stream, count, known) = try await held.container.perform { model in
+            let input = try await model.processor.prepare(
+                input: UserInput(chat: chat.value, tools: tools, additionalContext: context))
+            if pictures {
+                let count = input.text.tokens.size
+                let stream = try MLXLMCommon.generate(
+                    input: input, parameters: parameters, context: model, tools: tools)
+                return (stream, count, 0)
+            }
+            let tokens = input.text.tokens.asArray(Int.self)
+            // What the same conversation starts with once it has gone on: the template writes the
+            // end of a prompt differently when an answer follows it.
+            let next = try await model.processor.prepare(
+                input: UserInput(
+                    chat: chat.value + [.assistant("x")], tools: tools, additionalContext: context))
+            let stable = min(
+                Self.common(tokens, next.text.tokens.asArray(Int.self)), tokens.count - 1)
+            let (cache, known) = try held.cache(for: tokens, upTo: stable, model, parameters)
+            let rest = MLXArray(tokens[stable...].map { Int32($0) })
+            let stream = try MLXLMCommon.generate(
+                input: LMInput(tokens: rest), cache: cache, parameters: parameters, context: model,
+                tools: tools)
+            return (stream, tokens.count, known)
+        }
+        let prefilled = Date()
+        var first: Date?
+        for await part in stream {
+            try Task.checkCancellation()
+            switch part {
+            case .chunk(let text):
+                first = first ?? Date()
+                await Out.shared.send(Chunk(id: id, message: .init(content: text)))
+            case .reasoning(let text):
+                first = first ?? Date()
+                await Out.shared.send(Chunk(id: id, message: .init(thinking: text)))
+            case .toolCall(let call):
+                let function = Chunk.Function(
+                    name: call.function.name, arguments: call.function.arguments)
+                await Out.shared.send(
+                    Chunk(id: id, message: .init(tool_calls: [.init(function: function)])))
+            case .info(let info):
+                await Out.shared.send(
+                    Chunk(
+                        id: id, done: true,
+                        done_reason: info.stopReason == .length ? "length" : "stop",
+                        prompt_eval_count: count, eval_count: info.generationTokenCount,
+                        prompt_seconds: prefilled.timeIntervalSince(started) + info.promptTime,
+                        eval_seconds: info.generateTime, cached: known,
+                        memory: Memory.peakMemory))
+            default:
+                break
+            }
+        }
+        // A call given up ends the stream without a word.
+        try Task.checkCancellation()
+    }
+
+    /// How many tokens two prompts start with in common.
+    static func common(_ a: [Int], _ b: [Int]) -> Int {
+        var n = 0
+        while n < a.count, n < b.count, a[n] == b[n] { n += 1 }
+        return n
+    }
+
+    /// An answer that cannot but match the schema: every other token is masked.
+    private func guided(
+        _ id: String, _ held: Held, _ input: Box<LMInput>, _ schema: String,
+        _ options: ChatRequest.Options?, _ parameters: GenerateParameters
+    ) async throws {
+        let started = Date()
+        let max = options?.num_predict ?? 8192
+        let sink = Sink(id: id)
+        let count = try await held.container.perform { context in
+            let tokenizer = context.tokenizer
+            if held.grammar == nil {
+                let vocab = TokenizerVocabExtractor.extractForGrammar(from: tokenizer)
+                held.grammar = try GrammarTokenizer(
+                    vocab: vocab.vocab, vocabType: vocab.vocabType,
+                    eosTokenId: Int32(tokenizer.eosTokenId ?? 0))
+                let whitespace = WhitespaceTokenBias.compute(tokenizer: tokenizer)
+                held.bias = (
+                    ClosingTokenBias.compute(
+                        tokenizer: tokenizer, eosTokenId: tokenizer.eosTokenId),
+                    whitespace.bias, whitespace.tokenIDs
+                )
+            }
+            let grammar = held.grammar!
+            let constraint = try GrammarConstraint(
+                tokenizer: grammar, jsonSchema: schema, fastForward: true,
+                hostTokenizer: tokenizer)
+            return try GuidedGenerationLoop.run(
+                input: input.value, context: context, constraint: constraint, maxTokens: max,
+                vocabSize: grammar.vocabSize, closingBias: held.bias?.closing,
+                whitespaceBias: held.bias?.whitespace,
+                whitespaceTokenIDs: held.bias?.ids ?? [],
+                logitSampler: parameters.sampler()
+            ) { delta in
+                sink.say(delta)
+                return !Task.isCancelled
+            }
+        }
+        try Task.checkCancellation()
+        await sink.end()
+        await Out.shared.send(
+            Chunk(
+                id: id, done: true, done_reason: "stop",
+                prompt_eval_count: input.value.text.tokens.size, eval_count: count,
+                eval_seconds: Date().timeIntervalSince(started), memory: Memory.peakMemory))
+    }
+
+    private static func message(_ m: ChatRequest.Message) throws -> Chat.Message {
+        let text = m.content ?? ""
+        switch m.role {
+        case "system":
+            return .system(text)
+        case "assistant":
+            let calls = m.tool_calls?.map {
+                ToolCall(
+                    function: .init(
+                        name: $0.function.name, arguments: $0.function.arguments.object ?? [:]))
+            }
+            return .assistant(text, toolCalls: calls)
+        case "tool":
+            return .tool(text, name: m.tool_name)
+        default:
+            let images: [UserInput.Image] = (m.images ?? []).compactMap {
+                Data(base64Encoded: $0).flatMap { CIImage(data: $0) }.map { .ciImage($0) }
+            }
+            return .user(text, images: images)
+        }
+    }
+}
+
+final class Box<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
+}
+
+extension Engine.Held {
+    /// A cache that holds the first `upTo` tokens of a prompt: from what the model has read
+    /// already, the rest read now and kept. Also how many it knew.
+    func cache(
+        for tokens: [Int], upTo: Int, _ context: ModelContext, _ parameters: GenerateParameters
+    ) throws -> ([KVCache], Int) {
+        var known = 0
+        var cache: [KVCache]?
+        for entry in read {
+            let shared = Engine.common(Array(tokens[..<upTo]), entry.tokens)
+            let whole = shared == entry.tokens.count
+            let extra = entry.tokens.count - shared
+            guard shared > known, whole || canTrimPromptCache(entry.cache, numTokens: extra)
+            else { continue }
+            let copy = entry.cache.map { $0.copy() }
+            if !whole { trimPromptCache(copy, numTokens: extra) }
+            cache = copy
+            known = shared
+        }
+        let filled = try cache ?? context.model.newCache(parameters: parameters)
+        if known < upTo {
+            let part = LMInput(tokens: MLXArray(tokens[known..<upTo].map { Int32($0) }))
+            switch try context.model.prepare(part, cache: filled, state: nil, prefill: parameters.prefill) {
+            case .tokens(let left):
+                let out = context.model(left[text: .newAxis], cache: filled, state: nil)
+                eval(out.logits)
+            case .logits(let out):
+                eval(out.logits)
+            }
+            read.removeAll { Engine.common($0.tokens, tokens) == $0.tokens.count }
+            read.append(Engine.Read(tokens: Array(tokens[..<upTo]), cache: filled.map { $0.copy() }))
+            if read.count > Engine.kept { read.removeFirst() }
+        }
+        return (filled, known)
+    }
+}
+
+/// Pieces of an answer made where nothing can wait, sent in their order.
+final class Sink: @unchecked Sendable {
+    private let continuation: AsyncStream<String>.Continuation
+    private let sending: Task<Void, Never>
+    init(id: String) {
+        let (stream, continuation) = AsyncStream<String>.makeStream()
+        self.continuation = continuation
+        sending = Task {
+            for await text in stream {
+                await Out.shared.send(Chunk(id: id, message: .init(content: text)))
+            }
+        }
+    }
+    func say(_ text: String) { continuation.yield(text) }
+    func end() async {
+        continuation.finish()
+        await sending.value
+    }
+}
