@@ -43,6 +43,9 @@ export interface ConnectionTool {
   kind: ActionKind;
 }
 
+/** The tools that are a connection's action. */
+export const connectionTools = new WeakSet<object>();
+
 /** How the chat runs a confirmed action, once the AI has filled in its fields. */
 export type WriteRunner = (tool: ConnectionTool, input: unknown) => Promise<unknown>;
 
@@ -194,6 +197,7 @@ export function makeConnectionTools(options: {
             )
           : options.write(tool, input),
     });
+    connectionTools.add(tools[name] as object);
     if (!read) {
       writes.add(name);
     }

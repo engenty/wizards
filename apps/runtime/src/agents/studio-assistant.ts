@@ -74,6 +74,7 @@ import {
 import { ownedSpace, type SpaceRow, updateSpace } from "../services/spaces.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
+import { harnessed, harnessedModel, oneOfMany } from "../tools/harness.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
 import { gatewayWebSearch } from "../tools/web-search.js";
@@ -1180,12 +1181,14 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
   }
   const instructions = system(switches.capabilities === true);
+  // The person's connections and the plugins' tools: many, and few of them in one chat.
+  const harness = harnessed(tools, resolved, (_name, tool) => oneOfMany(tool));
   const agent = spaceAgent({
     id: "studio-assistant",
     name: "Studio assistant",
     instructions,
-    resolved,
-    tools,
+    resolved: harnessedModel(resolved),
+    tools: harness.tools,
   });
   const page = input.page;
   const pluginPage =
@@ -1235,6 +1238,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
       : part === "skills"
         ? prompt("goose", "turn.skills_empty")
         : "",
+    await harness.hint(input.message, input.signal),
     input.message,
   ]
     .filter(Boolean)
@@ -1244,7 +1248,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     system: instructions,
     context,
     history: history.messages.map((m) => ({ role: m.role, chars: m.content.length })),
-    tools: toolSizes(tools),
+    tools: toolSizes(harness.tools),
   });
   let reply = "";
   // Where the part the result holds begins: a message written meanwhile cuts the answer there.
