@@ -1,7 +1,7 @@
 ---
 title: Architecture
 description: How engenty wizards is built – the runtime and its roles, your computer and the cloud, tenants and spaces, the engine and its sandboxes, skills, plugins, the broker and the feature switches.
-version: 0.21.0
+version: 0.21.1
 ---
 
 engenty wizards is one server program, the **runtime**, and one web app, the **studio**, that it
@@ -257,6 +257,19 @@ The runtime only finds the server and signs the person in (`routes/work.ts`):
 The Bot Server allows the frame only for the studio the Manage-App names for its team. Owners and
 admins get a pass. Members and clients have no chats on a Bot Server yet. A runtime without a
 Manage-App has no Bot Server to show.
+
+The chat knows the space open in the studio and acts there as the person:
+
+| Step | Who | What |
+|---|---|---|
+| Listen | Bot Server’s page → studio | `{ type: "wizards.ready" }` to its parent, once it listens |
+| Tell | Studio → Bot Server’s page | `{ type: "wizards.space", id, name }` after that, and again when the space is switched. Sent to the server’s origin only (`apps/web/src/studio/work/open-space.ts`) |
+| Call | Bot Server → runtime | `/api/mcp` with a ten-minute token of the Manage-App for the person the turn is for. Its client is `wizards-bot-home`, its scopes `data:read elements:read elements:run` |
+
+The runtime treats that token like any other: it checks the space and the space’s rules for the
+person on every call. One thing differs. The Bot Server is the team’s own, so the organization’s
+model policy for apps on members’ subscriptions doesn’t refuse it (`mcp/handler.ts`). The audit
+and the apps seen lately name it “wizards.bot” (`mcp/seen.ts`).
 
 The bell (`GET /api/studio/work/approvals`) stays the runtime’s: the runs that wait for the person
 and, for an admin, the broker’s critical lines. [Work mode](../user-guide/work-mode.md) shows it
