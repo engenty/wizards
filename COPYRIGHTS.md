@@ -17,11 +17,11 @@ choice of whoever uses them (`FSL-1.1-MIT OR MIT`, [packages/shared/LICENSE-MIT]
 Each says so in its first line. The runner package (`packages/runner`, MIT) bundles them under MIT.
 `@engenty/wizards` on npm is `FSL-1.1-MIT`; its `/openui` bundles the runner, whose MIT licence
 ships beside it (`dist/openui/LICENSE-MIT`).
-Eleven libraries are under the MIT licence, each with its own `LICENSE`, and go to npm with each
+Ten libraries are under the MIT licence, each with its own `LICENSE`, and go to npm with each
 release: `packages/chatviews` (`@engenty/chatviews`), `packages/decision-model` (`@engenty/decision-model`), `packages/search-index`
 (`@engenty/search-index`), `packages/search-libsql` (`@engenty/search-libsql`),
 `packages/tool-harness` (`@engenty/tool-harness`),
-`packages/goose` (`@engenty/goose`), `packages/vault` (`@engenty/vault`),
+`packages/vault` (`@engenty/vault`),
 `packages/plugins` (`@engenty/plugins`), `packages/browser` (`@engenty/browser`),
 `packages/local-models` (`@engenty/local-models`) and `packages/model-setup` (`@engenty/model-setup`). They depend only on each other and on MIT or permissive
 packages (`pnpm mit-deps:check`).
@@ -212,7 +212,6 @@ Used to build, check and test; not part of what people run:
 | Package | Version | Licence |
 |---|---|---|
 | [@a2ui/web_core](https://a2ui.org/) | 0.16.1 | Apache-2.0 |
-| [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript#readme) | 1.5.0 | Apache-2.0 |
 | [@biomejs/biome](https://biomejs.dev) | 2.5.0 | MIT OR Apache-2.0 |
 | [@microsoft/api-extractor](https://api-extractor.com) | 7.60.1 | MIT |
 | [@openuidev/lang-core](https://openui.com) | 1.1.0 | MIT |
@@ -234,7 +233,6 @@ Used to build, check and test; not part of what people run:
 | [drizzle-kit](https://orm.drizzle.team) | 0.31.11 | MIT |
 | [git-cliff](https://github.com/orhun/git-cliff#readme) | 2.14.2 | MIT OR Apache-2.0 |
 | [jsdom](https://github.com/jsdom/jsdom#readme) | 30.1.3 | MIT |
-| [openai](https://github.com/openai/openai-node#readme) | 7.51.0 | Apache-2.0 |
 | [postcss](https://postcss.org/) | 8.5.32 | MIT |
 | [tailwindcss](https://tailwindcss.com) | 4.3.4 | MIT |
 | [tsx](https://tsx.hirok.io) | 4.23.15 | MIT |
