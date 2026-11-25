@@ -5,9 +5,6 @@ import type { Principal } from "../mcp/auth.js";
 import type { Scope } from "../mcp/scopes.js";
 import {
   type ClientWho,
-  clientChatMessages,
-  clientChatPost,
-  clientChats,
   clientFile,
   clientFileInfo,
   clientFiles,
@@ -94,32 +91,6 @@ export const CLIENT_CALLS = {
       "One run you see, by its id: a ticket its own routes open with (`?rt=`), and its client space.",
     input: z.object({ runId: z.string().min(1).max(64) }),
     run: (who, _spaceId, input) => clientOpenRun(who, input.runId),
-  },
-  chats: {
-    scope: "data:read",
-    space: true,
-    description: "The chats of a client space you are a member of.",
-    input: none,
-    run: (who, spaceId) => clientChats(who, spaceId),
-  },
-  chat_messages: {
-    scope: "data:read",
-    space: false,
-    description:
-      "One of your chats, by its id: who wrote what, its text and the AI's views and runs as parts in order, and its client space.",
-    input: z.object({ chatId: z.string().min(1).max(64) }),
-    run: (who, _spaceId, input) => clientChatMessages(who, input.chatId),
-  },
-  chat_post: {
-    scope: "elements:run",
-    space: true,
-    description:
-      "Writes in one of your chats, or starts a new one. The firm's AI answers every message; the firm's people read the chat too.",
-    input: z.object({
-      chatId: z.string().min(1).max(64).optional(),
-      text: z.string().trim().min(1).max(20_000),
-    }),
-    run: (who, spaceId, input) => clientChatPost(who, spaceId, input),
   },
   files: {
     scope: "data:read",

@@ -1,11 +1,11 @@
 ---
 title: Audit
-description: Every time a wizard, a chat or Goose used a connection of your space, allowed or not – what critical means, what a member sees, and how to try a rule before anything runs.
-version: 0.17.0
+description: Every time a wizard or Goose used a connection of your space, allowed or not – what critical means, what a member sees, and how to try a rule before anything runs.
+version: 0.21.0
 ---
 
-**[Capabilities](./capabilities.md) › Audit** shows every call your space’s wizards, Work chats and
-Goose made to a connection. Each call is one line, whether it ran or not.
+**[Capabilities](./capabilities.md) › Audit** shows every call your space’s wizards and Goose made
+to a connection. Each call is one line, whether it ran or not.
 
 The owner and the admins of the organization see every line. A member sees only their own lines,
 in a space that lets members use the studio. [What a member sees](#what-a-member-sees) says which
@@ -20,17 +20,18 @@ A line reads like a sentence:
 - **What** they wanted: reading, writing, deleting or sending, and the connector’s name for the
   action, such as “Create a contact”.
 - **On which connection**, such as “HubSpot · Sales”.
-- **Where**: in a run of a wizard, in a test run, in a Work chat or with Goose.
+- **Where**: in a run of a wizard, in a test run or with Goose.
 - **What came of it**: *done*, *refused* with the reason in words, or *waiting for the admins’
-  approval*. A call through a connection with a [limit](./capabilities.md#limits) reads *still
-  running* until it ends.
+  approval*. A call that waits for the admins did not run: nothing asks them
+  ([Capabilities](./capabilities.md#connectors)). A call through a connection with a
+  [limit](./capabilities.md#limits) reads *still running* until it ends.
 
 A refused line has a red frame. A critical line has an orange one and the mark *critical*.
 
 Click a line to see more: when exactly it happened and how long it took, which fields went in and
 how big the input and the result were, and which rule decided. A line from a run also shows the
 run’s grant: what the wizard allowed that run through this connection when the run started. The
-buttons below lead to the run, the chat or the connection.
+buttons below lead to the run or the connection.
 
 A line from a run also says how the run stands: running, waiting, done, failed or stopped. While
 the run is under way, an admin sees “Stop run” there. A stopped run calls nothing more. What it
@@ -58,7 +59,8 @@ The newest lines come first. “Load more” shows older ones.
 
 As a member you see your own calls and nobody else’s:
 
-- what you called yourself, in a Work chat or in an AI step of a run you started;
+- what you called yourself, in an AI step of a run you started or through a connected app such
+  as Claude;
 - what Goose called for you;
 - what the fixed steps of your runs called.
 
@@ -106,7 +108,7 @@ Only the owner and the admins have it.
 1. Choose **who**: a person of your organization, a guest, Goose, or a fixed step in a guest’s or
    a member’s run.
 2. Choose the **connection** and the **action**.
-3. Choose **where**: in a run or in a Work chat.
+3. Choose **where**: in a run or outside one, as Goose and a connected app call.
 
 The answer is one sentence:
 

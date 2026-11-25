@@ -136,7 +136,6 @@ import { spaceFiles } from "../services/space-files.js";
 import { brandSpaceId } from "../services/space-parent.js";
 import { spaceProfile } from "../services/spaces.js";
 import { storedTranslation } from "../services/translations.js";
-import { decidedHeld, holdReview } from "../services/work-approvals.js";
 import { latestShareJob } from "../sharing/state.js";
 import { dataRequirement } from "../store/data.js";
 import { listRows, listSecrets, scopeOf } from "../store/index.js";
@@ -162,6 +161,7 @@ import { clearDeviceCalls } from "./device.js";
 import { newTurn, TurnAsks, turnOf } from "./durable-turn.js";
 import { emitEvent, recentEvents, saidInVisit, signalChanged, visitLeftOpen } from "./events.js";
 import { classifyFailure, type Failure } from "./failures.js";
+import { decidedHeld, holdReview } from "./held-reviews.js";
 import { type FormContext, type InputError, readFormInput } from "./input.js";
 import { withMailText } from "./mail-watch.js";
 import {

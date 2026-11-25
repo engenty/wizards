@@ -86,7 +86,6 @@ let service: typeof import("../src/connectors/space-connections");
 let bell: typeof import("../src/services/broker-bell");
 let notify: typeof import("../src/services/broker-notify");
 let seen: typeof import("../src/services/seen");
-let approvals: typeof import("../src/services/work-approvals");
 let reports: typeof import("../src/services/manage-reports");
 let access: typeof import("../src/services/access");
 let space: string;
@@ -136,7 +135,6 @@ beforeAll(async () => {
   bell = await import("../src/services/broker-bell");
   notify = await import("../src/services/broker-notify");
   seen = await import("../src/services/seen");
-  approvals = await import("../src/services/work-approvals");
   reports = await import("../src/services/manage-reports");
   access = await import("../src/services/access");
   reports.startCriticalReports();
@@ -255,18 +253,6 @@ describe("heard: the bell and the report", () => {
     expect((await logOf(connection)).at(-1)?.id).toBe(row?.id);
   });
 
-  it("shows an admin a call held in a private chat they are not in; a member sees only their own", async () => {
-    await inTenant(async () => {
-      await client.db.insert(client.schema.chat).values({ id: "chat-p", tenantId: TENANT, spaceId: space, title: "Private", private: true, createdBy: "user-m" } as never);
-      await approvals.holdCall({ chatId: "chat-p", userId: "user-m" }, `hubspot_${connection}_create_contact`, {}, "admins");
-      await approvals.holdCall({ chatId: "chat-p", userId: "user-m" }, "mailer_send", {}, "asker");
-    });
-    const forOwner = await inTenant(() => approvals.waitingFor(owner, []));
-    expect(forOwner.map((a) => a.heldFor).sort()).toEqual(["admins", "asker"]);
-    expect(await inTenant(() => approvals.waitingFor(member, []))).toEqual([]);
-    const own = await inTenant(() => approvals.waitingFor(member, ["chat-p"]));
-    expect(own.map((a) => a.toolName)).toEqual(["mailer_send"]);
-  });
 });
 
 describe("the hourly mail", () => {

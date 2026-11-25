@@ -126,7 +126,7 @@ describe("one catalogue", () => {
         ).toBe(true);
       }
     }
-    for (const caller of ["services/work-ai.ts", "tools/index.ts", "agents/studio-assistant.ts"]) {
+    for (const caller of ["tools/index.ts", "agents/studio-assistant.ts"]) {
       expect(readFileSync(join(src, caller), "utf8"), caller).toContain("elementTools(");
     }
   });

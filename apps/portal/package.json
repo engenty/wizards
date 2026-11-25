@@ -18,7 +18,6 @@
     "hono": "^4.13.16"
   },
   "devDependencies": {
-    "@engenty/chatviews": "workspace:*",
     "@engenty/wizards-runner": "workspace:*",
     "@engenty/wizards-shared": "workspace:*",
     "@types/node": "^26.6.6",

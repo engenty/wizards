@@ -1,4 +1,4 @@
-import { ChevronsUpDown, PanelLeft, Plus, Search, UserRound, UserSquare2 } from "lucide-react";
+import { ChevronsUpDown, Plus, Search, UserRound, UserSquare2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useFeature } from "../lib/features";
@@ -55,25 +55,6 @@ function Face({ me, space }: { me: Me; space: Space }) {
   }
   return (
     <SpaceFace space={space} name={space.root ? spaceLabel(me, space) : undefined} size="xs" />
-  );
-}
-
-/** The sidebar's switch, at the start of the path where a page has a sidebar (Work). */
-export function SidebarToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={open}
-      aria-label={t("nav.sidebar")}
-      title={t("nav.sidebar")}
-      className={cn(
-        "-ml-1 grid size-8 shrink-0 place-items-center rounded-lg text-ink-3 transition hover:bg-accent hover:text-ink",
-        !open && "bg-accent text-ink",
-      )}
-    >
-      <PanelLeft className="size-4" />
-    </button>
   );
 }
 

@@ -1,21 +1,9 @@
-import type { SurfaceComponent } from "@engenty/chatviews/surface";
-import { Markdown, RunnerBody, type SurfaceChat, SurfaceView } from "@engenty/wizards-runner";
-import {
-  type FormEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { RunnerBody } from "@engenty/wizards-runner";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { type ItemKind, type PartName, pathOf, placeOf } from "../server/paths";
 import {
   type Brand,
   CallError,
-  type Card,
-  type Chat,
-  type ChatMessages,
   type ClientSpace,
   call,
   type Face,
@@ -40,18 +28,17 @@ import { runnerLook, wearBrand } from "./look";
 import { useRun } from "./useRun";
 
 /*
- * The client portal (docs/plans/client-portal.md): the firm's AI, opened to its clients. Before
- * sign-in the firm's own page with one button; then three places in the firm's frame: the chat
- * (the home), Wizards and Results. No address names a space (server/paths.ts): Wizards and
- * Results have a word each, a deep link names its item, the tab keeps its space.
+ * The client portal (docs/plans/client-portal.md): the firm's wizards, opened to its clients.
+ * Before sign-in the firm's own page with one button; then three places in the firm's frame: the
+ * home, Wizards and Results. No address names a space (server/paths.ts): Wizards and Results
+ * have a word each, a deep link names its item, the tab keeps its space.
  */
 
-type Part = "chat" | PartName;
+type Part = "home" | PartName;
 
 /** The part an item belongs to, for the side bar and the tabs. */
 const PART_OF: Record<ItemKind, Part> = {
   run: "results",
-  chat: "chat",
   file: "results",
   wizard: "wizards",
 };
@@ -148,14 +135,11 @@ const initials = (name: string) =>
 // --- small parts -------------------------------------------------------------------------------
 
 const ICONS = {
-  new: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z",
+  home: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
   grid: "M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z",
   layers: "M12 3 2 8l10 5 10-5-10-5zM2 16l10 5 10-5M2 12l10 5 10-5",
-  chat: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
-  up: "M12 19V5M5 12l7-7 7 7",
   down: "M6 9l6 6 6-6",
   left: "M15 18l-6-6 6-6",
-  lock: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
   menu: "M4 7h16M4 12h16M4 17h10",
   close: "M6 6l12 12M18 6 6 18",
   dl: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3",
@@ -178,20 +162,6 @@ function Logo({ brand, name }: { brand: { logoUrl: string | null } | null; name:
     return <img className="logo" src={logoSrc(brand.logoUrl)} alt={name} />;
   }
   return <span className="wordmark">{name}</span>;
-}
-
-/** The firm's mark beside its AI's name: its logo, else its initial. */
-function FirmMark({ space }: { space: ClientSpace }) {
-  const brand = space.firm.brand;
-  return brand.logoUrl ? (
-    <span className="firm-mark logo-mark">
-      <img src={logoSrc(brand.logoUrl)} alt="" />
-    </span>
-  ) : (
-    <span className="firm-mark" aria-hidden="true">
-      {initials(firmName(space)).slice(0, 1)}
-    </span>
-  );
 }
 
 function MadeWith() {
@@ -230,15 +200,6 @@ function PublicFace({ face, failed }: { face: Face | null; failed: boolean }) {
             </a>
           </section>
           <ul className="what">
-            <li>
-              <span className="what-icon">
-                <Icon name="chat" />
-              </span>
-              <div>
-                <strong>{t("signIn.ask")}</strong>
-                <span>{t("signIn.ask.hint", { firm })}</span>
-              </div>
-            </li>
             <li>
               <span className="what-icon">
                 <Engenty kind="drop" size={30} />
@@ -312,32 +273,6 @@ function Notice({ face, title, hint }: { face: Face | null; title: string; hint:
 
 // --- the frame ---------------------------------------------------------------------------------
 
-/** The chats by when they were last written in: today, this week, then by month. */
-function chatGroups(chats: Chat[]): { label: string; chats: Chat[] }[] {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const groups: { label: string; chats: Chat[] }[] = [];
-  for (const chat of chats) {
-    const at = new Date(chat.updatedAt);
-    const label =
-      at.getTime() >= today
-        ? t("chats.today")
-        : at.getTime() >= today - 6 * 86_400_000
-          ? t("chats.week")
-          : at.toLocaleDateString(lang, {
-              month: "long",
-              ...(at.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
-            });
-    const last = groups.at(-1);
-    if (last?.label === label) {
-      last.chats.push(chat);
-    } else {
-      groups.push({ label, chats: [chat] });
-    }
-  }
-  return groups;
-}
-
 function SpaceSwitch({
   spaces,
   space,
@@ -399,8 +334,6 @@ function Side({
   spaces,
   space,
   part,
-  chatId,
-  chats,
   go,
   person,
   onSwitch,
@@ -409,8 +342,6 @@ function Side({
   spaces: ClientSpace[];
   space: ClientSpace;
   part: Part | null;
-  chatId: string | null;
-  chats: Chat[];
   go: Go;
   person: { name: string; email: string };
   onSwitch: (id: string) => void;
@@ -435,10 +366,10 @@ function Side({
           to={pathOf.home()}
           go={go}
           onClick={onClose}
-          className={`side-row${part === "chat" && !chatId ? " on" : ""}`}
+          className={`side-row${part === "home" ? " on" : ""}`}
         >
-          <Icon name="new" />
-          {t("nav.newChat")}
+          <Icon name="home" />
+          {t("nav.home")}
         </Go>
         <Go
           to={pathOf.part("wizards")}
@@ -459,29 +390,6 @@ function Side({
           {t("nav.results")}
         </Go>
       </nav>
-      <div className="side-chats">
-        {chats.length ? (
-          chatGroups(chats).map((g) => (
-            <section key={g.label}>
-              <h2 className="side-label">{g.label}</h2>
-              {g.chats.map((c) => (
-                <Go
-                  key={c.id}
-                  to={pathOf.item("chat", c.id)}
-                  go={go}
-                  onClick={onClose}
-                  className={`side-chat${c.id === chatId ? " on" : ""}`}
-                >
-                  <span className="clip">{c.title || t("chats.untitled")}</span>
-                  {c.answering ? <span className="dot" /> : null}
-                </Go>
-              ))}
-            </section>
-          ))
-        ) : (
-          <p className="side-label quiet">{t("chats.none")}</p>
-        )}
-      </div>
       <div className="side-me">
         <span className="avatar">{initials(person.name || person.email)}</span>
         <div className="me-text">
@@ -509,9 +417,9 @@ const TABS: {
   id: Part;
   to: string;
   icon: keyof typeof ICONS;
-  label: "nav.chat" | "nav.wizards" | "nav.results";
+  label: "nav.home" | "nav.wizards" | "nav.results";
 }[] = [
-  { id: "chat", to: pathOf.home(), icon: "chat", label: "nav.chat" },
+  { id: "home", to: pathOf.home(), icon: "home", label: "nav.home" },
   { id: "wizards", to: pathOf.part("wizards"), icon: "grid", label: "nav.wizards" },
   { id: "results", to: pathOf.part("results"), icon: "layers", label: "nav.results" },
 ];
@@ -548,15 +456,11 @@ function PhoneTop({
         <strong className="clip">{title ?? space.name}</strong>
         <small className="clip">{sub ?? firmName(space)}</small>
       </div>
-      <Go to={pathOf.home()} go={go} className="icon-button">
-        <Icon name="new" />
-        <span className="sr">{t("nav.newChat")}</span>
-      </Go>
     </header>
   );
 }
 
-// --- the composer ------------------------------------------------------------------------------
+// --- starting a wizard -------------------------------------------------------------------------
 
 /** Starts one of the firm's wizards in the tab's client space and opens its run. */
 async function startWizard(space: ClientSpace, wizardId: string, go: Go) {
@@ -567,148 +471,6 @@ async function startWizard(space: ClientSpace, wizardId: string, go: Go) {
   );
   keepTicket(runId, ticket);
   go(pathOf.item("run", runId));
-}
-
-function WizardMenu({ space, go }: { space: ClientSpace; go: Go }) {
-  const [open, setOpen] = useState(false);
-  const { data } = useLoad(() => call<Wizard[]>("wizards", space.id), space.id);
-  const firm = firmName(space);
-  return (
-    <div className="wizard-menu">
-      <button
-        type="button"
-        className="chip-button"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        <Icon name="grid" size={16} />
-        {t("composer.wizard")}
-      </button>
-      {open ? (
-        <div className="menu up">
-          <p className="menu-title">{t("composer.wizards")}</p>
-          {data?.length ? (
-            <ul>
-              {data.map((w) => (
-                <li key={w.id}>
-                  <button type="button" onClick={() => void startWizard(space, w.id, go)}>
-                    <Engenty kind={w.avatar} size={24} />
-                    <span className="clip">{w.title}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="quiet menu-note">{t("composer.wizards.none", { firm })}</p>
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/** One box, as in a chat with an AI: every message goes to the firm's AI. */
-function Composer({
-  space,
-  chatId,
-  go,
-  big = false,
-  onSent,
-  prefill,
-}: {
-  space: ClientSpace;
-  chatId: string | null;
-  go: Go;
-  big?: boolean;
-  onSent: (chatId: string) => void;
-  prefill?: { text: string; at: number } | null;
-}) {
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const box = useRef<HTMLTextAreaElement>(null);
-  const firm = firmName(space);
-  // The box grows with what is written, up to a few lines.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: measured again as the text changes
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (el) {
-      el.style.height = "auto";
-      el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
-    }
-  }, [text]);
-  const send = async (words = text) => {
-    if (!words.trim() || busy) {
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const sent = await call<{ chatId: string }>("chat_post", space.id, {
-        ...(chatId ? { chatId } : {}),
-        text: words.trim(),
-      });
-      setText("");
-      onSent(sent.chatId);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  // An example the home offers is sent as it is.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sends once per example chosen
-  useEffect(() => {
-    if (prefill) {
-      void send(prefill.text);
-    }
-  }, [prefill?.at]);
-  return (
-    <form
-      className={`composer${big ? " big" : ""}`}
-      onSubmit={(e: FormEvent) => {
-        e.preventDefault();
-        void send();
-      }}
-    >
-      <textarea
-        ref={box}
-        id="composer-text"
-        aria-label={t("composer.label")}
-        value={text}
-        rows={1}
-        placeholder={big ? t("composer.home", { firm }) : t("composer.reply", { firm })}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            void send();
-          }
-        }}
-      />
-      <div className="composer-bar">
-        <WizardMenu space={space} go={go} />
-        <button
-          className="send"
-          type="submit"
-          disabled={busy || !text.trim()}
-          aria-label={t("composer.send")}
-        >
-          <Icon name="up" />
-        </button>
-      </div>
-      {error ? <p className="warn">{t("error", { error })}</p> : null}
-    </form>
-  );
-}
-
-function Reach({ space }: { space: ClientSpace }) {
-  return (
-    <p className="reach">
-      <Icon name="lock" size={14} />
-      {t("reach", { firm: firmName(space) })}
-    </p>
-  );
 }
 
 // --- the home ----------------------------------------------------------------------------------
@@ -751,28 +513,17 @@ function ResultTile({ result, space, go }: { result: Result; space: ClientSpace;
   );
 }
 
-function Home({
-  space,
-  person,
-  hasChats,
-  go,
-  onSent,
-}: {
-  space: ClientSpace;
-  person: { name: string };
-  hasChats: boolean;
-  go: Go;
-  onSent: (chatId: string) => void;
-}) {
+/** The start page: what waits for the client, the firm's wizards to start, the latest results. */
+function Home({ space, person, go }: { space: ClientSpace; person: { name: string }; go: Go }) {
   const firm = firmName(space);
   const forYou = useLoad(() => call<ForYou>("for_you", space.id), space.id);
   const results = useLoad(() => call<Result[]>("results", space.id), space.id);
-  const [example, setExample] = useState<{ text: string; at: number } | null>(null);
   const wizards = forYou.data?.wizards ?? [];
   const waiting = forYou.data?.waiting ?? [];
   const latest = results.data ?? [];
   const loaded = Boolean(forYou.data && results.data);
-  const first = loaded && !hasChats && !latest.length;
+  // A client space without results yet: the home says what it is for.
+  const first = loaded && !latest.length;
   return (
     <div className={`home${first ? " first" : ""}`}>
       <div className="hello">
@@ -786,38 +537,7 @@ function Home({
           ))}
         </section>
       ) : null}
-      <div className="home-box">
-        <Composer space={space} chatId={null} go={go} big onSent={onSent} prefill={example} />
-        <Reach space={space} />
-      </div>
-      {first ? (
-        <section className="tries">
-          <h2 className="tries-label">{t("home.examples")}</h2>
-          {[t("home.example.know"), t("home.example.sum")].map((text) => (
-            <button
-              key={text}
-              type="button"
-              className="try"
-              onClick={() => setExample({ text, at: Date.now() })}
-            >
-              <Icon name="chat" size={16} />
-              {text}
-            </button>
-          ))}
-          {wizards.slice(0, 1).map((w) => (
-            <button
-              key={w.id}
-              type="button"
-              className="try"
-              onClick={() => void startWizard(space, w.id, go)}
-            >
-              <Engenty kind={w.avatar} size={22} />
-              {w.title}
-              <small>{t("home.example.wizard")}</small>
-            </button>
-          ))}
-        </section>
-      ) : wizards.length ? (
+      {wizards.length ? (
         <section className="starters" aria-label={t("nav.wizards")}>
           {wizards.slice(0, 4).map((w) => (
             <button
@@ -849,242 +569,6 @@ function Home({
             ))}
           </div>
         </section>
-      ) : null}
-    </div>
-  );
-}
-
-// --- a chat ------------------------------------------------------------------------------------
-
-/** A view the AI showed: the runner's surface, the same components as a wizard's views. */
-function ViewCard({
-  card,
-  space,
-  chatId,
-  go,
-  onAsk,
-}: {
-  card: Extract<Card, { kind: "view" }>;
-  space: ClientSpace;
-  chatId: string;
-  go: Go;
-  onAsk: (text: string) => Promise<void>;
-}) {
-  const components = card.components.filter(
-    (c): c is SurfaceComponent =>
-      Boolean(c) &&
-      typeof (c as SurfaceComponent).id === "string" &&
-      typeof (c as SurfaceComponent).component === "string",
-  );
-  if (!components.some((c) => c.id === "root")) {
-    return null;
-  }
-  // A Form's answers go back as the client's next message. A Ref to a wizard or a file opens it
-  // in the portal; the firm's other items have no address here.
-  const chat: SurfaceChat = {
-    href: (open) => {
-      const [kind, ...rest] = open.split(":");
-      const id = rest.join(":");
-      return !id
-        ? null
-        : kind === "wizard"
-          ? pathOf.item("wizard", id)
-          : kind === "f"
-            ? pathOf.item("file", id)
-            : null;
-    },
-    follow: go,
-    fieldBase: `/portal/api/client/chats/${chatId}`,
-    submit: (answer) => onAsk(card.title ? `${card.title}\n${answer.text}` : answer.text),
-    answered: null,
-  };
-  return (
-    <div className="view-card engenty-runner" {...runnerLook(space.firm.brand.theme)}>
-      {card.title ? <strong className="view-title">{card.title}</strong> : null}
-      <SurfaceView
-        surface={{ components, data: card.data }}
-        assetUrl={(id) => fileUrl(id.replace(/^f:/, ""))}
-        onAction={(a) => {
-          if (a.action === "ask" && typeof a.target === "string" && a.target) {
-            void onAsk(a.target);
-          }
-        }}
-        chat={chat}
-      />
-    </div>
-  );
-}
-
-/** A run the AI started: the wizard's engenty, its state, and its own view a click away. */
-function RunCard({
-  card,
-  space,
-  go,
-}: {
-  card: Extract<Card, { kind: "run" }>;
-  space: ClientSpace;
-  go: Go;
-}) {
-  return (
-    <div className="run-card">
-      <Engenty kind={card.avatar} size={40} />
-      <span className="run-card-text">
-        <strong>{card.title}</strong>
-        <small>{t("card.wizard", { firm: firmName(space) })}</small>
-      </span>
-      <span className={`status ${card.status}`}>{statusOf(card.status)}</span>
-      <Go to={pathOf.item("run", card.runId)} go={go} className="button ghost small">
-        {t("card.open")}
-      </Go>
-    </div>
-  );
-}
-
-/** How long after a client's message its turn may take to start: then the chat's state says. */
-const ANSWER_MS = 30_000;
-
-/** One chat by its deep link: its client space becomes the tab's. */
-function Conversation({
-  space,
-  chatId,
-  go,
-  onSpace,
-  onChanged,
-}: {
-  space: ClientSpace;
-  chatId: string;
-  go: Go;
-  onSpace: (id: string) => void;
-  onChanged: () => void;
-}) {
-  const [data, setData] = useState<ChatMessages | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const end = useRef<HTMLDivElement>(null);
-  const load = useCallback(
-    () =>
-      call<ChatMessages>("chat_messages", undefined, { chatId }).then(
-        (read) => {
-          setData(read);
-          setError(null);
-        },
-        (err: Error) =>
-          setError(err instanceof CallError && err.status === 404 ? t("notFound") : err.message),
-      ),
-    [chatId],
-  );
-  const last = data?.messages.at(-1);
-  // The AI answers every message: until it has, the chat says it is writing.
-  const writing = Boolean(
-    data &&
-      (data.chat.answering ||
-        (last?.author.me && Date.now() - new Date(last.createdAt).getTime() < ANSWER_MS)),
-  );
-  useEffect(() => {
-    setData(null);
-    void load();
-  }, [load]);
-  // While the AI writes, a look every second and a half; else every few seconds.
-  useEffect(() => {
-    const timer = setInterval(() => void load(), writing ? 1500 : 5000);
-    return () => clearInterval(timer);
-  }, [load, writing]);
-  useEffect(() => {
-    if (data) {
-      onSpace(data.spaceId);
-    }
-  }, [data, onSpace]);
-  // Once the answer is in, the side bar's chats are read again: their dot goes.
-  const wasWriting = useRef(false);
-  useEffect(() => {
-    if (wasWriting.current && !writing) {
-      onChanged();
-    }
-    wasWriting.current = writing;
-  }, [writing, onChanged]);
-  const count = data?.messages.length ?? 0;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scrolls down as messages come in
-  useEffect(() => {
-    end.current?.scrollIntoView({ block: "end" });
-  }, [count, writing]);
-  const ask = async (text: string) => {
-    await call("chat_post", space.id, { chatId, text });
-    await load();
-    onChanged();
-  };
-  if (!data) {
-    return <div className="thread">{error ? <Failed error={error} /> : <Loading />}</div>;
-  }
-  const firm = firmName(space);
-  return (
-    <div className="chat">
-      <header className="chat-head only-wide">
-        <strong className="clip">{data.chat.title || t("chats.untitled")}</strong>
-      </header>
-      <div className="thread">
-        <ol className="messages">
-          {data.messages.length ? null : <li className="quiet">{t("chat.empty")}</li>}
-          {data.messages.map((m) =>
-            m.author.me ? (
-              <li key={m.id} className="message mine">
-                <p>{m.text}</p>
-              </li>
-            ) : m.author.kind === "ai" ? (
-              <li key={m.id} className="message ai">
-                <span className="ai-name">
-                  <FirmMark space={space} />
-                  {t("chat.ai", { firm })}
-                </span>
-                {m.parts.map((p, i) =>
-                  p.kind === "text" ? (
-                    <Markdown key={i} className="answer" text={p.text} />
-                  ) : p.kind === "view" ? (
-                    <ViewCard
-                      key={p.id}
-                      card={p}
-                      space={space}
-                      chatId={chatId}
-                      go={go}
-                      onAsk={ask}
-                    />
-                  ) : (
-                    <RunCard key={p.runId} card={p} space={space} go={go} />
-                  ),
-                )}
-              </li>
-            ) : (
-              <li key={m.id} className="message person">
-                <span className="avatar firm">{initials(m.author.name)}</span>
-                <div>
-                  <span className="ai-name">{m.author.name}</span>
-                  <p>{m.text}</p>
-                </div>
-              </li>
-            ),
-          )}
-          {writing ? (
-            <li className="message ai">
-              <span className="ai-name">
-                <FirmMark space={space} />
-                <span className="writing">{t("chat.writing", { firm })}</span>
-              </span>
-            </li>
-          ) : null}
-        </ol>
-        <div ref={end} className="thread-end" />
-      </div>
-      {data.spaceId === space.id ? (
-        <div className="dock">
-          <Composer
-            space={space}
-            chatId={chatId}
-            go={go}
-            onSent={() => {
-              void load();
-              onChanged();
-            }}
-          />
-          <Reach space={space} />
-        </div>
       ) : null}
     </div>
   );
@@ -1401,10 +885,6 @@ function SignedIn({ info, go, path }: { info: SessionInfo; go: Go; path: string 
   const list = spaces.data ?? [];
   const space = list.find((s) => s.id === current) ?? list[0] ?? null;
   const brand: Brand | null = space?.firm.brand ?? null;
-  const chats = useLoad(
-    () => (space ? call<Chat[]>("chats", space.id) : Promise.resolve([])),
-    `chats:${space?.id}`,
-  );
   useEffect(() => wearBrand(brand?.theme ?? null, brand?.accent), [brand]);
   useEffect(() => {
     if (space) {
@@ -1423,13 +903,6 @@ function SignedIn({ info, go, path }: { info: SessionInfo; go: Go; path: string 
   }
   const place = placeOf(path);
   const person = { name: info.person?.name ?? "", email: info.person?.email ?? "" };
-  const chatList = chats.data ?? [];
-  const sent = (chatId: string) => {
-    chats.reload();
-    if (place.kind !== "chat" || place.id !== chatId) {
-      go(pathOf.item("chat", chatId));
-    }
-  };
   let body: ReactNode;
   let part: Part | null = null;
   let back: string | null = null;
@@ -1437,10 +910,8 @@ function SignedIn({ info, go, path }: { info: SessionInfo; go: Go; path: string 
   let sub: string | undefined;
   switch (place.kind) {
     case "home":
-      part = "chat";
-      body = (
-        <Home space={space} person={person} hasChats={chatList.length > 0} go={go} onSent={sent} />
-      );
+      part = "home";
+      body = <Home space={space} person={person} go={go} />;
       break;
     case "part":
       part = place.part;
@@ -1452,21 +923,6 @@ function SignedIn({ info, go, path }: { info: SessionInfo; go: Go; path: string 
         ) : (
           <ResultsPage space={space} go={go} />
         );
-      break;
-    case "chat":
-      part = PART_OF.chat;
-      back = pathOf.home();
-      title = chatList.find((c) => c.id === place.id)?.title || t("chats.untitled");
-      sub = t("reach", { firm: firmName(space) });
-      body = (
-        <Conversation
-          space={space}
-          chatId={place.id}
-          go={go}
-          onSpace={onSpace}
-          onChanged={chats.reload}
-        />
-      );
       break;
     case "run":
       part = PART_OF.run;
@@ -1486,15 +942,12 @@ function SignedIn({ info, go, path }: { info: SessionInfo; go: Go; path: string 
     default:
       body = <Failed error={t("notFound")} />;
   }
-  const chatId = place.kind === "chat" ? place.id : null;
   return (
     <div className={`app${back ? " has-back" : ""}${menu ? " menu-open" : ""}`}>
       <Side
         spaces={list}
         space={space}
         part={part}
-        chatId={chatId}
-        chats={chatList}
         go={go}
         person={person}
         onSwitch={(id) => {
