@@ -3,6 +3,7 @@ import { type Context, Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import type { ClientSetup } from "./clients.js";
+import type { OllamaModels } from "./local-models.js";
 import type { Tested } from "./models.js";
 import type { Terminals } from "./terminal.js";
 
@@ -42,6 +43,8 @@ export interface SetupHost {
   workDir: () => string;
   models: SetupModels;
   tested: Tested;
+  /** The models in Ollama on this computer. */
+  ollama: OllamaModels;
 }
 
 /** The source own keys and a local server stand for. */
@@ -52,6 +55,14 @@ const size = z.object({
   rows: z.number().int().min(4).max(200).optional(),
 });
 
+/** A model as Ollama names it: `name`, `name:tag`, `namespace/name:tag` or `hf.co/…`. */
+const modelName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(/^[\w.:/-]+$/);
+
 /** The request's JSON; an empty object when it has none. */
 const bodyOf = (c: Context): Promise<unknown> => c.req.json().catch(() => ({}));
 
@@ -60,7 +71,7 @@ const bodyOf = (c: Context): Promise<unknown> => c.req.json().catch(() => ({}));
  * sign-in, and only where it runs on the person's own computer.
  */
 export function setupRoutes(host: SetupHost): Hono {
-  const { clients, terminals, models, tested } = host;
+  const { clients, terminals, models, tested, ollama } = host;
   const workDir = () => {
     const dir = host.workDir();
     mkdirSync(dir, { recursive: true });
@@ -113,6 +124,30 @@ export function setupRoutes(host: SetupHost): Hono {
           await tested.mark(OWN);
         }
         return c.json(outcome);
+      })
+      // --- the models in Ollama on this computer: listed, pulled, removed; none is loaded -----
+      .get("/local-models", async (c) => c.json(await ollama.state()))
+      .post("/local-models/pull", async (c) => {
+        const { model } = z.object({ model: modelName }).parse(await c.req.json());
+        await ollama.pull(model);
+        return c.json(await ollama.state());
+      })
+      .delete("/local-models", async (c) => {
+        try {
+          await ollama.remove(modelName.parse(c.req.query("model")));
+        } catch (err) {
+          if (err instanceof z.ZodError) {
+            throw err;
+          }
+          const { message } = err as Error;
+          return c.json({ error: message, message }, 400);
+        }
+        return c.json(await ollama.state());
+      })
+      // Ollama installed (on a Mac) and started.
+      .post("/local-models/ollama", async (c) => {
+        ollama.start();
+        return c.json(await ollama.state());
       })
       // --- the AI clients on this computer: looked at afresh, installed and signed in --------
       .get("/clients", async (c) => c.json({ clients: await clients.detectAll() }))

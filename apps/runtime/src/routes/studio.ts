@@ -88,12 +88,6 @@ import {
   wizardView,
 } from "../live/views.js";
 import {
-  downloadLocalModel,
-  localModels,
-  removeLocalModel,
-  startLocalOllama,
-} from "../local-models.js";
-import {
   installMail,
   ManageError,
   managed,
@@ -362,14 +356,6 @@ async function setupDone(): Promise<boolean> {
   }
   return hasTextModel();
 }
-
-/** A model as Ollama names it: `name`, `name:tag`, `namespace/name:tag` or `hf.co/…`. */
-const localModelName = z
-  .string()
-  .trim()
-  .min(1)
-  .max(120)
-  .regex(/^[\w.:/-]+$/);
 
 /** The Manage-App's masking errors, passed on as it sends them: 502 labels, 503 the detector. */
 const MASKING_CODES = new Set(["labels_unavailable", "masking_unavailable"]);
@@ -2287,49 +2273,6 @@ export const studio = new Hono<Vars>()
     }
   })
   // Ollama on this computer: its models, what each can do, the ones to download, the downloads.
-  .get("/models/local", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    return c.json(await localModels());
-  })
-  // A model pulled into Ollama. Where it is the embedding model now, the spaces are indexed with it after.
-  .post("/models/local/pull", async (c) => {
-    if (managed || !mayChangeModels(c.get("user"))) {
-      return c.notFound();
-    }
-    const { model } = z.object({ model: localModelName }).parse(await c.req.json());
-    const embeddedBy = (await embeddingModel().catch(() => null))?.ref ?? null;
-    await downloadLocalModel(model, async () => {
-      if (((await embeddingModel().catch(() => null))?.ref ?? null) !== embeddedBy) {
-        await reindexAll();
-      }
-    });
-    return c.json(await localModels());
-  })
-  .delete("/models/local", async (c) => {
-    if (managed || !mayChangeModels(c.get("user"))) {
-      return c.notFound();
-    }
-    const model = localModelName.parse(c.req.query("model"));
-    try {
-      await removeLocalModel(model);
-    } catch (err) {
-      return c.json(
-        { error: say(c, "localModelNotRemoved", { error: (err as Error).message }) },
-        400,
-      );
-    }
-    return c.json(await localModels());
-  })
-  // Ollama installed (on a Mac) and started, as `wizards setup` does.
-  .post("/models/local/ollama", async (c) => {
-    if (managed || !mayChangeModels(c.get("user"))) {
-      return c.notFound();
-    }
-    await startLocalOllama();
-    return c.json(await localModels());
-  })
   // The organization's own accounts at the providers, kept by the Manage-App (`ownKeysGateway`).
   .get("/models/keys", listKeys)
   .post("/models/keys", addKey)

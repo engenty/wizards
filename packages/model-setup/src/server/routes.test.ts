@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
-import { ClientSetup, setupRoutes, Terminals, Tested } from "./index.js";
+import { OFFERED_TEXT_MODELS } from "../index.js";
+import { ClientSetup, OllamaModels, setupRoutes, Terminals, Tested } from "./index.js";
 
 const signIn = { signedIn: false };
 const dir = mkdtempSync(join(tmpdir(), "model-setup-"));
@@ -35,6 +36,13 @@ function host() {
       write: async (sources) => {
         tested.splice(0, tested.length, ...sources);
       },
+    }),
+    ollama: new OllamaModels({
+      url: () => "http://127.0.0.1:9",
+      offered: () => OFFERED_TEXT_MODELS,
+      share: 0.5,
+      logs: () => join(dir, "logs"),
+      memory: () => 16 * 2 ** 30,
     }),
     models: {
       source: () => "codex",
@@ -105,6 +113,30 @@ describe("the setup's routes", () => {
     await post("/keys/openai", { key: "good" });
     expect(tested).toEqual(["own"]);
     expect((await post("/keys/else", { key: "good" })).status).toBe(400);
+  });
+
+  it("list the models to download, marked as fitting this computer, without Ollama", async () => {
+    const { app, test } = host();
+    const state = await (await app.request("/local/local-models")).json();
+    expect(state.ollama.version).toBeNull();
+    expect(state.installed).toEqual([]);
+    const fit = Object.fromEntries(
+      state.offered.map((m: { name: string; fits: boolean }) => [m.name, m.fits]),
+    );
+    expect(fit).toMatchObject({ "qwen3.8:27b": false, "gemma4:e4b": true });
+    expect(test).not.toHaveBeenCalled();
+  });
+
+  it("take only a model's name to download, and say when Ollama is not there", async () => {
+    const { app, post } = host();
+    expect((await post("/local-models/pull", { model: "a b; rm" })).status).toBe(400);
+    await post("/local-models/pull", { model: "gemma4:e4b" });
+    await vi.waitFor(async () => {
+      const state = await (await app.request("/local/local-models")).json();
+      expect(state.downloads).toMatchObject([
+        { model: "gemma4:e4b", error: "ollama", finished: true },
+      ]);
+    });
   });
 
   it.skipIf(process.platform === "win32")(

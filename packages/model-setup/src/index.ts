@@ -8,4 +8,14 @@ export {
   installCommand,
   POWERSHELL,
 } from "./catalog.js";
-export type { ClientSetupStatus, TerminalEvent } from "./types.js";
+export { OFFERED_TEXT_MODELS } from "./offered.js";
+export {
+  type ClientSetupStatus,
+  type HeldModel,
+  MODEL_JOBS,
+  type ModelDownload,
+  type ModelJob,
+  type OfferedModel,
+  type OllamaModelsState,
+  type TerminalEvent,
+} from "./types.js";

@@ -6,6 +6,7 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { env } from "../env.js";
 import { clientSetup, HARNESS_IDS } from "../harness/index.js";
+import { ollamaModels } from "../local-models.js";
 import {
   DECISION_CHOICES,
   EMBEDDING_CHOICES,
@@ -53,6 +54,7 @@ export const localSetup = setupRoutes({
   terminals: new Terminals(),
   workDir: () => join(env.dataDir, "harness"),
   tested: testedSources,
+  ollama: ollamaModels,
   models: {
     source: () => localModelSettings().source,
     settings: () => localModelSettings(),
