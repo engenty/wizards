@@ -1,3 +1,4 @@
+import { mlxBin, mlxSupported } from "@engenty/local-models/mlx";
 import type { ServerId } from "@engenty/local-models/servers";
 import type { Outcome } from "./install.js";
 import { findLmStudio, startLmStudio } from "./lmstudio.js";
@@ -28,5 +29,11 @@ export const SERVER_APPS: Record<ServerId, ServerApp> = {
     find: findLmStudio,
     download: "https://lmstudio.ai/download",
     start: startLmStudio,
+  },
+  // It comes with the host and starts with its first call.
+  mlx: {
+    find: () => (mlxSupported() ? mlxBin() : null),
+    download: "https://mlx-framework.org",
+    start: async () => mlxSupported(),
   },
 };

@@ -79,6 +79,7 @@ the studio doesn’t: one `NAME=value` per line. Restart engenty wizards after a
 | `OLLAMA_URL` | Where Ollama answers | `http://127.0.0.1:11434/v1` |
 | `LMSTUDIO_URL` | Where LM Studio answers | `http://127.0.0.1:1234/v1` |
 | `LM_API_TOKEN` | LM Studio’s API token, where its server asks for one | none |
+| `MLX_MODELS` | The folder of MLX’s models (Mac with Apple silicon) | `~/.engenty/models/mlx` |
 | `PLUGINS_DIR` | Folders with plugins, comma-separated. If you set it, it replaces the default | `~/.engenty/wizards/plugins` |
 | `PLUGINS_WATCH` | With `0`, plugins no longer load again when their files change | `1` |
 | `GEOCODER_URL` | Finds the place of a location (street, town). If it is not set, a location is only coordinates, and no position leaves your computer | not set |

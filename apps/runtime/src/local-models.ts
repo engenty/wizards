@@ -1,4 +1,4 @@
-import { SERVERS } from "@engenty/local-models/servers";
+import { SERVERS, serversHere } from "@engenty/local-models/servers";
 import { MODEL_JOBS, OFFERED_MODELS, type OfferedModel } from "@engenty/model-setup";
 import { LocalModels } from "@engenty/model-setup/server";
 import { layout } from "./cli/home.js";
@@ -8,7 +8,7 @@ import { embeddingModel, forgetLocalModels, localServerUrl } from "./models.js";
 /**
  * The servers for open models on this computer (@engenty/model-setup). Ollama's models come with
  * the ones the Manage-App offers per job (`GET /v1/local-models` of the account's Manage-App):
- * text, search and decisions each pick their model from it. LM Studio's are for text.
+ * text, search and decisions each pick their model from it. LM Studio's and MLX's are for text.
  */
 
 /** The share of the computer's memory a model may take and still leave room for the rest. */
@@ -65,4 +65,14 @@ const lmStudio = new LocalModels({
   logs: () => layout().logs,
 });
 
-export const localServers: readonly LocalModels[] = [ollama, lmStudio];
+const mlx = new LocalModels({
+  server: SERVERS.mlx,
+  url: () => localServerUrl("mlx"),
+  offered: () => OFFERED_MODELS.mlx,
+  share: MEMORY_SHARE,
+  logs: () => layout().logs,
+});
+
+export const localServers: readonly LocalModels[] = [ollama, lmStudio, mlx].filter((server) =>
+  serversHere().includes(server.id),
+);

@@ -19,6 +19,8 @@ export function useLocalModels(server: ServerId, enabled = true) {
     queryKey: keyOf(server),
     queryFn: () => api.get<LocalModelsState>(`/api/studio/local/servers/${server}`),
     enabled,
+    // A computer that cannot run it knows no such server.
+    retry: false,
     // While a download runs or the server starts, the page asks how far it got.
     refetchInterval: (q) => (modelsMoving(q.state.data) ? 1500 : false),
   });

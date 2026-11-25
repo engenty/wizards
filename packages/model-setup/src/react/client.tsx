@@ -84,8 +84,8 @@ export function rankClients<T extends Pick<ClientSetupStatus<ClientId>, "id" | "
 }
 
 /**
- * The clients the list opens with: those signed in. Where none is, those installed or with their
- * app on this computer; where nothing is there, the first. The others are among the rest.
+ * The clients the list opens with: those signed in. Where none is, those installed; where none is
+ * either, the first. The others are among the rest.
  */
 export function foundClients<
   T extends Pick<ClientSetupStatus<ClientId>, "id" | "version" | "app" | "auth">,
@@ -95,8 +95,8 @@ export function foundClients<
   if (signedIn.length) {
     return signedIn;
   }
-  const here = ranked.filter((c) => c.version !== null || c.app);
-  return here.length ? here : ranked.slice(0, 1);
+  const installed = ranked.filter((c) => c.version !== null);
+  return installed.length ? installed : ranked.slice(0, 1);
 }
 
 /** The clients as rows of the list, the first one recommended. */

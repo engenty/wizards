@@ -42,8 +42,9 @@ describe("the clients the list opens with", () => {
     expect(ids(foundClients(clients))).toEqual(["claude", "codex"]);
   });
 
-  it("are those on this computer where none is signed in, else the first", () => {
-    expect(ids(foundClients([at("codex", null), at("cursor", "1")]))).toEqual(["cursor"]);
+  it("are those installed where none is signed in, else the first", () => {
+    const app = at("antigravity", null, "none", "Antigravity");
+    expect(ids(foundClients([app, at("codex", null), at("cursor", "1")]))).toEqual(["cursor"]);
     expect(ids(foundClients([at("claude", null), at("codex", null)]))).toEqual(["codex"]);
   });
 });

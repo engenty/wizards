@@ -14,6 +14,10 @@ const NOTES = {
     en: "Enough for short texts and sorting; for a Mac with 16 GB.",
     de: "Reicht für kurze Texte und Einordnen; für einen Mac mit 16 GB.",
   },
+  small: {
+    en: "Small, with tools; for short answers on any Mac.",
+    de: "Klein, mit Werkzeugen; für kurze Antworten auf jedem Mac.",
+  },
   gemmaSmall: {
     en: "Small and quick; for short answers.",
     de: "Klein und schnell; für kurze Antworten.",
@@ -36,5 +40,29 @@ export const OFFERED_MODELS: Record<ServerId, readonly OfferedModel[]> = {
     { name: "google/gemma-4-26b-a4b", job: "text", size: 16, memory: 20, note: NOTES.gemmaLarge },
     { name: "google/gemma-4-12b", job: "text", size: 7, memory: 10, note: NOTES.gemma },
     { name: "google/gemma-4-e4b", job: "text", size: 6, memory: 8, note: NOTES.gemmaSmall },
+  ],
+  mlx: [
+    {
+      name: "mlx-community/Qwen3.8-27B-4bit",
+      job: "text",
+      size: 16.1,
+      memory: 20,
+      note: NOTES.qwen,
+    },
+    {
+      name: "mlx-community/gemma-4-26b-a4b-it-4bit",
+      job: "text",
+      size: 15.4,
+      memory: 19,
+      note: NOTES.gemmaLarge,
+    },
+    {
+      name: "mlx-community/gemma-4-12b-it-4bit",
+      job: "text",
+      size: 6.8,
+      memory: 10,
+      note: NOTES.gemma,
+    },
+    { name: "mlx-community/Qwen3-4B-4bit", job: "text", size: 2.3, memory: 5, note: NOTES.small },
   ],
 };
