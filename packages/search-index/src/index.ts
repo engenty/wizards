@@ -1,5 +1,6 @@
 export * from "./catalog-lexical.js";
 export * from "./catalog-rank.js";
+export * from "./catalog-search.js";
 export * from "./chunks.js";
 export * from "./contracts.js";
 export * from "./embedder.js";
