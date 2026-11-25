@@ -168,6 +168,10 @@ function FormBox({
 const empty = (v: unknown) =>
   v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
 
+/** Whether a Field may be sent as it is: one that must be answered holds something. */
+export const fieldFilled = (field: { required: boolean; value: unknown }) =>
+  !field.required || !empty(field.value);
+
 /** One answer of a Form, kept in OpenUI's form state under its name. */
 function FieldBox({ props }: { props: Record<string, unknown> }) {
   const name = String(props.name ?? "");
@@ -178,10 +182,14 @@ function FieldBox({ props }: { props: Record<string, unknown> }) {
   const start = props.value;
   const value = field.value === undefined ? start : field.value;
   const required = props.required === true;
+  // The Form asks each Field when it is sent. The check is registered once and reads what the
+  // Field holds then, not what it held when it was drawn first.
+  const held = useRef({ required, value: field.value ?? start });
+  held.current = { required, value: field.value ?? start };
   const registered = useRef<string | null>(null);
   if (fields && registered.current !== name) {
     registered.current = name;
-    fields.register(name, () => !required || !empty(field.value ?? start));
+    fields.register(name, () => fieldFilled(held.current));
   }
   const options = Array.isArray(props.options) ? props.options.map(String) : [];
   const disabled = fields?.sent ?? false;
