@@ -1,7 +1,55 @@
 [
   {
+    "version": "v0.21.2",
+    "timestamp": 1795647861,
+    "commits": [
+      {
+        "id": "f0eb069",
+        "message": "every member of the team chats on its Bot Server (#758)",
+        "group": "Added",
+        "scope": "work",
+        "breaking": false
+      },
+      {
+        "id": "2b75d9f",
+        "message": "a Form with a Field that must be answered can be sent once it is filled in (#760)",
+        "group": "Fixed",
+        "scope": "chatviews",
+        "breaking": false
+      },
+      {
+        "id": "443e757",
+        "message": "what the studio's chat engine left behind goes, and \"With approval\" is offered only where someone is asked (#759)",
+        "group": "Fixed",
+        "scope": "work",
+        "breaking": false
+      },
+      {
+        "id": "0c737cf",
+        "message": "the chats know the open space, and the team's Bot Server is not an outside app (#757)",
+        "group": "Added",
+        "scope": "work",
+        "breaking": false
+      },
+      {
+        "id": "b148112",
+        "message": "a thinking Ollama model streams what it thinks as reasoning (#745)",
+        "group": "Added",
+        "scope": "local-models",
+        "breaking": false
+      },
+      {
+        "id": "8603752",
+        "message": "the flow widget starts where cookies are closed off (#746)",
+        "group": "Fixed",
+        "scope": "web",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.21.1",
-    "timestamp": 1795642273,
+    "timestamp": 1795642585,
     "commits": [
       {
         "id": "f91d434",
