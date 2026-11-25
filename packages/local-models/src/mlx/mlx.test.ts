@@ -200,7 +200,13 @@ describe.runIf(process.platform === "darwin" && process.arch === "arm64")("a mod
       text: "ok",
     });
     await read.doGenerate({ prompt: user("hi") });
-    expect(seen).toEqual([{ state: "loading" }, { state: "reading", done: 0, total: 9 }, null]);
+    const thinks = [{ state: "thinking" }, null];
+    expect(seen).toEqual([
+      { state: "loading" },
+      { state: "reading", done: 0, total: 9 },
+      ...thinks,
+      ...thinks,
+    ]);
   });
 
   it("reads ahead until another call comes", async () => {

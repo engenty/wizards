@@ -300,9 +300,15 @@ extension Engine.Held {
         return (filled, known)
     }
 
-    /// Keeps a prompt that was read, in the place of those it starts with.
+    /// Keeps a prompt that was read, in the place of those of the same conversation: each takes
+    /// the memory of all its tokens.
     private func keep(_ tokens: [Int], _ cache: [KVCache]) {
-        read.removeAll { Engine.common($0.tokens, tokens) == $0.tokens.count }
+        read.removeAll { entry in
+            let shared = Engine.common(entry.tokens, tokens)
+            let extra = entry.tokens.count - shared
+            return extra == 0
+                || (shared > extra * 4 && canTrimPromptCache(cache, numTokens: extra))
+        }
         read.append(Engine.Read(tokens: tokens, cache: cache.map { $0.copy() }))
         if read.count > Engine.kept { read.removeFirst() }
     }

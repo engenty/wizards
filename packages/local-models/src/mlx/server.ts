@@ -57,7 +57,7 @@ export function mlxModel({
    * starts with the same then starts to answer at once.
    */
   warm?: boolean;
-  /** What a call waits for before its first word; null once it begins to answer. */
+  /** What a call waits for before its first word; null once it begins to answer or calls a tool. */
   onWaiting?: (waiting: Waiting | null) => void;
 }): ChatModel {
   const dir = modelFolder(folder, model);
@@ -69,7 +69,7 @@ export function mlxModel({
         ? {}
         : { schema: JSON.stringify(format === "json" ? { type: "object" } : format) };
     const encoder = new TextEncoder();
-    let waits = false;
+    let waits: Waiting["state"] | undefined;
     const lines = helper
       .chat(
         { ...body, ...schema, ...(warm ? { warm } : {}), model: dir },
@@ -79,12 +79,17 @@ export function mlxModel({
         new TransformStream<HelperChunk, Uint8Array>({
           transform: (chunk, controller) => {
             if (chunk.wait) {
-              waits = true;
+              waits = chunk.wait.state;
               onWaiting?.(chunk.wait);
               return;
             }
-            if (waits) {
-              waits = false;
+            if (chunk.message?.thinking) {
+              if (waits !== "thinking") {
+                waits = "thinking";
+                onWaiting?.({ state: "thinking" });
+              }
+            } else if (waits) {
+              waits = undefined;
               onWaiting?.(null);
             }
             controller.enqueue(encoder.encode(`${JSON.stringify(chunk)}\n`));

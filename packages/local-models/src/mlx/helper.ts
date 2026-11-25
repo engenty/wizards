@@ -29,9 +29,9 @@ export function mlxSupported(): boolean {
 /** A pipe no longer keeps this process alive. */
 const unref = (pipe: unknown) => (pipe as { unref?: () => void } | undefined)?.unref?.();
 
-/** What a call waits for: the model is loaded, or reads, of `total` tokens `done`. */
+/** What a call waits for: the model is loaded, reads (of `total` tokens `done`) or thinks. */
 export interface Waiting {
-  state: "loading" | "reading";
+  state: "loading" | "reading" | "thinking";
   done?: number;
   total?: number;
 }
