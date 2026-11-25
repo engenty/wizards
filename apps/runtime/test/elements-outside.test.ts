@@ -174,31 +174,3 @@ describe("the API", () => {
     expect((await api("POST", `/api/v1/spaces/${spaceId}/elements/drop_tables`, {})).status).toBe(404);
   });
 });
-
-describe("the same elements everywhere", () => {
-  it("an outside client gets exactly the element tools a Work chat gets the same person", async () => {
-    const { ELEMENT_TOOL_NAMES } = await import("../src/elements/specs");
-    const { outsideTools } = await import("../src/elements/outside");
-    const { toolToRun } = await import("../src/services/work-ai");
-    await local(async () => {
-      const outside = await outsideTools(
-        { userId: "local", role: "owner", client: "Claude Code", tenantId: "local", scopes: ["data:read", "elements:read", "elements:run"] },
-        spaceId,
-        new AbortController().signal,
-      );
-      const signal = new AbortController().signal;
-      const work: string[] = [];
-      // A Work chat has one tool per connection action; outside clients have connection_list and
-      // connection_call over the same actions.
-      const names = ELEMENT_TOOL_NAMES.filter((n) => !n.startsWith("connection_"));
-      for (const name of names) {
-        if (await toolToRun({ id: spaceId, name: "Test" }, "local", name, signal, { chatId: "c1", byAdmin: false })) {
-          work.push(name);
-        }
-      }
-      const outsideNames = Object.keys(outside).filter((n) => (names as readonly string[]).includes(n));
-      expect(outsideNames.sort()).toEqual(work.sort());
-      expect(work).toEqual(expect.arrayContaining(["space_search", "skill_load", "wizard_run"]));
-    });
-  });
-});

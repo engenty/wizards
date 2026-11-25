@@ -189,7 +189,8 @@ export function StudioApp() {
           <Route
             path="/"
             element={
-              <Studio>
+              // Wide: Home's setup takes the page's whole width; its dashboard keeps a column.
+              <Studio wide>
                 <InMode mode="studio">
                   <Start />
                 </InMode>
@@ -256,26 +257,6 @@ export function StudioApp() {
           />
           <Route
             path="/work"
-            element={
-              <Studio full>
-                <InMode mode="work">
-                  <WorkPage />
-                </InMode>
-              </Studio>
-            }
-          />
-          <Route
-            path="/work/c/:chatId"
-            element={
-              <Studio full>
-                <InMode mode="work">
-                  <WorkPage />
-                </InMode>
-              </Studio>
-            }
-          />
-          <Route
-            path="/work/f/:folderId"
             element={
               <Studio full>
                 <InMode mode="work">

@@ -4,6 +4,24 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.21.0] - 2026-11-25
+- ADDED **[tool-harness]** One harness around an agent's tools, with a search by words and meaning (#751)
+- ADDED **[local-models]** Apple MLX beside Ollama and LM Studio (#750)
+- ADDED **[model-setup]** Models on this computer to use, download and remove, with Ollama and LM Studio (#749)
+- ADDED **[model-setup]** The setup's page as React parts, and the studio's setup on them (#748)
+- ADDED **[model-setup]** @engenty/model-setup, the setup's clients, terminal and routes for the runtime and wizards.bot (#747)
+- ADDED **[openui]** The Wizard among engenty's views (#744)
+- ADDED **[chatviews]** Views as A2UI v1.0 (#743)
+- ADDED **[chatviews]** Views a model writes, as an OpenUI library (#742)
+- ADDED **[chatviews]** The views' components in @engenty/chatviews/react (#741)
+- ADDED **[mcp]** Long runs as MCP tasks (#740)
+- ADDED **[mcp]** A run's pages as questions the app shows (#739)
+- ADDED **[local-models]** The MCP bridge for subscription clients, shared by the runtime and wizards.bot (#736)
+- CHANGED **[chatviews]** Surfaces, calc and data shapes in their own MIT package (#738)
+- DOCS **[work]** Work's engine is frozen; the wizards.bot home becomes its engine (#735)
+- FIXED **[mcp]** A client that uses a space runs a wizard to the end (#737)
+- FIXED **[runtime]** The image builds only the runtime, the studio and the packages they use (#734)
+
 ## [0.20.6] - 2026-11-24
 - ADDED **[local-models]** @engenty/local-models, Ollama and subscription clients for the runtime and wizards.bot (#732)
 - ADDED **[bot]** Wizards bot tunnel needs no account: a name of its own at wizards.host (#731)

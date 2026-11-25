@@ -80,6 +80,7 @@ Declared by two or more of the workspaces below:
 | [@hono/node-server](https://github.com/honojs/node-server) | 2.1.6 | MIT |
 | [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.4.0 | Apache-2.0 |
 | [@modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps) | 2.0.4 | MIT |
+| [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.4.0 | Apache-2.0 |
 | [ai](https://ai-sdk.dev/docs) | 7.0.163 | Apache-2.0 |
 | [cross-spawn](https://github.com/moxystudio/node-cross-spawn) | 7.0.6 | MIT |
 | [dompurify](https://github.com/cure53/DOMPurify) | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
@@ -120,14 +121,12 @@ Declared by two or more of the workspaces below:
 | [@executor-js/plugin-openapi](https://github.com/UsefulSoftwareCo/executor/tree/main/packages/plugins/openapi) | 1.6.11 | MIT |
 | [@libsql/client](https://github.com/tursodatabase/libsql-client-ts#readme) | 0.18.0 | MIT |
 | [@llamaindex/liteparse](https://github.com/run-llama/liteparse#readme) | 2.18.0 | Apache-2.0 |
-| [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
 | [@mastra/ai-sdk](https://mastra.ai) | 1.11.3 | Apache-2.0 |
 | [@mastra/core](https://mastra.ai) | 1.82.0 | Apache-2.0 |
 | [@mastra/docker](https://mastra.ai) | 0.13.0 | Apache-2.0 |
 | [@mastra/libsql](https://mastra.ai) | 1.29.0 | Apache-2.0 |
 | [@mastra/memory](https://mastra.ai) | 1.41.0 | Apache-2.0 |
 | [@mastra/quickjs](https://mastra.ai) | 0.1.5 | Apache-2.0 |
-| [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.4.0 | Apache-2.0 |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 1.0.13 | MIT |
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.3 | MIT |
 | [aws4fetch](https://github.com/mhart/aws4fetch#readme) | 1.0.20 | MIT |
@@ -198,6 +197,12 @@ Declared by two or more of the workspaces below:
 |---|---|---|
 | [@mastra/agent-browser](https://mastra.ai) | 0.6.0 | Apache-2.0 |
 
+### packages/model-setup (packages/model-setup)
+
+| Package | Version | Licence |
+|---|---|---|
+| [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
+
 ### packages/vault (packages/vault)
 
 | Package | Version | Licence |
@@ -210,9 +215,11 @@ Used to build, check and test; not part of what people run:
 
 | Package | Version | Licence |
 |---|---|---|
+| [@a2ui/web_core](https://a2ui.org/) | 0.16.1 | Apache-2.0 |
 | [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript#readme) | 1.5.0 | Apache-2.0 |
 | [@biomejs/biome](https://biomejs.dev) | 2.5.0 | MIT OR Apache-2.0 |
 | [@microsoft/api-extractor](https://api-extractor.com) | 7.60.1 | MIT |
+| [@openuidev/lang-core](https://openui.com) | 1.1.0 | MIT |
 | [@openuidev/react-lang](https://openui.com) | 1.1.0 | MIT |
 | [@tailwindcss/postcss](https://tailwindcss.com) | 4.3.4 | MIT |
 | [@tailwindcss/vite](https://tailwindcss.com) | 4.3.4 | MIT |

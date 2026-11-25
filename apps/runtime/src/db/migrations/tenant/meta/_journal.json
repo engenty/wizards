@@ -551,8 +551,15 @@
     {
       "idx": 78,
       "version": "6",
-      "when": 1794698409976,
-      "tag": "0078_kernel_rows",
+      "when": 1795639642428,
+      "tag": "0078_work_chats_gone",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "6",
+      "when": 1795642169262,
+      "tag": "0079_kernel_rows",
       "breakpoints": true
     }
   ]

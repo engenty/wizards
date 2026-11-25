@@ -4,7 +4,7 @@
  * The portal's look: the firm's frame (`--brand-*`, set by look.ts), else the engenty look of
  * wizards.page. The accent marks the main action only; ground and text stay calm; no gradients
  * (docs/plans/client-portal.md). Phone first: a top bar with the space as its title and three
- * tabs; from 900px a side bar with the space switch, the parts and the chats.
+ * tabs; from 900px a side bar with the space switch and the parts.
  */
 :root {
   --accent: var(--brand-accent, #2f5bff);
@@ -17,7 +17,7 @@
   --side: color-mix(in oklab, var(--ink) 4%, var(--ground));
   --card: color-mix(in oklab, var(--ground) 40%, white);
   --hover: color-mix(in oklab, var(--ink) 7%, transparent);
-  /* The client's own messages: a quiet tint of the accent. */
+  /* A quiet tint of the accent: behind an icon, behind a person's initials. */
   --tint: color-mix(in oklab, var(--accent) 13%, var(--ground));
   /* What waits on the client: a calm gold, the same for every firm. */
   --wait: #e8bd6d;
@@ -424,12 +424,6 @@ button.space-switch {
   display: grid;
   gap: 2px;
 }
-.menu.up {
-  top: auto;
-  bottom: calc(100% + 8px);
-  right: auto;
-  width: 290px;
-}
 .menu button {
   width: 100%;
   display: flex;
@@ -448,24 +442,11 @@ button.space-switch {
 .menu button.on {
   background: var(--hover);
 }
-.menu.up button {
-  justify-content: flex-start;
-}
-.menu-title {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--ink-3);
-  padding: 6px 10px 2px;
-}
-.menu-note {
-  padding: 6px 10px 8px;
-}
 .side-nav {
   display: grid;
   gap: 2px;
 }
-.side-row,
-.side-chat {
+.side-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -476,40 +457,12 @@ button.space-switch {
 .side-row .icon {
   color: var(--ink-2);
 }
-.side-row:hover,
-.side-chat:hover {
+.side-row:hover {
   background: var(--hover);
 }
-.side-row.on,
-.side-chat.on {
+.side-row.on {
   background: var(--hover);
   font-weight: 600;
-}
-.side-chats {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  margin-top: 6px;
-}
-.side-label {
-  font: 500 0.76rem / 1.3 var(--body);
-  letter-spacing: 0;
-  color: var(--ink-3);
-  padding: 14px 10px 4px;
-}
-.side-chat {
-  padding: 7px 10px;
-  font-size: 0.88rem;
-}
-.side-chat .clip {
-  flex: 1;
-}
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--wait);
-  flex: none;
 }
 .side-me {
   display: flex;
@@ -517,7 +470,8 @@ button.space-switch {
   gap: 10px;
   padding: 10px;
   border-top: 1px solid var(--line);
-  margin-top: 6px;
+  /* At the side bar's foot, below the parts. */
+  margin-top: auto;
 }
 .avatar {
   width: 30px;
@@ -528,10 +482,6 @@ button.space-switch {
   font: 600 0.75rem / 1 var(--body);
   flex: none;
   background: var(--tint);
-}
-.avatar.firm {
-  background: var(--wait);
-  color: #3b2a08;
 }
 .me-text {
   display: grid;
@@ -567,6 +517,8 @@ button.space-switch {
 .phone-title {
   flex: 1;
   min-width: 0;
+  /* As much room on the right as the button takes on the left: the title stays in the middle. */
+  margin-right: 46px;
   text-align: center;
   display: grid;
   line-height: 1.25;
@@ -611,90 +563,6 @@ button.space-switch {
   display: none;
 }
 
-/* --- the composer --- */
-
-.composer {
-  width: 100%;
-  background: var(--card);
-  border-radius: 22px;
-  box-shadow:
-    0 0 0 1px var(--line),
-    var(--shadow);
-  padding: 12px 12px 10px 18px;
-  display: grid;
-  gap: 8px;
-}
-.composer.big {
-  padding: 16px 14px 12px 20px;
-  gap: 14px;
-}
-.composer textarea {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  resize: none;
-  background: none;
-  color: var(--ink);
-  font: 1rem / 1.5 var(--body);
-  padding: 2px 0;
-  min-height: 26px;
-}
-.composer textarea::placeholder {
-  color: var(--ink-3);
-}
-.composer-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.wizard-menu {
-  position: relative;
-}
-.chip-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 13px;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  box-shadow: inset 0 0 0 1px var(--line);
-  font-size: 0.88rem;
-  font-weight: 500;
-  color: var(--ink-2);
-  cursor: pointer;
-}
-.chip-button:hover {
-  color: var(--ink);
-}
-.send {
-  margin-left: auto;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 0;
-  display: grid;
-  place-items: center;
-  background: var(--accent);
-  color: var(--on-accent);
-  cursor: pointer;
-}
-.send:disabled {
-  background: color-mix(in oklab, var(--ink) 12%, transparent);
-  color: var(--ink-3);
-  cursor: default;
-}
-.reach {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  font-size: 0.8rem;
-  color: var(--ink-3);
-  text-align: center;
-}
-
 /* --- the home --- */
 
 .home {
@@ -717,10 +585,6 @@ button.space-switch {
   color: var(--ink-2);
   font-size: 1rem;
   line-height: 1.55;
-}
-.home-box {
-  display: grid;
-  gap: 10px;
 }
 .waiting-row {
   display: grid;
@@ -778,45 +642,6 @@ button.space-switch {
   box-shadow: none;
   color: color-mix(in oklab, var(--accent) 70%, var(--ink));
 }
-.tries {
-  display: grid;
-  background: var(--card);
-  border-radius: 16px;
-  box-shadow: 0 0 0 1px var(--line);
-  overflow: hidden;
-}
-.tries-label {
-  font: 500 0.78rem / 1 var(--body);
-  letter-spacing: 0;
-  color: var(--ink-3);
-  padding: 12px 18px 6px;
-}
-.try {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 18px;
-  border: 0;
-  border-top: 1px solid var(--line);
-  background: none;
-  text-align: left;
-  font-size: 0.93rem;
-  cursor: pointer;
-}
-.tries-label + .try {
-  border-top: 0;
-}
-.try:hover {
-  background: var(--hover);
-}
-.try .icon {
-  color: var(--ink-3);
-}
-.try small {
-  margin-left: auto;
-  color: var(--ink-3);
-  font-size: 0.8rem;
-}
 .new-row {
   display: grid;
   gap: 10px;
@@ -871,188 +696,6 @@ button.space-switch {
 .result-text small {
   font-size: 0.74rem;
   color: var(--ink-3);
-}
-
-/* --- a chat --- */
-
-.chat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  width: 100%;
-}
-.chat-head {
-  height: 56px;
-  align-items: center;
-  border-bottom: 1px solid var(--line);
-  padding: 0 24px;
-  font-size: 0.95rem;
-}
-.thread {
-  flex: 1;
-  width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 20px 0 12px;
-}
-.thread-end {
-  scroll-margin-bottom: 150px;
-}
-.messages {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-.message.mine {
-  align-self: flex-end;
-  max-width: min(520px, 86%);
-  background: var(--tint);
-  border-radius: 18px 18px 6px 18px;
-  padding: 10px 15px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.message.ai {
-  display: grid;
-  gap: 10px;
-  min-width: 0;
-}
-.message.person {
-  display: grid;
-  grid-template-columns: 30px 1fr;
-  gap: 10px;
-}
-.ai-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--ink-2);
-}
-.firm-mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: var(--ink);
-  color: var(--ground);
-  display: grid;
-  place-items: center;
-  font: 800 0.72rem / 1 var(--display);
-  overflow: hidden;
-  flex: none;
-}
-.firm-mark.logo-mark {
-  background: var(--card);
-  box-shadow: 0 0 0 1px var(--line);
-}
-.firm-mark img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.writing {
-  font-weight: 500;
-  color: var(--ink-3);
-  animation: breathe 1.6s ease-in-out infinite;
-}
-@keyframes breathe {
-  50% {
-    opacity: 0.45;
-  }
-}
-.answer {
-  overflow-wrap: anywhere;
-  line-height: 1.6;
-}
-.answer > * + * {
-  margin-top: 0.7em;
-}
-.answer p,
-.answer ul,
-.answer ol {
-  margin: 0;
-}
-.answer ul,
-.answer ol {
-  padding-left: 1.3em;
-}
-.answer ul {
-  list-style: disc;
-}
-.answer ol {
-  list-style: decimal;
-}
-.answer h1,
-.answer h2,
-.answer h3,
-.answer h4 {
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0;
-  margin-top: 1em;
-}
-.answer a {
-  text-decoration: underline;
-}
-.answer table {
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-.answer th,
-.answer td {
-  border-bottom: 1px solid var(--line);
-  padding: 6px 10px 6px 0;
-  text-align: left;
-}
-.view-card {
-  background: var(--card);
-  border-radius: 16px;
-  box-shadow: 0 0 0 1px var(--line);
-  padding: 14px 16px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-  min-width: 0;
-}
-.view-title {
-  font: 600 0.98rem / 1.3 var(--display);
-}
-.run-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  background: var(--card);
-  border-radius: 16px;
-  box-shadow: 0 0 0 1px var(--line);
-  padding: 12px 14px;
-}
-.run-card-text {
-  flex: 1;
-  min-width: 140px;
-  display: grid;
-  line-height: 1.3;
-}
-.run-card-text strong {
-  font-size: 0.93rem;
-  font-weight: 600;
-}
-.run-card-text small {
-  font-size: 0.78rem;
-  color: var(--ink-3);
-}
-.dock {
-  position: sticky;
-  bottom: 0;
-  width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
-  display: grid;
-  gap: 8px;
-  padding: 10px 0 max(14px, env(safe-area-inset-bottom, 0px));
-  background: var(--ground);
 }
 
 /* --- pages: Wizards, Results --- */
@@ -1338,14 +981,6 @@ button.space-switch {
     padding-top: 36px;
     gap: 20px;
   }
-  .chat {
-    margin: 0 -44px;
-    width: auto;
-  }
-  .thread,
-  .dock {
-    width: min(720px, calc(100% - 48px));
-  }
   .signin {
     grid-template-columns: 1.1fr 0.9fr;
     gap: 64px;
@@ -1361,9 +996,7 @@ button.space-switch {
   * {
     scroll-behavior: auto;
   }
-  .side,
-  .writing {
+  .side {
     transition: none;
-    animation: none;
   }
 }

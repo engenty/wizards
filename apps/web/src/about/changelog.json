@@ -1,7 +1,125 @@
 [
   {
+    "version": "v0.21.0",
+    "timestamp": 1795616445,
+    "commits": [
+      {
+        "id": "4f907e1",
+        "message": "one harness around an agent's tools, with a search by words and meaning (#751)",
+        "group": "Added",
+        "scope": "tool-harness",
+        "breaking": false
+      },
+      {
+        "id": "b315d3c",
+        "message": "Apple MLX beside Ollama and LM Studio (#750)",
+        "group": "Added",
+        "scope": "local-models",
+        "breaking": false
+      },
+      {
+        "id": "1e0d1af",
+        "message": "models on this computer to use, download and remove, with Ollama and LM Studio (#749)",
+        "group": "Added",
+        "scope": "model-setup",
+        "breaking": false
+      },
+      {
+        "id": "1fc0fcf",
+        "message": "the setup's page as React parts, and the studio's setup on them (#748)",
+        "group": "Added",
+        "scope": "model-setup",
+        "breaking": false
+      },
+      {
+        "id": "78a56b7",
+        "message": "@engenty/model-setup, the setup's clients, terminal and routes for the runtime and wizards.bot (#747)",
+        "group": "Added",
+        "scope": "model-setup",
+        "breaking": false
+      },
+      {
+        "id": "34ad364",
+        "message": "the Wizard among engenty's views (#744)",
+        "group": "Added",
+        "scope": "openui",
+        "breaking": false
+      },
+      {
+        "id": "bf8dc61",
+        "message": "views as A2UI v1.0 (#743)",
+        "group": "Added",
+        "scope": "chatviews",
+        "breaking": false
+      },
+      {
+        "id": "f109838",
+        "message": "views a model writes, as an OpenUI library (#742)",
+        "group": "Added",
+        "scope": "chatviews",
+        "breaking": false
+      },
+      {
+        "id": "1f02154",
+        "message": "the views' components in @engenty/chatviews/react (#741)",
+        "group": "Added",
+        "scope": "chatviews",
+        "breaking": false
+      },
+      {
+        "id": "957cc3f",
+        "message": "surfaces, calc and data shapes in their own MIT package (#738)",
+        "group": "Changed",
+        "scope": "chatviews",
+        "breaking": false
+      },
+      {
+        "id": "8c35fe8",
+        "message": "long runs as MCP tasks (#740)",
+        "group": "Added",
+        "scope": "mcp",
+        "breaking": false
+      },
+      {
+        "id": "a38338a",
+        "message": "a run's pages as questions the app shows (#739)",
+        "group": "Added",
+        "scope": "mcp",
+        "breaking": false
+      },
+      {
+        "id": "dd0f5de",
+        "message": "a client that uses a space runs a wizard to the end (#737)",
+        "group": "Fixed",
+        "scope": "mcp",
+        "breaking": false
+      },
+      {
+        "id": "fc79ec9",
+        "message": "the MCP bridge for subscription clients, shared by the runtime and wizards.bot (#736)",
+        "group": "Added",
+        "scope": "local-models",
+        "breaking": false
+      },
+      {
+        "id": "daba38f",
+        "message": "Work's engine is frozen; the wizards.bot home becomes its engine (#735)",
+        "group": "Docs",
+        "scope": "work",
+        "breaking": false
+      },
+      {
+        "id": "fdf24f4",
+        "message": "the image builds only the runtime, the studio and the packages they use (#734)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.20.6",
-    "timestamp": 1795500055,
+    "timestamp": 1795500515,
     "commits": [
       {
         "id": "02e3675",

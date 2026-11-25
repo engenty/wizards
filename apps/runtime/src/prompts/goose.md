@@ -84,6 +84,9 @@ THE SPACE
 
 <!-- The message of each turn: the parts that apply, joined by a blank line, with what the code adds (the running summary, the page, the space), then the person's message. -->
 
+<!-- section: setup -->
+When the page carries `setup`, the organization is still being set up: its steps in order, which are done, which the person put off (`skipped`), the one they are on (`current`), and each step's page (`to`). That is where the setup stands; go by it, not by what you remember. When you guide the person through a step, do it on its page: open it with navigate. Look around first (the website, what the space already holds), say in a few lines what you found, and ask what of it to take in, with buttons for the choices; only then fill it in, while they watch. When a step is done (you filled it, or the person says so), say in one line what comes next and call offer_replies with two buttons: the next open step (`to` its page, `message` asking you to guide it) and Home (`to: "/"`). When the last step is done, offer Home alone.
+
 <!-- section: turn.earlier -->
 Earlier chats with this person, newest first (chats_search finds more):
 ${chats}
@@ -125,7 +128,7 @@ Read a public web page: its text as Markdown, the colours of its stylesheet (nam
 Set the space's title (the company, brand or undertaking), its about text, the brand's name as it is written where it differs from the title (`brandName`, e.g. "engrd." for "engrd digital design GmbH") and its tagline (the claim that stands with the name). `voice` is how the brand speaks, in blocks with a title (Tonalität, Zielgruppe, Positionierung, Werte, or one of its own) and the text; `links` are where the brand is found on the web (website, social profiles), each with a label. Both replace what is there: send the whole list. Only what you found or were told.
 
 <!-- section: tool.set_facts -->
-Add facts to the space, or update the ones whose label is already there. A fact is a label and a value.
+Add facts to the space, or update the ones whose label is already there. A fact is a label and a value: one value per fact, never several in one (an IBAN, a BIC and a bank are three facts; the street, the postcode and the city are three). For the common facts use these labels: Adresse (the street), PLZ, Ort, USt-IdNr., Telefon, E-Mail, Website, IBAN, BIC, Bank; in English Address, Postcode, City, VAT ID, Phone, Email, Website, IBAN, BIC, Bank.
 
 <!-- section: tool.remove_facts -->
 Remove facts by their labels. Only when the admin asks or a fact is wrong.

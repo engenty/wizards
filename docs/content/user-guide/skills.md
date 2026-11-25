@@ -1,7 +1,7 @@
 ---
 title: Skills
 description: Instructions your wizards work by – always, or when a wizard needs one. Add them from skills.sh, upload them or write your own.
-version: 0.17.1
+version: 0.21.0
 ---
 
 A skill is a set of instructions your wizards work by: how you write, what a quote must hold, how
@@ -25,8 +25,7 @@ Each skill has one of three settings:
 - **Off.** The skill stays in the space, and no wizard sees it.
 
 A wizard reads a file of a skill when the skill’s instructions point to it. Goose sees the
-space’s skills too and reads them when they help, and so does the space’s AI in a Work chat. In a
-Work chat a skill’s scripts run too, once you switched them on for the skill.
+space’s skills too and reads them when they help.
 
 ## Add a skill
 

@@ -442,8 +442,7 @@ export const run = sqliteTable(
       onDelete: "cascade",
     }),
     /**
-     * The Work chat the run was started from; its folder lists the run's result as one of its
-     * Ergebnisse (docs/plans/org-spaces.md). Null outside a chat.
+     * The chat the run was started from, as its caller named it. Null outside a chat.
      */
     chatId: text("chat_id"),
     /**
@@ -1474,123 +1473,24 @@ export const assistantMessage = sqliteTable(
   (t) => [index("assistant_message_chat").on(t.chatId, t.createdAt)],
 );
 
-// --- Work's chats (behind `workMode`) --------------------------------------------
-// A chat belongs to a space, has members (people, later engenties) and lives in a section of
-// the space's sidebar or in none. A sub-thread is a chat with a parent. A private chat is seen by
-// its members only; any other chat by everyone of the tenant. The messages are Mastra's: a
-// memory thread per chat (thread id = chat id, resource id = the space), in Mastra's tables of
-// the same database (services/work-mastra.ts). The chat row keeps what the sidebar shows.
-
-export const chatSection = sqliteTable(
-  "chat_section",
-  {
-    id: text("id").primaryKey(),
-    tenantId: text("tenant_id").notNull(),
-    spaceId: text("space_id")
-      .notNull()
-      .references(() => space.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    position: integer("position").notNull().default(0),
-    /**
-     * With `orgSpaces` a section is a folder (Ordner, docs/plans/org-spaces.md): what every chat
-     * in it should know, read by the AI before the space's Wissen.
-     */
-    infos: text("infos").notNull().default(""),
-    /** A folder linked to a mounted folder or drive of its space (Dateien): its files are the folder's. */
-    mountId: text("mount_id").references((): AnySQLiteColumn => spaceMount.id, {
-      onDelete: "set null",
-    }),
-    createdBy: text("created_by").notNull(),
-    createdAt: createdAt(),
-  },
-  (t) => [index("chat_section_space").on(t.spaceId, t.position)],
-);
-
-export const chat = sqliteTable(
-  "chat",
-  {
-    id: text("id").primaryKey(),
-    tenantId: text("tenant_id").notNull(),
-    spaceId: text("space_id")
-      .notNull()
-      .references(() => space.id, { onDelete: "cascade" }),
-    title: text("title").notNull(),
-    sectionId: text("section_id").references(() => chatSection.id, { onDelete: "set null" }),
-    parentId: text("parent_id").references((): AnySQLiteColumn => chat.id, {
-      onDelete: "cascade",
-    }),
-    private: integer("private", { mode: "boolean" }).notNull().default(false),
-    createdBy: text("created_by").notNull(),
-    createdAt: createdAt(),
-    /** The last message's time, else when it was made: the sidebar's order. */
-    updatedAt: updatedAt(),
-    /** The last message for the sidebar: who wrote it ("ai" for the space's AI), its start. */
-    lastAuthorId: text("last_author_id"),
-    lastAuthorName: text("last_author_name"),
-    lastText: text("last_text"),
-    /** Since when the space's AI answers here; null while it doesn't. Others follow the turn. */
-    answeringSince: integer("answering_since", { mode: "timestamp_ms" }),
-  },
-  (t) => [index("chat_space").on(t.spaceId, t.updatedAt), index("chat_parent").on(t.parentId)],
-);
-
-export const chatMember = sqliteTable(
-  "chat_member",
-  {
-    chatId: text("chat_id")
-      .notNull()
-      .references(() => chat.id, { onDelete: "cascade" }),
-    kind: text("kind", { enum: ["person", "engenty"] }).notNull(),
-    /** A person's user id, an engenty's id. */
-    memberId: text("member_id").notNull(),
-    joinedAt: integer("joined_at", { mode: "timestamp_ms" }).notNull().default(now),
-  },
-  (t) => [
-    primaryKey({ columns: [t.chatId, t.kind, t.memberId] }),
-    index("chat_member_member").on(t.kind, t.memberId),
-  ],
-);
-
-/** What one person did with a chat: pinned it, archived it for themselves, read it up to when. */
-export const chatState = sqliteTable(
-  "chat_state",
-  {
-    chatId: text("chat_id")
-      .notNull()
-      .references(() => chat.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    pinnedAt: integer("pinned_at", { mode: "timestamp_ms" }),
-    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
-    /** Null: never opened, or marked unread. */
-    readAt: integer("read_at", { mode: "timestamp_ms" }),
-  },
-  (t) => [primaryKey({ columns: [t.chatId, t.userId] })],
-);
-
+// --- Held reviews -----------------------------------------------------------------
 /**
- * Something held for a person's decision. In a Work chat a call of a tool that reaches past the
- * space (`chat_id`): approve runs the stored call once with the stored arguments, deny doesn't, and
- * either way the AI hears of it. In a run a review with `approve` (`run_id`, `step_id`): the first
- * decision counts, and `next` rules read it.
+ * A run's review with `approve`, held for the people named under "Answered by" (`run_id`,
+ * `step_id`): the first decision counts, and `next` rules read it.
  */
 export const approval = sqliteTable(
   "approval",
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    chatId: text("chat_id").references(() => chat.id, { onDelete: "cascade" }),
     runId: text("run_id").references(() => run.id, { onDelete: "cascade" }),
     stepId: text("step_id"),
     /** What is held: a tool's name, or the review's title. */
     toolName: text("tool_name").notNull(),
     input: text("input", { mode: "json" }).$type<unknown>(),
-    /** Who the turn was for: the call runs with their access, and they may decide. Empty in a run. */
+    /** Who started the run; empty for a run nobody signed in started. */
     askedBy: text("asked_by").notNull(),
-    /**
-     * Whose decision it waits for: the asker's (a confirmed action, a plugin's tool), the space's
-     * admins' („Mit Freigabe“ on a connection that signs in as the space, A7), or those named under
-     * "Answered by" (a run's review).
-     */
+    /** Whose decision it waits for: those named under "Answered by" (`team`). */
     heldFor: text("held_for", { enum: ["asker", "admins", "team"] })
       .notNull()
       .default("asker"),
@@ -1603,7 +1503,6 @@ export const approval = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [
-    index("approval_chat").on(t.chatId, t.createdAt),
     index("approval_state").on(t.tenantId, t.state),
     index("approval_run").on(t.runId, t.stepId),
   ],

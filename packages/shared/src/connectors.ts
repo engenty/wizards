@@ -253,7 +253,6 @@ export interface ProtocolLine {
   actionName: string | null;
   wizardName: string | null;
   runMode: string | null;
-  chatTitle: string | null;
 }
 
 /** A page of the log; `next` loads the one after it. */

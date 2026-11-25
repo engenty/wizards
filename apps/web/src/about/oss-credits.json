@@ -97,6 +97,12 @@
       "homepage": "https://github.com/modelcontextprotocol/ext-apps"
     },
     {
+      "name": "@modelcontextprotocol/server",
+      "version": "2.4.0",
+      "license": "Apache-2.0",
+      "homepage": "https://modelcontextprotocol.io"
+    },
+    {
       "name": "ai",
       "version": "7.0.163",
       "license": "Apache-2.0",
@@ -236,12 +242,6 @@
           "homepage": "https://github.com/run-llama/liteparse#readme"
         },
         {
-          "name": "@lydell/node-pty",
-          "version": "1.1.0",
-          "license": "MIT",
-          "homepage": "https://github.com/lydell/node-pty#readme"
-        },
-        {
           "name": "@mastra/ai-sdk",
           "version": "1.11.3",
           "license": "Apache-2.0",
@@ -276,12 +276,6 @@
           "version": "0.1.5",
           "license": "Apache-2.0",
           "homepage": "https://mastra.ai"
-        },
-        {
-          "name": "@modelcontextprotocol/server",
-          "version": "2.4.0",
-          "license": "Apache-2.0",
-          "homepage": "https://modelcontextprotocol.io"
         },
         {
           "name": "@napi-rs/canvas",
@@ -653,6 +647,19 @@
           "version": "0.6.0",
           "license": "Apache-2.0",
           "homepage": "https://mastra.ai"
+        }
+      ]
+    },
+    {
+      "id": "packages/model-setup",
+      "kind": "package",
+      "label": "packages/model-setup",
+      "packages": [
+        {
+          "name": "@lydell/node-pty",
+          "version": "1.1.0",
+          "license": "MIT",
+          "homepage": "https://github.com/lydell/node-pty#readme"
         }
       ]
     },

@@ -513,9 +513,6 @@ function LineDetail({
             {t("protocol.detail.openRun")}
           </LinkButton>
         ) : null}
-        {line.chatId ? (
-          <LinkButton to={`/work/c/${line.chatId}`}>{t("protocol.detail.openChat")}</LinkButton>
-        ) : null}
         {ofSpace ? (
           <LinkButton to={`/capabilities/connectors?show=${line.connectionId}`}>
             {t("protocol.detail.openConnection")}

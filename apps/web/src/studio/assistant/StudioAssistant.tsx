@@ -34,7 +34,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createPortal, flushSync } from "react-dom";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { Mascot } from "../../brand";
 import { lang, t } from "../../lib/i18n";
 import { spokenText } from "../../lib/read-aloud";
@@ -209,6 +209,10 @@ function AnswerCard({ card, send }: { card: ChatCard; send: (message: string) =>
   if (!card.plugin && card.tool === "extraEffort") {
     return <ExtraEffortCard reason={String((card.data as { reason?: string }).reason ?? "")} />;
   }
+  if (!card.plugin && card.tool === "replies") {
+    const { replies } = card.data as { replies: Reply[] };
+    return <RepliesCard replies={replies} send={send} />;
+  }
   if (!card.plugin && card.tool === "sourceProposal") {
     return <SourceProposalCard data={card.data as SourceProposal} />;
   }
@@ -221,6 +225,49 @@ function AnswerCard({ card, send }: { card: ChatCard; send: (message: string) =>
     );
   }
   return <PluginCard card={card} send={send} />;
+}
+
+interface Reply {
+  label: string;
+  message?: string;
+  /** A page of the studio the button opens first. */
+  to?: string;
+}
+
+/** Goose's short answers as buttons: one click sends it, and the buttons step aside. */
+function RepliesCard({ replies, send }: { replies: Reply[]; send: (message: string) => void }) {
+  const navigate = useNavigate();
+  const [sent, setSent] = useState(false);
+  if (sent) {
+    return null;
+  }
+  return (
+    <div className="my-2 flex flex-wrap gap-2">
+      {replies.map((r, i) => (
+        <button
+          key={r.label}
+          type="button"
+          onClick={() => {
+            setSent(true);
+            if (r.to?.startsWith("/") && !r.to.startsWith("//")) {
+              navigate(r.to);
+            }
+            if (r.message || !r.to) {
+              send(r.message ?? r.label);
+            }
+          }}
+          className={cn(
+            "inline-flex h-8 items-center rounded-full px-3.5 font-medium text-[0.8125rem] transition",
+            i === 0
+              ? "bg-primary text-primary-foreground hover:brightness-110"
+              : "text-ink ring-1 ring-border hover:bg-paper-2",
+          )}
+        >
+          {r.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /** The chat saw demanding work: a button turns extra effort on, and the answer goes on meanwhile. */
@@ -1933,7 +1980,7 @@ function useWhereOrNull(state: AssistantState | null) {
 }
 
 const STAND_IN = {
-  layout: "bottom",
+  layout: "avatar",
   open: false,
   chat: { messages: [] },
 } as unknown as AssistantState;

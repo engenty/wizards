@@ -14,7 +14,6 @@ import { useEffect, useState } from "react";
 import { Mascot } from "../brand";
 import { useRunTheme } from "../runner/theme";
 import { fridgeSchema, fridgeShape } from "./data-shape";
-import { ChatLab } from "./view-lab-chat";
 import { cookWidget } from "./view-lab-cook";
 import { fridgePlan, fridgeView } from "./view-lab-sample";
 
@@ -245,19 +244,6 @@ export function ViewLab() {
                 onState={setCook}
               />
             ) : null}
-          </div>
-        </section>
-        <section className="flex flex-col gap-3">
-          <h2 className="font-display font-semibold text-[1.25rem]">In a Work chat</h2>
-          <p className="max-w-prose text-[0.875rem] text-ink-3">
-            Views the space's AI shows with show_view: the same catalog, and what only a chat has (a
-            Form, Refs to the space, a button that asks). The files are made here.
-          </p>
-          <div
-            className="mx-auto w-full rounded-[1.75rem] bg-paper p-4 ring-1 ring-border-soft sm:p-6"
-            style={{ maxWidth: WIDTHS[width] }}
-          >
-            <ChatLab />
           </div>
         </section>
         <details className="rounded-xl bg-card px-4 py-3 ring-1 ring-border-soft">

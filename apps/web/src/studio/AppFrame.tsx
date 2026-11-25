@@ -23,8 +23,10 @@ import {
 import {
   createContext,
   Fragment,
+  lazy,
   type ReactNode,
   type RefObject,
+  Suspense,
   useContext,
   useEffect,
   useRef,
@@ -74,11 +76,14 @@ import {
   switchable,
   useManageOrganization,
 } from "./Organizations";
-import { SidebarToggle, SpacePath } from "./SpacePath";
+import { SpacePath } from "./SpacePath";
 import { KnowledgePalette } from "./space/KnowledgePalette";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
 import { hostOf } from "./where";
+
+/** Hands the organization's setup to Goose; loaded apart, as it reads the space's parts. */
+const SetupReporter = lazy(() => import("./setup"));
 
 /** A step of the trail after the logo; the last one is the page itself. */
 export interface Crumb {
@@ -939,16 +944,7 @@ export function SidePane({ children }: { children: ReactNode }) {
   return slot ? createPortal(pane, slot) : pane;
 }
 
-export function TopBar({
-  me,
-  sidebar,
-  children,
-}: {
-  me: Me;
-  /** A page with a sidebar (Work): its switch at the start of the path. */
-  sidebar?: { open: boolean; onToggle: () => void };
-  children?: ReactNode;
-}) {
+export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
   const startsOn = useFeature("startTriggers");
   const durableOn = useFeature("durableRuns");
   // The path's first step is the space and its menu (docs/plans/org-spaces.md).
@@ -964,9 +960,6 @@ export function TopBar({
         slot ? "pr-1 pl-0.5" : "px-3 sm:px-4 md:px-5",
       )}
     >
-      {orgSpaces && sidebar && !personal ? (
-        <SidebarToggle open={sidebar.open} onToggle={sidebar.onToggle} />
-      ) : null}
       {personal ? null : orgSpaces ? <SpacePath me={me} /> : <SpaceName me={me} />}
       <div className="flex min-w-0 flex-1 items-center">
         <Trail alone={personal} />
@@ -1080,6 +1073,9 @@ export function AppFrame({
                 ) : null}
                 <UpdateBanner />
                 <ConfirmHost />
+                <Suspense fallback={null}>
+                  <SetupReporter />
+                </Suspense>
                 <InstallBanner me={me} />
                 <CloudSyncBar me={me} />
                 {full ? (
