@@ -146,7 +146,7 @@ const de: Record<Key, Line> = {
     "Eine App nennt ihren Namen, wenn sie sich verbindet. Solange Apps nicht nachweisen, wer sie sind, kommt eine umbenannte App durch; diese Liste zeigt jede Verbindung.",
   "policy.way": "Modellwahl",
   "policy.wayLead":
-    "Wie {organization} {tier} aufteilt: für Wizards, Goose und Arbeitschats. Was gerade läuft, endet so, wie es begonnen hat.",
+    "Wie {organization} {tier} aufteilt: für Wizards und Goose. Was gerade läuft, endet so, wie es begonnen hat.",
   "policy.yourOrganization": "deine Organisation",
   "policy.wayShort.A": "Vorauswahl",
   "policy.wayShort.B": "Vorgaben",
@@ -159,7 +159,7 @@ const de: Record<Key, Line> = {
     "Eine Vorgabe je Aufgabe. Alle können auf jedes Modell der Stufe wechseln, bis zum Aufwand, den ihr erlaubt.",
   "policy.way.C": "Expertenmodus",
   "policy.way.C.hint":
-    "Du legst selbst fest, welche Modelle zur Auswahl stehen, getrennt für Wizards, Goose und Arbeitschats, mit dem Aufwand, den ihr erlaubt. Neue Modelle kommen erst dazu, wenn du sie freigibst.",
+    "Du legst selbst fest, welche Modelle zur Auswahl stehen, getrennt für Wizards und Goose, mit dem Aufwand, den ihr erlaubt. Neue Modelle kommen erst dazu, wenn du sie freigibst.",
   "policy.whoPicks": "Wer das Modell wählt",
   "policy.notIn": "nicht in {tier}",
   "policy.localModels": "Lokale Modelle auf den Computern der Mitglieder",
@@ -855,17 +855,9 @@ const de: Record<Key, Line> = {
   "mode.ownView": "Meine eigene Ansicht",
   "mode.badge": "Modus: {mode}",
   "work.chats": "Chats",
-  "work.engenties": "Engenties",
-  "work.files": "Dateien",
-  "work.data": "Daten",
-  "work.results": "Ergebnisse",
   "work.waiting": "Wartet auf dich",
   "work.sections": "Abschnitte",
   "work.noSections": "Noch keine Abschnitte.",
-  "work.engentiesEmpty": "Noch keine Engenties. Sie erscheinen hier, sobald der Space welche hat.",
-  "work.filesEmpty": "Noch keine Dateien. Was in Chats landet, steht hier.",
-  "work.dataEmpty": "Noch keine Daten. Die Tabellen des Space erscheinen hier.",
-  "work.resultsEmpty": "Noch keine Ergebnisse. Was Wizards in Chats machen, steht hier.",
   "work.waitingEmpty": "Nichts wartet auf dich.",
   "work.folders": "Ordner",
   "work.waiting.critical": "Aus den Verbindungen",
@@ -2031,10 +2023,10 @@ const de: Record<Key, Line> = {
   "live.part.other": "Einstellungen",
   "live.fixFirst": "Erst beheben, dann veröffentlichen",
   "live.warnings": "Diese Schritte schlagen in einem Lauf fehl, solange die Regel so bleibt:",
-  "stepWarning.needsApproval":
-    "Bei der Verbindung „{connection}“ steht „{kind}“ auf „Mit Freigabe“. In einem Lauf wartet nichts auf eine Freigabe, darum schlägt dieser Schritt dort fehl.",
-  "stepWarning.needsApprovalAdmin": "Stell die Regel auf „Erlaubt“, dann läuft er.",
-  "stepWarning.needsApprovalMember":
+  "stepWarning.never":
+    "Bei der Verbindung „{connection}“ steht „{kind}“ auf „Nie“. Darum schlägt dieser Schritt in einem Lauf fehl.",
+  "stepWarning.neverAdmin": "Stell die Regel auf „Erlaubt“, dann läuft er.",
+  "stepWarning.neverMember":
     "Die Regel ändern die Admins des Space. Frag sie, ob „Erlaubt“ hier passt.",
   "stepWarning.openConnection": "Verbindung öffnen",
   "stepWarning.ofStep": "„{step}“: {text}",
@@ -3183,9 +3175,9 @@ const de: Record<Key, Line> = {
   "connection.youNotYet": "du noch nicht",
   "connection.rules": "Was die Verbindung darf",
   "connection.askHint":
-    "„Mit Freigabe“ braucht ein Ja der Admins des Space. Noch fragt sie niemand, die Aktion läuft also nicht. Ein fester Schritt eines Laufs schlägt dort fehl.",
+    "Bei „Mit Freigabe“ fragt die Verbindung die angemeldete Person, bevor sie die Aktion ausführt.",
   "connection.askHintMember":
-    "Du nutzt diese Verbindung in deinen Wizards und Chats. Freigaben gehen an die Admins des Space.",
+    "Bei „Mit Freigabe“ fragt dich die Verbindung, bevor sie die Aktion ausführt.",
   "connection.use": "Nutzung",
   "connection.removeConfirm":
     "„{name}“ entfernen? Wizards und Chats erreichen den Dienst dann nicht mehr. Alle Anmeldungen gehen mit.",
@@ -3732,7 +3724,6 @@ const de: Record<Key, Line> = {
   "protocol.ask.pick": "Wähle, wer was mit welcher Verbindung tun will.",
   "protocol.ask.noConnections": "Der Space hat noch keine Verbindung.",
   "protocol.ask.allow": "{who} darf in {connection} {verb}.",
-  "protocol.ask.askAdmins": "{who} darf in {connection} {verb} – mit Freigabe durch die Admins.",
   "protocol.ask.askPerson": "{who} darf in {connection} {verb} – wenn die Person zustimmt.",
   "protocol.ask.deny": "{who} darf in {connection} nicht {verb} – {why}.",
   "protocol.ask.fixedChannel":
@@ -5092,7 +5083,7 @@ const en = {
     "An app names itself when it connects. Until apps attest who they are, a renamed app gets through; this list shows every connection.",
   "policy.way": "Model choice",
   "policy.wayLead":
-    "How {organization} shares out {tier}: for wizards, Goose and work chats. Running work finishes as it started.",
+    "How {organization} shares out {tier}: for wizards and Goose. Running work finishes as it started.",
   "policy.yourOrganization": "your organization",
   "policy.wayShort.A": "preselection",
   "policy.wayShort.B": "defaults",
@@ -5105,7 +5096,7 @@ const en = {
     "A default per task. People switch to any model in the tier, up to the effort you allow.",
   "policy.way.C": "Expert mode",
   "policy.way.C.hint":
-    "You decide which models people choose from, separately for wizards, Goose and work chats, with the efforts you allow. New models join only when you approve them.",
+    "You decide which models people choose from, separately for wizards and Goose, with the efforts you allow. New models join only when you approve them.",
   "policy.whoPicks": "Who picks the model",
   "policy.notIn": "not in {tier}",
   "policy.localModels": "Local models on members’ computers",
@@ -5781,17 +5772,9 @@ const en = {
   "mode.ownView": "My own view",
   "mode.badge": "Mode: {mode}",
   "work.chats": "Chats",
-  "work.engenties": "Engenties",
-  "work.files": "Files",
-  "work.data": "Data",
-  "work.results": "Results",
   "work.waiting": "Waiting for you",
   "work.sections": "Sections",
   "work.noSections": "No sections yet.",
-  "work.engentiesEmpty": "No engenties yet. They show up here once the space has some.",
-  "work.filesEmpty": "No files yet. What lands in chats shows up here.",
-  "work.dataEmpty": "No data yet. The space’s tables show up here.",
-  "work.resultsEmpty": "No results yet. What wizards make in chats shows up here.",
   "work.waitingEmpty": "Nothing waits for you.",
   "work.folders": "Folders",
   "work.waiting.critical": "From the connections",
@@ -6929,10 +6912,10 @@ const en = {
   "live.part.other": "settings",
   "live.fixFirst": "Fix first, then publish",
   "live.warnings": "These steps fail in a run while the rule stays as it is:",
-  "stepWarning.needsApproval":
-    "The connection “{connection}” has “{kind}” on “With approval”. Nothing waits for an approval in a run, so this step fails there.",
-  "stepWarning.needsApprovalAdmin": "Set the rule to “Allowed” and it runs.",
-  "stepWarning.needsApprovalMember":
+  "stepWarning.never":
+    "The connection “{connection}” has “{kind}” on “Never”. That is why this step fails in a run.",
+  "stepWarning.neverAdmin": "Set the rule to “Allowed” and it runs.",
+  "stepWarning.neverMember":
     "The space’s admins change the rule. Ask them whether “Allowed” fits here.",
   "stepWarning.openConnection": "Open the connection",
   "stepWarning.ofStep": "“{step}”: {text}",
@@ -8055,9 +8038,9 @@ const en = {
   "connection.youNotYet": "not you yet",
   "connection.rules": "What the connection may do",
   "connection.askHint":
-    "“With approval” needs a yes from the space’s admins. Nothing asks them yet, so the action doesn’t run. A fixed step of a run fails there.",
+    "On “With approval” the connection asks the person who signed in before it runs the action.",
   "connection.askHintMember":
-    "You use this connection in your wizards and chats. Approvals go to the space’s admins.",
+    "On “With approval” the connection asks you before it runs the action.",
   "connection.use": "Use",
   "connection.removeConfirm":
     "Remove “{name}”? Wizards and chats can no longer reach the service. Every sign-in goes with it.",
@@ -8586,7 +8569,6 @@ const en = {
   "protocol.ask.pick": "Choose who wants to do what with which connection.",
   "protocol.ask.noConnections": "The space has no connection yet.",
   "protocol.ask.allow": "{who} may {verb} in {connection}.",
-  "protocol.ask.askAdmins": "{who} may {verb} in {connection} – once the admins approve.",
   "protocol.ask.askPerson": "{who} may {verb} in {connection} – once the person agrees.",
   "protocol.ask.deny": "{who} may not {verb} in {connection} – {why}.",
   "protocol.ask.fixedChannel":

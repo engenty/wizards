@@ -18,7 +18,7 @@ const KIND_WORDS: Record<ConnectionActionKind, Key> = {
 
 /** What is the matter: which connection, which rule, and what that does to the step in a run. */
 export function warningText(warning: StepWarning): string {
-  return t("stepWarning.needsApproval", {
+  return t("stepWarning.never", {
     connection: warning.connection.name,
     kind: t(KIND_WORDS[warning.action.kind]),
   });
@@ -26,7 +26,7 @@ export function warningText(warning: StepWarning): string {
 
 /** What the reader can do: an admin changes the rule, a member asks the admins. */
 export function warningAdvice(admin: boolean): string {
-  return t(admin ? "stepWarning.needsApprovalAdmin" : "stepWarning.needsApprovalMember");
+  return t(admin ? "stepWarning.neverAdmin" : "stepWarning.neverMember");
 }
 
 /** Where the rule is set: the connection's page in Fähigkeiten › Connectors. */

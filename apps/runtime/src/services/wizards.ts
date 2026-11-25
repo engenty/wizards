@@ -332,10 +332,9 @@ async function spaceConnectionIssues(spaceId: string, draft: WizardDefinition) {
 /**
  * The fixed steps of a draft that fail in a run as the space's rules are now
  * (docs/plans/capabilities-next.md, 2b): a `call` on a connection of the space whose rule for
- * that kind of action is „Mit Freigabe“ asks the space's admins, and nothing in a run waits for
- * them. The broker's own decision says so, read from the rule as it is: the warning is gone once
- * the rule says „Erlaubt“, and a wizard's own connection or a read never has one. No issue: the
- * wizard saves and publishes.
+ * that kind of action is „Nie“ is refused. The broker's own decision says so, read from the rule
+ * as it is: the warning is gone once the rule says „Erlaubt“, and a wizard's own connection
+ * never has one. No issue: the wizard saves and publishes.
  */
 export async function stepWarnings(
   spaceId: string,
@@ -370,10 +369,10 @@ export async function stepWarnings(
       actionId: action.id,
       kind,
     });
-    if (decision.outcome === "ask" && decision.admins) {
+    if (decision.outcome === "deny" && decision.rule === `rules.${kind}`) {
       warnings.push({
         stepId: step.id,
-        kind: "needs_approval",
+        kind: "rule_never",
         connection: { id: row.id, name: row.name },
         action: { id: action.id, kind },
       });

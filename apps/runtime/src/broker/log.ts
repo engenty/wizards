@@ -398,7 +398,7 @@ export interface LogQuery {
   connection?: string;
   who?: string;
   outcome?: string;
-  /** What came of the call: `ok`, a refusal (`needs_approval` holds a call for the admins), an error's class. */
+  /** What came of the call: `ok`, a refusal, an error's class. */
   result?: string;
   /** Refused: by a rule, or by the person asked. */
   refused?: boolean;

@@ -1,7 +1,7 @@
 ---
 title: Connectors
 description: Services a wizard works in for the person who runs it – built in, from the registry, by their address or brought by a plugin with its skills.
-version: 0.21.0
+version: 0.21.1
 ---
 
 **[Capabilities](./capabilities.md) › Connectors** lists the services the space’s wizards and
@@ -185,7 +185,7 @@ registry or add a server [by its address](#by-its-address). When you set one up,
 
 | Signs in | What it means |
 |---|---|
-| As the space | An admin signs the space in once, with an API key, an app token or a team account. Everyone uses that account, even when nobody is watching. On this kind of connection the AI only reads; writing happens in fixed steps or as an action someone confirms |
+| As the space | An admin signs the space in once, with an API key, an app token or a team account. Everyone uses that account, even when nobody is watching. On this kind of connection the AI only reads; writing happens in fixed steps, or from a connected app such as Claude where the rule says Allowed |
 | Each person signs in | Each person signs in once with their own account, here or in their menu › Connections. The connection then acts as that person, and asks them before it changes something |
 
 An admin can change how a connection signs in later, on its page. The sign-ins made until then go
@@ -206,11 +206,11 @@ A connection on a connector that is “not checked” starts with Admins.
 | Delete | Removing something for good |
 | Send | Sending emails and messages to others |
 
-Each rule is Allowed, With approval or Never. A new connection reads freely, asks for approval
-before a change or a send, and never deletes. Where each person signs in, With approval asks that
-person. Where the space signs in, it leaves the decision to the space’s admins. Nothing asks them,
-so the call doesn’t run: a fixed step with such a rule fails in a run, and the editor warns you
-on that step ([Capabilities](./capabilities.md#connectors)).
+Each rule is Allowed or Never. Where each person signs in, a rule can also be With approval,
+which asks that person. A new connection reads freely and never deletes. Where each person signs
+in, it asks for approval before a change or a send. Where the space signs in, it changes and sends
+nothing until an admin sets the rule to Allowed. A fixed step whose rule is Never fails in a run,
+and the editor warns you on that step ([Capabilities](./capabilities.md#connectors)).
 
 **How often.** An admin can limit a connection’s calls per run and per day. Empty means no limit.
 [Limits](./capabilities.md#limits) has the details.

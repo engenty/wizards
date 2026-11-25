@@ -16,8 +16,7 @@ workMode=on
 
 Without it, the studio looks as before: Studio alone, with no switch.
 
-Client comes with the public page, so it shows only where `pages=on` is set as well. Work’s
-places past the chats aren’t finished. They show with `workWip=on`.
+Client comes with the public page, so it shows only where `pages=on` is set as well.
 
 ## Studio, Work and Client
 
@@ -40,8 +39,7 @@ a space that doesn’t let them in lands in Work. The studio remembers your mode
 
 ## Work’s places
 
-Work’s app bar has Chats. With `workWip=on` it also has Engenties, Files, Data, Results and
-**Waiting for you**. Engenties, Files, Data and Results show nothing yet.
+Work’s app bar has Chats and **Waiting for you**.
 
 ## Chats
 

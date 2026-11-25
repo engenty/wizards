@@ -96,7 +96,7 @@ const inTenant = <T>(fn: () => Promise<T>) => client.withTenant(TENANT, fn);
 const owner = { id: "user-a", role: "owner" as const, tenantId: TENANT, name: "A", email: "a@firma.at" };
 const member = { id: "user-m", role: "member" as const, tenantId: TENANT, name: "M", email: "m@firma.at" };
 const guestRun = { runId: "run-g", spaceId: "", mode: "live" as const, guest: true };
-const RULES = { read: "allow", write: "ask", destructive: "deny", send: "deny" } as const;
+const RULES = { read: "allow", write: "deny", destructive: "deny", send: "deny" } as const;
 
 const call = (
   who: Parameters<typeof broker.brokerCall>[0]["who"],
@@ -241,7 +241,7 @@ describe("heard: the bell and the report", () => {
     const row = (await logOf(connection)).at(-1);
     expect(row).toMatchObject({ whoKind: "admin", whoId: "user-a", actionId: broker.RULE_CHANGE_ACTION, critical: true, criticalKind: "rule_changed" });
     expect(row?.reason).toMatch(/audience is now members/);
-    expect(row?.reason).toMatch(/write: ask → allow/);
+    expect(row?.reason).toMatch(/write: deny → allow/);
     expect(reported).toEqual([]);
     await reports.reportCriticalDaily();
     expect(reported).toHaveLength(1);

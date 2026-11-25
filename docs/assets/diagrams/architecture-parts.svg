@@ -30,7 +30,7 @@
 <text x="100.0" y="62.0" class="d-t" text-anchor="middle">Studio</text>
 <text x="100.0" y="78.5" class="d-s" text-anchor="middle">build wizards</text>
 <text x="240.0" y="62.0" class="d-t" text-anchor="middle">Work</text>
-<text x="240.0" y="78.5" class="d-s" text-anchor="middle">chats in a space</text>
+<text x="240.0" y="78.5" class="d-s" text-anchor="middle">the team’s chats</text>
 <text x="425.0" y="62.0" class="d-t" text-anchor="middle">Published Wizards</text>
 <text x="425.0" y="78.5" class="d-s" text-anchor="middle">(durable Agents)</text>
 <text x="34" y="144" class="d-zl" text-anchor="start">Runtime · RUNTIME_ROLE</text>

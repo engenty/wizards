@@ -396,16 +396,16 @@ describe("a draft's warnings", () => {
     const blank = await call(client, "get_wizard", { wizardId });
     expect(blank.body.warnings).toEqual([]);
 
-    // A connection of the space, new: Senden is on „Mit Freigabe“, and a run waits for nobody.
+    // A connection of the space, new: Senden is on „Nie“.
     const { withTenant } = await import("../src/db/client");
     const connections = await import("../src/connectors/space-connections");
-    const { DEFAULT_CONNECTION_RULES } = await import("@engenty/wizards-shared/connectors");
+    const { startConnectionRules } = await import("@engenty/wizards-shared/connectors");
     const row = await withTenant("local", () =>
       connections.createSpaceConnection("local", blank.body.spaceId, {
         connectorId: "smtp",
         name: "Bestellungen",
         signIn: "space",
-        rules: DEFAULT_CONNECTION_RULES,
+        rules: startConnectionRules("space"),
         actions: [],
       }),
     );
@@ -439,11 +439,11 @@ describe("a draft's warnings", () => {
     expect(written.body.issues).toEqual([]);
     const warning = {
       stepId: "send",
-      kind: "needs_approval",
+      kind: "rule_never",
       connection: { id: row.id, name: "Bestellungen" },
       action: { id: "send_message", kind: "send" },
       message: expect.stringMatching(
-        /^Step "send" will fail in a run: the connection "Bestellungen" asks the space's admins before the action "send_message" \(send\)/,
+        /^Step "send" will fail in a run: the connection "Bestellungen" never allows the action "send_message" \(send\)/,
       ),
     };
     expect(written.body.warnings).toEqual([warning]);
@@ -458,7 +458,7 @@ describe("a draft's warnings", () => {
     expect(edited.body.warnings).toEqual([warning]);
     await withTenant("local", () =>
       connections.updateSpaceConnection("local", row.id, {
-        rules: { ...DEFAULT_CONNECTION_RULES, send: "allow" },
+        rules: { ...startConnectionRules("space"), send: "allow" },
       }),
     );
     expect((await call(client, "get_wizard", { wizardId })).body.warnings).toEqual([]);

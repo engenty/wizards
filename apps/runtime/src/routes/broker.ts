@@ -77,7 +77,7 @@ const logSchema = z.object({
   connection: z.string().min(1).max(200).optional(),
   who: z.enum(WHO).optional(),
   outcome: z.enum(["allow", "ask", "deny"]).optional(),
-  /** What came of the call: `ok`, a refusal (`needs_approval`: held for the admins), an error's class. */
+  /** What came of the call: `ok`, a refusal, an error's class. */
   result: z.string().min(1).max(80).optional(),
   /** Refused by a rule or by the person asked. */
   refused: flag,
@@ -308,7 +308,6 @@ export const brokerRoutes = new Hono<Vars>()
       rule: decision.rule,
       reason: decision.reason,
       ...(decision.refused ? { refused: decision.refused } : {}),
-      ...(decision.admins ? { admins: true } : {}),
       ...(fixedChannel ? { fixedChannel: true } : {}),
     });
   })

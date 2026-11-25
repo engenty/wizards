@@ -100,7 +100,7 @@ export function sandboxCapabilities(): SandboxCapabilities | null {
   return sandboxEngine()?.capabilities() ?? null;
 }
 
-/** A Work chat's sandbox, on the server's engine. A run's goes through its RunResources. */
+/** An outside client's sandbox, on the server's engine. A run's goes through its RunResources. */
 export function createSandbox(runId: string): Sandbox {
   const engine = sandboxEngine();
   if (!engine) {

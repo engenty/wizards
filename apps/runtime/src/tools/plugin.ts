@@ -178,9 +178,6 @@ export interface AssistantTurn {
   card(card: { plugin: string; tool: string; data: unknown }): void;
 }
 
-/** What a plugin's assistant tool says it does (`risk`), by the tool made of it; null: unmarked. */
-export const assistantToolRisk = new WeakMap<object, "read" | "space" | "outside" | null>();
-
 /** Which plugin a tool of the space assistant comes from, by the tool made of it. */
 export const assistantToolPlugin = new WeakMap<object, string>();
 
@@ -196,7 +193,7 @@ export async function assistantToolsOf(turn: AssistantTurn): Promise<Record<stri
         inputSchema: tool.inputSchema,
         execute: (input) =>
           attempt(async () => {
-            // A Work chat's tool calls as the person in the chat.
+            // The tool calls as the person in the chat.
             const caller: Caller = {
               who: { kind: "person", id: turn.userId },
               where: { spaceId: turn.space.id },
@@ -217,36 +214,10 @@ export async function assistantToolsOf(turn: AssistantTurn): Promise<Record<stri
             return result;
           }),
       });
-      assistantToolRisk.set(tools[id], tool.risk ?? null);
       assistantToolPlugin.set(tools[id], plugin.source.id);
     }
   }
   return tools;
-}
-
-export interface AssistantToolLabel {
-  /** The plugin's name. */
-  plugin: string;
-  /** The tool's own name, without the plugin's. */
-  tool: string;
-  label: { de: string; en: string } | null;
-}
-
-/** How a Work chat names the plugins' assistant tools in its step lines, by the model's name. */
-export async function assistantToolLabels(
-  tenantId: string,
-): Promise<Record<string, AssistantToolLabel>> {
-  const labels: Record<string, AssistantToolLabel> = {};
-  for (const plugin of await pluginsOf(tenantId)) {
-    for (const tool of plugin.assistantTools.values()) {
-      labels[pluginToolName(plugin.source.id, tool.name)] = {
-        plugin: plugin.source.manifest.name,
-        tool: tool.name,
-        label: tool.label ?? null,
-      };
-    }
-  }
-  return labels;
 }
 
 /**

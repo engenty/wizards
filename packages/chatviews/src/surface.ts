@@ -19,8 +19,9 @@ import { type FieldShape, type ListShape, type ObjectShape, shapeAt } from "./sh
  * worked out from the data and the row (calc.ts); it takes the same `map` and `format`, and both
  * take `as` ("number", "percent") to write a number in the wizard's locale.
  *
- * A chat's view (Work, `show_view`) may also ask: a `Form` of `Field`s, a `Ref` to a thing of the
- * space, a Button that asks the AI. A wizard asks in its forms, so its views take none of them.
+ * A chat's view (`show_view` on a Bot Server) may also ask: a `Form` of `Field`s, a `Ref` to a
+ * thing of the space, a Button that asks the AI. A wizard asks in its forms, so its views take
+ * none of them.
  * A wizard's views have `Choice`, `Toggle` and `Slider`: what the person sets there is view state,
  * kept with the run under the `state` name, which paths and calc read like a data key.
  */

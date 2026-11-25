@@ -1,7 +1,7 @@
 ---
 title: Working together
 description: How the studio shows what others change while you work, merges it with what you type, shows who else is in a wizard, page or table, where an organization’s settings are, and who may use the studio.
-version: 0.16.2
+version: 0.21.1
 ---
 
 The studio shows changes made elsewhere as they happen. You don’t reload anything. That holds
@@ -69,7 +69,7 @@ Admins decide for each space whether its members may use the studio: in the spac
 
 With it on, members build and test wizards in that space. They add and change skills, knowledge
 and data, and use the connections open to them. Admins still publish wizards and share them
-outside the space, set up connections and change their rules. Approvals go to the admins. In the
+outside the space, set up connections and change their rules. In the
 [Audit](./protocol.md) admins see every line, and a member sees their own. With it off, members
 work in Work and run the space’s wizards there.
 

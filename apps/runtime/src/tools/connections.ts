@@ -16,15 +16,14 @@ import { resolveConnector } from "../connectors/external.js";
 import type { SpaceConnectionRow } from "../connectors/space-connections.js";
 import type { ConnectorAction, ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { prompt } from "../prompts.js";
-import type { AssistantToolLabel } from "./plugin.js";
 import { attempt, clip } from "./shared.js";
 
 /*
- * The connections of a space as tools of a chat (docs/plans/capabilities.md, A7): a Work chat's
- * AI and Goose. Each action of a connection the caller may use becomes one tool. A read runs
- * through the broker at once; a write, a send or a delete is a confirmed action: the AI fills in
- * its fields, and what happens then is the chat's (`write`): a Work chat holds the call for the
- * person, Goose asks its person. Steps take their tools from `connector.ts`.
+ * The connections of a space as tools of a chat (docs/plans/capabilities.md, A7): Goose. Each
+ * action of a connection the caller may use becomes one tool. A read runs through the broker at
+ * once; a write, a send or a delete is a confirmed action: the AI fills in its fields, and what
+ * happens then is the chat's (`write`): Goose asks its person. Steps take their tools from
+ * `connector.ts`.
  */
 
 /** A connection with its connector and the actions the caller may use through it. */
@@ -109,8 +108,6 @@ export function connectionRefusalNote(refused: Refusal, service: string): string
       return prompt("tools", "note.connection_nobody");
     case "declined":
       return prompt("tools", "note.connector_declined");
-    case "needs_approval":
-      return prompt("tools", "note.connector_needs_approval", { service });
     case "paused":
       return prompt("tools", "note.connector_paused", { service });
     case "calls_per_run":
@@ -156,8 +153,7 @@ const sentence = (text: string) => (/[.!?]$/.test(text.trim()) ? text.trim() : `
 
 /**
  * The tools: reads call the broker as `who`; a write, a send or a delete is a confirmed action
- * (`writeNote` says so to the model) that `write` runs. `labels` says how the chat names each
- * tool: the connection, then the action.
+ * (`writeNote` says so to the model) that `write` runs.
  */
 export function makeConnectionTools(options: {
   tools: ConnectionTool[];
@@ -169,11 +165,9 @@ export function makeConnectionTools(options: {
 }): {
   tools: Record<string, unknown>;
   writes: Set<string>;
-  labels: Record<string, AssistantToolLabel>;
 } {
   const tools: Record<string, unknown> = {};
   const writes = new Set<string>();
-  const labels: Record<string, AssistantToolLabel> = {};
   for (const tool of options.tools) {
     const { row, connector, action, name } = tool;
     const service = `${row.name} (${connector.name})`;
@@ -201,7 +195,6 @@ export function makeConnectionTools(options: {
     if (!read) {
       writes.add(name);
     }
-    labels[name] = { plugin: row.name, tool: action.summary || action.id, label: null };
   }
-  return { tools, writes, labels };
+  return { tools, writes };
 }

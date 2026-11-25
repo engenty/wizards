@@ -3,13 +3,13 @@ import {
   CONNECTION_ACTION_KINDS,
   CONNECTION_AUDIENCES,
   CONNECTION_LIMITS,
-  CONNECTION_OUTCOMES,
   CONNECTION_SIGN_INS,
   type ConnectionActionKind,
   type ConnectionAudience,
   type ConnectionOutcome,
   type ConnectionSignIn,
   type ConnectorView,
+  connectionOutcomes,
   reachedByGuests,
   type SpaceConnectionView,
 } from "@engenty/wizards-shared/connectors";
@@ -1091,7 +1091,7 @@ function ConnectionPage({
                       onChange={(outcome) =>
                         patch.mutate({ rules: { ...c.rules, [kind]: outcome } })
                       }
-                      options={CONNECTION_OUTCOMES.map((id) => ({
+                      options={connectionOutcomes(c.signIn).map((id) => ({
                         id,
                         label: t(OUTCOME_LABEL[id]),
                       }))}
@@ -1105,9 +1105,11 @@ function ConnectionPage({
               </div>
             );
           })}
-          <p className="text-[0.8125rem] text-ink-3">
-            {writable ? t("connection.askHint") : t("connection.askHintMember")}
-          </p>
+          {c.signIn === "person" ? (
+            <p className="text-[0.8125rem] text-ink-3">
+              {writable ? t("connection.askHint") : t("connection.askHintMember")}
+            </p>
+          ) : null}
         </div>
 
         <div className="border-border-soft border-t" />

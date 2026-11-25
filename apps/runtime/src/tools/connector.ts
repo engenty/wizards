@@ -145,8 +145,6 @@ function refusalNote(refused: Refusal, service: string): string {
         : prompt("tools", "note.connector_nobody");
     case "declined":
       return prompt("tools", "note.connector_declined");
-    case "needs_approval":
-      return prompt("tools", "note.connector_needs_approval", { service });
     case "ai_step_writes":
       return prompt("tools", "note.connector_ai_step_writes", { service });
     case "paused":
