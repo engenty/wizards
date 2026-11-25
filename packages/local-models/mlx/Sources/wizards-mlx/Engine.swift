@@ -143,6 +143,15 @@ actor Engine {
                     name: call.function.name, arguments: call.function.arguments)
                 await Out.shared.send(
                     Chunk(id: id, message: .init(tool_calls: [.init(function: function)])))
+            case .rejectedToolCall(let call):
+                // The host answers a call of a tool it did not offer; one that cannot be read is an
+                // error, never an answer without a word.
+                guard let function = Self.function(of: call) else {
+                    throw Unreadable(reason: call.reason.rawValue)
+                }
+                first = first ?? Date()
+                await Out.shared.send(
+                    Chunk(id: id, message: .init(tool_calls: [.init(function: function)])))
             case .info(let info):
                 await Out.shared.send(
                     Chunk(
@@ -178,6 +187,27 @@ actor Engine {
             return try await held.cache(id, prompts[0], upTo: shared, model, parameters).1
         }
         await Out.shared.send(Chunk(id: id, done: true, done_reason: "stop", cached: known))
+    }
+
+    struct Unreadable: Error, CustomStringConvertible {
+        let reason: String
+        var description: String { "The model wrote a tool call that cannot be read (\(reason))." }
+    }
+
+    private struct Called: Decodable {
+        var name: String
+        var arguments: [String: JSONValue]?
+        var parameters: [String: JSONValue]?
+    }
+
+    /// What a call the library did not pass on was meant to be.
+    private static func function(of call: RejectedToolCall) -> Chunk.Function? {
+        let text = call.rawTextPreview
+        guard !call.isPreviewTruncated, let from = text.firstIndex(of: "{"),
+            let to = text.lastIndex(of: "}"), from < to,
+            let called = try? JSONDecoder().decode(Called.self, from: Data(text[from...to].utf8))
+        else { return nil }
+        return .init(name: called.name, arguments: called.arguments ?? called.parameters ?? [:])
     }
 
     /// How many tokens two prompts start with in common.
