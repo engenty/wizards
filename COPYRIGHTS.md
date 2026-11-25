@@ -121,11 +121,9 @@ Declared by two or more of the workspaces below:
 | [@executor-js/plugin-openapi](https://github.com/UsefulSoftwareCo/executor/tree/main/packages/plugins/openapi) | 1.6.11 | MIT |
 | [@libsql/client](https://github.com/tursodatabase/libsql-client-ts#readme) | 0.18.0 | MIT |
 | [@llamaindex/liteparse](https://github.com/run-llama/liteparse#readme) | 2.18.0 | Apache-2.0 |
-| [@mastra/ai-sdk](https://mastra.ai) | 1.11.3 | Apache-2.0 |
 | [@mastra/core](https://mastra.ai) | 1.82.0 | Apache-2.0 |
 | [@mastra/docker](https://mastra.ai) | 0.13.0 | Apache-2.0 |
 | [@mastra/libsql](https://mastra.ai) | 1.29.0 | Apache-2.0 |
-| [@mastra/memory](https://mastra.ai) | 1.41.0 | Apache-2.0 |
 | [@mastra/quickjs](https://mastra.ai) | 0.1.5 | Apache-2.0 |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 1.0.13 | MIT |
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.3 | MIT |
@@ -152,7 +150,6 @@ Declared by two or more of the workspaces below:
 
 | Package | Version | Licence |
 |---|---|---|
-| [@ai-sdk/react](https://ai-sdk.dev/docs) | 4.0.167 | Apache-2.0 |
 | [@base-ui/react](https://base-ui.com) | 1.9.0 | MIT |
 | @codemirror/autocomplete | 6.20.4 | MIT |
 | @codemirror/commands | 6.11.1 | MIT |
@@ -166,7 +163,6 @@ Declared by two or more of the workspaces below:
 | [@dagrejs/dagre](https://github.com/dagrejs/dagre#readme) | 3.1.3 | MIT |
 | [@floating-ui/dom](https://floating-ui.com) | 1.8.0 | MIT |
 | @lezer/highlight | 1.2.5 | MIT |
-| [@shadcn/react](https://ui.shadcn.com) | 0.3.1 | MIT |
 | [@tanstack/react-query](https://tanstack.com/query) | 5.106.1 | MIT |
 | [@tiptap/core](https://tiptap.dev) | 3.32.2 | MIT |
 | [@tiptap/extension-bubble-menu](https://tiptap.dev) | 3.32.2 | MIT |

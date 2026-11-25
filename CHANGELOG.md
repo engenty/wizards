@@ -4,6 +4,10 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.21.1] - 2026-11-25
+- ADDED **[work]** Work's chats are the team's Bot Server, and the studio's own chat engine goes (#755)
+- ADDED **[studio]** Goose guides Home's setup with buttons, and the setup takes the page's width (#754)
+
 ## [0.21.0] - 2026-11-25
 - ADDED **[tool-harness]** One harness around an agent's tools, with a search by words and meaning (#751)
 - ADDED **[local-models]** Apple MLX beside Ollama and LM Studio (#750)
