@@ -2,17 +2,15 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal as Xterm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
+import { cn } from "@engenty/chatviews/react/ui";
 import { useEffect, useRef } from "react";
-import { withBase } from "@/lib/base";
-import { api } from "../lib/api";
-import { cn } from "../ui";
-import { openExternal } from "./LocalRuntime";
+import { useSetupHost } from "./host.js";
 
 /**
- * A terminal of the runtime, shown inline: what the command prints arrives as a stream, every
- * key goes back to it. The runtime keeps the session; this is its screen and keyboard.
+ * A terminal of the host, shown inline: what the command prints arrives as a stream, every key
+ * goes back to it. The host keeps the session; this is its screen and keyboard.
  */
-export function Terminal({
+export default function Terminal({
   id,
   onExit,
   onDone,
@@ -25,16 +23,18 @@ export function Terminal({
   onDone?: () => void;
   className?: string;
 }) {
-  const host = useRef<HTMLDivElement>(null);
+  const el = useRef<HTMLDivElement>(null);
+  const api = useRef(useSetupHost());
   const exit = useRef(onExit);
   exit.current = onExit;
   const done = useRef(onDone);
   done.current = onDone;
   useEffect(() => {
-    const el = host.current;
-    if (!el) {
+    const at = el.current;
+    if (!at) {
       return;
     }
+    const host = api.current;
     const term = new Xterm({
       fontSize: 13,
       lineHeight: 1.2,
@@ -51,9 +51,9 @@ export function Terminal({
     const fit = new FitAddon();
     term.loadAddon(fit);
     // A sign-in link the browser did not open by itself: a click opens it.
-    term.loadAddon(new WebLinksAddon((_event, uri) => openExternal(uri)));
-    term.open(el);
-    const path = `/api/studio/local/terminal/${id}`;
+    term.loadAddon(new WebLinksAddon((_event, uri) => host.open(uri)));
+    term.open(at);
+    const path = `/terminal/${id}`;
     const quiet = () => undefined;
     const sync = () => {
       try {
@@ -61,24 +61,24 @@ export function Terminal({
       } catch {
         // not laid out yet
       }
-      void api.post(`${path}/resize`, { cols: term.cols, rows: term.rows }).catch(quiet);
+      void host.post(`${path}/resize`, { cols: term.cols, rows: term.rows }).catch(quiet);
     };
     sync();
     const observer = new ResizeObserver(sync);
-    observer.observe(el);
-    const input = term.onData((data) => void api.post(`${path}/input`, { data }).catch(quiet));
-    const source = new EventSource(withBase(`${path}/stream`), { withCredentials: true });
-    source.addEventListener("data", (e) => {
-      term.write((JSON.parse((e as MessageEvent).data) as { data: string }).data);
-    });
-    source.addEventListener("done", () => done.current?.());
-    source.addEventListener("exit", (e) => {
-      source.close();
-      exit.current?.((JSON.parse((e as MessageEvent).data) as { code: number }).code);
+    observer.observe(at);
+    const input = term.onData((data) => void host.post(`${path}/input`, { data }).catch(quiet));
+    const stop = host.follow(id, (event) => {
+      if (event.type === "data") {
+        term.write(event.data);
+      } else if (event.type === "done") {
+        done.current?.();
+      } else {
+        exit.current?.(event.code);
+      }
     });
     term.focus();
     return () => {
-      source.close();
+      stop();
       observer.disconnect();
       input.dispose();
       term.dispose();
@@ -86,7 +86,7 @@ export function Terminal({
   }, [id]);
   return (
     <div
-      ref={host}
+      ref={el}
       className={cn(
         "h-[28rem] max-h-[60dvh] w-full overflow-hidden rounded-lg bg-[#0f1424] p-2",
         className,

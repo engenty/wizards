@@ -13,6 +13,7 @@ const TABLES = [
   ["apps/web/src/lib/i18n.ts", "const en", "const de", ""],
   ["apps/portal/src/i18n.ts", "const en", "const de", "portal:"],
   ["packages/shared/src/runner-texts.ts", "const en", "const de", ""],
+  ["packages/model-setup/src/texts.ts", "const en", "const de", "setup:"],
   ["apps/runtime/src/texts.ts", "const EN", "const DE", "server:"],
   ["packages/shared/src/run.ts", "const NOTES_EN", "const NOTES_DE", "run:"],
   ["packages/shared/src/marketplace.ts", "const MARKET_EN", "const MARKET_DE", "market:"],
