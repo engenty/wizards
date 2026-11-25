@@ -1,8 +1,9 @@
 # Plan: release 0.20, Work and the page
 
 Status: plan, written on 2026-11-16 against `main` at `4bbbfd0b`. Branch `release/0.20.x`.
-The next lines follow it: 0.21 the new wizards format (`release/0.21.x`), 0.22 the move to the
-wizards domains (`release/0.22.x`).
+The next lines follow it: 0.21 the tool harness (2026-11-25), 0.22 the new wizards format, 0.23 the
+move to the wizards domains. The branches `release/0.21.x` and `release/0.22.x` were cut before this
+order and hold nothing of their own.
 
 ## In short
 
