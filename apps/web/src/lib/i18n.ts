@@ -4203,6 +4203,15 @@ const de: Record<Key, Line> = {
   "space.membersStudio": "Mitglieder dürfen ins Studio",
   "space.membersStudioHint":
     "Alle Mitglieder bauen und testen hier Wizards und pflegen Skills, Wissen und Daten. Veröffentlichen, Verbindungen und Regeln bleiben bei den Admins.",
+  "space.evalShare": "Läufe bewerten",
+  "space.evalShareHint":
+    "Wie viele fertige Läufe bewertet werden, bei Wizards, die ihre Läufe bewerten. Eine Bewertung mit einem Modell kostet Credits wie jeder Schritt.",
+  "space.evalShare.none": "Keine",
+  "space.evalShare.tenth": "Jeden zehnten",
+  "space.evalShare.quarter": "Jeden vierten",
+  "space.evalShare.half": "Jeden zweiten",
+  "space.evalShare.all": "Alle",
+  "space.evalShare.some": "{n} von 100",
   "space.title": "Titel",
   "space.titleHint":
     "Firma, Marke oder Vorhaben – so sehen es auch alle, die deine Wizards nutzen.",
@@ -9091,6 +9100,15 @@ const en = {
   "space.membersStudio": "Members can use the studio",
   "space.membersStudioHint":
     "Every member builds and tests wizards here and adds skills, knowledge and data. Publishing, connections and rules stay with the admins.",
+  "space.evalShare": "Score runs",
+  "space.evalShareHint":
+    "How many finished runs are scored, for wizards that score their runs. Scoring with a model costs credits, like any step.",
+  "space.evalShare.none": "None",
+  "space.evalShare.tenth": "One in ten",
+  "space.evalShare.quarter": "One in four",
+  "space.evalShare.half": "One in two",
+  "space.evalShare.all": "All",
+  "space.evalShare.some": "{n} in 100",
   "space.title": "Title",
   "space.titleHint": "Company, brand or undertaking – people using your wizards see it too.",
   "space.about": "About",

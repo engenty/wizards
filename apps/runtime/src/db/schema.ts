@@ -165,6 +165,11 @@ export const space = sqliteTable(
      * its admins (services/members-studio.ts). One rule for all members; admins set it.
      */
     membersStudio: integer("members_studio", { mode: "boolean" }).notNull().default(false),
+    /**
+     * Of a hundred finished runs of a wizard in version 0.3.0, how many its evals judge
+     * (docs/plans/kernel.md, item 13). 0, the default: none. Admins set it in the space's Info.
+     */
+    evalShare: integer("eval_share").notNull().default(0),
     /** Who of the organization sees the space: everyone, or only its members (docs/plans/org-spaces.md). */
     access: text("access", { enum: ["all", "members"] })
       .notNull()

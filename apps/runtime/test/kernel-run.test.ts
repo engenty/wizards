@@ -387,23 +387,47 @@ describe("a wait", () => {
   });
 });
 
+/** Sets how many of a hundred finished runs the evals of the wizard's space judge. */
+const judgeShare = (wizardId: string, share: number) =>
+  client.withTenant(T, async () => {
+    const w = await client.db.query.wizard.findFirst({ where: eq(client.schema.wizard.id, wizardId) });
+    await client.db.update(client.schema.space).set({ evalShare: share }).where(eq(client.schema.space.id, w?.spaceId ?? ""));
+  });
+/** Takes the run through its two reviews and its signal to its end. */
+async function toTheEnd(id: string) {
+  await rests(id, "waiting_input");
+  await answer(id, 2, { approved: true });
+  await rests(id, "waiting_input");
+  await answer(id, (await waitingRow(id)).n, { approved: true });
+  await rests(id, "waiting_signal");
+  await answer(id, (await waitingRow(id)).n, { came: true });
+  await rests(id, "done");
+}
+const scoresOf = (id: string) =>
+  client.withTenant(T, () => client.db.select().from(client.schema.runScore).where(eq(client.schema.runScore.runId, id)));
+
 describe("evals", () => {
-  it("judge a finished run where the runtime is told to, and keep their scores", async () => {
-    process.env.KERNEL_EVALS = "1";
+  it("judge no finished run where the space has not turned them on", async () => {
     price.next = [3000];
-    const id = await startOf(await exampleWizard("offer", { "wizard.ts": "export {};\n" }), input);
-    await rests(id, "waiting_input");
-    await answer(id, 2, { approved: true });
-    await rests(id, "waiting_input");
-    await answer(id, (await waitingRow(id)).n, { approved: true });
-    await rests(id, "waiting_signal");
-    await answer(id, (await waitingRow(id)).n, { came: true });
-    await rests(id, "done");
-    delete process.env.KERNEL_EVALS;
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    await judgeShare(w.id, 0);
+    const id = await startOf(w, input);
+    await toTheEnd(id);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(await scoresOf(id)).toEqual([]);
+  });
+
+  it("judge a finished run where the space says all of them, and keep their scores", async () => {
+    price.next = [3000];
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    await judgeShare(w.id, 100);
+    const id = await startOf(w, input);
+    await toTheEnd(id);
+    await judgeShare(w.id, 0);
     // judging follows the run's end: wait for the scores
     let scores: { eval: string; score: number | null }[] = [];
     for (let i = 0; i < 100 && scores.length < 3; i++) {
-      scores = await client.withTenant(T, () => client.db.select().from(client.schema.runScore).where(eq(client.schema.runScore.runId, id)));
+      scores = await scoresOf(id);
       await new Promise((r) => setTimeout(r, 25));
     }
     expect(scores.map((s) => [s.eval, s.score]).sort()).toEqual([
