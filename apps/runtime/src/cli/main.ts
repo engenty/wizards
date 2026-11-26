@@ -46,6 +46,7 @@ const COMMANDS = [
   "move-files",
   "move-folder-sources",
   "validate",
+  "check",
   "uninstall",
 ];
 
@@ -185,7 +186,7 @@ function parse(argv: string[]): Args | string {
       args.engine = arg;
     } else if (["connect", "disconnect", "features"].includes(args.command)) {
       args.apps.push(arg);
-    } else if (args.command === "validate") {
+    } else if (args.command === "validate" || args.command === "check") {
       args.paths.push(arg);
     } else if (args.command) {
       return `Unexpected argument “${arg}”.`;
@@ -287,6 +288,9 @@ async function main(argv: string[]): Promise<number> {
       // The paths are the person's, from where they typed the command (install-env.ts).
       process.chdir(startedIn);
       return validateCommand(args.paths, args.json);
+    case "check":
+      process.chdir(startedIn);
+      return (await import("./check.js")).checkCommand(args.paths, args.json);
     default:
       console.error(`Unknown command “${args.command}”. ${SEE_HELP}`);
       return 2;

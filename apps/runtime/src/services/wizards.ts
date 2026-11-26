@@ -30,6 +30,7 @@ import { answeringNarrowed, whoOf } from "../engine/answerers.js";
 import { wizardAgentFiles } from "../engine/wizard-code.js";
 import { env } from "../env.js";
 import { getBlob } from "../files/blobs.js";
+import { draftCodeIssues } from "../kernel/check.js";
 import { managed, tenantMembers } from "../manage.js";
 import { saidOf } from "../model-errors.js";
 import { pluginToolsOf } from "../plugins/registry.js";
@@ -398,8 +399,8 @@ async function draftDataIssues(draft: WizardDefinition, files: WorkspaceFile[]) 
 }
 
 /**
- * Everything wrong with a draft: its structure, its workspace files and the skills and SQL among
- * them, its space's connectors and plugins.
+ * Everything wrong with a draft: its structure, its workspace files and the skills, SQL and step
+ * files among them, its space's connectors and plugins.
  */
 export async function checkDraft(
   spaceId: string,
@@ -413,6 +414,8 @@ export async function checkDraft(
     ),
     ...(files ? await workspaceSkillIssues(files) : []),
     ...(files ? await draftDataIssues(draft, files) : []),
+    // A wizard in version 0.3.0: its step files compiled, and their ways against the map.
+    ...(files && draft.kernel ? await draftCodeIssues(draft.kernel, files) : []),
     ...(await connectorIssues(spaceId, draft)),
     ...(await spaceConnectionIssues(spaceId, draft)),
     ...(await pluginIssues(draft)),

@@ -241,6 +241,21 @@ it("fails a run whose step does not compile, and says where", async () => {
   expect(row.error).toContain('steps/bad.ts:1: A step imports files of its own workspace only, not "node:fs".');
 });
 
+it("says in a draft's issues that a step does not compile, before any run", async () => {
+  const bad = { ...file, start: "bad", edges: { bad: ["end"] }, limits: {}, output: {} };
+  const issues = await client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(bad) as never });
+    await files.seedFiles(created.id, { "steps/bad.ts": 'export default async (run, ask) => {\n  return { value: 1, to: "elsewhere" };\n};\n' });
+    const first = await wizards.draftIssues(await wizards.ownedWizard("u", created.id));
+    await files.writeFile("u", created.id, "steps/bad.ts", new TextEncoder().encode("export default async (run, ask) => {\n  return {;\n};\n"));
+    const second = await wizards.draftIssues(await wizards.ownedWizard("u", created.id));
+    return { first: first.map((i) => i.message), second: second.map((i) => i.message) };
+  });
+  expect(issues.first).toEqual(['steps/bad.ts goes to "elsewhere", and the map has no such way from "bad".']);
+  expect(issues.second).toHaveLength(1);
+  expect(issues.second[0]).toMatch(/^steps\/bad\.ts:2: /);
+});
+
 it("leaves a wizard in version 0.2.0 to today's engine", async () => {
   const id = await client.withTenant(T, async () => {
     const def = { version: 1, title: "Old", description: "", avatar: "round", steps: [{ id: "write", type: "agent", title: "Write", instructions: "Do it.", tools: [], output: { format: "text" } }, { id: "done", type: "result", title: "Done", deliverables: [] }] };

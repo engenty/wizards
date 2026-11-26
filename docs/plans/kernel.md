@@ -27,7 +27,7 @@ than the tenant's database, prices.
 | A.4 QuickJS as the second way | Built, with `btoa` and `atob`, which steps written for ordinary code expect | `quickjs.ts`, `compile.ts` |
 | B.5 The file's schema | Built | `packages/shared/src/definition.ts`, `kernel-file.ts` |
 | B.6 Compiling | Built, when a run is driven, kept in memory by the files' hash. The types of a file's input and steps are made by `typesOf`; nothing writes them beside a wizard at save yet. | `apps/runtime/src/kernel/wizard.ts`, `packages/kernel/src/types-of.ts` |
-| B.7 The check | The file against its step files, in `validateWizard`; a folder checked and compiled by `checkDir` in the package. No `wizards check` command in the CLI yet. | `definition.ts`, `packages/kernel/src/check-dir.ts` |
+| B.7 The check | Built: the file against its step files in `validateWizard`, and the code read without running it in `kernelCodeIssues`: every step and eval compiled, each way a step's code takes against the map. A draft's issues, `validate_wizard`, `wizards validate` and `wizards check` all say it. `wizards check` is not in the help yet. | `definition.ts`, `kernel/check.ts`, `cli/check.ts`, `packages/kernel/src/check-dir.ts` |
 | C.8 Tables and store | Built | `run_row`, `run_score`, `kernel/store.ts` |
 | C.9 Batteries | Built over today's step executors. A step that asks the person for a yes becomes a row. | `kernel/batteries.ts` |
 | C.10 Entry points | Built: start, the line, answers, back, retry, cancel, the clock, the report, and signals by address: the row a run waits at is written where senders look, and a signal for it answers the row. | `kernel/host.ts`, `kernel/signals.ts`, `engine/runner.ts` |
@@ -181,6 +181,15 @@ Tests named here run alone, as the repository asks:
 7. **The check.** `describe`, the compile, and the wizard's tests where it has some.
    `wizards check` in `bin/wizards.mjs`, and the same behind `validate_wizard`
    (`apps/runtime/src/mcp/tools.ts`). It lists what the file declares and no test asked for.
+   Built on 2026-11-26. One check of the code for every door (`kernel/check.ts`): a step or eval
+   file that does not compile for the sandbox, a step file that exports no function, and a way a
+   step's code takes that the map lacks. The file's own check now also names a step the map
+   reaches and gives no way on. A draft's issues carry both, so the studio, the assistant's
+   writes and `get_wizard` say them before a run; `validate_wizard` takes a `wizardId` to check
+   against that wizard's files; `wizards validate` compiles the step files of a package.
+   `wizards check <folder>` reads a wizard's own folder (`wizard.json` with the map, `steps/`)
+   the same way, then writes `wizard.d.ts` and runs its `tests.json`; any other path goes to
+   `wizards validate`. The command is left out of the help until the switch is on.
 
 ### C. The runtime as a host
 

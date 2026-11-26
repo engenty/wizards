@@ -162,6 +162,20 @@ export async function stepOutline(source: string): Promise<StepOutline> {
         : { code: text(to), ...when },
     );
   };
+  /** What the step returns at one place: its way, where it names one. */
+  const leave = (returned: N | null | undefined, conds: string[]) => {
+    const prop = (name: string): N | undefined =>
+      returned?.type === "ObjectExpression"
+        ? (returned.properties as N[]).find(
+            (p) => p.type === "Property" && !p.computed && (p.key.name ?? p.key.value) === name,
+          )
+        : undefined;
+    const to = prop("to");
+    const said = prop("why");
+    const why = said ? value(said.value) : undefined;
+    if (to) way(to.value, conds, typeof why === "string" ? why : undefined);
+    else ways.push(conds.length ? { when: conds.join(" && ") } : {});
+  };
   /** `inner`: inside a function of the step's own, where a `return` is not the step's. */
   const walk = (node: N | null, conds: string[], inner: boolean) => {
     if (!node || typeof node.type !== "string") return;
@@ -180,19 +194,7 @@ export async function stepOutline(source: string): Promise<StepOutline> {
           : { code: node.arguments[0] ? text(node.arguments[0]) : "" },
       );
     }
-    if (node.type === "ReturnStatement" && !inner) {
-      const prop = (name: string): N | undefined =>
-        node.argument?.type === "ObjectExpression"
-          ? (node.argument.properties as N[]).find(
-              (p) => p.type === "Property" && !p.computed && (p.key.name ?? p.key.value) === name,
-            )
-          : undefined;
-      const to = prop("to");
-      const said = prop("why");
-      const why = said ? value(said.value) : undefined;
-      if (to) way(to.value, conds, typeof why === "string" ? why : undefined);
-      else ways.push(conds.length ? { when: conds.join(" && ") } : {});
-    }
+    if (node.type === "ReturnStatement" && !inner) leave(node.argument, conds);
     const within = inner || (node !== fn && FUNCTIONS.includes(node.type));
     for (const [key, child] of Object.entries(node)) {
       if (key === "type" || key === "start" || key === "end") continue;
@@ -201,6 +203,8 @@ export async function stepOutline(source: string): Promise<StepOutline> {
     }
   };
   walk(fn, [], false);
+  // An arrow function without braces returns what it is written as.
+  if (fn.body && fn.body.type !== "BlockStatement") leave(fn.body, []);
   // A decision ask names the ways a model picks from, each with the statement that has to hold.
   for (const { spec } of asks) {
     const picks = spec?.type === "decision" ? spec.ways : undefined;

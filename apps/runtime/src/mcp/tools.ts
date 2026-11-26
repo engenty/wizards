@@ -13,7 +13,7 @@ import { pluginToolsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
 import { publishAndSync, pushSharing } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
-import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
+import { deleteFile, draftFiles, listFiles, readFileText, writeFile } from "../services/files.js";
 import { marketplaceWizard, searchMarketplace } from "../services/marketplace.js";
 import { requireStudio } from "../services/members-studio.js";
 import { markAgent, presentIn } from "../services/presence.js";
@@ -485,13 +485,35 @@ export function registerTools(server: McpServer, who: Principal) {
       title: "Validate wizard",
       description: prompt("mcp", "tool.validate_wizard"),
       input: z.object({
-        definition,
+        definition: definition.optional(),
+        wizardId: z
+          .string()
+          .optional()
+          .describe(
+            "Check against this wizard's workspace files. Without a definition, its draft is checked.",
+          ),
         spaceId: z.string().optional().describe("Defaults to the person's first space."),
       }),
       readOnly: true,
     },
     async (args) => {
       try {
+        if (args.wizardId) {
+          // With the workspace: files a step names, and the step files of version 0.3.0 compiled.
+          const w = await ownedWizard(who.userId, args.wizardId);
+          const files = await draftFiles(w.id);
+          const draft = args.definition
+            ? parseDraft(
+                args.definition,
+                files.map((f) => f.path),
+              ).draft
+            : w.draft;
+          const issues = await checkDraft(w.spaceId, draft, files);
+          return { ok: issues.length === 0, issues };
+        }
+        if (!args.definition) {
+          return { ok: false, issues: [{ message: "Give a definition or a wizardId." }] };
+        }
         const space = await studioSpace(args.spaceId);
         const { draft } = parseDraft(args.definition);
         const issues = await checkDraft(space.id, draft);

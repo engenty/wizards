@@ -44,6 +44,14 @@ export default async function (run: any, ask: any) {
     expect(step.ways).toEqual([{}]);
   });
 
+  it("reads the way of a step written as one expression", async () => {
+    const named = await stepOutline('export default async (run, ask) => ({ value: await ask({ type: "form" }), to: "next" });');
+    expect(named.asks).toHaveLength(1);
+    expect(named.ways).toEqual([{ to: "next" }]);
+    const first = await stepOutline('export default async (run, ask) => ({ value: await ask({ type: "wait", timeout: "1s" }) });');
+    expect(first.ways).toEqual([{}]);
+  });
+
   it("reads each way with the condition around it", async () => {
     const step = await stepOutline(`
 const check = async (_run, ask) => {

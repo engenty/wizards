@@ -2148,8 +2148,8 @@ export function evalFilesOf(paths: readonly string[]): Record<string, Record<str
 
 /**
  * Whether the file and the workspace's files fit, read without running anything: every step the
- * map names has a file, a way leads to every step file, a limit, an output and an eval name a
- * step there is.
+ * map names has a file and a way on, a way leads to every step file, a limit, an output and an
+ * eval name a step there is.
  */
 export function kernelIssues(file: KernelFile, paths: readonly string[]): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -2165,6 +2165,13 @@ export function kernelIssues(file: KernelFile, paths: readonly string[]): Valida
   for (const id of seen)
     if (!steps[id])
       issues.push({ stepId: id, message: `The map names "${id}", there is no steps/${id}.ts.` });
+  // A step leaves by one of its ways, and the kernel takes none the map does not have.
+  for (const id of seen)
+    if (!file.edges[id]?.length)
+      issues.push({
+        stepId: id,
+        message: `"${id}" has no way in the map. Give it one, "end" to end the run there.`,
+      });
   for (const id of Object.keys(steps))
     if (!seen.has(id)) issues.push({ stepId: id, message: `No way leads to steps/${id}.` });
   for (const id of Object.keys(file.edges))

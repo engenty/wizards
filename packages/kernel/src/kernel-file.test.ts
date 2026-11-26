@@ -1,3 +1,4 @@
+import { kernelIssues } from "@engenty/wizards-shared/definition";
 import type { KernelFile } from "@engenty/wizards-shared/kernel-file";
 import {
   kernelShell,
@@ -129,5 +130,20 @@ describe("withKernelFile", () => {
   it("leaves the definition without connections where the file has none", () => {
     const def = kernelShell(file({ connections: { mail: { read: "allow" } } }));
     expect("connections" in withKernelFile(def, file({}))).toBe(false);
+  });
+});
+
+describe("kernelIssues", () => {
+  it("names a step the map reaches and gives no way on", () => {
+    const said = kernelIssues(file({ edges: { a: ["b"] } }), ["steps/a.ts", "steps/b.ts"]);
+    expect(said).toEqual([
+      {
+        stepId: "b",
+        message: '"b" has no way in the map. Give it one, "end" to end the run there.',
+      },
+    ]);
+    expect(
+      kernelIssues(file({ edges: { a: ["b"], b: ["end"] } }), ["steps/a.ts", "steps/b.ts"]),
+    ).toEqual([]);
   });
 });

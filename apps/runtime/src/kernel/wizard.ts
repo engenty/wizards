@@ -20,6 +20,15 @@ export type StepMode = "quickjs" | "native";
 const CODE = /\.(ts|js|mjs|json)$/;
 const compiled = new Map<string, Promise<Wizard>>();
 
+/** A workspace file's text by its path; null where there is none. */
+export type ReadCode = (path: string) => Promise<string | null>;
+
+/** The code files of a workspace a run started with, read from where files are kept. */
+const stored =
+  (code: WorkspaceFile[]): ReadCode =>
+  async (path) =>
+    (await snapshotFile(code, path))?.data.toString("utf8") ?? null;
+
 export class KernelCompileError extends Error {}
 
 export function kernelWizard(
@@ -46,7 +55,9 @@ export function kernelWizard(
 
 async function compile(file: KernelFile, code: WorkspaceFile[], mode: StepMode): Promise<Wizard> {
   const paths = code.map((f) => f.path);
-  const one = (path: string) => (mode === "quickjs" ? script(path, code) : module(path, code));
+  const read = stored(code);
+  const one = (path: string) =>
+    mode === "quickjs" ? bundle(path, paths, read, false) : module(path, paths, read);
   const steps: Wizard["steps"] = {};
   for (const [id, path] of Object.entries(stepFilesOf(paths))) {
     steps[id] = await one(path);
@@ -61,9 +72,36 @@ async function compile(file: KernelFile, code: WorkspaceFile[], mode: StepMode):
   return { file: file as Wizard["file"], steps, evals };
 }
 
+/**
+ * The step and eval files that do not compile for the sandbox, each with what is wrong and
+ * where. Nothing runs: this is the compile a run does at its start, for every file at once.
+ */
+export async function compileIssues(
+  paths: readonly string[],
+  read: ReadCode,
+): Promise<{ path: string; message: string }[]> {
+  const code = paths.filter((path) => CODE.test(path));
+  const entries = [
+    ...Object.values(stepFilesOf(code)),
+    ...Object.values(evalFilesOf(code)).flatMap((named) => Object.values(named)),
+  ];
+  const issues: { path: string; message: string }[] = [];
+  for (const path of entries) {
+    try {
+      await bundle(path, code, read, false);
+    } catch (err) {
+      if (!(err instanceof KernelCompileError)) {
+        throw err;
+      }
+      issues.push({ path, message: err.message });
+    }
+  }
+  return issues;
+}
+
 /** The workspace as esbuild's file system: a file imports its neighbours and nothing else. */
-function workspace(code: WorkspaceFile[], native: boolean): Plugin {
-  const has = new Set(code.map((f) => f.path));
+function workspace(paths: readonly string[], read: ReadCode, native: boolean): Plugin {
+  const has = new Set(paths);
   return {
     name: "workspace",
     setup(b) {
@@ -96,9 +134,8 @@ function workspace(code: WorkspaceFile[], native: boolean): Plugin {
           : { errors: [{ text: `"${args.path}" is no file of the workspace.` }] };
       });
       b.onLoad({ filter: /.*/, namespace: "ws" }, async (args) => {
-        const got = await snapshotFile(code, args.path);
         return {
-          contents: got?.data.toString("utf8") ?? "",
+          contents: (await read(args.path)) ?? "",
           loader: args.path.endsWith(".json") ? "json" : args.path.endsWith(".ts") ? "ts" : "js",
         };
       });
@@ -106,7 +143,12 @@ function workspace(code: WorkspaceFile[], native: boolean): Plugin {
   };
 }
 
-async function bundle(path: string, code: WorkspaceFile[], native: boolean): Promise<string> {
+async function bundle(
+  path: string,
+  paths: readonly string[],
+  read: ReadCode,
+  native: boolean,
+): Promise<string> {
   try {
     const out = await build({
       entryPoints: [path],
@@ -114,7 +156,7 @@ async function bundle(path: string, code: WorkspaceFile[], native: boolean): Pro
       write: false,
       logLevel: "silent",
       target: "es2022",
-      plugins: [workspace(code, native)],
+      plugins: [workspace(paths, read, native)],
       ...(native
         ? { format: "esm" as const, platform: "node" as const }
         : { format: "iife" as const, globalName: "__step", platform: "neutral" as const }),
@@ -133,10 +175,8 @@ async function bundle(path: string, code: WorkspaceFile[], native: boolean): Pro
   }
 }
 
-const script = (path: string, code: WorkspaceFile[]) => bundle(path, code, false);
-
-async function module(path: string, code: WorkspaceFile[]) {
-  const text = await bundle(path, code, true);
+async function module(path: string, paths: readonly string[], read: ReadCode) {
+  const text = await bundle(path, paths, read, true);
   const loaded = (await import(
     `data:text/javascript;base64,${Buffer.from(text).toString("base64")}`
   )) as { default?: unknown };
