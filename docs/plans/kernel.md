@@ -372,14 +372,16 @@ D and E do not block 3 and can run beside it.
 
 ## Before the switch flips
 
-- A catalog exists in version 0.3.0. Not the 31 starters behaving as before: by the guideline,
-  the catalog may be built again from scratch.
-- A run in version 0.3.0 survives a restart of its runner at every kind of wait. Tested:
-  `test/kernel-restart-process.test.ts`.
-- A wizard from the marketplace cannot read a file or open a connection on a local install.
-- The studio's assistant builds a new wizard in version 0.3.0 from a sentence.
-- A run's cost is counted as before.
-- Languages are decided (below); a second language is built with the first entry that has one.
+Where each condition stands on 2026-11-27:
+
+| Condition | Where it stands |
+|---|---|
+| A catalog exists in version 0.3.0. By the guideline it may be built again from scratch; it need not be the 31 starters behaving as before | The reworked templates are on the Manage-App's `feat/catalog-0-3-0` (engenty/engenty-wizards-manage#213), not merged |
+| A run in version 0.3.0 survives a restart of its runner at every kind of wait | Met: `test/kernel-restart-process.test.ts` |
+| A wizard from the marketplace cannot read a file or open a connection on a local install | Met: a starter's steps run in QuickJS whatever the runner (`stepMode`, `test/kernel-where.test.ts`), and QuickJS has no `fetch`, `process`, `require` or timers (`quickjs.test.ts`). Its asks reach only what the grant holds, through the broker, and a `file` ask reads only the wizard's own files |
+| The studio's assistant builds a new wizard in version 0.3.0 from a sentence | Met: task 18, seen in the studio |
+| A run's cost is counted as before | Met by construction: every ask a model answers runs through today's step executors (`kernelBatteries`), which charge as every run does |
+| Languages | Decided (below); a second language is built with the first entry that has one |
 
 ## Risks
 
