@@ -1,7 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { wizardSchema } from "@engenty/wizards-shared/definition";
+import { validateWizard, wizardSchema } from "@engenty/wizards-shared/definition";
+import { kernelShell } from "@engenty/wizards-shared/kernel-file";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { StepContext } from "../src/engine/types";
 
@@ -653,6 +654,40 @@ describe("a plugin's starters", () => {
       ]);
       expect((await files.readFileText("local", w.id, "notes/greeting.txt")).text).toBe("Grüß Gott");
     });
+  });
+
+  it("make a wizard of version 0.3.0 with its step files", async () => {
+    const shell = kernelShell({
+      version: "0.3.0",
+      title: "Fragen",
+      description: "Eine Frage, eine Antwort.",
+      start: "ask",
+      edges: { ask: ["end"] },
+      output: { answer: "ask.answer" },
+    } as never);
+    const step =
+      'export default async (run, ask) => ({ value: await ask({ type: "form", fields: [{ id: "answer", label: "Antwort", kind: "text" }] }) });\n';
+    put(
+      "guestbook/src/plugin.ts",
+      guestbook(
+        `  server.registerStarter({ id: "ask", title: "Fragen", description: "Stellt eine Frage.", language: "de", definition: ${JSON.stringify(shell)}, files: { "steps/ask.ts": ${JSON.stringify(step)} } });\n`,
+      ),
+    );
+    await loader.reloadPlugin("guestbook");
+    expect(registry.loadedPlugin("guestbook")?.error ?? null).toBeNull();
+    const files = await import("../src/services/files");
+    await client.withTenant(LOCAL, async () => {
+      const created = await wizards.createWizard("local", { starterId: "guestbook.ask" });
+      const w = await wizards.ownedWizard("local", created.id);
+      expect(w.draft.kernel).toMatchObject({ version: "0.3.0", start: "ask", edges: { ask: ["end"] } });
+      const paths = (await files.listFiles("local", w.id)).map((f) => f.path);
+      expect(paths).toEqual(["steps/ask.ts"]);
+      expect((await files.readFileText("local", w.id, "steps/ask.ts")).text).toBe(step);
+      // the file and its step files fit: nothing for the check to say
+      expect(validateWizard(w.draft, paths)).toEqual([]);
+    });
+    put("guestbook/src/plugin.ts", guestbook());
+    await loader.reloadPlugin("guestbook");
   });
 
   it("keep a plugin from loading when one is not a wizard, naming it", async () => {

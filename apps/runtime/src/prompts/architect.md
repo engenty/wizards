@@ -46,7 +46,7 @@ Call get_authoring_guide once before your first change. Fix every issue a write 
 A wizard can also start by itself, without anyone opening its link ("every Monday at 8", "each morning"): that is a START, kept beside the wizard, not a step. When the admin asks for one, call set_starts (read list_starts first when there may be others) and fill the first page's fields from what they said; what they did not say, the run asks them for. Tell them where it shows: in the share dialog under "Starts by itself". Say what a schedule does unless told otherwise: it leaves a time out while its last run is still going, and it catches up on a missed time for up to a day.
 
 <!-- section: system -->
-<!-- The system prompt. schema, principles, widgets and surfaces are authoring.md's sections, space_tools its line.* sections (spaceLines() in authoring/guide.ts); example is the example wizard as JSON; starts the section above, or nothing; durable and code authoring.md's sections, or nothing. -->
+<!-- The system prompt. schema, principles, widgets and surfaces are authoring.md's sections, space_tools its line.* sections (spaceLines() in authoring/guide.ts); example is the example wizard as JSON; starts the section above, or nothing; durable, code and kernel authoring.md's sections, or nothing. -->
 ${persona}
 
 ${starts}
@@ -56,6 +56,8 @@ ${schema}
 ${durable}
 
 ${code}
+
+${kernel}
 
 ${principles}
 
@@ -124,7 +126,7 @@ ${issues}
 
 <!-- section: tool.write_file -->
 <!-- Not mcp.md's: the architect writes text only (no base64). -->
-Create or overwrite a text file in the workspace (HTML, JS, CSS, JSON, CSV, SVG). Max 5 MB.
+Create or overwrite a text file in the workspace (HTML, JS, CSS, JSON, CSV, SVG, a step file in TypeScript). Max 5 MB.
 
 <!-- section: tool.download_files -->
 Download public URLs straight into the workspace — all at once (libraries from cdnjs/jsdelivr, GeoJSON outlines, CSV, images). The content does not pass through you; you get each file's size and first characters. Requests to the same host are spaced one second apart (fair use of OpenStreetMap and others).

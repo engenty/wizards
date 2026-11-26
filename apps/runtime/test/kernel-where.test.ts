@@ -82,4 +82,14 @@ describe("the authoring guide", () => {
     expect(on).toContain("${run.input.customer}"); // the example's own text, not a gap of the guide
     expect(authoringGuide([], [], [], [], {})).not.toContain("steps/<id>.ts");
   });
+
+  it("is what the studio's assistant is told as well, while the switch is on", async () => {
+    const { systemPrompt } = await import("../src/agents/architect");
+    const on = systemPrompt([], [], [], [], false, { kernel: true });
+    expect(on).toContain('Each step is a workspace file "steps/<id>.ts"');
+    expect(on).not.toContain("${kernel}");
+    const off = systemPrompt([], [], [], [], false, {});
+    expect(off).not.toContain("steps/<id>.ts");
+    expect(off).not.toContain("${kernel}");
+  });
 });

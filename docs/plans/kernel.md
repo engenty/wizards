@@ -36,7 +36,7 @@ than the tenant's database, prices.
 | E Executor | In the package only, tested against the emulator. Not in the runtime. | `packages/kernel/src/executor.ts` |
 | F.18 The map | Built: the studio draws the file's steps and edges, and a step's panel changes its ways and its limit in the file. | `apps/web/src/studio/editor/kernel-flow.ts`, `KernelFlow.tsx` |
 | F.20 A run as rows | Built: the runs panel opens a run on its rows, with the scores beside the step they judged; a row is asked again, and one a person answered is answered differently. | `apps/web/src/studio/editor/RunRows.tsx`, `RunTimeline.tsx` |
-| F.21 For those who build | The authoring guide tells of step files while the switch is on. No starter in version 0.3.0. | `prompts/authoring.md` |
+| F.21 For those who build | The authoring guide and the studio's assistant tell of step files while the switch is on. A starter in version 0.3.0 makes a wizard with its step files, and is offered as usable only while the switch is on. The starters themselves are the marketplace's, in another repository. | `prompts/authoring.md`, `agents/architect.ts`, `services/marketplace.ts` |
 | G.22 Converting | Built: `toKernel` makes the file, its step files and notes on what is not carried over; all 31 starters convert, compile and run to their end with stand-ins. The studio's `POST /wizards/:id/convert` makes a copy of a wizard in version 0.3.0. | `packages/shared/src/convert-kernel.ts`, `services/convert.ts` |
 | H.23 A runner per tenant | Built: `RUNNER_TENANT` makes a runner take one tenant's runs only, and the rule of decision 6 picks how a step's code runs | `env.ts`, `tenants/control.ts`, `kernel/host.ts` |
 | H.24, H.25 | Not built: the runner still holds what today's step executors hold; no broker of its own, no rollout | |
@@ -271,6 +271,14 @@ Tests named here run alone, as the repository asks:
     judges one run.
 21. **For those who build.** The authoring guide (`get_authoring_guide`) and a starter in version 0.3.0.
     The assistant writes step files through `write_file`.
+    Built on 2026-11-26: the studio's assistant is told of step files as the guide tells an MCP
+    client, while the switch is on. A starter in version 0.3.0, a plugin's or the marketplace's,
+    makes a wizard with its step files (`plugins.test.ts`), and an entry of that version is marked
+    usable only while the switch is on. The marketplace's own templates in version 0.3.0 are in
+    engenty-wizards-manage. Seen the same day in a local studio: from one sentence the assistant,
+    answering through Codex, made a wizard in version 0.3.0 of three step files with a way back
+    and limits; the check had nothing to say of it. The studio's own assistant, on a key or the
+    gateway, is covered by a test only.
 
 ### G. Converting
 

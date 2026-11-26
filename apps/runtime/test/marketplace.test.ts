@@ -360,6 +360,22 @@ describe("the version of a wizard's format in the search", () => {
     return (await res.json()) as MarketplacePage;
   };
 
+  it("marks an entry of version 0.3.0 as usable only while its switch is on", async () => {
+    remote.entries.set("card", exportOf("card", { version: "0.3.0" }));
+    const before = process.env.FEATURES;
+    const usable = async () => (await guest()).entries.find((e) => e.id === "card")?.usable;
+    try {
+      delete process.env.FEATURES;
+      expect(await usable()).toBe(false);
+      process.env.FEATURES = "kernel=on";
+      expect(await usable()).toBe(true);
+    } finally {
+      if (before === undefined) delete process.env.FEATURES;
+      else process.env.FEATURES = before;
+      remote.entries.set("card", exportOf("card"));
+    }
+  });
+
   it("is offered only while the switch for version 0.3.0 is on", async () => {
     remote.entries.set("card", exportOf("card"));
     const before = process.env.FEATURES;
