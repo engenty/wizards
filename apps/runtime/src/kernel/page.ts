@@ -1,9 +1,10 @@
-import type { AskRow, Row } from "@engenty/wizards-kernel";
+import { type AskRow, INPUT, type Row } from "@engenty/wizards-kernel";
 import type { Step, WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { RunState, StepOutput } from "@engenty/wizards-shared/run";
 import type { RunRow } from "../engine/types.js";
 import { stepOf } from "./batteries.js";
 import type { KernelRunView } from "./host.js";
+import { asRefs, surfaceOf, viewData } from "./views.js";
 
 /**
  * A run of a wizard in version 0.3.0 as the run's page reads it (docs/plans/kernel.md). The page
@@ -24,8 +25,16 @@ const textOf = (value: unknown): string | undefined =>
       : undefined;
 
 /** What a step returned, as the page shows it: its text to read and edit, its documents to open. */
-const outputOf = (value: unknown, when: string): StepOutput => {
-  if (typeof value === "string") return { text: value, at: when };
+const outputOf = (given: unknown, when: string): StepOutput => {
+  if (typeof given === "string") return { text: given, at: when };
+  // A view the step returned with its data is shown in place of a plain table of it.
+  const surface = surfaceOf(given);
+  if (surface) {
+    const { surface: _surface, ...rest } = given as Record<string, unknown>;
+    const data = outputOf(Object.keys(rest).length ? rest : surface.data, when);
+    return { ...data, surface };
+  }
+  const value = given;
   const text = textOf(value);
   const assets = filesOf(value);
   // A step that made files is shown by them: its images, its document. The value beside them
@@ -114,7 +123,8 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
   const waiting = view.waiting.filter((row) => isAsk(row));
   const page = waiting.find((row) => row.type === "approval") ?? waiting[0];
   let cursor: string | null = view.cursor;
-  const values: Record<string, unknown> = {};
+  // The values the view of the page reads, where the ask gives any.
+  const values = viewData(page?.data);
   if (view.status === "done") {
     // The result shows what the file's output reads, step by step; without one, the last step.
     const named = Object.values(file?.output ?? {})
@@ -147,7 +157,14 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
       ...(page.groups ? { groups: page.groups } : {}),
       ...(page.cta ? { cta: page.cta } : {}),
       ...(page.components ? { components: page.components } : {}),
-      ...(page.data ? { data: page.data } : {}),
+      // The file's first page names where its components read; a step's ask brings the values.
+      ...(page.step === INPUT
+        ? page.data
+          ? { data: page.data }
+          : {}
+        : values
+          ? { data: asRefs(page.step, values, outputs, when) }
+          : {}),
     } as unknown as Step);
     cursor = page.step;
   } else if (page?.type === "review") {
@@ -155,6 +172,16 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
     const show = ((page.show as string[] | undefined) ?? []).filter(
       (id) => outputs[id] || id.startsWith("lists."),
     );
+    if (page.components) {
+      // The step's own view of what is to be checked stands first.
+      const shown = `${page.step}__view`;
+      add(made(shown, {}));
+      outputs[shown] = {
+        surface: { components: page.components as never, data: values ?? {} },
+        at: when,
+      };
+      show.unshift(shown);
+    }
     if (!show.length) {
       const about = `${page.step}__about`;
       add(made(about, String(page.message ?? page.title ?? page.step)));
@@ -214,7 +241,7 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
     } as unknown as Step);
   }
   const { kernel: _kernel, ...shell } = run.definition;
-  const state: RunState = { values, outputs, history: [], notes: {} };
+  const state: RunState = { values: {}, outputs, history: [], notes: {} };
   return {
     ...run,
     definition: { ...shell, steps } as WizardDefinition,

@@ -69,6 +69,13 @@ export type Spec = {
   asks?: string;
   tools?: string[];
   fields?: Field[];
+  /**
+   * A view on top of the fields, as data: components from the host's catalog. A person still
+   * answers through the fields, so every channel that cannot draw the view can ask them.
+   */
+  components?: unknown[];
+  /** What the components read besides the answers, by key: values the step worked out. */
+  data?: Record<string, unknown>;
   timeout?: string;
   [key: string]: unknown;
 };

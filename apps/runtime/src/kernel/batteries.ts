@@ -4,6 +4,7 @@ import type { Field, Step, WizardDefinition } from "@engenty/wizards-shared/defi
 import type { RunState, StepOutput } from "@engenty/wizards-shared/run";
 import { runAutomaticStep } from "../engine/steps.js";
 import type { RunRow, SpaceRow, StepContext } from "../engine/types.js";
+import { asRefs, viewData } from "./views.js";
 
 /**
  * Who answers an ask of a run in version 0.3.0 at once (docs/plans/kernel.md): today's step
@@ -116,7 +117,12 @@ export function stepOf(def: WizardDefinition, row: AskRow): Step {
       tools,
       connections: (def.connections ?? []).map((c) => c.id),
       output: row.fields?.length
-        ? { format: "json", fields: row.fields }
+        ? {
+            format: "json",
+            fields: row.fields,
+            // A view of what the agent returns: written by the step, or composed by a model.
+            ...(row.surface === undefined ? {} : { surface: row.surface }),
+          }
         : { format: row.format === "markdown" ? "markdown" : "text" },
     } as unknown as Step;
   }
@@ -140,9 +146,14 @@ function answerOf(output: StepOutput): unknown {
   if (made.json !== undefined) {
     // Data and files together (a film with what it was cut from, an agent's kept pictures): the
     // step reads the data as before and finds the files beside it.
+    // A view of the data comes along the same way: a step that returns it leaves it to be shown.
     const data = made.json;
-    return made.assets?.length && data && typeof data === "object" && !Array.isArray(data)
-      ? { ...(data as Record<string, unknown>), assets: made.assets }
+    const beside = {
+      ...(made.assets?.length ? { assets: made.assets } : {}),
+      ...(made.surface ? { surface: made.surface } : {}),
+    };
+    return Object.keys(beside).length && data && typeof data === "object" && !Array.isArray(data)
+      ? { ...(data as Record<string, unknown>), ...beside }
       : data;
   }
   const keys = Object.keys(made);
@@ -252,10 +263,14 @@ export function kernelBatteries(
       : def;
     const state = { ...emptyState(), values: { ...given.values } };
     // A film reads its material from the state: what the step passes is put there.
+    // A surface reads its data from the state too: the values the step worked out are put there.
+    const values = row.type === "surface" ? viewData(row.data) : undefined;
     const asks =
       row.type === "motion-graphics"
         ? { ...row, inputs: motionInputs(row, kernelRun, state) }
-        : row;
+        : values
+          ? { ...row, data: asRefs(row.step, values, state.outputs, new Date().toISOString()) }
+          : row;
     const ctx = await makeContext({ ...run, definition: asked }, space, state, signal, {
       stepId: row.step,
       // A step that wants the person's yes for what it is about to do: the kernel asks, as a row.

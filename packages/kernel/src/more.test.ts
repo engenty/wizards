@@ -134,3 +134,20 @@ it("asks for its input first, where it began without one", async () => {
   // with an input given, it asks nothing
   expect((await kernel.start("one", { name: "Bo" })).output?.out).toBe("Hello Bo");
 });
+
+it("fails an ask the host cannot take, with the host's words, and asks nobody", async () => {
+  const accepts = (spec: { type: string; components?: unknown[] }) =>
+    spec.type === "form" && spec.components?.length === 0 ? "The view is empty." : undefined;
+  const refused = one(async (_run, ask) => ({
+    value: await ask({ type: "form", components: [] }),
+  }));
+  const failed = await kernelOf(refused, {}, { accepts }).start("one", {});
+  expect(failed.status).toBe("failed");
+  expect(failed.error).toBe(
+    '"only" asked for what cannot be shown or done here. The view is empty.',
+  );
+  expect((failed.rows[0] as AskRow).state).toBe("failed");
+
+  const taken = one(async (_run, ask) => ({ value: await ask({ type: "form" }) }));
+  expect((await kernelOf(taken, {}, { accepts }).start("one", {})).status).toBe("waiting");
+});

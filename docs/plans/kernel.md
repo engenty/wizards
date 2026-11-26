@@ -31,7 +31,7 @@ than the tenant's database, prices.
 | C.8 Tables and store | Built | `run_row`, `run_score`, `kernel/store.ts` |
 | C.9 Batteries | Built over today's step executors. A step that asks the person for a yes becomes a row. | `kernel/batteries.ts` |
 | C.10 Entry points | Built: start, the line, answers, back, retry, cancel, the clock, the report, and signals by address: the row a run waits at is written where senders look, and a signal for it answers the row. | `kernel/host.ts`, `kernel/signals.ts`, `engine/runner.ts` |
-| C.11 A person answers | Built another way: see below | `kernel/page.ts` |
+| C.11 A person answers | Built another way: see below. An ask's view (`components`, and the values in `data`) reaches the page. | `kernel/page.ts`, `kernel/views.ts` |
 | D.13 Judging runs | Built, by a share the runtime is told (`KERNEL_EVALS`). No setting of a space yet. | `kernel/host.ts` |
 | E Executor | In the package only, tested against the emulator. Not in the runtime. | `packages/kernel/src/executor.ts` |
 | F.18 The map | Built, to read: the studio draws the file's steps and edges. Editing the map, a run's rows as a timeline and scores are not built. | `apps/web/src/studio/editor/kernel-flow.ts`, `KernelFlow.tsx` |
@@ -52,19 +52,26 @@ Where it differs from the plan:
   a form, a review, or the leave for an action as a review of what is about to be done. So the
   page, the pages and reviews routes and the MCP tools `answer_form` and `review_step` answer such
   a run unchanged.
+- **A view is `components` and `data` on an ask,** the names a form of version 0.2.0 and the
+  file's first page have. A step works its data out, so an ask's `data` holds values, where a
+  step of version 0.2.0 names where to read them; the host puts the values where the page and
+  the step executors read (`kernel/views.ts`). A form's layout and a review's view are checked
+  when the step asks: one the catalog does not know fails the ask, with what is wrong. An agent
+  ask's `surface` is kept, and the view its answer brings is shown where the step is shown.
 - **How a step's code runs follows decision 6:** ordinary code where the runner serves one tenant
   or the install is your own and the wizard is your own; QuickJS for a wizard from a starter and
   in every shared runner. `KERNEL_STEPS` overrides it for a runner.
 
 ## How it was tested
 
-- The package: 81 tests, the kernel, both ways to run a step, the grant, evals, the folder check,
+- The package: 82 tests, the kernel, both ways to run a step, the grant, evals, the folder check,
   the converter over nine hand-written wizards and the 31 starters, and executor against its
   Google emulator.
-- The runtime: 50 tests in the files `test/kernel-*.test.ts`, with a stand-in for the model: both
+- The runtime: 60 tests in the files `test/kernel-*.test.ts`, with a stand-in for the model: both
   ways to run a step, the input asked for, back, limits, a step file that does not compile, leave
   for an action, a wait the clock ends, evals, the switch, the services, the run's page, a
-  converted wizard run to its end, and signals by address (`kernel-signals`).
+  converted wizard run to its end, signals by address (`kernel-signals`), and views
+  (`kernel-views`).
 - A restart of the runner at each kind of wait (`test/kernel-restart-process.test.ts`): a person,
   a time, a signal and the leave for an action, each reached in one process that is then killed
   and left in another, with steps as ordinary code and in QuickJS. Nothing is asked or done twice.

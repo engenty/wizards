@@ -20,6 +20,7 @@ import { kernelOutline } from "./outline.js";
 import { signalFor } from "./signals.js";
 import { stepTitles } from "./still.js";
 import { kernelStore, loadKernelRun } from "./store.js";
+import { viewIssue } from "./views.js";
 import { KernelCompileError, kernelWizard, type StepMode } from "./wizard.js";
 
 /**
@@ -164,6 +165,7 @@ export function kernelHost(deps: KernelDeps) {
         store,
         wizards: () => wizard,
         batteries: kernelBatteries(row, space, signal, deps.makeContext),
+        accepts: viewIssue,
         ...(mode === "quickjs" ? { turn: quickjs } : {}),
       });
       // A signal for the row the run waits at answers it; the row says so with `came`.

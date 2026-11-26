@@ -111,6 +111,11 @@ export type KernelOptions = {
   turn?: TurnFn;
   /** Checks an answer against the fields of its ask; says what is wrong, or nothing. */
   check?: (fields: AskRow["fields"], value: unknown) => string | undefined;
+  /**
+   * What the host cannot take of an ask, in its own words, or nothing: a view its catalog does
+   * not know. Such an ask fails at once, as one that reaches past the file does.
+   */
+  accepts?: (spec: Spec) => string | undefined;
 };
 
 /**
@@ -126,6 +131,7 @@ export function createKernel({
   has,
   turn: runStep = runTurn as TurnFn,
   check,
+  accepts,
 }: KernelOptions) {
   const fail = (run: Run, error: string) =>
     Object.assign(run, { status: "failed" as const, error });
@@ -284,14 +290,18 @@ export function createKernel({
   function ask(run: Run, step: string, spec: Spec, grant: Grant): AskRow {
     const role = spec.role ?? (spec.type === "form" || spec.type === "review" ? "user" : spec.type);
     const reached = outside(grant, spec);
+    const refused = reached ? undefined : accepts?.(spec);
     return {
       ...spec,
       n: run.rows.length,
       step,
       role,
-      state: reached ? "failed" : "waiting",
+      state: reached || refused ? "failed" : "waiting",
       ...(reached && {
         error: `"${step}" reached for "${reached}", which the file does not grant.`,
+      }),
+      ...(refused && {
+        error: `"${step}" asked for what cannot be shown or done here. ${refused}`,
       }),
       ...(spec.timeout && { due: now() + ms(spec.timeout) }),
     };
