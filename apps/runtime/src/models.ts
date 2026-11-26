@@ -96,7 +96,7 @@ export { isHarnessVendor } from "./harness/index.js";
  * A step names a model class, never a model. Where the class runs is decided here, in this order:
  *  1. its own way: an AI client installed on the machine (Claude Code, Codex, Antigravity, Cursor
  *     Agent — on its subscription), an API key the person brought (OpenAI, Anthropic, Google,
- *     fal.ai, ElevenLabs, Replicate, AI Gateway) or a local model;
+ *     OpenRouter, fal.ai, ElevenLabs, Replicate, AI Gateway) or a local model;
  *  2. credits: the model-gateway binds `wizards/<class>`, meters the call and books it — on the
  *     tenant of a Manage-App's runtime, or on the account a runtime that runs alone is linked to.
  * A runtime of a Manage-App keeps a tenant's own keys (sealed) and runs on its credits where it
@@ -243,6 +243,7 @@ function envKey(name: LocalKey): string | undefined {
     openai: env.openaiKey,
     anthropic: env.anthropicKey,
     google: env.googleKey,
+    openrouter: env.openrouterKey,
     fal: env.falKey,
     elevenlabs: env.elevenlabsKey,
     replicate: env.replicateKey,
@@ -468,8 +469,12 @@ function parse(ref: string): { provider: string | null; id: string; vendor: stri
   const match = /^([a-z]+):(.*)$/s.exec(ref);
   if (match) {
     const [, provider, id] = match;
-    // Ollama and the gateway name a model as the gateway does; the others are their own vendor.
-    const vendor = provider === "ollama" || provider === "gateway" ? id.split("/")[0] : provider;
+    // Ollama, OpenRouter and the gateway name a model as the gateway does; the others are their
+    // own vendor.
+    const vendor =
+      provider === "ollama" || provider === "openrouter" || provider === "gateway"
+        ? id.split("/")[0]
+        : provider;
     return { provider, id, vendor };
   }
   return { provider: null, id: ref, vendor: ref.split("/")[0] };
@@ -1073,6 +1078,7 @@ async function ownLanguageModel(
     case "openai":
     case "anthropic":
     case "google":
+    case "openrouter":
       return { model: providerModel(provider, need(cfg, provider), id), gateway: false };
     case null:
     case "gateway":
@@ -2338,7 +2344,8 @@ function priceOf(ref: string): Record<string, unknown> {
  */
 function catalogEntryOf(ref: string): CatalogEntry | undefined {
   const { provider, id } = parse(ref);
-  if (provider === null || provider === "gateway") {
+  // OpenRouter names a model as the gateway does (`anthropic/claude-sonnet-5.5`).
+  if (provider === null || provider === "gateway" || provider === "openrouter") {
     return catalog.get(id);
   }
   return (

@@ -33,7 +33,7 @@ A job’s page asks “Who does it?”:
 | Choice | What it is | Cost |
 |---|---|---|
 | Your subscription | Claude Code, Codex, Antigravity or Cursor Agent on this computer, using your sign-in there (text; Codex also makes images; Antigravity runs steps without their tools) | Your subscription |
-| Your own API key | OpenAI, Anthropic, Google Gemini, fal.ai, ElevenLabs, Replicate or Vercel AI Gateway | The provider bills your key |
+| Your own API key | OpenAI, Anthropic, Google Gemini, OpenRouter, fal.ai, ElevenLabs, Replicate or Vercel AI Gateway | The provider bills your key |
 | Apple Intelligence | The model on this Mac: short texts and decisions (Classifier, Standard) and voice notes. See [Apple Intelligence](#apple-intelligence) | Nothing |
 | Local model | [Ollama](https://ollama.com) on this computer: text, search and decisions. See [Local models](#local-models) | Nothing |
 | engenty credits | Your account’s credits. Auto picks the model, or you choose one it offers (FLUX on fal, ElevenLabs voices, Veo …) | Credits |
@@ -132,6 +132,7 @@ before a run say so, with a link to top up at Vercel.
 | fal.ai | Images (FLUX, Recraft, Imagen), video (Veo, Luma, MiniMax), voice, transcripts |
 | ElevenLabs | Voices, transcripts (Scribe) |
 | Replicate | Images, video |
+| OpenRouter | Text: many providers’ models with one key. Auto lets OpenRouter pick the model for each request; you can name one of its models instead |
 | Vercel AI Gateway | Many providers’ models with one key, web search |
 
 ## Model per class
