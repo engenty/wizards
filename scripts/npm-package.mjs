@@ -10,7 +10,7 @@
 //   @engenty/wizards          what code outside this repo imports: packages/wizards/dist as its
 //                             build leaves it (packages/wizards/scripts/build.mjs)
 //   @engenty/decision-model, @engenty/search-index, @engenty/search-libsql, @engenty/tool-harness,
-//   @engenty/vault, @engenty/plugins, @engenty/browser, @engenty/model-sources,
+//   @engenty/vault, @engenty/plugins, @engenty/browser, @engenty/model-providers,
 //   @engenty/model-setup
 //                             the MIT libraries in packages/: each its dist/ as tsc leaves it
 //                             (tsconfig.build.json), its LICENSE and README, at the release's
@@ -63,7 +63,7 @@ const LIBRARIES = [
   "vault",
   "plugins",
   "browser",
-  "model-sources",
+  "model-providers",
   "model-setup",
 ];
 

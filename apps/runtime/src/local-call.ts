@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { Waiting } from "@engenty/model-sources/mlx";
+import type { Waiting } from "@engenty/model-providers/mlx";
 
 /** What a call of a model on this computer is told by whoever makes it. */
 export interface LocalCall {

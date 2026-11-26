@@ -21,7 +21,7 @@ COPY packages/chatviews/package.json packages/chatviews/
 COPY packages/shared/package.json packages/shared/
 COPY packages/wizards/package.json packages/wizards/
 COPY packages/runner/package.json packages/runner/
-COPY packages/model-sources/package.json packages/model-sources/
+COPY packages/model-providers/package.json packages/model-providers/
 COPY packages/decision-model/package.json packages/decision-model/
 COPY packages/search-index/package.json packages/search-index/
 COPY packages/tool-harness/package.json packages/tool-harness/
@@ -82,7 +82,7 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/runtime/node_modules ./apps/runtime/node_modules
 COPY --from=prod-deps /app/packages/chatviews/node_modules ./packages/chatviews/node_modules
 COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules
-COPY --from=prod-deps /app/packages/model-sources/node_modules ./packages/model-sources/node_modules
+COPY --from=prod-deps /app/packages/model-providers/node_modules ./packages/model-providers/node_modules
 COPY --from=prod-deps /app/packages/decision-model/node_modules ./packages/decision-model/node_modules
 COPY --from=prod-deps /app/packages/tool-harness/node_modules ./packages/tool-harness/node_modules
 COPY --from=prod-deps /app/packages/model-setup/node_modules ./packages/model-setup/node_modules
@@ -103,8 +103,8 @@ COPY --from=build /app/packages/search-index/package.json ./packages/search-inde
 COPY --from=build /app/packages/search-index/dist ./packages/search-index/dist
 COPY --from=build /app/packages/tool-harness/package.json ./packages/tool-harness/
 COPY --from=build /app/packages/tool-harness/dist ./packages/tool-harness/dist
-COPY --from=build /app/packages/model-sources/package.json ./packages/model-sources/
-COPY --from=build /app/packages/model-sources/dist ./packages/model-sources/dist
+COPY --from=build /app/packages/model-providers/package.json ./packages/model-providers/
+COPY --from=build /app/packages/model-providers/dist ./packages/model-providers/dist
 COPY --from=build /app/packages/model-setup/package.json ./packages/model-setup/
 COPY --from=build /app/packages/model-setup/dist ./packages/model-setup/dist
 COPY --from=build /app/apps/web/dist ./apps/web/dist

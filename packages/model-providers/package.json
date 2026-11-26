@@ -1,5 +1,5 @@
 {
-  "name": "@engenty/model-sources",
+  "name": "@engenty/model-providers",
   "version": "0.1.0",
   "description": "Every way an app reaches a model, apart from where it keeps its keys: the servers for open models on a person's own computer (Ollama, LM Studio and Apple MLX: their models, what each can do, downloads, a model with the context length set), the AI clients signed in on their subscription (Claude Code, Codex, Antigravity, Cursor Agent: found, signed in, run headless as a model or as a chat with one MCP server), the providers a person brings a key for (OpenAI, Anthropic, Google, OpenRouter, the Vercel AI Gateway and more: who they are, the test of a key, a model on it), the wizards account, and a short real call that says whether each answers.",
   "license": "MIT",
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/engenty/wizards.git",
-    "directory": "packages/model-sources"
+    "directory": "packages/model-providers"
   },
   "publishConfig": {
     "access": "public"

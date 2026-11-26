@@ -1,4 +1,4 @@
-import { ollamaRoot } from "@engenty/model-sources/ollama";
+import { ollamaRoot } from "@engenty/model-providers/ollama";
 
 /**
  * A decision model on the person's own machine: Cloudflare's Clef-flash (open weights, Apache

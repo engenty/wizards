@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { homedir, totalmem } from "node:os";
 import { delimiter, join } from "node:path";
 import * as p from "@clack/prompts";
+import { ollamaAddress, pullModel } from "@engenty/model-providers/ollama";
 import { CLIENTS, type ClientEntry, installCommand } from "@engenty/model-setup";
 import {
   appAsksForPassword,
@@ -11,7 +12,6 @@ import {
   suggestedClient,
   vendorApp,
 } from "@engenty/model-setup/server";
-import { ollamaAddress, pullModel } from "@engenty/model-sources/ollama";
 import { LOCAL_DECISION_MODEL } from "../decision-model.js";
 import { installAll, ON_DEMAND } from "../on-demand.js";
 import { accountStep } from "./account.js";

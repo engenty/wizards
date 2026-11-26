@@ -4,14 +4,14 @@ name: Release
 # of on the GitHub release: the runtime, the npm package @engenty/wizards-runtime, as a tarball
 # (and the launcher `wizards`, the package `@engenty/wizards` and the MIT libraries
 # `@engenty/chatviews`, `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`,
-# `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/model-sources` and `@engenty/model-setup` beside it). The installer
+# `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/model-providers` and `@engenty/model-setup` beside it). The installer
 # (apps/web/public/install.sh) fetches the runtime from there. People install the studio as a Chrome app. The installer itself reaches
 # engenty.ai with the deploy the same tag starts (ci.yml).
 #
 # The packages also go to npm while the repository variable PUBLISH_NPM is `true` and the secret
 # NPM_TOKEN holds a token that may publish `wizards`, `@engenty/wizards-runtime`,
 # `@engenty/wizards` and the MIT libraries `@engenty/chatviews`, `@engenty/decision-model`, `@engenty/search-index`,
-# `@engenty/search-libsql`, `@engenty/tool-harness`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/model-sources` and `@engenty/model-setup` without a second factor: the
+# `@engenty/search-libsql`, `@engenty/tool-harness`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/model-providers` and `@engenty/model-setup` without a second factor: the
 # runtime for the updates and the launcher, then the launcher for `npx wizards`, then what code
 # outside the repo imports (scripts/npm-package.mjs).
 # Run by hand (workflow_dispatch), it builds and tests everything and publishes nothing. On a pull
@@ -427,7 +427,7 @@ jobs:
               npm publish "artifacts/npm-package/$2" --access public
             fi
           }
-          libraries="chatviews decision-model search-index search-libsql tool-harness vault plugins browser model-sources model-setup"
+          libraries="chatviews decision-model search-index search-libsql tool-harness vault plugins browser model-providers model-setup"
           publish @engenty/wizards-runtime "engenty-wizards-runtime-$version.tgz"
           publish @engenty/wizards "engenty-wizards-$version.tgz"
           for library in $libraries; do

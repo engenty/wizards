@@ -1,13 +1,13 @@
-import { PROVIDERS as SOURCES } from "@engenty/model-sources/providers";
+import { PROVIDERS as SOURCES } from "@engenty/model-providers/providers";
 import { PROVIDERS } from "@engenty/wizards-shared/providers";
 import { describe, expect, it } from "vitest";
 
 // The studio's list of providers (classes, models per capability, texts) and the list of
-// @engenty/model-sources (who a provider is, its key) name the same providers the same way. The
+// @engenty/model-providers (who a provider is, its key) name the same providers the same way. The
 // shared package does not import the other: the portal and the runner install it, and need no
 // model.
 describe("the providers the studio offers", () => {
-  it("are named, and get their key, as @engenty/model-sources says", () => {
+  it("are named, and get their key, as @engenty/model-providers says", () => {
     for (const provider of PROVIDERS) {
       const source = SOURCES[provider.id];
       expect({
