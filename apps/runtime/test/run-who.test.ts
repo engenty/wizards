@@ -280,6 +280,7 @@ const DOORS: [string, string, string, unknown][] = [
   ["the phone's push", "POST", "/notify", { token: "12345678", platform: "ios" }],
   ["the phone's push gone", "DELETE", "/notify", {}],
   ["a row of a run in version 0.3.0", "POST", "/rows/0", { value: {} }],
+  ["judging a run in version 0.3.0 again", "POST", "/judge", {}],
   ["publishing the result", "POST", "/share", {}],
   ["taking it back", "DELETE", "/share", {}],
   ["sending it on", "POST", "/share/jobs", { target: "email" }],
