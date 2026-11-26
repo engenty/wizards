@@ -39,7 +39,7 @@ than the tenant's database, prices.
 | F.20 A run as rows | Built: the runs panel opens a run on its rows, with the scores beside the step they judged; a row is asked again, and one a person answered is answered differently. | `apps/web/src/studio/editor/RunRows.tsx`, `RunTimeline.tsx` |
 | F.21 For those who build | The authoring guide and the studio's assistant tell of step files while the switch is on. A starter in version 0.3.0 makes a wizard with its step files, and is offered as usable only while the switch is on. The starters themselves are the marketplace's, in another repository. | `prompts/authoring.md`, `agents/architect.ts`, `services/marketplace.ts` |
 | G.22 Converting | Built: `toKernel` makes the file, its step files and notes on what is not carried over; all 31 starters convert, compile and run to their end with stand-ins. The studio's `POST /wizards/:id/convert` makes a copy of a wizard in version 0.3.0. | `packages/shared/src/convert-kernel.ts`, `services/convert.ts` |
-| H.23 A runner per tenant | Built: `RUNNER_TENANT` makes a runner take one tenant's runs only, and the rule of decision 6 picks how a step's code runs | `env.ts`, `tenants/control.ts`, `kernel/host.ts` |
+| H.23 A runner per tenant | Built in part: `RUNNER_TENANT` makes a runner take one tenant's runs only, and the rule of decision 6 picks how a step's code runs. How many runners the cloud holds, when one starts and stops, and what it still shares: a plan to decide on, [kernel-runners.md](kernel-runners.md) | `env.ts`, `tenants/control.ts`, `kernel/host.ts` |
 | H.24, H.25 | Not built: the runner still holds what today's step executors hold; no broker of its own, no rollout | |
 
 Where it differs from the plan:
