@@ -24,8 +24,11 @@ export interface ConnectorView {
   id: string;
   name: string;
   domain: string;
-  /** Where it comes from: shipped with the product, or imported from a spec or an MCP server. */
-  sourceKind: "builtin" | "openapi" | "mcp";
+  /**
+   * Where it comes from: shipped with the product, imported from a spec or an MCP server, or a
+   * service of Composio's catalog (docs/plans/composio.md), which keeps the account's tokens.
+   */
+  sourceKind: "builtin" | "openapi" | "mcp" | "composio";
   sourceUrl: string;
   toolPrefix: string;
   /** Whether a person can connect an account right now. */
