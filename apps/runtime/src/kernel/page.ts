@@ -43,6 +43,33 @@ const outputOf = (given: unknown, when: string): StepOutput => {
   return { json: value ?? {}, ...(text === undefined ? {} : { text }), at: when };
 };
 
+/** What a person changed in a review, by the step it changed. */
+const editsOf = (answer: unknown): Record<string, unknown> => {
+  const edits = (answer as { edits?: unknown } | null)?.edits;
+  return edits && typeof edits === "object" && !Array.isArray(edits)
+    ? (edits as Record<string, unknown>)
+    : {};
+};
+
+/** A step's output with what a person changed of it: its text, or the keys of its data. */
+const edited = (output: StepOutput, changed: unknown): StepOutput => {
+  const data =
+    output.json && typeof output.json === "object" && !Array.isArray(output.json)
+      ? (output.json as Record<string, unknown>)
+      : undefined;
+  if (typeof changed === "string") {
+    return {
+      ...output,
+      text: changed,
+      // A value that holds its text says the same in its data.
+      ...(typeof data?.text === "string" ? { json: { ...data, text: changed } } : {}),
+    };
+  }
+  return changed && typeof changed === "object" && !Array.isArray(changed) && data
+    ? { ...output, json: { ...data, ...(changed as Record<string, unknown>) } }
+    : output;
+};
+
 /** The files a step left behind, where it left any. */
 const filesOf = (value: unknown): StepOutput["assets"] | undefined => {
   const assets = (value as { assets?: unknown } | null)?.assets;
@@ -118,6 +145,14 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
     if ("left" in row) {
       add(stepFor(row.step, row.value));
       outputs[row.step] = outputOf(row.value, when);
+    } else if (row.type === "review" && row.state === "done") {
+      // What a person changed in a review is what the step left from then on: the page shows it
+      // and the downloads carry it. A step that runs again later leaves its new work.
+      for (const [id, changed] of Object.entries(editsOf(row.answer))) {
+        if (outputs[id]) {
+          outputs[id] = edited(outputs[id], changed);
+        }
+      }
     }
   }
   const waiting = view.waiting.filter((row) => isAsk(row));

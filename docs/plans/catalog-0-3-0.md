@@ -91,6 +91,23 @@ Fixed on `feat/kernel`:
 - A finished run that took a way without the named downloads showed nothing. Now it shows what
   its output reads.
 - A download of a finished run's step answered 404: fixed on 2026-11-15, before the notes said so.
+- A form or review ask had no place for a sentence under its title: `description` reaches the
+  page since 2026-11-15.
+
+Fixed on `feat/kernel` on 2026-11-26:
+
+- What a person changed in a review was not in what the page shows and downloads of the step.
+- A change request for a film went into its brief, so the film was made again from nothing. A
+  film ask now takes a `note` beside its brief, and the converter writes it. Not tried with a
+  real film.
+- An answer in a Markdown heading was marked with `<data>` tags, which a model copied into the
+  document. A heading now holds the words alone.
+- A step's form or surface with `data` gave the page values where it reads names: the page broke.
+- A run through the MCP door: its report lacked what a calling app that shows forms, or follows
+  a run as a task, reads.
+
+Checked on 2026-11-26 and not found: the converter making clips twice in facebook-video-ad. It
+sends the 480p choice straight to `clipsDraft`, as version 0.2.0 does.
 
 Fixed in the booking entries: with no free time in three weeks, the time page had a required
 slot field with no options. Now a page „Gerade ist nichts frei“ takes name and e-mail (and the
@@ -98,13 +115,18 @@ address for a site visit), and the run ends with „wir melden uns“.
 
 Open:
 
-- A document repeats its title (invoice, claim, web-complaint, quote).
+- A document repeats its title (invoice, claim, web-complaint, quote). Not the runtime's: a model
+  writes the document from the step's prompt, the `report` guide asks it for a title, and the
+  reworked prompts open with a `# …` line they tell the model to copy. To change in the templates.
 - A step file cannot read the space's brand, the wizard's own files, or a list, and cannot write
   a list row without a model.
-- A review ask has no place for a sentence on what to check.
-- A change request for a film starts it over; a downloaded step value leaves out a review's edits.
-- The converter keeps a review loop limit of 21, writes `<data>` tags into headings, and in
-  facebook-video-ad made clips twice.
+- The run's data (`output` in the file) holds a step's value without a review's edits; the page
+  and the downloads have them.
+- A change request for a film starts it over where the step file still puts the note into the
+  brief: the reworked `film.ts` of explainer-video does.
+- The converter gives a review loop a limit of 21. The number is its own: version 0.2.0 has no
+  limit there. The reworked templates use 4 to 11.
+- An agent ask with a `schema` and no fields becomes a text step. Seen in the code, not checked.
 
 ## Open questions
 

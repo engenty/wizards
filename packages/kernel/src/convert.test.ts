@@ -470,6 +470,75 @@ describe("a hand-written wizard", () => {
     expect(run.output).toEqual({ write: "Post 2" });
   });
 
+  it("writes an answer in a heading as its words alone, and marks it as data everywhere else", async () => {
+    const { wizard } = await convert({
+      title: "Offer",
+      steps: [
+        { id: "who", type: "form", title: "Who", fields: [name] },
+        {
+          id: "write",
+          type: "agent",
+          title: "Write",
+          instructions: "Copy this outline.\n\n## Offer for {{name}}\n\nWrite to {{name}}.",
+        },
+        result({ deliverables: [{ from: "write", formats: ["md"] }] }),
+      ],
+    });
+    const tasks: string[] = [];
+    await play(
+      wizard,
+      { name: "Ada" },
+      {
+        agent: async (row) => {
+          tasks.push(String(row.instructions));
+          return "An offer";
+        },
+      },
+      () => ({}),
+    );
+    // A model copies a heading as it stands: no marks in it.
+    expect(tasks[0]).toContain("## Offer for Ada\n");
+    expect(tasks[0]).toContain('Write to <data field="name">Ada</data>.');
+  });
+
+  it("hands a film what a review asked to change as a note, and leaves its brief as it was", async () => {
+    const { wizard } = await convert({
+      title: "Film",
+      steps: [
+        { id: "who", type: "form", title: "Who", fields: [name] },
+        {
+          id: "film",
+          type: "motion-graphics",
+          title: "Film",
+          brief: "A film for {{name}}.",
+          skills: [],
+          inputs: {},
+        },
+        { id: "check", type: "review", title: "Check", show: ["film"], regenerate: true },
+        result({ deliverables: [{ from: "film", formats: ["mp4"] }] }),
+      ],
+    });
+    const films: AskRow[] = [];
+    let reviews = 0;
+    const run = await play(
+      wizard,
+      { name: "Ada" },
+      {
+        "motion-graphics": async (row) => {
+          films.push(row);
+          return { assets: [{ id: `film-${films.length}`, kind: "video" }] };
+        },
+      },
+      () => (++reviews === 1 ? { regenerate: "film", note: "Slower." } : {}),
+    );
+    expect(pathOf(run)).toEqual(["film", "check", "film", "check"]);
+    expect(films[0].note).toBeUndefined();
+    expect(films[1].note).toBe("Slower.");
+    // The same brief: the film made before is changed, not made again from nothing.
+    expect(films[1].brief).toBe(films[0].brief);
+    expect(films[0].brief).toBe("A film for Ada.");
+  });
+
   it("ids are renamed, and a calculation and a later form decide the way", async () => {
     const { file, notes, wizard } = await convert({
       title: "Budget",

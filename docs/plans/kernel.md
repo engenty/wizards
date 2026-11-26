@@ -68,10 +68,10 @@ Where it differs from the plan:
 
 ## How it was tested
 
-- The package: 82 tests, the kernel, both ways to run a step, the grant, evals, the folder check,
+- The package: 84 tests, the kernel, both ways to run a step, the grant, evals, the folder check,
   the converter over nine hand-written wizards and the 31 starters, and executor against its
   Google emulator.
-- The runtime: 60 tests in the files `test/kernel-*.test.ts`, with a stand-in for the model: both
+- The runtime: 63 tests in the files `test/kernel-*.test.ts`, with a stand-in for the model: both
   ways to run a step, the input asked for, back, limits, a step file that does not compile, leave
   for an action, a wait the clock ends, evals, the switch, the services, the run's page, a
   converted wizard run to its end, signals by address (`kernel-signals`), and views

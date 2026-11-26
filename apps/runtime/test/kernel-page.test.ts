@@ -90,4 +90,50 @@ describe("a run of version 0.3.0 on its page", () => {
     const result = done.definition.steps.find((s) => s.id === "result") as { deliverables: unknown };
     expect(result.deliverables).toEqual([{ from: "full", formats: ["md"] }]);
   });
+
+  it("shows a step's work with what a person changed of it in a review, until the step runs again", () => {
+    const changed = (edits: unknown): Row[] => [
+      { n: 0, step: "write", left: true, value: "Do not click.", to: "check" } as unknown as Row,
+      { n: 1, step: "sum", left: true, value: { total: 1, note: "net" }, to: "check" } as unknown as Row,
+      { n: 2, step: "check", role: "user", type: "review", show: ["write", "sum"], edit: true, state: "done", answer: { approved: true, edits } } as unknown as Row,
+      { n: 3, step: "check", left: true, value: { approved: true, edits }, to: "end" } as unknown as Row,
+    ];
+    const rows = changed({ write: "Ask first, then click.", sum: { total: 2 }, gone: "x" });
+    const edited = kernelPage(run, view(rows, "end", { status: "done", waiting: [] }));
+    expect(edited.state.outputs.write.text).toBe("Ask first, then click.");
+    expect(edited.state.outputs.sum.json).toEqual({ total: 2, note: "net" });
+    expect(edited.state.outputs.gone).toBeUndefined();
+
+    // The step ran again after the review: what it left then is what there is.
+    const again = kernelPage(
+      run,
+      view([...rows, { n: 4, step: "write", left: true, value: "A new text.", to: "end" } as unknown as Row], "end", { status: "done", waiting: [] }),
+    );
+    expect(again.state.outputs.write.text).toBe("A new text.");
+  });
+
+  it("carries the line under a page's title: what a form is for, what a review is to check", () => {
+    const asked = { ...form("ask", 0, "waiting"), description: "For the letter's first line." };
+    const onForm = kernelPage(run, view([asked], "ask"));
+    expect(onForm.definition.steps.find((s) => s.id === "ask")).toMatchObject({
+      type: "form",
+      description: "For the letter's first line.",
+    });
+    const review = {
+      n: 0,
+      step: "check",
+      role: "user",
+      type: "review",
+      title: "Is the letter right?",
+      description: "Check the name and the date.",
+      approve: true,
+      state: "waiting",
+    } as AskRow;
+    const onReview = kernelPage(run, view([review], "check"));
+    expect(onReview.definition.steps.find((s) => s.id === "check")).toMatchObject({
+      type: "review",
+      title: "Is the letter right?",
+      description: "Check the name and the date.",
+    });
+  });
 });

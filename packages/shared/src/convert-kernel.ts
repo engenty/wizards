@@ -437,7 +437,9 @@ export function toKernel(definition: WizardDefinition): {
     let filled = tail !== "";
     for (const match of source.matchAll(TEMPLATE)) {
       const field = owners.get(match[1].split(".")[0])?.at(-1)?.field;
-      const expr = shown(match[1].trim(), scope, wrap);
+      // A name in a heading is its words alone: a model copies a heading as it stands, marks and all.
+      const line = source.slice(source.lastIndexOf("\n", match.index - 1) + 1, match.index);
+      const expr = shown(match[1].trim(), scope, wrap && !/^ {0,3}#{1,6}[ \t]/.test(line));
       out += inTicks(source.slice(at, match.index));
       if (expr === undefined && field?.kind === "list" && field.list)
         out += `{{lists.${field.list}}}`;
@@ -621,6 +623,12 @@ export function toKernel(definition: WizardDefinition): {
     if (!revised.has(index)) return "";
     use("revision");
     return `\${revision(run, ${q(newIds[index])})}`;
+  };
+
+  /** What a review asked to change of this step's work, where one sent the run back to it. */
+  const changeAsked = (index: number) => {
+    use("text");
+    return `run.last?.value?.regenerate === ${q(newIds[index])} ? text(run.last.value.note) : undefined`;
   };
 
   /** A form's field as its ask holds it: what it starts with and its choices are worked out. */
@@ -972,7 +980,10 @@ export function toKernel(definition: WizardDefinition): {
             `${decl}${ask({
               type: "motion-graphics",
               title: step.title,
-              brief: template(step.brief, scope, false, revision(index)),
+              brief: template(step.brief, scope),
+              // What a review asked to change is not part of the brief: the film made before is
+              // changed by it, and a new brief would have it made again from nothing.
+              note: revised.has(index) ? code(changeAsked(index)) : undefined,
               skills: step.skills,
               kit: step.kit,
               inputs: dataOf(step.inputs, scope, "The video") ?? {},

@@ -71,6 +71,8 @@ export function stepOf(def: WizardDefinition, row: AskRow): Step {
     parent,
     asksLeave,
     tries,
+    // What to change of a film already made: handed to the step beside its brief (the battery).
+    note: _note,
     ...spec
   } = row;
   // A decision over the step's ways: the model names the one whose statement holds, or none.
@@ -262,6 +264,11 @@ export function kernelBatteries(
         } as WizardDefinition)
       : def;
     const state = { ...emptyState(), values: { ...given.values } };
+    // A film that is to be changed keeps its brief and takes what to change as a note, as after
+    // a review of version 0.2.0: the film made before is changed, not made again from nothing.
+    if (row.type === "motion-graphics" && typeof row.note === "string" && row.note.trim()) {
+      state.notes[row.step] = row.note.trim().slice(0, 2000);
+    }
     // A film reads its material from the state: what the step passes is put there.
     // A surface reads its data from the state too: the values the step worked out are put there.
     const values = row.type === "surface" ? viewData(row.data) : undefined;
