@@ -7,7 +7,7 @@ import type { RunRow, SpaceRow, StepContext } from "../engine/types.js";
 
 /**
  * Who answers an ask of a run in version 0.3.0 at once (docs/plans/kernel.md): today's step
- * executors. An ask becomes the step of version 1 it would have been, with its text already
+ * executors. An ask becomes the step of version 0.2.0 it would have been, with its text already
  * written, and runs as that. So models, connections, the broker and what a step costs are the
  * ones every run has.
  */
@@ -54,7 +54,7 @@ function narrowed(def: WizardDefinition, row: AskRow, run: Run): WizardDefinitio
   return { ...def, connections };
 }
 
-/** The ask as the step of version 1 it would have been. */
+/** The ask as the step of version 0.2.0 it would have been. */
 export function stepOf(def: WizardDefinition, row: AskRow): Step {
   const base = { id: row.step, title: String(row.title ?? row.step) };
   const {

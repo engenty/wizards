@@ -7,7 +7,7 @@ import type { KernelRunView } from "./host.js";
 
 /**
  * A run of a wizard in version 0.3.0 as the run's page reads it (docs/plans/kernel.md). The page
- * draws a run of version 1: a step the person is on, and what earlier steps made. So the run is
+ * draws a run of version 0.2.0: a step the person is on, and what earlier steps made. So the run is
  * shown as the small wizard it is at this moment: the steps that returned, each with what it
  * left behind, and the page it waits at, a form, a review, or the leave for an action. The page's
  * answers come back by the step's id, as for any run.
@@ -168,7 +168,7 @@ export function kernelPage(run: RunRow, view: KernelRunView): RunRow {
       // What to check, in the step's own words.
       ...(page.description ? { description: page.description } : {}),
       show,
-      // As in version 1: each way to answer only where the ask names it.
+      // As in version 0.2.0: each way to answer only where the ask names it.
       approve: page.approve === true,
       edit: page.edit === true,
       regenerate: page.regenerate === true,

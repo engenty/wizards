@@ -229,7 +229,7 @@ it("fails a run whose step does not compile, and says where", async () => {
   expect(row.error).toContain('steps/bad.ts:1: A step imports files of its own workspace only, not "node:fs".');
 });
 
-it("leaves a wizard in version 1 to today's engine", async () => {
+it("leaves a wizard in version 0.2.0 to today's engine", async () => {
   const id = await client.withTenant(T, async () => {
     const def = { version: 1, title: "Old", description: "", avatar: "round", steps: [{ id: "write", type: "agent", title: "Write", instructions: "Do it.", tools: [], output: { format: "text" } }, { id: "done", type: "result", title: "Done", deliverables: [] }] };
     const created = await wizards.createWizard("u", { definition: def as never });
@@ -488,7 +488,7 @@ describe("the run's page", () => {
   });
 });
 
-describe("a wizard of version 1 made into step files", () => {
+describe("a wizard of version 0.2.0 made into step files", () => {
   it("is copied with its map and step files, and the copy runs to its end", async () => {
     process.env.KERNEL_STEPS = "quickjs";
     const convert = await import("../src/services/convert");

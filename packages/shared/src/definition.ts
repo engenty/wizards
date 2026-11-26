@@ -1761,7 +1761,7 @@ const wizardShapeBase = z.object({
   /**
    * The wizard in version 0.3.0 of the format (docs/plans/kernel.md, kernel-file.ts): with it the
    * kernel runs the wizard from its step files, and `steps` is only what a reader that knows
-   * version 1 shows of it.
+   * version 0.2.0 shows of it.
    */
   kernel: kernelFileSchema.optional(),
 });

@@ -24,7 +24,7 @@ export {
   stepFilesOf,
 };
 
-/** The file of a definition the kernel runs; nothing for a wizard in version 1. */
+/** The file of a definition the kernel runs; nothing for a wizard in version 0.2.0. */
 export const kernelOf = (
   definition: { kernel?: KernelFile } | null | undefined,
 ): KernelFile | undefined => definition?.kernel;
@@ -61,13 +61,13 @@ export function withoutStep(file: KernelFile, id: string): KernelFile {
   return { ...file, start, edges, ...(file.limits ? { limits } : {}) };
 }
 
-/** The one step a reader of version 1 sees of a wizard in version 2. */
+/** The one step a reader of version 0.2.0 sees of a wizard in version 0.3.0. */
 export const KERNEL_STEP = "result";
 
 /**
- * A definition around a file: what is stored for a wizard in version 2. Everything that reads
- * version 1 finds a whole, small definition; the kernel reads `kernel`. The file's connections
- * are there as version 1 has them, so the broker and the grant know them: a name that is a
+ * A definition around a file: what is stored for a wizard in version 0.3.0. Everything that reads
+ * version 0.2.0 finds a whole, small definition; the kernel reads `kernel`. The file's connections
+ * are there as version 0.2.0 has them, so the broker and the grant know them: a name that is a
  * built-in kind of account is that kind, any other the id of one of the space's connectors.
  * Every action is allowed in that copy, because the kernel is the one that asks.
  */

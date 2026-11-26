@@ -17,7 +17,7 @@ import { quickjsTurn } from "./quickjs.js";
 import type { AskRow, Battery, Field, Run, Wizard } from "./types.js";
 
 /**
- * A wizard of version 1 converted to version 0.3.0 (docs/plans/kernel.md, item 22): the file fits its
+ * A wizard of version 0.2.0 converted to version 0.3.0 (docs/plans/kernel.md, item 22): the file fits its
  * step files, the step files compile, and the wizard runs in QuickJS with stand-ins.
  */
 const turn = quickjsTurn();

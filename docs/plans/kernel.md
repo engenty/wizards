@@ -1,6 +1,6 @@
 # Plan: the kernel, a wizard as a file of edges and one function per step
 
-Status: partly built, behind the switch `kernel` (off by default), on the branch of #694. Built:
+Status: partly built, behind the switch `kernel` (off by default), on the branch `feat/kernel` (#697). Built:
 the kernel as a package (A), the format (B.5), and the runtime as its host (C): a wizard in
 version 0.3.0 is made, runs in the engine's line, and is answered through the pages, reviews and MCP
 tools every run has. "What is built" below says what, and where it differs from this plan. The
@@ -8,20 +8,20 @@ design and its reasons are in
 [The Smallest Wizard](https://claude.ai/artifact/S9Q6tXsn3VMvnTvFE8NvDQ). Decided by Matthias on
 2026-11-14.
 
-A word on numbers: today's format is version 1 (`DEFINITION_VERSION`). The new one is version 0.3.0 (`KERNEL_VERSION`).
+A word on numbers: today's format is version 0.2.0 (`DEFINITION_VERSION`). The new one is version 0.3.0 (`KERNEL_VERSION`).
 
 Scope: a third format for a wizard, the engine that runs it, how it reaches models, tools and
 people, where its code runs, and how the studio shows it. Built beside today's engine, behind the
 switch `kernel`.
 
-Not in scope: changing wizards in version 1 while they run, removing today's engine, a store other
+Not in scope: changing wizards in version 0.2.0 while they run, removing today's engine, a store other
 than the tenant's database, prices.
 
 ## What is built
 
 | Item | State | Where |
 |---|---|---|
-| A.1 The package | Built | `packages/kernel`, with a build of its own |
+| A.1 The package | Built, under the MIT licence | `packages/kernel`, with a build of its own |
 | A.2 Retries, stop, rows under an ask, a battery that asks for leave | Built. Pause and a wizard as an ask are not. | `kernel.ts` |
 | A.3 Answers checked against fields | Built: the kernel takes the host's check, and a page's answers are checked as a form's are today | `kernel.ts`, `engine/runner.ts` |
 | A.4 QuickJS as the second way | Built, with `btoa` and `atob`, which steps written for ordinary code expect | `quickjs.ts`, `compile.ts` |
@@ -30,19 +30,19 @@ than the tenant's database, prices.
 | B.7 The check | The file against its step files, in `validateWizard`; a folder checked and compiled by `checkDir` in the package. No `wizards check` command in the CLI yet. | `definition.ts`, `packages/kernel/src/check-dir.ts` |
 | C.8 Tables and store | Built | `run_row`, `run_score`, `kernel/store.ts` |
 | C.9 Batteries | Built over today's step executors. A step that asks the person for a yes becomes a row. | `kernel/batteries.ts` |
-| C.10 Entry points | Built: start, the line, answers, back, retry, cancel, the clock, the report. Signals by address do not find such a run yet. | `kernel/host.ts`, `engine/runner.ts` |
+| C.10 Entry points | Built: start, the line, answers, back, retry, cancel, the clock, the report, and signals by address: the row a run waits at is written where senders look, and a signal for it answers the row. | `kernel/host.ts`, `kernel/signals.ts`, `engine/runner.ts` |
 | C.11 A person answers | Built another way: see below | `kernel/page.ts` |
 | D.13 Judging runs | Built, by a share the runtime is told (`KERNEL_EVALS`). No setting of a space yet. | `kernel/host.ts` |
 | E Executor | In the package only, tested against the emulator. Not in the runtime. | `packages/kernel/src/executor.ts` |
 | F.18 The map | Built, to read: the studio draws the file's steps and edges. Editing the map, a run's rows as a timeline and scores are not built. | `apps/web/src/studio/editor/kernel-flow.ts`, `KernelFlow.tsx` |
-| F.21 For those who build | The authoring guide tells of step files while the switch is on. No starter in version 2. | `prompts/authoring.md` |
-| G.22 Converting | Built: `toKernel` makes the file, its step files and notes on what is not carried over; all 31 starters convert, compile and run to their end with stand-ins. The studio's `POST /wizards/:id/convert` makes a copy of a wizard in version 2. | `packages/shared/src/convert-kernel.ts`, `services/convert.ts` |
+| F.21 For those who build | The authoring guide tells of step files while the switch is on. No starter in version 0.3.0. | `prompts/authoring.md` |
+| G.22 Converting | Built: `toKernel` makes the file, its step files and notes on what is not carried over; all 31 starters convert, compile and run to their end with stand-ins. The studio's `POST /wizards/:id/convert` makes a copy of a wizard in version 0.3.0. | `packages/shared/src/convert-kernel.ts`, `services/convert.ts` |
 | H.23 A runner per tenant | Built: `RUNNER_TENANT` makes a runner take one tenant's runs only, and the rule of decision 6 picks how a step's code runs | `env.ts`, `tenants/control.ts`, `kernel/host.ts` |
 | H.24, H.25 | Not built: the runner still holds what today's step executors hold; no broker of its own, no rollout | |
 
 Where it differs from the plan:
 
-- **A wizard in version 0.3.0 is stored inside a definition of version 1.** The definition gains one
+- **A wizard in version 0.3.0 is stored inside a definition of version 0.2.0.** The definition gains one
   optional entry, `kernel`, that holds the file; its `steps` are one result step, so everything
   that reads a definition finds a whole, small one. 97 places read a definition's steps; this way
   none of them had to change. `kernelShell` makes that definition from a file.
@@ -58,17 +58,22 @@ Where it differs from the plan:
 
 ## How it was tested
 
-- The package: 71 tests, the kernel, both ways to run a step, the grant, evals, the folder check,
+- The package: 81 tests, the kernel, both ways to run a step, the grant, evals, the folder check,
   the converter over nine hand-written wizards and the 31 starters, and executor against its
   Google emulator.
-- The runtime: 22 tests in `test/kernel-run.test.ts` and 6 in `test/kernel-where.test.ts`, with a
-  stand-in for the model: both ways to run a step, the input asked for, back, limits, a step file
-  that does not compile, leave for an action, a wait the clock ends, evals, the switch, the
-  services, the run's page, a converted wizard run to its end.
+- The runtime: 50 tests in the files `test/kernel-*.test.ts`, with a stand-in for the model: both
+  ways to run a step, the input asked for, back, limits, a step file that does not compile, leave
+  for an action, a wait the clock ends, evals, the switch, the services, the run's page, a
+  converted wizard run to its end, and signals by address (`kernel-signals`).
+- A restart of the runner at each kind of wait (`test/kernel-restart-process.test.ts`): a person,
+  a time, a signal and the leave for an action, each reached in one process that is then killed
+  and left in another, with steps as ordinary code and in QuickJS. Nothing is asked or done twice.
+- With real models: the marketplace's templates, walked through in test runs
+  ([catalog-0-3-0.md](catalog-0-3-0.md)).
 - By hand against a started runtime: a wizard in version 0.3.0 made over HTTP, published, and
   answered in a browser on its public page, from the form through a review to the result.
-- Not tested: a run with a real model (this branch was built without a model key), a restart of
-  the runner in the middle of each kind of wait, and the cloud.
+- Not tested: the cloud, and the runtime's image as Docker builds it (it copies the kernel since
+  2026-11-26; the image job does not run on a pull request).
 
 ## What is decided
 
@@ -107,10 +112,10 @@ step work only where the code runs as ordinary code, and never in a published wi
 
 ## Which engine runs a wizard
 
-By the wizard, not by a global flip. A wizard in version 1 keeps today's engine
+By the wizard, not by a global flip. A wizard in version 0.2.0 keeps today's engine
 (`apps/runtime/src/engine/runner.ts`). A wizard in version 0.3.0 runs on the kernel. The switch `kernel`
 (`packages/shared/src/feature-flags.ts`, `kind: "release"`, off) allows making and running
-version 2. Nothing changes for a wizard nobody converts.
+version 0.3.0. Nothing changes for a wizard nobody converts.
 
 ## Where things live
 
@@ -137,8 +142,8 @@ Tests named here run alone, as the repository asks:
 
 1. **`packages/kernel` from the spike.** `kernel.ts`, `turn.ts`, `grant.ts`, `describe.ts`,
    `memory.ts`, `load.ts`, `check.ts`, `evals.ts`, the two examples. Without `executor.ts`,
-   `edge.ts` and their tests, which come back in E and H. Decide its licence: it is what others
-   would embed, so MIT like `packages/runner`, and then `scripts/mit-deps-check.mjs` covers it.
+   `edge.ts` and their tests, which come back in E and H. Its licence is MIT (decided 2026-11-26): it is
+   what others would embed, like `packages/runner`, and `scripts/mit-deps-check.mjs` covers it.
 2. **What the spike left out of a run.** `retries` on an ask. `stop` and `pause`. A row under
    another row (`parent`), for what an agent does in its turn. A battery that answers "this needs
    the user's leave", so the broker's rules can ask where the file does not. A wizard as an ask.
@@ -172,7 +177,7 @@ Tests named here run alone, as the repository asks:
    `runAgentStep` (`engine/steps.ts`) with the model from `textModel` (`models.ts`); a tool ask to
    `callConnection` (`tools/connector.ts`) and so to `brokerCall`; generate and render to their
    step functions. Where `decide()` in `broker/call.ts` says ask and the file says allow, the
-   battery answers "needs leave" and the kernel asks. The `approval` table is not used by version 2.
+   battery answers "needs leave" and the kernel asks. The `approval` table is not used by version 0.3.0.
 10. **The entry points.** `apps/runtime/src/kernel/host.ts`, called from `services/runs.ts` and
     `engine/runner.ts` when the wizard is version 0.3.0:
 
@@ -188,7 +193,7 @@ Tests named here run alone, as the repository asks:
     | `runView`, the stream | From the rows |
 
     Test: the scenarios of `test/durable-wait`, `durable-person`, `durable-retry` and `signals`,
-    with the offer wizard in version 2.
+    with the offer wizard in version 0.3.0.
 11. **A person answers.** The run page (`packages/runner`: `RunnerView`, `AskPanel`) draws a row:
     a form from its fields, a review, the card for an action that needs leave, a `view` of
     components. `answer_form`, `review_step` and `answer_ask` in the MCP server answer a row.
@@ -222,18 +227,20 @@ Tests named here run alone, as the repository asks:
     `FlowPreview.tsx` read `edges`. Adding, removing and moving an edge and setting a limit write
     the file. A new way out of a step needs the step to return it: the assistant changes the file.
 19. **A step on its node.** The step's file in the editor, and the asks it made in runs: role,
-    instructions as sent, fields. The file's `requires` and `connections` as a form.
+    instructions as sent, fields. The file's `requires` and `connections` as a form. Decided
+    2026-11-26: a step's Auftrag is typed over in its panel, for every step, with the code between
+    its words kept as chips, as its short texts are. A wizard with one step opens on its prompt.
 20. **A run as rows.** `RunTimeline.tsx` from `run_row`, with asking a row again and answering it
     differently. Scores beside the steps they judged.
-21. **For those who build.** The authoring guide (`get_authoring_guide`) and a starter in version 2.
+21. **For those who build.** The authoring guide (`get_authoring_guide`) and a starter in version 0.3.0.
     The assistant writes step files through `write_file`.
 
 ### G. Converting
 
-22. **Version 1 to version 0.3.0**, as a function in `packages/shared`: a definition in, a file and its
+22. **Version 0.2.0 to version 0.3.0**, as a function in `packages/shared`: a definition in, a file and its
     step files out.
 
-    | Version 1 | Version 0.3.0 |
+    | Version 0.2.0 | Version 0.3.0 |
     |---|---|
     | A form, review, agent, tool, generate step | A step file with one ask |
     | `next` rules and `goto` | The returned `to`, and the edge |
@@ -277,7 +284,8 @@ D and E do not block 3 and can run beside it.
 ## Before the switch flips
 
 - The 31 starters exist in version 0.3.0 and behave as before for a person using them.
-- A run in version 0.3.0 survives a restart of its runner at every kind of wait.
+- A run in version 0.3.0 survives a restart of its runner at every kind of wait. Tested:
+  `test/kernel-restart-process.test.ts`.
 - A wizard from the marketplace cannot read a file or open a connection on a local install.
 - The studio's assistant builds a new wizard in version 0.3.0 from a sentence.
 - A run's cost is counted as before.
@@ -299,7 +307,6 @@ D and E do not block 3 and can run beside it.
 
 ## Not decided
 
-- The licence of `packages/kernel`.
 - Whether a way no test covers marks a run or fails it. The spike does neither.
 - The exact names inside `requires` and `connections`. The spike's are a reading of today's format.
 - How a form shows a number worked out while the person types. No code runs during a wait.

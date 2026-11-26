@@ -21,7 +21,7 @@ import {
 import { stepClasses } from "./requires.js";
 
 /**
- * A wizard of version 1 as a wizard of version 0.3.0 (docs/plans/kernel.md, item 22): the file, one
+ * A wizard of version 0.2.0 as a wizard of version 0.3.0 (docs/plans/kernel.md, item 22): the file, one
  * step file per step, and notes on what a person should look at. Nothing is run and nothing is
  * read but the definition.
  *
@@ -52,7 +52,7 @@ import { stepClasses } from "./requires.js";
  * - `{{field}}`, `{{steps.id}}`, `{{steps.id.key}}` and `{{today}}` become template literals.
  * - `{{brand.…}}`, `{{facts.…}}` and `{{lists.…}}` stay in the text. The host fills them.
  * - A name nothing answers stays in the text, with a note.
- * - What a person typed is marked as data in an AI step's instructions, as version 1 does.
+ * - What a person typed is marked as data in an AI step's instructions, as version 0.2.0 does.
  * - AI steps get the answers their text does not name below it, by label. Files, photos,
  *   signatures, connections and lists are left out; a voice note is what is said in it.
  * - Conditions and `calc` become code with small helpers at the top of the step file.
@@ -78,7 +78,7 @@ import { stepClasses } from "./requires.js";
 /** Answers an AI step is not told as text: what it reaches by name, or nothing a model reads. */
 const NOT_TOLD = new Set<string>(["image", "file", "signature", "connection", "list"]);
 
-/** What a step of version 1 may do with a mailbox that names no action: only read it. */
+/** What a step of version 0.2.0 may do with a mailbox that names no action: only read it. */
 const MAIL_READS = ["search", "read", "get_attachment"];
 
 /**
@@ -597,7 +597,7 @@ export function toKernel(definition: WizardDefinition): {
 
   const role = (who: string | undefined) => (who === "team" ? "operator" : undefined);
   /**
-   * The answers a step's text does not name already, under their labels, as version 1 gives an
+   * The answers a step's text does not name already, under their labels, as version 0.2.0 gives an
    * AI step every answer. Files, photos, signatures, connections and kept lists are left out: the
    * step reaches them by name, an id says nothing to a model.
    */
@@ -708,7 +708,7 @@ export function toKernel(definition: WizardDefinition): {
           if (at >= 0 && !gone(at)) return [newIds[at]];
           // A list the wizard keeps is shown as it is named.
           if (dataRef(old).startsWith("lists.")) return [dataRef(old)];
-          say(`The review shows "${old}", which is not a step of version 2.`, id);
+          say(`The review shows "${old}", which is not a step of version 0.3.0.`, id);
           return [];
         });
         return [
@@ -747,7 +747,8 @@ export function toKernel(definition: WizardDefinition): {
             `The step is run by the wizard's agent "${step.agent}". Its file is not read here: check the model and the tools.`,
             id,
           );
-        if (step.model === "highest") say('The model class "highest" is "high" in version 2.', id);
+        if (step.model === "highest")
+          say('The model class "highest" is "high" in version 0.3.0.', id);
         if (step.output.schema)
           say("The step's output is a schema. The ask carries it as `schema`.", id);
         const spec = {
@@ -873,7 +874,8 @@ export function toKernel(definition: WizardDefinition): {
         const each = step.foreach !== undefined;
         const inner: Scope = { index, entry: each };
         const written = step.asset === "document" || step.asset === "dashboard";
-        if (step.model === "highest") say('The model class "highest" is "high" in version 2.', id);
+        if (step.model === "highest")
+          say('The model class "highest" is "high" in version 0.3.0.', id);
         /** An image field, a step that made images, or a path into a step's value. */
         const images = (ref: string, where: string) => {
           const name = dataRef(ref);
@@ -963,7 +965,8 @@ export function toKernel(definition: WizardDefinition): {
           ),
         ];
       case "motion-graphics":
-        if (step.model === "highest") say('The model class "highest" is "high" in version 2.', id);
+        if (step.model === "highest")
+          say('The model class "highest" is "high" in version 0.3.0.', id);
         return [
           line(
             `${decl}${ask({
@@ -1043,7 +1046,7 @@ export function toKernel(definition: WizardDefinition): {
     }
   }
 
-  /** A fixed input as version 1 sends it: trimmed, numbers and yes or no as such, nothing left out. */
+  /** A fixed input as version 0.2.0 sends it: trimmed, numbers and yes or no as such, nothing left out. */
   function settled(input: unknown): unknown {
     if (typeof input === "string") {
       const text = input.trim();
@@ -1078,7 +1081,7 @@ export function toKernel(definition: WizardDefinition): {
     connectionNames.set(connection.id, name);
     connections[name] ??= {};
     const actions = [...(connection.actions ?? []), ...Object.keys(connection.policy ?? {})];
-    // A mailbox that names no action is read, as version 1 reads it: search, read, attachments.
+    // A mailbox that names no action is read, as version 0.2.0 reads it: search, read, attachments.
     if (!actions.length && connection.kind === "mail") {
       for (const action of MAIL_READS) connections[name][action] = "allow";
     }
@@ -1154,7 +1157,7 @@ export function toKernel(definition: WizardDefinition): {
       );
       ways.push(to);
     }
-    // As in version 1: a model is asked only where no condition led away.
+    // As in version 0.2.0: a model is asked only where no condition led away.
     if (Object.keys(asked).length) {
       use("text");
       const made = code(`\`What this step made:\n\${text(value)}${answers("")}\``);
@@ -1193,7 +1196,7 @@ export function toKernel(definition: WizardDefinition): {
       "/**",
       ...head,
       " *",
-      ` * Converted from the ${step.type} step "${step.id}" of version 1.`,
+      ` * Converted from the ${step.type} step "${step.id}" of version 0.2.0.`,
       " */",
       ...top.flatMap((text) => ["", text]),
       "",
@@ -1238,7 +1241,10 @@ export function toKernel(definition: WizardDefinition): {
       } else if (ref.startsWith("lists.")) {
         downloads.push({ ...deliverable, from: ref });
       } else
-        say(`The result offers "${deliverable.from}", which is not a step of version 2.`, step.id);
+        say(
+          `The result offers "${deliverable.from}", which is not a step of version 0.3.0.`,
+          step.id,
+        );
     }
     if (step.title && step.title !== definition.title) result.title = step.title;
     if (step.message) result.message = step.message;
@@ -1403,7 +1409,7 @@ const contains = (value: unknown, part: unknown): boolean =>
   },
   op: {
     needs: ["empty", "num"],
-    source: `/** One operation of a calculation of version 1. What cannot be worked out is undefined. */
+    source: `/** One operation of a calculation of version 0.2.0. What cannot be worked out is undefined. */
 const op = (name: string, ...of: any[]): any => {
   const [a, b] = of;
   if (name === "==" || name === "!=") {
