@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Client, createClient } from "@libsql/client";
-import { eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { env } from "../env.js";
@@ -466,13 +466,20 @@ export async function retried<T>(
   return fn();
 }
 
+/**
+ * The tenants this process works for in the background: a tenant's runner (`RUNNER_TENANT`) its
+ * own alone, every other process every tenant the control database knows.
+ */
+const ownTenantOnly = () =>
+  env.runner.tenant ? eq(control.tenant.id, env.runner.tenant) : undefined;
+
 /** Brings every known tenant database to the current schema (after a release). */
 export async function migrateAllTenants(
   waits?: number[],
 ): Promise<{ migrated: number; failed: string[] }> {
   const tenants = await retried(
     "migrate",
-    () => controlDb.select({ id: control.tenant.id }).from(control.tenant),
+    () => controlDb.select({ id: control.tenant.id }).from(control.tenant).where(ownTenantOnly()),
     waits,
   );
   const failed: string[] = [];
@@ -496,6 +503,18 @@ export async function migrateAllTenants(
 }
 
 export async function knownTenants(): Promise<string[]> {
-  const rows = await controlDb.select({ id: control.tenant.id }).from(control.tenant);
+  const rows = await controlDb
+    .select({ id: control.tenant.id })
+    .from(control.tenant)
+    .where(ownTenantOnly());
+  return rows.map((r) => r.id);
+}
+
+/** The known tenants that are not suspended: the ones the clock's work looks at. */
+export async function activeTenants(): Promise<string[]> {
+  const rows = await controlDb
+    .select({ id: control.tenant.id })
+    .from(control.tenant)
+    .where(and(eq(control.tenant.status, "active"), ownTenantOnly()));
   return rows.map((r) => r.id);
 }

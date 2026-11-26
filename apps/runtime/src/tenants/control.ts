@@ -1,6 +1,7 @@
 import { and, count, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { control, controlDb } from "../db/client.js";
 import { env } from "../env.js";
+import { withOwnRunner } from "./own-runner.js";
 import { currentTenant } from "./tenant.js";
 
 // What the runtime looks up before it knows the tenant: public tokens and run ids.
@@ -235,25 +236,37 @@ export async function disownRuns() {
 /** How long a run has been in line for: since it last woke, else since it was made. */
 const inLineSince = sql<Date>`coalesce(${control.runIndex.wokenAt}, ${control.runIndex.createdAt})`;
 
-/** The runs in line, longest in line first: unowned, or whose owner fell silent. */
+/** A run in line: unowned, or its owner fell silent. */
+const inLine = () =>
+  and(
+    eq(control.runIndex.active, true),
+    or(
+      isNull(control.runIndex.owner),
+      isNull(control.runIndex.seen),
+      lt(control.runIndex.seen, new Date(Date.now() - RUNNER_STALE_MS)),
+    ),
+  );
+
+/**
+ * The runs in line for this runner, longest in line first. A tenant's runner sees only its
+ * tenant's; a shared runner every tenant's but those with a runner of their own.
+ */
 export async function waitingRuns(): Promise<{ runId: string; tenantId: string }[]> {
-  const stale = new Date(Date.now() - RUNNER_STALE_MS);
-  return controlDb
+  const rows = await controlDb
     .select({ runId: control.runIndex.runId, tenantId: control.runIndex.tenantId })
     .from(control.runIndex)
     .where(
       and(
-        eq(control.runIndex.active, true),
-        // A runner that serves one tenant sees only that tenant's runs in line.
+        inLine(),
         env.runner.tenant ? eq(control.runIndex.tenantId, env.runner.tenant) : undefined,
-        or(
-          isNull(control.runIndex.owner),
-          isNull(control.runIndex.seen),
-          lt(control.runIndex.seen, stale),
-        ),
       ),
     )
     .orderBy(inLineSince);
+  if (env.runner.tenant) {
+    return rows;
+  }
+  const own = await withOwnRunner(rows.map((r) => r.tenantId));
+  return rows.filter((r) => !own.has(r.tenantId));
 }
 
 /** Where the runner holding a run is reached; null when none holds it or it named no address. */
@@ -296,8 +309,12 @@ export async function otherRunners(tenant?: string): Promise<{ id: string; url: 
     .from(control.runner)
     .where(gte(control.runner.seen, new Date(Date.now() - RUNNER_STALE_MS)));
   const reachable = rows.filter((r) => r.url && r.id !== env.runner.id);
-  // A tenant's own runner first; else the ones that serve every tenant. Never another tenant's.
+  // A tenant's own runner first; else the ones that serve every tenant, unless the tenant has a
+  // runner of its own: its runs wait for that one. Never another tenant's.
   const own = reachable.filter((r) => tenant && r.tenant === tenant);
+  if (!own.length && tenant && (await withOwnRunner([tenant])).size) {
+    return [];
+  }
   const pick = own.length ? own : reachable.filter((r) => !r.tenant);
   return pick.map((r) => ({ id: r.id, url: r.url as string }));
 }
@@ -310,27 +327,45 @@ export async function markLine() {
     .where(eq(control.runner.id, env.runner.id));
 }
 
-/** The runners and the line as a health check sees them (health.ts). */
+/**
+ * The runners and the line as a health check sees them (health.ts). `oldestWaiting`: since when
+ * the run longest in line waits, of the tenants a running runner serves. `withoutRunner`: the
+ * tenants with a runner of their own whose runs wait while that runner is not running; nobody
+ * else takes them.
+ */
 export async function lineState() {
   const runners = await controlDb
-    .select({ id: control.runner.id, seen: control.runner.seen, lineAt: control.runner.lineAt })
+    .select({
+      id: control.runner.id,
+      seen: control.runner.seen,
+      lineAt: control.runner.lineAt,
+      tenant: control.runner.tenant,
+    })
     .from(control.runner);
-  const [oldest] = await controlDb
-    .select({ createdAt: control.runIndex.createdAt, wokenAt: control.runIndex.wokenAt })
+  const waiting = await controlDb
+    .select({
+      tenantId: control.runIndex.tenantId,
+      since: sql<number>`min(coalesce(${control.runIndex.wokenAt}, ${control.runIndex.createdAt}))`,
+    })
     .from(control.runIndex)
-    .where(
-      and(
-        eq(control.runIndex.active, true),
-        or(
-          isNull(control.runIndex.owner),
-          isNull(control.runIndex.seen),
-          lt(control.runIndex.seen, new Date(Date.now() - RUNNER_STALE_MS)),
-        ),
-      ),
-    )
-    .orderBy(inLineSince)
-    .limit(1);
-  return { runners, oldestWaiting: oldest ? (oldest.wokenAt ?? oldest.createdAt) : null };
+    .where(inLine())
+    .groupBy(control.runIndex.tenantId);
+  const own = await withOwnRunner(waiting.map((w) => w.tenantId));
+  const stale = Date.now() - RUNNER_STALE_MS;
+  const running = new Set(
+    runners.filter((r) => r.tenant && r.seen.getTime() >= stale).map((r) => r.tenant),
+  );
+  let oldestWaiting: Date | null = null;
+  const withoutRunner: { tenant: string; since: Date }[] = [];
+  for (const w of waiting) {
+    const since = new Date(Number(w.since));
+    if (own.has(w.tenantId) && !running.has(w.tenantId)) {
+      withoutRunner.push({ tenant: w.tenantId, since });
+    } else if (!oldestWaiting || since < oldestWaiting) {
+      oldestWaiting = since;
+    }
+  }
+  return { runners, oldestWaiting, withoutRunner };
 }
 
 export async function forgetRunner() {
