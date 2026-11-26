@@ -1,4 +1,4 @@
-import type { PromptWords } from "@engenty/model-sources/clients";
+import type { PromptWords } from "@engenty/model-providers/clients";
 import { prompt } from "../prompts.js";
 
 /** The sentences an installed client reads besides a call's messages, from prompts/services.md. */

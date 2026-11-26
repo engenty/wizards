@@ -1,5 +1,5 @@
 import { Button, cn, Input, Label } from "@engenty/chatviews/react/ui";
-import type { ServerId } from "@engenty/model-sources/servers";
+import type { ServerId } from "@engenty/model-providers/servers";
 import { Check, ExternalLink } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useCall, useSetupHost, useText } from "./host.js";

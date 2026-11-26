@@ -1,5 +1,5 @@
-import { mlxBin, mlxSupported } from "@engenty/model-sources/mlx";
-import type { ServerId } from "@engenty/model-sources/servers";
+import { mlxBin, mlxSupported } from "@engenty/model-providers/mlx";
+import type { ServerId } from "@engenty/model-providers/servers";
 import type { Outcome } from "./install.js";
 import { findLmStudio, startLmStudio } from "./lmstudio.js";
 import { findOllama, installOllama, startOllama } from "./ollama.js";

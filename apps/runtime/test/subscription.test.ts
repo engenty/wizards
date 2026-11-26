@@ -167,7 +167,7 @@ describe("studio chat on the Claude subscription", () => {
 
   it("gives Goose and the editor a client's own model of the class", async () => {
     const { chatModel } = await import("../src/models");
-    const { ClientModel } = await import("@engenty/model-sources/clients");
+    const { ClientModel } = await import("@engenty/model-providers/clients");
     const goose = await chatModel("codex", "standard");
     expect(goose.ref).toBe("codex/gpt-6.1-sol");
     expect(goose.model).toBeInstanceOf(ClientModel);

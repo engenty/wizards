@@ -233,7 +233,7 @@ The wizard format, the runner and the libraries are MIT. The rest of the code is
 |---|---|
 | The wizard format: the fifteen files of `packages/shared` that define a wizard, read it and pack it as a `.wizard` file | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](packages/shared/LICENSE-MIT)) |
 | The runner, `packages/runner` | MIT ([LICENSE](packages/runner/LICENSE)) |
-| The libraries `@engenty/chatviews`, `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/tool-harness`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/model-sources` and `@engenty/model-setup` on npm, in `packages/chatviews`, `packages/decision-model`, `packages/search-index`, `packages/search-libsql`, `packages/tool-harness`, `packages/vault`, `packages/plugins`, `packages/browser`, `packages/model-sources` and `packages/model-setup` | MIT (the `LICENSE` in each folder) |
+| The libraries `@engenty/chatviews`, `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/tool-harness`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/model-providers` and `@engenty/model-setup` on npm, in `packages/chatviews`, `packages/decision-model`, `packages/search-index`, `packages/search-libsql`, `packages/tool-harness`, `packages/vault`, `packages/plugins`, `packages/browser`, `packages/model-providers` and `packages/model-setup` | MIT (the `LICENSE` in each folder) |
 | The plugin for the AI apps, `plugin/`, without the engenty figures in it | MIT ([LICENSE](plugin/LICENSE)) |
 | Everything else: the studio, the runtime, the `wizards` command, `@engenty/wizards` on npm | FSL-1.1-MIT ([LICENSE](LICENSE)) |
 | The engenty figures as artwork | CC BY 4.0 ([LICENSE-FIGURES](LICENSE-FIGURES)) |
