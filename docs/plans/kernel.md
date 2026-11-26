@@ -391,6 +391,7 @@ D and E do not block 3 and can run beside it.
 
 ## Not decided
 
-- Whether a way no test covers marks a run or fails it. The spike does neither.
+- Whether a way no test covers marks a run or fails it. Decided 2026-11-27: it is only listed, as
+  `wizards check` does today; tests of a wizard are optional.
 - The exact names inside `requires` and `connections`. The spike's are a reading of today's format.
 - How a form shows a number worked out while the person types. No code runs during a wait.
