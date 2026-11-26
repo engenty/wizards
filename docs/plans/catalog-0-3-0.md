@@ -124,7 +124,7 @@ Open:
   and the downloads have them.
 - A change request for a film starts it over where the step file still puts the note into the
   brief: the reworked `film.ts` of explainer-video does.
-- The converter gives a review loop a limit of 21. The number is its own: version 0.2.0 has no
+- The converter gives a review loop a limit of 10 (21 until 2026-11-27). Version 0.2.0 has no
   limit there. The reworked templates use 4 to 11.
 - An agent ask with a `schema` and no fields becomes a text step. Seen in the code, not checked.
 
@@ -136,3 +136,9 @@ Open:
    an organization offers mostly one kind? Decided 2026-11-27: one wizard, as built.
 3. English: wait for translations in 0.3.0, or keep `wizard.en.json` as version 0.2.0 beside a
    German 0.3.0? Decided 2026-11-27: German only until version 0.3.0 has translations, as built.
+4. How often may a review send a step back in a converted wizard? Decided 2026-11-27: 10, the
+   converter's default (kernel.md, "Decided on 2026-11-27"). By the guideline there, the catalog
+   is built again in version 0.3.0 rather than converted, and each entry sets its own limit.
+5. What may a step file read besides the input, the date and earlier steps? Decided 2026-11-27:
+   the brand and the wizard's own files for every wizard, a list and a row written without a
+   model when the file names the list in `requires.lists` (kernel.md).

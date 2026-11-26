@@ -221,7 +221,7 @@ export function toKernel(definition: WizardDefinition): {
       revised.add(to);
     }
     for (const to of redone(index)) {
-      for (let at = to; at <= index; at++) loops[at] += 20;
+      for (let at = to; at <= index; at++) loops[at] += 9;
       revised.add(to);
     }
   });

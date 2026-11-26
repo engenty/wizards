@@ -110,8 +110,9 @@ ground up, and the catalog may be built again from scratch in version 0.3.0. Con
 6. **Step code runs as ordinary code only where the runner is one tenant's or one wizard's.**
    Everywhere else it runs in QuickJS. A runner holds no tokens and can call nothing but the kernel
    and the broker.
-7. **Executor** (`@executor-js/sdk`) below the broker, for tools, accounts, credentials and the
-   call. The kernel asks; the file says what may be reached.
+7. **The broker** below the kernel, for tools, accounts, credentials and the call: our own
+   connectors, MCP servers and Composio. The kernel asks; the file says what may be reached.
+   Executor (`@executor-js/sdk`) was the first plan here; it waits on its branch (section E).
 8. **Mastra** stays inside the agent ask. **Tests** of a wizard are optional and not part of it.
 
 ## The rule that orders the work
@@ -378,13 +379,12 @@ D and E do not block 3 and can run beside it.
 - A wizard from the marketplace cannot read a file or open a connection on a local install.
 - The studio's assistant builds a new wizard in version 0.3.0 from a sentence.
 - A run's cost is counted as before.
-- Languages: where a wizard's labels and prompts in several languages live. Today a starter is one
-  definition per language. Not designed.
+- Languages are decided (below); a second language is built with the first entry that has one.
 
 ## Risks
 
 - **Two engines for a while.** Every fix to how a run behaves is made once or twice until the old
-  engine goes. Keep the time short by converting the starters early.
+  engine goes. It goes in the release after the flip.
 - **A step runs again from its top.** Code before an ask must not count on running once. The check
   can warn about a clock or a random in a step that runs as ordinary code.
 - **Rules in two places.** The file's `connections` and the space's rules in the broker. The
@@ -394,13 +394,44 @@ D and E do not block 3 and can run beside it.
 - **Executor** is before 1.0. Pinned, behind one file, with the runtime's own connectors still
   there.
 
-## Not decided
+## Decided on 2026-11-27
 
-- Whether a way no test covers marks a run or fails it. Decided 2026-11-27: it is only listed, as
-  `wizards check` does today; tests of a wizard are optional.
-- The exact names inside `requires` and `connections`. Decided 2026-11-27: as they are,
-  `requires.models`, `tools`, `roles`, `hosts` and `wizards`, and `connections` by kind, then
-  action, then `allow` or `ask`. A Composio toolkit is named there like any other connector. The
-  runtime's schema keeps `requires.wizards`; an ask of another wizard fails there until the
+Decided in this session, each with its reason. The guideline above holds for all of them.
+
+- **A way no test covers** is only listed, as `wizards check` does today. Tests of a wizard are
+  optional; a wizard with some tests must not be held to more than one with none.
+- **The names inside `requires` and `connections`** stay as they are: `requires.models`, `tools`,
+  `roles`, `hosts`, `wizards`, `lists` (below), and `connections` by kind, then action, then
+  `allow` or `ask`. A Composio toolkit is named there like any other connector. The runtime's
+  schema keeps `requires.wizards`; an ask of another wizard fails there in its own words until the
   runtime starts runs of one.
-- How a form shows a number worked out while the person types. No code runs during a wait.
+- **A number worked out while the person types** is a formula on the field: `"formula": "amount *
+  rate"`, over the page's other fields, with `+ - * /`, brackets, numbers and `round(x, n)`. The
+  page works it out as the person types; the kernel works it out again when the answer is
+  recorded and keeps its own result. No step code runs during a wait, and a formula is no code: it
+  cannot call anything. Not built.
+- **The kernel stays our own engine.** Mastra's JSON workflows were tried: a step that names its
+  next step and a timed wait do not fit, and the grant, the rows and the line of runs would stay
+  ours around them. Mastra stays inside the agent ask (decided point 8).
+- **Executor is not needed for the flip.** Services come through our own connectors, MCP servers
+  and Composio, all through the broker. Decided point 7 now reads as the broker below the kernel;
+  `kernel/executor` stays as it is until an API with no connector needs it.
+- **What a step may read:** the input, the date and earlier steps, as now, and by an ask each: the
+  space's brand (`{ type: "brand" }`) and the wizard's own files (`{ type: "file", path }`),
+  granted to every wizard; a list of the space (`{ type: "list", list, query }`) and a row
+  written to it without a model (`{ type: "list", list, row }`), granted when the file names the
+  list in `requires.lists`. Each is a row, so a step that runs again from its top reads the same.
+  Not built.
+- **How often a review sends a step back** in a converted wizard: 10, the converter's default,
+  inside the 4 to 11 of the reworked templates. A wizard built in version 0.3.0 sets its own in
+  `limits`.
+- **Languages.** A wizard has one language, `lang`. Another language is a file
+  `lang/<code>.json` beside `wizard.json`: the texts a person reads, by where they stand in the
+  file (`input.fields.name.label`) and by the id of an ask's text in a step. A step reads
+  `run.lang` for what it writes into a prompt. One wizard per language goes. Built when the first
+  entry in a second language is; until then the catalog is German (catalog-0-3-0.md).
+- **The flip.** When the conditions above hold, a new wizard is version 0.3.0 and the switch
+  `kernel` goes. In the release after it the old engine goes, and a wizard in version 0.2.0 no
+  longer runs: the studio offers its conversion (item 22) and says what was not carried over.
+  The catalog is built again in version 0.3.0, not converted entry by entry.
+- **Runners per tenant:** the answers are in [kernel-runners.md](kernel-runners.md).

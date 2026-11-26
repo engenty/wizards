@@ -143,21 +143,21 @@ for a marked tenant the shared runners must not take it over (question 3).
 | How many tenants have runs in line or in work at the same time | `run_index` over a week: tenants with `active` or a live `owner`, per minute |
 | The VPS's free memory | Coolify's view of the host |
 
-## Questions only you can answer
+## Decided on 2026-11-27
 
-1. **Which tenants get a runner of their own?** Every tenant, only paid plans, or only tenants an admin
-   switches it on for in the Manage-App?
-2. **Where does that mark live?** A plan feature the Manage-App answers in `GET /v1/tenants/:id`
-   (`features`), or a column in the control database's `tenant` table set by the admin app?
-3. **When a marked tenant's runner cannot start, do its runs wait, or does a shared runner take them in
-   QuickJS?** Waiting is safe for every wizard. Taking them over keeps runs moving but fails a step that
-   imports Node's modules.
-4. **What may start containers on the VPS?** A small service with the host's Docker socket (it can then
-   do anything on the host), Coolify's API with a token, or nothing, and B stays by hand?
-5. **How long may a person wait for the first step after a quiet spell?** That number decides between C
-   and D once S is measured.
-6. **Is the tenant databases' move off the shared `/data` volume part of this work, or of item 24?**
-   Ordinary code cannot run in the cloud while a tenant's runner can read every tenant's file.
-7. **Stay on one VPS?** When M × busy tenants outgrows it, runners on a second host need the control
-   database and the tenant databases on libSQL (they are on Turso and files today), and their own
-   browser.
+1. **Which tenants get a runner of their own:** only those an admin switches it on for. One first,
+   as stage B of the recommendation; plans that include it come once M and S are measured.
+2. **Where the mark lives:** a feature the Manage-App answers in `GET /v1/tenants/:id`
+   (`features.ownRunner`). Plans and tenants are the Manage-App's already; the control database
+   keeps no second copy, it reads the feature as it reads the rest.
+3. **A marked tenant's runner cannot start:** its runs wait. Waiting is safe for every wizard; the
+   health check shows such a tenant (`lineState`). A shared runner never takes them over.
+4. **What may start containers:** Coolify's API with a token of its own, scoped to the runners'
+   project. Not the Docker socket, which could do anything on the host. Until stage C, nothing: B
+   is set up by hand.
+5. **The wait for the first step after a quiet spell:** at most 10 seconds. C if the measured S
+   keeps under it, D if not.
+6. **The tenant databases off the shared `/data` volume** is part of item 24. Ordinary code reaches
+   the cloud only after it.
+7. **One VPS** for now. A second host when the measured M times busy tenants outgrows the first;
+   the move to libSQL for the control and tenant databases is planned then, not before.
