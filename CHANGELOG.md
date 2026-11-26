@@ -4,6 +4,14 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.21.2] - 2026-11-25
+- ADDED **[work]** Every member of the team chats on its Bot Server (#758)
+- ADDED **[work]** The chats know the open space, and the team's Bot Server is not an outside app (#757)
+- ADDED **[local-models]** A thinking Ollama model streams what it thinks as reasoning (#745)
+- FIXED **[chatviews]** A Form with a Field that must be answered can be sent once it is filled in (#760)
+- FIXED **[work]** What the studio's chat engine left behind goes, and "With approval" is offered only where someone is asked (#759)
+- FIXED **[web]** The flow widget starts where cookies are closed off (#746)
+
 ## [0.21.1] - 2026-11-25
 - ADDED **[work]** Work's chats are the team's Bot Server, and the studio's own chat engine goes (#755)
 - ADDED **[studio]** Goose guides Home's setup with buttons, and the setup takes the page's width (#754)
