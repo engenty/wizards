@@ -12,7 +12,7 @@ import {
   codexExecArgs,
   resolveEnv,
   runClient,
-} from "@engenty/local-models/clients";
+} from "@engenty/model-providers/clients";
 import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
 import { prompt } from "../prompts.js";
@@ -21,7 +21,7 @@ import type { Harness } from "./types.js";
 
 /**
  * Claude Code, Codex, Antigravity and Cursor Agent as the runtime runs them: the clients of
- * @engenty/local-models/clients with the model each text class runs on, what the person reads
+ * @engenty/model-providers/clients with the model each text class runs on, what the person reads
  * when the account cannot pay, and Codex's images.
  */
 

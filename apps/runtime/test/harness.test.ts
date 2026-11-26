@@ -10,7 +10,7 @@ process.env.APP_URL = "http://localhost:5181";
 
 describe("an installed AI client as a model", () => {
   it("words a thread for the client from the runtime's prompts", async () => {
-    const { renderPrompt } = await import("@engenty/local-models/clients");
+    const { renderPrompt } = await import("@engenty/model-providers/clients");
     const { CLIENT_WORDS } = await import("../src/harness/prompt");
     const r = renderPrompt(
       [
@@ -26,7 +26,7 @@ describe("an installed AI client as a model", () => {
   });
 
   it("reads the result Antigravity prints after its step events", async () => {
-    const { antigravityAnswer } = await import("@engenty/local-models/clients");
+    const { antigravityAnswer } = await import("@engenty/model-providers/clients");
     const r = antigravityAnswer(
       [
         '{"event":"init","conversation_id":"a1","init":{"tools":[]}}',
@@ -41,7 +41,7 @@ describe("an installed AI client as a model", () => {
   });
 
   it("puts the instructions in front of the one message Antigravity reads", async () => {
-    const { antigravityMessage, withEffort } = await import("@engenty/local-models/clients");
+    const { antigravityMessage, withEffort } = await import("@engenty/model-providers/clients");
     const line = antigravityMessage("Be brief.", "Hi");
     expect(JSON.parse(line)).toEqual({
       event: "user",

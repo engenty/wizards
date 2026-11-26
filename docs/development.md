@@ -45,7 +45,7 @@ A pnpm workspace:
 | `scripts/` | `npm-package.mjs` (the npm packages: the runtime, the launcher, `@engenty/wizards` and the MIT libraries) |
 | `packages/shared/` | types and schemas the server and the SPA both use |
 | `packages/wizards/` | `@engenty/wizards`, the one package code outside this repo imports: `/plugin` (a plugin’s server half), `/plugin/studio`, `/plugin/thread`, `/openui` (wizards in OpenUI chats), `/openui/server` |
-| `packages/decision-model/`, `search-index/`, `search-libsql/`, `tool-harness/`, `vault/`, `plugins/`, `browser/`, `local-models/`, `model-setup/` | the MIT libraries of the engenty framework, each on npm under its own name (below) |
+| `packages/decision-model/`, `search-index/`, `search-libsql/`, `tool-harness/`, `vault/`, `plugins/`, `browser/`, `model-providers/`, `model-setup/` | the MIT libraries of the engenty framework, each on npm under its own name (below) |
 | `packages/kernel/` | the engine of a wizard made of step files (version 0.3.0): the kernel, QuickJS for a step's code, the check of a wizard's folder. The runtime is its host (`apps/runtime/src/kernel/`, `docs/plans/kernel.md`) |
 | `modules/` | plugins that ship with the runtime |
 | `examples/plugins/` | example plugins; loaded with `PLUGINS_DIR=examples/plugins` |
@@ -62,7 +62,7 @@ A pnpm workspace:
 | `wizards` | The launcher people run with `npx wizards`: it installs the runtime and hands over. Built by `scripts/npm-package.mjs` |
 | `@engenty/wizards-runtime` | The runtime the installer and the updates install: `apps/runtime`, built by `scripts/npm-package.mjs` beside the launcher |
 | `@engenty/wizards` | What code outside this repo imports, one subpath per use: `/plugin`, `/openui`. Inside the repo the runtime and the studio import it by the same name |
-| `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/tool-harness`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/local-models`, `@engenty/model-setup` | The MIT libraries in `packages/`, published with each release at its version by `scripts/npm-package.mjs`. Their runtime dependencies stay MIT or as permissive (`pnpm mit-deps:check`) |
+| `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/tool-harness`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/model-providers`, `@engenty/model-setup` | The MIT libraries in `packages/`, published with each release at its version by `scripts/npm-package.mjs`. Their runtime dependencies stay MIT or as permissive (`pnpm mit-deps:check`) |
 | `@engenty/wizards-*` | The workspace’s other parts, named after the product, never published: `wizards-studio` (`apps/web`), `wizards-docs`, `wizards-shared`, `wizards-runner`, and the examples `wizards-example-run-log` and `wizards-example-openui-chat`. The folders keep their names |
 
 A new thing for outside code goes into `packages/wizards/` as a subpath, not into a package of
@@ -640,7 +640,7 @@ reach only servers on the internet: for them a wizard runs on engenty.ai, not on
 | Tenants: context, one database each, the control database | `apps/runtime/src/tenants/tenant.ts`, `apps/runtime/src/db/client.ts`, `apps/runtime/src/tenants/control.ts` |
 | Sign-in: the one-time link alone, the Manage-App's tokens when managed; the linked account | `apps/runtime/src/auth/`, `apps/runtime/src/manage.ts` |
 | Model classes: gateway, own keys, local model | `apps/runtime/src/models.ts` |
-| Installed AI clients as models (Claude Code, Codex, Antigravity, Cursor Agent): headless calls, tools over MCP, sign-in in an inline terminal; first-start setup | `packages/local-models/src/clients/` (Claude Code, Codex, Cursor Agent), `packages/local-models/src/bridge/` (the tools over MCP), `packages/model-setup/` (the setup: catalog, install, sign-in, terminal, routes), `apps/runtime/src/routes/model-setup.ts`, `apps/runtime/src/harness/`, `apps/runtime/src/mcp/bridge.ts`, `apps/web/src/studio/{SetupPage,Harness,Terminal}.tsx` |
+| Installed AI clients as models (Claude Code, Codex, Antigravity, Cursor Agent): headless calls, tools over MCP, sign-in in an inline terminal; first-start setup | `packages/model-providers/src/clients/` (Claude Code, Codex, Cursor Agent), `packages/model-providers/src/bridge/` (the tools over MCP), `packages/model-setup/` (the setup: catalog, install, sign-in, terminal, routes), `apps/runtime/src/routes/model-setup.ts`, `apps/runtime/src/harness/`, `apps/runtime/src/mcp/bridge.ts`, `apps/web/src/studio/{SetupPage,Harness,Terminal}.tsx` |
 | Credits: balance, reservation, cost per step; estimate before a run | `apps/runtime/src/credits/credits.ts`, `apps/runtime/src/credits/estimate.ts` |
 | Studio chat on the Claude subscription | `apps/runtime/src/agents/subscription.ts` |
 | A local install's space in the cloud: what is sent on publish (alone), what takes it and runs it (managed), the import API | `docs/manage-contract.md` ("Spaces of a local install"), `apps/runtime/src/services/cloud.ts`, `apps/runtime/src/services/synced-spaces.ts`, `apps/runtime/src/routes/api.ts` |

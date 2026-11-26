@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { setClientFolders } from "@engenty/local-models/clients";
+import { setClientFolders } from "@engenty/model-providers/clients";
 import type { ClientSetupStatus } from "@engenty/model-setup";
 import { ClientSetup } from "@engenty/model-setup/server";
 import { inherited, runtimePath } from "../cli/environment.js";

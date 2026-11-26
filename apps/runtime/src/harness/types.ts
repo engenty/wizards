@@ -1,4 +1,4 @@
-import type { ClientImageModel, ClientModel, EnvSpec } from "@engenty/local-models/clients";
+import type { ClientImageModel, ClientModel, EnvSpec } from "@engenty/model-providers/clients";
 import { CLIENT_IDS, type ClientId } from "@engenty/model-setup";
 import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
 import type { RunNote } from "@engenty/wizards-shared/run";
@@ -6,7 +6,7 @@ import type { RunNote } from "@engenty/wizards-shared/run";
 /**
  * A harness is an AI client installed on this machine — Claude Code, Codex, Antigravity, Cursor
  * Agent — that answers on the person's own subscription or sign-in. The runtime runs it headless
- * as a model (@engenty/local-models/clients, ./model.ts) and signs it in through the inline
+ * as a model (@engenty/model-providers/clients, ./model.ts) and signs it in through the inline
  * terminal (@engenty/model-setup). Nothing of this process reaches it: no key of ours, no session of a
  * parent client.
  */

@@ -8,7 +8,7 @@ import {
   ClientModel,
   lastJson,
   runClient,
-} from "@engenty/local-models/clients";
+} from "@engenty/model-providers/clients";
 import { langOf, SPEECH_LOCALES } from "@engenty/wizards-shared/definition";
 import type { RunNote } from "@engenty/wizards-shared/run";
 import type { TranscriptionModel } from "ai";

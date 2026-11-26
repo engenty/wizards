@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, normalize } from "node:path";
-import { type BridgeTool, CLAUDE_BIN, CLIENTS, resolveEnv } from "@engenty/local-models/clients";
+import { type BridgeTool, CLAUDE_BIN, CLIENTS, resolveEnv } from "@engenty/model-providers/clients";
 import {
   MOTION_SIZES,
   type MotionGraphicsStep,

@@ -1,4 +1,4 @@
-import { SERVERS, serversHere } from "@engenty/local-models/servers";
+import { SERVERS, serversHere } from "@engenty/model-providers/servers";
 import { MODEL_JOBS, OFFERED_MODELS, type OfferedModel } from "@engenty/model-setup";
 import { LocalModels } from "@engenty/model-setup/server";
 import { layout } from "./cli/home.js";

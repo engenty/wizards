@@ -11,7 +11,7 @@ import {
   cursorWorkspace,
   ownCursorServers,
   resolveEnv,
-} from "@engenty/local-models/clients";
+} from "@engenty/model-providers/clients";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
 import { internalKey } from "../auth/keys.js";

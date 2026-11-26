@@ -1,14 +1,14 @@
 {
-  "name": "@engenty/local-models",
+  "name": "@engenty/model-providers",
   "version": "0.1.0",
-  "description": "The models on a person's own computer: Ollama, LM Studio and Apple MLX (their models, what each can do, downloads, a model with the context length set) and the AI clients signed in on their subscription (Claude Code, Codex, Cursor Agent: found, signed in, run headless as a model or as a chat with one MCP server), and a short real call that says whether each answers.",
+  "description": "What provides models on a person's own computer: the servers for open models, Ollama, LM Studio and Apple MLX (their models, what each can do, downloads, a model with the context length set) and the AI clients signed in on their subscription (Claude Code, Codex, Cursor Agent: found, signed in, run headless as a model or as a chat with one MCP server), and a short real call that says whether each answers.",
   "license": "MIT",
   "private": true,
   "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/engenty/wizards.git",
-    "directory": "packages/local-models"
+    "directory": "packages/model-providers"
   },
   "publishConfig": {
     "access": "public"
