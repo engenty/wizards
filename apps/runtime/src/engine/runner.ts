@@ -108,6 +108,7 @@ import { feature, remoteFeatures } from "../features.js";
 import { saveAsset } from "../files/storage.js";
 import { kernelHost } from "../kernel/host.js";
 import { kernelPage } from "../kernel/page.js";
+import { signalWait } from "../kernel/signals.js";
 import { managed, tenantInfo } from "../manage.js";
 import { hasFfmpeg } from "../media/ffmpeg.js";
 import { NotedError, noteOf, saidOf } from "../model-errors.js";
@@ -2958,7 +2959,7 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
       return;
     }
     const yes = action.type === "accept";
-    // As in version 1: only edits of a step the review shows, and only where it lets them edit.
+    // As in version 0.2.0: only edits of a step the review shows, and only where it lets them edit.
     const edits =
       action.type === "accept" && row.edit === true
         ? Object.fromEntries(
@@ -3618,11 +3619,26 @@ export async function signalRun(
   },
 ) {
   const run = await loadRun(runId);
+  const { only, ...signal } = input;
+  if (run && kernelOf(run.definition)) {
+    // A run of version 0.3.0: the row it waits at names the signal and its key.
+    const wait =
+      run.status === "waiting_signal" ? signalWait((await kernelRuns.view(run)).rows) : undefined;
+    if (!wait || (only && wait.name !== only) || signalMissing(input.data, wait.fields).length) {
+      return null;
+    }
+    return sendSignal({
+      spaceId: await spaceIdOf(run),
+      scope: runScope(run.id),
+      name: wait.name,
+      key: wait.key,
+      ...signal,
+    });
+  }
   const step = run ? stepOf(run.definition, run.cursor) : undefined;
   if (run?.status !== "waiting_signal" || step?.type !== "wait" || !step.signal) {
     return null;
   }
-  const { only, ...signal } = input;
   if (only ? step.signal.name !== only : signalMissing(input.data, step.signal.fields).length) {
     return null;
   }
@@ -3672,7 +3688,7 @@ function kernelRefused(err: unknown): never {
   ]);
 }
 
-/** A person's answer to a row of a run in version 2. */
+/** A person's answer to a row of a run in version 0.3.0. */
 export async function kernelAnswer(runId: string, n: number, value: unknown, by?: Actor) {
   await kernelRuns
     .answer(runId, n, value, by?.userId ?? by?.visitorId ?? undefined)

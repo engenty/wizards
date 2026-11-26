@@ -17,6 +17,7 @@ import { env } from "../env.js";
 import { managed } from "../manage.js";
 import { kernelBatteries, type MakeContext } from "./batteries.js";
 import { kernelOutline } from "./outline.js";
+import { signalFor } from "./signals.js";
 import { stepTitles } from "./still.js";
 import { kernelStore, loadKernelRun } from "./store.js";
 import { KernelCompileError, kernelWizard, type StepMode } from "./wizard.js";
@@ -87,7 +88,7 @@ export function kernelHost(deps: KernelDeps) {
   const fileOf = (run: RunRow): KernelFile => {
     const file = kernelOf(run.definition);
     if (!file) {
-      throw new KernelRunError("This run is not of a wizard in version 2.");
+      throw new KernelRunError("This run is not of a wizard in version 0.3.0.");
     }
     return file;
   };
@@ -165,9 +166,25 @@ export function kernelHost(deps: KernelDeps) {
         batteries: kernelBatteries(row, space, signal, deps.makeContext),
         ...(mode === "quickjs" ? { turn: quickjs } : {}),
       });
+      // A signal for the row the run waits at answers it; the row says so with `came`.
+      const takeSignal = async () => {
+        const run = await store.load(row.id);
+        const found = run && (await signalFor(row, space.id, run.rows));
+        if (found) {
+          await kernel.record(row.id, found.n, found.answer, "signal");
+        }
+        return Boolean(found);
+      };
+      // A signal that came while the run waited is taken before the clock is asked: where both
+      // are there, the signal ends the wait.
+      await takeSignal();
       // A row whose time has come is answered with a timeout; then the run moves.
       await kernel.wake(row.id);
-      const moved = await kernel.move(row.id);
+      let moved = await kernel.move(row.id);
+      // The run came to a wait for a signal: one sent before it got there is taken now.
+      while (await takeSignal()) {
+        moved = await kernel.move(row.id);
+      }
       if (
         moved.status === "done" &&
         Object.keys(wizard.evals ?? {}).length &&
