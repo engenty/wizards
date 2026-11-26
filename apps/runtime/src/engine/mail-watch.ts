@@ -8,7 +8,7 @@ import {
   signInRefused,
 } from "../broker/index.js";
 import { resolveConnector } from "../connectors/external.js";
-import { control, controlDb, db, schema, withTenant } from "../db/client.js";
+import { activeTenants, controlDb, db, schema, withTenant } from "../db/client.js";
 import type {
   ConnectorDefinition,
   InboundMessage,
@@ -287,7 +287,7 @@ async function watchTenant(now: Date) {
 /** One minute's look at every tenant. The same tenants as the plugins' jobs. */
 export async function watchMail(now = new Date()): Promise<void> {
   const tenants = await controlDb.query.tenant.findMany({
-    where: eq(control.tenant.status, "active"),
+    where: activeTenants(),
     columns: { id: true },
   });
   await Promise.all(

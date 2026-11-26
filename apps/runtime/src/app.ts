@@ -28,6 +28,7 @@ import { openCommand } from "./open-command.js";
 import { PLUGIN_NAME, pluginArchive, pluginMarketplace } from "./plugin.js";
 import { apiRoutes } from "./routes/api.js";
 import { brokerRoutes } from "./routes/broker.js";
+import { brokerPeerRoutes } from "./routes/broker-peer.js";
 import { bundleRoutes } from "./routes/bundles.js";
 import { clientContractRoutes } from "./routes/client-contract.js";
 import { clientSpaceRoutes } from "./routes/client-spaces.js";
@@ -424,6 +425,9 @@ if (serves.studio) {
 }
 app.route("/api/internal", internalRoutes);
 app.route("/api/peer", peerRoutes);
+if (serves.broker) {
+  app.route("/api/peer", brokerPeerRoutes);
+}
 if (serves.doors) {
   app.use("/api/public/*", answers);
   app.use("/api/shares/*", answers);

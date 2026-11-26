@@ -10,8 +10,11 @@ reads the account’s secret (nothing else does), decides *allow*, *ask* or *den
 rules say so, runs the action and writes one row of `broker_log`, whatever came of it. Model calls
 don’t pass it.
 
-The broker is a library inside the runtime’s processes, not a process of its own. Everything it
-exports comes from `apps/runtime/src/broker/index.ts`. The words the studio shares with it live in
+The broker is a library inside the runtime’s processes. A runner of one tenant (`RUNNER_TENANT`)
+holds no keys: there `brokerCall` and `brokerConnected` go over the peer routes to a process in
+the role `broker`, which reads the account, decides, runs the action and logs it
+(`broker/remote.ts`, `routes/broker-peer.ts`). Its model calls reach the gateway through that
+process too. Everything it exports comes from `apps/runtime/src/broker/index.ts`. The words the studio shares with it live in
 `packages/shared/src/connectors.ts` and `packages/shared/src/rwx.ts`.
 
 ## Words
@@ -612,8 +615,8 @@ in the sync of a local space.
 ## Not built
 
 - **Isolated instances.** Guest runs share the runner process with test runs, and every process
-  can open every secret. The plan’s separate runner role for guests and a broker process that
-  alone holds the sealing key don’t exist.
+  but a runner of one tenant can open every secret. The plan’s separate runner role for guests
+  doesn’t exist, and the cloud runs no process in the role `broker` yet.
 - **The company sign-in.** A third way to sign in, through the organization’s SSO (MCP
   Enterprise-Managed Authorization), is not built.
 - **Plans.** Each person signing in is the plan switch `personSignIn`, meant for the Pro and Team

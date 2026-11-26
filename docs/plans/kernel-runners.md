@@ -12,7 +12,7 @@ each one takes.
 | What | How it works | Where |
 |---|---|---|
 | The cloud's processes | One image in several roles: `runtime` (studio), `doors`, `api`, one `runner`, plus `browser`, `sandbox` and `portal`. Coolify pulls the images and runs the compose file. Nothing is started or stopped by a program. | `compose.cloud.yaml`, `.github/workflows/ci.yml` (job `images`, the `deploy/runtime` branch) |
-| What a process does | `RUNTIME_ROLE`: `studio`, `doors`, `api`, `web`, `runner` or `all` | `apps/runtime/src/env.ts` (`role()`, `serves`) |
+| What a process does | `RUNTIME_ROLE`: `studio`, `doors`, `api`, `web`, `runner`, `broker` or `all` | `apps/runtime/src/env.ts` (`role()`, `serves`) |
 | The line of runs | `run_index` in the control database: `active` means the run wants a runner, `owner` and `seen` say who drives it. | `apps/runtime/src/tenants/control.ts` |
 | Looking at the line | Every runner looks every 2 s (`POLL_MS`) and takes, oldest first, what is unowned or whose owner was silent for 30 s (`RUNNER_STALE_MS`). | `waitingRuns` in `control.ts`, `lookAtLine` and `startRunner` in `engine/runner.ts` |
 | Taking a run | `claimRun` takes it in one statement, only while the tenant's runs being driven stay under its limit (`concurrencyLimit`: the Manage-App's `limits.concurrentRuns`, else `LIMIT_CONCURRENT_RUNS`). A process drives at most `RUNNER_MAX_RUNS` (compose: 4). | `control.ts`, `engine/runner.ts` (`take`, `claimAndHold`) |
@@ -32,9 +32,9 @@ are the gaps between "takes one tenant's runs" and "safe for that tenant's ordin
 | Gap | Today | What it means | Fixed by |
 |---|---|---|---|
 | Shared runners take the tenant's runs too | `waitingRuns` without `RUNNER_TENANT` lists every tenant's runs. `otherRunners` nudges a shared runner when the tenant's own is missing. | With both kinds running, a tenant's run lands in either one. In the shared runner it runs in QuickJS, so a step that imports Node's modules fails there. | This plan |
-| Work over every tenant at boot and every minute | Every process runs `migrateAllTenants`, `reportAllWizards` and the hourly `purge` over all tenants. Every runner runs `startStarts`, `startMailWatch`, `startNotices` and the plugins' `startJobs` over all tenants. | A tenant's runner opens every tenant's database and does their work. N tenant runners do it N times. | This plan |
-| The tenant databases | Files under `/data`, one volume shared by every role, while the Manage-App's provisioner is `none` (comment in `compose.cloud.yaml`). `TENANT_DB_URL_TEMPLATE` puts them on a libSQL server with one token for all (`env.ts`). The Manage-App's `GET /v1/tenants/:id` answers `db: { url } \| null`, no token (`docs/manage-contract.md`). | Ordinary code in a tenant's runner can open every tenant's file, or with the template every tenant's database. | Item 24, and a token per tenant database |
-| The process's secrets | The runner's environment holds the control database's token, the Manage-App's service key and the gateway's address. Ordinary code runs in that process. | Ordinary code reads them from `process.env`. | Item 24 |
+| Work over every tenant at boot and every minute | Every process runs `migrateAllTenants`, `reportAllWizards` and the hourly `purge` over all tenants. Every runner runs `startStarts`, `startMailWatch`, `startNotices` and the plugins' `startJobs` over all tenants. | A tenant's runner opens every tenant's database and does their work. N tenant runners do it N times. | Built for a tenant's runner on 2026-11-27: `knownTenants`, `activeTenants` and `migrateAllTenants` know its tenant alone. The shared processes still do every tenant's work |
+| The tenant databases | Files under `/data`, one volume shared by every role, while the Manage-App's provisioner is `none` (comment in `compose.cloud.yaml`). `TENANT_DB_URL_TEMPLATE` puts them on a libSQL server with one token for all (`env.ts`). The Manage-App's `GET /v1/tenants/:id` answers `db: { url } \| null`, no token (`docs/manage-contract.md`). | Ordinary code in a tenant's runner can open every tenant's file, or with the template every tenant's database. | Item 24: the runtime opens no other tenant's database on such a runner (built). Ordinary code can still open a file the volume holds, so only the deploy's volume per tenant closes it; and a token per tenant database |
+| The process's secrets | The runner's environment holds the control database's token, the Manage-App's service key and the gateway's address. Ordinary code runs in that process. | Ordinary code reads them from `process.env`. | Item 24: the accounts' secrets and the gateway's key are the broker's (built, kernel.md item 24). The service key and `APP_SECRET` stay with the runner for now |
 | The browser | One Chromium for all runners (`BROWSER_CDP_URL`, fixed addresses on the `browser` network). | Ordinary code that reaches DevTools can drive every tenant's pages. | Item 24 (the runner's network) |
 
 So a runner with `RUNNER_TENANT` set must not go to the cloud before item 24, or it must carry
@@ -158,6 +158,8 @@ for a marked tenant the shared runners must not take it over (question 3).
 5. **The wait for the first step after a quiet spell:** at most 10 seconds. C if the measured S
    keeps under it, D if not.
 6. **The tenant databases off the shared `/data` volume** is part of item 24. Ordinary code reaches
-   the cloud only after it.
+   the cloud only after it. Built in the code on 2026-11-27: a runner with `RUNNER_TENANT` opens
+   no other tenant's database and makes none of its own; the volume itself is the deploy's
+   ([kernel.md](kernel.md), item 24).
 7. **One VPS** for now. A second host when the measured M times busy tenants outgrows the first;
    the move to libSQL for the control and tenant databases is planned then, not before.

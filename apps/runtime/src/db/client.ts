@@ -1,13 +1,13 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Client, createClient } from "@libsql/client";
-import { eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { env } from "../env.js";
-import { currentTenant, inTenant } from "../tenants/tenant.js";
+import { currentTenant, inTenant, ownTenantOnly } from "../tenants/tenant.js";
 import * as control from "./control-schema.js";
 import { moveKeptAccounts } from "./kept-accounts.js";
 import * as schema from "./schema.js";
@@ -309,6 +309,11 @@ async function openTenantNow(id: string): Promise<Db> {
   }
   const url = tenantUrl(id, row.dbUrl);
   const local = url.startsWith("file:");
+  // A runner of one tenant finds that tenant's database where it was mounted, and makes none:
+  // an empty one would split the tenant's data from what the studio writes.
+  if (env.runner.tenant && local && !existsSync(url.slice("file:".length))) {
+    throw new Error(`The database of tenant ${id} is not where this runner looks (${url}).`);
+  }
   const opened = open(url, local ? "" : env.tenantDbAuthToken);
   const client = local ? gateWrites(opened) : opened;
   clients.set(id, client);
@@ -362,6 +367,11 @@ export async function openTenantClients(): Promise<[string, Client][]> {
 
 /** The only way to a tenant's tables. Opens the database once per process and migrates it then. */
 export function tenantDb(id: string): Promise<Db> {
+  try {
+    ownTenantOnly(id);
+  } catch (err) {
+    return Promise.reject(err);
+  }
   let db = opened.get(id);
   if (!db) {
     db = openTenant(id).catch((err) => {
@@ -477,7 +487,7 @@ export async function migrateAllTenants(
   );
   const failed: string[] = [];
   let migrated = 0;
-  const queue = [...tenants];
+  const queue = tenants.filter((t) => !env.runner.tenant || t.id === env.runner.tenant);
   await Promise.all(
     Array.from({ length: 4 }, async () => {
       for (let t = queue.shift(); t; t = queue.shift()) {
@@ -495,7 +505,17 @@ export async function migrateAllTenants(
   return { migrated, failed };
 }
 
+/**
+ * The active tenants this process works for, as a filter of `control.tenant`: a runner of one
+ * tenant only that one, so its minute's work opens no other tenant's database.
+ */
+export function activeTenants() {
+  const active = eq(control.tenant.status, "active");
+  return env.runner.tenant ? and(active, eq(control.tenant.id, env.runner.tenant)) : active;
+}
+
 export async function knownTenants(): Promise<string[]> {
   const rows = await controlDb.select({ id: control.tenant.id }).from(control.tenant);
-  return rows.map((r) => r.id);
+  // A runner of one tenant knows that one: its sweeps open no other's database.
+  return rows.map((r) => r.id).filter((id) => !env.runner.tenant || id === env.runner.tenant);
 }

@@ -40,7 +40,8 @@ than the tenant's database, prices.
 | F.21 For those who build | The authoring guide and the studio's assistant tell of step files while the switch is on. A starter in version 0.3.0 makes a wizard with its step files, and is offered as usable only while the switch is on. The starters themselves are the marketplace's, in another repository. | `prompts/authoring.md`, `agents/architect.ts`, `services/marketplace.ts` |
 | G.22 Converting | Built: `toKernel` makes the file, its step files and notes on what is not carried over; all 31 starters convert, compile and run to their end with stand-ins. The studio's `POST /wizards/:id/convert` makes a copy of a wizard in version 0.3.0. | `packages/shared/src/convert-kernel.ts`, `services/convert.ts` |
 | H.23 A runner per tenant | Built in part: `RUNNER_TENANT` makes a runner take one tenant's runs only, and the rule of decision 6 picks how a step's code runs. How many runners the cloud holds, when one starts and stops, and what it still shares: a plan to decide on, [kernel-runners.md](kernel-runners.md) | `env.ts`, `tenants/control.ts`, `kernel/host.ts` |
-| H.24, H.25 | Not built: the runner still holds what today's step executors hold; no broker of its own, no rollout | |
+| H.24 Tokens leave the runner | Built in the code, not deployed: the role `broker`. A runner with `RUNNER_TENANT` sends every connector call to it over the peer routes and reads no account; its model calls reach the gateway through it, booked on its own tenant; it opens no other tenant's database and makes none. What the deploy must change, and what the runner still holds, is under item 24. | `env.ts`, `broker/remote.ts`, `routes/broker-peer.ts`, `tenants/tenant.ts`, `db/client.ts`, `test/broker-role.test.ts` |
+| H.25 Ordinary code in the cloud | Not built: waits on the deploy of item 24 and on what it still leaves | |
 
 Where it differs from the plan:
 
@@ -352,6 +353,60 @@ whether executor is still wanted once Composio is in.
 24. **Tokens leave the runner.** The broker as a role of its own (`RUNTIME_ROLE` in
     `apps/runtime/src/env.ts`), reached over the peer routes. The runner's network allows only the
     kernel's database and the broker (`compose.cloud.yaml`).
+    Built in the code on 2026-11-27, not deployed:
+
+    | What | How | Where |
+    |---|---|---|
+    | The role | `RUNTIME_ROLE=broker` serves the broker's peer routes and nothing else of the app | `env.ts` (`serves.broker`), `app.ts` |
+    | A connector call | On a runner with `RUNNER_TENANT`, `brokerCall` sends who calls, where, the connection by its id, the action and the input to `POST /api/peer/broker/call`. The broker reads the row, the account and the secret itself, decides, runs the action and logs it, and sends back the result or the refusal. Where the rules ask, it sends the question; the runner asks it as before (a run of version 0.3.0 answers with a row of its own) and sends the call again with the answer. What a step does before and after the action (a file put into the input, a file kept from the result, the run's log line) runs on the runner (`prepare`, `after`, `started`). | `broker/call.ts`, `broker/remote.ts`, `routes/broker-peer.ts`, `tools/connector.ts` |
+    | Whether an account is there | `brokerConnected` the same way, `POST /api/peer/broker/connected`: as whom, never the secret | the same |
+    | A model call | The gateway of a Manage-App's runtime is reached through `/api/peer/gateway/*`. The broker adds the runtime's key and the tenant the runner's ticket names: a runner books on its own tenant and no other | `models.ts` (`managedGateway`), `routes/broker-peer.ts` |
+    | The tickets | Each runner signs with `BROKER_KEY`, the HMAC of `broker:<tenant>` under the broker's `BROKER_SECRET` (`brokerKeyOf`). A ticket covers its tenant and the call's body, for a minute; the gateway's for an hour. The broker answers it in that tenant alone | `secrets/signing.ts` |
+    | The tenant databases | A runner with `RUNNER_TENANT` refuses another tenant in `inTenant` and `tenantDb`, makes no database of its own tenant where none was mounted, and its sweeps and its minute's work (`knownTenants`, `activeTenants`, `migrateAllTenants`) know its tenant alone | `tenants/tenant.ts`, `db/client.ts`, `engine/starts.ts`, `engine/mail-watch.ts`, `engine/notices.ts`, `plugins/jobs.ts` |
+    | A shared runner, a runtime that runs alone | Call in their own process, as before | |
+
+    Tested in `test/broker-role.test.ts`: a tenant runner's call goes through the broker, which
+    alone opens the secret, the runner asks where the rules ask, a call with its own handler is
+    refused, a ticket opens no other tenant, the gateway gets the runtime's key and the runner's
+    tenant, and the runner opens no other tenant's database.
+
+    What the deploy must change (`compose.cloud.yaml`, the user's):
+
+    - A service `broker`: the same image, `RUNTIME_ROLE=broker`, `BROKER_SECRET`, `STORE_ENC_KEY`,
+      `APP_SECRET`, `MANAGE_SERVICE_KEY`, `GATEWAY_URL`, and the tenant databases as the studio has
+      them. Not behind the proxy: on a network of its own with the tenant runners.
+    - Each tenant's runner: `RUNTIME_ROLE=runner`, `RUNNER_TENANT=<id>`,
+      `BROKER_URL=http://broker:<port>` and
+      `BROKER_KEY=$(printf 'broker:%s' <id> | openssl dgst -sha256 -hmac "$BROKER_SECRET" -r | cut -d' ' -f1)`.
+      Without `STORE_ENC_KEY`, `BROKER_SECRET` and `GATEWAY_URL`. Its networks: the broker's and the
+      sandbox's, not `browser` and not the outside.
+    - `STORE_ENC_KEY` set and not equal to `APP_SECRET`: without it the store's key is made from
+      `APP_SECRET`, which the runner keeps. Where the cloud seals with `APP_SECRET` today, what is
+      sealed has to be sealed again under the new key first; nothing in the code does that yet.
+    - The tenant's database off `runtime-cache`: the runner mounts its own tenant's files only.
+      Today they are `tenants/<id>.db` with its `-wal` and `-shm`, `tenants/<id>/` beside it and
+      the tenant's objects under `objects/t/<id>/` (or S3). A volume per tenant needs them in one
+      folder; that move is not in the code.
+
+    What a tenant's runner still holds or reaches:
+
+    - `MANAGE_SERVICE_KEY`, for the Manage-App's answers about its tenant (`tenantInfo`, the
+      features, the members): a key for every tenant. A key per tenant, or those reads through the
+      broker, is the next step.
+    - `APP_SECRET`, which signs sessions and links of every tenant; and the control database,
+      which holds every tenant's sessions, while it is a file on the shared volume (libSQL is
+      planned later, kernel-runners.md decision 7).
+    - A tenant's own provider keys saved in the cloud studio: sealed in the tenant's settings,
+      which the runner cannot open without `STORE_ENC_KEY`. Its models then go through the gateway,
+      the tenant's own accounts with the switch `ownKeysGateway`.
+    - Calls that bring their own handler need the account in the process and are refused on such a
+      runner: a connector's tool list read again (`list_tools`), the targets of share jobs, a
+      plugin's `request`, and the mail stream the runner watches (`brokerPullStream`,
+      `brokerReadMessage`), so mail starts no run there yet. Each needs a named action on the
+      broker's side. The browser's kept sign-ins (`brokerSecret`) are read in the runner's own
+      process, which cannot open them without `STORE_ENC_KEY`: the browser starts signed out.
+    - The runner trusts its own process for who calls; the broker checks the tenant, not the
+      person. Ordinary code of the tenant could name another person of the same tenant.
 25. **Ordinary code in the cloud.** With 23 and 24 in place, the tenant's own wizards leave
     QuickJS. A wizard from someone else gets a runner of its own or stays in QuickJS.
 26. **The edge.** A wizard as a Worker of its own with each run a Durable Object, as the spike ran

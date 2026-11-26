@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { readingAs, SYSTEM } from "../broker/rwx.js";
-import { control, controlDb, withTenant } from "../db/client.js";
+import { activeTenants, control, controlDb, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { twoWayActive } from "../sync/state.js";
 import { LOCAL_TENANT } from "../tenants/tenant.js";
@@ -25,7 +25,7 @@ export async function runDueJobs(now = new Date()): Promise<void> {
     return;
   }
   const tenants = await controlDb.query.tenant.findMany({
-    where: eq(control.tenant.status, "active"),
+    where: activeTenants(),
   });
   const started: Promise<void>[] = [];
   for (const tenant of tenants) {
