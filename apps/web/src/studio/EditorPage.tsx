@@ -778,6 +778,7 @@ function Editor() {
             id={kernelStep}
             onSelect={select}
             readOnly={w.readOnly}
+            onFile={(file) => save({ ...def, kernel: file })}
             onNote={(text) => void chat.send(text)}
           />
         </div>

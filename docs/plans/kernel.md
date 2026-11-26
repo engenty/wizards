@@ -34,7 +34,7 @@ than the tenant's database, prices.
 | C.11 A person answers | Built another way: see below. An ask's view (`components`, and the values in `data`) reaches the page. | `kernel/page.ts`, `kernel/views.ts` |
 | D.13 Judging runs | Built, by a share the runtime is told (`KERNEL_EVALS`). No setting of a space yet. | `kernel/host.ts` |
 | E Executor | In the package only, tested against the emulator. Not in the runtime. | `packages/kernel/src/executor.ts` |
-| F.18 The map | Built, to read: the studio draws the file's steps and edges. Editing the map, a run's rows as a timeline and scores are not built. | `apps/web/src/studio/editor/kernel-flow.ts`, `KernelFlow.tsx` |
+| F.18 The map | Built: the studio draws the file's steps and edges, and a step's panel changes its ways and its limit in the file. A run's rows as a timeline and scores are not built. | `apps/web/src/studio/editor/kernel-flow.ts`, `KernelFlow.tsx` |
 | F.21 For those who build | The authoring guide tells of step files while the switch is on. No starter in version 0.3.0. | `prompts/authoring.md` |
 | G.22 Converting | Built: `toKernel` makes the file, its step files and notes on what is not carried over; all 31 starters convert, compile and run to their end with stand-ins. The studio's `POST /wizards/:id/convert` makes a copy of a wizard in version 0.3.0. | `packages/shared/src/convert-kernel.ts`, `services/convert.ts` |
 | H.23 A runner per tenant | Built: `RUNNER_TENANT` makes a runner take one tenant's runs only, and the rule of decision 6 picks how a step's code runs | `env.ts`, `tenants/control.ts`, `kernel/host.ts` |
@@ -239,13 +239,20 @@ Tests named here run alone, as the repository asks:
 18. **The graph from the file.** `apps/web/src/studio/editor/FlowDiagram.tsx` and
     `FlowPreview.tsx` read `edges`. Adding, removing and moving an edge and setting a limit write
     the file. A new way out of a step needs the step to return it: the assistant changes the file.
+    Built on 2026-11-26, in the step's panel (`KernelFlow.tsx`): each way of the file has where it
+    leads as a choice, a button that makes it the first and one that removes it; a way is added
+    from the steps that have a file, and the limit is a number. The file is written with
+    `withWays` and `withLimit` (`packages/shared/src/kernel-file.ts`). The panel lists the code's
+    ways beside the file's (`stepWays` in `kernel-flow.ts`): a way of the file the code names
+    nowhere offers a note to the assistant, a way the code takes and the file lacks offers to add
+    it. `start` is not changed there, and nothing is dragged on the map itself.
 19. **A step on its node.** The step's file in the editor, and the asks it made in runs: role,
     instructions as sent, fields. The file's `requires` and `connections` as a form. Decided
     2026-11-26: a step's Auftrag is typed over in its panel, for every step, with the code between
     its words kept as chips, as its short texts are. A wizard with one step opens on its prompt.
     Built on 2026-11-26: `instructions`, `prompt` and `brief` are typed over like the short texts
     (`kernel-flow.ts`, `typedOver`), and the editor opens a wizard of one step on that step. Seen
-    in a local studio on 2026-11-27: the prompt is typed over and written into the step file with
+    in a local studio on 2026-11-26: the prompt is typed over and written into the step file with
     its code kept. A `.ts` file is stored as text since then, so the code view shows a step file
     that was written without a type of its own.
 20. **A run as rows.** `RunTimeline.tsx` from `run_row`, with asking a row again and answering it

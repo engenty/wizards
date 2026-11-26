@@ -1,4 +1,5 @@
 import type { KernelFile } from "@engenty/wizards-shared/definition";
+import type { OutlineWay } from "@engenty/wizards-shared/kernel-file";
 
 /**
  * The map of a wizard in version 0.3.0 as the studio draws it (docs/plans/kernel.md): its steps in
@@ -70,3 +71,34 @@ const OPTION = /^fields\.\d+\.options\.\d+$/;
 
 /** Whether the value at this path of an ask is a text typed over in the step's panel. */
 export const typedOver = (path: string): boolean => WORDS.test(path) || OPTION.test(path);
+
+/** A way of a step as its panel lists it. */
+export interface StepWay extends OutlineWay {
+  /** A way of the file the step's code names nowhere: the map draws it, no run takes it. */
+  unnamed?: boolean;
+  /** A way the code takes and the file does not have: a run that takes it fails. */
+  missing?: boolean;
+}
+
+/**
+ * The ways of a step: each one its code takes, with its condition, then the ways of the file the
+ * code names nowhere. A `return` without a way takes the file's first.
+ */
+export function stepWays(code: readonly OutlineWay[], ways: readonly string[]): StepWay[] {
+  const named = code.map((way) => {
+    const to = way.to ?? ways[0];
+    return {
+      ...way,
+      ...(to ? { to } : {}),
+      ...(!way.code && !ways.includes(to ?? "end") ? { missing: true } : {}),
+    };
+  });
+  // Where the code works a way out, nobody can say which ways of the file it takes.
+  const worked = named.some((way) => way.code);
+  return [
+    ...named,
+    ...ways
+      .filter((to) => !named.some((way) => !way.code && way.to === to))
+      .map((to) => (named.length && !worked ? { to, unnamed: true } : { to })),
+  ];
+}

@@ -1,6 +1,6 @@
 import type { KernelFile } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
-import { kernelFlow, typedOver } from "./kernel-flow";
+import { kernelFlow, stepWays, typedOver } from "./kernel-flow";
 
 const file = (edges: Record<string, string[]>, start: string, limits?: Record<string, number>) =>
   ({
@@ -85,5 +85,37 @@ describe("what a person types over in a step's panel", () => {
     ]) {
       expect(typedOver(path), path).toBe(false);
     }
+  });
+});
+
+describe("the ways of a step in its panel", () => {
+  it("lists the file's ways where the code is not read", () => {
+    expect(stepWays([], ["b", "end"])).toEqual([{ to: "b" }, { to: "end" }]);
+  });
+
+  it("takes the file's first way for a return that names none", () => {
+    expect(stepWays([{}], ["b"])).toEqual([{ to: "b" }]);
+  });
+
+  it("marks a way of the file the code names nowhere", () => {
+    expect(stepWays([{ to: "b", when: "ok" }], ["b", "c"])).toEqual([
+      { to: "b", when: "ok" },
+      { to: "c", unnamed: true },
+    ]);
+  });
+
+  it("marks a way the code takes and the file does not have", () => {
+    expect(stepWays([{ to: "x" }, { to: "b" }], ["b"])).toEqual([
+      { to: "x", missing: true },
+      { to: "b" },
+    ]);
+  });
+
+  it("does not judge the file's ways where the code works one out", () => {
+    expect(stepWays([{ code: "next(run)" }], ["b", "c"])).toEqual([
+      { code: "next(run)", to: "b" },
+      { to: "b" },
+      { to: "c" },
+    ]);
   });
 });

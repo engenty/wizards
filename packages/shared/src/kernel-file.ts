@@ -61,6 +61,27 @@ export function withoutStep(file: KernelFile, id: string): KernelFile {
   return { ...file, start, edges, ...(file.limits ? { limits } : {}) };
 }
 
+/**
+ * The file with a step's ways written anew, in their order: none twice, and at least one. A step
+ * left without a way ends the run, and so does a step a way now leads to that had none of its own.
+ */
+export function withWays(file: KernelFile, from: string, ways: readonly string[]): KernelFile {
+  const unique = ways.filter((to, i) => ways.indexOf(to) === i);
+  const edges = { ...file.edges, [from]: unique.length ? unique : ["end"] };
+  for (const to of unique) {
+    if (to !== "end" && !(to in edges)) edges[to] = ["end"];
+  }
+  return { ...file, edges };
+}
+
+/** The file with how often a step may be reached in one run; without a number, with no limit. */
+export function withLimit(file: KernelFile, id: string, limit: number | undefined): KernelFile {
+  const { limits: all, ...bare } = file;
+  const { [id]: _was, ...rest } = all ?? {};
+  const limits = limit ? { ...rest, [id]: Math.min(Math.max(Math.round(limit), 1), 1000) } : rest;
+  return Object.keys(limits).length ? { ...bare, limits } : bare;
+}
+
 /** The one step a reader of version 0.2.0 sees of a wizard in version 0.3.0. */
 export const KERNEL_STEP = "result";
 

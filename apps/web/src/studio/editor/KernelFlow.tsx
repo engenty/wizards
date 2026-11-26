@@ -7,11 +7,15 @@ import {
   type OutlineValue,
   type OutlineWay,
   type StepOutline,
+  stepFilesOf,
+  withLimit,
+  withWays,
 } from "@engenty/wizards-shared/kernel-file";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  ArrowUp,
   Bot,
   Braces,
   Check,
@@ -26,13 +30,15 @@ import {
   type LucideIcon,
   Plug,
   Sparkles,
+  Trash2,
+  TriangleAlert,
   X,
 } from "lucide-react";
 import { lazy, Suspense, useContext, useMemo } from "react";
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { cn } from "../../ui";
+import { cn, IconButton, Input, Select } from "../../ui";
 import {
   BlockTools,
   CODE,
@@ -41,7 +47,7 @@ import {
   useEditable,
   Words,
 } from "./KernelEdit";
-import { kernelFlow } from "./kernel-flow";
+import { kernelFlow, stepWays } from "./kernel-flow";
 
 const FlowPreview = lazy(() => import("../FlowPreview"));
 
@@ -244,6 +250,7 @@ export function KernelStep({
   wizard,
   id,
   readOnly,
+  onFile,
   onSelect,
   onNote,
   onBack,
@@ -252,6 +259,8 @@ export function KernelStep({
   id: string;
   /** Nothing of the step is changed here. */
   readOnly?: boolean;
+  /** Writes the wizard's file: the step's ways and its limit are changed here with it. */
+  onFile?: (file: KernelFile) => void;
   /** Sends a note about one element of the step to the assistant. */
   onNote?: (text: string) => void;
   /** Chooses the step a way leads to. */
@@ -276,6 +285,22 @@ export function KernelStep({
       ? (about: string, text: string) => onNote(`steps/${id}.ts · „${about}“: ${text}`)
       : undefined,
   };
+  const map: StepMap | undefined =
+    !readOnly && onFile
+      ? {
+          // Every step that has a file, also one no way leads to yet.
+          targets: [
+            ...Object.keys(stepFilesOf(wizard.files.map((f) => f.path))).map((step) => ({
+              value: step,
+              label: titleOf(step, read?.[step]),
+            })),
+            { value: "end", label: t("type.result") },
+          ],
+          limit: file.limits?.[id],
+          setWays: (ways) => onFile(withWays(file, id, ways)),
+          setLimit: (limit) => onFile(withLimit(file, id, limit)),
+        }
+      : undefined;
   if (id === INPUT && file.input) {
     return (
       <StepPanel
@@ -309,6 +334,7 @@ export function KernelStep({
       key={`${id}:${write.failureCount}`}
       target={target}
       editing={readOnly ? undefined : editing}
+      map={map}
       failed={write.error ? (write.error as Error).message : undefined}
       onSelect={onSelect}
       onBack={onBack}
@@ -650,6 +676,15 @@ function Ask({ spec: given }: { spec: Spec }) {
   );
 }
 
+/** What changes a step's place in the map: its ways in the file, and its limit. */
+interface StepMap {
+  /** Where a way can lead: every step, and the result. */
+  targets: { value: string; label: string }[];
+  limit: number | undefined;
+  setWays: (ways: string[]) => void;
+  setLimit: (limit: number | undefined) => void;
+}
+
 function StepPanel({
   id,
   path,
@@ -657,6 +692,7 @@ function StepPanel({
   ways,
   target,
   editing,
+  map,
   failed,
   onSelect,
   onBack,
@@ -671,6 +707,8 @@ function StepPanel({
   target: (id: string) => { title: string; icon: LucideIcon; tone: string } | undefined;
   /** What changes the step: a text typed over, a note to the assistant. Left out, it is read only. */
   editing?: Pick<KernelEditing, "save" | "note">;
+  /** What changes the step's ways and limit. Left out, they are read only. */
+  map?: StepMap;
   /** Why the last change was not written. */
   failed?: string;
   /** Chooses the step a way leads to. */
@@ -678,9 +716,9 @@ function StepPanel({
   /** Leads back to the map, where the panel stands in its place. */
   onBack?: () => void;
 }) {
-  // Each way of the file with the condition the code has for it; the code's own where it names one.
-  const named = (step?.ways ?? []).map((way) => ({ ...way, to: way.to ?? ways[0] }));
-  const shown: OutlineWay[] = named.length ? named : ways.map((to) => ({ to }));
+  const shown = stepWays(step?.ways ?? [], ways);
+  // The ways a run can take: only among several is one of them the "otherwise".
+  const taken = shown.filter((way) => !way.unnamed).length;
   return (
     <div className="flex h-full flex-col overflow-auto">
       <div className="flex items-center gap-2 px-5 pt-4">
@@ -743,53 +781,159 @@ function StepPanel({
             const card = way.code ? undefined : target(to);
             const open = card && to !== "end" && onSelect ? () => onSelect(to) : undefined;
             const Icon = card?.icon;
-            return (
-              <button
-                key={i}
-                type="button"
-                disabled={!open}
-                onClick={open}
+            const missing = way.missing === true;
+            const mine = map && !way.code && !missing ? map : undefined;
+            const when = (
+              <span className="text-[0.8125rem] text-ink-2">
+                {way.ask ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Sparkles className="size-3.5 text-ember" />
+                    {way.ask}
+                  </span>
+                ) : way.why || redoes(step?.asks[0]?.spec, way.to) ? (
+                  (way.why ?? t("kernel.redo"))
+                ) : way.when ? (
+                  <code className={CODE}>{way.when}</code>
+                ) : taken > 1 && !way.unnamed ? (
+                  t("editor.otherwise")
+                ) : null}
+              </span>
+            );
+            const mark = Icon ? (
+              <span
                 className={cn(
-                  BOX,
-                  "group flex items-center gap-3 text-left",
-                  open && "cursor-pointer hover:bg-paper-3",
+                  "inline-flex size-8 shrink-0 items-center justify-center rounded",
+                  card.tone,
                 )}
               >
-                {Icon ? (
-                  <span
-                    className={cn(
-                      "inline-flex size-8 shrink-0 items-center justify-center rounded",
-                      card.tone,
-                    )}
-                  >
-                    <Icon className="size-4" />
+                <Icon className="size-4" />
+              </span>
+            ) : null;
+            const note =
+              way.unnamed || missing ? (
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.8125rem] text-ink-2">
+                  <span className="inline-flex items-center gap-1.5">
+                    <TriangleAlert className="size-3.5 shrink-0 text-amber" />
+                    {t(missing ? "kernel.way.missing" : "kernel.way.unnamed")}
                   </span>
-                ) : null}
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-[0.8125rem] text-ink-2">
-                    {way.ask ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Sparkles className="size-3.5 text-ember" />
-                        {way.ask}
-                      </span>
-                    ) : way.why || redoes(step?.asks[0]?.spec, way.to) ? (
-                      (way.why ?? t("kernel.redo"))
-                    ) : way.when ? (
-                      <code className={CODE}>{way.when}</code>
-                    ) : shown.length > 1 ? (
-                      t("editor.otherwise")
-                    ) : null}
-                  </span>
-                  <span className="font-medium">
-                    {way.code ? <code className={CODE}>{way.code}</code> : card?.title}
-                  </span>
+                  {missing && map?.targets.some((one) => one.value === to) ? (
+                    <button
+                      type="button"
+                      className="text-cobalt hover:underline"
+                      onClick={() => map.setWays([...ways, to])}
+                    >
+                      {t("kernel.way.toMap")}
+                    </button>
+                  ) : null}
+                  {way.unnamed && editing?.note ? (
+                    <button
+                      type="button"
+                      className="text-cobalt hover:underline"
+                      onClick={() =>
+                        editing.note?.(
+                          t("kernel.ways"),
+                          t("kernel.way.askReturn", { to: card?.title ?? to }),
+                        )
+                      }
+                    >
+                      {t("kernel.note.ask")}
+                    </button>
+                  ) : null}
                 </span>
-                {open ? (
-                  <ChevronRight className="size-4 shrink-0 text-ink-3 group-hover:text-ink" />
-                ) : null}
-              </button>
+              ) : null;
+            if (mine) {
+              const at = ways.indexOf(to);
+              return (
+                <div key={i} className={cn(BOX, "flex flex-col gap-2")}>
+                  {when}
+                  <div className="flex items-center gap-1.5">
+                    {mark}
+                    <Select
+                      className="min-w-0 flex-1"
+                      value={to}
+                      onChange={(next) =>
+                        mine.setWays(ways.map((one) => (one === to ? next : one)))
+                      }
+                      options={mine.targets}
+                    />
+                    {at > 0 ? (
+                      <IconButton
+                        label={t("kernel.way.first")}
+                        onClick={() => mine.setWays([to, ...ways.filter((one) => one !== to)])}
+                      >
+                        <ArrowUp className="size-4" />
+                      </IconButton>
+                    ) : null}
+                    <IconButton
+                      label={t("kernel.way.remove")}
+                      className="hover:text-rose"
+                      onClick={() => mine.setWays(ways.filter((one) => one !== to))}
+                    >
+                      <Trash2 className="size-4" />
+                    </IconButton>
+                    {open ? (
+                      <IconButton label={t("kernel.way.open")} onClick={open}>
+                        <ChevronRight className="size-4" />
+                      </IconButton>
+                    ) : null}
+                  </div>
+                  {note}
+                </div>
+              );
+            }
+            return (
+              <div key={i} className={cn(BOX, "flex flex-col gap-2", open && "hover:bg-paper-3")}>
+                <button
+                  type="button"
+                  disabled={!open}
+                  onClick={open}
+                  className={cn(
+                    "group flex items-center gap-3 text-left",
+                    open && "cursor-pointer",
+                  )}
+                >
+                  {mark}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    {when}
+                    <span className="font-medium">
+                      {way.code ? <code className={CODE}>{way.code}</code> : (card?.title ?? to)}
+                    </span>
+                  </span>
+                  {open ? (
+                    <ChevronRight className="size-4 shrink-0 text-ink-3 group-hover:text-ink" />
+                  ) : null}
+                </button>
+                {note}
+              </div>
             );
           })}
+          {map ? (
+            <>
+              <Select
+                value=""
+                placeholder={t("kernel.way.add")}
+                onChange={(to) => {
+                  if (to) map.setWays([...ways, to]);
+                }}
+                options={map.targets.filter((one) => !ways.includes(one.value))}
+              />
+              <label className="mt-2 flex items-center justify-between gap-3 px-1 text-[0.8125rem] text-ink-2">
+                {t("kernel.limit.label")}
+                <Input
+                  type="number"
+                  min={1}
+                  max={1000}
+                  className="w-24 shrink-0"
+                  placeholder="–"
+                  value={map.limit ?? ""}
+                  onChange={(e) => {
+                    const n = Math.round(Number(e.target.value));
+                    map.setLimit(n >= 1 ? n : undefined);
+                  }}
+                />
+              </label>
+            </>
+          ) : null}
         </section>
       </div>
     </div>
