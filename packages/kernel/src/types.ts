@@ -28,6 +28,8 @@ export type WizardFile = {
   connections?: Record<string, Record<string, "allow" | "ask">>;
   /** Shown on the first page, above the first question. */
   intro?: string;
+  /** The lists the wizard keeps across its runs. A step reads and writes them with an ask of `type: "list"`. */
+  lists?: { id: string; [key: string]: unknown }[];
   /** What a caller sends, or a person fills in first; as a page, laid out like any form. */
   input?: {
     title?: string;

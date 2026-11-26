@@ -140,5 +140,5 @@ Open:
    converter's default (kernel.md, "Decided on 2026-11-27"). By the guideline there, the catalog
    is built again in version 0.3.0 rather than converted, and each entry sets its own limit.
 5. What may a step file read besides the input, the date and earlier steps? Decided 2026-11-27:
-   the brand and the wizard's own files for every wizard, a list and a row written without a
-   model when the file names the list in `requires.lists` (kernel.md).
+   the brand and the wizard's own files for every wizard, a list of the file's `lists` and a row
+   written to it without a model, each by an ask (kernel.md). Built.

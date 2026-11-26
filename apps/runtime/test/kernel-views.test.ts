@@ -136,6 +136,21 @@ describe("the view of an ask, checked when it is asked for", () => {
     expect(views.viewIssue({ ...form, components: reads })).toContain("total");
   });
 
+  it("takes a number worked out from the form's fields while the person types", () => {
+    const priced = [
+      { id: "amount", label: "Amount", kind: "number" },
+      { id: "rate", label: "Rate", kind: "number" },
+    ];
+    const components = [
+      { id: "root", component: "Column", children: ["amount", "rate", "total"] },
+      { id: "amount", component: "Field", name: "amount" },
+      { id: "rate", component: "Field", name: "rate" },
+      { id: "total", component: "Text", text: { calc: "amount * rate * (1 + vat / 100)" } },
+    ];
+    expect(views.viewIssue({ type: "form", fields: priced, components, data: { vat: 20 } })).toBeUndefined();
+    expect(views.viewIssue({ type: "form", fields: priced, components })).toContain("vat");
+  });
+
   it("says what is wrong with a view", () => {
     expect(views.viewIssue({ ...form, components: [{ id: "root", component: "Nope" }] })).toContain("The view:");
     expect(views.viewIssue({ type: "form", fields, data: { total: 1 } })).toBe('An ask reads "data" only with "components".');

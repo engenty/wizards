@@ -297,6 +297,40 @@ it("fails a step that asks another wizard: the runtime starts no run of one yet"
   expect(row.error).toBe('This runtime does not start a run of "other" yet.');
 });
 
+it("reads the brand, a file of the wizard's own and a list, and writes a row, without a model", async () => {
+  const prices = { id: "prices", title: "Prices", key: "item", columns: [{ id: "item", name: "Item", type: "text", required: true }, { id: "price", name: "Price", type: "number", format: { style: "currency", currency: "EUR" } }] };
+  const reads = { ...file, start: "read", edges: { read: ["end"] }, limits: {}, output: { all: "read.all" }, lists: [prices] };
+  const step = `export default async (run, ask) => {
+  const brand = await ask({ type: "brand" });
+  const rates = await ask({ type: "file", path: "rates.json" });
+  await ask({ type: "list", list: "prices", row: { item: "Workshop", price: rates.workshop } });
+  const rows = await ask({ type: "list", list: "prices", query: { item: "Workshop" } });
+  return { value: { all: { name: brand.name, price: rows[0].price, count: rows.length } } };
+};
+`;
+  const id = await client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(reads) as never });
+    await files.seedFiles(created.id, { "steps/read.ts": step, "rates.json": '{ "workshop": 1500 }' });
+    const w = await wizards.ownedWizard("u", created.id);
+    return runner.createRun({ wizardId: created.id, definition: w.draft, files: await files.draftFiles(created.id), version: null, mode: "test", userId: "u", input });
+  });
+  await rests(id, "done");
+  expect((await view(id)).output).toMatchObject({ all: { price: 1500, count: 1 } });
+  expect(worked.filter((w) => w.step === "read")).toEqual([]);
+});
+
+it("fails a list ask for a list the file does not keep", async () => {
+  const asks = { ...file, start: "read", edges: { read: ["end"] }, limits: {}, output: {} };
+  const id = await client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(asks) as never });
+    await files.seedFiles(created.id, { "steps/read.ts": 'export default async (run, ask) => ({ value: await ask({ type: "list", list: "other" }) });\n' });
+    const w = await wizards.ownedWizard("u", created.id);
+    return runner.createRun({ wizardId: created.id, definition: w.draft, files: await files.draftFiles(created.id), version: null, mode: "test", userId: "u", input });
+  });
+  const row = await rests(id, "failed");
+  expect(row.error).toBe('"read" reached for "other", which the file does not grant.');
+});
+
 it("leaves a wizard in version 0.2.0 to today's engine", async () => {
   const id = await client.withTenant(T, async () => {
     const def = { version: 1, title: "Old", description: "", avatar: "round", steps: [{ id: "write", type: "agent", title: "Write", instructions: "Do it.", tools: [], output: { format: "text" } }, { id: "done", type: "result", title: "Done", deliverables: [] }] };

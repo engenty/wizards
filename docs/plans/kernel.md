@@ -401,27 +401,29 @@ Decided in this session, each with its reason. The guideline above holds for all
 - **A way no test covers** is only listed, as `wizards check` does today. Tests of a wizard are
   optional; a wizard with some tests must not be held to more than one with none.
 - **The names inside `requires` and `connections`** stay as they are: `requires.models`, `tools`,
-  `roles`, `hosts`, `wizards`, `lists` (below), and `connections` by kind, then action, then
+  `roles`, `hosts` and `wizards`, and `connections` by kind, then action, then
   `allow` or `ask`. A Composio toolkit is named there like any other connector. The runtime's
   schema keeps `requires.wizards`; an ask of another wizard fails there in its own words until the
   runtime starts runs of one.
-- **A number worked out while the person types** is a formula on the field: `"formula": "amount *
-  rate"`, over the page's other fields, with `+ - * /`, brackets, numbers and `round(x, n)`. The
-  page works it out as the person types; the kernel works it out again when the answer is
-  recorded and keeps its own result. No step code runs during a wait, and a formula is no code: it
-  cannot call anything. Not built.
+- **A number worked out while the person types** is a `calc` in the ask's view: a prop
+  `{ "calc": "amount * rate" }` over the form's field ids and its data, worked out by the page as
+  the person types (`packages/chatviews/src/calc.ts`). It was there already; a test in
+  `kernel-views.test.ts` holds it for an ask. No step code runs during a wait, and a `calc` cannot
+  call anything. The value the run keeps is worked out by the step when it runs again with the
+  answers.
 - **The kernel stays our own engine.** Mastra's JSON workflows were tried: a step that names its
   next step and a timed wait do not fit, and the grant, the rows and the line of runs would stay
   ours around them. Mastra stays inside the agent ask (decided point 8).
 - **Executor is not needed for the flip.** Services come through our own connectors, MCP servers
   and Composio, all through the broker. Decided point 7 now reads as the broker below the kernel;
   `kernel/executor` stays as it is until an API with no connector needs it.
-- **What a step may read:** the input, the date and earlier steps, as now, and by an ask each: the
-  space's brand (`{ type: "brand" }`) and the wizard's own files (`{ type: "file", path }`),
-  granted to every wizard; a list of the space (`{ type: "list", list, query }`) and a row
-  written to it without a model (`{ type: "list", list, row }`), granted when the file names the
-  list in `requires.lists`. Each is a row, so a step that runs again from its top reads the same.
-  Not built.
+- **What a step may read:** the input, the date and earlier steps, as before, and by an ask each,
+  answered without a model: the space's brand (`{ type: "brand" }`) and a file of the wizard's own
+  (`{ type: "file", path }`), for every wizard; one of the file's `lists`
+  (`{ type: "list", list, query }`), and a row written to it (`{ type: "list", list, row }`). The
+  grant holds the file's lists; an ask for another list fails. Each answer is a row, so a step
+  that runs again reads the same. Built: `readerBatteries` in `kernel/batteries.ts`, two tests in
+  `kernel-run.test.ts`, the authoring guide and the kernel's README.
 - **How often a review sends a step back** in a converted wizard: 10, the converter's default,
   inside the 4 to 11 of the reworked templates. A wizard built in version 0.3.0 sets its own in
   `limits`.

@@ -8,6 +8,8 @@ export type Grant = {
   hosts: string[];
   /** Missing on a grant made before wizards could be asked. */
   wizards?: string[];
+  /** The file's lists. Missing on a grant made before steps could read them. */
+  lists?: string[];
   connections: Record<string, Record<string, "allow" | "ask">>;
 };
 
@@ -29,6 +31,7 @@ export const grantOf = (file: WizardFile): Grant => ({
   roles: ["user", "operator", ...Object.keys(file.requires?.roles ?? {})],
   hosts: file.requires?.hosts ?? [],
   wizards: file.requires?.wizards ?? [],
+  lists: (file.lists ?? []).map((list) => list.id),
   connections: file.connections ?? {},
 });
 
@@ -51,6 +54,10 @@ export function outside(grant: Grant, spec: Spec): string | undefined {
   if (spec.type === "wizard") {
     const name = typeof spec.wizard === "string" ? spec.wizard : "a wizard without a name";
     if (!(grant.wizards ?? []).includes(name)) return name;
+  }
+  if (spec.type === "list") {
+    const name = typeof spec.list === "string" ? spec.list : "a list without a name";
+    if (!(grant.lists ?? []).includes(name)) return name;
   }
   const tool = named(spec).find((name) => !action(grant, name) && !grant.tools.includes(name));
   if (tool) return tool;

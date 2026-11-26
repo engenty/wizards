@@ -2,8 +2,12 @@ import { createHash } from "node:crypto";
 import { type AskRow, type Battery, NeedsLeave, type Run, view } from "@engenty/wizards-kernel";
 import type { Field, Step, WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { RunState, StepOutput } from "@engenty/wizards-shared/run";
+import { runHolder, subjectsOf } from "../broker/rwx.js";
 import { runAutomaticStep } from "../engine/steps.js";
 import type { RunRow, SpaceRow, StepContext } from "../engine/types.js";
+import { snapshotFile } from "../services/files.js";
+import { spaceProfile } from "../services/spaces.js";
+import { listRows, saveRows, scopeOf } from "../store/index.js";
 import { asRefs, viewData } from "./views.js";
 
 /**
@@ -244,6 +248,47 @@ export function motionInputs(row: AskRow, kernelRun: Run, state: RunState): Reco
   return refs;
 }
 
+/** How large a file of the wizard's own a step may read at once. */
+const FILE_LIMIT = 512 * 1024;
+
+/**
+ * What a step reads by an ask that needs no model: the space's brand, a file of the wizard's own,
+ * a list of the file's, and a row written to it. Each is a row, so a step that runs again from
+ * its top reads what it read the first time. The grant holds the file's lists; the brand and the
+ * wizard's own files are every wizard's.
+ */
+export function readerBatteries(run: RunRow, space: SpaceRow): Record<string, Battery> {
+  return {
+    brand: async () => spaceProfile(space),
+    file: async (row) => {
+      const path = typeof row.path === "string" ? row.path : "";
+      const found = path ? await snapshotFile(run.files, path) : null;
+      if (!found) throw new Error(`The wizard has no file "${path}".`);
+      if (found.data.length > FILE_LIMIT) {
+        throw new Error(`"${path}" is larger than a step may read at once (512 KB).`);
+      }
+      const text = found.data.toString("utf8");
+      return path.endsWith(".json") ? JSON.parse(text) : text;
+    },
+    list: async (row) => {
+      const def = (run.definition.lists ?? []).find((list) => list.id === row.list);
+      if (!def) throw new Error(`The wizard has no list "${String(row.list)}".`);
+      const scope = scopeOf(run);
+      const written = row.row;
+      if (written && typeof written === "object" && !Array.isArray(written)) {
+        return saveRows(scope, def, [written as Record<string, unknown>]);
+      }
+      const who = subjectsOf({ holder: await runHolder(run), store: scope });
+      const query = (row.query ?? {}) as Record<string, unknown>;
+      return (await listRows(scope, def, who))
+        .map((one): Record<string, unknown> => ({ id: one.id, ...one.cells }))
+        .filter((cells) =>
+          Object.entries(query).every(([column, value]) => cells[column] === value),
+        );
+    },
+  };
+}
+
 export function kernelBatteries(
   run: RunRow,
   space: SpaceRow,
@@ -303,5 +348,6 @@ export function kernelBatteries(
     widget: battery,
     "motion-graphics": battery,
     surface: battery,
+    ...readerBatteries(run, space),
   };
 }

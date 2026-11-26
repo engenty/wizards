@@ -612,6 +612,7 @@ Such a wizard is one definition with a "kernel" entry, plus one file per step in
     "version": "0.3.0", "title": "...", "description": "...",
     "requires": { "models": ["standard"], "tools": [], "roles": { "legal": "Legal" }, "hosts": [] },
     "connections": { "<connection id>": { "<action>": "allow" | "ask" } },   // "ask": the user is asked before the action is done
+    "lists": [{ "id": "prices", "title": "Prices", "key": "item", "columns": [...] }],   // kept across runs, read and written with ask "list"
     "input": { "fields": [Field, ...] },        // what the run is given, or asks for on its first page
     "output": { "<name>": "<step>.<key>" },      // what a finished run gives back
     "start": "<step>",
@@ -633,6 +634,10 @@ export default async function (run, ask) {
   "agent" { model, instructions, fields?, tools? } is answered by a model; with fields the answer has those keys. tools names connection actions as "<connection>.<action>", only ones the file lists.
   "tool" { call: "<connection>.<action>", input } is one fixed action.
   "wait" { timeout: "3d", signal?, key? } is answered by time or a signal: { came } or { timedOut }.
+  "brand" {} is the space's brand: { name, about, tagline, colors, fonts, facts, … }.
+  "file" { path } is a file of the wizard's own workspace, as text; a ".json" file as its data.
+  "list" { list, query? } is the rows of one of the file's "lists" whose columns equal query; "list" { list, row } writes that row (a known key updates it). No model is asked for any of these three.
+  A form's "components" may show a number worked out while the person types: a prop { "calc": "amount * rate" } over the form's field ids and its data.
   "timeout" on any ask: after it the answer is { timedOut: true }.
 - return { value, to }: value is what later steps read as run.steps.<id>; to is one of the step's ways in "edges", or left out for the first.
 - A step runs again from its top when an answer arrives, and ask gives earlier answers back at once. So a step only computes and asks.

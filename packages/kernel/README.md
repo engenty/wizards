@@ -137,6 +137,11 @@ stopped, the ask fails. Nobody else can answer such an ask. The run of the other
 of its own, a person answers them there. Pausing, stopping or asking again the step that asked
 does the same to that run. Wizards ask wizards at most five deep.
 
+A step reads what a host keeps by an ask too, answered without a model: `{ type: "brand" }`,
+`{ type: "file", path }` for a file of the wizard's own, and `{ type: "list", list, query }` or
+`{ type: "list", list, row }` for one of the file's `lists`. The grant holds those lists; an ask
+for another list fails. Each answer is a row, so a step that runs again reads the same.
+
 The file holds a run to its limits without trusting the code. An ask that names a tool or a role
 the file does not list fails. A `to` the map does not have fails. A step reached more often than
 its limit fails.
