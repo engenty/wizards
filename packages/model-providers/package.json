@@ -1,7 +1,7 @@
 {
   "name": "@engenty/model-providers",
   "version": "0.1.0",
-  "description": "What provides models on a person's own computer: the servers for open models, Ollama, LM Studio and Apple MLX (their models, what each can do, downloads, a model with the context length set) and the AI clients signed in on their subscription (Claude Code, Codex, Cursor Agent: found, signed in, run headless as a model or as a chat with one MCP server), and a short real call that says whether each answers.",
+  "description": "Every way an app reaches a model, apart from where it keeps its keys: the servers for open models on a person's own computer (Ollama, LM Studio and Apple MLX: their models, what each can do, downloads, a model with the context length set), the AI clients signed in on their subscription (Claude Code, Codex, Antigravity, Cursor Agent: found, signed in, run headless as a model or as a chat with one MCP server), the providers a person brings a key for (OpenAI, Anthropic, Google, OpenRouter, the Vercel AI Gateway and more: who they are, the test of a key, a model on it), the wizards account, and a short real call that says whether each answers.",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -46,6 +46,21 @@
       "types": "./dist/clients/index.d.ts",
       "default": "./dist/clients/index.js"
     },
+    "./providers": {
+      "wizards-source": "./src/providers/index.ts",
+      "types": "./dist/providers/index.d.ts",
+      "default": "./dist/providers/index.js"
+    },
+    "./providers/model": {
+      "wizards-source": "./src/providers/model.ts",
+      "types": "./dist/providers/model.d.ts",
+      "default": "./dist/providers/model.js"
+    },
+    "./account": {
+      "wizards-source": "./src/account.ts",
+      "types": "./dist/account.d.ts",
+      "default": "./dist/account.js"
+    },
     "./probe": {
       "wizards-source": "./src/probe.ts",
       "types": "./dist/probe.d.ts",
@@ -68,6 +83,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "4.0.97",
+    "@ai-sdk/gateway": "^4.0.136",
+    "@ai-sdk/google": "4.0.112",
+    "@ai-sdk/openai": "^4.0.109",
+    "@ai-sdk/openai-compatible": "3.0.94",
     "@modelcontextprotocol/server": "2.4.0",
     "cross-spawn": "7.0.6"
   },

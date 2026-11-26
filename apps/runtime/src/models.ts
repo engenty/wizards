@@ -1,15 +1,17 @@
 import { createHash } from "node:crypto";
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { createElevenLabs } from "@ai-sdk/elevenlabs";
 import { createFal } from "@ai-sdk/fal";
 import { createGateway } from "@ai-sdk/gateway";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createReplicate } from "@ai-sdk/replicate";
+import { accountGateway } from "@engenty/model-providers/account";
 import { ClientModel } from "@engenty/model-providers/clients";
 import { lmStudioFetch, lmStudioRoot } from "@engenty/model-providers/lmstudio";
 import { mlxModel } from "@engenty/model-providers/mlx";
 import { ollamaRoot } from "@engenty/model-providers/ollama";
+import { checkKey as askProvider, PROVIDERS as SOURCES } from "@engenty/model-providers/providers";
+import { providerModel } from "@engenty/model-providers/providers/model";
 import { SERVERS, type ServerId } from "@engenty/model-providers/servers";
 import type { Lang, VideoResolution } from "@engenty/wizards-shared/definition";
 import {
@@ -94,7 +96,7 @@ export { isHarnessVendor } from "./harness/index.js";
  * A step names a model class, never a model. Where the class runs is decided here, in this order:
  *  1. its own way: an AI client installed on the machine (Claude Code, Codex, Antigravity, Cursor
  *     Agent — on its subscription), an API key the person brought (OpenAI, Anthropic, Google,
- *     fal.ai, ElevenLabs, Replicate, AI Gateway) or a local model;
+ *     OpenRouter, fal.ai, ElevenLabs, Replicate, AI Gateway) or a local model;
  *  2. credits: the model-gateway binds `wizards/<class>`, meters the call and books it — on the
  *     tenant of a Manage-App's runtime, or on the account a runtime that runs alone is linked to.
  * A runtime of a Manage-App keeps a tenant's own keys (sealed) and runs on its credits where it
@@ -208,17 +210,6 @@ export interface ModelSettingsInput {
 
 const local: ModelConfig = { settings: { source: "own", bindings: {} }, keys: {} };
 
-/** The environment variable a runtime that runs alone reads a provider's key from. */
-const ENV_KEYS: Record<LocalKey, string> = {
-  gateway: "AI_GATEWAY_API_KEY",
-  openai: "OPENAI_API_KEY",
-  anthropic: "ANTHROPIC_API_KEY",
-  google: "GOOGLE_GENERATIVE_AI_API_KEY",
-  fal: "FAL_KEY",
-  elevenlabs: "ELEVENLABS_API_KEY",
-  replicate: "REPLICATE_API_TOKEN",
-};
-
 /** A key as the settings page may show it: its prefix and its last four characters. */
 export function maskKey(key: string): string {
   if (key.length < 12) {
@@ -240,7 +231,7 @@ async function keyHints(
     const key = cfg.keys[name];
     if (key) {
       const fromEnv = !managed && !(await vaultGet(`key.${name}`));
-      hints[name] = { masked: maskKey(key), env: fromEnv ? ENV_KEYS[name] : null };
+      hints[name] = { masked: maskKey(key), env: fromEnv ? SOURCES[name].env : null };
     }
   }
   return hints;
@@ -252,6 +243,7 @@ function envKey(name: LocalKey): string | undefined {
     openai: env.openaiKey,
     anthropic: env.anthropicKey,
     google: env.googleKey,
+    openrouter: env.openrouterKey,
     fal: env.falKey,
     elevenlabs: env.elevenlabsKey,
     replicate: env.replicateKey,
@@ -477,8 +469,12 @@ function parse(ref: string): { provider: string | null; id: string; vendor: stri
   const match = /^([a-z]+):(.*)$/s.exec(ref);
   if (match) {
     const [, provider, id] = match;
-    // Ollama and the gateway name a model as the gateway does; the others are their own vendor.
-    const vendor = provider === "ollama" || provider === "gateway" ? id.split("/")[0] : provider;
+    // Ollama, OpenRouter and the gateway name a model as the gateway does; the others are their
+    // own vendor.
+    const vendor =
+      provider === "ollama" || provider === "openrouter" || provider === "gateway"
+        ? id.split("/")[0]
+        : provider;
     return { provider, id, vendor };
   }
   return { provider: null, id: ref, vendor: ref.split("/")[0] };
@@ -861,9 +857,9 @@ export function takeMasked(runId: string, stepId: string): Record<string, number
 }
 
 function gatewayClient(access: GatewayAccess, meta: CallMeta, tiers: boolean) {
-  return createGateway({
-    baseURL: `${access.baseUrl}/v4/ai`,
-    apiKey: access.token,
+  return accountGateway({
+    url: access.baseUrl,
+    key: access.token,
     // A run's call that had personal data masked says how much, for the step's Log line.
     ...(tiers && meta.runId
       ? {
@@ -1080,24 +1076,21 @@ async function ownLanguageModel(
       return { model: appleModel(id), gateway: false };
     }
     case "openai":
-      return { model: createOpenAI({ apiKey: need(cfg, "openai") })(id), gateway: false };
     case "anthropic":
-      return { model: createAnthropic({ apiKey: need(cfg, "anthropic") })(id), gateway: false };
     case "google":
-      return { model: createGoogle({ apiKey: need(cfg, "google") })(id), gateway: false };
+    case "openrouter":
+      return { model: providerModel(provider, need(cfg, provider), id), gateway: false };
     case null:
     case "gateway":
       if (cfg.keys.gateway) {
-        return { model: createGateway({ apiKey: cfg.keys.gateway })(id), gateway: true };
+        return { model: providerModel("gateway", cfg.keys.gateway, id), gateway: true };
       }
-      if (provider === null && vendor === "openai" && cfg.keys.openai) {
-        return { model: createOpenAI({ apiKey: cfg.keys.openai })(aliasOf(id)), gateway: false };
-      }
-      if (provider === null && vendor === "anthropic" && cfg.keys.anthropic) {
-        return {
-          model: createAnthropic({ apiKey: cfg.keys.anthropic })(aliasOf(id)),
-          gateway: false,
-        };
+      // A gateway id without a gateway key runs on the vendor's own key, where there is one.
+      if (provider === null && (vendor === "openai" || vendor === "anthropic")) {
+        const key = cfg.keys[vendor];
+        if (key) {
+          return { model: providerModel(vendor, key, aliasOf(id)), gateway: false };
+        }
       }
   }
   throw new ModelUnavailableError(note("modelNotUsedYet", { ref }));
@@ -2204,47 +2197,19 @@ export async function checkKey(
   key: string,
   lang: Lang = "en",
 ): Promise<{ ok: boolean; message: string | null }> {
-  const requests: Record<LocalKey, [string, Record<string, string>]> = {
-    openai: ["https://api.openai.com/v1/models", { authorization: `Bearer ${key}` }],
-    anthropic: [
-      "https://api.anthropic.com/v1/models?limit=1",
-      { "x-api-key": key, "anthropic-version": "2023-06-01" },
-    ],
-    google: [
-      "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
-      { "x-goog-api-key": key },
-    ],
-    fal: [
-      "https://api.fal.ai/v1/models?endpoint_id=fal-ai/flux/schnell",
-      { authorization: `Key ${key}` },
-    ],
-    elevenlabs: ["https://api.elevenlabs.io/v1/models", { "xi-api-key": key }],
-    replicate: ["https://api.replicate.com/v1/account", { authorization: `Bearer ${key}` }],
-    gateway: ["https://ai-gateway.vercel.sh/v1/credits", { authorization: `Bearer ${key}` }],
-  };
-  const [url, headers] = requests[name];
-  try {
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
-    if (res.ok) {
+  const checked = await askProvider(name, key);
+  switch (checked.state) {
+    case "ok":
       return { ok: true, message: null };
-    }
-    const body = await res.text().catch(() => "");
-    // A key restricted to some permissions is still a key the provider knows.
-    if (res.status === 403 || /missing_permissions/.test(body)) {
-      return { ok: true, message: null };
-    }
-    return {
-      ok: false,
-      message:
-        res.status === 401
-          ? serverText(lang, "keyUnknown")
-          : serverText(lang, "providerError", { status: String(res.status) }),
-    };
-  } catch {
-    return {
-      ok: false,
-      message: serverText(lang, "providerUnreachable"),
-    };
+    case "unknown":
+      return { ok: false, message: serverText(lang, "keyUnknown") };
+    case "error":
+      return {
+        ok: false,
+        message: serverText(lang, "providerError", { status: String(checked.status) }),
+      };
+    case "unreachable":
+      return { ok: false, message: serverText(lang, "providerUnreachable") };
   }
 }
 
@@ -2379,7 +2344,8 @@ function priceOf(ref: string): Record<string, unknown> {
  */
 function catalogEntryOf(ref: string): CatalogEntry | undefined {
   const { provider, id } = parse(ref);
-  if (provider === null || provider === "gateway") {
+  // OpenRouter names a model as the gateway does (`anthropic/claude-sonnet-5.5`).
+  if (provider === null || provider === "gateway" || provider === "openrouter") {
     return catalog.get(id);
   }
   return (

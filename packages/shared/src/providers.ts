@@ -145,6 +145,7 @@ export const PROVIDER_IDS = [
   "fal",
   "elevenlabs",
   "replicate",
+  "openrouter",
   "gateway",
 ] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -172,6 +173,8 @@ const PROVIDER_EN = {
   expressive: "expressive",
   veryAccurate: "very accurate",
   "about.replicate": "Open image and video models, billed per run.",
+  "about.openrouter": "One key for hundreds of models from many providers, billed by OpenRouter.",
+  picksPerRequest: "picks a model for each request",
   "about.gateway": "One key for many providers’ models, billed by Vercel.",
 } as const satisfies Record<string, Line>;
 /** A line about a provider or one of its models, in `PROVIDER_TEXTS`. */
@@ -200,6 +203,8 @@ const PROVIDER_DE: Partial<Record<ProviderWords, Line>> = {
   expressive: "ausdrucksstark",
   veryAccurate: "sehr genau",
   "about.replicate": "Offene Bild- und Video-Modelle, abgerechnet pro Lauf.",
+  "about.openrouter": "Ein Key für Hunderte Modelle vieler Anbieter, abgerechnet bei OpenRouter.",
+  picksPerRequest: "wählt für jede Anfrage ein Modell",
   "about.gateway": "Ein Key für die Modelle vieler Anbieter, abgerechnet bei Vercel.",
 };
 
@@ -455,6 +460,23 @@ export const PROVIDERS: readonly ProviderInfo[] = [
         { ref: "replicate:recraft-ai/recraft-v3", label: "Recraft V3" },
       ],
       video: [{ ref: "replicate:minimax/video-01", label: "MiniMax Video-01" }],
+    },
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    about: "about.openrouter",
+    keyUrl: "https://openrouter.ai/settings/keys",
+    keyPlaceholder: "sk-or-v1-…",
+    // OpenRouter's own router picks the model; a person names another one of its models instead.
+    text: {
+      classifier: "openrouter:openrouter/auto",
+      low: "openrouter:openrouter/auto",
+      standard: "openrouter:openrouter/auto",
+      high: "openrouter:openrouter/auto",
+    },
+    models: {
+      text: [{ ref: "openrouter:openrouter/auto", label: "Auto", note: "picksPerRequest" }],
     },
   },
   {

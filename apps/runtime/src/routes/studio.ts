@@ -376,7 +376,8 @@ async function settingsFor(c: Context<Vars>) {
 /** A binding the cloud can run: a provider's model or the credits, no client, no local model. */
 function cloudBinding(ref: string): boolean {
   return (
-    isCreditsRef(ref) || /^(openai|anthropic|google|fal|elevenlabs|replicate|gateway):/.test(ref)
+    isCreditsRef(ref) ||
+    /^(openai|anthropic|google|openrouter|fal|elevenlabs|replicate|gateway):/.test(ref)
   );
 }
 

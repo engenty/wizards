@@ -232,6 +232,7 @@ export const env = {
   conversationModel: str("CONVERSATION_MODEL"),
   anthropicKey: str("ANTHROPIC_API_KEY"),
   googleKey: str("GOOGLE_GENERATIVE_AI_API_KEY"),
+  openrouterKey: str("OPENROUTER_API_KEY"),
   falKey: str("FAL_KEY"),
   elevenlabsKey: str("ELEVENLABS_API_KEY"),
   replicateKey: str("REPLICATE_API_TOKEN"),
