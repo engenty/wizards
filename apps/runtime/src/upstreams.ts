@@ -30,7 +30,7 @@ export async function gatewayOnly(tenant: string | null): Promise<boolean> {
   return Boolean(info && feature("ownKeysGateway", info.features));
 }
 
-/** The Manage-App's `source` for a key of the studio; Replicate keys are not carried over. */
+/** The Manage-App's `source` for a key of the studio; Replicate and OpenRouter keys are not carried over. */
 const SOURCE_OF: Partial<Record<ProviderId, string>> = {
   openai: "openai",
   anthropic: "anthropic",
@@ -69,7 +69,7 @@ const retryAt = new Map<string, number>();
 /**
  * Moves the keys a tenant saved in the cloud studio to the Manage-App, once: each becomes an
  * account named after its provider and leaves the setting. A key the Manage-App refuses, and a
- * Replicate key, is dropped too; the log says which, and the studio says it once (`takeNotice`).
+ * Replicate or OpenRouter key, is dropped too; the log says which, and the studio says it once (`takeNotice`).
  * A key the Manage-App could not take for now (it is down) stays for the next try. An account
  * that is already there (same source, same last four) is not added again, so a move cut short
  * goes on where it stopped. `translate` turns the provider bindings into what the gateway serves.

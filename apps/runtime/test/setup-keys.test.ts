@@ -14,6 +14,7 @@ for (const name of [
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
   "GOOGLE_GENERATIVE_AI_API_KEY",
+  "OPENROUTER_API_KEY",
   "FAL_KEY",
   "ELEVENLABS_API_KEY",
   "REPLICATE_API_TOKEN",
@@ -62,7 +63,7 @@ beforeEach(async () => {
   // Own keys picked in the setup, nothing stored yet.
   await settings.writeSetting("models", { source: "own", bindings: {} });
   await models.loadLocalModels();
-  await models.saveLocalModels({ keys: { openai: "", anthropic: "", gateway: "" } });
+  await models.saveLocalModels({ keys: { openai: "", anthropic: "", openrouter: "", gateway: "" } });
 });
 
 const bindings = () => models.localModelSettings().bindings;
@@ -89,6 +90,23 @@ describe("the setup's test of a key", () => {
     const result = await models.setUpKey("anthropic", "sk-ant-test");
     expect(result.text).toBe("openai:gpt-5.4-mini");
     expect(bindings().high).toBe("openai:gpt-5.5");
+  });
+
+  it("stores an OpenRouter key and lets OpenRouter pick the model of every text class", async () => {
+    const auto = "openrouter:openrouter/auto";
+    const result = await models.setUpKey("openrouter", "sk-or-v1-test");
+    expect(result).toEqual({ ok: true, message: null, text: auto });
+    expect(models.localModelSettings().keys.openrouter).toBe(true);
+    expect(bindings()).toMatchObject({
+      classifier: auto,
+      low: auto,
+      standard: auto,
+      high: auto,
+      image: "",
+    });
+    const resolved = await models.textModel("standard");
+    expect(resolved).toMatchObject({ ref: auto, vendor: "openrouter", gateway: false });
+    expect((resolved.model as { provider: string }).provider).toContain("openrouter");
   });
 
   it("tests a stored key again when none is given", async () => {
