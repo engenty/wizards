@@ -48,6 +48,9 @@ studio shows the Bot Server’s own page under **Chats**. Your agents, their cha
 their tasks live on the Bot Server, so you find the same chats in its apps for the Mac and the
 iPhone.
 
+The chats Work had of its own before that are gone, and their messages are deleted from your
+organization’s data. Nothing moved from them to the Bot Server.
+
 | Your team’s Bot Server | What Chats shows |
 |---|---|
 | Runs | Its page. The studio signs you in to it as yourself |

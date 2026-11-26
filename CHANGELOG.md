@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.21.3] - 2026-11-26
+- DOCS **[work]** The chats Work had of its own are gone, and their messages are deleted (#764)
+
 ## [0.21.2] - 2026-11-25
 - ADDED **[work]** Every member of the team chats on its Bot Server (#758)
 - ADDED **[work]** The chats know the open space, and the team's Bot Server is not an outside app (#757)
