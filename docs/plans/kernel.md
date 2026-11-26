@@ -33,7 +33,7 @@ than the tenant's database, prices.
 | C.10 Entry points | Built: start, the line, answers, back, retry, cancel, the clock, the report, and signals by address: the row a run waits at is written where senders look, and a signal for it answers the row. | `kernel/host.ts`, `kernel/signals.ts`, `engine/runner.ts` |
 | C.11 A person answers | Built another way: see below. An ask's view (`components`, and the values in `data`) reaches the page. | `kernel/page.ts`, `kernel/views.ts` |
 | D.13 Judging runs | Built, by a share the runtime is told (`KERNEL_EVALS`). No setting of a space yet. | `kernel/host.ts` |
-| E.15 The mail wizard in the runtime | Not built: executor is in the package only, tested against the emulator | `packages/kernel/src/executor.ts` |
+| E.15 The mail wizard in the runtime | Built for Gmail: a name of the file that the connector has no action for is an operation of the service's API, run by executor (`@executor-js/sdk` 1.6.11) inside the broker's call, so the grant, the rules, the ask, once and the log are the broker's. The connector's own actions come first. Executor holds no token: its connection reads the token of the account the broker handed that call. The mail example runs through the runtime against the emulator. Not built: the binding of the file's `gmail` to the connector `google-gmail` where a wizard is installed (the test makes it); other services. | `apps/runtime/src/kernel/executor.ts`, `kernel/batteries.ts`, `tools/connector.ts`, `test/kernel-executor.test.ts` |
 | E.17 The emulator in tests | Built: `emulate("google", …)` for the package's tests and the runtime's, with Google's description of Gmail kept in the package (revision 20261116), so no test fetches it | `packages/kernel/src/emulate.ts`, `google.ts`, `src/data/google/` |
 | F.18 The map | Built: the studio draws the file's steps and edges, and a step's panel changes its ways and its limit in the file. | `apps/web/src/studio/editor/kernel-flow.ts`, `KernelFlow.tsx` |
 | F.20 A run as rows | Built: the runs panel opens a run on its rows, with the scores beside the step they judged; a row is asked again, and one a person answered is answered differently. | `apps/web/src/studio/editor/RunRows.tsx`, `RunTimeline.tsx` |
@@ -248,6 +248,9 @@ Tests named here run alone, as the repository asks:
     runtime, version pinned. A credential provider over the runtime's own connection secrets, so
     accounts stay where they are. Which account stands behind a kind follows
     `docs/plans/run-connections.md`.
+    Built: `executorActions` adds such operations to the connection's connector for a run in
+    version 0.3.0 (`ctx.operations`); the broker reads the account and hands it to the action,
+    whose credential provider gives executor that account's token for that call only.
 16. **Task-sized actions stay.** The actions of `engenty/connections-google/connectors/gmail.ts`
     (`search_threads`, `get_thread`, `send_message`, …) are what a wizard names first. Executor's
     raw operations are for an API that has no connector, which is where

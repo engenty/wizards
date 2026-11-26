@@ -4,13 +4,14 @@ import type { Field, Step, WizardDefinition } from "@engenty/wizards-shared/defi
 import type { RunState, StepOutput } from "@engenty/wizards-shared/run";
 import { runAutomaticStep } from "../engine/steps.js";
 import type { RunRow, SpaceRow, StepContext } from "../engine/types.js";
+import { executorActions } from "./executor.js";
 import { asRefs, viewData } from "./views.js";
 
 /**
  * Who answers an ask of a run in version 0.3.0 at once (docs/plans/kernel.md): today's step
  * executors. An ask becomes the step of version 0.2.0 it would have been, with its text already
  * written, and runs as that. So models, connections, the broker and what a step costs are the
- * ones every run has.
+ * ones every run has. An action of a connection that its connector lacks is executor's.
  */
 export type MakeContext = (
   run: RunRow,
@@ -293,6 +294,9 @@ export function kernelBatteries(
         throw new NeedsLeave();
       },
     });
+    // A name the file gives that its connector has no action for is an operation of the service's
+    // API: executor makes that call, below the broker (kernel/executor.ts).
+    ctx.operations = executorActions;
     return answerOf(await runAutomaticStep(stepOf(def, asks), ctx));
   };
   return {

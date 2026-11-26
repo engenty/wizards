@@ -38,25 +38,7 @@ export function executorBatteries(options: {
     return `${bind[connection]}.${action.join(".")}`;
   };
 
-  // The kernel has asked the user where the file says so, as a row that outlives the process.
-  // So the executor's own gate for the same call is answered yes, and anything a tool asks for
-  // itself in the middle of a call is answered no: nobody is there to answer it.
-  const onElicitation: Elicit = async (ctx) => ({
-    action: ctx.source === "policy" ? "accept" : "decline",
-  });
-
-  const call = async (name: string, input: unknown) => {
-    const result = (await executor.execute(address(name), input, { onElicitation })) as {
-      ok?: boolean;
-      data?: unknown;
-      error?: { message?: string; status?: number };
-    };
-    if (result?.ok === false)
-      throw new Error(
-        `${name} failed: ${result.error?.message ?? "unknown"} (${result.error?.status ?? "no status"})`,
-      );
-    return result?.data ?? result;
-  };
+  const call = (name: string, input: unknown) => executorCall(executor, address(name), input, name);
 
   return {
     tool: (row) => call(String(row.call), row.input),
@@ -71,6 +53,35 @@ export function executorBatteries(options: {
         return call(name, input);
       }),
   };
+}
+
+// The kernel (or the runtime's broker) has asked the user where the file says so, as a row that
+// outlives the process. So the executor's own gate for the same call is answered yes, and anything
+// a tool asks for itself in the middle of a call is answered no: nobody is there to answer it.
+const onElicitation: Elicit = async (ctx) => ({
+  action: ctx.source === "policy" ? "accept" : "decline",
+});
+
+/**
+ * One call of an executor's tool, after whoever decides has decided: its data, or an error that
+ * says which action failed and how (`name`, as the file names it).
+ */
+export async function executorCall(
+  executor: Pick<Executor, "execute">,
+  address: string,
+  input: unknown,
+  name = address,
+): Promise<unknown> {
+  const result = (await executor.execute(address, input, { onElicitation })) as {
+    ok?: boolean;
+    data?: unknown;
+    error?: { message?: string; status?: number };
+  };
+  if (result?.ok === false)
+    throw new Error(
+      `${name} failed: ${result.error?.message ?? "unknown"} (${result.error?.status ?? "no status"})`,
+    );
+  return result?.data ?? result;
 }
 
 /** What the executor has, for the kernel's question whether a wizard can run here. */

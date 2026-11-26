@@ -168,6 +168,33 @@ interface Held {
   resolved: NonNullable<Awaited<ReturnType<typeof resolveConnector>>>;
 }
 
+/** The connector with the actions the step's run adds for this connection (`ctx.operations`). */
+async function withOperations(
+  resolved: Held["resolved"],
+  connection: ConnectionDef,
+  ctx: StepContext,
+): Promise<Held["resolved"]> {
+  const more = (await ctx.operations?.(resolved.connector, connection)) ?? [];
+  if (!more.length) {
+    return resolved;
+  }
+  return {
+    ...resolved,
+    connector: { ...resolved.connector, actions: [...resolved.connector.actions, ...more] },
+    inputSchema: (actionId) => {
+      const added = more.find((a) => a.id === actionId);
+      if (!added) {
+        return resolved.inputSchema(actionId);
+      }
+      try {
+        return z.toJSONSchema(added.inputSchema) as Record<string, unknown>;
+      } catch {
+        return {};
+      }
+    },
+  };
+}
+
 /**
  * The connection behind a wizard's `connections` entry: a connection of the space (its row says
  * which connector and which actions it is for) or the wizard's own sign-in. Null where the space
@@ -187,6 +214,7 @@ async function heldOf(connection: ConnectionDef, ctx: StepContext, who: Who): Pr
   if (!resolved) {
     return null;
   }
+  resolved = await withOperations(resolved, connection, ctx);
   const held: BrokerConnection = ofSpace
     ? { kind: "space_connection", row: ofSpace, connector: resolved.connector }
     : { kind: "store_secret", def: connection, scope: ctx.store, spaceId };
@@ -200,7 +228,8 @@ async function heldOf(connection: ConnectionDef, ctx: StepContext, who: Who): Pr
       handler: (account) => refreshConnector(spaceId, id, account.ctx.accessToken),
     }).catch(() => null);
     if (refreshed?.ok) {
-      resolved = (await resolveConnector(spaceId, id)) ?? resolved;
+      const again = await resolveConnector(spaceId, id);
+      resolved = again ? await withOperations(again, connection, ctx) : resolved;
       if (held.kind === "space_connection") {
         held.connector = resolved.connector;
       }

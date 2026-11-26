@@ -1,7 +1,9 @@
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { AskInput, AssetRef, RunNote, RunState } from "@engenty/wizards-shared/run";
+import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import type { schema } from "../db/client.js";
+import type { ConnectorAction, ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import type { SaveAssetInput } from "../files/storage.js";
 import type { Role } from "../manage.js";
 import { NotedError } from "../model-errors.js";
@@ -52,6 +54,14 @@ export interface StepContext {
   spaceFiles: SpaceFileRow[];
   signal: AbortSignal;
   resources: RunResources;
+  /**
+   * Actions of a connection beyond its connector's own, for the names the wizard gives that the
+   * connector lacks: executor's operations, in a run of version 0.3.0 (kernel/executor.ts).
+   */
+  operations?: (
+    connector: ConnectorDefinition,
+    connection: ConnectionDef,
+  ) => Promise<ConnectorAction[]>;
   /** Tells the person what the step is doing; `asset` is a picture of the run it is about. */
   emit(type: "tool" | "info", message: string | RunNote, asset?: string): Promise<void>;
   /**
