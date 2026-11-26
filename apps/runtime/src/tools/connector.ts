@@ -254,10 +254,8 @@ export async function callConnection(
       allowed: ctx.resources.allowed,
       effect,
     },
-    handler: async (account) => {
-      await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
-      return action.handler(await sendContent(input ?? {}, ctx), account.ctx);
-    },
+    started: () => ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120)),
+    prepare: (given) => sendContent(given, ctx),
   }).catch((err) => {
     if (signInRefused(err)) {
       throw new SignInNeeded(
@@ -336,15 +334,9 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
           allowed: ctx.resources.allowed,
           effect: { turn: ctx.turn, toolCallId },
         },
-        handler: async (account) => {
-          await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
-          return keepContent(
-            await action.handler(await sendContent(input ?? {}, ctx), account.ctx),
-            action,
-            service,
-            files,
-          );
-        },
+        started: () => ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120)),
+        prepare: (given) => sendContent(given, ctx),
+        after: (result) => keepContent(result, action, service, files),
       });
       if (!out.ok) {
         return { error: refusalNote(out.refused, service) };

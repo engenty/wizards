@@ -61,6 +61,7 @@ import {
   type TranscriptionModel,
 } from "ai";
 import { accountToken, linkedAccount } from "./auth/account.js";
+import { brokerRemote, gatewayViaBroker } from "./broker/remote.js";
 import { LOCAL_DECISION_MODEL, ollamaDecisionModel } from "./decision-model.js";
 import { DeviceModel, deviceThinks } from "./engine/device.js";
 import { env } from "./env.js";
@@ -722,16 +723,27 @@ export interface GatewayAccess {
 }
 
 /**
+ * The gateway of a Manage-App's runtime: with the runtime's key, or, on a runner of one tenant,
+ * which holds no keys, through the broker (docs/plans/kernel.md, item 24).
+ */
+function managedGateway(): GatewayAccess {
+  if (brokerRemote()) {
+    return gatewayViaBroker();
+  }
+  return {
+    baseUrl: env.manage.gatewayUrl,
+    token: env.manage.serviceKey,
+    tenant: currentTenantOrNull(),
+  };
+}
+
+/**
  * The way to the credits. On a Manage-App's runtime always; alone, through the linked account —
  * where text runs on it (`chosen`), or as the fallback for what has no way of its own.
  */
 async function creditAccess(cfg: ModelConfig, chosen: boolean): Promise<GatewayAccess | null> {
   if (managed) {
-    return {
-      baseUrl: env.manage.gatewayUrl,
-      token: env.manage.serviceKey,
-      tenant: currentTenantOrNull(),
-    };
+    return managedGateway();
   }
   if (!chosen && (cfg.settings.creditFallback === false || !(await linkedAccount()))) {
     return null;
@@ -755,11 +767,7 @@ export async function toolAccess(): Promise<GatewayAccess | null> {
     return null;
   }
   if (managed) {
-    return {
-      baseUrl: env.manage.gatewayUrl,
-      token: env.manage.serviceKey,
-      tenant: currentTenantOrNull(),
-    };
+    return managedGateway();
   }
   const token = (await linkedAccount()) ? await accountToken() : null;
   return token ? { baseUrl: env.local.gatewayUrl, token, tenant: null } : null;

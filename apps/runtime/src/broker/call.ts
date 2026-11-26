@@ -53,6 +53,7 @@ import {
   writeLog,
 } from "./log.js";
 import { runOver } from "./over.js";
+import { brokerRemote, remoteBrokerCall, remoteConnected } from "./remote.js";
 import { channelOf, guestSendCheck, postsToChannel, recipientsOf } from "./send.js";
 
 /*
@@ -176,8 +177,21 @@ export interface BrokerCallInput<T = unknown> {
   ctx?: BrokerContext;
   /** A call that went well and answered this leaves no line in the log. */
   quietWhen?: (result: T) => boolean;
-  /** What runs with the account; left out: the connector's action of that id, with `input`. */
+  /**
+   * What runs with the account; left out: the connector's action of that id, with `input`. Only
+   * the broker's own process runs one where the broker is a process of its own (`brokerRemote`):
+   * there a call with a handler is refused.
+   */
   handler?: (account: Account) => Promise<T>;
+  /**
+   * Around the connector's action, on the caller's side: `started` as it begins, `prepare` the
+   * input as the action takes it, `after` what the caller keeps of its result. Where the broker
+   * is a process of its own, the action runs there and these here, `prepare` before the call is
+   * decided.
+   */
+  started?: () => Promise<void>;
+  prepare?: (input: unknown) => Promise<unknown>;
+  after?: (result: unknown) => Promise<T>;
 }
 
 /**
@@ -570,6 +584,14 @@ export async function brokerConnected(
   connection: BrokerConnection,
   who: Who = NOBODY,
 ): Promise<{ connector: ConnectorDefinition; label: string } | null> {
+  return brokerRemote() ? remoteConnected(connection, who) : brokerConnectedHere(connection, who);
+}
+
+/** `brokerConnected` in this process: the one that holds the accounts. */
+export async function brokerConnectedHere(
+  connection: BrokerConnection,
+  who: Who = NOBODY,
+): Promise<{ connector: ConnectorDefinition; label: string } | null> {
   const account = await accountOf(await heldConnection(connection), who);
   return account ? { connector: account.connector, label: account.label } : null;
 }
@@ -585,8 +607,29 @@ const MAY_HAVE_HAPPENED = "It was interrupted before and may have happened alrea
  * One call through the broker: who, where, which connection and action, with what. Reads the
  * account, decides, asks where the rules say so, runs the action (the connector's, or `handler`)
  * and logs the call, whatever came of it. An error the action throws is logged and thrown on.
+ * A runner of one tenant holds no account: its call goes to the broker's own process
+ * (`remote.ts`), which does all of this there.
  */
-export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise<BrokerResult<T>> {
+export function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise<BrokerResult<T>> {
+  return brokerRemote() ? remoteBrokerCall(call) : brokerCallHere(call);
+}
+
+/** The connector's action with the caller's `started`, `prepare` and `after` around it. */
+async function runAction<T>(
+  action: ConnectorAction,
+  call: BrokerCallInput<T>,
+  account: Account,
+): Promise<T> {
+  await call.started?.();
+  const input = call.prepare ? await call.prepare(call.input ?? {}) : (call.input ?? {});
+  const result = await action.handler(input, account.ctx);
+  return call.after ? call.after(result) : (result as T);
+}
+
+/** `brokerCall` in this process: the one that holds the accounts. */
+export async function brokerCallHere<T = unknown>(
+  call: BrokerCallInput<T>,
+): Promise<BrokerResult<T>> {
   const started = Date.now();
   const { who, where, ctx = {} } = call;
   // The run may use a connection of the space for a wizard's need: its rules count then.
@@ -873,7 +916,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
   try {
     const result = call.handler
       ? await call.handler(acting)
-      : ((await (found as ConnectorAction).handler(call.input ?? {}, acting.ctx)) as T);
+      : await runAction(found as ConnectorAction, call, acting);
     if (effectId) {
       await effectDone(effectId, result);
     }

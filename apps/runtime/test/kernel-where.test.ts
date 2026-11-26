@@ -1,6 +1,6 @@
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 const DATA_DIR = mkdtempSync(join(tmpdir(), "wizards-kernel-where-"));
@@ -104,6 +104,9 @@ describe("a tenant's runner at work", () => {
       .onConflictDoNothing();
     expect(await client.knownTenants()).toEqual(["tenant-a"]);
     expect(await client.activeTenants()).toEqual(["tenant-a"]);
+    // Its own database is mounted for it; a runner of one tenant makes none where none is.
+    mkdirSync(dirname(file("tenant-a")), { recursive: true });
+    writeFileSync(file("tenant-a"), "");
     expect(await client.migrateAllTenants([])).toEqual({ migrated: 1, failed: [] });
     expect(existsSync(file("tenant-a"))).toBe(true);
     expect(existsSync(file("tenant-b"))).toBe(false);

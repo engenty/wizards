@@ -38,6 +38,7 @@ and whether it takes runs.
 | `doors` | The customers’ half: `/api/public`, shared results, the plugins’ public routes and webhooks, `/embed.js`, the pages `/w/<token>` and `/s/<token>` |
 | `web` | Both halves |
 | `runner` | Takes the runs that wait and drives them. It serves the routes too, for what only the process holding a run can answer, such as its browser’s screen |
+| `broker` | Only the broker’s peer routes: a runner of one tenant (`RUNNER_TENANT`) holds no keys and sends its connector and model calls here. Nothing else of the app |
 | `all` | Everything in one process. The default |
 
 Every role serves what both halves need: `/api/health`, `/api/config`, the runs’ API
