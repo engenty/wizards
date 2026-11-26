@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isTextMime, mimeForPath } from "@engenty/wizards-shared/workspace";
 import { editStep, stepOutline } from "../src/kernel/outline.js";
 
 describe("what the studio reads of a step file", () => {
@@ -125,5 +126,13 @@ export default async function (run: any, ask: any) {
       $text: ["Dear `", { $code: "text(run.input.customer)" }, "`,\nsay ${hello}."],
     });
     await expect(editStep(source, [0, 5], "x")).rejects.toThrow();
+  });
+});
+
+describe("a step file in a wizard's workspace", () => {
+  it("is text, so the code view shows it and a tool that reads text reads it", () => {
+    expect(mimeForPath("steps/reply.ts")).toBe("text/typescript");
+    expect(isTextMime(mimeForPath("steps/reply.ts"))).toBe(true);
+    expect(isTextMime(mimeForPath("evals/end/signed.ts"))).toBe(true);
   });
 });
