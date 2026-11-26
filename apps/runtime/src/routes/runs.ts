@@ -1316,7 +1316,8 @@ export const runRoutes = new Hono()
   .get("/:id/timeline", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     const user = run && (await memberViewing(c, run)) ? await principalOf(c) : null;
-    if (!(run && user && (await durableRunsOn()))) {
+    // A run of version 0.3.0 has its rows to show, whether or not runs last for days here.
+    if (!(run && user && (kernelOf(run.definition) || (await durableRunsOn())))) {
       return c.json(notFoundAnswer(c), 404);
     }
     return c.json(await runTimeline(run, mayActOnWait(user, run)));

@@ -202,6 +202,18 @@ describe.each(["quickjs", "native"] as const)("a wizard in version 0.3.0, its st
     expect(String((v.rows[4] as { instructions?: string }).instructions)).toContain("The check step said: Shorter.");
   });
 
+  it("says in its timeline that it has rows, with its steps and the roles a person answers in", async () => {
+    price.next = [3000];
+    const id = await start(await offerWizard(mode), input);
+    const row = await rests(id, "waiting_input");
+    const timeline = await client.withTenant(T, () => doors.runTimeline(row as never, true));
+    expect(timeline.kernel?.roles).toEqual(expect.arrayContaining(["user", "operator", "legal"]));
+    expect(timeline.steps.map((s) => s.id)).toEqual(Object.keys(file.edges));
+    expect(timeline.stepTitle).toBe(timeline.steps.find((s) => s.id === "check")?.title);
+    // the operator's review is the team's to answer
+    expect(timeline.teamStep).toBe(true);
+  });
+
   it("fails on the file's limit, whatever the steps return", async () => {
     price.next = [3000, 3000, 3000, 3000];
     const w = await offerWizard(mode);

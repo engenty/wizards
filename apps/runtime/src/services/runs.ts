@@ -1,3 +1,4 @@
+import { grantOf } from "@engenty/wizards-kernel";
 import {
   dataRef,
   FIELD_WAYS,
@@ -47,6 +48,7 @@ import {
 } from "../engine/runner.js";
 import { kernelOutline } from "../kernel/outline.js";
 import { kernelPage } from "../kernel/page.js";
+import { signalWait } from "../kernel/signals.js";
 import { type KernelStill, kernelStill } from "../kernel/still.js";
 import { managed } from "../manage.js";
 import { ModelUnavailableError, saidOf } from "../model-errors.js";
@@ -959,10 +961,19 @@ export async function runTimeline(run: RunRow, canAct: boolean): Promise<RunTime
     .where(and(eq(schema.runEvent.runId, run.id), eq(schema.runEvent.type, "run_started")))
     .limit(1);
   const name = started?.note?.params?.name;
+  const file = kernelOf(run.definition);
+  const view = file ? await kernelRuns.view(run) : null;
+  // What it listens for: the row a run of version 0.3.0 waits at names it, else the run's wait.
   const wait =
-    run.status === "waiting_signal"
-      ? await db.query.runWait.findFirst({ where: eq(schema.runWait.runId, run.id) })
-      : null;
+    run.status !== "waiting_signal"
+      ? null
+      : view
+        ? signalWait(view.rows)
+        : await db.query.runWait.findFirst({ where: eq(schema.runWait.runId, run.id) });
+  // A run of version 0.3.0 has its steps in its file, and their titles in their own files.
+  const steps = file
+    ? Object.keys(file.edges).map((id) => ({ id, title: view?.titles?.[id]?.title ?? id }))
+    : run.definition.steps.map((s) => ({ id: s.id, title: s.title }));
   const step = run.definition.steps.find((s) => s.id === run.cursor);
   return {
     id: run.id,
@@ -977,12 +988,19 @@ export async function runTimeline(run: RunRow, canAct: boolean): Promise<RunTime
         : null,
     pause: run.status === "sleeping" ? (run.state.pause?.kind ?? null) : null,
     credits: Math.ceil(run.costMicros / MICROS_PER_CREDIT),
-    stepTitle: step?.title ?? null,
+    stepTitle: file
+      ? (steps.find((s) => s.id === run.cursor)?.title ?? null)
+      : (step?.title ?? null),
     startedBy: typeof name === "string" ? name : null,
     signal: wait ? { name: wait.name, key: wait.key } : null,
-    teamStep: run.status === "waiting_input" && whoOf(step) === "team",
+    teamStep:
+      run.status === "waiting_input" &&
+      (view
+        ? view.waiting.some((row) => row.type !== "wait" && row.role !== "user")
+        : whoOf(step) === "team"),
     canAct,
-    steps: run.definition.steps.map((s) => ({ id: s.id, title: s.title })),
+    steps,
+    ...(file ? { kernel: { roles: grantOf(file).roles } } : {}),
     events: await recentEvents(run.id, 0, TIMELINE_LINES),
     total: lines?.n ?? 0,
   };

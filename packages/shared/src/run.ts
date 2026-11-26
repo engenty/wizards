@@ -1535,6 +1535,51 @@ export interface RunTimeline {
   events: RunEvent[];
   /** How many lines the log has, `events` or more. */
   total: number;
+  /**
+   * Set for a run of a wizard in version 0.3.0 (docs/plans/kernel.md): its rows are read from
+   * `GET /api/runs/:id/rows`. `roles`: whose answers come from a person, so such a row can be
+   * answered differently; every other row can only be asked again.
+   */
+  kernel?: { roles: string[] };
+}
+
+/** A row of a run of a wizard in version 0.3.0: an ask with its answer, or a step that returned. */
+export interface KernelRow {
+  n: number;
+  step: string;
+  /** A step that returned: what it left behind and the way it went. */
+  left?: true;
+  value?: unknown;
+  to?: string;
+  /** An ask: what kind, who answers, and how it stands. */
+  type?: string;
+  role?: string;
+  title?: unknown;
+  state?: "waiting" | "done" | "failed";
+  answer?: unknown;
+  error?: string;
+  by?: string;
+  /** On the row that asks the user's leave for an action: the row of that action. */
+  approves?: number;
+  /** On a row that belongs to another ask, what an agent did in its turn: that ask's row. */
+  parent?: number;
+}
+
+/** What an eval said of one step that returned, or of the finished run (`end/<name>`). */
+export interface KernelScore {
+  eval: string;
+  row: number;
+  score?: number;
+  why?: string;
+  error?: string;
+}
+
+/** What `GET /api/runs/:id/rows` answers: a run's rows in their order, and its scores. */
+export interface KernelRows {
+  rows: KernelRow[];
+  scores: KernelScore[];
+  /** Each step's title as its file writes it. */
+  titles?: Record<string, { title?: string; working?: string }>;
 }
 
 /** One step's output as the current step shows it. */

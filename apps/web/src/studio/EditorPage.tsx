@@ -1382,7 +1382,12 @@ function Editor() {
                     readOnly={w.readOnly}
                   />
                 ) : (
-                  <RunsPanel wizardId={w.id} starts={w.starts} onOpen={openRun} />
+                  <RunsPanel
+                    wizardId={w.id}
+                    starts={w.starts}
+                    kernel={Boolean(def.kernel)}
+                    onOpen={openRun}
+                  />
                 )}
               </div>
             </div>
