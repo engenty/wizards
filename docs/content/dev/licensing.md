@@ -63,11 +63,14 @@ Ten libraries go to npm with each release, at its version:
 - `@engenty/browser`: a browser for agents on Mastra’s agent-browser provider: its tools for any
   tool system, none that runs the model’s JavaScript, and a private fill that types a password
   or a code only into a field on the expected website
-- `@engenty/model-providers`: the models on a person’s own computer: Ollama (its models, what each
-  can do, which fits the memory, downloads, and a model on its own chat API with the context
-  length set), the AI clients signed in on their subscription (Claude Code, Codex, Cursor
-  Agent: found, signed in, run headless as a model or as a chat with one MCP server), and a
-  short real call that says whether each answers
+- `@engenty/model-providers`: every way an app reaches a model. The servers for open models on a
+  person’s own computer: Ollama (its models, what each can do, which fits the memory, downloads,
+  and a model on its own chat API with the context length set), LM Studio and Apple MLX. The AI
+  clients signed in on their subscription (Claude Code, Codex, Antigravity, Cursor Agent: found,
+  signed in, run headless as a model or as a chat with one MCP server). The providers a person
+  brings a key for (OpenAI, Anthropic, Google, OpenRouter, the Vercel AI Gateway and more: who
+  they are, the test of a key, a model on it). The wizards account’s gateway. And a short real
+  call that says whether each answers
 - `@engenty/model-setup`: the setup in which a person picks what an app thinks with, shared by
   engenty wizards and wizards.bot: the AI clients it offers, how each is found, installed and
   signed in through a terminal in the page, and the routes the page asks
