@@ -61,6 +61,7 @@ import {
   spaceConnectorFor,
   startSpaceConnectionOAuth,
 } from "../connectors/space-connections.js";
+import { canSpend } from "../credits/credits.js";
 import { db, schema, withTenant } from "../db/client.js";
 import {
   answerersOf,
@@ -1312,6 +1313,21 @@ export const runRoutes = new Hono()
     } catch (err) {
       return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 409);
     }
+  })
+  // The evals that have not judged the run yet, now: after a row was asked again, say.
+  .post("/:id/judge", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
+    if (!(run && kernelOf(run.definition))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    if (run.driving || run.status === "running") {
+      throw new ServiceError("refused", note("runBusy"));
+    }
+    if (!(await canSpend())) {
+      throw new ServiceError("no_credits", note("creditsUsedUp"));
+    }
+    const scores = await kernelRuns.judge(run, c.req.raw.signal);
+    return c.json({ ok: true, scores });
   })
   .get("/:id/timeline", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));

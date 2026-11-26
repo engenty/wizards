@@ -2289,6 +2289,9 @@ const de: Record<Key, Line> = {
     "Die Antwort als JSON. Der Lauf geht von hier aus weiter, spätere Zeilen gehen verloren.",
   "rows.send": "Antwort senden",
   "rows.notJson": "Das ist kein gültiges JSON.",
+  "rows.judge": "Jetzt bewerten",
+  "rows.judgeHint":
+    "Bewertet, was noch nicht bewertet ist, etwa nachdem eine Zeile erneut gefragt wurde.",
   "type.form": "Seite",
   "type.agent": "KI-Schritt",
   "type.decision": "Entscheidung",
@@ -7239,6 +7242,8 @@ const en = {
   "rows.differentlyHint": "The answer as JSON. The run goes on from here, and later rows are lost.",
   "rows.send": "Send answer",
   "rows.notJson": "This isn’t valid JSON.",
+  "rows.judge": "Score now",
+  "rows.judgeHint": "Scores what isn’t scored yet, for example after a row was asked again.",
   "type.form": "Page",
   "type.agent": "AI step",
   "type.decision": "Decision",

@@ -438,6 +438,65 @@ describe("evals", () => {
   });
 });
 
+describe("a dataset, and a row asked again", () => {
+  it("runs the wizard on every entry, answers its waits from the entry and judges each run", async () => {
+    const { evalDataset } = await import("../src/services/evals");
+    price.next = [3000, 3000];
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    await judgeShare(w.id, 0);
+    const heard: string[] = [];
+    const done = await client.withTenant(T, () =>
+      evalDataset(
+        "u",
+        w.id,
+        [
+          { name: "signed", input, answers: { check: [{ approved: true }], accept: [{ approved: true }], signed: [{ came: true }] } },
+          { name: "unanswered", input },
+        ],
+        new AbortController().signal,
+        (entry) => {
+          heard.push(entry.name);
+        },
+      ),
+    );
+    expect(heard).toEqual(["signed", "unanswered"]);
+    expect(done.runs.map((r) => [r.name, r.status])).toEqual([
+      ["signed", "done"],
+      ["unanswered", "waiting_input"],
+    ]);
+    expect(done.runs[0].scores.map((s) => s.eval).sort()).toEqual(["end/signed", "offer/tone", "offer/within-budget"]);
+    // the run that waits is judged as far as it came: the end has not come
+    expect(done.runs[1].scores.map((s) => s.eval).sort()).toEqual(["offer/tone", "offer/within-budget"]);
+    expect(done.summary["offer/tone"]).toEqual({ mean: 0.8, scores: 2, errors: 0 });
+    expect(done.summary["end/signed"]).toEqual({ mean: 1, scores: 1, errors: 0 });
+    // the runs stay as test runs, with their scores in the table
+    expect((await scoresOf(done.runs[0].runId)).length).toBe(3);
+  });
+
+  it("judges a past run again once a row was asked again and the run came to its end", async () => {
+    price.next = [3000, 3000];
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    await judgeShare(w.id, 0);
+    const id = await startOf(w, input);
+    await toTheEnd(id);
+    const first = await view(id);
+    expect(first.evals?.sort()).toEqual(["end/signed", "offer/tone", "offer/within-budget"]);
+    expect(await client.withTenant(T, async () => (await runner.kernelRuns.judge((await run(id)) as never, new AbortController().signal)).length)).toBe(3);
+    // the review asked again: the scores of what came after it are gone
+    await client.withTenant(T, () => runner.kernelRuns.rewind(id, 2));
+    await rests(id, "waiting_input");
+    expect((await view(id)).scores.map((s) => s.eval).sort()).toEqual(["offer/tone", "offer/within-budget"]);
+    await answer(id, 2, { approved: true });
+    await rests(id, "waiting_input");
+    await answer(id, (await waitingRow(id)).n, { approved: true });
+    await rests(id, "waiting_signal");
+    await answer(id, (await waitingRow(id)).n, { came: true });
+    await rests(id, "done");
+    const scores = await client.withTenant(T, async () => runner.kernelRuns.judge((await run(id)) as never, new AbortController().signal));
+    expect(scores.map((s) => s.eval).sort()).toEqual(["end/signed", "offer/tone", "offer/within-budget"]);
+  });
+});
+
 describe("the switch", () => {
   it("refuses a wizard in version 0.3.0 while it is off", async () => {
     const features = await import("../src/features");

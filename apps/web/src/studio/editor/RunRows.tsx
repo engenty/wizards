@@ -86,6 +86,10 @@ export function RunRows({
       onChanged();
     },
   });
+  const judge = useMutation({
+    mutationFn: () => api.post(`/api/runs/${runId}/judge`, {}),
+    onSettled: () => void query.refetch(),
+  });
   const view = query.data;
   if (!view) {
     return null;
@@ -126,6 +130,8 @@ export function RunRows({
     }
   };
   const atEnd = scores.filter((score) => score.eval.startsWith("end/"));
+  // A run with evals that stands still can be judged now; the scores come in beside their rows.
+  const judgeable = canAct && Boolean(view.evals?.length) && view.status !== "running";
   return (
     <div className="mt-1">
       <div className="flex h-10 items-center gap-2 pr-1.5 pl-3">
@@ -133,7 +139,22 @@ export function RunRows({
           {t("rows.title")}
         </span>
         <span className="text-[0.75rem] text-ink-4 tabular-nums">{rows.length}</span>
+        {judgeable ? (
+          <Button
+            className="ml-auto"
+            variant="ghost"
+            size="sm"
+            title={t("rows.judgeHint")}
+            disabled={judge.isPending}
+            onClick={() => judge.mutate()}
+          >
+            {t("rows.judge")}
+          </Button>
+        ) : null}
       </div>
+      {judge.error ? (
+        <p className="px-3 pb-2 text-[0.75rem] text-rose">{judge.error.message}</p>
+      ) : null}
       {rows.length ? null : (
         <p className="px-3 pb-2 text-[0.8125rem] text-ink-3">{t("rows.empty")}</p>
       )}
