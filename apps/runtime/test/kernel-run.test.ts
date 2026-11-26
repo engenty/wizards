@@ -285,6 +285,18 @@ it("keeps a wizard's compiled steps at a save, writes its types beside it, and a
   expect(saved.same).toBe(true);
 });
 
+it("fails a step that asks another wizard: the runtime starts no run of one yet", async () => {
+  const asks = { ...file, start: "ask", edges: { ask: ["end"] }, limits: {}, output: {}, requires: { ...file.requires, wizards: ["other"] } };
+  const id = await client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(asks) as never });
+    await files.seedFiles(created.id, { "steps/ask.ts": 'export default async (run, ask) => ({ value: await ask({ type: "wizard", wizard: "other" }) });\n' });
+    const w = await wizards.ownedWizard("u", created.id);
+    return runner.createRun({ wizardId: created.id, definition: w.draft, files: await files.draftFiles(created.id), version: null, mode: "test", userId: "u", input });
+  });
+  const row = await rests(id, "failed");
+  expect(row.error).toBe('"ask" reached for "other", which the file does not grant.');
+});
+
 it("leaves a wizard in version 0.2.0 to today's engine", async () => {
   const id = await client.withTenant(T, async () => {
     const def = { version: 1, title: "Old", description: "", avatar: "round", steps: [{ id: "write", type: "agent", title: "Write", instructions: "Do it.", tools: [], output: { format: "text" } }, { id: "done", type: "result", title: "Done", deliverables: [] }] };

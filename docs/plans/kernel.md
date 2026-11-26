@@ -22,7 +22,7 @@ than the tenant's database, prices.
 | Item | State | Where |
 |---|---|---|
 | A.1 The package | Built, under the MIT licence | `packages/kernel`, with a build of its own |
-| A.2 Retries, stop, rows under an ask, a battery that asks for leave | Built. Pause and a wizard as an ask are not. | `kernel.ts` |
+| A.2 Retries, stop, rows under an ask, a battery that asks for leave | Built, pause and a wizard as an ask included, in the kernel. The runtime calls neither yet. | `kernel.ts` |
 | A.3 Answers checked against fields | Built: the kernel takes the host's check, and a page's answers are checked as a form's are today | `kernel.ts`, `engine/runner.ts` |
 | A.4 QuickJS as the second way | Built, with `btoa` and `atob`, which steps written for ordinary code expect | `quickjs.ts`, `compile.ts` |
 | B.5 The file's schema | Built | `packages/shared/src/definition.ts`, `kernel-file.ts` |
@@ -161,6 +161,12 @@ Tests named here run alone, as the repository asks:
 2. **What the spike left out of a run.** `retries` on an ask. `stop` and `pause`. A row under
    another row (`parent`), for what an agent does in its turn. A battery that answers "this needs
    the user's leave", so the broker's rules can ask where the file does not. A wizard as an ask.
+   Pause and a wizard as an ask built on 2026-11-26, in the kernel only. `pause` holds a run and
+   the runs that answer its asks; an answer is still written, `resume` moves it. An ask of
+   `type: "wizard"` names a wizard the file lists in `requires.wizards`; the kernel starts a run
+   of it, and its output answers the ask, its failure or stop fails it. In the runtime the file's
+   schema has no `requires.wizards` yet (decision 7 names it), so such an ask fails there as one
+   the file does not grant, and nothing pauses a run there: no button, route or tool calls it.
 3. **Answers checked against fields.** The kinds of a field and their checks from
    `packages/shared/src/definition.ts`, in place of the spike's check for `required`.
 4. **QuickJS as the second way to run a step.** The spike's first state (`sandbox.ts` at commit

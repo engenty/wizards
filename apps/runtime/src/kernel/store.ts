@@ -28,6 +28,10 @@ export function statusOf(run: Run): RunStatus {
   if (run.status === "stopped") {
     return "cancelled";
   }
+  // Held where it stands until it is resumed, as a run that sleeps until its time.
+  if (run.status === "paused") {
+    return "sleeping";
+  }
   const waiting = run.rows.filter(isAsk).filter((row) => row.state === "waiting");
   // A wait is for a signal or a time; everything else waits for somebody.
   if (waiting.length && waiting.every((row) => row.type === "wait")) {

@@ -18,6 +18,8 @@ export type WizardFile = {
     roles?: Record<string, string>;
     /** The hosts the HTTP tool may reach. */
     hosts?: string[];
+    /** The wizards a step may ask, by the names the host knows them by. */
+    wizards?: string[];
   };
   /**
    * Each connection by its kind, the actions the wizard uses, and for each whether it is allowed
@@ -98,6 +100,8 @@ export type AskRow = Spec & {
   asksLeave?: boolean;
   /** How often answering it was tried. */
   tries?: number;
+  /** On an ask of `type: "wizard"`: the run that answers it. */
+  child?: string;
 };
 
 /** A step that returned: what it left behind and the way it went. */
@@ -124,7 +128,8 @@ export type Run = {
   wizard: string;
   input: Record<string, unknown>;
   startedAt: number;
-  status: "running" | "waiting" | "done" | "failed" | "stopped";
+  /** `paused`: held where it stands. An answer is still written; the run moves once resumed. */
+  status: "running" | "waiting" | "paused" | "done" | "failed" | "stopped";
   /** The step the run stands in. Null once it ended. */
   cursor: string | null;
   /** Where the rows of the current step begin. Null between two steps. */
@@ -136,6 +141,8 @@ export type Run = {
   scores?: Score[];
   /** What the run may reach, made from the file when it started. */
   grant?: import("./grant.js").Grant;
+  /** A run that answers another run's ask of `type: "wizard"`: that run, its row, how deep. */
+  parent?: { run: string; row: number; depth: number };
   rev: number;
 };
 

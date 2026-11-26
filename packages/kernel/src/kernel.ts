@@ -40,6 +40,11 @@ const isOwn = (row: Row): row is AskRow =>
 const read = (from: unknown, path: string) =>
   path.split(".").reduce<any>((at, key) => at?.[key], from);
 
+/** How deep wizards may ask wizards: a run asked by a run asked by … */
+const DEPTH = 5;
+const ended = (run: Run) =>
+  run.status === "done" || run.status === "failed" || run.status === "stopped";
+
 /** The row that asks for a run's input, where the run began without one. Not a step. */
 export const INPUT = "input";
 
@@ -137,7 +142,7 @@ export function createKernel({
     Object.assign(run, { status: "failed" as const, error });
 
   async function move(run: Run): Promise<Run> {
-    if (run.status === "stopped") return run;
+    if (run.status === "stopped" || run.status === "paused") return run;
     const { file, steps } = await wizards(run.wizard);
     run.grant ??= grantOf(file);
     const grant = run.grant;
@@ -228,6 +233,30 @@ export function createKernel({
           moved = true;
         }
       }
+      // An ask of another wizard is answered by a run of it: started here, it answers when it ends.
+      for (const row of here) {
+        if (row.type !== "wizard" || row.state !== "waiting") continue;
+        try {
+          const child = row.child
+            ? await store.load(row.child)
+            : await startChild(row, {
+                run: run.id,
+                row: row.n,
+                depth: (run.parent?.depth ?? 0) + 1,
+              });
+          if (child) row.child = child.id;
+          if (child && ended(child)) {
+            answerFrom(row, child);
+            moved = true;
+          }
+        } catch (error) {
+          Object.assign(row, {
+            state: "failed",
+            error: error instanceof Error ? error.message : String(error),
+          });
+          moved = true;
+        }
+      }
       const allowed = (row: AskRow) =>
         !(needsLeave(grant, row) || row.asksLeave) ||
         run.rows.filter(isAsk).some((other) => other.approves === row.n && other.state === "done");
@@ -307,6 +336,91 @@ export function createKernel({
     };
   }
 
+  /** A run of the wizard an ask names, begun and moved as far as it goes at once. */
+  async function startChild(row: AskRow, parent: NonNullable<Run["parent"]>): Promise<Run> {
+    if (parent.depth > DEPTH) throw new Error(`Wizards ask wizards more than ${DEPTH} deep.`);
+    const name = row.wizard as string;
+    const { file } = await wizards(name);
+    const input = row.input as Record<string, unknown> | undefined;
+    const said = input === undefined ? undefined : wrong(file.input?.fields, input);
+    if (said) throw new Error(`"${name}" cannot start with this input. ${said}`);
+    const without = has ? lacking(file, has) : [];
+    if (without.length)
+      throw new Error(`"${name}" cannot run here. It lacks ${without.join(", ")}.`);
+    const id = crypto.randomUUID();
+    return move({ ...begin(file, { id, wizard: name, startedAt: now() }, input), parent });
+  }
+
+  /** The answer of an ask of another wizard, from the run of it that ended. */
+  function answerFrom(row: AskRow, child: Run) {
+    Object.assign(
+      row,
+      child.status === "done"
+        ? { state: "done", answer: child.output ?? {} }
+        : {
+            state: "failed",
+            error:
+              child.status === "stopped"
+                ? `"${row.wizard}" was stopped.`
+                : `"${row.wizard}" failed. ${child.error ?? ""}`.trim(),
+          },
+    );
+  }
+
+  /**
+   * A run that answers another run's ask and has ended: its answer is written into that ask, and
+   * that run moves. Called after every move from outside, so the asking run hears of the end.
+   */
+  async function tell(run: Run): Promise<Run> {
+    const to = run.parent;
+    if (!to || !ended(run)) return run;
+    const parent = await store.load(to.run);
+    const row = parent?.rows[to.row];
+    if (!parent || !row || isLeft(row) || row.child !== run.id || row.state !== "waiting")
+      return run;
+    answerFrom(row, run);
+    await store.save(parent);
+    await tell(await move(parent));
+    return run;
+  }
+
+  /** The runs that answer this run's waiting asks of other wizards. */
+  const children = (run: Run) =>
+    run.rows
+      .filter(isAsk)
+      .filter((row) => row.type === "wizard" && row.state === "waiting" && row.child)
+      .map((row) => row.child as string);
+
+  /** Ends a run where it stands, and the runs that answer its asks. Nothing moves them again. */
+  async function stop(runId: string): Promise<Run> {
+    const run = await open(runId);
+    if (run.status === "done" || run.status === "failed") return run;
+    Object.assign(run, { status: "stopped", wakeAt: undefined });
+    await store.save(run);
+    for (const child of children(run)) await stop(child);
+    return tell(run);
+  }
+
+  /** Holds a run and the runs that answer its asks. An answer is still written; nothing moves. */
+  async function pause(runId: string): Promise<Run> {
+    const run = await open(runId);
+    if (ended(run) || run.status === "paused") return run;
+    Object.assign(run, { status: "paused", wakeAt: undefined });
+    await store.save(run);
+    for (const child of children(run)) await pause(child);
+    return run;
+  }
+
+  /** Lets a paused run move again, and the runs that answer its asks. */
+  async function resume(runId: string): Promise<Run> {
+    const run = await open(runId);
+    if (run.status !== "paused") return run;
+    run.status = "running";
+    await store.save(run);
+    for (const child of children(run)) await resume(child);
+    return tell(await move(await open(runId)));
+  }
+
   /** The run's grant, as it was made when the run started. */
   const grantFor = async (run: Run): Promise<Grant> =>
     run.grant ?? grantOf((await wizards(run.wizard)).file);
@@ -350,25 +464,44 @@ export function createKernel({
     if (waits) throw new Error(waits);
     if (value !== undefined && !fromOutside(await grantFor(run), row))
       throw new Error(`Row ${n} is answered by the run itself; it can only be asked again.`);
+    // The runs that answer the asks that go are stopped: nobody waits for them any more.
+    const gone = run.rows
+      .slice(n)
+      .filter(isAsk)
+      .flatMap((other) => (other.child && other.state === "waiting" ? [other.child] : []));
     run.rows.length = n + 1;
     run.scores = run.scores?.filter((score) => score.row < n);
     Object.assign(
       row,
       value === undefined
-        ? { state: "waiting", answer: undefined, by: undefined, error: undefined, tries: undefined }
+        ? {
+            state: "waiting",
+            answer: undefined,
+            by: undefined,
+            error: undefined,
+            tries: undefined,
+            child: undefined,
+          }
         : { state: "done", answer: value },
     );
     let from = n; // the step's rows begin after the last row that left a step
     while (from > 0 && !isLeft(run.rows[from - 1])) from--;
     const input = row.step === INPUT;
     Object.assign(run, {
-      status: "running" as const,
+      status: run.status === "paused" ? ("paused" as const) : ("running" as const),
       cursor: input ? run.cursor : row.step,
       open: input ? null : from,
       error: undefined,
       output: undefined,
     });
     await store.save(run);
+    for (const child of gone) {
+      const other = await store.load(child);
+      if (other && !ended(other)) {
+        Object.assign(other, { status: "stopped", wakeAt: undefined });
+        await store.save(other);
+      }
+    }
     return run;
   }
 
@@ -406,21 +539,17 @@ export function createKernel({
 
     /** An answer to a waiting row, from a person, a signal or another run. */
     async answer(runId: string, n: number, value: unknown, by?: string): Promise<Run> {
-      return move(await record(runId, n, value, by));
+      return tell(await move(await record(runId, n, value, by)));
     },
 
     /** The two halves of `answer`, for a host that moves runs in a line of its own. */
     record,
-    move: async (runId: string) => move(await open(runId)),
+    move: async (runId: string) => tell(await move(await open(runId))),
 
-    /** Ends a run where it stands. Nothing moves it again; its rows stay. */
-    async stop(runId: string): Promise<Run> {
-      const run = await open(runId);
-      if (run.status === "done" || run.status === "failed") return run;
-      Object.assign(run, { status: "stopped", wakeAt: undefined });
-      await store.save(run);
-      return run;
-    },
+    stop,
+
+    pause,
+    resume,
 
     /** A host calls this at `run.wakeAt`: a row whose time has come is answered with `timedOut`. */
     async wake(runId: string): Promise<Run> {
@@ -428,14 +557,14 @@ export function createKernel({
       const due = run.rows
         .filter(isAsk)
         .filter((row) => row.state === "waiting" && row.due != null && row.due <= now());
-      if (!due.length || run.status === "stopped") return run;
+      if (!due.length || run.status === "stopped" || run.status === "paused") return run;
       for (const row of due) Object.assign(row, { state: "done", answer: { timedOut: true } });
-      return move(run);
+      return tell(await move(run));
     },
 
     /** Back to row `n`: asked again, or with a value answered differently. Later rows are dropped. */
     async rewind(runId: string, n: number, value?: unknown): Promise<Run> {
-      return move(await back(runId, n, value));
+      return tell(await move(await back(runId, n, value)));
     },
 
     /** The first half of `rewind`, for a host that moves runs in a line of its own. */

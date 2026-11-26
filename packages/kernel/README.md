@@ -81,15 +81,16 @@ Steps are code, so what they will ask for cannot be read from them. The file dec
   "models": ["standard"],
   "tools": ["http.request"],
   "roles": { "legal": "Legal" },
-  "hosts": ["api.example.com"]
+  "hosts": ["api.example.com"],
+  "wizards": ["offer"]
 },
 "connections": {
   "gmail": { "search_threads": "allow", "read_thread": "allow", "send": "ask" }
 }
 ```
 
-- An ask that names a model class, a tool, a role, a host or a connection's action the file does
-  not list fails. A step narrows the file for one ask: `tools: ["gmail.read_thread"]`.
+- An ask that names a model class, a tool, a role, a host, a wizard or a connection's action the
+  file does not list fails. A step narrows the file for one ask: `tools: ["gmail.read_thread"]`.
 - An action set to `ask` first asks the user, as a row of its own. Nothing is done before the
   answer, and a no fails the action.
 - The grant is made from the file when a run starts and kept on the run. A later edit of the file
@@ -127,6 +128,15 @@ When an ask waits for a person, the kernel stops: nothing runs and nothing is ke
 When the answer comes, the step runs again from its top, and `ask` gives the answer back at once.
 So a step may run more than once. It is meant to do nothing but compute and ask.
 
+A run can be paused: it does not move and does not wake at a time. An answer that comes in the
+meantime is written; once resumed, the run goes on from there. `stop` ends a run for good.
+
+A step can ask another wizard: `ask({ type: "wizard", wizard: "offer", input })`. The kernel
+starts a run of it, and when that run is done its output is the answer; when it fails or is
+stopped, the ask fails. Nobody else can answer such an ask. The run of the other wizard has rows
+of its own, a person answers them there. Pausing, stopping or asking again the step that asked
+does the same to that run. Wizards ask wizards at most five deep.
+
 The file holds a run to its limits without trusting the code. An ask that names a tool or a role
 the file does not list fails. A `to` the map does not have fails. A step reached more often than
 its limit fails.
@@ -149,7 +159,7 @@ wizards both ways.
 
 | File | Is |
 | --- | --- |
-| `src/kernel.ts` | `start`, `answer`, `wake`, `rewind`, `stop`, `judge`, `read`; `record`, `back` and `move` for a host with a line of its own. Knows the file, the step interface and the rows. |
+| `src/kernel.ts` | `start`, `answer`, `wake`, `rewind`, `stop`, `pause`, `resume`, `judge`, `read`; `record`, `back` and `move` for a host with a line of its own. Knows the file, the step interface and the rows. |
 | `src/grant.ts` | The grant from the file, an ask held to it, what a host lacks, what the file declares and no run used. |
 | `src/turn.ts` | One run of a step or an eval from its top, as ordinary code. |
 | `src/quickjs.ts`, `src/compile.ts` | The same in QuickJS, and a wizard's folder compiled for it. |
@@ -187,7 +197,6 @@ answer an ask at once, by its type. An ask without a battery waits for `answer`.
 ## What it leaves out
 
 - A real model. The agent battery in the tests is a stand-in.
-- Pause, and a wizard as an ask.
 - Leave for an action an agent calls inside its own turn: only a tool ask's one `call`, or a
   battery that says so, asks the user.
 - A real Google account and its OAuth sign-in. The emulator hands out a token.

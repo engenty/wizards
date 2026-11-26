@@ -97,7 +97,7 @@ export interface RunState {
     startedAt: number;
     /** Where the rows of the step the run stands in begin; null between two steps. */
     open: number | null;
-    status: "running" | "waiting" | "done" | "failed" | "stopped";
+    status: "running" | "waiting" | "paused" | "done" | "failed" | "stopped";
     grant?: unknown;
     output?: Record<string, unknown>;
   };

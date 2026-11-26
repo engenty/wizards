@@ -6,6 +6,8 @@ export type Grant = {
   tools: string[];
   roles: string[];
   hosts: string[];
+  /** Missing on a grant made before wizards could be asked. */
+  wizards?: string[];
   connections: Record<string, Record<string, "allow" | "ask">>;
 };
 
@@ -17,6 +19,8 @@ export type Host = {
   connections?: string[];
   /** The roles someone stands behind. */
   roles?: string[];
+  /** The wizards it can start as an ask. */
+  wizards?: string[];
 };
 
 export const grantOf = (file: WizardFile): Grant => ({
@@ -24,6 +28,7 @@ export const grantOf = (file: WizardFile): Grant => ({
   tools: file.requires?.tools ?? [],
   roles: ["user", "operator", ...Object.keys(file.requires?.roles ?? {})],
   hosts: file.requires?.hosts ?? [],
+  wizards: file.requires?.wizards ?? [],
   connections: file.connections ?? {},
 });
 
@@ -43,6 +48,10 @@ export function outside(grant: Grant, spec: Spec): string | undefined {
   const role = [spec.role, spec.asks].find((name) => name && !grant.roles.includes(name));
   if (role) return role;
   if (typeof spec.model === "string" && !grant.models.includes(spec.model)) return spec.model;
+  if (spec.type === "wizard") {
+    const name = typeof spec.wizard === "string" ? spec.wizard : "a wizard without a name";
+    if (!(grant.wizards ?? []).includes(name)) return name;
+  }
   const tool = named(spec).find((name) => !action(grant, name) && !grant.tools.includes(name));
   if (tool) return tool;
   const url = (spec.input as { url?: unknown } | undefined)?.url;
@@ -65,6 +74,7 @@ export function lacking(file: WizardFile, has: Host): string[] {
     ...lacks("the tool", file.requires?.tools ?? [], has.tools),
     ...lacks("someone for the role", Object.keys(file.requires?.roles ?? {}), has.roles),
     ...lacks("the connection", Object.keys(file.connections ?? {}), has.connections),
+    ...lacks("the wizard", file.requires?.wizards ?? [], has.wizards),
   ];
 }
 
@@ -74,6 +84,7 @@ export function unused(file: WizardFile, rows: Row[]): string[] {
   const tools = new Set(asks.flatMap(named));
   const roles = new Set(asks.flatMap((row) => [row.role, row.asks]));
   const models = new Set(asks.map((row) => row.model));
+  const wizards = new Set(asks.map((row) => row.wizard));
   return [
     ...(file.requires?.models ?? [])
       .filter((name) => !models.has(name))
@@ -84,6 +95,9 @@ export function unused(file: WizardFile, rows: Row[]): string[] {
     ...Object.keys(file.requires?.roles ?? {})
       .filter((name) => !roles.has(name))
       .map((name) => `requires.roles: ${name}`),
+    ...(file.requires?.wizards ?? [])
+      .filter((name) => !wizards.has(name))
+      .map((name) => `requires.wizards: ${name}`),
     ...Object.entries(file.connections ?? {}).flatMap(([connection, actions]) =>
       Object.keys(actions)
         .filter((name) => !tools.has(`${connection}.${name}`))
