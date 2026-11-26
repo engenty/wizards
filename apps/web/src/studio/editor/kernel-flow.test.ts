@@ -1,6 +1,6 @@
 import type { KernelFile } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
-import { kernelFlow } from "./kernel-flow";
+import { kernelFlow, typedOver } from "./kernel-flow";
 
 const file = (edges: Record<string, string[]>, start: string, limits?: Record<string, number>) =>
   ({
@@ -51,5 +51,39 @@ describe("the map of a wizard in version 0.3.0", () => {
       ["b", true, 0],
       ["c", false, 1],
     ]);
+  });
+});
+
+describe("what a person types over in a step's panel", () => {
+  it("is a page's short texts and a step's Auftrag", () => {
+    for (const path of [
+      "title",
+      "description",
+      "working",
+      "fields.0.label",
+      "fields.2.placeholder",
+      "fields.1.options.0",
+    ]) {
+      expect(typedOver(path), path).toBe(true);
+    }
+    // What an agent is told, a document is made from, a film is briefed with.
+    for (const path of ["instructions", "prompt", "brief"]) {
+      expect(typedOver(path), path).toBe(true);
+    }
+  });
+
+  it("is no setting: those are changed with the assistant or in the code", () => {
+    for (const path of [
+      "model",
+      "type",
+      "tools.0",
+      "signal",
+      "key",
+      "fields.0.id",
+      "fields.0.kind",
+      "data.total",
+    ]) {
+      expect(typedOver(path), path).toBe(false);
+    }
   });
 });

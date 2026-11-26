@@ -16,6 +16,7 @@ import {
 } from "react";
 import { t } from "../../lib/i18n";
 import { cn } from "../../ui";
+import { typedOver } from "./kernel-flow";
 
 /** What a step's panel can change: the texts of one ask, and a note to the assistant. */
 export interface KernelEditing {
@@ -30,13 +31,6 @@ export interface KernelEditing {
 }
 
 export const KernelEditContext = createContext<KernelEditing | null>(null);
-
-/**
- * The short texts a person types over where they stand. An Auftrag is not among them: it is
- * changed with the assistant or in the code, like every other value.
- */
-const WORDS = /(^|\.)(title|description|working|label|placeholder)$/;
-const OPTION = /^fields\.\d+\.options\.\d+$/;
 
 /** Something the code fills in or works out: set apart from the words a person wrote. */
 export const CODE =
@@ -107,7 +101,7 @@ export function Words({
   className?: string;
 }) {
   const editing = useContext(KernelEditContext);
-  const place = WORDS.test(path) || OPTION.test(path) ? editing?.at[path] : undefined;
+  const place = typedOver(path) ? editing?.at[path] : undefined;
   const el = useRef<HTMLSpanElement>(null);
   // Compared by the code alone: how a chip is drawn is not part of what a person typed.
   const shown = JSON.stringify(
@@ -193,7 +187,7 @@ export function Words({
 /** Whether a text at this path is typed over in place: the pen on its block says so. */
 export function useEditable(path: string): boolean {
   const editing = useContext(KernelEditContext);
-  return Boolean((WORDS.test(path) || OPTION.test(path)) && editing?.at[path]);
+  return Boolean(typedOver(path) && editing?.at[path]);
 }
 
 /**

@@ -363,9 +363,30 @@ function Editor() {
   const [columnShown, setColumnShown] = useColumnShown();
   /** A column beside the preview holds the flow or the editor, while the window is wide and it is shown. */
   const columnBeside = wideWindow && columnShown;
-  const [column, setColumn] = useColumn();
+  const [storedColumn, storeColumn] = useColumn();
+  /** A wizard of one step is open on that step, until the person picks what the column shows. */
+  const [onPrompt, setOnPrompt] = useState(false);
+  const column: Column = onPrompt ? "edit" : storedColumn;
+  const setColumn = (next: Column) => {
+    setOnPrompt(false);
+    storeColumn(next);
+  };
   /** Where there is no column: the main area edits the step chosen instead of showing it. */
   const [editing, setEditing] = useState(false);
+  // A wizard made of one step file is its prompt: it opens on that step, where the prompt is typed
+  // over, not on a map of one step. What the browser remembers for the column stays as it is.
+  const kernelFile = wizard.data?.draft.kernel;
+  const onlyStep =
+    kernelFile && Object.keys(kernelFile.edges).length === 1 ? kernelFile.start : null;
+  const openedOn = useRef<string | null>(null);
+  useEffect(() => {
+    if (onlyStep && id && openedOn.current !== id) {
+      openedOn.current = id;
+      setSelected(onlyStep);
+      setOnPrompt(true);
+      setEditing(true);
+    }
+  }, [onlyStep, id]);
   /** A wizard made of step files: the chosen step is edited as code, not as fields. */
   const [coding, setCoding] = useState(false);
   /** The file the code view has open, once one was picked there. */

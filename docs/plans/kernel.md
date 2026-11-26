@@ -243,6 +243,9 @@ Tests named here run alone, as the repository asks:
     instructions as sent, fields. The file's `requires` and `connections` as a form. Decided
     2026-11-26: a step's Auftrag is typed over in its panel, for every step, with the code between
     its words kept as chips, as its short texts are. A wizard with one step opens on its prompt.
+    Built on 2026-11-26: `instructions`, `prompt` and `brief` are typed over like the short texts
+    (`kernel-flow.ts`, `typedOver`), and the editor opens a wizard of one step on that step. Not
+    looked at in a browser: a local studio opens only after its setup made a test call to a model.
 20. **A run as rows.** `RunTimeline.tsx` from `run_row`, with asking a row again and answering it
     differently. Scores beside the steps they judged.
 21. **For those who build.** The authoring guide (`get_authoring_guide`) and a starter in version 0.3.0.

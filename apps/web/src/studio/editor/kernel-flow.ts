@@ -59,3 +59,14 @@ export function kernelFlow(file: KernelFile): KernelFlowStep[] {
     };
   });
 }
+
+/**
+ * The texts a person types over where they stand: the short ones of a page, and a step's Auftrag,
+ * what an agent is told, a document is made from, a film is briefed with. Every other value is
+ * changed with the assistant or in the code.
+ */
+const WORDS = /(^|\.)(title|description|working|label|placeholder|instructions|prompt|brief)$/;
+const OPTION = /^fields\.\d+\.options\.\d+$/;
+
+/** Whether the value at this path of an ask is a text typed over in the step's panel. */
+export const typedOver = (path: string): boolean => WORDS.test(path) || OPTION.test(path);
