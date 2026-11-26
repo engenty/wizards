@@ -2,10 +2,14 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import { generateText, type LanguageModel } from "ai";
 import spawn from "cross-spawn";
+import { accountGateway } from "./account.js";
 import type { ChatCall } from "./clients/chat.js";
 import { resolveEnv } from "./clients/env.js";
 import { CLIENTS, type Client, type ClientId } from "./clients/index.js";
+import { providerModel } from "./providers/model.js";
+import { PROVIDERS, type ProviderId } from "./providers/provider.js";
 import {
   fits,
   type InstalledModel,
@@ -23,8 +27,10 @@ import {
 /**
  * - `ok`: it answered.
  * - `absent`: the client is not installed, or the server does not answer at the address.
+ *   A provider or an account is never absent: without an answer it is `failed`.
  * - `signed_out`: the client is installed but not signed in.
- * - `no_model`: the server runs but holds no model to talk with (or not the one named).
+ * - `no_model`: the server runs but holds no model to talk with (or not the one named); the
+ *   provider has no models that write text.
  * - `too_big`: the model takes more of the computer's memory than the share allows.
  * - `failed`: it was asked and did not answer; `detail` says what it said.
  */
@@ -40,6 +46,8 @@ export interface ProbeResult {
   model?: string;
   /** It did not answer within the timeout. */
   timedOut?: boolean;
+  /** The HTTP status a provider or an account refused the call with: 401 for a key it does not know. */
+  status?: number;
 }
 
 export type ProbeSource =
@@ -63,6 +71,26 @@ export type ProbeSource =
       share?: number;
       timeoutMs?: number;
       fetch?: typeof fetch;
+    }
+  | {
+      kind: "provider";
+      provider: ProviderId;
+      /** The key the person brought. */
+      key: string;
+      /** The model by the provider's own name; left out, the provider's first (`PROVIDERS`). */
+      model?: string;
+      timeoutMs?: number;
+      fetch?: typeof fetch;
+    }
+  | {
+      kind: "account";
+      /** The Manage-App's gateway, without `/v4/ai`. */
+      url: string;
+      key: string;
+      /** A class of the account (`wizards/standard`) or a model as the gateway lists it. */
+      model: string;
+      timeoutMs?: number;
+      fetch?: typeof fetch;
     };
 
 export const PROMPT = "Answer with the single word ok.";
@@ -70,10 +98,68 @@ const SYSTEM = "You check whether you can answer. Answer with one word.";
 
 export const CLIENT_TIMEOUT = 90_000;
 export const SERVER_TIMEOUT = 120_000;
+export const CLOUD_TIMEOUT = 30_000;
 
 /** Whether the source answers a short call now. */
 export function probe(source: ProbeSource): Promise<ProbeResult> {
-  return source.kind === "client" ? probeClient(source) : probeServer(source);
+  switch (source.kind) {
+    case "client":
+      return probeClient(source);
+    case "server":
+      return probeServer(source);
+    case "provider":
+      return probeProvider(source);
+    case "account":
+      return probeModel(
+        accountGateway({ url: source.url, key: source.key, fetch: source.fetch })(source.model),
+        source.model,
+        source.timeoutMs,
+      );
+  }
+}
+
+function probeProvider(source: Extract<ProbeSource, { kind: "provider" }>): Promise<ProbeResult> {
+  const model = source.model ?? PROVIDERS[source.provider].model;
+  if (!model) {
+    return Promise.resolve({ state: "no_model" });
+  }
+  const options = source.fetch ? { fetch: source.fetch } : {};
+  return probeModel(
+    providerModel(source.provider, source.key, model, options),
+    model,
+    source.timeoutMs,
+  );
+}
+
+/** One short call to a model that is asked over the network, without a second try. */
+async function probeModel(
+  model: LanguageModel,
+  name: string,
+  timeoutMs = CLOUD_TIMEOUT,
+): Promise<ProbeResult> {
+  try {
+    const { text } = await generateText({
+      model,
+      system: SYSTEM,
+      prompt: PROMPT,
+      maxOutputTokens: 16,
+      maxRetries: 0,
+      abortSignal: AbortSignal.timeout(timeoutMs),
+    });
+    return { state: "ok", model: name, detail: text.trim() };
+  } catch (error) {
+    const failure = error as Error & { statusCode?: number; responseBody?: string };
+    if (failure.name === "TimeoutError" || failure.name === "AbortError") {
+      return { state: "failed", model: name, timedOut: true };
+    }
+    const detail = [failure.message, failure.responseBody].filter(Boolean).join(" ").slice(0, 600);
+    return {
+      state: "failed",
+      model: name,
+      detail,
+      ...(failure.statusCode ? { status: failure.statusCode } : {}),
+    };
+  }
 }
 
 async function probeClient(source: Extract<ProbeSource, { kind: "client" }>): Promise<ProbeResult> {

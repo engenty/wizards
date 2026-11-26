@@ -1,7 +1,8 @@
 # @engenty/model-sources
 
-The model sources on a person's own computer: the servers for open models and the AI clients on a
-subscription. MIT.
+Every way an app reaches a model: the servers for open models on a person's own computer, the AI
+clients on a subscription, the providers a person brings a key for, and the wizards account. Where
+a host keeps a key, and which source it asks first, stays with the host. MIT.
 
 - **Ollama** (`@engenty/model-sources/ollama`). `ollamaRoot(url)` takes either way an address is
   given: a root as OLLAMA_HOST names it (`http://127.0.0.1:11434`, `localhost`) or the
@@ -25,6 +26,19 @@ subscription. MIT.
   bearer header; `at(baseUrl)` is a client model's `bridge` option, each call at
   `<baseUrl>/<token>`. A tool's `toModelOutput` shapes its MCP content (text, JSON, pictures,
   errors). What a person sees of a call stays the host's, in the tool's `execute`.
+- **Providers** (`@engenty/model-sources/providers`). `PROVIDERS` holds the providers a person
+  brings a key for: OpenAI, Anthropic, Google, OpenRouter, the Vercel AI Gateway, fal.ai,
+  ElevenLabs and Replicate. Each entry says who the provider is, where a key is made, how a key
+  looks, the environment variable a host may read it from (this package reads none), and the
+  model that writes text when nothing names another. `checkKey(provider, key)` makes one request
+  that costs nothing and says whether the provider knows the key. The list and the check import
+  nothing of Node, so a page can use them.
+  `@engenty/model-sources/providers/model` builds the model: `providerModel(provider, key, model)`
+  asks a provider through its own AI SDK package where it has one, so what only its API has
+  reaches the model, and OpenRouter as OpenAI's API is asked. `compatibleModel` does the same for
+  an address the person names.
+- **Account** (`@engenty/model-sources/account`). `accountGateway({ url, key })` is the model
+  gateway of a Manage-App as the AI SDK's gateway client: the wizards account, paid with credits.
 - **Probe** (`@engenty/model-sources/probe`). `probe(source)` makes one short real call and
   returns a state: `ok`, `absent`, `signed_out`, `no_model`, `too_big` or `failed`, with what the
   source said. No words for people: each app words the states itself.
