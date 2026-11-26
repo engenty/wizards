@@ -6,6 +6,8 @@
   "pages": [
     "index",
     "architecture",
+    "packages",
+    "databases",
     "wizard-format",
     "integration",
     "plugins",
