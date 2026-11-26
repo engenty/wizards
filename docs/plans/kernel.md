@@ -92,6 +92,10 @@ Where it differs from the plan:
 
 ## What is decided
 
+The guideline (2026-11-27): no wizard of today has to survive. The format is thought from the
+ground up, and the catalog may be built again from scratch in version 0.3.0. Converting
+(item 22) is a help, not a condition.
+
 1. **The file** (`wizard.json`) holds what a wizard needs and may reach, and the map: `requires`,
    `connections`, `input`, `output`, `start`, `edges`, `limits`. Nothing about a step is in it.
 2. **A step** is a file, `steps/<id>.ts`, with one function and one interface:
@@ -367,7 +371,8 @@ D and E do not block 3 and can run beside it.
 
 ## Before the switch flips
 
-- The 31 starters exist in version 0.3.0 and behave as before for a person using them.
+- A catalog exists in version 0.3.0. Not the 31 starters behaving as before: by the guideline,
+  the catalog may be built again from scratch.
 - A run in version 0.3.0 survives a restart of its runner at every kind of wait. Tested:
   `test/kernel-restart-process.test.ts`.
 - A wizard from the marketplace cannot read a file or open a connection on a local install.
@@ -393,5 +398,9 @@ D and E do not block 3 and can run beside it.
 
 - Whether a way no test covers marks a run or fails it. Decided 2026-11-27: it is only listed, as
   `wizards check` does today; tests of a wizard are optional.
-- The exact names inside `requires` and `connections`. The spike's are a reading of today's format.
+- The exact names inside `requires` and `connections`. Decided 2026-11-27: as they are,
+  `requires.models`, `tools`, `roles`, `hosts` and `wizards`, and `connections` by kind, then
+  action, then `allow` or `ask`. A Composio toolkit is named there like any other connector. The
+  runtime's schema keeps `requires.wizards`; an ask of another wizard fails there until the
+  runtime starts runs of one.
 - How a form shows a number worked out while the person types. No code runs during a wait.

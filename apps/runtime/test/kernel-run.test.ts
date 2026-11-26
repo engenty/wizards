@@ -294,7 +294,7 @@ it("fails a step that asks another wizard: the runtime starts no run of one yet"
     return runner.createRun({ wizardId: created.id, definition: w.draft, files: await files.draftFiles(created.id), version: null, mode: "test", userId: "u", input });
   });
   const row = await rests(id, "failed");
-  expect(row.error).toBe('"ask" reached for "other", which the file does not grant.');
+  expect(row.error).toBe('This runtime does not start a run of "other" yet.');
 });
 
 it("leaves a wizard in version 0.2.0 to today's engine", async () => {

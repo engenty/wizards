@@ -1625,6 +1625,8 @@ export const kernelRequiresSchema = z.object({
   roles: z.record(z.string().regex(/^[a-z][a-z0-9_-]*$/), z.string().min(1)).optional(),
   /** The hosts the HTTP tool may reach. */
   hosts: z.array(z.string().min(1)).optional(),
+  /** The wizards a step may ask, by the names the host knows them by. */
+  wizards: z.array(z.string().min(1)).optional(),
 });
 
 export const kernelFileSchema = z.object({

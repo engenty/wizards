@@ -64,6 +64,18 @@ export function stepMode(wizard?: { starter: string | null } | null): StepMode {
 
 const quickjs = quickjsTurn();
 
+/**
+ * The run's own wizard, by the run's id. A step may ask a wizard its file lists, but the runtime
+ * starts no run of another wizard yet: such an ask fails and says so.
+ */
+const only =
+  <W>(row: RunRow, wizard: W) =>
+  (id: string): W => {
+    if (id !== row.id)
+      throw new KernelRunError(`This runtime does not start a run of "${id}" yet.`);
+    return wizard;
+  };
+
 /** Where the run's wizard comes from: one made from a marketplace entry is someone else's code. */
 const wizardOf = (row: RunRow) =>
   db.query.wizard.findFirst({
@@ -167,7 +179,7 @@ export function kernelHost(deps: KernelDeps) {
       const space = await deps.loadSpace(row);
       const kernel = createKernel({
         store,
-        wizards: () => wizard,
+        wizards: only(row, wizard),
         batteries: kernelBatteries(row, space, signal, deps.makeContext),
         accepts: viewIssue,
         ...(mode === "quickjs" ? { turn: quickjs } : {}),
@@ -219,7 +231,7 @@ export function kernelHost(deps: KernelDeps) {
       const wizard = await kernelWizard(fileOf(row), row.files, mode);
       const kernel = createKernel({
         store: kernelStore(deps.loadRun, deps.updateRun),
-        wizards: () => wizard,
+        wizards: only(row, wizard),
         batteries: kernelBatteries(row, await deps.loadSpace(row), signal, deps.makeContext),
         ...(mode === "quickjs" ? { turn: quickjs } : {}),
       });
