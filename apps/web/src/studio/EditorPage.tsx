@@ -1,5 +1,6 @@
 import { goesOnText, waitsSignalText } from "@engenty/wizards-runner";
 import { type ModelClass, TEXT_CLASSES } from "@engenty/wizards-shared/definition";
+import { withKernelFile } from "@engenty/wizards-shared/kernel-file";
 import type { MissingConnection, MissingModel, RunView } from "@engenty/wizards-shared/run";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -778,7 +779,7 @@ function Editor() {
             id={kernelStep}
             onSelect={select}
             readOnly={w.readOnly}
-            onFile={(file) => save({ ...def, kernel: file })}
+            onFile={(file) => save(withKernelFile(def, file))}
             onNote={(text) => void chat.send(text)}
           />
         </div>

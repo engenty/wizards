@@ -1,5 +1,13 @@
 import type { KernelFile } from "@engenty/wizards-shared/kernel-file";
-import { withLimit, withoutStep, withWays } from "@engenty/wizards-shared/kernel-file";
+import {
+  kernelShell,
+  withConnections,
+  withKernelFile,
+  withLimit,
+  withoutStep,
+  withRequires,
+  withWays,
+} from "@engenty/wizards-shared/kernel-file";
 import { describe, expect, it } from "vitest";
 
 const file = (over: Partial<KernelFile>): KernelFile =>
@@ -70,5 +78,56 @@ describe("withLimit", () => {
   it("takes the limit away, and the entry with the last of them", () => {
     expect(withLimit(file({ limits: { a: 3, b: 2 } }), "a", undefined).limits).toEqual({ b: 2 });
     expect("limits" in withLimit(file({ limits: { a: 3 } }), "a", undefined)).toBe(false);
+  });
+});
+
+describe("withRequires", () => {
+  it("writes what the wizard needs and keeps nothing empty", () => {
+    const next = withRequires(file({ requires: { models: ["low"] } }), {
+      models: ["low", "high"],
+      tools: [],
+      roles: {},
+      hosts: ["api.example.com"],
+    });
+    expect(next.requires).toEqual({ models: ["low", "high"], hosts: ["api.example.com"] });
+  });
+
+  it("leaves the entry out where the wizard needs nothing", () => {
+    expect(
+      "requires" in withRequires(file({ requires: { models: ["low"] } }), { models: [] }),
+    ).toBe(false);
+  });
+});
+
+describe("withConnections", () => {
+  it("keeps a connection that has no action yet, and no entry without a connection", () => {
+    expect(withConnections(file({}), { mail: {} }).connections).toEqual({ mail: {} });
+    expect("connections" in withConnections(file({ connections: { mail: {} } }), {})).toBe(false);
+  });
+});
+
+describe("withKernelFile", () => {
+  it("writes the file's connections into the definition around it, all allowed there", () => {
+    const def = kernelShell(file({ connections: { mail: { read: "allow" } } }));
+    const next = withKernelFile(
+      { ...def, title: "Kept" },
+      file({ connections: { mail: { read: "allow", send: "ask" }, crm: { find: "ask" } } }),
+    );
+    expect(next.title).toBe("Kept");
+    expect(next.connections).toEqual([
+      {
+        id: "mail",
+        kind: "mail",
+        actions: ["read", "send"],
+        policy: { read: "allow", send: "allow" },
+      },
+      { id: "crm", connector: "crm", actions: ["find"], policy: { find: "allow" } },
+    ]);
+    expect(next.kernel?.connections?.mail.send).toBe("ask");
+  });
+
+  it("leaves the definition without connections where the file has none", () => {
+    const def = kernelShell(file({ connections: { mail: { read: "allow" } } }));
+    expect("connections" in withKernelFile(def, file({}))).toBe(false);
   });
 });

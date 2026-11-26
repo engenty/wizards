@@ -38,6 +38,7 @@ import {
   whenCalc,
   whenText,
 } from "@engenty/wizards-shared/definition";
+import { withKernelFile } from "@engenty/wizards-shared/kernel-file";
 import type { BranchDecision, RunEstimate } from "@engenty/wizards-shared/run";
 import { wizardToolId, wizardToolsIn } from "@engenty/wizards-shared/wizard-code";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
@@ -94,6 +95,7 @@ import { ModelClassControl, StepCost, useEstimate } from "./estimate";
 import { conditionText, percent, whenWords } from "./FlowDiagram";
 import { HoldToDelete } from "./HoldToDelete";
 import { type KernelWizard, useKernelCards } from "./KernelFlow";
+import { KernelNeeds } from "./KernelNeeds";
 import { stepIcon, stepSummary, TYPE_TONE, toolLabel, typeLabel } from "./meta";
 import { NeedsSection } from "./NeedsSection";
 import { ShareEditor } from "./ShareEditor";
@@ -1559,6 +1561,11 @@ export function WizardSettings({
         wizardId={wizardId}
         costume={<CostumePicker def={def} update={update} />}
       />
+      {def.kernel ? (
+        <Section title={t("kernel.needs.title")}>
+          <KernelNeeds file={def.kernel} onFile={(file) => update(withKernelFile(def, file))} />
+        </Section>
+      ) : null}
       {def.connections?.length ? (
         <Section title={t("needs.title")}>
           <NeedsSection wizardId={wizardId} />

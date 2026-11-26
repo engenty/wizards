@@ -86,6 +86,57 @@ export function withLimit(file: KernelFile, id: string, limit: number | undefine
 export const KERNEL_STEP = "result";
 
 /**
+ * The file's connections as a definition names them: a built-in kind of account is that kind, any
+ * other the id of one of the space's connectors. Every action is allowed in that copy, because
+ * the kernel is the one that asks.
+ */
+function shellConnections(file: KernelFile): NonNullable<WizardDefinition["connections"]> {
+  const kinds: readonly string[] = CONNECTION_KINDS;
+  return Object.entries(file.connections ?? {}).map(([name, actions]) => ({
+    id: name,
+    ...(kinds.includes(name) ? { kind: name } : { connector: name }),
+    actions: Object.keys(actions),
+    policy: Object.fromEntries(Object.keys(actions).map((action) => [action, "allow"])),
+  })) as NonNullable<WizardDefinition["connections"]>;
+}
+
+/**
+ * A definition with its file written anew. What the definition copies from the file for the
+ * readers of version 0.2.0 follows it: its connections. Everything else of it stays.
+ */
+export function withKernelFile(def: WizardDefinition, file: KernelFile): WizardDefinition {
+  const { connections: _was, ...rest } = def;
+  const connections = shellConnections(file);
+  return { ...rest, ...(connections.length ? { connections } : {}), kernel: file };
+}
+
+/** A list or a record with nothing in it is left out of the file. */
+const filled = (value: unknown) =>
+  Array.isArray(value) ? value.length > 0 : Object.keys(value ?? {}).length > 0;
+
+/** The file with what the wizard needs from where it runs written anew; nothing empty is kept. */
+export function withRequires(
+  file: KernelFile,
+  requires: NonNullable<KernelFile["requires"]>,
+): KernelFile {
+  const { requires: _was, ...bare } = file;
+  const kept = Object.fromEntries(Object.entries(requires).filter(([, value]) => filled(value)));
+  return Object.keys(kept).length ? { ...bare, requires: kept } : bare;
+}
+
+/**
+ * The file with its connections written anew. A connection stays while it has no action yet: a
+ * step that names one of its actions is what fails then, and says so.
+ */
+export function withConnections(
+  file: KernelFile,
+  connections: NonNullable<KernelFile["connections"]>,
+): KernelFile {
+  const { connections: _was, ...bare } = file;
+  return Object.keys(connections).length ? { ...bare, connections } : bare;
+}
+
+/**
  * A definition around a file: what is stored for a wizard in version 0.3.0. Everything that reads
  * version 0.2.0 finds a whole, small definition; the kernel reads `kernel`. The file's connections
  * are there as version 0.2.0 has them, so the broker and the grant know them: a name that is a
@@ -93,13 +144,7 @@ export const KERNEL_STEP = "result";
  * Every action is allowed in that copy, because the kernel is the one that asks.
  */
 export function kernelShell(file: KernelFile): WizardDefinition {
-  const kinds: readonly string[] = CONNECTION_KINDS;
-  const connections = Object.entries(file.connections ?? {}).map(([name, actions]) => ({
-    id: name,
-    ...(kinds.includes(name) ? { kind: name } : { connector: name }),
-    actions: Object.keys(actions),
-    policy: Object.fromEntries(Object.keys(actions).map((action) => [action, "allow"])),
-  }));
+  const connections = shellConnections(file);
   return {
     version: file.version,
     title: file.title,

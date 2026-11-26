@@ -255,6 +255,12 @@ Tests named here run alone, as the repository asks:
     in a local studio on 2026-11-26: the prompt is typed over and written into the step file with
     its code kept. A `.ts` file is stored as text since then, so the code view shows a step file
     that was written without a type of its own.
+    Built on 2026-11-26: the file's `requires` and `connections` as a form in the wizard's
+    settings (`KernelNeeds.tsx`): model classes and built-in tools to pick, other tools, hosts and
+    roles as lists, and each connection with its actions, allowed or asking first. The file is
+    written with `withRequires` and `withConnections`; `withKernelFile` writes the file's
+    connections into the definition around it, where the broker reads them. The names are the
+    ones the file has today; they are still open (see the decisions).
 20. **A run as rows.** `RunTimeline.tsx` from `run_row`, with asking a row again and answering it
     differently. Scores beside the steps they judged.
 21. **For those who build.** The authoring guide (`get_authoring_guide`) and a starter in version 0.3.0.
