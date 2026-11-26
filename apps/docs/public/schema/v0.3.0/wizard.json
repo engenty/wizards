@@ -73,6 +73,13 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "wizards": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       },
       "additionalProperties": false
