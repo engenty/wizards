@@ -4,7 +4,7 @@ import {
   type ClientMeta,
   type ClientModelOptions,
   clientFailure,
-} from "@engenty/local-models/clients";
+} from "@engenty/model-sources/clients";
 import type { RunNote } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
 import { env } from "../env.js";
@@ -13,7 +13,7 @@ import { ModelUnavailableError } from "../model-errors.js";
 import { CLIENT_WORDS } from "./prompt.js";
 
 /**
- * What the runtime adds to an installed client as a model (@engenty/local-models/clients): a
+ * What the runtime adds to an installed client as a model (@engenty/model-sources/clients): a
  * folder for each call under the data folder, the call's tools served over MCP (../mcp/bridge.ts),
  * the prompt's sentences from prompts/, and a failure as the note the person reads.
  */

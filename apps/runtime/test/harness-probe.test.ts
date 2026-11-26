@@ -6,8 +6,8 @@ import { describe, expect, it, vi } from "vitest";
 process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "wizards-harness-probe-"));
 process.env.APP_URL = "http://localhost:5181";
 
-vi.mock("@engenty/local-models/clients", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@engenty/local-models/clients")>()),
+vi.mock("@engenty/model-sources/clients", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@engenty/model-sources/clients")>()),
   detectClient: vi.fn(async (client: { id: string }) =>
     client.id === "cursor"
       ? { version: null, auth: "none" }

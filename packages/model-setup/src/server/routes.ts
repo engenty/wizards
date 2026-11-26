@@ -1,5 +1,5 @@
 import { mkdirSync } from "node:fs";
-import type { ServerId } from "@engenty/local-models/servers";
+import type { ServerId } from "@engenty/model-sources/servers";
 import { type Context, Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";

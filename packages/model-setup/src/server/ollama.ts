@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { ollamaAddress, ollamaState } from "@engenty/local-models/ollama";
+import { ollamaAddress, ollamaState } from "@engenty/model-sources/ollama";
 import { executable, findOnPath, lastLine, logged, type Outcome, until } from "./install.js";
 
 /** The Ollama app on a Mac: its server and its command are inside it. */

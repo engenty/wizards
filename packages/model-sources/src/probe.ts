@@ -92,7 +92,7 @@ async function probeClient(source: Extract<ProbeSource, { kind: "client" }>): Pr
   } catch (error) {
     return { state: "failed", detail: (error as Error).message };
   }
-  const dir = mkdtempSync(join(tmpdir(), "local-models-probe-"));
+  const dir = mkdtempSync(join(tmpdir(), "model-sources-probe-"));
   const call: ChatCall = {
     system: SYSTEM,
     message: PROMPT,

@@ -6,7 +6,7 @@ import {
   freshAuth,
   loginEnv,
   loginShellEnv,
-} from "@engenty/local-models/clients";
+} from "@engenty/model-sources/clients";
 import { type ClientId, clientEntry, installCommand, POWERSHELL } from "../catalog.js";
 import type { ClientSetupStatus } from "../types.js";
 import { vendorApp } from "./apps.js";

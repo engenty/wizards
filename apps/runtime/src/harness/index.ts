@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import { setClientFolders } from "@engenty/local-models/clients";
 import type { ClientSetupStatus } from "@engenty/model-setup";
 import { ClientSetup } from "@engenty/model-setup/server";
+import { setClientFolders } from "@engenty/model-sources/clients";
 import { inherited, runtimePath } from "../cli/environment.js";
 import { layout } from "../cli/home.js";
 import { antigravity, claude, codex, cursor } from "./clients.js";

@@ -1,4 +1,4 @@
-import type { ServerId } from "@engenty/local-models/servers";
+import type { ServerId } from "@engenty/model-sources/servers";
 import type { OfferedModel } from "./types.js";
 
 const NOTES = {

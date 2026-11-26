@@ -1,5 +1,5 @@
-import { ollamaAddress, ollamaState } from "@engenty/local-models/ollama";
 import { findOllama } from "@engenty/model-setup/server";
+import { ollamaAddress, ollamaState } from "@engenty/model-sources/ollama";
 import { decisionModelIn } from "../decision-model.js";
 
 /** The first Ollama that answers decision questions at /v1/systemone. */

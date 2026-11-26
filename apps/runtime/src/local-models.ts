@@ -1,6 +1,6 @@
-import { SERVERS, serversHere } from "@engenty/local-models/servers";
 import { MODEL_JOBS, OFFERED_MODELS, type OfferedModel } from "@engenty/model-setup";
 import { LocalModels } from "@engenty/model-setup/server";
+import { SERVERS, serversHere } from "@engenty/model-sources/servers";
 import { layout } from "./cli/home.js";
 import { env } from "./env.js";
 import { embeddingModel, forgetLocalModels, localServerUrl } from "./models.js";

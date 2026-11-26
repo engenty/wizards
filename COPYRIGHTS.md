@@ -23,7 +23,7 @@ release: `packages/chatviews` (`@engenty/chatviews`), `packages/decision-model` 
 `packages/tool-harness` (`@engenty/tool-harness`),
 `packages/vault` (`@engenty/vault`),
 `packages/plugins` (`@engenty/plugins`), `packages/browser` (`@engenty/browser`),
-`packages/local-models` (`@engenty/local-models`) and `packages/model-setup` (`@engenty/model-setup`). They depend only on each other and on MIT or permissive
+`packages/model-sources` (`@engenty/model-sources`) and `packages/model-setup` (`@engenty/model-setup`). They depend only on each other and on MIT or permissive
 packages (`pnpm mit-deps:check`).
 The plugin for the AI apps (`plugin/`, published as engenty/wizards-plugins) is under the MIT
 licence ([plugin/LICENSE](plugin/LICENSE)), except the engenty figures in it.

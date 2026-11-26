@@ -9,7 +9,7 @@ import {
   titleKey,
 } from "@engenty/chatviews/shape";
 import { type Surface, type SurfaceComponent, validateSurface } from "@engenty/chatviews/surface";
-import type { Waiting } from "@engenty/local-models/mlx";
+import type { Waiting } from "@engenty/model-sources/mlx";
 import { type DecisionQuestion, pOf } from "@engenty/wizards-shared/decision";
 import {
   type AgentStep,

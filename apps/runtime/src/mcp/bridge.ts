@@ -1,9 +1,9 @@
-import { type Bridge, Bridges } from "@engenty/local-models/bridge";
+import { type Bridge, Bridges } from "@engenty/model-sources/bridge";
 import { env } from "../env.js";
 
 /**
  * The tools of one model call, served over MCP to the AI client installed on this machine while
- * it answers that call (@engenty/local-models/bridge). A bridge lives as long as the call: it
+ * it answers that call (@engenty/model-sources/bridge). A bridge lives as long as the call: it
  * opens with it, is reached through a random path on the loopback address, and closes with it.
  * Nothing but this process knows the path; the client works through the tools itself and comes
  * back with the answer.

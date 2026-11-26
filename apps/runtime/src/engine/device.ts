@@ -1,4 +1,4 @@
-import { parseJsonAnswer, renderPrompt } from "@engenty/local-models/clients";
+import { parseJsonAnswer, renderPrompt } from "@engenty/model-sources/clients";
 import type { TextClass } from "@engenty/wizards-shared/definition";
 import type { LanguageModel } from "ai";
 import { and, asc, eq, isNull } from "drizzle-orm";

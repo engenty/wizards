@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SERVERS } from "@engenty/local-models/servers";
+import { SERVERS } from "@engenty/model-sources/servers";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 import { OFFERED_MODELS } from "../index.js";
