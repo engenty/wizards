@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.21.3",
+    "timestamp": 1795675528,
+    "commits": [
+      {
+        "id": "8af1bbd",
+        "message": "the chats Work had of its own are gone, and their messages are deleted (#764)",
+        "group": "Docs",
+        "scope": "work",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.21.2",
-    "timestamp": 1795647861,
+    "timestamp": 1795647952,
     "commits": [
       {
         "id": "f0eb069",
