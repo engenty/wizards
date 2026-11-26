@@ -65,6 +65,7 @@ import {
 } from "../lib/session";
 import { Button, Card, cn, Input, LinkedText, Select, Spinner, Switch } from "../ui";
 import { billingUrl } from "./AppFrame";
+import { ComposioKeyCard } from "./ComposioKey";
 import { HarnessPanel } from "./Harness";
 import { LocalModels, type ServerId, useLocalModels } from "./LocalModels";
 import { openExternal } from "./LocalRuntime";
@@ -3110,6 +3111,7 @@ function KeysPanel({ s }: { s: Situation }) {
           <Hint>{t("overview.keys.plan")}</Hint>
         </Card>
       )}
+      <ComposioKeyCard />
     </div>
   );
 }

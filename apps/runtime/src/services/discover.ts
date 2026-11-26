@@ -1,9 +1,14 @@
 import type { RegistryHit } from "@engenty/wizards-shared/connectors";
-import type { DiscoverBundle, DiscoverConnector } from "@engenty/wizards-shared/discover";
+import type {
+  DiscoverBundle,
+  DiscoverComposio,
+  DiscoverConnector,
+} from "@engenty/wizards-shared/discover";
 import { featureOn } from "@engenty/wizards-shared/features";
 import type { SkillHit } from "@engenty/wizards-shared/skills";
 import { eq } from "drizzle-orm";
 import { discoverBundles } from "../bundles/discover.js";
+import { composioCatalog } from "../connectors/composio-connectors.js";
 import { searchRegistry } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { currentFeatures } from "../features.js";
@@ -72,8 +77,25 @@ async function markSetUp(spaceId: string, hits: RegistryHit[]): Promise<Discover
 export interface DiscoverFound {
   skills: SkillHit[];
   connectors: DiscoverConnector[];
+  composio: DiscoverComposio[];
   bundles: DiscoverBundle[];
-  errors: { skills?: ServerKey; connectors?: ServerKey };
+  errors: { skills?: ServerKey; connectors?: ServerKey; composio?: ServerKey };
+}
+
+/** Composio's catalog for the words, marked where the space has a connection on a toolkit. */
+async function composioHits(spaceId: string, q: string): Promise<DiscoverComposio[]> {
+  const found = await composioCatalog(q);
+  if (!found.toolkits.length) {
+    return [];
+  }
+  const { connected } = await spaceServices(spaceId);
+  return found.toolkits.map((t) => ({
+    connectorId: t.connectorId,
+    slug: t.slug,
+    name: t.name,
+    description: t.description,
+    setUp: connected.has(t.connectorId),
+  }));
 }
 
 /** Skills and connectors for a few words, what the space has marked. */
@@ -89,14 +111,15 @@ export async function discover(
   const space = await ownedSpace(userId, spaceId);
   const q = query.trim().slice(0, 100);
   if (q.length < 2) {
-    return { skills: [], connectors: [], bundles: [], errors: {} };
+    return { skills: [], connectors: [], composio: [], bundles: [], errors: {} };
   }
-  const [skills, connectors] = await Promise.allSettled([
+  const [skills, connectors, composio] = await Promise.allSettled([
     // Skills stay out while their own switch is off.
     skillsOn().then(async (on) =>
       on ? (await within(searchSkills(userId, space.id, q))).hits : [],
     ),
     within(searchRegistry(q)).then((hits) => markSetUp(space.id, hits)),
+    within(composioHits(space.id, q)),
   ]);
   const errors: DiscoverFound["errors"] = {};
   if (skills.status === "rejected") {
@@ -105,11 +128,15 @@ export async function discover(
   if (connectors.status === "rejected") {
     errors.connectors = "connectorsRegistryDown";
   }
+  if (composio.status === "rejected") {
+    errors.composio = "composioDown";
+  }
   const foundSkills = skills.status === "fulfilled" ? skills.value : [];
   const foundConnectors = connectors.status === "fulfilled" ? connectors.value : [];
   return {
     skills: foundSkills,
     connectors: foundConnectors,
+    composio: composio.status === "fulfilled" ? composio.value : [],
     bundles: await within(discoverBundles(space.id, foundSkills, foundConnectors)).catch(() => []),
     errors,
   };

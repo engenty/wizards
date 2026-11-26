@@ -154,7 +154,7 @@ describe("with a key of one's own", () => {
 
   it("tells a key Composio turns down", async () => {
     await client.setComposioKey("wrong");
-    await expect(client.searchToolkits("", "own")).rejects.toThrow(/didn’t accept the key/);
+    await expect(client.searchToolkits("", "own")).rejects.toThrow(/didn’t accept the API key/);
   });
 });
 

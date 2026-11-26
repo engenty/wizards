@@ -508,16 +508,17 @@ const NOTES_EN = {
   engentyAccountNotReached: "Your engenty account can’t be reached right now. Try again later.",
   googleNoLongerAccepts: "Google no longer accepts this connection. Connect the account again.",
   googleNotConnectedThrough: "Google can’t be connected through your engenty account right now.",
-  composioNoKey: "No Composio key is entered here. Add one in Settings → Models.",
-  composioOwnKeyLocalOnly: "A Composio key of your own only goes into a computer of your own.",
+  composioNoKey: "No Composio API key is entered here. Add yours in Settings → Models.",
+  composioOwnKeyLocalOnly:
+    "Your own Composio API key goes into engenty wizards on your computer only.",
   composioNotReached: "Composio can’t be reached right now. Try again later.",
-  composioBusy: "Composio is taking no more calls right now. It’s tried again shortly.",
-  composioKeyRefused: "Composio didn’t accept the key. Check it in Settings → Models.",
+  composioBusy: "Composio takes no more calls right now. engenty wizards tries again shortly.",
+  composioKeyRefused: "Composio didn’t accept the API key. Check it in Settings → Models.",
   composioFailed: "Composio didn’t do it: {detail}",
   composioSignInNotFinished: "The sign-in at Composio didn’t finish. Sign in again.",
   composioNotAvailable: "Services from Composio can’t be connected here yet.",
   composioOnlySpaceConnection:
-    "{name} comes from Composio. An admin connects it under Capabilities → Connections first.",
+    "{name} comes from Composio. An admin connects it under Capabilities → Connectors first.",
   stepNeedsToolPlugin:
     "This step needs the tool “{id}”. The plugin “{plugin}” isn’t installed here.",
   stepCallsUnknownConnection:
@@ -1071,19 +1072,20 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   googleNoLongerAccepts: "Google nimmt diese Verbindung nicht mehr an. Verbinde das Konto neu.",
   googleNotConnectedThrough: "Google lässt sich über dein engenty-Konto gerade nicht verbinden.",
   composioNoKey:
-    "Hier ist kein Composio-Key eingetragen. Trag einen unter Einstellungen → Modelle ein.",
+    "Hier ist kein Composio-API-Key eingetragen. Trag deinen unter Einstellungen → Modelle ein.",
   composioOwnKeyLocalOnly:
-    "Einen eigenen Composio-Key trägst du nur auf deinem eigenen Computer ein.",
+    "Deinen eigenen Composio-API-Key trägst du nur in engenty wizards auf deinem Computer ein.",
   composioNotReached: "Composio ist gerade nicht erreichbar. Versuch es später noch einmal.",
-  composioBusy: "Composio nimmt gerade keine Aufrufe mehr an. Es wird gleich noch einmal versucht.",
+  composioBusy:
+    "Composio nimmt gerade keine Aufrufe mehr an. engenty wizards versucht es gleich noch einmal.",
   composioKeyRefused:
-    "Composio hat den Key nicht angenommen. Prüf ihn unter Einstellungen → Modelle.",
+    "Composio hat den API-Key nicht angenommen. Prüf ihn unter Einstellungen → Modelle.",
   composioFailed: "Composio hat es nicht ausgeführt: {detail}",
   composioSignInNotFinished:
     "Die Anmeldung bei Composio ist nicht fertig geworden. Melde dich noch einmal an.",
   composioNotAvailable: "Dienste von Composio lassen sich hier noch nicht verbinden.",
   composioOnlySpaceConnection:
-    "{name} kommt von Composio. Ein Admin verbindet es zuerst unter Fähigkeiten → Verbindungen.",
+    "{name} kommt von Composio. Ein Admin verbindet es zuerst unter Fähigkeiten → Connectors.",
   stepNeedsToolPlugin:
     "Dieser Schritt braucht das Werkzeug „{id}“. Das Plugin „{plugin}“ ist hier nicht installiert.",
   stepCallsUnknownConnection:

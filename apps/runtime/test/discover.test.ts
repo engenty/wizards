@@ -168,7 +168,13 @@ describe("Entdecken", () => {
 
   it("asks nobody for fewer than two letters", async () => {
     asked.length = 0;
-    expect(await discover("p")).toEqual({ skills: [], connectors: [], bundles: [], errors: {} });
+    expect(await discover("p")).toEqual({
+      skills: [],
+      connectors: [],
+      composio: [],
+      bundles: [],
+      errors: {},
+    });
     expect(asked).toEqual([]);
   });
 

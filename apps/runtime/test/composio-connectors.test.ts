@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { STAND_IN_KEY, startComposioStandIn } from "./composio-stand-in.shared";
 
 /**
@@ -18,6 +18,16 @@ process.env.COMPOSIO_URL = composio.origin;
 process.env.COMPOSIO_API_KEY = STAND_IN_KEY;
 delete process.env.MANAGE_URL;
 const outside = (process.env.FEATURES ?? "").split(",").filter((f) => f && !f.startsWith("composio"));
+
+// Entdecken asks skills.sh and integrations.sh too: here they find nothing, off the network.
+vi.mock("../src/services/skills.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/services/skills.js")>()),
+  skillsOn: async () => false,
+}));
+vi.mock("../src/connectors/external.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/connectors/external.js")>()),
+  searchRegistry: async () => [],
+}));
 
 let source: typeof import("../src/connectors/composio-connectors");
 let client: typeof import("../src/connectors/composio");
@@ -93,6 +103,31 @@ describe("the catalog", () => {
     expect((await source.composioCatalog("not")).toolkits.map((t) => t.slug)).toEqual(["notion"]);
     turn(false);
     expect(await source.composioCatalog("")).toEqual({ available: false, toolkits: [] });
+  });
+
+  it("is a group of Entdecken, marked where the space has a connection on it", async () => {
+    const { discover } = await import("../src/services/discover");
+    const spaces = await import("../src/services/spaces");
+    const space = (await inTenant(() => spaces.createSpace("user-a", "Post"))).id;
+    await inTenant(() =>
+      db.db.insert(db.schema.spaceConnection).values({
+        id: "conn-composio-gmail",
+        spaceId: space,
+        connectorId: "composio-gmail",
+        name: "Gmail",
+        signIn: "space",
+        audience: "members",
+        rules: { read: "allow", write: "deny", destructive: "deny", send: "deny" },
+        actions: [],
+      }),
+    );
+    const found = await inTenant(() => discover("user-a", space, "mail"));
+    expect(found.composio).toEqual([
+      expect.objectContaining({ connectorId: "composio-gmail", name: "Gmail", setUp: true }),
+    ]);
+    expect(found.errors.composio).toBeUndefined();
+    turn(false);
+    expect((await inTenant(() => discover("user-a", space, "mail"))).composio).toEqual([]);
   });
 
 });

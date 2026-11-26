@@ -53,6 +53,11 @@ import { appStates, connectApps } from "../cli/connect.js";
 import { layout } from "../cli/home.js";
 import { composioKeyHint, composioOn, setComposioKey } from "../connectors/composio.js";
 import {
+  composioCatalog,
+  composioConnector,
+  composioView,
+} from "../connectors/composio-connectors.js";
+import {
   actionKindsPatchSchema,
   connectorImportSchema,
   connectorPreviewSchema,
@@ -1115,6 +1120,20 @@ export const studio = new Hono<Vars>()
   .get("/spaces/:id/connectors", async (c) =>
     c.json(await connectorsView(reader(c), c.req.param("id"))),
   )
+  // Composio's catalog (docs/plans/composio.md): searched for „Verbindung hinzufügen“, and one
+  // toolkit as a connector before the space has a connection on it.
+  .get("/spaces/:id/composio", async (c) => {
+    await ownedSpace(c.get("user").id, c.req.param("id"));
+    const q = z.string().max(80).catch("").parse(c.req.query("q"));
+    return c.json(await composioCatalog(q));
+  })
+  .get("/spaces/:id/composio/:connectorId", async (c) => {
+    await ownedSpace(c.get("user").id, c.req.param("id"));
+    const found = await composioConnector(c.req.param("connectorId"));
+    return found
+      ? c.json(composioView(found.connector))
+      : c.json({ error: say(c, "notFound"), code: "not_found" }, 404);
+  })
   .post("/spaces/:id/connectors", async (c) => {
     const user = c.get("user");
     const space = await ownedSpace(user.id, c.req.param("id"));
