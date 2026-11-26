@@ -14,6 +14,7 @@ import {
   type ComposioTool,
   type ComposioToolkit,
   type ComposioWay,
+  composioCatalogWay,
   composioOn,
   composioWay,
   executeComposioTool,
@@ -251,7 +252,7 @@ export async function composioCatalog(query: string): Promise<{
   if (!(await composioOn())) {
     return { available: false, toolkits: [] };
   }
-  const way = await composioWay();
+  const way = await composioCatalogWay();
   if (!way) {
     return { available: false, toolkits: [] };
   }

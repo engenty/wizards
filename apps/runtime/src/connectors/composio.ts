@@ -131,6 +131,18 @@ export async function composioWay(): Promise<ComposioWay | null> {
   return (await composioThroughAccount()) ? "account" : null;
 }
 
+/**
+ * Whether the catalog can be read the way new sign-ins take: the own key, the cloud's service
+ * key, or a linked account's token. An install without either shows no catalog yet.
+ */
+export async function composioCatalogWay(): Promise<ComposioWay | null> {
+  const way = await composioWay();
+  if (way === "account" && !managed && !(await accountToken().catch(() => null))) {
+    return null;
+  }
+  return way;
+}
+
 /** Forgets what was asked of the Manage-App (tests, a linked account that changed). */
 export function forgetComposioWay() {
   offered = null;
