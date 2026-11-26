@@ -516,6 +516,8 @@ const NOTES_EN = {
   composioFailed: "Composio didn’t do it: {detail}",
   composioSignInNotFinished: "The sign-in at Composio didn’t finish. Sign in again.",
   composioNotAvailable: "Services from Composio can’t be connected here yet.",
+  composioOnlySpaceConnection:
+    "{name} comes from Composio. An admin connects it under Capabilities → Connections first.",
   stepNeedsToolPlugin:
     "This step needs the tool “{id}”. The plugin “{plugin}” isn’t installed here.",
   stepCallsUnknownConnection:
@@ -1080,6 +1082,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   composioSignInNotFinished:
     "Die Anmeldung bei Composio ist nicht fertig geworden. Melde dich noch einmal an.",
   composioNotAvailable: "Dienste von Composio lassen sich hier noch nicht verbinden.",
+  composioOnlySpaceConnection:
+    "{name} kommt von Composio. Ein Admin verbindet es zuerst unter Fähigkeiten → Verbindungen.",
   stepNeedsToolPlugin:
     "Dieser Schritt braucht das Werkzeug „{id}“. Das Plugin „{plugin}“ ist hier nicht installiert.",
   stepCallsUnknownConnection:

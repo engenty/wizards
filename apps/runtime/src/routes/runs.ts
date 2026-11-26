@@ -2201,10 +2201,19 @@ export const connectCallback = new Hono().get("/callback", async (c) => {
   const tenant = state
     ? (pluginTenant ?? spaceTenant ?? (await tenantOfRun(oauthStateRun(state) ?? "")))
     : null;
-  const answer = ticket ? { ticket } : code ? { code } : null;
+  // Composio with a key of one's own: the connected account's id, unless it says the sign-in failed.
+  const composioAccount =
+    c.req.query("status") === "failed" ? undefined : c.req.query("connected_account_id");
+  const answer = ticket
+    ? { ticket }
+    : code
+      ? { code }
+      : composioAccount && spaceTenant
+        ? { composioAccount }
+        : null;
   if (answer && state && tenant) {
     try {
-      if (pluginTenant) {
+      if (pluginTenant && !("composioAccount" in answer)) {
         await withTenant(tenant, () => finishPluginOAuth(answer, state));
       } else if (spaceTenant) {
         const done = await withTenant(tenant, () => finishSpaceConnectionOAuth(answer, state));
@@ -2216,7 +2225,7 @@ export const connectCallback = new Hono().get("/callback", async (c) => {
             console.error("[connect] wake", err),
           );
         }
-      } else {
+      } else if (!("composioAccount" in answer)) {
         const done = await withTenant(tenant, () => finishOAuth(answer, state));
         signalChanged(done.runId);
         // The account is kept: a wake that fails leaves the run to its next look.

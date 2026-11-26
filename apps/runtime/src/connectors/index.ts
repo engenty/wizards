@@ -28,6 +28,7 @@ import {
   usable,
   viaAccount,
 } from "./builtin.js";
+import { isComposioConnector } from "./composio-connectors.js";
 import { resolveConnector } from "./external.js";
 import {
   connectionsFor,
@@ -125,8 +126,11 @@ export interface StoredConnection {
   refreshToken: string | null;
   expiresAt: string | null;
   scopes: string[];
-  /** Connected through the account's Manage-App, which also refreshes the token. */
-  via?: "account";
+  /**
+   * `account`: connected through the account's Manage-App, which also refreshes the token.
+   * `composio`: a Composio sign-in; only a connection of the space keeps one so far.
+   */
+  via?: "account" | "composio";
 }
 
 /** A connector that needs no credential: there is nothing for the person to connect. */
@@ -304,6 +308,10 @@ export async function startOAuth(
   const connector = await connectorFor(connection, connectorId, spaceId);
   if (connector.auth.kind !== "oauth2") {
     throw new Error(`${connector.name} is not connected by signing in.`);
+  }
+  // A service from Composio is signed in to as a connection of the space (docs/plans/composio.md).
+  if (isComposioConnector(connector)) {
+    throw new ConnectError(note("composioOnlySpaceConnection", { name: connector.name }));
   }
   if (await viaAccount(connector)) {
     // The Manage-App keeps the PKCE verifier; ours stays empty.
