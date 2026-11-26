@@ -221,6 +221,12 @@ export const FEATURES = {
     label: "Connections a run finds",
     hint: "A run finds the account for what its wizard needs: a person's own account from another wizard, and the space's connections for the need (docs/plans/run-connections.md).",
   },
+  composio: {
+    kind: "release",
+    default: false,
+    label: "Services through Composio",
+    hint: "Composio's catalog as connectors beside the built-in and imported ones: a person signs in at Composio, every call still goes through the broker (docs/plans/composio.md).",
+  },
   ownKeys: {
     kind: "plan",
     default: true,
