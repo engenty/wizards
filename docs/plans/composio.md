@@ -2,7 +2,7 @@
 
 Status: planned on 2026-11-26, nothing built. Decided the same day: services such as Gmail can be
 connected through Composio, as one more way beside the runtime's own connections and MCP servers,
-not in their place. This changes `docs/plans/integrations.md`, which left a hosted broker out
+not in their place. The six questions were answered the same day (see "Decided"). This changes `docs/plans/integrations.md`, which left a hosted broker out
 ("Not in this plan"). Read against `feat/kernel` at `c081d9ed` and n8n Labs' Nod at `04b8b68`.
 
 ## In short
@@ -11,8 +11,9 @@ A space gets a third way to connect a service: besides a built-in connector (Gma
 own OAuth client) and an imported one (OpenAPI or MCP), a service from Composio's catalog. The
 person signs in at Composio, Composio keeps the token, and the runtime keeps only the id of that
 sign-in. Every call still goes through our broker: the space's rules, the file's allow or ask,
-the limits and the log stay ours. Neither the runtime nor a local install holds a Composio key:
-they call through the Manage-App, which holds it, as Nod calls through n8n's connection service.
+the limits and the log stay ours. The cloud runtime holds no Composio key: it calls through the
+Manage-App, which holds it, as Nod calls through n8n's connection service. A local install does
+the same with its linked account, or uses a Composio key of the person's own.
 
 | | Step | Where | Who |
 |---|---|---|---|
@@ -101,17 +102,24 @@ The endpoints are a proposal, shaped like today's Google ones (`docs/manage-cont
 - **Executor** (`packages/kernel/src/executor.ts`, kernel task 24) is on hold until this plan is
   decided; Composio takes the place executor had for services, not for a wizard's own OpenAPI.
 
-## Questions for you
+## Decided
 
-1. **Composio's plan.** Zero Data Retention for calls through Composio's own OAuth apps needs
-   Enterprise. Start without it, and say so on the privacy page, or wait for it?
-2. **Whose OAuth apps.** Composio's own (no setup, Composio's name on the consent screen), or
-   ours registered at Composio as auth configs (our name, a vendor review each), or Composio's
-   first and ours where a vendor's review is done?
-3. **Who may switch it on.** Every tenant by default, a plan's switch (as `personSignIn`), or a
-   tenant's admins only after they accept Composio as a processor?
-4. **Local installs.** Through Manage with the linked account (as for Google), or also with a
-   Composio key of the person's own?
-5. **Which toolkits.** All of Composio's catalog in Entdecken, or a list we check first?
-6. **Cost.** What Composio's plan costs per call or per account was not checked. Book calls on the
-   tenant's credits, or carry them in the plan?
+Answered by Matthias on 2026-11-26.
+
+| | Question | Decided |
+|---|---|---|
+| 1 | Zero Data Retention needs Composio's Enterprise plan for its own OAuth apps | Start without it, and say on the privacy page that the content of calls can stay in Composio's logs |
+| 2 | Whose OAuth apps people sign in to | Composio's own. No app of ours to register per vendor |
+| 3 | Who may use it | Every tenant, from the start. No plan switch |
+| 4 | Local installs | Through Manage with the linked account, and also with a Composio key of the person's own |
+| 5 | Which services | Composio's whole catalog, in Entdecken |
+| 6 | Cost | Carried in the plan for now. Calls are not booked on credits |
+
+What follows from 4: a local install with a key of its own calls Composio directly, under one
+Composio user per space and person of that install. The key is kept as the install's other keys
+are (`apps/runtime/src/secrets/vault.ts`: the Keychain or the sealed file), entered in the
+studio's settings where the model keys are, and never sent to Manage. Where both are there, the
+person's own key wins.
+
+What follows from 1 and 3: the privacy page names Composio as a processor for every tenant, with
+what it keeps, before step 3 ships. Step 6 of "In short" is that page.
