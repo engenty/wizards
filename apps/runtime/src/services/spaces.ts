@@ -218,6 +218,8 @@ export const spacePatchSchema = z.object({
   notify: z.object({ bell: z.boolean(), mail: z.enum(NOTIFY_MAIL) }).optional(),
   /** „Mitglieder dürfen ins Studio“ (services/members-studio.ts). Admins only, as every change here. */
   membersStudio: z.boolean().optional(),
+  /** Of a hundred finished runs in version 0.3.0, how many the evals judge (kernel/host.ts). */
+  evalShare: z.number().int().min(0).max(100).optional(),
   /** Who of the organization sees the space (docs/plans/org-spaces.md). */
   access: z.enum(["all", "members"]).optional(),
   /** Brand and Info: the organization's, kept in step, or the space's own. */
@@ -817,6 +819,7 @@ export async function updateSpace(
       ...(patch.notify ? { notify: patch.notify } : {}),
       ...(page ? { page } : {}),
       ...(patch.membersStudio !== undefined ? { membersStudio: patch.membersStudio } : {}),
+      ...(patch.evalShare !== undefined ? { evalShare: patch.evalShare } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.space.id, p.id));

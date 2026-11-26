@@ -1580,6 +1580,9 @@ export interface KernelRows {
   scores: KernelScore[];
   /** Each step's title as its file writes it. */
   titles?: Record<string, { title?: string; working?: string }>;
+  /** The wizard's evals, `<step>/<name>` and `end/<name>`, whether or not they judged yet. */
+  evals?: string[];
+  status?: RunStatus;
 }
 
 /** One step's output as the current step shows it. */

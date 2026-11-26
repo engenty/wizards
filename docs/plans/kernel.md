@@ -32,7 +32,8 @@ than the tenant's database, prices.
 | C.9 Batteries | Built over today's step executors. A step that asks the person for a yes becomes a row. | `kernel/batteries.ts` |
 | C.10 Entry points | Built: start, the line, answers, back, retry, cancel, the clock, the report, and signals by address: the row a run waits at is written where senders look, and a signal for it answers the row. | `kernel/host.ts`, `kernel/signals.ts`, `engine/runner.ts` |
 | C.11 A person answers | Built another way: see below. An ask's view (`components`, and the values in `data`) reaches the page. | `kernel/page.ts`, `kernel/views.ts` |
-| D.13 Judging runs | Built, by a share the runtime is told (`KERNEL_EVALS`). No setting of a space yet. | `kernel/host.ts` |
+| D.13 Judging runs | Built: a space sets how many of a hundred finished runs its wizards' evals judge (`space.eval_share`, 0 unless set), in the space's Info while the switch is on; the host reads it when a run ends. Scores in `run_score`, shown in the run's rows. `KERNEL_EVALS` is gone. | `kernel/host.ts`, `services/spaces.ts`, `space/SpaceSettings.tsx` |
+| D.14 A dataset and a past run | Built: `wizards eval <wizard> --dataset <file>` runs the wizard of the running install over a dataset as test runs and judges each; a past run's rows are asked again in the studio and judged with "Score now". Not in the help yet, like `wizards check`. | `cli/eval.ts`, `routes/local-eval.ts`, `services/evals.ts`, `RunRows.tsx` |
 | E Executor | In the package only, tested against the emulator. Not in the runtime. | `packages/kernel/src/executor.ts` |
 | F.18 The map | Built: the studio draws the file's steps and edges, and a step's panel changes its ways and its limit in the file. | `apps/web/src/studio/editor/kernel-flow.ts`, `KernelFlow.tsx` |
 | F.20 A run as rows | Built: the runs panel opens a run on its rows, with the scores beside the step they judged; a row is asked again, and one a person answered is answered differently. | `apps/web/src/studio/editor/RunRows.tsx`, `RunTimeline.tsx` |
@@ -238,8 +239,22 @@ Tests named here run alone, as the repository asks:
 
 13. **Judging runs.** `judge` when a run ends, for the share of runs a space sets; scores in
     `run_score`; credits counted like any agent ask. Off unless a space turns it on.
+    Built on 2026-11-26: `space.eval_share`, how many of a hundred finished runs are judged, 0
+    by default, set by an admin in the space's Info ("Läufe bewerten", behind `kernel`) through
+    `PATCH /api/studio/spaces/:id`. The host draws against it when a run comes to its end; the
+    env `KERNEL_EVALS` is gone, and tests set the space. An eval's asks go through the run's
+    batteries, so they cost what a step's asks cost.
 14. **A dataset and a past run.** `wizards eval <wizard> --dataset <file>`, and `reask` from the
     studio on one row.
+    Built on 2026-11-26: `wizards eval` names a wizard of the running install by its title or
+    id and sends the dataset (a JSON list of `name`, `input` and, by step, `answers`) to
+    `POST /api/local/eval`, signed with the data folder's secret as `wizards logs` is. Each entry
+    becomes a test run of the draft; its waits are answered from the entry until it has no more
+    to say, and the run is then judged whatever the space's share (`services/evals.ts`). The
+    command prints each entry's scores as it comes and the mean of each eval at the end; the
+    runs stay in the studio. The kernel's own `reask` on a copy is not used: in the studio a
+    row is asked again on the run itself (item 20), and "Jetzt bewerten" in the run's rows
+    (`POST /api/runs/:id/judge`) judges what has not been judged since.
 
 ### E. Connections through executor
 

@@ -1,6 +1,6 @@
 export { type Case, type CaseResult, check, play } from "./check.js";
 export { describe } from "./describe.js";
-export { type Entry, evaluate, reask } from "./evals.js";
+export { type Entry, evaluate, reask, summary } from "./evals.js";
 export { type Grant, grantOf, type Host, lacking, unused } from "./grant.js";
 export {
   begin,

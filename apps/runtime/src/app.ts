@@ -39,6 +39,7 @@ import { elementRoutes } from "./routes/elements.js";
 import { internalRoutes } from "./routes/internal.js";
 import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
 import { liveRoutes } from "./routes/live.js";
+import { localEvalRoutes } from "./routes/local-eval.js";
 import { marketplaceGuest, marketplaceStudio } from "./routes/marketplace.js";
 import { terminalRefused } from "./routes/model-setup.js";
 import { organizationRoutes } from "./routes/organization.js";
@@ -419,6 +420,7 @@ if (serves.studio) {
   app.route("/api/studio/work", workRoutes);
   app.route("/api/studio", studio);
   app.route("/api/local/debug", localDebugRoutes);
+  app.route("/api/local/eval", localEvalRoutes);
 }
 app.route("/api/internal", internalRoutes);
 app.route("/api/peer", peerRoutes);

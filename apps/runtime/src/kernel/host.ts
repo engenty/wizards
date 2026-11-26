@@ -7,7 +7,12 @@ import {
   type Run,
   type Score,
 } from "@engenty/wizards-kernel";
-import { type Field, type KernelFile, shownFields } from "@engenty/wizards-shared/definition";
+import {
+  evalFilesOf,
+  type Field,
+  type KernelFile,
+  shownFields,
+} from "@engenty/wizards-shared/definition";
 import { kernelOf } from "@engenty/wizards-shared/kernel-file";
 import type { RunStatus } from "@engenty/wizards-shared/run";
 import { eq } from "drizzle-orm";
@@ -57,9 +62,6 @@ export function stepMode(wizard?: { starter: string | null } | null): StepMode {
   return ownRunner && !wizard?.starter ? "native" : "quickjs";
 }
 
-/** The share of finished runs whose evals judge them, 0 to 1. */
-const evalShare = () => Math.min(1, Math.max(0, Number(process.env.KERNEL_EVALS ?? 0) || 0));
-
 const quickjs = quickjsTurn();
 
 /** Where the run's wizard comes from: one made from a marketplace entry is someone else's code. */
@@ -83,6 +85,8 @@ export type KernelRunView = {
   rev: number;
   /** Each step's title and working line as its file writes them, for a step with no ask yet. */
   titles?: Record<string, { title?: string; working?: string }>;
+  /** The wizard's evals, `<step>/<name>` and `end/<name>`, whether or not they judged yet. */
+  evals?: string[];
 };
 
 export function kernelHost(deps: KernelDeps) {
@@ -187,10 +191,11 @@ export function kernelHost(deps: KernelDeps) {
       while (await takeSignal()) {
         moved = await kernel.move(row.id);
       }
+      // The space says how many of a hundred finished runs its evals judge; none unless it says.
       if (
         moved.status === "done" &&
         Object.keys(wizard.evals ?? {}).length &&
-        Math.random() < evalShare()
+        Math.random() * 100 < space.evalShare
       ) {
         await kernel.judge(row.id);
       }
@@ -235,6 +240,9 @@ export function kernelHost(deps: KernelDeps) {
         error: row.error ?? undefined,
         rev: row.rev,
         titles: stepTitles(await kernelOutline(row.files ?? [])),
+        evals: Object.entries(evalFilesOf((row.files ?? []).map((f) => f.path))).flatMap(
+          ([of, named]) => Object.keys(named).map((name) => `${of}/${name}`),
+        ),
       };
     },
   };

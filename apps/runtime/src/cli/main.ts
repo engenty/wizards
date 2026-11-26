@@ -47,6 +47,7 @@ const COMMANDS = [
   "move-folder-sources",
   "validate",
   "check",
+  "eval",
   "uninstall",
 ];
 
@@ -124,6 +125,8 @@ interface Args {
   apps: string[];
   /** The paths \`validate\` checks. */
   paths: string[];
+  /** The file \`eval\` runs the wizard over. */
+  dataset: string;
   json: boolean;
   yes: boolean;
   local: boolean;
@@ -140,6 +143,7 @@ function parse(argv: string[]): Args | string {
     engine: "",
     apps: [],
     paths: [],
+    dataset: "",
     json: false,
     yes: false,
     local: false,
@@ -162,6 +166,8 @@ function parse(argv: string[]): Args | string {
       args.print = true;
     } else if (arg === "--json") {
       args.json = true;
+    } else if (arg === "--dataset") {
+      args.dataset = argv[++i] ?? "";
     } else if (arg === "--client") {
       const id = argv[++i];
       if (!CLIENTS.some((client) => client.id === id)) {
@@ -175,7 +181,7 @@ function parse(argv: string[]): Args | string {
     } else if (arg.startsWith("-")) {
       return `Unknown option ${arg}.`;
     } else if (
-      ["autostart", "autoupdate", "logs", "account", "sandbox"].includes(args.command) &&
+      ["autostart", "autoupdate", "logs", "account", "sandbox", "eval"].includes(args.command) &&
       !args.value
     ) {
       args.value = arg;
@@ -291,6 +297,9 @@ async function main(argv: string[]): Promise<number> {
     case "check":
       process.chdir(startedIn);
       return (await import("./check.js")).checkCommand(args.paths, args.json);
+    case "eval":
+      process.chdir(startedIn);
+      return (await import("./eval.js")).evalCommand(paths, args.value, args.dataset, args.json);
     default:
       console.error(`Unknown command “${args.command}”. ${SEE_HELP}`);
       return 2;
