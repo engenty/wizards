@@ -3,7 +3,7 @@ import { note } from "@engenty/wizards-shared/run";
 import { and, desc, eq, inArray, isNotNull, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { accountRunMail } from "../auth/account.js";
-import { control, controlDb, db, schema, withTenant } from "../db/client.js";
+import { activeTenants, control, controlDb, db, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
 import { ManageError, managed, runMail } from "../manage.js";
@@ -595,13 +595,9 @@ export async function deliverNotices(now = new Date()) {
 
 /** Looks in every active tenant; a tenant with nothing due costs one indexed question. */
 export async function deliverAllNotices(now = new Date()) {
-  const tenants = await controlDb.query.tenant.findMany({
-    where: eq(control.tenant.status, "active"),
-    columns: { id: true },
-  });
-  for (const tenant of tenants) {
-    await withTenant(tenant.id, () => deliverNotices(now)).catch((err) =>
-      console.error(`[notices ${tenant.id}]`, err),
+  for (const tenant of await activeTenants()) {
+    await withTenant(tenant, () => deliverNotices(now)).catch((err) =>
+      console.error(`[notices ${tenant}]`, err),
     );
   }
 }

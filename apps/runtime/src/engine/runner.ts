@@ -156,6 +156,7 @@ import {
   wakeDue,
   wakeRun,
 } from "../tenants/control.js";
+import { servesTenant } from "../tenants/own-runner.js";
 import { currentTenant, currentTenantOrNull } from "../tenants/tenant.js";
 import { hasOwnAccount } from "../upstreams.js";
 import { type Caller, whoOf } from "./answerers.js";
@@ -266,6 +267,16 @@ async function concurrencyLimit(tenant: string): Promise<number> {
     return null;
   });
   return info?.limits.concurrentRuns || env.limits.concurrentRuns;
+}
+
+/**
+ * The runs this process drives at once: a tenant's runner as many as its tenant may
+ * (`limits.concurrentRuns`), a shared runner RUNNER_MAX_RUNS.
+ */
+export function runCap(): Promise<number> {
+  return env.runner.tenant
+    ? concurrencyLimit(env.runner.tenant)
+    : Promise.resolve(env.runner.maxRuns);
 }
 
 /** Puts a claim on the run's own row; an older claim that arrives late changes nothing. */
@@ -847,8 +858,8 @@ async function grantConnectors(
 export function kick(runId: string) {
   const tenant = currentTenant();
   void wakeRun(runId)
-    .then(() =>
-      env.serves.runner && (!env.runner.tenant || env.runner.tenant === tenant)
+    .then(async () =>
+      env.serves.runner && (await servesTenant(tenant))
         ? take(runId, tenant)
         : nudgeRunner(runId, tenant),
     )
@@ -905,11 +916,16 @@ async function claimAndHold(runId: string, tenant: string): Promise<number | nul
  * steps do, and the line goes on meanwhile.
  */
 async function take(runId: string, tenant: string): Promise<void> {
-  if (active.has(runId) || active.size >= env.runner.maxRuns) {
+  if (active.has(runId) || (!env.runner.tenant && active.size >= env.runner.maxRuns)) {
     return;
   }
-  // A runner that serves one tenant takes no other's run: the line still has it for its own.
-  if (env.runner.tenant && env.runner.tenant !== tenant) {
+  // A tenant's runner takes no other tenant's run, a shared runner none of a tenant with a runner
+  // of its own: the line keeps it for that runner.
+  if (!(await servesTenant(tenant))) {
+    return;
+  }
+  const cap = await runCap();
+  if (active.has(runId) || active.size >= cap) {
     return;
   }
   // The slot counts from here, so takes at the same moment stay under the cap.

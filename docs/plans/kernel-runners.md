@@ -1,8 +1,10 @@
 # Plan: a runner per tenant in the cloud
 
-Status: a plan to decide on, nothing built beyond what "Today" names. Item 23 of
-[kernel.md](kernel.md), section H. Items 24 (tokens leave the runner) and 25 (ordinary code in the
-cloud) build on it. Written 2026-11-26 on `feat/kernel`.
+Status: decided on 2026-11-27 (below). Stage B's code is built on `feat/kernel`: the rows marked
+"Built" in "What changes in code". The compose service for a tenant's runner is set up by hand and
+not yet in `compose.cloud.yaml`; stage C is not built. Item 23 of [kernel.md](kernel.md), section
+H. Items 24 (tokens leave the runner) and 25 (ordinary code in the cloud) build on it. Written
+2026-11-26 on `feat/kernel`.
 
 The question: how many runner processes the cloud holds, when one starts and stops, and which runs
 each one takes.
@@ -31,8 +33,8 @@ are the gaps between "takes one tenant's runs" and "safe for that tenant's ordin
 
 | Gap | Today | What it means | Fixed by |
 |---|---|---|---|
-| Shared runners take the tenant's runs too | `waitingRuns` without `RUNNER_TENANT` lists every tenant's runs. `otherRunners` nudges a shared runner when the tenant's own is missing. | With both kinds running, a tenant's run lands in either one. In the shared runner it runs in QuickJS, so a step that imports Node's modules fails there. | This plan |
-| Work over every tenant at boot and every minute | Every process runs `migrateAllTenants`, `reportAllWizards` and the hourly `purge` over all tenants. Every runner runs `startStarts`, `startMailWatch`, `startNotices` and the plugins' `startJobs` over all tenants. | A tenant's runner opens every tenant's database and does their work. N tenant runners do it N times. | This plan |
+| Shared runners take the tenant's runs too | `waitingRuns` without `RUNNER_TENANT` lists every tenant's runs. `otherRunners` nudges a shared runner when the tenant's own is missing. | With both kinds running, a tenant's run lands in either one. In the shared runner it runs in QuickJS, so a step that imports Node's modules fails there. | Built in stage B: shared runners leave a tenant marked with `features.ownRunner` alone |
+| Work over every tenant at boot and every minute | Every process runs `migrateAllTenants`, `reportAllWizards` and the hourly `purge` over all tenants. Every runner runs `startStarts`, `startMailWatch`, `startNotices` and the plugins' `startJobs` over all tenants. | A tenant's runner opens every tenant's database and does their work. N tenant runners do it N times. | Built in stage B: a tenant's runner opens its own database alone and does no work over the tenants |
 | The tenant databases | Files under `/data`, one volume shared by every role, while the Manage-App's provisioner is `none` (comment in `compose.cloud.yaml`). `TENANT_DB_URL_TEMPLATE` puts them on a libSQL server with one token for all (`env.ts`). The Manage-App's `GET /v1/tenants/:id` answers `db: { url } \| null`, no token (`docs/manage-contract.md`). | Ordinary code in a tenant's runner can open every tenant's file, or with the template every tenant's database. | Item 24, and a token per tenant database |
 | The process's secrets | The runner's environment holds the control database's token, the Manage-App's service key and the gateway's address. Ordinary code runs in that process. | Ordinary code reads them from `process.env`. | Item 24 |
 | The browser | One Chromium for all runners (`BROWSER_CDP_URL`, fixed addresses on the `browser` network). | Ordinary code that reaches DevTools can drive every tenant's pages. | Item 24 (the runner's network) |
@@ -120,14 +122,14 @@ shared runners with QuickJS, which already works for every wizard in version 0.3
 
 | Change | Where | Stage |
 |---|---|---|
-| A tenant marked for its own runner: shared runners leave its runs alone, in `waitingRuns`, `take` and the nudge's fallback in `otherRunners` | `tenants/control.ts`, `engine/runner.ts`; where the mark lives is question 2 | B |
-| A tenant's runner opens and migrates its own database only. It skips `reportAllWizards`, the hourly `purge` of other tenants, starts, mail watch, notices and plugin jobs of other tenants. The shared runner keeps doing them for everyone, including the marked tenants. | `index.ts`, `engine/starts.ts`, `engine/mail-watch.ts`, `engine/notices.ts`, `plugins/jobs.ts` | B |
-| The tenant's runner drives as many runs as its tenant may (`limits.concurrentRuns`), not `RUNNER_MAX_RUNS` | `engine/runner.ts` (`take`) | B |
-| Health: a marked tenant whose runs wait with no runner of its own shows in the health check | `lineState` in `control.ts`, `health.ts` | B |
+| Built. A tenant marked for its own runner (`features.ownRunner` from the Manage-App, read through `tenantInfo`'s cache; out of reach, the last answer counts): shared runners leave its runs alone, in `waitingRuns`, `take`, `kick` and the nudge's fallback in `otherRunners`. The control database keeps no copy of the mark. | `tenants/own-runner.ts` (`hasOwnRunner`, `servesTenant`), `tenants/control.ts`, `engine/runner.ts` | B |
+| Built. A tenant's runner opens and migrates its own database only: `knownTenants`, `activeTenants` and `migrateAllTenants` name its tenant alone. It runs no `reportAllWizards`, hourly `purge`, starts, mail watch, notices or plugin jobs; the shared runner does them for everyone, including the marked tenants. | `db/client.ts`, `index.ts`, `engine/starts.ts`, `engine/mail-watch.ts`, `engine/notices.ts`, `plugins/jobs.ts` | B |
+| Built. The tenant's runner drives as many runs as its tenant may (`limits.concurrentRuns`), not `RUNNER_MAX_RUNS` | `engine/runner.ts` (`runCap`, `take`) | B |
+| Built. Health: a marked tenant whose runs wait with no runner of its own shows in the `line` check, `degraded`, under `withoutRunner`; its runs leave the line's age out | `lineState` in `control.ts`, `health.ts` | B |
 | The service in the compose file: no `/data` volume once the tenant's database is no file, its own place on the `browser` network or none | `compose.cloud.yaml` | B |
 | The idle stop: `RUNNER_IDLE_MINUTES`, then `stopRunner` and exit 0 | `engine/runner.ts`, `env.ts`, `index.ts` | C |
 | The process that starts runners: reads the line, starts `runner-<tenant>` from the runtime's image with that tenant's settings | New. Where it runs and what it may start is question 4. | C |
-| Tests: a shared runner leaves a marked tenant's run; a tenant's runner touches no other tenant at boot; the idle stop hands back nothing it held; a run answered while its runner is stopped is driven by the next one | `apps/runtime/test/` | B, C |
+| Tests: a shared runner leaves a marked tenant's run (built); a tenant's runner touches no other tenant at boot (built); the idle stop hands back nothing it held; a run answered while its runner is stopped is driven by the next one | `apps/runtime/test/own-runner-line.test.ts`, `test/kernel-where.test.ts` | B, C |
 
 A run may move between runners and so between QuickJS and ordinary code from one drive to the next:
 `stepMode` is decided per drive. Each step runs again from its top with its rows, so that is fine for
