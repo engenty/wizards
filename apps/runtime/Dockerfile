@@ -25,6 +25,7 @@ COPY packages/local-models/package.json packages/local-models/
 COPY packages/decision-model/package.json packages/decision-model/
 COPY packages/search-index/package.json packages/search-index/
 COPY packages/tool-harness/package.json packages/tool-harness/
+COPY packages/kernel/package.json packages/kernel/
 COPY packages/model-setup/package.json packages/model-setup/
 RUN sed -i 's/"version": *"[^"]*"/"version": "0.0.0"/' package.json
 
@@ -85,6 +86,7 @@ COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_m
 COPY --from=prod-deps /app/packages/local-models/node_modules ./packages/local-models/node_modules
 COPY --from=prod-deps /app/packages/decision-model/node_modules ./packages/decision-model/node_modules
 COPY --from=prod-deps /app/packages/tool-harness/node_modules ./packages/tool-harness/node_modules
+COPY --from=prod-deps /app/packages/kernel/node_modules ./packages/kernel/node_modules
 COPY --from=prod-deps /app/packages/model-setup/node_modules ./packages/model-setup/node_modules
 # The built-in terminal (packages/model-setup/src/server/terminal.ts) needs node-pty's binary for this
 # platform: an image whose terminal cannot start a command is not built.
@@ -103,6 +105,8 @@ COPY --from=build /app/packages/search-index/package.json ./packages/search-inde
 COPY --from=build /app/packages/search-index/dist ./packages/search-index/dist
 COPY --from=build /app/packages/tool-harness/package.json ./packages/tool-harness/
 COPY --from=build /app/packages/tool-harness/dist ./packages/tool-harness/dist
+COPY --from=build /app/packages/kernel/package.json ./packages/kernel/
+COPY --from=build /app/packages/kernel/dist ./packages/kernel/dist
 COPY --from=build /app/packages/local-models/package.json ./packages/local-models/
 COPY --from=build /app/packages/local-models/dist ./packages/local-models/dist
 COPY --from=build /app/packages/model-setup/package.json ./packages/model-setup/
