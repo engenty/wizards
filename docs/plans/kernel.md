@@ -33,7 +33,8 @@ than the tenant's database, prices.
 | C.10 Entry points | Built: start, the line, answers, back, retry, cancel, the clock, the report, and signals by address: the row a run waits at is written where senders look, and a signal for it answers the row. | `kernel/host.ts`, `kernel/signals.ts`, `engine/runner.ts` |
 | C.11 A person answers | Built another way: see below. An ask's view (`components`, and the values in `data`) reaches the page. | `kernel/page.ts`, `kernel/views.ts` |
 | D.13 Judging runs | Built, by a share the runtime is told (`KERNEL_EVALS`). No setting of a space yet. | `kernel/host.ts` |
-| E Executor | In the package only, tested against the emulator. Not in the runtime. | `packages/kernel/src/executor.ts` |
+| E.15 The mail wizard in the runtime | Not built: executor is in the package only, tested against the emulator | `packages/kernel/src/executor.ts` |
+| E.17 The emulator in tests | Built: `emulate("google", …)` for the package's tests and the runtime's, with Google's description of Gmail kept in the package (revision 20261116), so no test fetches it | `packages/kernel/src/emulate.ts`, `google.ts`, `src/data/google/` |
 | F.18 The map | Built: the studio draws the file's steps and edges, and a step's panel changes its ways and its limit in the file. | `apps/web/src/studio/editor/kernel-flow.ts`, `KernelFlow.tsx` |
 | F.20 A run as rows | Built: the runs panel opens a run on its rows, with the scores beside the step they judged; a row is asked again, and one a person answered is answered differently. | `apps/web/src/studio/editor/RunRows.tsx`, `RunTimeline.tsx` |
 | F.21 For those who build | The authoring guide and the studio's assistant tell of step files while the switch is on. A starter in version 0.3.0 makes a wizard with its step files, and is offered as usable only while the switch is on. The starters themselves are the marketplace's, in another repository. | `prompts/authoring.md`, `agents/architect.ts`, `services/marketplace.ts` |
@@ -254,6 +255,9 @@ Tests named here run alone, as the repository asks:
 17. **The emulator in tests.** A helper that starts `@executor-js/emulate` for a service. First
     use: the mail wizard against Gmail, in the runtime's tests. It needs the network once, for
     Google's description of its API; keep a copy in the repository so the test does not.
+    Built: `@engenty/wizards-kernel/emulate`, and the copy is `packages/kernel/src/data/google/gmail-v1.json`
+    (`googleDescription`). A newer one is fetched by hand from
+    `https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest`.
 
 ### F. The studio
 

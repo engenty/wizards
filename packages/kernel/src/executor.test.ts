@@ -1,10 +1,11 @@
-import { createEmulator, type Emulator } from "@executor-js/emulate";
 import { openApiPlugin } from "@executor-js/plugin-openapi";
 import { convertGoogleDiscoveryToOpenApi } from "@executor-js/plugin-openapi/providers/google";
 import { createExecutor } from "@executor-js/sdk";
 import { Effect } from "effect";
 import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
+import { type Emulated, emulate } from "./emulate.js";
 import { type Executor, executorBatteries, hostOf, type Model, stricterThere } from "./executor.js";
+import { googleDescription, googleDiscoveryUrl } from "./google.js";
 import { createKernel } from "./kernel.js";
 import { loadWizard } from "./load.js";
 import { memoryStore } from "./memory.js";
@@ -12,56 +13,42 @@ import type { AskRow, Run, Wizard } from "./types.js";
 
 /**
  * The mail wizard against a Gmail that keeps state: executor's emulator of Google, reached
- * through an executor that was given Gmail's own API description and a token. The only stand-in
- * left is the model, a few lines that read the thread and write a draft.
+ * through an executor that was given Gmail's own API description (the copy kept in `src/data/google/`,
+ * so the test needs no network) and a token. The only stand-in left is the model, a few lines that
+ * read the thread and write a draft.
  */
-let google: Emulator;
+let google: Emulated;
 let executor: Executor & { close(): Promise<void> };
 let wizard: Wizard;
 const bind = { gmail: "tools.gmail.org.me" };
 const vault = new Map<string, string>();
 
-const api = async (path: string, init?: RequestInit) =>
-  (await fetch(google.url + path, init)).json() as Promise<any>;
-const calls = async () =>
-  ((await api("/_emulate/ledger")).entries as { method: string; operationId?: string }[])
-    .map((entry) => entry.operationId)
-    .filter((id) => id?.startsWith("gmail."))
-    .reverse(); // the ledger lists the newest first
+const calls = () => google.calls("gmail.");
 
 beforeAll(async () => {
-  google = await createEmulator({
-    service: "google",
-    port: 4300 + (process.pid % 500),
+  google = await emulate("google", {
     seed: {
-      google: {
-        users: [{ email: "me@engenty.example", name: "Me" }],
-        messages: [
-          {
-            id: "msg_1",
-            user_email: "me@engenty.example",
-            from: "einkauf@nordlicht.example",
-            to: "me@engenty.example",
-            subject: "Workshop im Januar",
-            body_text: "Can you send us an offer for two workshop days?",
-            label_ids: ["INBOX", "UNREAD"],
-          },
-        ],
-      },
+      users: [{ email: "me@engenty.example", name: "Me" }],
+      messages: [
+        {
+          id: "msg_1",
+          user_email: "me@engenty.example",
+          from: "einkauf@nordlicht.example",
+          to: "me@engenty.example",
+          subject: "Workshop im Januar",
+          body_text: "Can you send us an offer for two workshop days?",
+          label_ids: ["INBOX", "UNREAD"],
+        },
+      ],
     },
   });
-  const { credential } = await api("/_emulate/credentials", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ type: "bearer-token", login: "me@engenty.example" }),
-  });
+  const token = await google.token("me@engenty.example");
 
-  // Gmail's own description of its API, as the emulator hands it out, turned into OpenAPI.
-  const documentText = await (await fetch(`${google.url}/discovery/v1/apis/gmail/v1/rest`)).text();
+  // Gmail's own description of its API, turned into OpenAPI.
   const gmail = await Effect.runPromise(
     convertGoogleDiscoveryToOpenApi({
-      discoveryUrl: "https://gmail.googleapis.com/$discovery/rest?version=v1",
-      documentText,
+      discoveryUrl: googleDiscoveryUrl("gmail"),
+      documentText: googleDescription("gmail"),
     }),
   );
 
@@ -97,16 +84,13 @@ beforeAll(async () => {
     name: "me" as never,
     integration: "gmail" as never,
     template: "token" as never,
-    value: credential.token,
+    value: token,
   });
   executor = made as unknown as typeof executor;
   wizard = await loadWizard(new URL("../examples/mail/", import.meta.url).pathname);
 }, 60_000);
 
-beforeEach(async () => {
-  google.reset();
-  await fetch(`${google.url}/_emulate/ledger`, { method: "DELETE" });
-});
+beforeEach(() => google.reset());
 afterAll(async () => {
   await executor?.close();
   await google?.close();
@@ -160,11 +144,9 @@ it("reads the thread, waits for the user, and sends the answer into the same thr
 
   // The emulator's Gmail now holds the answer, in the customer's thread.
   const token = [...vault.values()][0];
-  const thread = await api(
+  const thread = await google.get(
     `/gmail/v1/users/me/threads/${(run.rows[0] as AskRow & { answer: any }).answer.threadId}`,
-    {
-      headers: { authorization: `Bearer ${token}` },
-    },
+    token,
   );
   expect(thread.messages).toHaveLength(2);
   const sent = thread.messages[1];
@@ -209,21 +191,17 @@ it("never shows a step or a row the token", async () => {
   const token = [...vault.values()][0];
   expect(token).toMatch(/^emu_google_/);
   expect(JSON.stringify(run)).not.toContain(token);
-  expect(JSON.stringify(await api("/_emulate/ledger"))).not.toContain(token); // the emulator redacts it too
+  expect(JSON.stringify(await google.get("/_emulate/ledger"))).not.toContain(token); // the emulator redacts it too
 });
 
 it("fails the action when Gmail fails, and sends once when the row is asked again", async () => {
   const kernel = await kernelWith();
   let run = await kernel.start("mail", { customer: "Nordlicht GmbH" });
   run = await kernel.answer(run.id, waiting(run).n, { approved: true });
-  await fetch(`${google.url}/_emulate/faults`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      match: { method: "POST", pathPattern: "/gmail/v1/users/*/messages/send" },
-      response: { status: 503, body: { error: { code: 503, message: "Backend Error" } } },
-    }),
-  });
+  await google.fail(
+    { method: "POST", pathPattern: "/gmail/v1/users/*/messages/send" },
+    { status: 503, body: { error: { code: 503, message: "Backend Error" } } },
+  );
   run = await kernel.answer(run.id, waiting(run).n, { allow: true });
   expect(run.status).toBe("failed");
   expect(run.error).toContain("gmail.users.messages.send failed");
@@ -236,9 +214,7 @@ it("fails the action when Gmail fails, and sends once when the row is asked agai
   run = await kernel.answer(run.id, waiting(run).n, { allow: true });
   expect(run.status).toBe("done");
   const token = [...vault.values()][0];
-  const { messages } = await api("/gmail/v1/users/me/messages?labelIds=SENT", {
-    headers: { authorization: `Bearer ${token}` },
-  });
+  const { messages } = await google.get("/gmail/v1/users/me/messages?labelIds=SENT", token);
   expect(messages).toHaveLength(1);
 });
 

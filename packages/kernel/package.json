@@ -25,10 +25,20 @@
       "wizards-source": "./src/check-dir.ts",
       "types": "./dist/check-dir.d.ts",
       "default": "./dist/check-dir.js"
+    },
+    "./google": {
+      "wizards-source": "./src/google.ts",
+      "types": "./dist/google.d.ts",
+      "default": "./dist/google.js"
+    },
+    "./emulate": {
+      "wizards-source": "./src/emulate.ts",
+      "types": "./dist/emulate.d.ts",
+      "default": "./dist/emulate.js"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node --input-type=module -e \"import { cpSync } from 'node:fs'; cpSync('src/data', 'dist/data', { recursive: true });\"",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

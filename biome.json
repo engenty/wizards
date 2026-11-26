@@ -57,6 +57,7 @@
       "examples/plugins/**",
       "plugin/claude-code/**",
       "!apps/runtime/src/db/migrations",
+      "!packages/kernel/src/data",
       "!apps/runtime/src/engenty",
       "apps/runtime/src/engenty/shims/**",
       "!apps/web/src/engenty",
