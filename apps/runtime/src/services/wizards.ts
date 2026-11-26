@@ -1,7 +1,9 @@
+import { typesOf } from "@engenty/wizards-kernel";
 import { versionChanges } from "@engenty/wizards-shared/changes";
 import type { StepWarning } from "@engenty/wizards-shared/connectors";
 import {
   DEFINITION_VERSION,
+  type KernelFile,
   type Lang,
   pluginToolOf,
   shapeIssues,
@@ -41,7 +43,7 @@ import { serverText } from "../texts.js";
 import { requireAdmin, requireBuild, requireWritable, requireWritableSpace } from "./access.js";
 import { changedSteps, emitDraftChanged } from "./draft-events.js";
 import { notFound, ServiceError } from "./errors.js";
-import { copyFiles, draftFiles, sameFiles, seedFiles, snapshotFile } from "./files.js";
+import { copyFiles, draftFiles, sameFiles, seedFiles, snapshotFile, writeFile } from "./files.js";
 import { forgetWizardLinks } from "./links.js";
 import { pushWizards } from "./manage-reports.js";
 import { asLang, countInstall, marketplaceWizard } from "./marketplace.js";
@@ -629,6 +631,9 @@ export async function writeDraft(
       revision: current.revision,
     });
   }
+  if (draft.kernel) {
+    await writeTypes(userId, w.id, draft.kernel, files);
+  }
   if (input.note) {
     await addMessage(w.id, { role: "assistant", content: input.note, changed: true }, writer);
   }
@@ -642,6 +647,26 @@ export async function writeDraft(
     touched: changedSteps(w.draft, draft),
   });
   return { revision: row.revision, issues, warnings: await stepWarnings(w.spaceId, draft), draft };
+}
+
+/**
+ * `wizard.d.ts` beside a wizard in version 0.3.0: the types its steps are written against, made
+ * from its file (`typesOf`). Written when they change, so the editor and the assistant see a field
+ * the input lacks or a way the map lacks while a step is written.
+ */
+const TYPES = "wizard.d.ts";
+
+async function writeTypes(
+  userId: string,
+  wizardId: string,
+  file: KernelFile,
+  files: WorkspaceFile[],
+) {
+  const types = typesOf(file as Parameters<typeof typesOf>[0]);
+  const now = await snapshotFile(files, TYPES);
+  if (now?.data.toString("utf8") !== types) {
+    await writeFile(userId, wizardId, TYPES, types);
+  }
 }
 
 export async function editWizard(

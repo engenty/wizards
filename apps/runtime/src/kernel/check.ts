@@ -4,7 +4,7 @@ import { stepFilesOf } from "@engenty/wizards-shared/kernel-file";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { snapshotFile } from "../services/files.js";
 import { stepOutline } from "./outline.js";
-import { compileIssues, type ReadCode } from "./wizard.js";
+import { compiledCode, compileIssues, type ReadCode } from "./wizard.js";
 
 const STEP = /^steps\/([^/]+)\.[a-z]+$/;
 
@@ -18,8 +18,11 @@ export async function kernelCodeIssues(
   file: KernelFile,
   paths: readonly string[],
   read: ReadCode,
+  /** What the compile said, where it ran already. */
+  compiled?: { path: string; message: string }[],
 ): Promise<ValidationIssue[]> {
-  const issues: ValidationIssue[] = (await compileIssues(paths, read)).map(({ path, message }) => {
+  const said = compiled ?? (await compileIssues(paths, read));
+  const issues: ValidationIssue[] = said.map(({ path, message }) => {
     const stepId = STEP.exec(path)?.[1];
     return { ...(stepId ? { stepId } : {}), message };
   });
@@ -47,7 +50,10 @@ export async function kernelCodeIssues(
 
 const checked = new Map<string, Promise<ValidationIssue[]>>();
 
-/** `kernelCodeIssues` of a draft and its workspace, kept by what the files hold. */
+/**
+ * `kernelCodeIssues` of a draft and its workspace, kept by what the files hold. Its compile is
+ * the one a run takes: code that compiles is kept in the object store for the runs to come.
+ */
 export function draftCodeIssues(
   file: KernelFile,
   files: WorkspaceFile[],
@@ -57,10 +63,13 @@ export function draftCodeIssues(
     .digest("hex");
   let issues = checked.get(key);
   if (!issues) {
-    issues = kernelCodeIssues(
-      file,
-      files.map((f) => f.path),
-      async (path) => (await snapshotFile(files, path))?.data.toString("utf8") ?? null,
+    issues = compiledCode(files, "quickjs").then(({ issues: said }) =>
+      kernelCodeIssues(
+        file,
+        files.map((f) => f.path),
+        async (path) => (await snapshotFile(files, path))?.data.toString("utf8") ?? null,
+        said,
+      ),
     );
     checked.set(key, issues);
     issues.catch(() => checked.delete(key));

@@ -256,6 +256,35 @@ it("says in a draft's issues that a step does not compile, before any run", asyn
   expect(issues.second[0]).toMatch(/^steps\/bad\.ts:2: /);
 });
 
+it("keeps a wizard's compiled steps at a save, writes its types beside it, and a run takes what is kept", async () => {
+  const { objects } = await import("../src/files/objects.js");
+  const { compiledKey, kernelWizard } = await import("../src/kernel/wizard.js");
+  const one = { ...file, start: "one", edges: { one: ["end"] }, limits: {}, output: {} };
+  const saved = await client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(one) as never });
+    await files.seedFiles(created.id, { "steps/one.ts": "export default async () => ({ value: 1 });\n" });
+    const w = await wizards.ownedWizard("u", created.id);
+    await wizards.writeDraft("u", created.id, { definition: w.draft, baseRevision: w.revision });
+    const after = await files.draftFiles(created.id);
+    const types = await files.snapshotFile(after, "wizard.d.ts");
+    const key = compiledKey(after, "quickjs");
+    const kept = JSON.parse((await objects.get(key))?.toString("utf8") ?? "null");
+    // What a run takes is what is kept: changed there, the run's step is the changed one.
+    await objects.put(key, Buffer.from(JSON.stringify({ steps: { one: "kept" }, evals: {} })));
+    const wizard = await kernelWizard(one, after, "quickjs");
+    // Written again unchanged, the types stay one file with one revision of it.
+    const again = await wizards.ownedWizard("u", created.id);
+    await wizards.writeDraft("u", created.id, { definition: again.draft, baseRevision: again.revision });
+    const last = await files.draftFiles(created.id);
+    return { types: types?.data.toString("utf8"), kept, step: wizard.steps.one, same: last.find((f) => f.path === "wizard.d.ts")?.hash === after.find((f) => f.path === "wizard.d.ts")?.hash };
+  });
+  expect(saved.types).toContain('"one": "end";');
+  expect(Object.keys(saved.kept.steps)).toEqual(["one"]);
+  expect(saved.kept.steps.one).toContain("__step");
+  expect(saved.step).toBe("kept");
+  expect(saved.same).toBe(true);
+});
+
 it("leaves a wizard in version 0.2.0 to today's engine", async () => {
   const id = await client.withTenant(T, async () => {
     const def = { version: 1, title: "Old", description: "", avatar: "round", steps: [{ id: "write", type: "agent", title: "Write", instructions: "Do it.", tools: [], output: { format: "text" } }, { id: "done", type: "result", title: "Done", deliverables: [] }] };

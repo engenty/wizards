@@ -26,7 +26,7 @@ than the tenant's database, prices.
 | A.3 Answers checked against fields | Built: the kernel takes the host's check, and a page's answers are checked as a form's are today | `kernel.ts`, `engine/runner.ts` |
 | A.4 QuickJS as the second way | Built, with `btoa` and `atob`, which steps written for ordinary code expect | `quickjs.ts`, `compile.ts` |
 | B.5 The file's schema | Built | `packages/shared/src/definition.ts`, `kernel-file.ts` |
-| B.6 Compiling | Built, when a run is driven, kept in memory by the files' hash. The types of a file's input and steps are made by `typesOf`; nothing writes them beside a wizard at save yet. | `apps/runtime/src/kernel/wizard.ts`, `packages/kernel/src/types-of.ts` |
+| B.6 Compiling | Built. At a save the step and eval files are compiled and kept in the object store by the hash of the code files; runs and every runtime take them from there. `wizard.d.ts` is written beside a wizard at every save where it changed. | `apps/runtime/src/kernel/wizard.ts`, `apps/runtime/src/services/wizards.ts`, `packages/kernel/src/types-of.ts` |
 | B.7 The check | Built: the file against its step files in `validateWizard`, and the code read without running it in `kernelCodeIssues`: every step and eval compiled, each way a step's code takes against the map. A draft's issues, `validate_wizard`, `wizards validate` and `wizards check` all say it. `wizards check` is not in the help yet. | `definition.ts`, `kernel/check.ts`, `cli/check.ts`, `packages/kernel/src/check-dir.ts` |
 | C.8 Tables and store | Built | `run_row`, `run_score`, `kernel/store.ts` |
 | C.9 Batteries | Built over today's step executors. A step that asks the person for a yes becomes a row. | `kernel/batteries.ts` |
@@ -178,6 +178,11 @@ Tests named here run alone, as the repository asks:
    esbuild into one module and into one script per step for QuickJS, keep both in the blob store by
    the files' hash, and write `wizard.d.ts` into the workspace: the input, each step's ways. A
    bundle that fails is an issue of the wizard, with file and line.
+   Built on 2026-11-26. The compile a draft's check does is the one a run takes
+   (`compiledCode`): code that compiles is kept under `compiled/<mode>/<hash>.json` in the
+   tenant's object store, by the paths and hashes of the code files, so publish keeps what the
+   last save compiled. `wizard.d.ts` is left out of that hash. Kept compiles are not deleted
+   with the blobs they came from; they go with the tenant.
 7. **The check.** `describe`, the compile, and the wizard's tests where it has some.
    `wizards check` in `bin/wizards.mjs`, and the same behind `validate_wizard`
    (`apps/runtime/src/mcp/tools.ts`). It lists what the file declares and no test asked for.

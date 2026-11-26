@@ -5,6 +5,7 @@ import type { KernelFile } from "@engenty/wizards-shared/definition";
 import { evalFilesOf, stepFilesOf } from "@engenty/wizards-shared/kernel-file";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { build, type Plugin } from "esbuild";
+import { objects } from "../files/objects.js";
 import { snapshotFile } from "../services/files.js";
 
 /**
@@ -18,6 +19,15 @@ import { snapshotFile } from "../services/files.js";
 export type StepMode = "quickjs" | "native";
 
 const CODE = /\.(ts|js|mjs|json)$/;
+
+/**
+ * The files a compile reads, by path. Declarations (`wizard.d.ts`) are left out: no step's code
+ * comes of them, so writing them leaves what is compiled as it was.
+ */
+const codeOf = (files: WorkspaceFile[]) =>
+  files
+    .filter((f) => CODE.test(f.path) && !f.path.endsWith(".d.ts"))
+    .sort((a, b) => a.path.localeCompare(b.path));
 const compiled = new Map<string, Promise<Wizard>>();
 
 /** A workspace file's text by its path; null where there is none. */
@@ -36,7 +46,7 @@ export function kernelWizard(
   files: WorkspaceFile[],
   mode: StepMode,
 ): Promise<Wizard> {
-  const code = files.filter((f) => CODE.test(f.path)).sort((a, b) => a.path.localeCompare(b.path));
+  const code = codeOf(files);
   const key = createHash("sha256")
     .update(JSON.stringify([mode, file, code.map((f) => [f.path, f.hash])]))
     .digest("hex");
@@ -54,22 +64,60 @@ export function kernelWizard(
 }
 
 async function compile(file: KernelFile, code: WorkspaceFile[], mode: StepMode): Promise<Wizard> {
-  const paths = code.map((f) => f.path);
-  const read = stored(code);
-  const one = (path: string) =>
-    mode === "quickjs" ? bundle(path, paths, read, false) : module(path, paths, read);
+  const { texts, issues } = await compiledCode(code, mode);
+  if (!texts) {
+    throw new KernelCompileError(issues[0].message);
+  }
+  const one = (path: string, text: string) => (mode === "native" ? load(path, text) : text);
   const steps: Wizard["steps"] = {};
-  for (const [id, path] of Object.entries(stepFilesOf(paths))) {
-    steps[id] = await one(path);
+  for (const [id, text] of Object.entries(texts.steps)) {
+    steps[id] = await one(`steps/${id}`, text);
   }
   const evals: NonNullable<Wizard["evals"]> = {};
-  for (const [of, named] of Object.entries(evalFilesOf(paths))) {
+  for (const [of, named] of Object.entries(texts.evals)) {
     evals[of] = {};
-    for (const [name, path] of Object.entries(named)) {
-      evals[of][name] = await one(path);
+    for (const [name, text] of Object.entries(named)) {
+      evals[of][name] = await one(`evals/${of}/${name}`, text);
     }
   }
   return { file: file as Wizard["file"], steps, evals };
+}
+
+/** The compiled code of a wizard's steps and evals, each as the text the step mode runs. */
+type Texts = { steps: Record<string, string>; evals: Record<string, Record<string, string>> };
+
+type Compiled = { texts: Texts | null; issues: { path: string; message: string }[] };
+
+/** Compiles every step and eval file; `texts` only when all of them compile. */
+async function compileAll(
+  paths: readonly string[],
+  read: ReadCode,
+  native: boolean,
+): Promise<Compiled> {
+  const code = paths.filter((path) => CODE.test(path));
+  const texts: Texts = { steps: {}, evals: {} };
+  const issues: Compiled["issues"] = [];
+  const one = async (path: string) => {
+    try {
+      return await bundle(path, code, read, native);
+    } catch (err) {
+      if (!(err instanceof KernelCompileError)) {
+        throw err;
+      }
+      issues.push({ path, message: err.message });
+      return "";
+    }
+  };
+  for (const [id, path] of Object.entries(stepFilesOf(code))) {
+    texts.steps[id] = await one(path);
+  }
+  for (const [of, named] of Object.entries(evalFilesOf(code))) {
+    texts.evals[of] = {};
+    for (const [name, path] of Object.entries(named)) {
+      texts.evals[of][name] = await one(path);
+    }
+  }
+  return { texts: issues.length ? null : texts, issues };
 }
 
 /**
@@ -80,23 +128,36 @@ export async function compileIssues(
   paths: readonly string[],
   read: ReadCode,
 ): Promise<{ path: string; message: string }[]> {
-  const code = paths.filter((path) => CODE.test(path));
-  const entries = [
-    ...Object.values(stepFilesOf(code)),
-    ...Object.values(evalFilesOf(code)).flatMap((named) => Object.values(named)),
-  ];
-  const issues: { path: string; message: string }[] = [];
-  for (const path of entries) {
-    try {
-      await bundle(path, code, read, false);
-    } catch (err) {
-      if (!(err instanceof KernelCompileError)) {
-        throw err;
-      }
-      issues.push({ path, message: err.message });
-    }
+  return (await compileAll(paths, read, false)).issues;
+}
+
+/** Where the compiled code of a workspace is kept in the object store. */
+export const compiledKey = (files: WorkspaceFile[], mode: StepMode) =>
+  `compiled/${mode}/${createHash("sha256")
+    .update(JSON.stringify(codeOf(files).map((f) => [f.path, f.hash])))
+    .digest("hex")}.json`;
+
+/**
+ * The compiled code of a workspace, kept in the object store beside the blobs by the hash of its
+ * code files: compiled once, at the first save that has it, and found there by every run and
+ * every runtime after. Code that does not compile is not kept; its issues come back each time.
+ */
+export async function compiledCode(files: WorkspaceFile[], mode: StepMode): Promise<Compiled> {
+  const code = codeOf(files);
+  const key = compiledKey(files, mode);
+  const kept = await objects.get(key);
+  if (kept) {
+    return { texts: JSON.parse(kept.toString("utf8")) as Texts, issues: [] };
   }
-  return issues;
+  const made = await compileAll(
+    code.map((f) => f.path),
+    stored(code),
+    mode === "native",
+  );
+  if (made.texts) {
+    await objects.put(key, Buffer.from(JSON.stringify(made.texts), "utf8"));
+  }
+  return made;
 }
 
 /** The workspace as esbuild's file system: a file imports its neighbours and nothing else. */
@@ -175,8 +236,8 @@ async function bundle(
   }
 }
 
-async function module(path: string, paths: readonly string[], read: ReadCode) {
-  const text = await bundle(path, paths, read, true);
+/** A step compiled for this process, loaded as a module of it. */
+async function load(path: string, text: string) {
   const loaded = (await import(
     `data:text/javascript;base64,${Buffer.from(text).toString("base64")}`
   )) as { default?: unknown };
