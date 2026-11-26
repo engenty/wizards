@@ -1,7 +1,7 @@
 ---
 title: Architecture
 description: How engenty wizards is built – the runtime and its roles, your computer and the cloud, tenants and spaces, the engine and its sandboxes, skills, plugins, the broker and the feature switches.
-version: 0.21.1
+version: 0.21.3
 ---
 
 engenty wizards is one server program, the **runtime**, and one web app, the **studio**, that it
@@ -20,6 +20,11 @@ they fit, with the folder each one lives in.
 | Shared | `packages/shared/src` | The wizard definition and its validator, the words the runtime and the studio share, the feature switches |
 | `@engenty/wizards` | `packages/wizards` | What code outside the repository imports: the plugin SDK, `@engenty/wizards-runner`, the OpenUI parts |
 | Modules | `modules/` | Plugins that ship with the runtime |
+| Portal | `apps/portal` | A team’s host at `<team>.wizards.page`: its public pages and the client portal |
+| Sandbox | `apps/sandbox` | The cloud’s sandbox: agentOS in a container of its own, one VM per run |
+
+[Packages](./packages.md) lists every app and package, which one imports which, what a release
+ships and the folders of the runtime.
 
 ## Roles of the runtime
 
@@ -106,6 +111,7 @@ reached through Drizzle (`db/client.ts`):
   Deleting a tenant removes that one folder.
 
 Inside a tenant, the broker’s RWX rules keep the spaces apart ([The broker](#the-broker)).
+[Databases](./databases.md) lists the tables of both databases and how the migrations run.
 
 ![The control database is shared. Each tenant has its own libSQL database and its own prefix in the file store, and the broker’s RWX rules stand between its spaces](../../assets/diagrams/architecture-tenants.svg)
 
