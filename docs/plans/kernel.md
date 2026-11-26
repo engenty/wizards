@@ -34,7 +34,7 @@ than the tenant's database, prices.
 | C.11 A person answers | Built another way: see below. An ask's view (`components`, and the values in `data`) reaches the page. | `kernel/page.ts`, `kernel/views.ts` |
 | D.13 Judging runs | Built: a space sets how many of a hundred finished runs its wizards' evals judge (`space.eval_share`, 0 unless set), in the space's Info while the switch is on; the host reads it when a run ends. Scores in `run_score`, shown in the run's rows. `KERNEL_EVALS` is gone. | `kernel/host.ts`, `services/spaces.ts`, `space/SpaceSettings.tsx` |
 | D.14 A dataset and a past run | Built: `wizards eval <wizard> --dataset <file>` runs the wizard of the running install over a dataset as test runs and judges each; a past run's rows are asked again in the studio and judged with "Score now". Not in the help yet, like `wizards check`. | `cli/eval.ts`, `routes/local-eval.ts`, `services/evals.ts`, `RunRows.tsx` |
-| E Executor | In the package only, tested against the emulator. Not in the runtime. | `packages/kernel/src/executor.ts` |
+| E Executor | In the package, tested against the emulator. A battery for the runtime is on the branch `kernel/executor`, not merged: on hold while Composio comes beside our own connections ([composio.md](composio.md); engenty/wizards#770 and engenty/engenty-wizards-manage#229, both open, switch `composio`). | `packages/kernel/src/executor.ts` |
 | F.18 The map | Built: the studio draws the file's steps and edges, and a step's panel changes its ways and its limit in the file. | `apps/web/src/studio/editor/kernel-flow.ts`, `KernelFlow.tsx` |
 | F.20 A run as rows | Built: the runs panel opens a run on its rows, with the scores beside the step they judged; a row is asked again, and one a person answered is answered differently. | `apps/web/src/studio/editor/RunRows.tsx`, `RunTimeline.tsx` |
 | F.21 For those who build | The authoring guide and the studio's assistant tell of step files while the switch is on. A starter in version 0.3.0 makes a wizard with its step files, and is offered as usable only while the switch is on. The starters themselves are the marketplace's, in another repository. | `prompts/authoring.md`, `agents/architect.ts`, `services/marketplace.ts` |
@@ -257,6 +257,10 @@ Tests named here run alone, as the repository asks:
     (`POST /api/runs/:id/judge`) judges what has not been judged since.
 
 ### E. Connections through executor
+
+On hold since 2026-11-26. Services such as Gmail come through Composio first, beside our own
+connections and through the same broker ([composio.md](composio.md)). Items 15 to 17 wait on
+whether executor is still wanted once Composio is in.
 
 15. **The mail wizard in the runtime.** `packages/kernel/src/executor.ts` as a battery in the
     runtime, version pinned. A credential provider over the runtime's own connection secrets, so
