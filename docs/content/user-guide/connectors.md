@@ -109,6 +109,29 @@ address reaches such addresses. In the cloud a private address is refused.
 connection, sign in, then choose “Reload actions” on the connector. It asks the server with that
 sign-in, and what you set for each action stays. Only admins check an address and reload actions.
 
+## From Composio
+
+Composio is a service that connects hundreds of others, such as Gmail, Notion or Slack. With the
+switch `composio` on, its catalog shows in “Discover” as its own group, and “Add connection”
+searches it too. Choose “Set up”, then sign in. Composio’s own page signs you in to the service.
+
+**What engenty wizards keeps.** Composio keeps the sign-in and its tokens. engenty wizards keeps
+only which account at Composio the connection uses. Every call still goes through your space:
+its rules, its approvals, its limits and the [audit](./protocol.md). An action counts as a read
+only where Composio says it reads. Every other one counts as a change, a mail or a delete.
+
+**Your data at Composio.** What a call sends and gets passes through Composio. Composio can keep
+the content of these calls in its logs for up to a year. Connect only what you are fine with
+passing through Composio. Removing the connection, or your own sign-in, also signs you out at
+Composio.
+
+**In the cloud and on your computer.** In the cloud, the calls go through engenty’s account at
+Composio. On your computer they go the same way through your linked engenty account. With your own
+Composio API key under Settings → Models → API keys, they go to Composio directly, and your key
+wins. That key stays on your computer.
+
+Turn it on in `~/.engenty/wizards/.features` with `composio=on`.
+
 ## A connector that brings skills
 
 A plugin for Claude Code or Cursor often holds two things that belong together: an MCP server for
