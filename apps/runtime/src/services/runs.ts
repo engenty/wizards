@@ -459,33 +459,41 @@ export async function runReport(
 }
 
 /**
- * The report of a run of a wizard in version 0.3.0 (docs/plans/kernel.md): its rows, and what it
- * waits for. A form or the run's input is answered with `answer_form` and the row's step; a
- * review, or the leave for an action, with `review_step`.
+ * The report of a run of a wizard in version 0.3.0 (docs/plans/kernel.md): the report of the small
+ * wizard the run is at this moment, as its page reads it, so every door that reads a report finds
+ * what it finds for any run: the page it waits at with its fields, what the steps left behind,
+ * the run's link. Beside that the run's rows and scores, and the row it waits at. A form or the
+ * run's input is answered with `answer_form` and the row's step; a review, or the leave for an
+ * action, with `review_step`.
  */
-export async function kernelReport(run: RunRow) {
+export async function kernelReport(run: RunRow, draft?: Record<string, unknown>, viewer?: Caller) {
   const view = await kernelRuns.view(run);
+  const shown = await reportOf(kernelPage(run, view), draft, viewer);
   const asks = view.waiting.filter((row) => row.type !== "wait" || row.signal);
   const first = asks.find((row) => row.type === "approval") ?? asks[0];
+  const waits = shown.waitingFor as Record<string, unknown> | undefined;
   return {
-    runId: run.id,
-    status: run.status,
+    ...shown,
     version: "0.3.0",
     cursor: view.cursor,
     waitingFor: first
       ? {
+          ...(first.type === "wait"
+            ? {
+                wait: first.step,
+                title: String(first.title ?? first.step),
+                until: run.wakeAt?.toISOString() ?? null,
+                signal: first.signal,
+                key: first.key,
+                hint: prompt("mcp", "hint.waiting_signal"),
+              }
+            : waits),
           row: first.n,
           step: first.step,
           role: first.role,
-          ...(first.type === "form"
-            ? { form: first.step, fields: first.fields ?? [] }
-            : first.type === "approval"
-              ? { review: first.step, leaveFor: first.call, input: first.input }
-              : first.type === "review"
-                ? { review: first.step, show: first.show }
-                : { signal: first.signal, key: first.key }),
+          ...(first.type === "approval" ? { leaveFor: first.call, input: first.input } : {}),
         }
-      : null,
+      : (waits ?? null),
     rows: view.rows.map((row) =>
       "left" in row
         ? { n: row.n, step: row.step, left: true, to: row.to }
@@ -493,15 +501,18 @@ export async function kernelReport(run: RunRow) {
     ),
     scores: view.scores.map(({ asks: _asks, ...score }) => score),
     ...(view.output ? { data: view.output } : {}),
-    ...(run.error ? { error: run.error } : {}),
   };
 }
 
 /** The report of a run as it stands; `draft` as for `waitingFor`. */
 export async function runReportOf(run: RunRow, draft?: Record<string, unknown>, viewer?: Caller) {
   if (kernelOf(run.definition)) {
-    return kernelReport(run) as never;
+    return kernelReport(run, draft, viewer) as never;
   }
+  return reportOf(run, draft, viewer);
+}
+
+async function reportOf(run: RunRow, draft?: Record<string, unknown>, viewer?: Caller) {
   const current = run.definition.steps.find((s) => s.id === run.cursor) ?? null;
   const base = `/api/runs/${run.id}`;
   const hidden = viewer ? await hiddenWhileAsked(run, viewer) : [];
@@ -571,7 +582,7 @@ export async function runReportOf(run: RunRow, draft?: Record<string, unknown>, 
   };
 }
 
-export type RunReport = Awaited<ReturnType<typeof runReportOf>>;
+export type RunReport = Awaited<ReturnType<typeof reportOf>>;
 
 /** The run's data without the keys that read a step kept from the viewer. */
 function shownData(run: RunRow, data: Record<string, unknown>, hidden: string[]) {
@@ -633,6 +644,15 @@ export async function startRun(
   if (!(await canSpend())) {
     throw new ServiceError("no_credits", note("creditsUsedUp"));
   }
+  // A wizard in version 0.3.0 takes its first page's answers as the run's input, where every
+  // field that must be answered is among them. Otherwise the run asks its first page.
+  const asked = kernelOf(version.definition)?.input?.fields ?? [];
+  const given = Object.fromEntries(
+    asked.filter((f) => f.id in answers).map((f) => [f.id, answers[f.id]]),
+  );
+  const whole =
+    Object.keys(given).length > 0 &&
+    asked.every((f) => !f.required || (given[f.id] != null && given[f.id] !== ""));
   const runId = await createRun({
     wizardId: w.id,
     definition: version.definition,
@@ -642,6 +662,7 @@ export async function startRun(
     userId,
     clientSpaceId,
     chatId,
+    ...(whole ? { input: given } : {}),
   }).catch((err) => {
     if (err instanceof ModelUnavailableError) {
       throw new ServiceError("refused", saidOf(err));

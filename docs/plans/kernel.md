@@ -58,6 +58,10 @@ Where it differs from the plan:
   the step executors read (`kernel/views.ts`). A form's layout and a review's view are checked
   when the step asks: one the catalog does not know fails the ask, with what is wrong. An agent
   ask's `surface` is kept, and the view its answer brings is shown where the step is shown.
+- **The report of a run is the report of the small wizard it is at that moment,** with its rows
+  and scores beside it. So the MCP door's tools, the questions a calling app shows and a run
+  followed as a task read a run of version 0.3.0 as they read any run. A run started with its
+  first page's answers takes them as its input, where every field that must be answered is given.
 - **How a step's code runs follows decision 6:** ordinary code where the runner serves one tenant
   or the install is your own and the wizard is your own; QuickJS for a wizard from a starter and
   in every shared runner. `KERNEL_STEPS` overrides it for a runner.
@@ -72,6 +76,8 @@ Where it differs from the plan:
   for an action, a wait the clock ends, evals, the switch, the services, the run's page, a
   converted wizard run to its end, signals by address (`kernel-signals`), and views
   (`kernel-views`).
+- The MCP door (`test/mcp-runs-kernel.test.ts`): a run answered page by page with the tools every
+  run has, its pages as questions the calling app shows, and the run followed as a task.
 - A restart of the runner at each kind of wait (`test/kernel-restart-process.test.ts`): a person,
   a time, a signal and the leave for an action, each reached in one process that is then killed
   and left in another, with steps as ordinary code and in QuickJS. Nothing is asked or done twice.
