@@ -133,6 +133,6 @@ Open:
 1. Merged entries: `unlisted`, or removed with a redirect from their pages? Decided 2026-11-27:
    `unlisted`, as built.
 2. claim: one wizard for four kinds, or four small wizards that share one file of step code, as
-   an organization offers mostly one kind?
+   an organization offers mostly one kind? Decided 2026-11-27: one wizard, as built.
 3. English: wait for translations in 0.3.0, or keep `wizard.en.json` as version 0.2.0 beside a
    German 0.3.0?
