@@ -1,5 +1,5 @@
 import { totalmem } from "node:os";
-import { fits, type LocalServer } from "@engenty/local-models/servers";
+import { fits, type LocalServer } from "@engenty/model-providers/servers";
 import {
   type HeldModel,
   type LocalModelsState,

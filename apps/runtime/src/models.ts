@@ -6,11 +6,11 @@ import { createGateway } from "@ai-sdk/gateway";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createReplicate } from "@ai-sdk/replicate";
-import { ClientModel } from "@engenty/local-models/clients";
-import { lmStudioFetch, lmStudioRoot } from "@engenty/local-models/lmstudio";
-import { mlxModel } from "@engenty/local-models/mlx";
-import { ollamaRoot } from "@engenty/local-models/ollama";
-import { SERVERS, type ServerId } from "@engenty/local-models/servers";
+import { ClientModel } from "@engenty/model-providers/clients";
+import { lmStudioFetch, lmStudioRoot } from "@engenty/model-providers/lmstudio";
+import { mlxModel } from "@engenty/model-providers/mlx";
+import { ollamaRoot } from "@engenty/model-providers/ollama";
+import { SERVERS, type ServerId } from "@engenty/model-providers/servers";
 import type { Lang, VideoResolution } from "@engenty/wizards-shared/definition";
 import {
   DEFINITION_VERSION,
@@ -486,7 +486,7 @@ function parse(ref: string): { provider: string | null; id: string; vendor: stri
 
 const vendorOf = (ref: string) => parse(ref).vendor;
 
-/** A server for open models on this machine (@engenty/local-models). */
+/** A server for open models on this machine (@engenty/model-providers). */
 const isServer = (provider: string | null): provider is ServerId =>
   provider !== null && Object.hasOwn(SERVERS, provider);
 

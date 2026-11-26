@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { homedir, totalmem } from "node:os";
 import { delimiter, join } from "node:path";
 import * as p from "@clack/prompts";
-import { ollamaAddress, pullModel } from "@engenty/local-models/ollama";
+import { ollamaAddress, pullModel } from "@engenty/model-providers/ollama";
 import { CLIENTS, type ClientEntry, installCommand } from "@engenty/model-setup";
 import {
   appAsksForPassword,

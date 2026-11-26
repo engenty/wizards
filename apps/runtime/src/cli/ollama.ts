@@ -1,4 +1,4 @@
-import { ollamaAddress, ollamaState } from "@engenty/local-models/ollama";
+import { ollamaAddress, ollamaState } from "@engenty/model-providers/ollama";
 import { findOllama } from "@engenty/model-setup/server";
 import { decisionModelIn } from "../decision-model.js";
 

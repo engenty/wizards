@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@engenty/chatviews": "workspace:*",
-    "@engenty/local-models": "workspace:*",
+    "@engenty/model-providers": "workspace:*",
     "@lydell/node-pty": "1.1.0"
   },
   "peerDependencies": {

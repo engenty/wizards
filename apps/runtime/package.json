@@ -21,7 +21,7 @@
     "@ai-sdk/replicate": "3.0.76",
     "@clack/prompts": "^1.8.1",
     "@engenty/chatviews": "workspace:*",
-    "@engenty/local-models": "workspace:*",
+    "@engenty/model-providers": "workspace:*",
     "@engenty/model-setup": "workspace:*",
     "@engenty/search-index": "workspace:*",
     "@engenty/tool-harness": "workspace:*",

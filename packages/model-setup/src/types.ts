@@ -1,5 +1,5 @@
-import type { ClientAuth } from "@engenty/local-models/clients";
-import type { ServerId, ServerTrouble } from "@engenty/local-models/servers";
+import type { ClientAuth } from "@engenty/model-providers/clients";
+import type { ServerId, ServerTrouble } from "@engenty/model-providers/servers";
 
 /** A client on this computer: what the setup and the settings show of it. */
 export interface ClientSetupStatus<Id extends string = string> {

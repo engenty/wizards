@@ -1,5 +1,5 @@
 import { Button, cn, Input } from "@engenty/chatviews/react/ui";
-import type { ServerId } from "@engenty/local-models/servers";
+import type { ServerId } from "@engenty/model-providers/servers";
 import { ExternalLink, Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { type LocalModelsState, MODEL_JOBS, type ModelDownload, type ModelJob } from "../types.js";

@@ -93,7 +93,7 @@ export interface ClientAnswer {
 }
 
 const callDir = (workDir: string | undefined) =>
-  join(workDir ?? join(tmpdir(), "engenty-local-models"), randomBytes(8).toString("hex"));
+  join(workDir ?? join(tmpdir(), "engenty-model-providers"), randomBytes(8).toString("hex"));
 
 /** A failure as the host wants it: ENOENT is a client that is not installed. */
 function hostError(
