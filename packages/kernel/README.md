@@ -1,5 +1,7 @@
 # The wizard kernel
 
+Licence: MIT ([LICENSE](LICENSE)). Use it in any app, open or closed, and keep the licence text with it.
+
 The engine of a wizard in version 0.3.0 of the format: a file and a folder of steps, moved by a
 cursor. That is all a wizard is. The runtime is its host behind the switch `kernel`
 (`apps/runtime/src/kernel`, docs/plans/kernel.md).
