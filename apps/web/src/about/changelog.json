@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.22.1",
+    "timestamp": 1795793432,
+    "commits": [
+      {
+        "id": "6dc9146",
+        "message": "a wizard in version 0.3.0 needs the plugins whose tools its file lists (#778)",
+        "group": "Fixed",
+        "scope": "marketplace",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.22.0",
-    "timestamp": 1795787421,
+    "timestamp": 1795787558,
     "commits": [
       {
         "id": "cb1ea0f",
