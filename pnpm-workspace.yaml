@@ -24,8 +24,6 @@ overrides:
   pdfjs-dist@5>@napi-rs/canvas: 1.1.1
   "@executor-js/plugin-openapi>lucide-react": "-"
   # Security fixes for packages others pull in, until their parents move up:
-  # mermaid (docs) pins dompurify 3.4.16, whose HTML cleaning can be bypassed (critical).
-  mermaid>dompurify: ^3.4.17
   # effect's CLI parses TOML with toml 4, which a crafted file keeps busy (CPU DoS). Only its
   # unstable CLI imports it, which nothing here runs; 5.x keeps `parse`.
   effect>toml: ^5.0.1
