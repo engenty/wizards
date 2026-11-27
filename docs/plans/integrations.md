@@ -115,7 +115,8 @@ In Manage, `manage-app.ts` hands `/.well-known/*` to `auth.handler`, so these ro
 ## Not in this plan
 
 - **A hosted broker** (Nango, Composio and the like). Tokens and calls would pass another company,
-  which the model tiers' sub-processor lists and the broker's log don't cover.
+  which the model tiers' sub-processor lists and the broker's log don't cover. Changed on
+  2026-11-26: Composio comes beside our own connections, see `docs/plans/composio.md`.
 - **A registry of our own.** integrations.sh stays the source, and the env var stays the way out.
 - **2c** („Mit Freigabe“ waits in a run). It belongs to `capabilities-next.md` and the durable branch.
 

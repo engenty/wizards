@@ -91,6 +91,7 @@ const BUILT = [
   "apps/web/dist",
   "packages/shared/dist",
   "packages/wizards/dist",
+  "packages/kernel/dist",
   ...LIBRARIES.map((dir) => `packages/${dir}/dist`),
 ];
 if (flag("skip-build")) {

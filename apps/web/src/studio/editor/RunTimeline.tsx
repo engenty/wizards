@@ -3,10 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronLeft, Copy } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api";
+import { useFeature } from "../../lib/features";
 import { eventText, type Key, lang, t } from "../../lib/i18n";
 import { Button, Chip, cn, IconButton } from "../../ui";
 import { useRunActions, WaitBanner, waitsNow } from "./RunControls";
 import { KIND, logText, time } from "./RunLog";
+import { RunRows } from "./RunRows";
 
 export const STATUS: Record<string, Key> = {
   waiting_input: "runs.status.waiting_input",
@@ -50,6 +52,8 @@ export function RunTimeline({
     refetchInterval: 5000,
   });
   const actions = useRunActions(runId, wizardId, () => query.refetch());
+  // "Continue now" and "Stop" come with runs that last for days.
+  const durable = useFeature("durableRuns");
   const run = query.data;
   if (!run) {
     return null;
@@ -100,75 +104,89 @@ export function RunTimeline({
       ) : (
         <div className="h-2" />
       )}
-      {waitsNow(run.status) ? <WaitBanner run={run} actions={actions} /> : null}
+      {durable && waitsNow(run.status) ? <WaitBanner run={run} actions={actions} /> : null}
       {/* Outside the banner: a refusal says the run moved on, and the banner goes with that. */}
       {actions.error ? (
         <p className="px-3 pt-2 text-[0.8125rem] text-rose">{actions.error.message}</p>
       ) : null}
-      <div className="mt-1 flex h-10 items-center gap-2 pr-1.5 pl-3">
-        <span className="font-medium text-[0.75rem] text-ink-3 uppercase tracking-[0.07em]">
-          {t("log.title")}
-        </span>
-        <span className="text-[0.75rem] text-ink-4 tabular-nums">
-          {t("log.count", { count: lines.length })}
-        </span>
-        <span className="flex-1" />
-        {lines.length ? (
-          <IconButton
-            label={t(copied ? "log.copied" : "log.copy")}
-            onClick={() => {
-              void navigator.clipboard
-                .writeText(logText(lines, titles))
-                .then(() => setCopied(true))
-                .catch(() => {});
-              setTimeout(() => setCopied(false), 1500);
-            }}
-          >
-            {copied ? <Check className="size-4 text-moss" /> : <Copy className="size-4" />}
-          </IconButton>
-        ) : null}
-      </div>
-      {run.total > run.events.length ? (
-        <p className="px-3 pb-1 text-[0.75rem] text-ink-3">
-          {t("runs.olderLeftOut", { n: run.events.length, total: run.total })}
-        </p>
+      {run.kernel ? (
+        <RunRows
+          runId={run.id}
+          wizardId={wizardId}
+          roles={run.kernel.roles}
+          canAct={run.canAct}
+          onChanged={() => void query.refetch()}
+        />
       ) : null}
-      <ol className="px-3 text-[0.75rem]">
-        {lines.map((ev, i) => {
-          const { Icon, tone } = KIND[ev.type];
-          const day = dayOf(ev.at);
-          return (
-            <li key={ev.id}>
-              {day !== (i ? dayOf(lines[i - 1].at) : null) ? (
-                <div className="pt-3 pb-1 font-medium text-ink-3">{day}</div>
-              ) : null}
-              <div className="grid grid-cols-[4.25rem_1rem_minmax(0,1fr)] items-start gap-x-2 border-border-soft/60 border-t py-1.5">
-                <span className="text-ink-4 tabular-nums leading-5">{time(ev.at)}</span>
-                <Icon
-                  className={cn("mt-1 size-3.5", tone)}
-                  aria-label={t(`log.kind.${ev.type}` as Key)}
-                />
-                <span className="min-w-0 leading-5">
-                  {ev.stepId ? (
-                    <span className="mr-1.5 font-medium text-ink">
-                      {titles[ev.stepId] ?? ev.stepId}
-                    </span>
+      {/* A run of version 0.3.0 tells what it did in its rows; its log is shown where it has lines. */}
+      {run.kernel && !lines.length ? null : (
+        <>
+          <div className="mt-1 flex h-10 items-center gap-2 pr-1.5 pl-3">
+            <span className="font-medium text-[0.75rem] text-ink-3 uppercase tracking-[0.07em]">
+              {t("log.title")}
+            </span>
+            <span className="text-[0.75rem] text-ink-4 tabular-nums">
+              {t("log.count", { count: lines.length })}
+            </span>
+            <span className="flex-1" />
+            {lines.length ? (
+              <IconButton
+                label={t(copied ? "log.copied" : "log.copy")}
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(logText(lines, titles))
+                    .then(() => setCopied(true))
+                    .catch(() => {});
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+              >
+                {copied ? <Check className="size-4 text-moss" /> : <Copy className="size-4" />}
+              </IconButton>
+            ) : null}
+          </div>
+          {run.total > run.events.length ? (
+            <p className="px-3 pb-1 text-[0.75rem] text-ink-3">
+              {t("runs.olderLeftOut", { n: run.events.length, total: run.total })}
+            </p>
+          ) : null}
+          <ol className="px-3 text-[0.75rem]">
+            {lines.map((ev, i) => {
+              const { Icon, tone } = KIND[ev.type];
+              const day = dayOf(ev.at);
+              return (
+                <li key={ev.id}>
+                  {day !== (i ? dayOf(lines[i - 1].at) : null) ? (
+                    <div className="pt-3 pb-1 font-medium text-ink-3">{day}</div>
                   ) : null}
-                  <span
-                    className={cn(
-                      "break-words",
-                      ev.type === "error" ? "text-rose" : "text-ink-2",
-                      ev.type === "tool" && "font-mono text-[0.6875rem]",
-                    )}
-                  >
-                    {textOf(ev)}
-                  </span>
-                </span>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+                  <div className="grid grid-cols-[4.25rem_1rem_minmax(0,1fr)] items-start gap-x-2 border-border-soft/60 border-t py-1.5">
+                    <span className="text-ink-4 tabular-nums leading-5">{time(ev.at)}</span>
+                    <Icon
+                      className={cn("mt-1 size-3.5", tone)}
+                      aria-label={t(`log.kind.${ev.type}` as Key)}
+                    />
+                    <span className="min-w-0 leading-5">
+                      {ev.stepId ? (
+                        <span className="mr-1.5 font-medium text-ink">
+                          {titles[ev.stepId] ?? ev.stepId}
+                        </span>
+                      ) : null}
+                      <span
+                        className={cn(
+                          "break-words",
+                          ev.type === "error" ? "text-rose" : "text-ink-2",
+                          ev.type === "tool" && "font-mono text-[0.6875rem]",
+                        )}
+                      >
+                        {textOf(ev)}
+                      </span>
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </>
+      )}
     </div>
   );
 }

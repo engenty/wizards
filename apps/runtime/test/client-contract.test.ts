@@ -228,6 +228,17 @@ describe("the client contract", () => {
     );
     expect(ctx.dataSpace.id).toBe(wagner);
     expect(ctx.space.id).toBe(spaceId);
+    // What a step says while it works is filed under that step, not where the run stands.
+    const own = await local(async () =>
+      runner.makeContext(run as any, await runner.loadSpace(run as any), run!.state, new AbortController().signal, {
+        stepId: "research",
+      }),
+    );
+    await local(() => own.emit("info", "Reading example.org"));
+    const said = await local(() =>
+      db.db.select().from(db.schema.runEvent).where(eq(db.schema.runEvent.runId, runId)),
+    );
+    expect(said.find((e) => e.message === "Reading example.org")?.stepId).toBe("research");
     // Waiting on its first page, it is the client's to do.
     expect((await call("tok-wagner", "for_you", wagner)).result.waiting.map((r: any) => r.runId)).toEqual([runId]);
     const view = await app.fetch(new Request(`http://localhost:5181/api/runs/${runId}?rt=${ticket}`));

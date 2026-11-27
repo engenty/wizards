@@ -50,16 +50,28 @@ await migrateControlDb();
 await loadEntitlement();
 // Before any tenant database opens: each gets the plugins' own tables as it does.
 await loadPlugins();
-startJobs();
-startStarts();
-startNotices();
+/**
+ * A tenant's runner (`RUNNER_TENANT`) drives its tenant's runs and nothing else: the clock's work
+ * over the tenants (starts, notices, the plugins' jobs, the mailboxes), the admin app's reports
+ * and the hourly purge stay with the shared runner, which does them for every tenant.
+ */
+const sharedWork = !env.runner.tenant;
+if (sharedWork) {
+  startJobs();
+  startStarts();
+  startNotices();
+}
 if (managed) {
-  // Every tenant database is brought to this release's schema; a new one migrates when first opened.
+  // Every tenant database is brought to this release's schema; a new one migrates when first
+  // opened. A tenant's runner opens its own alone.
   void migrateAllTenants()
     .then(({ migrated, failed }) => {
       console.log(
         `tenant databases: ${migrated} current${failed.length ? `, failed: ${failed}` : ""}`,
       );
+      if (!sharedWork) {
+        return;
+      }
       // The files of before 0.16 move to the blob store, once (cli/move-files.ts).
       if (env.serves.studio) {
         void import("./cli/move-files.js")
@@ -137,7 +149,9 @@ if (env.serves.runner) {
   await registerRunner();
   setInterval(() => void registerRunner().catch(() => undefined), 10_000).unref();
   startRunner();
-  startMailWatch();
+  if (sharedWork) {
+    startMailWatch();
+  }
 }
 
 // End-user results are kept RESULT_TTL_DAYS; expired runs and their files go once an hour.
@@ -157,7 +171,13 @@ async function purge() {
     ).catch((err) => console.error(`[retention ${id}]`, err));
   }
 }
-void purge().catch((err) => console.error("[retention]", err));
+if (sharedWork) {
+  void purge().catch((err) => console.error("[retention]", err));
+  setInterval(
+    () => void purge().catch((err) => console.error("[retention]", err)),
+    3600_000,
+  ).unref();
+}
 
 // The files of before 0.16 move to the blob store, once (cli/move-files.ts). In the cloud this
 // waits for the tenants' migrations, above.
@@ -211,7 +231,6 @@ if (env.serves.studio) {
   };
   setInterval(() => void criticalMails(), 3600_000).unref();
 }
-setInterval(() => void purge().catch((err) => console.error("[retention]", err)), 3600_000).unref();
 
 // A runtime that runs alone sends again what did not arrive in its account's cloud.
 if (!managed) {

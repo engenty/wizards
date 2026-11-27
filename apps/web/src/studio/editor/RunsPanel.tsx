@@ -29,15 +29,19 @@ const START_ICONS = { schedule: Clock, webhook: Link2, record: Table2, wizard: W
 export function RunsPanel({
   wizardId,
   starts,
+  kernel,
   onOpen,
 }: {
   wizardId: string;
+  /** The wizard is of version 0.3.0: a run opens on its rows. */
+  kernel?: boolean;
   /** The wizard's starts, so a run says which one began it. */
   starts: WizardStart[];
   onOpen: (runId: string) => void;
 }) {
   // With runs that last for days a run opens on its timeline here; the timeline opens the run.
-  const timelines = useFeature("durableRuns");
+  const durable = useFeature("durableRuns");
+  const timelines = durable || Boolean(kernel);
   const [shown, setShown] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const q = useDeferredValue(filter.trim());

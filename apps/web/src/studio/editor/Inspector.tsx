@@ -38,6 +38,7 @@ import {
   whenCalc,
   whenText,
 } from "@engenty/wizards-shared/definition";
+import { withKernelFile } from "@engenty/wizards-shared/kernel-file";
 import type { BranchDecision, RunEstimate } from "@engenty/wizards-shared/run";
 import { wizardToolId, wizardToolsIn } from "@engenty/wizards-shared/wizard-code";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
@@ -93,6 +94,8 @@ import {
 import { ModelClassControl, StepCost, useEstimate } from "./estimate";
 import { conditionText, percent, whenWords } from "./FlowDiagram";
 import { HoldToDelete } from "./HoldToDelete";
+import { type KernelWizard, useKernelCards } from "./KernelFlow";
+import { KernelNeeds } from "./KernelNeeds";
 import { stepIcon, stepSummary, TYPE_TONE, toolLabel, typeLabel } from "./meta";
 import { NeedsSection } from "./NeedsSection";
 import { ShareEditor } from "./ShareEditor";
@@ -1558,6 +1561,11 @@ export function WizardSettings({
         wizardId={wizardId}
         costume={<CostumePicker def={def} update={update} />}
       />
+      {def.kernel ? (
+        <Section title={t("kernel.needs.title")}>
+          <KernelNeeds file={def.kernel} onFile={(file) => update(withKernelFile(def, file))} />
+        </Section>
+      ) : null}
       {def.connections?.length ? (
         <Section title={t("needs.title")}>
           <NeedsSection wizardId={wizardId} />
@@ -1619,11 +1627,19 @@ export function StepNav({
   issues,
   warnings,
   run,
+  kernel,
 }: Pick<InspectorProps, "def" | "selected" | "onSelect" | "issues" | "warnings"> & {
   run?: { shown: boolean; at: string | null; onShow: () => void } | null;
+  /** A wizard of version 0.3.0: its steps are read from its step files, not from `def.steps`. */
+  kernel?: KernelWizard;
 }) {
   const result = def.steps.find((s) => s.type === "result") ?? null;
-  const steps = def.steps.filter((s) => s !== result);
+  const cards = useKernelCards(kernel).steps;
+  const steps = kernel
+    ? cards.filter((card) => card.id !== "end")
+    : def.steps
+        .filter((s) => s !== result)
+        .map((s) => ({ id: s.id, title: s.title, icon: stepIcon(s), tone: TYPE_TONE[s.type] }));
   // The arrows walk from the wizard's settings through the steps to the result.
   const ids = [SETTINGS, ...steps.map((s) => s.id), ...(result ? [result.id] : [])];
   const at = selected ? ids.indexOf(selected) : -1;
@@ -1716,7 +1732,7 @@ export function StepNav({
           </>
         ) : null}
         {steps.map((step, i) => {
-          const Icon = stepIcon(step);
+          const Icon = step.icon;
           const active = step.id === selected;
           const broken = issues.some((issue) => issue.stepId === step.id);
           const warned = warnings.some((warning) => warning.stepId === step.id);
@@ -1733,7 +1749,7 @@ export function StepNav({
                 className={cn(
                   dot,
                   "relative",
-                  TYPE_TONE[step.type],
+                  step.tone,
                   active ? "ring-2 ring-ember" : "opacity-70 hover:opacity-100",
                 )}
               >

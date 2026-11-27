@@ -71,7 +71,7 @@ const port = num("API_PORT", 24368);
 const fromSource = import.meta.url.endsWith(".ts");
 const sandboxImage = str("SANDBOX_IMAGE", "engenty-sandbox:latest");
 
-const ROLES = ["studio", "doors", "api", "web", "runner", "all"] as const;
+const ROLES = ["studio", "doors", "api", "web", "runner", "broker", "all"] as const;
 type Role = (typeof ROLES)[number];
 
 function role(): Role {
@@ -101,8 +101,10 @@ export const env = {
    * plugins' public routes). `api`: outside clients alone, MCP and `/api/v1`, so they scale and
    * fail apart from the studio (docs/plans/modular.md); `studio` serves them too until the cloud
    * routes them to an `api` process. `web`: both halves. `runner`: takes the runs that wait and drives
-   * them (it serves the routes too, for what the web hands it). `all`: everything in one process
-   * (a runtime that runs alone). docs/plans/runner-process.md.
+   * them (it serves the routes too, for what the web hands it). `broker`: holds the keys to the
+   * connected accounts and the model gateway for the runners of one tenant each, which reach it over
+   * the peer routes (docs/plans/kernel.md, item 24); it serves nothing else. `all`: everything in
+   * one process (a runtime that runs alone). docs/plans/runner-process.md.
    */
   role: role(),
   /** Which parts this process serves, from its role. */
@@ -113,12 +115,34 @@ export const env = {
     api: ["api", "studio", "web", "runner", "all"].includes(role()),
     /** The index's sweeps, in one process of a runtime: a runner serves the studio's routes too. */
     vectors: ["studio", "web", "all"].includes(role()),
+    /** The broker's peer routes, for the runners of one tenant each. */
+    broker: role() === "broker",
+  },
+  /**
+   * The broker as a process of its own (docs/plans/kernel.md, item 24). A runner of one tenant
+   * (`RUNNER_TENANT`) holds no keys: its connector and model calls go to `url`, signed with `key`.
+   */
+  broker: {
+    /** Where a tenant's runner reaches the broker, e.g. `http://broker:8892`. */
+    url: str("BROKER_URL").replace(/\/$/, ""),
+    /**
+     * A tenant runner's key: HMAC-SHA256 of `broker:<tenant>` under the broker's secret, in hex
+     * (`brokerKeyOf`). It signs for that tenant alone.
+     */
+    key: str("BROKER_KEY"),
+    /** The broker's own: the key of every tenant's runner is made from it. */
+    secret: str("BROKER_SECRET"),
   },
   runner: {
     /** This runner's name in the control database; a new one each start. */
     id: `${hostname()}-${randomBytes(3).toString("hex")}`,
     /** Where the web reaches this runner (the browser's screen of a run it holds). */
     url: str("RUNNER_URL").replace(/\/$/, ""),
+    /**
+     * The one tenant this runner serves (docs/plans/kernel.md): it takes no other tenant's runs,
+     * and so may run that tenant's own step code as ordinary code. Empty: every tenant's, as today.
+     */
+    tenant: str("RUNNER_TENANT"),
     /**
      * Pinged after a look at the line, at most once a minute: an outside monitor that hears
      * nothing knows the runner stopped taking runs. Empty = no ping.

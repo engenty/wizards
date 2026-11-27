@@ -51,6 +51,8 @@ export async function spacesView(r: Reader) {
       readOnly: p.origin === "local" || !build,
       /** „Mitglieder dürfen ins Studio“: the organization's members build here too. */
       membersStudio: p.membersStudio,
+      /** Of a hundred finished runs in version 0.3.0, how many the evals judge. */
+      evalShare: p.evalShare,
       /** Whether this person reaches the space's Studio: a member only by the rule above. */
       studio: await studioOpen(p),
       /** How the admins hear of the broker's critical lines: Work's bell, the hourly mail. */

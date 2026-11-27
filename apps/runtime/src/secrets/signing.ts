@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { env } from "../env.js";
 
 /** The query the signature covers: everything but exp/sig, sorted, so parameter order never matters. */
@@ -113,6 +113,54 @@ export function runWaitTicketValid(runId: string, ticket: string | undefined): b
     return false;
   }
   return sameSignature(`run-wait:${runId}|${exp}`, sig);
+}
+
+/**
+ * The key of one tenant's runner for the broker (docs/plans/kernel.md, item 24): what it signs
+ * with, for that tenant alone. The broker makes it again from its secret to check a ticket.
+ */
+export function brokerKeyOf(tenant: string, secret = env.broker.secret): string {
+  return createHmac("sha256", secret).update(`broker:${tenant}`).digest("hex");
+}
+
+export type BrokerPurpose = "call" | "connected" | "gateway";
+
+/** What a broker ticket covers: what it is for, the tenant, the body where it has one. */
+function brokerPayload(purpose: BrokerPurpose, tenant: string, body: string | null, exp: string) {
+  const hash = body === null ? "-" : createHash("sha256").update(body).digest("base64url");
+  return `${purpose}:${tenant}:${hash}|${exp}`;
+}
+
+/**
+ * A tenant runner's ticket to the broker: a call with its body, or the model gateway with none (a
+ * stream). Good for a minute; the gateway's for an hour, which a model call may stream that long.
+ */
+export function brokerTicket(purpose: BrokerPurpose, tenant: string, body: string | null): string {
+  const exp = String(Math.floor(Date.now() / 1000) + (purpose === "gateway" ? 3600 : 60));
+  const sig = createHmac("sha256", env.broker.key)
+    .update(brokerPayload(purpose, tenant, body, exp))
+    .digest("base64url");
+  return `${exp}.${sig}`;
+}
+
+/** Whether a broker ticket is one the runner of `tenant` signed. Without the secret, none is. */
+export function brokerTicketValid(
+  purpose: BrokerPurpose,
+  tenant: string,
+  body: string | null,
+  ticket: string | undefined,
+): boolean {
+  const [exp, sig] = (ticket ?? "").split(".");
+  if (!env.broker.secret || !exp || !sig || Number(exp) * 1000 < Date.now()) {
+    return false;
+  }
+  const expected = Buffer.from(
+    createHmac("sha256", brokerKeyOf(tenant))
+      .update(brokerPayload(purpose, tenant, body, exp))
+      .digest("base64url"),
+  );
+  const given = Buffer.from(sig);
+  return expected.length === given.length && timingSafeEqual(expected, given);
 }
 
 /** `runViewTicket` for a mail about a run's end: it lasts as long as the run is kept. */

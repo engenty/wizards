@@ -78,6 +78,7 @@ import { env } from "../env.js";
 import { feature, features, forgetAccountFeatures } from "../features.js";
 import { appleStatus } from "../harness/apple.js";
 import { detectHarness, detectHarnesses, harness } from "../harness/index.js";
+import { editStep, kernelOutline } from "../kernel/outline.js";
 import {
   connectorsView,
   filesView,
@@ -162,6 +163,7 @@ import {
   rotateInCloud,
   syncToCloud,
 } from "../services/cloud.js";
+import { convertWizard } from "../services/convert.js";
 import { notFound, ServiceError } from "../services/errors.js";
 import { deleteFile, listFiles, readFile, writeFile } from "../services/files.js";
 import {
@@ -1706,6 +1708,10 @@ export const studio = new Hono<Vars>()
   .post("/wizards/:id/duplicate", async (c) =>
     c.json(await duplicateWizard(c.get("user").id, c.req.param("id"))),
   )
+  // A copy made of step files; the wizard itself stays.
+  .post("/wizards/:id/convert", async (c) =>
+    c.json(await convertWizard(c.get("user").id, c.req.param("id"))),
+  )
   .delete("/wizards/:id", async (c) => {
     if (!managed) {
       await removeFromCloud(c.get("user").id, c.req.param("id"));
@@ -1992,6 +1998,8 @@ export const studio = new Hono<Vars>()
         c.req.param("id"),
         c.req.param("stepId"),
         c.req.query("lang") ?? null,
+        // Which of a step's asks, in a wizard of version 0.3.0.
+        Math.max(0, Number.parseInt(c.req.query("ask") ?? "0", 10) || 0),
       ),
     ),
   )
@@ -2024,6 +2032,33 @@ export const studio = new Hono<Vars>()
   .get("/wizards/:id/files", async (c) =>
     c.json(await listFiles(c.get("user").id, c.req.param("id"))),
   )
+  .get("/wizards/:id/outline", async (c) =>
+    c.json({ steps: await kernelOutline(await listFiles(c.get("user").id, c.req.param("id"))) }),
+  )
+  // One text of a step typed over in the studio: written into the step's file where it stands.
+  .post("/wizards/:id/outline", async (c) => {
+    const body = z
+      .object({
+        step: z.string().regex(/^[\w-]+$/),
+        hash: z.string(),
+        at: z.tuple([z.number().int().min(0), z.number().int().min(0)]),
+        value: z.union([
+          z.string(),
+          z.array(z.union([z.string(), z.object({ $code: z.string() })])),
+        ]),
+      })
+      .parse(await c.req.json());
+    const user = c.get("user").id;
+    const path = `steps/${body.step}.ts`;
+    const { file, data } = await readFile(user, c.req.param("id"), path);
+    if (file.hash !== body.hash) {
+      throw new ServiceError("revision_conflict", "The step has changed. Load it again.");
+    }
+    const next = await editStep(data.toString("utf8"), body.at, body.value);
+    return c.json(
+      await writeFile(user, c.req.param("id"), path, new TextEncoder().encode(next), file.mime),
+    );
+  })
   .get("/wizards/:id/files/:path{.+}", async (c) => {
     const { file, data } = await readFile(c.get("user").id, c.req.param("id"), c.req.param("path"));
     return c.body(new Uint8Array(data), 200, {
@@ -2034,6 +2069,14 @@ export const studio = new Hono<Vars>()
   })
   .put("/wizards/:id/files/:path{.+}", async (c) => {
     const data = new Uint8Array(await c.req.arrayBuffer());
+    // Written from an editor, a file is replaced only while it is the version that was read.
+    const read = c.req.header("if-match");
+    if (read) {
+      const files = await listFiles(c.get("user").id, c.req.param("id"));
+      if (files.find((f) => f.path === c.req.param("path"))?.hash !== read) {
+        throw new ServiceError("revision_conflict", "The file has changed. Load it again.");
+      }
+    }
     const file = await writeFile(
       c.get("user").id,
       c.req.param("id"),

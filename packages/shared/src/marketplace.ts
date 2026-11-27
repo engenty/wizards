@@ -432,7 +432,7 @@ export interface MarketplaceFilters {
   format?: ItemFormat;
   capability?: Capability;
   plan?: MarketplacePlan;
-  /** The version of the format the entry's wizard is written in (`FORMAT_VERSIONS`). */
+  /** The version of the format the entry's wizard is written in: `0.2.0`, `0.3.0`. */
   version?: string;
 }
 

@@ -46,6 +46,7 @@ A pnpm workspace:
 | `packages/shared/` | types and schemas the server and the SPA both use |
 | `packages/wizards/` | `@engenty/wizards`, the one package code outside this repo imports: `/plugin` (a plugin’s server half), `/plugin/studio`, `/plugin/thread`, `/openui` (wizards in OpenUI chats), `/openui/server` |
 | `packages/decision-model/`, `search-index/`, `search-libsql/`, `tool-harness/`, `vault/`, `plugins/`, `browser/`, `model-providers/`, `model-setup/` | the MIT libraries of the engenty framework, each on npm under its own name (below) |
+| `packages/kernel/` | the engine of a wizard made of step files (version 0.3.0): the kernel, QuickJS for a step's code, the check of a wizard's folder. The runtime is its host (`apps/runtime/src/kernel/`, `docs/plans/kernel.md`) |
 | `modules/` | plugins that ship with the runtime |
 | `examples/plugins/` | example plugins; loaded with `PLUGINS_DIR=examples/plugins` |
 | `scripts/build-plugin.mjs` | builds a plugin's studio half |

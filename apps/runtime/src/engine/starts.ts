@@ -11,7 +11,7 @@ import {
 } from "@engenty/wizards-shared/starts";
 import { and, eq, isNull, ne, notInArray, or, sql } from "drizzle-orm";
 import { unwatchedScope } from "../connectors/person-connections.js";
-import { control, controlDb, db, schema, withTenant } from "../db/client.js";
+import { activeTenants, db, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
 import { wizardUnavailable } from "../limits.js";
@@ -264,12 +264,8 @@ async function lookAtSchedule(w: WizardRow, start: WizardStart, now: Date) {
 
 /** Deals with every schedule that is due, in every active tenant; done when they all were. */
 export async function runDueSchedules(now = new Date()): Promise<void> {
-  const tenants = await controlDb.query.tenant.findMany({
-    where: eq(control.tenant.status, "active"),
-    columns: { id: true },
-  });
-  for (const tenant of tenants) {
-    await withTenant(tenant.id, async () => {
+  for (const tenant of await activeTenants()) {
+    await withTenant(tenant, async () => {
       const wizards = await db.query.wizard.findMany({
         where: ne(schema.wizard.starts, sql`'[]'`),
       });
@@ -286,7 +282,7 @@ export async function runDueSchedules(now = new Date()): Promise<void> {
           }
         }
       }
-    }).catch((err) => console.error(`[starts ${tenant.id}]`, err));
+    }).catch((err) => console.error(`[starts ${tenant}]`, err));
   }
 }
 

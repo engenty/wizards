@@ -16,6 +16,7 @@ import {
   wizardAgentFiles,
   wizardToolFileIssues,
 } from "../engine/wizard-code.js";
+import { kernelCodeIssues } from "../kernel/check.js";
 import { json, readManifest, readPackage } from "../services/package-file.js";
 import { bad, dim, ok } from "./ui.js";
 
@@ -28,7 +29,8 @@ import { bad, dim, ok } from "./ui.js";
  * wizard's tools (`files/tools/`) are read as a run reads them: a function tool's file in
  * QuickJS, a sandbox tool's `TOOL.md` with its front matter. Its agents (`files/agents/`) are
  * read as a run reads them. The SQL of the wizard's own database is read too: its schema and
- * migrations split into statements the runtime runs.
+ * migrations split into statements the runtime runs. The step files of a wizard in version 0.3.0
+ * (`files/steps/`) are compiled as a run compiles them, and their ways read against its map.
  */
 
 interface Checked {
@@ -141,6 +143,10 @@ export async function validatePath(path: string): Promise<Checked> {
     ...wizardSkillIssues(given.files, skillMds),
     ...(parsed.ok ? await sandboxToolHostIssues(parsed.wizard.steps, given.files, given.read) : []),
     ...(parsed.ok ? await dataIssues(parsed.wizard, given) : []),
+    // A wizard in version 0.3.0: its step files compiled, and their ways against the map.
+    ...(parsed.ok && parsed.wizard.kernel
+      ? await kernelCodeIssues(parsed.wizard.kernel, given.files, given.read)
+      : []),
   ];
   return {
     path,

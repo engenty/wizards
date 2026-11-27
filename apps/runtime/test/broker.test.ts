@@ -521,6 +521,22 @@ describe("the run's grant, fixed at start", () => {
     });
   });
 
+  it("comes from the file for a wizard in version 0.3.0: its hosts, tools and connections", () => {
+    const def = {
+      ...definition,
+      kernel: {
+        requires: { hosts: ["Date.nager.at"], tools: ["web_search"] },
+        connections: { mail: { search: "allow", send: "ask" } },
+      },
+    };
+    expect(broker.grantOf(def as never)).toEqual({
+      connections: { mail: ["search", "send"] },
+      hosts: ["date.nager.at"],
+      tools: ["web_search"],
+      channels: {},
+    });
+  });
+
   it("says what the run may do, in the person's language", () => {
     const def = withStep(undefined, ["web_search", "sandbox", "shop.find"]);
     const said = broker.grantNote(broker.grantOf(def as never), def as never);

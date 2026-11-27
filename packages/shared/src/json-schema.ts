@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { DEFINITION_VERSION, wizardShapeSchema } from "./definition.js";
+import {
+  DEFINITION_VERSION,
+  KERNEL_VERSION,
+  kernelFileSchema,
+  wizardShapeV020,
+} from "./definition.js";
 import { themeSchema } from "./theme.js";
 import {
   manifestSchema,
@@ -67,7 +72,7 @@ export function wizardJsonSchema(): JsonSchema {
     $comment: LICENSE_COMMENT,
     title: "engenty.wizards wizard definition",
     description: `A wizard's definition, version ${DEFINITION_VERSION}. Checked by \`wizards validate\`, which also checks what this schema cannot say: ids, references between steps and templates.`,
-    ...withSchemaProperty(generate(wizardShapeSchema)),
+    ...withSchemaProperty(generate(wizardShapeV020)),
   };
 }
 
@@ -87,7 +92,25 @@ export function packageJsonSchema(): JsonSchema {
       ...properties,
       definition: { $ref: "#/$defs/definition" },
     },
-    $defs: { definition: withSchemaProperty(generate(wizardShapeSchema)) },
+    $defs: { definition: withSchemaProperty(generate(wizardShapeV020)) },
+  };
+}
+
+/** Where the file of a wizard made of step files is described. */
+export const KERNEL_SCHEMA_URL = `https://engenty.ai/schema/v${KERNEL_VERSION}/wizard.json`;
+
+/**
+ * `wizard.json` of a wizard in version 0.3.0: the file beside its `steps/<id>.ts`. What a step
+ * does is in its file, not here (docs/plans/kernel.md).
+ */
+export function kernelJsonSchema(): JsonSchema {
+  return {
+    $schema: DIALECT,
+    $id: KERNEL_SCHEMA_URL,
+    $comment: LICENSE_COMMENT,
+    title: "engenty.wizards wizard file (version 0.3.0)",
+    description: `wizard.json of a wizard made of step files, version ${KERNEL_VERSION}: what it needs and may reach, its input, output and result page, and the map of its steps. Each step is a file steps/<id>.ts.`,
+    ...withSchemaProperty(generate(kernelFileSchema)),
   };
 }
 

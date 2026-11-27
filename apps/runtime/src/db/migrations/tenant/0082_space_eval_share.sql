@@ -1,0 +1,1 @@
+ALTER TABLE `space` ADD `eval_share` integer DEFAULT 0 NOT NULL;

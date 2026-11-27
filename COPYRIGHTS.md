@@ -15,6 +15,8 @@ pack it as a `.wizard` file (`packages/shared/src/definition.ts`, `fit.ts`,
 `columns-format.ts`, `columns-value.ts`) are also under the MIT licence, at the
 choice of whoever uses them (`FSL-1.1-MIT OR MIT`, [packages/shared/LICENSE-MIT](packages/shared/LICENSE-MIT)).
 Each says so in its first line. The runner package (`packages/runner`, MIT) bundles them under MIT.
+The kernel (`packages/kernel`, the engine of a wizard made of step files) is under the MIT licence
+([packages/kernel/LICENSE](packages/kernel/LICENSE)).
 `@engenty/wizards` on npm is `FSL-1.1-MIT`; its `/openui` bundles the runner, whose MIT licence
 ships beside it (`dist/openui/LICENSE-MIT`).
 Ten libraries are under the MIT licence, each with its own `LICENSE`, and go to npm with each

@@ -8,7 +8,7 @@ import {
   signInRefused,
 } from "../broker/index.js";
 import { resolveConnector } from "../connectors/external.js";
-import { control, controlDb, db, schema, withTenant } from "../db/client.js";
+import { activeTenants, db, schema, withTenant } from "../db/client.js";
 import type {
   ConnectorDefinition,
   InboundMessage,
@@ -286,17 +286,14 @@ async function watchTenant(now: Date) {
 
 /** One minute's look at every tenant. The same tenants as the plugins' jobs. */
 export async function watchMail(now = new Date()): Promise<void> {
-  const tenants = await controlDb.query.tenant.findMany({
-    where: eq(control.tenant.status, "active"),
-    columns: { id: true },
-  });
+  const tenants = await activeTenants();
   await Promise.all(
     tenants
       // An install whose spaces sync both ways leaves this to the cloud, like the plugins' jobs.
-      .filter((tenant) => !(twoWayActive() && tenant.id === LOCAL_TENANT))
+      .filter((tenant) => !(twoWayActive() && tenant === LOCAL_TENANT))
       .map((tenant) =>
-        withTenant(tenant.id, () => watchTenant(now)).catch((err) =>
-          console.error(`[mail-watch ${tenant.id}]`, err),
+        withTenant(tenant, () => watchTenant(now)).catch((err) =>
+          console.error(`[mail-watch ${tenant}]`, err),
         ),
       ),
   );

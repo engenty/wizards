@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { readingAs, SYSTEM } from "../broker/rwx.js";
-import { control, controlDb, withTenant } from "../db/client.js";
+import { activeTenants, control, controlDb, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { twoWayActive } from "../sync/state.js";
 import { LOCAL_TENANT } from "../tenants/tenant.js";
@@ -24,25 +24,22 @@ export async function runDueJobs(now = new Date()): Promise<void> {
   if (!jobs.length) {
     return;
   }
-  const tenants = await controlDb.query.tenant.findMany({
-    where: eq(control.tenant.status, "active"),
-  });
   const started: Promise<void>[] = [];
-  for (const tenant of tenants) {
+  for (const tenantId of await activeTenants()) {
     // An install whose spaces sync both ways leaves the jobs to the cloud: both would write the
     // same items of the same spaces (docs/plans/tenant-sync.md).
-    if (twoWayActive() && tenant.id === LOCAL_TENANT) {
+    if (twoWayActive() && tenantId === LOCAL_TENANT) {
       continue;
     }
-    const has = await pluginIdsOf(tenant.id);
+    const has = await pluginIdsOf(tenantId);
     for (const { plugin, name, job } of jobs) {
       const id = plugin.source.id;
-      const key = `${tenant.id}/${id}/${name}`;
+      const key = `${tenantId}/${id}/${name}`;
       if (!has.has(id) || running.has(key)) {
         continue;
       }
       const where = and(
-        eq(control.pluginJob.tenantId, tenant.id),
+        eq(control.pluginJob.tenantId, tenantId),
         eq(control.pluginJob.plugin, id),
         eq(control.pluginJob.name, name),
       );
@@ -54,16 +51,16 @@ export async function runDueJobs(now = new Date()): Promise<void> {
       // The start counts as the run: a turn that throws or hangs is not repeated every minute.
       await controlDb
         .insert(control.pluginJob)
-        .values({ tenantId: tenant.id, plugin: id, name, lastRunAt: now })
+        .values({ tenantId, plugin: id, name, lastRunAt: now })
         .onConflictDoUpdate({
           target: [control.pluginJob.tenantId, control.pluginJob.plugin, control.pluginJob.name],
           set: { lastRunAt: now },
         });
       started.push(
-        withTenant(tenant.id, () =>
+        withTenant(tenantId, () =>
           // A job runs on the clock, for no person, guest or run: the runtime itself reads.
           readingAs([SYSTEM], async () =>
-            job.handler({ tenantId: tenant.id, lastRun: last, signal: plugin.stopped.signal }),
+            job.handler({ tenantId, lastRun: last, signal: plugin.stopped.signal }),
           ),
         )
           .catch((err) => console.error(`[plugin ${id}] job ${name}:`, err))

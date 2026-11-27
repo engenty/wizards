@@ -25,8 +25,17 @@ const Json = lazy(async () => {
   return { default: (p: CodeEditorProps) => <Editor {...p} languageParts={parts} /> };
 });
 
+const Typescript = lazy(async () => {
+  const [{ default: Editor }, { typescriptParts }] = await Promise.all([
+    import("./CodeEditor"),
+    import("./typescript"),
+  ]);
+  const parts = typescriptParts();
+  return { default: (p: CodeEditorProps) => <Editor {...p} languageParts={parts} /> };
+});
+
 /**
- * The studio's editor for Markdown and JSON (docs/plans/page-editor-codemirror.md). While its
+ * The studio's editor for Markdown, JSON and TypeScript (docs/plans/page-editor-codemirror.md). While its
  * chunk loads, a plain textarea with the same text stands in, so nothing is hidden meanwhile.
  */
 export function CodeEditor(props: CodeEditorProps) {
@@ -41,7 +50,7 @@ export function CodeEditor(props: CodeEditorProps) {
           placeholder={props.placeholder}
           className={cn(
             "field-sizing-content block w-full resize-none bg-transparent px-4 py-4 outline-none",
-            props.language === "json"
+            props.language !== "markdown"
               ? "font-mono text-[0.75rem]"
               : "text-[0.9375rem] leading-[1.65]",
             props.className,
@@ -49,7 +58,13 @@ export function CodeEditor(props: CodeEditorProps) {
         />
       }
     >
-      {props.language === "json" ? <Json {...props} /> : <Markdown {...props} />}
+      {props.language === "json" ? (
+        <Json {...props} />
+      ) : props.language === "typescript" ? (
+        <Typescript {...props} />
+      ) : (
+        <Markdown {...props} />
+      )}
     </Suspense>
   );
 }
