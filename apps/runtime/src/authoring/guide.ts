@@ -152,7 +152,7 @@ export function authoringGuide(
     surfaces: prompt("authoring", "surfaces"),
     space_tools: spaceLines(connectors, mail, pluginTools, connections),
     schema_url: WIZARD_SCHEMA_URL,
-    older: prompt("authoring", on.version020 ? "older.on" : "older.off"),
+    older: on.version020 ? prompt("authoring", "older.on") : prompt("authoring", "older.off"),
     example: on.version020 ? prompt("authoring", "example.old", { wizard: exampleWizard() }) : "",
   });
 }

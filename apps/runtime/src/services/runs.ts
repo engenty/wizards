@@ -86,6 +86,8 @@ export async function startTestRun(
     mode: "test",
     userId,
     unattended: Boolean(autopilot),
+    // A wizard in version 0.3.0 takes the answers as its input: its first page is filled with them.
+    ...(autopilot && kernelOf(definition) ? { input: autopilot.answers } : {}),
   }).catch((err) => {
     throw err instanceof ModelUnavailableError ? new ServiceError("refused", saidOf(err)) : err;
   });
