@@ -420,7 +420,9 @@ async function searchListed(search: MarketplaceSearch, guest = false): Promise<M
     );
     return {
       ...remote,
-      ...(shown.length < remote.entries.length ? { total: offset + shown.length } : {}),
+      ...(shown.length < remote.entries.length
+        ? { total: offset + shown.length, all: offset + shown.length }
+        : {}),
       entries: await plugged(
         shown.map((e) => asEntry(e, starred, unavailable, optional.get(e.id))),
       ),
