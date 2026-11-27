@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.22.1] - 2026-11-27
+- FIXED **[marketplace]** A wizard in version 0.3.0 needs the plugins whose tools its file lists (#778)
+
 ## [0.22.0] - 2026-11-27
 - ADDED **[marketplace]** Templates in version 0.3.0 show their steps, time and cost (#774)
 - ADDED **[studio]** The share dialog of a local studio offers the wizard's link for this computer (#776)
