@@ -140,7 +140,7 @@ export function authoringGuide(
   pluginTools: GuideTool[] = [],
   connections: GuideSpaceConnection[] = [],
   /** Switches whose part of the format is in the guide only while a run can do it. */
-  on: { durableRuns?: boolean; codeSteps?: boolean } = {},
+  on: { durableRuns?: boolean; codeSteps?: boolean; version020?: boolean } = {},
 ): string {
   return prompt("authoring", "guide", {
     schema: prompt("authoring", "schema"),
@@ -152,6 +152,7 @@ export function authoringGuide(
     surfaces: prompt("authoring", "surfaces"),
     space_tools: spaceLines(connectors, mail, pluginTools, connections),
     schema_url: WIZARD_SCHEMA_URL,
-    example: exampleWizard(),
+    older: prompt("authoring", on.version020 ? "older.on" : "older.off"),
+    example: on.version020 ? prompt("authoring", "example.old", { wizard: exampleWizard() }) : "",
   });
 }

@@ -133,11 +133,13 @@ step work only where the code runs as ordinary code, and never in a published wi
 
 ## Which engine runs a wizard
 
-By the wizard, not by a global flip. A wizard in version 0.2.0 keeps today's engine
-(`apps/runtime/src/engine/runner.ts`). A wizard in version 0.3.0 runs on the kernel. Until the flip the switch `kernel`
-(`packages/shared/src/feature-flags.ts`, `kind: "release"`, off) allows making and running
-version 0.3.0. The flip takes the switch out: version 0.3.0 is made and run everywhere, and every
-new wizard is one. In the release after it, today's engine goes.
+Version 0.3.0 is the format, and the kernel runs it. A wizard in version 0.2.0 loads only where
+the switch `version020` is on (`packages/shared/src/feature-flags.ts`, `kind: "release"`, off),
+for a tenant that still needs one; then today's engine (`apps/runtime/src/engine/runner.ts`) runs
+it. Off, a wizard in version 0.2.0 is not listed or opened, a definition in version 0.2.0 is not
+saved, a run of one does not start or move, and the marketplace offers version 0.3.0 only
+(`apps/runtime/src/old-format.ts`). A new wizard always starts in version 0.3.0. The guide tells
+the assistant of step files, and of version 0.2.0 only as what a step's asks take.
 
 ## Where things live
 
@@ -493,7 +495,9 @@ Decided in this session, each with its reason. The guideline above holds for all
 - **The flip.** When the conditions above hold, a new wizard is version 0.3.0 and the switch
   `kernel` goes. Built on `feat/kernel-flip`: the switch is out of the list, the run's refusal
   and its words are gone, the marketplace offers and runs version 0.3.0, the guide and the
-  assistant say every new wizard is one, and `wizards check` and `wizards eval` are in the help. In the release after it the old engine goes, and a wizard in version 0.2.0 no
-  longer runs: the studio offers its conversion (item 22) and says what was not carried over.
+  assistant say every new wizard is one, and `wizards check` and `wizards eval` are in the help.
+  Merged as #771. Decided on 2026-11-27 after it: version 0.2.0 does not load unless the switch
+  `version020` is on, rather than old flows running untested ("Which engine runs a wizard").
+  When no tenant needs it, the switch and today's engine go.
   The catalog is built again in version 0.3.0, not converted entry by entry.
 - **Runners per tenant:** the answers are in [kernel-runners.md](kernel-runners.md).

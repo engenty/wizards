@@ -4,6 +4,7 @@ import {
   DEFINITION_VERSION,
   FORMAT_VERSIONS,
   formatVersionOf,
+  KERNEL_VERSION,
   readable,
   type WizardDefinition,
   wizardSchema,
@@ -47,6 +48,7 @@ import {
   videoCostUsd,
   WEB_SEARCH_COST_USD,
 } from "../models.js";
+import { oldFormatOn } from "../old-format.js";
 import { type PluginStarterEntry, pluginIdsOf, pluginStartersOf } from "../plugins/registry.js";
 import { readSetting, writeSetting } from "../settings.js";
 import { currentTenant, LOCAL_TENANT } from "../tenants/tenant.js";
@@ -327,7 +329,8 @@ export function featuredFirst(page: MarketplaceResult, opts: { q?: string }): Ma
  * Searches the tenant's plugins' starters and the marketplace, in that order: a page holds the
  * plugins' starters the words and filters find, then the marketplace's entries.
  */
-export async function searchMarketplace(search: MarketplaceSearch): Promise<MarketplaceResult> {
+export async function searchMarketplace(asked: MarketplaceSearch): Promise<MarketplaceResult> {
+  const search = await currentFormatOnly(asked);
   const { q = "", starred, limit = 60, offset = 0, lang: _lang, ...filters } = search;
   const own = starred ? [] : await pluginStartersOf(currentTenant());
   if (!own.length) {
@@ -363,10 +366,17 @@ export async function searchMarketplace(search: MarketplaceSearch): Promise<Mark
  * The gallery for someone not signed in (the studio's start page for guests): what the
  * marketplace lists, without a tenant's stars and plugins. An entry that needs a plugin says so.
  */
-export function searchMarketplaceAsGuest(
+export async function searchMarketplaceAsGuest(
   search: Omit<MarketplaceSearch, "starred">,
 ): Promise<MarketplaceResult> {
-  return searchListed(search, true);
+  return searchListed(await currentFormatOnly(search), true);
+}
+
+/** The search, kept to version 0.3.0 while wizards in version 0.2.0 do not load here. */
+async function currentFormatOnly<T extends { version?: MarketplaceSearch["version"] }>(
+  search: T,
+): Promise<T> {
+  return (await oldFormatOn()) ? search : { ...search, version: KERNEL_VERSION };
 }
 
 /** Searches the marketplace; without an answer, what is kept here, scored the same way. */

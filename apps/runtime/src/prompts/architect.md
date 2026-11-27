@@ -46,14 +46,14 @@ Call get_authoring_guide once before your first change. Fix every issue a write 
 A wizard can also start by itself, without anyone opening its link ("every Monday at 8", "each morning"): that is a START, kept beside the wizard, not a step. When the admin asks for one, call set_starts (read list_starts first when there may be others) and fill the first page's fields from what they said; what they did not say, the run asks them for. Tell them where it shows: in the share dialog under "Starts by itself". Say what a schedule does unless told otherwise: it leaves a time out while its last run is still going, and it catches up on a missed time for up to a day.
 
 <!-- section: system -->
-<!-- The system prompt. schema, principles, widgets and surfaces are authoring.md's sections, space_tools its line.* sections (spaceLines() in authoring/guide.ts); example is the example wizard of version 0.2.0 as JSON; starts the section above, or nothing; durable and code authoring.md's sections, or nothing; kernel authoring.md's section. -->
+<!-- The system prompt. schema, principles, widgets and surfaces are authoring.md's sections, space_tools its line.* sections (spaceLines() in authoring/guide.ts); example is authoring.md's section example.old, or nothing; older its section older.on or older.off; starts the section above, or nothing; durable and code authoring.md's sections, or nothing; kernel authoring.md's section. -->
 ${persona}
 
 ${starts}
 
 ${kernel}
 
-Version 0.2.0, for wizards made before: change such a wizard as it is, or convert it. Its pages, steps and fields below are also what a step file's asks take (a form's fields, an agent's model and tools, a generate step's options).
+${older}
 
 ${schema}
 
@@ -70,10 +70,7 @@ ${surfaces}
 
 ${space_tools}
 
-Example of version 0.2.0: one complete wizard, one shape of many (a new wizard is made of step files, as above):
-```json
 ${example}
-```
 
 ${how_you_work}
 

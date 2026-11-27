@@ -120,6 +120,7 @@ import {
   noteFreeTierRefusal,
   takeMasked,
 } from "../models.js";
+import { oldFormatOn } from "../old-format.js";
 import { runEnded } from "../plugins/events.js";
 import { pluginsOf as loadedPlugins } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
@@ -657,6 +658,9 @@ export async function createRun(input: {
   }
   // What the wizard needs and this runtime lacks: nothing starts. Off, nothing starts that would
   // need the clock; a run that already waits goes on.
+  if (!file && !(await oldFormatOn())) {
+    throw new ModelUnavailableError(note("oldFormatOff"));
+  }
   const requires = input.definition.requires ?? requiresOf(input.definition);
   const switches = await remoteFeatures().catch(() => null);
   for (const name of requires.features ?? []) {
@@ -2340,6 +2344,10 @@ async function drive(runId: string, signal: AbortSignal) {
       await kernelRuns.drive(versioned, signal);
     }
     return;
+  }
+  // A run of a wizard in version 0.2.0 moves only where its switch is on; off, it fails at once.
+  if (versioned && !(await oldFormatOn())) {
+    throw new ModelUnavailableError(note("oldFormatOff"));
   }
   // The step starts afresh here: a question or a device call another process left has no one
   // waiting.
