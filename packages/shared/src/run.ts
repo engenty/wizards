@@ -412,6 +412,9 @@ const NOTES_EN = {
   reminderSent: "Sent a reminder.",
   waitsOff: "This wizard has a wait step, and those aren’t turned on here yet.",
   codeStepsOff: "This wizard runs code of its own, and that isn’t turned on here yet.",
+  oldFormatOff: "This wizard is in the format before step files, which isn’t loaded here.",
+  oldFormatWrite:
+    "A wizard is made of step files (version 0.3.0): write its definition with a “kernel” entry, and one steps/<id>.ts per step.",
   kernelSample: "Sample",
   kernelSampleText: "*Sample.* After a test run, this shows what the step made.",
   pluginsMissing: "This wizard needs {plugins}, which isn’t installed here.",
@@ -968,6 +971,10 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   reminderSent: "Erinnerung gesendet.",
   waitsOff: "Dieser Wizard hat einen Warten-Schritt, und die sind hier noch nicht eingeschaltet.",
   codeStepsOff: "Dieser Wizard führt eigenen Code aus, und das ist hier noch nicht eingeschaltet.",
+  oldFormatOff:
+    "Dieser Wizard ist im Format vor den Schritt-Dateien, und das wird hier nicht geladen.",
+  oldFormatWrite:
+    "Ein Wizard besteht aus Schritt-Dateien (Version 0.3.0): seine Definition mit einem Eintrag „kernel“, und eine steps/<id>.ts je Schritt.",
   kernelSample: "Beispiel",
   kernelSampleText: "*Beispiel.* Nach einem Testlauf steht hier, was dieser Schritt erstellt.",
   pluginsMissing: "Dieser Wizard braucht {plugins}, und das ist hier nicht installiert.",

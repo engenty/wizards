@@ -98,7 +98,7 @@ export function systemPrompt(
   pluginTools: GuideTool[],
   connections: GuideSpaceConnection[],
   startsOn: boolean,
-  on: { durableRuns?: boolean; codeSteps?: boolean },
+  on: { durableRuns?: boolean; codeSteps?: boolean; version020?: boolean },
 ): string {
   return `${prompt("architect", "system", {
     persona: prompt("architect", "persona"),
@@ -111,7 +111,8 @@ export function systemPrompt(
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
     space_tools: spaceLines(connectors, mail, pluginTools, connections),
-    example: exampleWizard(),
+    older: on.version020 ? prompt("authoring", "older.on") : prompt("authoring", "older.off"),
+    example: on.version020 ? prompt("authoring", "example.old", { wizard: exampleWizard() }) : "",
     how_you_work: prompt("architect", "how_you_work"),
   })}\n\n${contentPolicy()}`;
 }

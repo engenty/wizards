@@ -95,8 +95,25 @@ describe("MCP endpoint", () => {
 
   it("creates, edits with revisions, refuses stale writes and unclean publishes", async () => {
     const client = await connect();
-    const created = await call(client, "create_wizard", { note: "Leeren Wizard angelegt." });
-    expect(created.isError).toBe(false);
+    // A wizard in version 0.2.0, whose steps the ops below change.
+    const created = await call(client, "create_wizard", {
+      definition: {
+        version: 1,
+        title: "Neu",
+        description: "",
+        avatar: "round",
+        steps: [
+          {
+            id: "start",
+            type: "form",
+            title: "Worum geht es?",
+            fields: [{ id: "input", label: "Worum geht es?", kind: "textarea", required: true }],
+          },
+          { id: "done", type: "result", title: "Fertig", deliverables: [] },
+        ],
+      },
+      note: "Leeren Wizard angelegt.",
+    });
     expect(created.isError, JSON.stringify(created.body)).toBe(false);
     const { wizardId } = created.body;
     expect(created.body.revision).toBe(0);
@@ -167,6 +184,19 @@ describe("MCP endpoint", () => {
     const published = await call(client, "publish_wizard", { wizardId });
     expect(published.body).toMatchObject({ version: 1 });
     expect(published.body.shareUrl).toMatch(/^http:\/\/localhost:5181\/w\//);
+  });
+
+  it("starts a new wizard in version 0.3.0, and a test run takes its answers as the input", async () => {
+    const client = await connect();
+    const created = await call(client, "create_wizard", {});
+    expect(created.isError, JSON.stringify(created.body)).toBe(false);
+    const run = await call(client, "start_test_run", {
+      wizardId: created.body.wizardId,
+      answers: { input: "Bäcker" },
+    });
+    expect(run.isError, JSON.stringify(run.body)).toBe(false);
+    const report = await call(client, "get_test_run", { runId: run.body.runId, waitSeconds: 10 });
+    expect(report.body.status).toBe("done");
   });
 
   it("offers the flow widget with the tools that show a wizard or a run", async () => {

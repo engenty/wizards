@@ -215,6 +215,12 @@ export const FEATURES = {
     label: "Connections a run finds",
     hint: "A run finds the account for what its wizard needs: a person's own account from another wizard, and the space's connections for the need (docs/plans/run-connections.md).",
   },
+  version020: {
+    kind: "release",
+    default: false,
+    label: "Wizards in version 0.2.0",
+    hint: "The format before step files. Off, a wizard in version 0.2.0 is not listed, opened, saved or run, and the marketplace does not offer one; on only for a tenant that still needs one (docs/plans/kernel.md).",
+  },
   composio: {
     kind: "release",
     default: false,
