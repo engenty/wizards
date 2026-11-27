@@ -545,6 +545,8 @@ export async function createWizard(
     lang?: string;
     definition?: unknown;
     note?: string;
+    /** The starter may be a template that is not published: a platform admin's preview. */
+    preview?: boolean;
   },
   writer: Writer = { source: "studio" },
 ) {
@@ -555,7 +557,7 @@ export async function createWizard(
   const space = await named();
   await requireWritable(space);
   const starter = input.starterId
-    ? await marketplaceWizard(input.starterId, asLang(input.lang))
+    ? await marketplaceWizard(input.starterId, asLang(input.lang), input.preview)
     : undefined;
   if (input.starterId && !starter) {
     throw new ServiceError("invalid", note("unknownTemplate", { starterId: input.starterId }));

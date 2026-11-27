@@ -47,6 +47,10 @@ verifying and voting will take a token of the Manage-App (scope `wizards:publish
   that is not published.
 - **Caching**: lists and sync `cache-control: public, max-age=60`; an item and an export carry
   `etag: "<hash>"`.
+- **Preview**: `preview=1` on `entries` and `entries/:id` also answers the entries that are
+  `unlisted` or a `draft`, each with its `status`, uncached. A development marketplace answers it
+  to anyone; one in production only with `x-marketplace-preview` set to its
+  `MARKETPLACE_PREVIEW_KEY`.
 - **Changes**: a field may be added within `v1`; a client ignores what it does not know.
   Removing or changing a field takes `v2`.
 
@@ -60,6 +64,10 @@ verifying and voting will take a token of the Manage-App (scope `wizards:publish
   (`marketplace_cache` in the control database). Stars are a person's own (tenant database).
 - **Starting a wizard**: from the kept export when its hash is current, else from `entries/:id`.
   The wizard is a copy; later changes of the entry do not touch it.
+- **Preview**: in the developer mode (a platform admin in the cloud; on a computer with
+  `ASSISTANT_DEV` or a runtime started from source) the studio's gallery asks with `preview=1`,
+  shows a draft or an unlisted template with its status, and starts a wizard from one. The
+  runtime sends its `MARKETPLACE_PREVIEW_KEY`; a guest's gallery never previews.
 
 ## The pages
 

@@ -7,7 +7,7 @@ import {
   whenCalc,
   whenText,
 } from "./definition.js";
-import { type ItemFormat, type MarketplaceLang, marketLabel } from "./marketplace.js";
+import { downloadKind, type ItemFormat, type MarketplaceLang, marketLabel } from "./marketplace.js";
 
 // What a marketplace entry shows of its wizard: the flow in steps, and what a person takes along
 // at the end. The app's dialog and the marketplace's pages read the same.
@@ -139,6 +139,13 @@ function resultKind(definition: WizardDefinition, from: string): ItemFormat {
 
 export function resultsOf(definition: WizardDefinition): EntryResult[] {
   const out: EntryResult[] = [];
+  // A wizard in version 0.3.0 names what it hands back in its file: each download, by its label.
+  for (const d of definition.kernel?.result?.downloads ?? []) {
+    const title = d.label ?? d.from;
+    if (!out.some((r) => r.title === title)) {
+      out.push({ title, kind: downloadKind(d.formats), formats: d.formats });
+    }
+  }
   for (const step of definition.steps) {
     if (step.type !== "result") {
       continue;

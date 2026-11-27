@@ -221,9 +221,26 @@ const FORMAT_OF: Partial<Record<Format, ItemFormat>> = {
   txt: "text",
 };
 
-/** The formats a run hands over, read from what the result step offers. */
+/**
+ * What one download of a wizard in version 0.3.0 is, by the formats it comes in: an HTML page is
+ * a dashboard (its PNG or PDF too), a video's still is the video; otherwise its first format.
+ */
+export function downloadKind(formats: readonly string[]): ItemFormat {
+  if (formats.includes("html")) return "dashboard";
+  if (formats.includes("mp4")) return "video";
+  for (const f of formats) {
+    const kind = FORMAT_OF[f as Format];
+    if (kind) return kind;
+  }
+  return formats.some((f) => f === "json") ? "table" : "text";
+}
+
+/** The formats a run hands over, read from what the result step offers, or from the file's downloads. */
 export function formatsOf(def: WizardDefinition): ItemFormat[] {
   const found = new Set<ItemFormat>();
+  for (const download of def.kernel?.result?.downloads ?? []) {
+    found.add(downloadKind(download.formats));
+  }
   for (const step of def.steps) {
     if (step.type === "generate" && step.asset === "dashboard") {
       found.add("dashboard");
@@ -247,19 +264,68 @@ export function formatsOf(def: WizardDefinition): ItemFormat[] {
   return ITEM_FORMAT_IDS.filter((f) => found.has(f));
 }
 
-/** The capabilities a definition needs, read from its steps. */
+/** What a step's tool stands for, among the capabilities. */
+const TOOL_CAPABILITY: Record<string, Capability> = {
+  web_search: "web",
+  web_fetch: "web",
+  browser: "browser",
+  sandbox: "code",
+  image: "image",
+  http: "connectors",
+};
+
+/** What a model class makes, among the capabilities; a class of text makes text. */
+const CLASS_CAPABILITY: Record<string, Capability> = {
+  image: "image",
+  video: "video",
+  speech: "speech",
+  audio: "listening",
+};
+
+/** What a person gives on a page, among the capabilities. */
+function fieldCapabilities(fields: readonly { kind: string }[], found: Set<Capability>) {
+  for (const field of fields) {
+    if (field.kind === "image" || field.kind === "file") {
+      found.add("documents");
+    }
+    if (field.kind === "audio") {
+      found.add("listening");
+    }
+  }
+}
+
+/**
+ * The capabilities of a wizard in version 0.3.0, read from its file: what its steps' asks may
+ * name is declared there (`requires`, `connections`), and its first page's fields.
+ */
+function kernelCapabilities(file: NonNullable<WizardDefinition["kernel"]>): Set<Capability> {
+  const found = new Set<Capability>();
+  fieldCapabilities(file.input?.fields ?? [], found);
+  for (const model of file.requires?.models ?? []) {
+    found.add(CLASS_CAPABILITY[model] ?? "text");
+  }
+  for (const tool of file.requires?.tools ?? []) {
+    found.add(TOOL_CAPABILITY[tool] ?? "connectors");
+  }
+  if (Object.keys(file.connections ?? {}).length) {
+    found.add("connectors");
+  }
+  return found;
+}
+
+/** The capabilities a definition needs, read from its steps, or from its file in version 0.3.0. */
 export function capabilitiesOf(def: WizardDefinition): Capability[] {
+  if (def.kernel) {
+    const found = kernelCapabilities(def.kernel);
+    if (!found.size) {
+      found.add("text");
+    }
+    return CAPABILITY_IDS.filter((c) => found.has(c));
+  }
   const found = new Set<Capability>();
   for (const step of def.steps) {
     if (step.type === "form") {
-      for (const field of step.fields) {
-        if (field.kind === "image" || field.kind === "file") {
-          found.add("documents");
-        }
-        if (field.kind === "audio") {
-          found.add("listening");
-        }
-      }
+      fieldCapabilities(step.fields, found);
     } else if (step.type === "decision") {
       found.add("text");
     } else if (step.type === "agent") {
@@ -319,7 +385,35 @@ export interface Effort {
 
 const WORK_SECONDS = { agent: 25, tools: 70, browser: 150, image: 30, video: 120, voice: 20 };
 
+/**
+ * The effort of a wizard in version 0.3.0, read from its file: its first page's fields, a model's
+ * turn for each step, and the work of what its file says it makes (a picture, a film, a voice) and
+ * uses (the browser, other tools). What its steps ask a person is in their code; not counted.
+ */
+function kernelEffort(file: NonNullable<WizardDefinition["kernel"]>): Effort {
+  const fields = file.input?.fields ?? [];
+  const models = file.requires?.models ?? [];
+  const tools = file.requires?.tools ?? [];
+  const steps = Object.keys(file.edges).length;
+  let seconds = fields.length * 15 + steps * WORK_SECONDS.agent;
+  if (models.includes("image")) seconds += WORK_SECONDS.image;
+  if (models.includes("video")) seconds += WORK_SECONDS.video;
+  if (models.includes("speech")) seconds += WORK_SECONDS.voice;
+  if (tools.includes("browser")) seconds += WORK_SECONDS.browser;
+  else if (tools.length || Object.keys(file.connections ?? {}).length)
+    seconds += WORK_SECONDS.tools;
+  return {
+    fields: fields.length,
+    required: fields.filter((f) => f.required).length,
+    reviews: 0,
+    minutes: Math.max(1, Math.round(seconds / 60)),
+  };
+}
+
 export function effortOf(def: WizardDefinition): Effort {
+  if (def.kernel) {
+    return kernelEffort(def.kernel);
+  }
   let fields = 0;
   let required = 0;
   let reviews = 0;
@@ -379,6 +473,8 @@ export function costTierOf(capabilities: Capability[]): CostTier {
 /** One entry as the marketplace lists it, in a language. */
 export interface MarketplaceSummary {
   id: string;
+  /** Only in a preview, which lists every entry: whether it is published, unlisted or a draft. */
+  status?: "published" | "unlisted" | "draft";
   /** Goes up whenever the entry changes. */
   revision: number;
   /** Of everything the entry is made of, every language and file: changes with any of it. */
