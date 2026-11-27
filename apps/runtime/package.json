@@ -53,7 +53,7 @@
     "@modelcontextprotocol/client": "2.4.0",
     "@modelcontextprotocol/ext-apps": "2.0.4",
     "@modelcontextprotocol/server": "2.4.0",
-    "@napi-rs/canvas": "1.0.13",
+    "@napi-rs/canvas": "1.1.1",
     "@turbodocx/html-to-docx": "^1.23.3",
     "acorn": "8.19.0",
     "ai": "7.0.163",
