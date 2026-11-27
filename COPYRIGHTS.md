@@ -66,6 +66,10 @@ Declared by two or more of the workspaces below:
 
 | Package | Version | Licence |
 |---|---|---|
+| [@ai-sdk/anthropic](https://ai-sdk.dev/docs) | 4.0.97 | Apache-2.0 |
+| [@ai-sdk/gateway](https://ai-sdk.dev/docs) | 4.0.136 | Apache-2.0 |
+| [@ai-sdk/google](https://ai-sdk.dev/docs) | 4.0.112 | Apache-2.0 |
+| [@ai-sdk/openai](https://ai-sdk.dev/docs) | 4.0.109 | Apache-2.0 |
 | [@fontsource/bricolage-grotesque](https://fontsource.org/fonts/bricolage-grotesque) | 5.3.0 | OFL-1.1 |
 | [@fontsource/caveat](https://fontsource.org/fonts/caveat) | 5.3.0 | OFL-1.1 |
 | [@fontsource/creepster](https://fontsource.org/fonts/creepster) | 5.3.0 | OFL-1.1 |
@@ -86,6 +90,7 @@ Declared by two or more of the workspaces below:
 | [ai](https://ai-sdk.dev/docs) | 7.0.163 | Apache-2.0 |
 | [cross-spawn](https://github.com/moxystudio/node-cross-spawn) | 7.0.6 | MIT |
 | [dompurify](https://github.com/cure53/DOMPurify) | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
+| [esbuild](https://github.com/evanw/esbuild#readme) | 0.28.2 | MIT |
 | [fflate](https://101arrowz.github.io/fflate) | 0.8.3 | MIT |
 | [hono](https://hono.dev) | 4.13.16 | MIT |
 | [lucide-react](https://lucide.dev) | 1.69.0 | ISC |
@@ -112,12 +117,8 @@ Declared by two or more of the workspaces below:
 
 | Package | Version | Licence |
 |---|---|---|
-| [@ai-sdk/anthropic](https://ai-sdk.dev/docs) | 4.0.97 | Apache-2.0 |
 | [@ai-sdk/elevenlabs](https://ai-sdk.dev/docs) | 3.0.80 | Apache-2.0 |
 | [@ai-sdk/fal](https://ai-sdk.dev/docs) | 3.0.76 | Apache-2.0 |
-| [@ai-sdk/gateway](https://ai-sdk.dev/docs) | 4.0.136 | Apache-2.0 |
-| [@ai-sdk/google](https://ai-sdk.dev/docs) | 4.0.112 | Apache-2.0 |
-| [@ai-sdk/openai](https://ai-sdk.dev/docs) | 4.0.109 | Apache-2.0 |
 | [@ai-sdk/replicate](https://ai-sdk.dev/docs) | 3.0.76 | Apache-2.0 |
 | [@clack/prompts](https://github.com/bombshell-dev/clack/tree/main/packages/prompts#readme) | 1.8.1 | MIT |
 | [@executor-js/plugin-openapi](https://github.com/UsefulSoftwareCo/executor/tree/main/packages/plugins/openapi) | 1.6.11 | MIT |
@@ -129,6 +130,7 @@ Declared by two or more of the workspaces below:
 | [@mastra/quickjs](https://mastra.ai) | 0.1.5 | Apache-2.0 |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 1.0.13 | MIT |
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.3 | MIT |
+| [acorn](https://github.com/acornjs/acorn) | 8.19.0 | MIT |
 | [aws4fetch](https://github.com/mhart/aws4fetch#readme) | 1.0.20 | MIT |
 | [drizzle-orm](https://orm.drizzle.team) | 0.45.4 | Apache-2.0 |
 | [effect](https://effect.website) | 4.0.0-beta.59 | MIT |
@@ -136,7 +138,7 @@ Declared by two or more of the workspaces below:
 | [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser#readme) | 5.12.0 | MIT |
 | [imapflow](https://imapflow.com/) | 2.10.2 | MIT |
 | [jiti](https://github.com/unjs/jiti#readme) | 2.7.0 | MIT |
-| [jose](https://github.com/panva/jose) | 6.2.15 | MIT |
+| [jose](https://github.com/panva/jose) | 6.2.18 | MIT |
 | [mammoth](https://github.com/mwilliamson/mammoth.js#readme) | 1.13.0 | BSD-2-Clause |
 | [nanoid](https://github.com/ai/nanoid#readme) | 6.0.2 | MIT |
 | [nodemailer](https://nodemailer.com/) | 10.3.1 | MIT-0 |
@@ -155,6 +157,7 @@ Declared by two or more of the workspaces below:
 | [@base-ui/react](https://base-ui.com) | 1.9.0 | MIT |
 | @codemirror/autocomplete | 6.20.4 | MIT |
 | @codemirror/commands | 6.11.1 | MIT |
+| [@codemirror/lang-javascript](https://github.com/codemirror/lang-javascript#readme) | 6.2.4 | MIT |
 | [@codemirror/lang-json](https://github.com/codemirror/lang-json#readme) | 6.0.2 | MIT |
 | @codemirror/lang-markdown | 6.5.2 | MIT |
 | @codemirror/language | 6.13.1 | MIT |
@@ -189,11 +192,24 @@ Declared by two or more of the workspaces below:
 | [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT |
 | [xlsx](https://sheetjs.com/) | 0.20.3 | Apache-2.0 |
 
+### kernel (packages/kernel)
+
+| Package | Version | Licence |
+|---|---|---|
+| [@jitl/quickjs-wasmfile-release-sync](https://github.com/justjake/quickjs-emscripten#readme) | 0.31.0 | MIT |
+| [quickjs-emscripten-core](https://github.com/justjake/quickjs-emscripten#readme) | 0.31.0 | MIT |
+
 ### packages/browser (packages/browser)
 
 | Package | Version | Licence |
 |---|---|---|
 | [@mastra/agent-browser](https://mastra.ai) | 0.6.0 | Apache-2.0 |
+
+### packages/model-providers (packages/model-providers)
+
+| Package | Version | Licence |
+|---|---|---|
+| [@ai-sdk/openai-compatible](https://ai-sdk.dev/docs) | 3.0.94 | Apache-2.0 |
 
 ### packages/model-setup (packages/model-setup)
 
@@ -215,6 +231,8 @@ Used to build, check and test; not part of what people run:
 |---|---|---|
 | [@a2ui/web_core](https://a2ui.org/) | 0.16.1 | Apache-2.0 |
 | [@biomejs/biome](https://biomejs.dev) | 2.5.0 | MIT OR Apache-2.0 |
+| [@executor-js/emulate](https://emulators.dev) | 0.14.2 | Apache-2.0 |
+| [@executor-js/sdk](https://github.com/UsefulSoftwareCo/executor/tree/main/packages/core/sdk) | 1.6.11 | MIT |
 | [@microsoft/api-extractor](https://api-extractor.com) | 7.60.1 | MIT |
 | [@openuidev/lang-core](https://openui.com) | 1.1.0 | MIT |
 | [@openuidev/react-lang](https://openui.com) | 1.1.0 | MIT |
@@ -235,6 +253,7 @@ Used to build, check and test; not part of what people run:
 | [drizzle-kit](https://orm.drizzle.team) | 0.31.11 | MIT |
 | [git-cliff](https://github.com/orhun/git-cliff#readme) | 2.14.2 | MIT OR Apache-2.0 |
 | [jsdom](https://github.com/jsdom/jsdom#readme) | 30.1.3 | MIT |
+| [miniflare](https://github.com/cloudflare/workers-sdk/tree/main/packages/miniflare#readme) | 4.20260730.0 | MIT |
 | [postcss](https://postcss.org/) | 8.5.32 | MIT |
 | [tailwindcss](https://tailwindcss.com) | 4.3.4 | MIT |
 | [tsx](https://tsx.hirok.io) | 4.23.15 | MIT |

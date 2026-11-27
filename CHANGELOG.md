@@ -4,6 +4,18 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.22.0] - 2026-11-27
+- ADDED **[marketplace]** Templates in version 0.3.0 show their steps, time and cost (#774)
+- ADDED **[studio]** The share dialog of a local studio offers the wizard's link for this computer (#776)
+- ADDED Wizards in version 0.2.0 load only behind the switch version020 (#773) **[breaking]**
+- ADDED Wizards made of step files for everyone, the switch kernel goes (#771) **[breaking]**
+- ADDED **[connectors]** Services from Composio as connectors, beside our own (#770)
+- ADDED **[runtime]** Wizards made of step files, behind the switch kernel (#697)
+- ADDED **[models]** OpenRouter as a provider a person brings a key for (#768)
+- ADDED **[model-providers]** The providers a person brings a key for, and the wizards account (#767)
+- CHANGED **[model-providers]** Rename @engenty/local-models to @engenty/model-providers (#766)
+- DOCS **[dev]** Packages and databases pages from the code (#769)
+
 ## [0.21.3] - 2026-11-26
 - DOCS **[work]** The chats Work had of its own are gone, and their messages are deleted (#764)
 
