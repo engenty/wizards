@@ -3597,6 +3597,21 @@ const de: Record<Key, Line> = {
   "discover.none": "Für „{q}“ gibt es auf skills.sh und integrations.sh nichts.",
   "discover.groupNone": "{directory} hat dafür nichts.",
   "discover.setUp": "Einrichten",
+  "discover.composio.title": "Von Composio",
+  "discover.composio.hint":
+    "Composio meldet dich an und behält die Anmeldung. Jeder Aufruf folgt den Regeln deines Space.",
+  "connection.composio.search": "Bei Composio suchen",
+  "connection.composio.searchPlaceholder": "z. B. Gmail, Notion",
+  "connection.composio.none": "Composio hat dafür nichts.",
+  "connection.composio.hint":
+    "Bei einem Dienst von Composio meldest du dich bei Composio an. Composio behält die Anmeldung, deine Regeln gelten für jeden Aufruf.",
+  "composio.key.title": "Composio",
+  "composio.key.lead":
+    "Mit deinem eigenen API-Key von Composio verbindest du Dienste aus dessen Katalog direkt, ohne dein engenty-Konto. Der Key bleibt auf diesem Computer.",
+  "composio.key.placeholder": "z. B. ak_ …",
+  "composio.key.save": "Key speichern",
+  "composio.key.remove": "Key entfernen",
+  "composio.key.stored": "Gespeichert: {masked}",
   "protocol.hint":
     "Jeder Zugriff deiner Wizards, Chats und von Goose auf eine Verbindung, erlaubt oder nicht. Klick auf eine Zeile für mehr.",
   "protocol.filter.outcome": "Ausgang",
@@ -8515,6 +8530,21 @@ const en = {
   "discover.none": "Neither skills.sh nor integrations.sh has anything for “{q}”.",
   "discover.groupNone": "{directory} has nothing for this.",
   "discover.setUp": "Set up",
+  "discover.composio.title": "From Composio",
+  "discover.composio.hint":
+    "Composio signs you in and keeps the sign-in. Every call follows your space’s rules.",
+  "connection.composio.search": "Search Composio",
+  "connection.composio.searchPlaceholder": "e.g. Gmail, Notion",
+  "connection.composio.none": "Composio has nothing for this.",
+  "connection.composio.hint":
+    "For a service from Composio you sign in at Composio. Composio keeps the sign-in, and your rules apply to every call.",
+  "composio.key.title": "Composio",
+  "composio.key.lead":
+    "With your own Composio API key you connect services from its catalog directly, without your engenty account. The key stays on this computer.",
+  "composio.key.placeholder": "e.g. ak_…",
+  "composio.key.save": "Save key",
+  "composio.key.remove": "Remove key",
+  "composio.key.stored": "Saved: {masked}",
   "protocol.hint":
     "Every time your wizards, chats or Goose used a connection, allowed or not. Click a line for more.",
   "protocol.filter.outcome": "Outcome",

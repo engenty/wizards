@@ -252,6 +252,10 @@ export const env = {
   anthropicKey: str("ANTHROPIC_API_KEY"),
   googleKey: str("GOOGLE_GENERATIVE_AI_API_KEY"),
   openrouterKey: str("OPENROUTER_API_KEY"),
+  /** A Composio key of one's own on a computer of one's own (docs/plans/composio.md, decision 4); the settings page's wins. */
+  composioKey: str("COMPOSIO_API_KEY"),
+  /** Composio's API; a stand-in for tests. */
+  composioUrl: str("COMPOSIO_URL", "https://backend.composio.dev").replace(/\/$/, ""),
   falKey: str("FAL_KEY"),
   elevenlabsKey: str("ELEVENLABS_API_KEY"),
   replicateKey: str("REPLICATE_API_TOKEN"),

@@ -1,6 +1,7 @@
 import type {
   DiscoverAnswer,
   DiscoverBundle,
+  DiscoverComposio,
   DiscoverConnector,
 } from "@engenty/wizards-shared/discover";
 import type { SkillHit } from "@engenty/wizards-shared/skills";
@@ -25,6 +26,9 @@ import { RegistrySkillPreview } from "../space/Skills";
  * A repository that holds a plugin with a server and skills is one hit, „Connector mit Skills“
  * (docs/plans/capabilities-next.md, piece 4): its skills and its service's connector are left
  * out of the two lists, and an admin sets it up under „Per Adresse“.
+ *
+ * With the switch `composio`, Composio's catalog is a third group (docs/plans/composio.md): an
+ * admin sets a service up as a connection on its connector `composio-<slug>`.
  */
 
 const EXAMPLES: Key[] = ["discover.example1", "discover.example2", "discover.example3"];
@@ -119,13 +123,16 @@ export function DiscoverResults({
   };
   const skills = (data?.skills ?? []).filter((hit) => !covered.skills.has(hit.ref));
   const connectors = (data?.connectors ?? []).filter((hit) => !covered.connectors.has(hit.domain));
+  const composio = data?.composio ?? [];
   const nothing =
     data &&
     !bundles.length &&
     !data.skills.length &&
     !data.connectors.length &&
+    !composio.length &&
     !data.errors.skills &&
-    !data.errors.connectors;
+    !data.errors.connectors &&
+    !data.errors.composio;
 
   if (!space) {
     return null;
@@ -194,6 +201,19 @@ export function DiscoverResults({
               <ConnectorResult key={hit.domain} hit={hit} admin={admin} />
             ))}
           </Group>
+          {composio.length || data.errors.composio ? (
+            <Group
+              title={t("discover.composio.title")}
+              hint={t("discover.composio.hint")}
+              count={composio.length}
+              error={data.errors.composio}
+              empty={t("discover.groupNone", { directory: "Composio" })}
+            >
+              {composio.map((hit) => (
+                <ComposioResult key={hit.connectorId} hit={hit} admin={admin} />
+              ))}
+            </Group>
+          ) : null}
         </>
       )}
 
@@ -427,6 +447,33 @@ function ConnectorResult({ hit, admin }: { hit: DiscoverConnector; admin: boolea
           size="sm"
           onClick={() =>
             navigate(`/capabilities/connectors?setup=${encodeURIComponent(hit.domain)}`)
+          }
+        >
+          {t("discover.setUp")}
+        </Button>
+      ) : null}
+    </Row>
+  );
+}
+
+/** A service of Composio's catalog: set up as a connection on its connector, by an admin. */
+function ComposioResult({ hit, admin }: { hit: DiscoverComposio; admin: boolean }) {
+  const navigate = useNavigate();
+  return (
+    <Row
+      icon={Plug}
+      name={hit.name}
+      line={hit.description || undefined}
+      source={["Composio", hit.slug].join(" · ")}
+    >
+      {hit.setUp ? (
+        <InSpace />
+      ) : admin ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() =>
+            navigate(`/capabilities/connectors?setup=${encodeURIComponent(hit.connectorId)}`)
           }
         >
           {t("discover.setUp")}

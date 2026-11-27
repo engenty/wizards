@@ -81,5 +81,8 @@
 # the organization's own space as the root, Mein Space per person, the path bar with the space menu, Ordner in Work (on by default)
 # orgSpaces=on|off
 #
+# services from Composio's catalog as connectors, beside the built-in and imported ones (off by default)
+# composio=on|off
+#
 # a plugin's switches carry its id; `wizards features` lists the ones installed here
 # contacts.leadScoring=on|off

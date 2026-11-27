@@ -67,6 +67,7 @@ import { managed } from "../manage.js";
 import { requireAdmin, requireWritableSpace } from "../services/access.js";
 import { ServiceError } from "../services/errors.js";
 import { BUILTIN_CONNECTORS, builtinConnector, missingSetup, usable } from "./builtin.js";
+import { composioConnector, composioView, toolkitOfConnector } from "./composio-connectors.js";
 
 /**
  * Imported connectors: any service becomes a connector from its OpenAPI spec or MCP server,
@@ -836,7 +837,29 @@ async function builtinView(connector: ConnectorDefinition): Promise<ConnectorVie
   };
 }
 
-/** Every connector a wizard of the space can name: the built-in ones, then its imports. */
+/**
+ * The Composio connectors the space has connections on: the rest of Composio's catalog is found
+ * in Entdecken, not listed here. One Composio can't make right now is left out.
+ */
+async function composioConnectorsOf(spaceId: string): Promise<ConnectorView[]> {
+  const ids = await db
+    .selectDistinct({ id: schema.spaceConnection.connectorId })
+    .from(schema.spaceConnection)
+    .where(eq(schema.spaceConnection.spaceId, spaceId));
+  const views: ConnectorView[] = [];
+  for (const { id } of ids) {
+    if (!toolkitOfConnector(id)) {
+      continue;
+    }
+    const found = await composioConnector(id).catch(() => null);
+    if (found) {
+      views.push(composioView(found.connector));
+    }
+  }
+  return views;
+}
+
+/** Every connector a wizard of the space can name: the built-in ones, its imports, then Composio's it uses. */
 export async function listConnectors(spaceId: string): Promise<ConnectorView[]> {
   const rows = await db.query.spaceConnector.findMany({
     where: eq(schema.spaceConnector.spaceId, spaceId),
@@ -852,6 +875,7 @@ export async function listConnectors(spaceId: string): Promise<ConnectorView[]> 
   return [
     ...(await Promise.all(BUILTIN_CONNECTORS.map(builtinView))),
     ...rows.map((r) => view(r.record, bundles.find((b) => b.id === r.bundleId) ?? null)),
+    ...(await composioConnectorsOf(spaceId)),
   ];
 }
 
@@ -887,6 +911,19 @@ export async function resolveConnector(
         }
       },
     };
+  }
+  // A service of Composio's catalog: made from the catalog, kept nowhere.
+  if (toolkitOfConnector(id)) {
+    const composio = await composioConnector(id);
+    return composio
+      ? {
+          connector: composio.connector,
+          imported: false,
+          fromAddress: false,
+          bundleId: null,
+          inputSchema: (actionId) => composio.inputs.get(actionId) ?? {},
+        }
+      : null;
   }
   const found = await importedConnector(spaceId, id);
   return found

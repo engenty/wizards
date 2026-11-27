@@ -51,6 +51,12 @@ import { createLocalKey, deleteLocalKey, listLocalKeys } from "../auth/keys.js";
 import { assertRwx, folderAudience, setFolderAudience, subjectsOfPerson } from "../broker/rwx.js";
 import { appStates, connectApps } from "../cli/connect.js";
 import { layout } from "../cli/home.js";
+import { composioKeyHint, composioOn, setComposioKey } from "../connectors/composio.js";
+import {
+  composioCatalog,
+  composioConnector,
+  composioView,
+} from "../connectors/composio-connectors.js";
 import {
   actionKindsPatchSchema,
   connectorImportSchema,
@@ -1116,6 +1122,20 @@ export const studio = new Hono<Vars>()
   .get("/spaces/:id/connectors", async (c) =>
     c.json(await connectorsView(reader(c), c.req.param("id"))),
   )
+  // Composio's catalog (docs/plans/composio.md): searched for „Verbindung hinzufügen“, and one
+  // toolkit as a connector before the space has a connection on it.
+  .get("/spaces/:id/composio", async (c) => {
+    await ownedSpace(c.get("user").id, c.req.param("id"));
+    const q = z.string().max(80).catch("").parse(c.req.query("q"));
+    return c.json(await composioCatalog(q));
+  })
+  .get("/spaces/:id/composio/:connectorId", async (c) => {
+    await ownedSpace(c.get("user").id, c.req.param("id"));
+    const found = await composioConnector(c.req.param("connectorId"));
+    return found
+      ? c.json(composioView(found.connector))
+      : c.json({ error: say(c, "notFound"), code: "not_found" }, 404);
+  })
   .post("/spaces/:id/connectors", async (c) => {
     const user = c.get("user");
     const space = await ownedSpace(user.id, c.req.param("id"));
@@ -2147,6 +2167,22 @@ export const studio = new Hono<Vars>()
   })
   // The setup and the settings of the clients, keys and models on this machine.
   .route("/local", managed ? new Hono() : localSetup)
+  // --- a Composio key of one's own, on a computer of one's own (docs/plans/composio.md, decision 4)
+  // Kept as the model keys are and never sent to the Manage-App; shown masked, never whole.
+  .get("/composio/key", async (c) => {
+    if (managed || !(await composioOn())) {
+      return c.json({ available: false, set: false, masked: null });
+    }
+    return c.json({ available: true, ...(await composioKeyHint()) });
+  })
+  .put("/composio/key", async (c) => {
+    if (managed || !(await composioOn())) {
+      return c.json({ error: say(c, "notFound"), code: "not_found" }, 404);
+    }
+    const { key } = z.object({ key: z.string().max(400) }).parse(await c.req.json());
+    await setComposioKey(key);
+    return c.json({ available: true, ...(await composioKeyHint()) });
+  })
   // --- models: where each class runs, own API keys, the credits behind them -----------------
   // Alone for this machine; on a Manage-App's runtime for the organization, whose admins change it.
   .get("/models", async (c) => c.json(await settingsFor(c)))

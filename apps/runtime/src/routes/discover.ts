@@ -18,10 +18,12 @@ export const discoverRoutes = new Hono<Vars>().get("/spaces/:id/discover", async
   const answer: DiscoverAnswer = {
     skills: found.skills,
     connectors: found.connectors,
+    composio: found.composio,
     bundles: found.bundles,
     errors: {
       ...(found.errors.skills ? { skills: say(c, found.errors.skills) } : {}),
       ...(found.errors.connectors ? { connectors: say(c, found.errors.connectors) } : {}),
+      ...(found.errors.composio ? { composio: say(c, found.errors.composio) } : {}),
     },
   };
   return c.json(answer);

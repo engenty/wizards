@@ -50,6 +50,8 @@ const NOTE_CLASS: Record<string, FailureClass> = {
   clientNotSignedIn: "sign_in",
   accountNoLongerSigned: "sign_in",
   creditsNotSignedIn: "sign_in",
+  // Composio or the Manage-App said to wait (`Retry-After`): the step is tried again then.
+  composioBusy: "retry",
 };
 
 /** An answer that came and is wrong: asking again is the step's own job, not the clock's. */
@@ -170,10 +172,18 @@ export function classifyFailure(
   // What the runtime itself says, it means: a step's own failure is never a provider's trouble.
   if (err instanceof NotedError) {
     const cls = NOTE_CLASS[noteOf(err)?.code ?? ""] ?? "final";
+    const after = (err as { retryAfter?: unknown }).retryAfter;
     return {
       class: cls,
-      retryAfterMs: null,
-      why: cls === "credits" ? "credits" : cls === "sign_in" ? "sign_in" : "other",
+      retryAfterMs: cls === "retry" && typeof after === "number" ? after * 1000 : null,
+      why:
+        cls === "credits"
+          ? "credits"
+          : cls === "sign_in"
+            ? "sign_in"
+            : cls === "retry"
+              ? "rate_limit"
+              : "other",
     };
   }
   const links = chainOf(err);

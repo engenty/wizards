@@ -1,6 +1,7 @@
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import { and, eq } from "drizzle-orm";
 import { connectorFetch, resolveEnv, signInFetch } from "../connectors/builtin.js";
+import { type ComposioSecret, composioSecretOf } from "../connectors/composio-connectors.js";
 import { candidates, open, type StoredConnection } from "../connectors/index.js";
 import { connectionsFor, remember, runConnectionsOn } from "../connectors/person-connections.js";
 import { sameService } from "../connectors/same-service.js";
@@ -322,6 +323,15 @@ export async function stateOf(
 export function grantedScopes(row: SpaceConnectionRow): string[] {
   const data = row.secret ? unseal<StoredTokens>(row.secret) : null;
   return data?.scopes ?? [];
+}
+
+/**
+ * The Composio sign-in a sealed secret holds (docs/plans/composio.md): the connected account's id
+ * and the way it was made, so that removing it signs out at Composio. Null for any other secret.
+ */
+export function composioSignInOf(sealed: string | null): ComposioSecret | null {
+  const data = sealed ? unseal<StoredTokens>(sealed) : null;
+  return data?.via === "composio" ? composioSecretOf(data.accessToken) : null;
 }
 
 /** „Letzte Nutzung“: the connection was just used. */
