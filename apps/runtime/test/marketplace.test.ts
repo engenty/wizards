@@ -388,6 +388,7 @@ describe("the version of a wizard's format in the search", () => {
       const found = (await (await marketplaceGuest.request("/?lang=de")).json()) as MarketplacePage;
       expect(found.entries.map((e) => e.id)).toEqual(["next"]);
       expect(found.total).toBe(1);
+      expect(found.all).toBe(1);
     } finally {
       writeFileSync(file, "version020=on\n");
       remote.entries.delete("next");
