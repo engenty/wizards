@@ -45,7 +45,7 @@ const searchSchema = z.object({
     .transform((v) => v === "1"),
 });
 
-/** The version of a wizard's format is offered while the kernel switch is on. */
+/** The version of a wizard's format is offered while the switch for version 0.3.0 is on. */
 const versionsOffered = async () => feature("kernel", await remoteFeatures().catch(() => null));
 
 /** The filters' counts, without the versions of the format while those are not offered. */

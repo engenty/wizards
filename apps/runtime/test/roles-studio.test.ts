@@ -42,6 +42,7 @@ describe("RUNTIME_ROLE=studio", () => {
       runner: false,
       api: true,
       vectors: true,
+      broker: false,
     });
     expect((await get("/api/health")).status).toBe(200);
     expect((await get("/api/config")).status).toBe(200);

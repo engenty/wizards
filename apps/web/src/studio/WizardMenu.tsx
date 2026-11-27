@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Copy, Download, MoreVertical, Trash2 } from "lucide-react";
+import { Copy, Download, FileCode2, MoreVertical, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "../lib/api";
@@ -16,10 +16,13 @@ import { useDismiss } from "./AppFrame";
  */
 export function WizardMenu({
   wizard,
+  convertible,
   className,
   onDeleted,
 }: {
   wizard: { id: string; title: string; published?: boolean };
+  /** A wizard of an earlier format, where step files are on: it can be copied as one made of them. */
+  convertible?: boolean;
   className?: string;
   /** Where to go once it is gone; the card's list just loses it. */
   onDeleted?: () => void;
@@ -33,6 +36,14 @@ export function WizardMenu({
   useDismiss(ref, open, () => setOpen(false));
   const duplicate = useMutation({
     mutationFn: () => api.post<{ id: string }>(`/api/studio/wizards/${wizard.id}/duplicate`),
+    onSuccess: async ({ id }) => {
+      await qc.invalidateQueries({ queryKey: ["wizards"] });
+      navigate(`/edit/${id}`);
+    },
+  });
+  // A copy made of step files; the wizard itself stays.
+  const convert = useMutation({
+    mutationFn: () => api.post<{ id: string }>(`/api/studio/wizards/${wizard.id}/convert`),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: ["wizards"] });
       navigate(`/edit/${id}`);
@@ -83,6 +94,20 @@ export function WizardMenu({
           >
             <Copy className="size-4 shrink-0" /> {t("wizardMenu.duplicate")}
           </button>
+          {convertible ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={item}
+              disabled={convert.isPending}
+              onClick={() => {
+                setOpen(false);
+                convert.mutate();
+              }}
+            >
+              <FileCode2 className="size-4 shrink-0" /> {t("wizardMenu.convert")}
+            </button>
+          ) : null}
           <a
             role="menuitem"
             href={withBase(`/api/studio/wizards/${wizard.id}/export`)}

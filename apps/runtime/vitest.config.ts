@@ -7,6 +7,7 @@ import { BaseSequencer, type TestSpecification } from "vitest/node";
  * the split out by itself: it must not depend on anything but the files and this list.
  */
 const SECONDS: Record<string, number> = {
+  "kernel-restart-process": 90,
   "durable-turn": 60,
   signals: 45,
   "durable-wait-process": 43,

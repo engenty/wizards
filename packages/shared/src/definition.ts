@@ -1605,22 +1605,107 @@ export const requiresSchema = z.object({
 export type Requires = z.infer<typeof requiresSchema>;
 
 /**
+ * A wizard in version 0.3.0 of the format (docs/plans/kernel.md): the file. It holds what the wizard
+ * needs and may reach, and the map. Nothing about a step is in it: a step is a file of the
+ * wizard's workspace, `steps/<id>.ts`, with one function. What reads it is in kernel-file.ts.
+ */
+export const KERNEL_VERSION = "0.3.0" as const;
+
+const kernelStepId = z
+  .string()
+  .regex(/^[a-z][a-zA-Z0-9_]*$/, "a step's id is a name a file can have: letters, digits, _");
+const way = z.union([kernelStepId, z.literal("end")]);
+
+export const kernelRequiresSchema = z.object({
+  /** The model classes an agent ask may name. */
+  models: z.array(z.enum(MODEL_CLASSES)).optional(),
+  /** Tools that are not a connection's: the sandbox, the browser, a plugin's, the wizard's own. */
+  tools: z.array(z.string().min(1)).optional(),
+  /** Roles beyond `user` and `operator`: an id and a title. */
+  roles: z.record(z.string().regex(/^[a-z][a-z0-9_-]*$/), z.string().min(1)).optional(),
+  /** The hosts the HTTP tool may reach. */
+  hosts: z.array(z.string().min(1)).optional(),
+  /** The wizards a step may ask, by the names the host knows them by. */
+  wizards: z.array(z.string().min(1)).optional(),
+});
+
+export const kernelFileSchema = z.object({
+  version: z.literal(KERNEL_VERSION),
+  title: z.string().min(1),
+  description: z.string().default(""),
+  avatar: z.string().default("round"),
+  lang: z
+    .string()
+    .regex(/^[a-z]{2}$/)
+    .optional(),
+  requires: kernelRequiresSchema.optional(),
+  /**
+   * Each connection by its kind, the actions the wizard uses, and for each whether it is allowed
+   * or asks the user first. Whose account it is, is bound where the wizard is installed.
+   */
+  connections: z
+    .record(z.string().min(1), z.record(z.string().min(1), z.enum(["allow", "ask"])))
+    .optional(),
+  /** Shown on the first page, above the first question. */
+  intro: z.string().optional(),
+  /** The lists the wizard keeps across its runs, as a wizard of steps in a list names them. */
+  lists: z.array(listSchema).max(12).optional(),
+  /**
+   * What a caller sends, or a person fills in first. As a page it may be laid out like any form:
+   * its groups, its button's words, its components and what they read.
+   */
+  input: z
+    .object({
+      /** The page's own title; left out, the wizard's. */
+      title: z.string().min(1).optional(),
+      description: z.string().optional(),
+      fields: z.array(fieldSchema),
+      groups: z.array(fieldGroupSchema).max(6).optional(),
+      cta: z.string().optional(),
+      components: surfaceComponentsSchema.optional(),
+      data: z.record(z.string(), z.string()).optional(),
+    })
+    .optional(),
+  /** A finished run's output: a name, and where it is read from as `<step>.<path>`. */
+  output: z.record(z.string().min(1), z.string().min(1)).optional(),
+  /**
+   * The page a finished run shows a person: what it says, and what it offers to download, each
+   * from a step or a list (`lists.<id>`) in the formats named. Left out, the page offers what
+   * `output` reads.
+   */
+  result: z
+    .object({
+      /** The page's own title; left out, the wizard's. */
+      title: z.string().min(1).optional(),
+      message: z.string().optional(),
+      downloads: z.array(deliverableSchema).optional(),
+    })
+    .optional(),
+  start: kernelStepId,
+  /** The ways of each step. The first is taken when the step names none. */
+  edges: z.record(kernelStepId, z.array(way)),
+  /** How often a step may be reached in one run. */
+  limits: z.record(kernelStepId, z.number().int().min(1).max(1000)).optional(),
+});
+
+export type KernelFile = z.infer<typeof kernelFileSchema>;
+
+/**
  * The version of the format a wizard is written in, the same way everywhere a wizard is kept or
- * handed on: its definition, its file, the marketplace. `0.2.0` is the format of steps in a list.
- * The format is in beta until 1.0: it can change without a new version, and stored definitions
- * are converted once when it does. A definition without a version is of this one.
+ * handed on: its definition, its file, the marketplace. `0.2.0` is the format of steps in a list,
+ * `0.3.0` the one made of step files (`KERNEL_VERSION`).
  */
 export const DEFINITION_VERSION = "0.2.0" as const;
-/** The versions of the format this app reads. */
-export const FORMAT_VERSIONS = [DEFINITION_VERSION] as const;
+export const FORMAT_VERSIONS = [DEFINITION_VERSION, KERNEL_VERSION] as const;
 export type FormatVersion = (typeof FORMAT_VERSIONS)[number];
 
 /**
  * The version of a format as it is written today. Before 2026-11-15 the format of steps in a list
- * said `1`. A value written that way is read as what it means now.
+ * said `1`, and a wizard made of step files said so too, with its own version only inside its
+ * file. A value written that way is read as what it means now.
  */
-export function formatVersionOf(version: unknown): unknown {
-  return version === 1 || version === "1" ? DEFINITION_VERSION : version;
+export function formatVersionOf(version: unknown, kernel?: unknown): unknown {
+  return kernel ? KERNEL_VERSION : version === 1 || version === "1" ? DEFINITION_VERSION : version;
 }
 
 /** A definition with its version as it is written today (`formatVersionOf`); anything else as it is. */
@@ -1628,67 +1713,91 @@ export function inCurrentFormat<T>(definition: T): T {
   if (!definition || typeof definition !== "object" || Array.isArray(definition)) {
     return definition;
   }
-  const { version } = definition as { version?: unknown };
-  const now = formatVersionOf(version);
-  return now === version ? definition : { ...definition, version: now };
+  const { version, kernel } = definition as { version?: unknown; kernel?: unknown };
+  const now = formatVersionOf(version, kernel);
+  return now === version || (now === undefined && !kernel)
+    ? definition
+    : { ...definition, version: now };
 }
 
-/** A definition as it is written: what the JSON Schema describes. */
-export const wizardShapeSchema = z
-  .object({
-    version: z.enum(FORMAT_VERSIONS).default(DEFINITION_VERSION),
-    title: z.string().min(1),
-    description: z.string().default(""),
-    avatar: z.enum(ENGENTY_KINDS).default("round"),
-    /** A costume the avatar wears; none without one. */
-    costume: z.enum(ENGENTY_COSTUMES).optional(),
-    /** Shown on the first page above the first question. */
-    intro: z.string().optional(),
-    /**
-     * What tells this wizard's runs apart in the runs panel, a template of answers such as
-     * `{{kunde}} · {{angebot}}`. Filled and stored on the run as its answers arrive.
-     */
-    label: z.string().max(200).optional(),
-    /**
-     * The language the wizard speaks to people: its texts, the runner's words, its numbers and
-     * dates, by its two-letter code ("en", "de", "it"). Any language, not only those engenty's own
-     * strings are written in; `validateWizard` checks it names a real one. Without one it is read
-     * from the wizard's own words (`wizardLang`).
-     */
-    lang: z
-      .string()
-      .regex(/^[a-z]{2}$/)
-      .optional(),
-    /** Tabular data the wizard keeps between runs, per person — or for all runs (`shared`). */
-    lists: z.array(listSchema).max(12).optional(),
-    /** Accounts the person connects; kept between runs, per person. */
-    connections: z.array(connectionSchema).max(12).optional(),
-    /** A database of the wizard's own, kept by the runtime per person, or shared as well. */
-    data: dataSchema.optional(),
-    /** How the wizard's pages look, over its space's brand: colours, typefaces, effects, CSS. */
-    /**
-     * The themes the wizard offers, in its order: ids of the space's themes, or `brand`, `host`
-     * and `default`. The place that shows the wizard picks one; its own pages take the first the
-     * space has. Without any: the space's brand.
-     */
-    themes: z.array(z.string().regex(THEME_ID)).max(8).optional(),
-    requires: requiresSchema.optional(),
-    steps: z.array(stepSchema).min(1),
-  })
-  .superRefine((def, ctx) => {
-    def.steps.forEach((step, i) => {
-      const classed =
-        step.type === "agent" || step.type === "generate" || step.type === "motion-graphics";
-      const problem = classed ? makerProblem(step) : null;
-      if (classed && problem) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["steps", i, step.maker ? "maker" : "model"],
-          message: problem,
-        });
-      }
+/** A definition as it is written, without the checks across its parts. */
+const wizardShapeBase = z.object({
+  version: z.enum(FORMAT_VERSIONS).default(DEFINITION_VERSION),
+  title: z.string().min(1),
+  description: z.string().default(""),
+  avatar: z.enum(ENGENTY_KINDS).default("round"),
+  /** A costume the avatar wears; none without one. */
+  costume: z.enum(ENGENTY_COSTUMES).optional(),
+  /** Shown on the first page above the first question. */
+  intro: z.string().optional(),
+  /**
+   * What tells this wizard's runs apart in the runs panel, a template of answers such as
+   * `{{kunde}} · {{angebot}}`. Filled and stored on the run as its answers arrive.
+   */
+  label: z.string().max(200).optional(),
+  /**
+   * The language the wizard speaks to people: its texts, the runner's words, its numbers and
+   * dates, by its two-letter code ("en", "de", "it"). Any language, not only those engenty's own
+   * strings are written in; `validateWizard` checks it names a real one. Without one it is read
+   * from the wizard's own words (`wizardLang`).
+   */
+  lang: z
+    .string()
+    .regex(/^[a-z]{2}$/)
+    .optional(),
+  /** Tabular data the wizard keeps between runs, per person — or for all runs (`shared`). */
+  lists: z.array(listSchema).max(12).optional(),
+  /** Accounts the person connects; kept between runs, per person. */
+  connections: z.array(connectionSchema).max(12).optional(),
+  /** A database of the wizard's own, kept by the runtime per person, or shared as well. */
+  data: dataSchema.optional(),
+  /** How the wizard's pages look, over its space's brand: colours, typefaces, effects, CSS. */
+  /**
+   * The themes the wizard offers, in its order: ids of the space's themes, or `brand`, `host`
+   * and `default`. The place that shows the wizard picks one; its own pages take the first the
+   * space has. Without any: the space's brand.
+   */
+  themes: z.array(z.string().regex(THEME_ID)).max(8).optional(),
+  requires: requiresSchema.optional(),
+  steps: z.array(stepSchema).min(1),
+  /**
+   * The wizard in version 0.3.0 of the format (docs/plans/kernel.md, kernel-file.ts): with it the
+   * kernel runs the wizard from its step files, and `steps` is only what a reader that knows
+   * version 0.2.0 shows of it.
+   */
+  kernel: kernelFileSchema.optional(),
+});
+
+/**
+ * A definition in version 0.2.0 as the JSON Schema of that version describes it: steps in a list,
+ * nothing of step files. Refinements stay with the app; JSON Schema cannot say them.
+ */
+export const wizardShapeV020 = wizardShapeBase
+  .omit({ kernel: true })
+  .extend({ version: z.enum([DEFINITION_VERSION]).default(DEFINITION_VERSION) });
+
+/** A definition as it is written. */
+export const wizardShapeSchema = wizardShapeBase.superRefine((def, ctx) => {
+  if ((def.version === KERNEL_VERSION) !== Boolean(def.kernel)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["version"],
+      message: `version ${KERNEL_VERSION} is a wizard made of step files, and only that`,
     });
+  }
+  def.steps.forEach((step, i) => {
+    const classed =
+      step.type === "agent" || step.type === "generate" || step.type === "motion-graphics";
+    const problem = classed ? makerProblem(step) : null;
+    if (classed && problem) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["steps", i, step.maker ? "maker" : "model"],
+        message: problem,
+      });
+    }
   });
+});
 
 /**
  * What the app parses a definition with: the schema above, after a version written the earlier
@@ -2008,8 +2117,85 @@ function fieldShapeIssues(field: Field): string[] {
   return issues;
 }
 
+export const STEPS_DIR = "steps/";
+export const EVALS_DIR = "evals/";
+const CODE = /\.(ts|js|mjs)$/;
+
+/** The steps a workspace has, by id, from its files' paths. */
+export const stepFilesOf = (paths: readonly string[]): Record<string, string> =>
+  Object.fromEntries(
+    paths
+      .filter(
+        (path) =>
+          path.startsWith(STEPS_DIR) &&
+          CODE.test(path) &&
+          !path.slice(STEPS_DIR.length).includes("/"),
+      )
+      .map((path) => [path.slice(STEPS_DIR.length).replace(CODE, ""), path]),
+  );
+
+/** The evals a workspace has: what each judges, a step's id or `end`, then its name, then its path. */
+export function evalFilesOf(paths: readonly string[]): Record<string, Record<string, string>> {
+  const evals: Record<string, Record<string, string>> = {};
+  for (const path of paths) {
+    const [of, name, more] = path.startsWith(EVALS_DIR)
+      ? path.slice(EVALS_DIR.length).split("/")
+      : [];
+    if (!of || !name || more !== undefined || !CODE.test(name)) continue;
+    evals[of] ??= {};
+    evals[of][name.replace(CODE, "")] = path;
+  }
+  return evals;
+}
+
+/**
+ * Whether the file and the workspace's files fit, read without running anything: every step the
+ * map names has a file and a way on, a way leads to every step file, a limit, an output and an
+ * eval name a step there is.
+ */
+export function kernelIssues(file: KernelFile, paths: readonly string[]): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const steps = stepFilesOf(paths);
+  const seen = new Set<string>();
+  const todo = [file.start];
+  while (todo.length) {
+    const id = todo.pop() as string;
+    if (id === "end" || seen.has(id)) continue;
+    seen.add(id);
+    todo.push(...(file.edges[id] ?? []));
+  }
+  for (const id of seen)
+    if (!steps[id])
+      issues.push({ stepId: id, message: `The map names "${id}", there is no steps/${id}.ts.` });
+  // A step leaves by one of its ways, and the kernel takes none the map does not have.
+  for (const id of seen)
+    if (!file.edges[id]?.length)
+      issues.push({
+        stepId: id,
+        message: `"${id}" has no way in the map. Give it one, "end" to end the run there.`,
+      });
+  for (const id of Object.keys(steps))
+    if (!seen.has(id)) issues.push({ stepId: id, message: `No way leads to steps/${id}.` });
+  for (const id of Object.keys(file.edges))
+    if (!seen.has(id))
+      issues.push({ stepId: id, message: `"${id}" has ways and none leads to it.` });
+  for (const id of Object.keys(file.limits ?? {}))
+    if (!steps[id]) issues.push({ message: `A limit names "${id}", there is no such step.` });
+  for (const [name, from] of Object.entries(file.output ?? {}))
+    if (!steps[from.split(".")[0]])
+      issues.push({ message: `The output "${name}" reads "${from}", there is no such step.` });
+  for (const of of Object.keys(evalFilesOf(paths)))
+    if (of !== "end" && !steps[of])
+      issues.push({ message: `evals/${of} judges a step there is none of.` });
+  return issues;
+}
+
 export function validateWizard(def: WizardDefinition, files?: string[]): ValidationIssue[] {
   const issues: ValidationIssue[] = sectionIssues(def);
+  // A wizard in version 0.3.0: its file against the step files of its workspace.
+  if (def.kernel && files) {
+    issues.push(...kernelIssues(def.kernel, files));
+  }
   const stepIds = new Set<string>();
   const fieldIds = new Set<string>();
   const seenSteps = new Set<string>();

@@ -28,6 +28,8 @@ const MIME_BY_EXT: Record<string, string> = {
   htm: "text/html",
   js: "text/javascript",
   mjs: "text/javascript",
+  // A step file of a wizard in version 0.3.0: code to read and edit, as text.
+  ts: "text/typescript",
   css: "text/css",
   json: "application/json",
   geojson: "application/geo+json",

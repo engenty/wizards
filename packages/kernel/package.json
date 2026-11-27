@@ -1,0 +1,57 @@
+{
+  "name": "@engenty/wizards-kernel",
+  "version": "0.1.0",
+  "description": "The engine of a wizard in version 0.3.0: a file of edges, one function per step, a cursor and rows.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "wizards-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./compile": {
+      "wizards-source": "./src/compile.ts",
+      "types": "./dist/compile.d.ts",
+      "default": "./dist/compile.js"
+    },
+    "./executor": {
+      "wizards-source": "./src/executor.ts",
+      "types": "./dist/executor.d.ts",
+      "default": "./dist/executor.js"
+    },
+    "./check": {
+      "wizards-source": "./src/check-dir.ts",
+      "types": "./dist/check-dir.d.ts",
+      "default": "./dist/check-dir.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@engenty/wizards-shared": "workspace:*",
+    "@executor-js/emulate": "0.14.2",
+    "@executor-js/plugin-openapi": "1.6.11",
+    "@executor-js/sdk": "1.6.11",
+    "@types/node": "^26.6.6",
+    "effect": "4.0.0-beta.59",
+    "miniflare": "^4.20251011.0",
+    "typescript": "~7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "@jitl/quickjs-wasmfile-release-sync": "0.31.0",
+    "esbuild": "0.28.2",
+    "quickjs-emscripten-core": "0.31.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE"
+  ]
+}

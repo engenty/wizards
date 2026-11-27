@@ -87,6 +87,20 @@ export interface RunTurn {
 }
 
 export interface RunState {
+  /**
+   * A run of a wizard in version 0.3.0 (docs/plans/kernel.md): what the kernel keeps of it besides
+   * its rows. The other entries of this state stay empty for such a run.
+   */
+  kernel?: {
+    /** Null until the run began: it then asks for its input where it was given none. */
+    input: Record<string, unknown> | null;
+    startedAt: number;
+    /** Where the rows of the step the run stands in begin; null between two steps. */
+    open: number | null;
+    status: "running" | "waiting" | "paused" | "done" | "failed" | "stopped";
+    grant?: unknown;
+    output?: Record<string, unknown>;
+  };
   values: Record<string, unknown>;
   outputs: Record<string, StepOutput>;
   /** Interactive steps answered, oldest first — "back" pops this. */
@@ -398,6 +412,9 @@ const NOTES_EN = {
   reminderSent: "Sent a reminder.",
   waitsOff: "This wizard has a wait step, and those aren’t turned on here yet.",
   codeStepsOff: "This wizard runs code of its own, and that isn’t turned on here yet.",
+  kernelOff: "This wizard is made of step files, and those aren’t turned on here yet.",
+  kernelSample: "Sample",
+  kernelSampleText: "*Sample.* After a test run, this shows what the step made.",
   pluginsMissing: "This wizard needs {plugins}, which isn’t installed here.",
   connectorsCantConnect: "{connectors} can’t connect here yet.",
   connectorNeedsSettings: "To connect {connector}, engenty wizards needs {settings} here.",
@@ -952,6 +969,10 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   reminderSent: "Erinnerung gesendet.",
   waitsOff: "Dieser Wizard hat einen Warten-Schritt, und die sind hier noch nicht eingeschaltet.",
   codeStepsOff: "Dieser Wizard führt eigenen Code aus, und das ist hier noch nicht eingeschaltet.",
+  kernelOff:
+    "Dieser Wizard besteht aus Schritt-Dateien, und die sind hier noch nicht eingeschaltet.",
+  kernelSample: "Beispiel",
+  kernelSampleText: "*Beispiel.* Nach einem Testlauf steht hier, was dieser Schritt erstellt.",
   pluginsMissing: "Dieser Wizard braucht {plugins}, und das ist hier nicht installiert.",
   connectorsCantConnect: {
     one: "{connectors} lässt sich hier noch nicht verbinden.",
@@ -1540,6 +1561,54 @@ export interface RunTimeline {
   events: RunEvent[];
   /** How many lines the log has, `events` or more. */
   total: number;
+  /**
+   * Set for a run of a wizard in version 0.3.0 (docs/plans/kernel.md): its rows are read from
+   * `GET /api/runs/:id/rows`. `roles`: whose answers come from a person, so such a row can be
+   * answered differently; every other row can only be asked again.
+   */
+  kernel?: { roles: string[] };
+}
+
+/** A row of a run of a wizard in version 0.3.0: an ask with its answer, or a step that returned. */
+export interface KernelRow {
+  n: number;
+  step: string;
+  /** A step that returned: what it left behind and the way it went. */
+  left?: true;
+  value?: unknown;
+  to?: string;
+  /** An ask: what kind, who answers, and how it stands. */
+  type?: string;
+  role?: string;
+  title?: unknown;
+  state?: "waiting" | "done" | "failed";
+  answer?: unknown;
+  error?: string;
+  by?: string;
+  /** On the row that asks the user's leave for an action: the row of that action. */
+  approves?: number;
+  /** On a row that belongs to another ask, what an agent did in its turn: that ask's row. */
+  parent?: number;
+}
+
+/** What an eval said of one step that returned, or of the finished run (`end/<name>`). */
+export interface KernelScore {
+  eval: string;
+  row: number;
+  score?: number;
+  why?: string;
+  error?: string;
+}
+
+/** What `GET /api/runs/:id/rows` answers: a run's rows in their order, and its scores. */
+export interface KernelRows {
+  rows: KernelRow[];
+  scores: KernelScore[];
+  /** Each step's title as its file writes it. */
+  titles?: Record<string, { title?: string; working?: string }>;
+  /** The wizard's evals, `<step>/<name>` and `end/<name>`, whether or not they judged yet. */
+  evals?: string[];
+  status?: RunStatus;
 }
 
 /** One step's output as the current step shows it. */

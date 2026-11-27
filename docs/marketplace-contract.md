@@ -29,11 +29,12 @@ verifying and voting will take a token of the Manage-App (scope `wizards:publish
   hash in `sync` differs from the one it keeps. `revision` goes up with every change; a wizard
   made from an entry records it (`wizard.starter_revision`).
 - **Versions**: `version` is the version of the format the wizard is written in, as a wizard's
-  own `version` says it: `0.2.0` for steps in a list (`FORMAT_VERSIONS`). A client that does not
-  read that format shows the entry as needing a newer app. The schema drops what it does not
-  know, so a client also reads the wizard before it starts one and refuses it when anything would
-  be lost. A client says the version it writes in `x-wizards-definition`. Before 2026-11-15 the
-  format of steps in a list said `1`: a client reads that as `0.2.0` (`formatVersionOf`).
+  own `version` says it: `0.2.0` for steps in a list, `0.3.0` for step files (`FORMAT_VERSIONS`).
+  A client that does not read that format shows the entry as needing a newer app. The schema
+  drops what it does not know, so a client also reads the wizard before it starts one and refuses
+  it when anything would be lost. A client says the version it writes in `x-wizards-definition`.
+  Before 2026-11-15 the format of steps in a list said `1`: a client reads that as `0.2.0`
+  (`formatVersionOf`).
   `version=` narrows the search to one, counted in `facets.version`.
 - **Plugins and plans**: `plugins` names the plugins an entry's wizard uses (its tools named
   `<plugin>.<tool>`, `pluginsOf`), `plan` the plan that has them (`free`, or `pro` as soon as it

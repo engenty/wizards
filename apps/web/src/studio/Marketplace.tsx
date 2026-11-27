@@ -1254,7 +1254,7 @@ export function MarketplaceBrowser({
       }),
     },
     // The version of the format a template's wizard is written in, newest first: offered while
-    // the kernel switch is on and the marketplace counts the versions.
+    // the switch for version 0.3.0 is on and the marketplace counts the versions.
     ...(versions && Object.keys(first?.facets.version ?? {}).length
       ? [
           {

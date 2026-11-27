@@ -53,7 +53,7 @@ The person's wizards, newest first, each with its space's name and where that sp
 A wizard's draft with its revision, validator issues and warnings, whether it differs from the published version, and its links. A warning names a step that saves and publishes but fails in a run as the space's rules are now.
 
 <!-- section: tool.validate_wizard -->
-Check a wizard JSON without saving it. Returns ok and the issues.
+Check a wizard JSON without saving it. Returns ok and the issues. With wizardId it is checked against that wizard's workspace files, and the step files of a wizard in version 0.3.0 are compiled; without a definition, the wizard's draft is checked.
 
 <!-- section: tool.create_wizard -->
 Create a wizard from your JSON, or copy a starter. The draft may still have issues; fix them with edit_wizard.
