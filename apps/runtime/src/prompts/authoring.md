@@ -62,16 +62,18 @@ ${sandbox}
 <!-- Technical: engineering owns everything below. -->
 
 <!-- section: guide -->
-<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON; durable, code and kernel are the sections below, or nothing. -->
-engenty wizards: a wizard is a page-by-page flow an end user walks through on a shared link. Pages ask questions; AI steps research, write, draw images, render video, build documents and dashboards, or write into other systems. You author the wizard as JSON; the person who asked you is the ADMIN, the people who later open the link are END USERS.
+<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard of version 0.2.0 as JSON; durable and code are the sections below, or nothing; kernel is the section below. -->
+engenty wizards: a wizard is a page-by-page flow an end user walks through on a shared link. Pages ask questions; AI steps research, write, draw images, render video, build documents and dashboards, or write into other systems. You author a new wizard as step files (version 0.3.0, next); the person who asked you is the ADMIN, the people who later open the link are END USERS.
+
+${kernel}
+
+Version 0.2.0, for wizards made before: change such a wizard as it is, or convert it. Its pages, steps and fields below are also what a step file's asks take (a form's fields, an agent's model and tools, a generate step's options).
 
 ${schema}
 
 ${durable}
 
 ${code}
-
-${kernel}
 
 ${principles}
 
@@ -99,7 +101,7 @@ Editing:
 - A wizard written as a file instead (a .wizard package, its wizard.json, or the JSON alone) follows the JSON Schema at ${schema_url}; `wizards validate <path>` checks it as the import does.
 - Test runs and published runs spend the admin's credits (research ~150, video ~250, short copy with an image ~15).
 
-Example of a complete wizard:
+Example of a complete wizard in version 0.2.0 (a new wizard is made of step files, as above):
 ```json
 ${example}
 ```
@@ -602,7 +604,7 @@ The script runs in its folder in the run's sandbox: it reads input.json, writes 
 
 <!-- section: kernel -->
 <!-- A wizard in version 0.3.0 of the format (docs/plans/kernel.md): a file and one function per step. -->
-A wizard made of step files (version 0.3.0). Every new wizard is one, a plain line of pages and AI steps too. The steps described above are for wizards made before; change those as they are, or convert them.
+A wizard made of step files (version 0.3.0). Every new wizard is one, a plain line of pages and AI steps too.
 
 Such a wizard is one definition with a "kernel" entry, plus one file per step in its workspace:
 
