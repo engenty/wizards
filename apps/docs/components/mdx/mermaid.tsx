@@ -86,6 +86,10 @@ function MermaidBody({ chart }: { chart: string }) {
           securityLevel: "loose",
           fontFamily: "inherit",
           themeCSS: "margin: 1.5rem auto 0;",
+          // dagre and the classic look: flat strokes in the page's colours, the docs' diagrams
+          // laid out as they were written for (Mermaid's defaults are ELK and the gradient "neo").
+          layout: "dagre",
+          look: "classic",
           // "base" is the one theme that takes colours; they are read anew when the theme changes.
           theme: "base",
           themeVariables: { ...pageTheme(), darkMode: resolvedTheme === "dark" },
