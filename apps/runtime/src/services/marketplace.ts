@@ -39,7 +39,6 @@ import {
   stepsWithoutModel,
 } from "../engine/requirements.js";
 import { env } from "../env.js";
-import { kernelCatalog } from "../kernel/catalog.js";
 import { managed } from "../manage.js";
 import {
   classCatalog,
@@ -583,6 +582,9 @@ export async function marketplaceDetail(
     const raw = Object.fromEntries(
       Object.entries(files).map(([path, data]) => [path, Buffer.from(data, "base64")]),
     );
+    // Loaded when a page asks for it: it reads step files with the step executors' pieces, and
+    // whatever loads this module would otherwise load the step executors with it.
+    const { kernelCatalog } = await import("../kernel/catalog.js");
     const { outline, priced: asSteps } = await kernelCatalog(parsed, raw);
     return {
       ...entry,
