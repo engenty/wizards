@@ -1,9 +1,9 @@
+import { Button } from "@engenty/chatviews/react/ui";
+import { bound, type SurfaceComponent } from "@engenty/chatviews/surface";
 import type { Field } from "@engenty/wizards-shared/definition";
-import { bound, type SurfaceComponent } from "@engenty/wizards-shared/surface";
 import { useState } from "react";
 import { FieldInput, type Values } from "./fields.js";
 import { lang, t } from "./i18n.js";
-import { Button } from "./ui.js";
 
 /**
  * A chat's Form: Fields drawn by the runner's own field kinds, as a wizard's page draws them

@@ -1,8 +1,7 @@
 # Plan: connections in a run
 
-Status: planned on 2026-11-14, its questions decided the same day (see „Decided“), nothing built.
-Checked against `main` at
-`45491ce9`. Follows `docs/plans/capabilities.md` (the connection model, the broker) and
+Status: steps 1–4 and 6 built on 2026-11-14 and 15, behind `runConnections` (off); step 5 dropped
+for the 0.3.0 format (see „With the 0.3.0 format“). Written against `main` at `45491ce9`. Follows `docs/plans/capabilities.md` (the connection model, the broker) and
 `docs/plans/integrations.md` (the OAuth clients).
 
 ## In short
@@ -121,17 +120,39 @@ home.
 
 Behind a switch in `.features` (`runConnections`), in small pull requests.
 
-| | Step | Where |
-|---|---|---|
-| 1 | One store: a wizard's accounts and Goose's sign-ins become connections with an owner. Rows move once by command | `connectors/`, `db/schema.ts` |
-| 2 | The lookup: the connections a run may use for a need, and the remembered choice | `connectors/index.ts`, `broker/account.ts` |
-| 3 | The card at the start of a run, and where a step waits for a sign-in. The line under „Was dieser Wizard sich merkt“ | `engine/runner.ts`, `packages/runner` |
-| 4 | The check before a run reads connections. The wizard's page in the studio shows its needs and the space's choice | `engine/requirements.ts`, `apps/web/src/studio` |
-| 5 | The format: the field kind and `spaceConnection` leave. Definitions are converted once by command, the architect's rules follow | `packages/shared/src/definition.ts`, `prompts/authoring.md` |
-| 6 | A need whose connector cannot connect here says so to the admin, with what is missing (`missingSetup`) | `connectors/builtin.ts`, the editor's notice |
+| | Step | Where | State |
+|---|---|---|---|
+| 1 | One store: a wizard's accounts and Goose's sign-ins become connections with an owner. The kept accounts move when a tenant's database opens | `connectors/`, `db/schema.ts`, `db/kept-accounts.ts` | Built, #680. Goose's sign-ins stay apart |
+| 2 | The lookup: the connections a run may use for a need, and the remembered choice | `connectors/person-connections.ts`, `broker/account.ts` | Built, #680 |
+| 3 | The card at the start of a run, and where a step waits for a sign-in. The line under „Was dieser Wizard sich merkt“ | `engine/runner.ts`, `engine/run-needs.ts`, `packages/runner` | Built, #682, #690 |
+| 4 | The check before a run reads connections. The wizard's page in the studio shows its needs and the space's choice | `engine/requirements.ts`, `apps/web/src/studio` | Built, #681, #689 |
+| 5 | The format: the field kind and `spaceConnection` leave | | Dropped: the 0.3.0 format has neither |
+| 6 | A need whose connector cannot connect here says so to the admin, with what is missing (`missingSetup`) | `connectors/builtin.ts`, the editor's notice | Built, #681 |
 
-Step 5 changes the format, so it follows `docs/plans/definition-versions.md`. The glossary's row for
-"connection" in `docs/copy-style.md` widens to a person's own.
+Built besides: the space's rules for a person's own account, the run's grant over a held space
+connection, a fixed step's sign-in (#688); a run nobody watches (a start's, a channel's) uses only
+the space's choice, and a link visitor never does (#695, #696).
+
+Left before `runConnections` goes on: the glossary's row for "connection" in `docs/copy-style.md`
+widens to a person's own; the studio's notice about a missing choice looks at a wizard's channels
+too, not only its starts.
+
+## With the 0.3.0 format
+
+The 0.3.0 format (`docs/plans/kernel.md`, #697, behind `kernel`) names its needs in `wizard.json`:
+`connections: { gmail: { "users.messages.send": "allow" } }`, the key a kind or a connector. That is
+this plan's rule. `kernelShell` hands them to the runtime as connections of version 1, so a step's
+call goes through `connectionsFor` and the broker like any other. Five seams, sent to the format's
+session on 2026-11-15:
+
+1. Step 5 above is dropped.
+2. One place for allow and ask: the file's allow/ask replaces version 1's `policy`; the space's
+   rules stay in the broker and only make it stricter.
+3. A missing sign-in in a 0.3.0 run waits, as „needs leave“ does, and its page shows the connect
+   card. The card at a run's start reads `connections` and `edges`.
+4. The check before a run is this plan's (`missingConnectionsSaid`, `unwatchedConnectionsSaid`),
+   not the kernel's `lacking()` alone.
+5. Executor reads accounts through `connectionsFor` and the broker, never a store of its own.
 
 ## The OAuth clients
 
@@ -158,13 +179,16 @@ serves every vendor and the cloud, Google needs a client in four places:
 | The dev stack (`~/.engenty-dev.env`) | `GOOGLE_OAUTH_CLIENT_ID`, `_SECRET` | `http://localhost:24468/api/connect/callback`, `http://localhost:18991/api/connect/callback` |
 | A computer without an account (`~/.engenty/wizards/.env`) | `GOOGLE_OAUTH_CLIENT_ID`, `_SECRET` | `http://localhost:24368/api/connect/callback` |
 
-- Two Google Cloud projects in the engenty.ai organization, because the consent screen's status is
-  per project: one for production, one for dev with status Testing.
-- Both enable the Gmail, Drive, Calendar and People APIs and list the scopes the connectors ask
-  for (`engenty/connections-google`, `connectors/gmail.ts`).
-- Testing: a sign-in expires after 7 days, and at most 100 test users.
-- Production: `gmail.readonly`, `gmail.modify` and `gmail.compose` are restricted scopes. Google
-  verifies the app and asks for a yearly security assessment before more than 100 people connect.
+- **One client, the sign-in's** (decided by Matthias on 2026-11-15): the Google Cloud project whose
+  client Manage signs people in with (`GOOGLE_CLIENT_ID`) also connects their accounts. All four
+  places above take its id and secret; its list of redirect addresses holds the sign-in's and the
+  five above.
+- The project enables the Gmail, Drive, Calendar and People APIs, and its consent screen lists the
+  scopes the connectors ask for (`engenty/connections-google`, `connectors/gmail.ts`).
+- `gmail.readonly`, `gmail.modify` and `gmail.compose` are restricted scopes. Until Google has
+  verified the project, its consent screen warns of an unverified app and at most 100 people
+  connect. Google verifies the whole project, the sign-in with it, and asks for a yearly security
+  assessment.
 - Without a client, Gmail connects over IMAP with an app password. The dev stack's stand-in for
   Google shows Gmail for testing the flow.
 

@@ -11,8 +11,8 @@ const EN = {
   schemaMismatch: "The wizard doesn’t match the schema.",
   providerError: "The provider answered with error {status}.",
   providerUnreachable: "The provider cannot be reached right now.",
-  ollamaUnreachable: "Nothing answers at this address. Is Ollama running?",
-  ollamaNoModel: "Ollama runs, but has no model yet: `ollama pull qwen3` fetches one.",
+  serverUnreachable: "Nothing answers at this address. Is {name} running?",
+  serverNoModel: "{name} runs, but has no model that writes yet.",
   importedFrom: "Imported from “{name}”: {steps}, {files}.",
   imported: "Imported: {steps}, {files}.",
   stepCount: { one: "{count} step", other: "{count} steps" },
@@ -125,7 +125,6 @@ const EN = {
   somethingWentWrongTry: "Something went wrong. Try again.",
   unknownApp: "Unknown app.",
   onlyOrganizationAdminsChange: "Only organization admins can change its models.",
-  localModelNotRemoved: "Ollama didn’t remove the model: {error}",
   modelLacksForClass:
     "{model} lacks what the class {cls} can’t work without: {needs}. Choose another model for it.",
   "need.tools": "tool calls",
@@ -259,6 +258,7 @@ const EN = {
   skillReadOnly: "A skill from skills.sh stays as it is. Copy it as your own skill to change it.",
   skillsRegistryDown: "skills.sh did not answer. Try again in a moment.",
   connectorsRegistryDown: "integrations.sh did not answer. Try again in a moment.",
+  composioDown: "Composio did not answer. Try again in a moment.",
   skillsRegistryMissing: "skills.sh has no skill at {ref}.",
   skillUpdateChanged:
     "skills.sh changed the skill again since you looked. Look at the changes once more.",
@@ -309,8 +309,8 @@ const DE: Partial<Record<ServerKey, Line>> = {
   keyUnknown: "Der Anbieter kennt diesen API-Key nicht.",
   providerError: "Der Anbieter antwortet mit Fehler {status}.",
   providerUnreachable: "Der Anbieter ist gerade nicht erreichbar.",
-  ollamaUnreachable: "Unter dieser Adresse antwortet nichts. Läuft Ollama?",
-  ollamaNoModel: "Ollama läuft, hat aber noch kein Modell: `ollama pull qwen3` holt eines.",
+  serverUnreachable: "Unter dieser Adresse antwortet nichts. Läuft {name}?",
+  serverNoModel: "{name} läuft, hat aber noch kein Modell, das schreibt.",
   importedFrom: "Importiert aus „{name}“: {steps}, {files}.",
   imported: "Importiert: {steps}, {files}.",
   stepCount: { one: "{count} Schritt", other: "{count} Schritte" },
@@ -413,7 +413,6 @@ const DE: Partial<Record<ServerKey, Line>> = {
   somethingWentWrongTry: "Da ist etwas schiefgelaufen. Versuch es noch einmal.",
   unknownApp: "Diese App gibt es nicht.",
   onlyOrganizationAdminsChange: "Nur Admins der Organisation ändern ihre Modelle.",
-  localModelNotRemoved: "Ollama hat das Modell nicht entfernt: {error}",
   modelLacksForClass:
     "{model} fehlt, was die Klasse {cls} unbedingt braucht: {needs}. Wähle dafür ein anderes Modell.",
   "need.tools": "Tool-Aufrufe",
@@ -543,6 +542,7 @@ const DE: Partial<Record<ServerKey, Line>> = {
     "Ein Skill von skills.sh bleibt, wie er ist. Kopier ihn als eigenen Skill, um ihn zu ändern.",
   skillsRegistryDown: "skills.sh antwortet nicht. Versuch es gleich noch einmal.",
   connectorsRegistryDown: "integrations.sh antwortet nicht. Versuch es gleich noch einmal.",
+  composioDown: "Composio antwortet nicht. Versuch es gleich noch einmal.",
   skillsRegistryMissing: "Auf skills.sh gibt es keinen Skill unter {ref}.",
   skillUpdateChanged:
     "skills.sh hat den Skill seitdem wieder geändert. Sieh dir die Änderungen noch einmal an.",

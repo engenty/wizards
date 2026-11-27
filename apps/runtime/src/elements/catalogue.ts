@@ -7,8 +7,7 @@ import { wizardTools } from "./wizards.js";
 
 /**
  * The tool catalogue (docs/plans/modular.md, phase 1): the one place that turns a space's
- * elements into tools. A wizard's step, a Work chat, Goose and outside clients (MCP, the API)
- * each take their tools from here, for a caller fixed before the model sees a tool, and each call
+ * elements into tools. A wizard's step, Goose and outside clients (MCP, the API) each take their tools from here, for a caller fixed before the model sees a tool, and each call
  * goes through the broker's gate (gate.ts). The callers differ only in what they ask for.
  */
 
@@ -23,8 +22,7 @@ export interface CatalogueRequest {
   wizards?: boolean;
   /**
    * The space's connections as two calls, list and call: for outside clients, whose tools are
-   * fixed before a space is known. A Work chat gets one tool per action instead
-   * (services/work-connections.ts), Goose the person's own sign-ins.
+   * fixed before a space is known. Goose gets one tool per action of the person's own sign-ins.
    */
   connections?: boolean;
 }

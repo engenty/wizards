@@ -1,3 +1,4 @@
+import { kernelOf, stepFilesOf, withoutStep } from "@engenty/wizards-shared/kernel-file";
 import { withRequires } from "@engenty/wizards-shared/requires";
 import { WIZARD_AGENTS_DIR } from "@engenty/wizards-shared/wizard-code";
 import {
@@ -167,7 +168,34 @@ export async function deleteFile(userId: string, wizardId: string, rawPath: stri
   }
   await touch(w.id);
   await agentFileChanged(w.id, path);
-  await emitDraftChanged(filesChanged(w, path));
+  const revision = await stepFileGone(w.id, path);
+  await emitDraftChanged(filesChanged({ ...w, revision: revision ?? w.revision }, path));
+}
+
+/**
+ * A step's file is gone: the draft's file no longer names the step (`start`, `edges`, `limits`).
+ * The draft gets a new revision, so an editor with edits of its own merges instead of writing the
+ * old ways back. Answers that revision when the draft changed.
+ */
+async function stepFileGone(wizardId: string, path: string): Promise<number | undefined> {
+  const [id] = Object.keys(stepFilesOf([path]));
+  const row = id
+    ? await db.query.wizard.findFirst({ where: eq(schema.wizard.id, wizardId) })
+    : null;
+  const file = kernelOf(row?.draft);
+  if (!id || !row || !file) {
+    return;
+  }
+  const next = withoutStep(file, id);
+  if (next === file) {
+    return;
+  }
+  const revision = row.revision + 1;
+  await db
+    .update(schema.wizard)
+    .set({ draft: { ...row.draft, kernel: next }, revision })
+    .where(eq(schema.wizard.id, wizardId));
+  return revision;
 }
 
 /**

@@ -13,21 +13,11 @@ import { pluginToolsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
 import { publishAndSync, pushSharing } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
-import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
+import { deleteFile, draftFiles, listFiles, readFileText, writeFile } from "../services/files.js";
 import { marketplaceWizard, searchMarketplace } from "../services/marketplace.js";
 import { requireStudio } from "../services/members-studio.js";
 import { markAgent, presentIn } from "../services/presence.js";
-import {
-  answerRunAsk,
-  answerRunForm,
-  answerRunQuestion,
-  controlRun,
-  reviewRun,
-  runReport,
-  startRun,
-  startTestRun,
-  testRunReport,
-} from "../services/runs.js";
+import { runReport, startRun, startTestRun, testRunReport } from "../services/runs.js";
 import { sendSignalForWizard } from "../services/signals.js";
 import { defaultSpace, listSpaces, ownedSpace, spaceIs } from "../services/spaces.js";
 import { listStarts, setStarts, withStartIds } from "../services/starts.js";
@@ -69,13 +59,13 @@ const baseRevision = z
   .min(0)
   .describe("The revision you last read. A newer one on the server answers revision_conflict.");
 
-function ok(value: unknown): CallToolResult {
+export function ok(value: unknown): CallToolResult {
   return {
     content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
   };
 }
 
-function failure(err: unknown): CallToolResult {
+export function failure(err: unknown): CallToolResult {
   let body: unknown;
   if (err instanceof ServiceError) {
     body = err.toJSON();
@@ -128,7 +118,11 @@ async function requireStudioOf(args: unknown): Promise<void> {
   }
 }
 
-function annotationsOf(config: { readOnly?: boolean; destructive?: boolean; openWorld?: boolean }) {
+export function annotationsOf(config: {
+  readOnly?: boolean;
+  destructive?: boolean;
+  openWorld?: boolean;
+}) {
   const readOnly = config.readOnly ?? false;
   return {
     readOnlyHint: readOnly,
@@ -144,7 +138,7 @@ function annotationsOf(config: { readOnly?: boolean; destructive?: boolean; open
 function worded(warnings: StepWarning[]) {
   return warnings.map((warning) => ({
     ...warning,
-    message: prompt("mcp", "note.step_needs_approval", {
+    message: prompt("mcp", "note.step_rule_never", {
       step: warning.stepId,
       connection: warning.connection.name,
       action: warning.action.id,
@@ -161,7 +155,7 @@ function presentNote(people: [string, string | null][]): string {
 
 export function registerTools(server: McpServer, who: Principal) {
   // A client of the organization authors nothing: only the elements of their client spaces
-  // (mcp/elements.ts, docs/plans/client-spaces.md).
+  // (mcp/elements.ts, docs/plans/org-spaces.md).
   if (who.role === "client") {
     return;
   }
@@ -491,13 +485,35 @@ export function registerTools(server: McpServer, who: Principal) {
       title: "Validate wizard",
       description: prompt("mcp", "tool.validate_wizard"),
       input: z.object({
-        definition,
+        definition: definition.optional(),
+        wizardId: z
+          .string()
+          .optional()
+          .describe(
+            "Check against this wizard's workspace files. Without a definition, its draft is checked.",
+          ),
         spaceId: z.string().optional().describe("Defaults to the person's first space."),
       }),
       readOnly: true,
     },
     async (args) => {
       try {
+        if (args.wizardId) {
+          // With the workspace: files a step names, and the step files of version 0.3.0 compiled.
+          const w = await ownedWizard(who.userId, args.wizardId);
+          const files = await draftFiles(w.id);
+          const draft = args.definition
+            ? parseDraft(
+                args.definition,
+                files.map((f) => f.path),
+              ).draft
+            : w.draft;
+          const issues = await checkDraft(w.spaceId, draft, files);
+          return { ok: issues.length === 0, issues };
+        }
+        if (!args.definition) {
+          return { ok: false, issues: [{ message: "Give a definition or a wizardId." }] };
+        }
         const space = await studioSpace(args.spaceId);
         const { draft } = parseDraft(args.definition);
         const issues = await checkDraft(space.id, draft);
@@ -769,134 +785,6 @@ export function registerTools(server: McpServer, who: Principal) {
         result: { ...report, ...(refused ? { refusedAnswers: refused } : {}) },
         view: await flowView(who.userId, wizardId, { run: report, theme }),
       };
-    },
-  );
-
-  const waitSeconds = z
-    .number()
-    .int()
-    .min(0)
-    .max(45)
-    .default(0)
-    .describe("Wait up to this long while the run is still working.");
-
-  tool(
-    "get_run",
-    "runs:test",
-    {
-      title: "Get run",
-      description: prompt("mcp", "tool.get_run"),
-      input: z.object({ runId: z.string(), waitSeconds }),
-      readOnly: true,
-    },
-    async ({ runId, waitSeconds }) => runReport(who.userId, runId, waitSeconds),
-  );
-
-  tool(
-    "answer_form",
-    "runs:test",
-    {
-      title: "Answer form",
-      description: prompt("mcp", "tool.answer_form"),
-      input: z.object({
-        runId: z.string(),
-        stepId: z.string().describe("waitingFor.form"),
-        values: z.record(z.string(), z.unknown()),
-        waitSeconds,
-      }),
-      openWorld: true,
-    },
-    async ({ runId, stepId, values, waitSeconds }) => {
-      await answerRunForm(who.userId, runId, stepId, values);
-      return runReport(who.userId, runId, waitSeconds);
-    },
-  );
-
-  tool(
-    "review_step",
-    "runs:test",
-    {
-      title: "Review step",
-      description: prompt("mcp", "tool.review_step"),
-      input: z.object({
-        runId: z.string(),
-        stepId: z.string().describe("waitingFor.review"),
-        action: z.discriminatedUnion("type", [
-          z.object({
-            type: z.literal("accept"),
-            edits: z.record(z.string(), z.string()).optional(),
-            note: z.string().max(2000).optional(),
-          }),
-          z.object({
-            type: z.literal("decline").describe("Only when waitingFor.approve is true."),
-            note: z.string().max(2000).optional(),
-          }),
-          z.object({
-            type: z.literal("regenerate"),
-            target: z.string().describe("One of waitingFor.show."),
-            note: z.string().max(2000),
-          }),
-        ]),
-        waitSeconds,
-      }),
-      openWorld: true,
-    },
-    async ({ runId, stepId, action, waitSeconds }) => {
-      await reviewRun(who.userId, runId, stepId, action);
-      return runReport(who.userId, runId, waitSeconds);
-    },
-  );
-
-  tool(
-    "answer_ask",
-    "runs:test",
-    {
-      title: "Answer confirmation",
-      description: prompt("mcp", "tool.answer_ask"),
-      input: z.object({
-        runId: z.string(),
-        askId: z.string(),
-        answer: z.enum(["allow", "skip"]),
-        waitSeconds,
-      }),
-      destructive: true,
-      openWorld: true,
-    },
-    async ({ runId, askId, answer, waitSeconds }) => {
-      await answerRunAsk(who.userId, runId, askId, answer);
-      return runReport(who.userId, runId, waitSeconds);
-    },
-  );
-
-  tool(
-    "answer_question",
-    "runs:test",
-    {
-      title: "Answer a step's question",
-      description: prompt("mcp", "tool.answer_question"),
-      input: z.object({ runId: z.string(), answer: z.string().min(1), waitSeconds }),
-      destructive: false,
-      openWorld: true,
-    },
-    async ({ runId, answer, waitSeconds }) => {
-      await answerRunQuestion(who.userId, runId, answer);
-      return runReport(who.userId, runId, waitSeconds);
-    },
-  );
-
-  tool(
-    "control_run",
-    "runs:test",
-    {
-      title: "Control run",
-      description: prompt("mcp", "tool.control_run"),
-      input: z.object({ runId: z.string(), action: z.enum(["back", "retry", "cancel"]) }),
-      destructive: true,
-      openWorld: true,
-    },
-    async ({ runId, action }) => {
-      await controlRun(who.userId, runId, action);
-      return runReport(who.userId, runId);
     },
   );
 

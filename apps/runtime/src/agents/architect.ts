@@ -88,13 +88,17 @@ export interface ArchitectResult {
   costUsd: number;
 }
 
-function systemPrompt(
+/**
+ * What the studio's assistant is told on every turn. The parts of the format behind a switch are
+ * in it only while a run can do them.
+ */
+export function systemPrompt(
   connectors: GuideConnector[],
   mail: GuideMail[],
   pluginTools: GuideTool[],
   connections: GuideSpaceConnection[],
   startsOn: boolean,
-  on: { durableRuns?: boolean; codeSteps?: boolean },
+  on: { durableRuns?: boolean; codeSteps?: boolean; version020?: boolean },
 ): string {
   return `${prompt("architect", "system", {
     persona: prompt("architect", "persona"),
@@ -102,11 +106,13 @@ function systemPrompt(
     schema: prompt("authoring", "schema"),
     durable: on.durableRuns ? prompt("authoring", "durable") : "",
     code: on.codeSteps ? prompt("authoring", "code") : "",
+    kernel: prompt("authoring", "kernel"),
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
     space_tools: spaceLines(connectors, mail, pluginTools, connections),
-    example: exampleWizard(),
+    older: on.version020 ? prompt("authoring", "older.on") : prompt("authoring", "older.off"),
+    example: on.version020 ? prompt("authoring", "example.old", { wizard: exampleWizard() }) : "",
     how_you_work: prompt("architect", "how_you_work"),
   })}\n\n${contentPolicy()}`;
 }

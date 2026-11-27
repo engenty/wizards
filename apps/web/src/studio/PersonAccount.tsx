@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { type Key, lang, t } from "../lib/i18n";
 import { initialsOf, type Me, type Organization, type UserProfile } from "../lib/session";
 import { Button, Chip, Input, Label, Spinner, Textarea } from "../ui";
+import { GroundPick } from "./GroundPick";
 import { LangPick } from "./LangSwitch";
 import { switchTo } from "./Organizations";
 import { useAutosave } from "./space/data";
@@ -94,6 +95,10 @@ export function PersonProfile({ me }: { me: Me }) {
           <div className="flex items-center justify-between gap-4 pt-4">
             <span className="font-medium text-[0.875rem]">{t("nav.theme")}</span>
             <ThemeSwitch />
+          </div>
+          <div className="flex items-center justify-between gap-4 pt-4">
+            <span className="font-medium text-[0.875rem]">{t("theme.ground")}</span>
+            <GroundPick />
           </div>
         </div>
       </Section>

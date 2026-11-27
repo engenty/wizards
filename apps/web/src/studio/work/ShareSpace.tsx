@@ -1,18 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserRound, Users } from "lucide-react";
+import { UserRound, Users, X } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { type Me, type Space, useMe } from "../../lib/session";
-import { Button, cn, Dialog, Input, Switch } from "../../ui";
+import { Button, cn, Dialog, IconButton, Input, Switch } from "../../ui";
 import { spaceLabel } from "../SpacePath";
 
 /*
  * Sharing a space (docs/plans/org-spaces.md, behind `orgSpaces`): every member of the
- * organization sees a space under the root; a Kund:in is an outside person who signs in on the
- * firm's page and sees only the spaces shared with them. Inviting Kund:innen needs `clientSpaces`.
+ * organization sees a space under the root, or only the people chosen. A client space takes its
+ * client's people too: they sign in on the organization's page and see only that client space.
+ * Client spaces need `clientSpaces`; a team space never takes clients.
  */
 
 interface Member {
@@ -136,7 +137,7 @@ interface Person {
   role: string;
 }
 
-/** Who is in the space, and an invitation for a Kund:in. */
+/** Who is in the space, and an invitation for a client. */
 function ShareSpaceDialog({
   me,
   space,
@@ -148,7 +149,8 @@ function ShareSpaceDialog({
   open: boolean;
   onClose: () => void;
 }) {
-  const clientsOn = useFeature("clientSpaces");
+  // A team space is the team's alone; a client space takes its client's people too.
+  const client = useFeature("clientSpaces") && space.kind === "client";
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const organization = me.tenant.name || t("nav.space");
@@ -161,7 +163,7 @@ function ShareSpaceDialog({
   const people = useQuery({
     queryKey: ["organization", me.tenant.id],
     queryFn: () => api.get<{ members: Person[] }>("/api/studio/organization"),
-    enabled: open && chosen,
+    enabled: open,
   });
   const access = useMutation({
     mutationFn: (value: "all" | "members") =>
@@ -197,10 +199,18 @@ function ShareSpaceDialog({
     }
   };
   const clients = (members.data?.members ?? []).filter((m) => m.role === "client");
+  const remove = useMutation({
+    mutationFn: (userId: string) => api.del(`/api/studio/spaces/${space.id}/members/${userId}`),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["space-members", space.id] });
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
+    },
+  });
   return (
     <Dialog open={open} onClose={onClose} title={t("share.dialogTitle", { name: space.name })}>
       <p className="-mt-2 text-[0.875rem] text-ink-2">
         {chosen ? t("share.membersOnlySee") : t("share.membersSee", { organization })}
+        {client ? ` ${t("share.clientSpace")}` : null}
       </p>
       <div className="mt-4">
         <WhoSees
@@ -211,33 +221,32 @@ function ShareSpaceDialog({
           onChange={(value) => access.mutate(value)}
         />
       </div>
-      {chosen ? (
-        <div className="mt-4">
-          <div className="mb-1.5 font-medium text-[0.875rem] text-ink">{t("share.people")}</div>
-          <ul className="flex max-h-56 flex-col overflow-y-auto">
-            {(people.data?.members ?? [])
-              .filter((p) => p.role !== "client")
-              .map((p) => (
-                <li
-                  key={p.userId}
-                  className="flex items-center gap-2.5 border-border-soft border-b py-2 text-[0.875rem] last:border-b-0"
-                >
-                  <span className="min-w-0 flex-1 truncate">{p.name || p.email}</span>
-                  {p.userId === me.user.id ? (
-                    <span className="text-[0.75rem] text-ink-4">{t("share.you")}</span>
-                  ) : null}
-                  <Switch
-                    checked={inside.has(p.userId)}
-                    disabled={p.userId === me.user.id || person.isPending}
-                    label={p.name || p.email}
-                    onChange={(on) => person.mutate({ userId: p.userId, inside: on })}
-                  />
-                </li>
-              ))}
-          </ul>
-        </div>
-      ) : null}
-      {clientsOn ? (
+      {/* Always there, so the dialog keeps its height: all on while everyone sees the space. */}
+      <div className="mt-4">
+        <div className="mb-1.5 font-medium text-[0.875rem] text-ink">{t("share.people")}</div>
+        <ul className="flex max-h-56 flex-col overflow-y-auto">
+          {(people.data?.members ?? [])
+            .filter((p) => p.role !== "client")
+            .map((p) => (
+              <li
+                key={p.userId}
+                className="flex items-center gap-2.5 border-border-soft border-b py-2 text-[0.875rem] last:border-b-0"
+              >
+                <span className="min-w-0 flex-1 truncate">{p.name || p.email}</span>
+                {p.userId === me.user.id ? (
+                  <span className="text-[0.75rem] text-ink-4">{t("share.you")}</span>
+                ) : null}
+                <Switch
+                  checked={!chosen || inside.has(p.userId)}
+                  disabled={!chosen || p.userId === me.user.id || person.isPending}
+                  label={p.name || p.email}
+                  onChange={(on) => person.mutate({ userId: p.userId, inside: on })}
+                />
+              </li>
+            ))}
+        </ul>
+      </div>
+      {client ? (
         <>
           <form onSubmit={submit} className="mt-4 flex gap-2">
             <Input
@@ -245,8 +254,8 @@ function ShareSpaceDialog({
               type="email"
               value={email}
               maxLength={254}
-              placeholder={t("clients.invitePlaceholder")}
-              aria-label={t("clients.invitePlaceholder")}
+              placeholder={t("share.clientEmail")}
+              aria-label={t("share.clientEmail")}
               onChange={(e) => setEmail(e.target.value)}
             />
             <Button
@@ -270,8 +279,17 @@ function ShareSpaceDialog({
                 <UserRound className="size-4 shrink-0 text-violet-700 dark:text-violet-300" />
                 <span className="min-w-0 flex-1 truncate">{m.email ?? m.userId}</span>
                 <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[0.75rem] text-violet-700 dark:text-violet-300">
-                  {m.userId ? t("clients.roleClient") : t("clients.invited")}
+                  {m.userId ? t("share.client") : t("share.invited")}
                 </span>
+                {m.userId ? (
+                  <IconButton
+                    label={t("share.removeClient", { name: m.email ?? "" })}
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(m.userId as string)}
+                  >
+                    <X className="size-4" />
+                  </IconButton>
+                ) : null}
               </li>
             ))}
           </ul>

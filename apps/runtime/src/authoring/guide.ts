@@ -140,17 +140,19 @@ export function authoringGuide(
   pluginTools: GuideTool[] = [],
   connections: GuideSpaceConnection[] = [],
   /** Switches whose part of the format is in the guide only while a run can do it. */
-  on: { durableRuns?: boolean; codeSteps?: boolean } = {},
+  on: { durableRuns?: boolean; codeSteps?: boolean; version020?: boolean } = {},
 ): string {
   return prompt("authoring", "guide", {
     schema: prompt("authoring", "schema"),
     durable: on.durableRuns ? prompt("authoring", "durable") : "",
     code: on.codeSteps ? prompt("authoring", "code") : "",
+    kernel: prompt("authoring", "kernel"),
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
     space_tools: spaceLines(connectors, mail, pluginTools, connections),
     schema_url: WIZARD_SCHEMA_URL,
-    example: exampleWizard(),
+    older: on.version020 ? prompt("authoring", "older.on") : prompt("authoring", "older.off"),
+    example: on.version020 ? prompt("authoring", "example.old", { wizard: exampleWizard() }) : "",
   });
 }

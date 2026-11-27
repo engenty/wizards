@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "concurrently -k -n server,web \"pnpm dev:server\" \"vite\"",
     "dev:server": "tsx watch --tsconfig tsconfig.server.json --conditions=wizards-source server/index.ts",
-    "build": "vite build && tsc -p tsconfig.server.json",
+    "build": "vite build && vite build -c vite.server.config.ts",
     "start": "node dist/server/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run"

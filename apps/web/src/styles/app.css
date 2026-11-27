@@ -8,6 +8,8 @@
 
 @source "../";
 @source "../../../../packages/runner/src";
+@source "../../../../packages/chatviews/src/react";
+@source "../../../../packages/model-setup/src/react";
 
 /* The app bar is the shell's ground: in light one step below the page's paper, so the page
    beside it reads as the raised card. Dark sets its own step, below the stage (`.dark` below). */
@@ -43,6 +45,65 @@ html[data-studio]:not(.dark) {
 :root.branded {
   --dark-ground: var(--engenty-stage, oklch(34% 0.14 264));
   --dark-tint: 1;
+}
+
+/* What went well reads on the cards of every intense ground: a step lighter than plain dark's. */
+:root.dark.branded {
+  --moss: oklch(80% 0.13 var(--hue-success));
+}
+
+/* The other grounds the visitor can pick for the branded theme (lib/theme.ts, BRANDED_GROUNDS):
+   each its deep colour and the accent the buttons take on it. A wizard's own engenty still wins
+   on its pages (`--engenty-stage`), and so does a brand's (`--brand-stage`). */
+:root.dark.branded[data-ground="violet"] {
+  --dark-ground: var(--engenty-stage, oklch(33% 0.17 292));
+  --raw-primary: oklch(74% 0.16 78);
+}
+:root.dark.branded[data-ground="berry"] {
+  --dark-ground: var(--engenty-stage, oklch(36% 0.15 352));
+  --raw-primary: oklch(74% 0.13 192);
+}
+/* The lighter grounds lift the quiet ink a step, so it still reads on their cards. */
+:root.dark.branded[data-ground="petrol"] {
+  --dark-ground: var(--engenty-stage, oklch(36% 0.085 214));
+  --raw-primary: oklch(66% 0.16 35);
+  --ink-3: oklch(from var(--stage) 0.84 calc(0.05 * var(--dark-tint)) h);
+}
+:root.dark.branded[data-ground="emerald"] {
+  --dark-ground: var(--engenty-stage, oklch(35.5% 0.105 158));
+  --raw-primary: oklch(82% 0.19 118);
+  --ink-3: oklch(from var(--stage) 0.84 calc(0.05 * var(--dark-tint)) h);
+  /* Green on green: what went well turns mint. */
+  --moss: oklch(88% 0.11 165);
+}
+:root.dark.branded[data-ground="brick"] {
+  --dark-ground: var(--engenty-stage, oklch(38% 0.145 36));
+  --raw-primary: oklch(76% 0.09 250);
+  --ink-3: oklch(from var(--stage) 0.84 calc(0.05 * var(--dark-tint)) h);
+}
+
+/* Citron, the light ground: the page is citron, the cards a paler citron, the inks a deep olive
+   and the buttons ink with citron type. */
+:root.branded[data-ground="citron"]:not(.dark) {
+  --raw-background: oklch(90% 0.18 116);
+  --raw-primary: oklch(31% 0.035 125);
+  --paper: oklch(90% 0.18 116);
+  --paper-2: oklch(86.5% 0.17 116);
+  --paper-3: oklch(83% 0.16 116);
+  --card: oklch(94% 0.1 116);
+  --ink: oklch(22% 0.045 124);
+  --ink-2: oklch(32% 0.055 124);
+  --ink-3: oklch(40% 0.065 124);
+  --ink-4: oklch(48% 0.07 124);
+  --moss: oklch(42% 0.12 var(--hue-success));
+  --primary-foreground: oklch(90% 0.18 116);
+  --ember-on: oklch(90% 0.18 116);
+  /* Marks and accent type in the engenty blue: olive would vanish into the ground. */
+  --ember-mark: oklch(45% 0.2 262);
+  --ember-strong-mark: oklch(45% 0.2 262);
+  --accent: color-mix(in oklch, var(--ink) 8%, var(--card));
+  --border: color-mix(in oklch, var(--ink) 16%, var(--card));
+  --input: color-mix(in oklch, var(--ink) 22%, var(--card));
 }
 
 .dark {

@@ -18,10 +18,10 @@ export async function forgetWizardLinks(wizardId: string) {
 }
 
 /**
- * Takes the runs of a client space away with what they made: they belong to it, though their
- * wizards stay the parent's (docs/plans/client-portal.md).
+ * Takes the runs a space carries away with what they made: a client's, and those of the root's
+ * wizards started in it. They belong to it, though their wizards are elsewhere.
  */
-export async function removeClientSpaceRuns(spaceId: string) {
+export async function removeRunsIn(spaceId: string) {
   const runs = await db
     .select({ id: schema.run.id, shareToken: schema.run.shareToken })
     .from(schema.run)

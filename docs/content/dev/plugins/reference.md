@@ -1,7 +1,7 @@
 ---
 title: Reference
 description: Every call, type, address and setting of the plugin framework on one page.
-version: 0.15.0
+version: 0.21.0
 ---
 
 ## Server half
@@ -186,8 +186,8 @@ interface PluginAssistantTool<S extends z.ZodType = z.ZodType> {
   description: string;    // for the model
   inputSchema: S;
   card?: boolean;         // the result also goes to the chat, for the studio half's card
-  risk?: "read" | "space" | "outside"; // "outside" waits for a person's approval in Work chats
-  label?: { de: string; en: string };  // what a call does, as a Work chat's step line says it
+  risk?: "read" | "space" | "outside"; // what a call does: reads, changes the space, reaches past it
+  label?: { de: string; en: string };  // what a call does, in a few words
   execute(input: z.infer<S>, turn: PluginAssistantContext): unknown | Promise<unknown>;
 }
 

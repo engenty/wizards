@@ -1,7 +1,7 @@
 ---
 title: Accounts
 description: Accounts a plugin connects for a space, such as a calendar or a mailbox, through the runtime's built-in connectors.
-version: 0.15.0
+version: 0.21.1
 ---
 
 A wizard’s connections belong to the person who runs it. A plugin that works for the whole
@@ -99,7 +99,7 @@ const bytes = new Uint8Array(await res.arrayBuffer());
 
 A connection a plugin makes is a connection of the space (the table `space_connection` of the
 tenant’s database): it signs in as the space, is open to everyone and starts with the space’s
-default rules (reading runs, a change or a mail waits for the admins’ approval, deleting never).
+start rules (reading runs; a change, a mail and deleting never, until an admin allows them).
 The row notes which plugin set it up, and a plugin sees only its own. The space’s admins see it
 with the other connections and may change its name, who may use it and its rules. Deleting a
 space deletes it. Unloading or removing the plugin leaves it in place.

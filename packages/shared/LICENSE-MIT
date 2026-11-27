@@ -25,13 +25,10 @@ package that carry the line "SPDX-License-Identifier: FSL-1.1-MIT OR MIT":
 
   src/definition.ts
   src/fit.ts
-  src/numbers.ts
   src/run.ts
   src/runner-texts.ts
-  src/shape.ts
   src/sharing.ts
   src/store.ts
-  src/surface.ts
   src/texts.ts
   src/theme.ts
   src/transition.ts
@@ -41,5 +38,8 @@ package that carry the line "SPDX-License-Identifier: FSL-1.1-MIT OR MIT":
   src/engenty/data-tables/columns.ts
   src/engenty/data-tables/columns-format.ts
   src/engenty/data-tables/columns-value.ts
+
+The surfaces, the calc language, the shapes of data and the numbers they read (surface.ts,
+calc.ts, shape.ts, numbers.ts) are in packages/chatviews, under MIT.
 
 The other files of this package are under FSL-1.1-MIT only (../../LICENSE).

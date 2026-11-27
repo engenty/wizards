@@ -2,11 +2,21 @@ import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { homedir, totalmem } from "node:os";
 import { delimiter, join } from "node:path";
 import * as p from "@clack/prompts";
+import { ollamaAddress, pullModel } from "@engenty/model-providers/ollama";
+import { CLIENTS, type ClientEntry, installCommand } from "@engenty/model-setup";
+import {
+  appAsksForPassword,
+  freeGb,
+  installOllama,
+  startOllama,
+  suggestedClient,
+  vendorApp,
+} from "@engenty/model-setup/server";
 import { LOCAL_DECISION_MODEL } from "../decision-model.js";
 import { installAll, ON_DEMAND } from "../on-demand.js";
 import { accountStep } from "./account.js";
 import { autostartForStatus, setAutostart } from "./autostart.js";
-import { installClient, installCommand } from "./clients.js";
+import { installClient } from "./clients.js";
 import { appStates, connectApps } from "./connect.js";
 import { runLogged } from "./exec.js";
 import {
@@ -19,28 +29,8 @@ import {
   readInstallNote,
   writeInstallNote,
 } from "./home.js";
-import {
-  CLIENTS,
-  type Client,
-  type ClientState,
-  detectClients,
-  findChrome,
-  findFfmpeg,
-  findOnPath,
-  suggestedClient,
-  vendorApp,
-} from "./machine.js";
-import {
-  appAsksForPassword,
-  DECISION_MODEL_GB,
-  decisionModelProblem,
-  freeGb,
-  installOllama,
-  ollamaState,
-  pullModel,
-  servesDecisions,
-  startOllama,
-} from "./ollama.js";
+import { type ClientState, detectClients, findChrome, findFfmpeg, findOnPath } from "./machine.js";
+import { DECISION_MODEL_GB, decisionModelProblem, localOllama, servesDecisions } from "./ollama.js";
 import { runningRuntime, settings } from "./start.js";
 import { badge, busy, cmd, cyan, dim, tilde } from "./ui.js";
 
@@ -70,9 +60,9 @@ function cancelled<T>(value: T | symbol): value is symbol {
   return false;
 }
 
-async function install(client: Client, paths: Layout): Promise<boolean> {
+async function install(client: ClientEntry, paths: Layout): Promise<boolean> {
   const task = p.taskLog({ title: `Installing ${client.name}`, limit: 6 });
-  task.message(dim(installCommand(client, paths)));
+  task.message(dim(installCommand(client, paths.clients, process.platform)));
   const { code, tail } = await installClient(client, paths, (line) => task.message(line));
   const installed = (await detectClients(paths)).find((state) => state.client.id === client.id);
   if (code === 0 && installed?.path) {
@@ -267,7 +257,7 @@ async function decisionModelStep(
   paths: Layout,
   interactive: boolean,
 ): Promise<"cancelled" | undefined> {
-  const state = await ollamaState();
+  const state = await localOllama();
   if (state.version && !servesDecisions(state.version)) {
     p.log.warn(
       `Ollama ${state.version} is too old for a decision model (it needs 0.35 or newer).\n${dim(`Update Ollama, then run ${cmd("setup")} again.`)}`,
@@ -327,7 +317,7 @@ async function decisionModelStep(
     if (!task) {
       p.log.info("Ollama’s own installer runs now and asks for your password.");
     }
-    const outcome = await installOllama(paths, (line) => task?.message(line));
+    const outcome = await installOllama(paths.logs, (line) => task?.message(line));
     if (!outcome.ok) {
       const text = `Ollama didn’t install. ${outcome.message}`;
       task ? task.error(text) : p.log.error(text);
@@ -336,7 +326,7 @@ async function decisionModelStep(
     const installed = `Ollama installed ${dim(tilde(outcome.message))}`;
     task ? task.success(installed) : p.log.success(installed);
     // Linux's installer starts it as a service already.
-    ({ path: ollama, version } = await ollamaState());
+    ({ path: ollama, version } = await localOllama());
   }
   if (!version) {
     if (appAsksForPassword(ollama)) {
@@ -346,7 +336,7 @@ async function decisionModelStep(
     }
     const spinner = p.spinner();
     spinner.start("Waiting for Ollama");
-    version = await startOllama(ollama, paths);
+    version = await startOllama(ollama, paths.logs);
     if (!version) {
       spinner.error(`Ollama isn’t answering. Start it, then run ${cmd("setup")} again.`);
       return;
@@ -360,7 +350,7 @@ async function decisionModelStep(
   const spinner = p.spinner();
   spinner.start(`Downloading ${model}`);
   try {
-    await pullModel(model, (done, total) =>
+    await pullModel(ollamaAddress(), model, (done, total) =>
       spinner.message(`Downloading ${model}  ${gb(done)} of ${gb(total)} GB`),
     );
     spinner.stop(`Decision model: ${model} ${dim(`in Ollama ${version}`)}`);

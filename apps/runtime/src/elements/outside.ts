@@ -3,9 +3,9 @@ import { z } from "zod";
 import { currentFeatures } from "../features.js";
 import type { Role } from "../manage.js";
 import { type ExecResult, sandboxCapabilities, shellToolDescription } from "../sandbox/index.js";
+import { outsideClientSandbox } from "../services/outside-sandbox.js";
 import { activeSkills } from "../services/skills.js";
 import { defaultSpace, ownedSpace } from "../services/spaces.js";
-import { chatSandbox } from "../services/work-sandbox.js";
 import { clip } from "../tools/shared.js";
 import type { SkillSandbox } from "../tools/skills.js";
 import { personCaller } from "./caller.js";
@@ -18,7 +18,7 @@ import { ELEMENT_SPECS, type ElementScope, type ElementToolName } from "./specs.
  * the API (routes/elements.ts), signed in as a person (docs/plans/modular.md, phase 2). The space
  * a call names is checked against the token: a space of the token's organization, else refused
  * (I2); the rules then decide every item as that person. Skills' scripts run in a sandbox kept
- * per person, space and client while it is used, as a Work chat's is.
+ * per person, space and client while it is used.
  */
 
 /** Who an outside call acts for, as the token says: never from the call's arguments (I1). */
@@ -52,7 +52,7 @@ function outsideSandbox(who: OutsideWho, spaceId: string): SkillSandbox | null {
     /[^A-Za-z0-9_-]/g,
     "_",
   );
-  return { handle: () => chatSandbox(key), workdir: caps.workdir };
+  return { handle: () => outsideClientSandbox(key), workdir: caps.workdir };
 }
 
 /** The catalogue's tools for an outside caller in a space, by the token's scopes. */
@@ -145,7 +145,8 @@ export async function callOutside(
   }
   try {
     const result = await tool.execute(data);
-    if (result && typeof result === "object" && "error" in result) {
+    // A run's report carries `error: null` while nothing failed.
+    if (result && typeof result === "object" && "error" in result && result.error != null) {
       const { error, ...data } = result as { error: string };
       return { ok: false, error, data };
     }

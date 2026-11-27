@@ -1,7 +1,7 @@
 ---
 title: Command line
 description: The wizards command – start, setup, status, update – and the settings file on your computer.
-version: 0.18.0
+version: 0.20.5
 ---
 
 ## Commands
@@ -28,6 +28,7 @@ version: 0.18.0
 | `wizards disconnect [app …]` | Takes them out again |
 | `wizards mcp` | Runs the MCP server over stdio. AI apps start it; you don’t |
 | `wizards uninstall` | Takes engenty wizards off this computer. It shows what it will remove first and asks about your data on its own; your data is kept unless you choose to delete it. `--dry-run` only shows the plan, `--yes` asks nothing and keeps your data, `--yes --delete-data` deletes it too. See [Remove](./install.md#remove) |
+| `wizards bot` | Installs [wizards.bot](https://github.com/engenty/wizards-bot), your own agent in a home of your own, on this computer. It doesn’t need engenty wizards: `npx wizards bot install` works on its own. `install` puts the home into `~/.engenty/wizards/bot`, starts it with your computer on port 4748 (or the next free one; 4747 stays free for the wizards.bot Mac app) and opens its setup. `install <folder>`, for example `install .` or `install ./test01`, puts a home of its own into that folder, beside the others: its program, its data, its port and its service. Every other command takes the folder after it too; without one, it means the home in `~/.engenty/wizards`. `setup` opens the setup again and shows a code for your phone. `setup --link <address> <code>` links this computer to your home on wizards.bot, so it uses this computer’s models while this computer is on. `status` shows the home and a line for each home in a folder. `stop` stops a home until you log in again or `start` it. `tunnel` puts a home on the internet at `https://<name>.wizards.host`, once a device is paired with it. It needs no account: the name, like `k7qf2mxd3a.wizards.host`, comes from a key the tunnel keeps in the home’s `tunnel/claim.pem`, and the same key gets the same name back after `tunnel --off`. `tunnel --account` gives the home your team’s address instead, after you sign in to your wizards account (`--name test01` with it gives a second home `test01.<team>.wizards.host`). The connection goes out from your computer through our relay, and its encryption ends on your computer, so the relay can’t read it. `tunnel --tailscale` uses Tailscale Funnel instead, and `tunnel --off` takes either off again. `update` and `uninstall` do what they say. Your home’s data stays unless you add `--purge`, which asks first. On Windows it isn’t available yet |
 | `wizards move-files` | Once, after the update to 0.16: moves the files of your spaces (logos, assets, documents) to where they are kept now, by their content, so the same file is stored once. Until then they don’t open. Running it again moves only what is left |
 | `wizards move-folder-sources` | Once, with Dateien and the new Wissen switched on: each folder the Sources plugin read into Wissen becomes a mounted folder in Dateien, and Wissen takes it from there. What you changed by hand stays yours. Running it again converts only what is left |
 | `wizards validate <path …>` | Checks wizards without the studio: `.wizard` files, unpacked wizard files, or a wizard’s JSON. `--json` prints the problems as JSON |
@@ -76,6 +77,9 @@ the studio doesn’t: one `NAME=value` per line. Restart engenty wizards after a
 | `SANDBOX_DATA_URL` | The HTTPS address where the sandbox reaches engenty wizards for a wizard’s own database | `PUBLIC_URL` when it is HTTPS |
 | `SANDBOX_GUESTS` | The sandbox for runs by people without an account – a wizard’s link, WhatsApp, SMS: `off` or `agentos`, never Docker. With `off`, such a run works without code and says so in its log; with `agentos`, only when agentOS is installed. Your own runs keep the server’s sandbox | `off` |
 | `OLLAMA_URL` | Where Ollama answers | `http://127.0.0.1:11434/v1` |
+| `LMSTUDIO_URL` | Where LM Studio answers | `http://127.0.0.1:1234/v1` |
+| `LM_API_TOKEN` | LM Studio’s API token, where its server asks for one | none |
+| `MLX_MODELS` | The folder of MLX’s models (Mac with Apple silicon) | `~/.engenty/models/mlx` |
 | `PLUGINS_DIR` | Folders with plugins, comma-separated. If you set it, it replaces the default | `~/.engenty/wizards/plugins` |
 | `PLUGINS_WATCH` | With `0`, plugins no longer load again when their files change | `1` |
 | `GEOCODER_URL` | Finds the place of a location (street, town). If it is not set, a location is only coordinates, and no position leaves your computer | not set |

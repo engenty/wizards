@@ -2,6 +2,13 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { release } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  type ClientAnswer,
+  type ClientCall,
+  ClientModel,
+  lastJson,
+  runClient,
+} from "@engenty/model-providers/clients";
 import { langOf, SPEECH_LOCALES } from "@engenty/wizards-shared/definition";
 import type { RunNote } from "@engenty/wizards-shared/run";
 import type { TranscriptionModel } from "ai";
@@ -10,13 +17,7 @@ import { env } from "../env.js";
 import { ffmpeg, hasFfmpeg } from "../media/ffmpeg.js";
 import { ModelUnavailableError, NotedError } from "../model-errors.js";
 import { prompt } from "../prompts.js";
-import {
-  type HarnessAnswer,
-  type HarnessCall,
-  HarnessModel,
-  lastJson,
-  runClient,
-} from "./model.js";
+import { modelOptions } from "./model.js";
 
 /**
  * Apple Intelligence on this Mac as a model: the on-device foundation model of macOS 26, run
@@ -180,7 +181,7 @@ function appleFailed(detail: string): Error {
   return new NotedError({ code: "appleFailed", params: { detail: detail.slice(0, 480) } });
 }
 
-class AppleModel extends HarnessModel {
+class AppleModel extends ClientModel {
   readonly provider = "apple";
   /** The model keeps to the schema itself (guided generation). */
   protected override readonly nativeSchema = true;
@@ -188,7 +189,7 @@ class AppleModel extends HarnessModel {
   protected override readonly usesTools = false;
   protected override readonly searchesWeb = false;
 
-  protected async invoke(call: HarnessCall): Promise<HarnessAnswer> {
+  protected async invoke(call: ClientCall): Promise<ClientAnswer> {
     const { stdout, stderr, code } = await runClient(APPLE_BIN, ["generate"], {
       cwd: call.dir,
       env: helperEnv(),
@@ -214,8 +215,8 @@ class AppleModel extends HarnessModel {
 }
 
 /** `apple:default` or `apple:tagging` as a language model. */
-export function appleModel(alias: string): HarnessModel {
-  return new AppleModel(APPLE, alias || "default");
+export function appleModel(alias: string): ClientModel {
+  return new AppleModel(APPLE, alias || "default", modelOptions(APPLE));
 }
 
 type TranscriptionV3 = Extract<TranscriptionModel, { specificationVersion: "v3" }>;

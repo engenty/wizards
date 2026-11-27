@@ -251,7 +251,7 @@ export function whoWord(who: ProtocolLine["who"]): string {
 
 /** Where the call was made: a run of a wizard, a Work chat, Goose, a plugin's own job. */
 export function whereWord(
-  line: Pick<ProtocolLine, "runId" | "chatId" | "wizardName" | "runMode" | "chatTitle" | "who">,
+  line: Pick<ProtocolLine, "runId" | "chatId" | "wizardName" | "runMode" | "who">,
 ): string {
   if (line.runId) {
     if (!line.wizardName) {
@@ -262,9 +262,7 @@ export function whereWord(
     });
   }
   if (line.chatId) {
-    return line.chatTitle
-      ? t("protocol.where.chatNamed", { title: line.chatTitle })
-      : t("protocol.where.chat");
+    return t("protocol.where.chat");
   }
   if (line.who.kind === "goose") {
     return t("protocol.where.goose");
@@ -333,7 +331,7 @@ export function actionWord(
 
 /** „Was darf …?“'s answer in one sentence. */
 export function answerSentence(
-  answer: Pick<BrokerAnswer, "outcome" | "rule" | "refused" | "admins" | "action">,
+  answer: Pick<BrokerAnswer, "outcome" | "rule" | "refused" | "action">,
   names: { who: string; connection: string; audience?: string | null },
 ): string {
   const vars = {
@@ -345,7 +343,7 @@ export function answerSentence(
     return t("protocol.ask.allow", vars);
   }
   if (answer.outcome === "ask") {
-    return t(answer.admins ? "protocol.ask.askAdmins" : "protocol.ask.askPerson", vars);
+    return t("protocol.ask.askPerson", vars);
   }
   return t("protocol.ask.deny", {
     ...vars,

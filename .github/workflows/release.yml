@@ -3,17 +3,17 @@ name: Release
 # A tag `v<version>` (the version of the root package.json) publishes what a local install is made
 # of on the GitHub release: the runtime, the npm package @engenty/wizards-runtime, as a tarball
 # (and the launcher `wizards`, the package `@engenty/wizards` and the MIT libraries
-# `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql` and
-# `@engenty/goose` beside it). The installer
+# `@engenty/chatviews`, `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`,
+# `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/model-providers` and `@engenty/model-setup` beside it). The installer
 # (apps/web/public/install.sh) fetches the runtime from there. People install the studio as a Chrome app. The installer itself reaches
 # engenty.ai with the deploy the same tag starts (ci.yml).
 #
 # The packages also go to npm while the repository variable PUBLISH_NPM is `true` and the secret
 # NPM_TOKEN holds a token that may publish `wizards`, `@engenty/wizards-runtime`,
-# `@engenty/wizards` and the MIT libraries `@engenty/decision-model`, `@engenty/search-index`,
-# `@engenty/search-libsql` and `@engenty/goose` without a second factor: the runtime for the
-# updates and the launcher, then the launcher for `npx wizards`, then what code outside the repo
-# imports (scripts/npm-package.mjs).
+# `@engenty/wizards` and the MIT libraries `@engenty/chatviews`, `@engenty/decision-model`, `@engenty/search-index`,
+# `@engenty/search-libsql`, `@engenty/tool-harness`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/model-providers` and `@engenty/model-setup` without a second factor: the
+# runtime for the updates and the launcher, then the launcher for `npx wizards`, then what code
+# outside the repo imports (scripts/npm-package.mjs).
 # Run by hand (workflow_dispatch), it builds and tests everything and publishes nothing. On a pull
 # request that touches what a local install is made of it does the same, except that the Mac
 # helper, the package and the installers run only when what the installers test changes (the job
@@ -386,10 +386,9 @@ jobs:
             artifacts/npm-package/*.tgz artifacts/templates.tgz artifacts/runner.tgz \
             artifacts/agent-plugins-openai.zip
 
-      # The runtime first, the launcher once npm serves it: the launcher installs the runtime of
-      # its own version from npm. @engenty/wizards needs neither. The MIT libraries come last, all
-      # at the release's version; search-libsql names decision-model and search-index at it, so
-      # those two go first.
+      # Everything but the launcher at once, so npm takes them in side by side; the launcher once npm
+      # serves the runtime, which it installs at its own version. search-libsql names decision-model
+      # and search-index at the release's version, so those two go before it.
       #
       # npm takes a few minutes to serve a version it accepted. Each package counts once `latest`
       # names it and its tarball downloads, so a green release means `npx wizards` and the updates
@@ -428,16 +427,16 @@ jobs:
               npm publish "artifacts/npm-package/$2" --access public
             fi
           }
+          libraries="chatviews decision-model search-index search-libsql tool-harness vault plugins browser model-providers model-setup"
           publish @engenty/wizards-runtime "engenty-wizards-runtime-$version.tgz"
-          served @engenty/wizards-runtime "wizards-runtime-$version.tgz"
-          publish wizards "wizards-$version.tgz"
-          served wizards "wizards-$version.tgz"
           publish @engenty/wizards "engenty-wizards-$version.tgz"
-          served @engenty/wizards "wizards-$version.tgz"
-          libraries="decision-model search-index search-libsql goose"
           for library in $libraries; do
             publish "@engenty/$library" "engenty-$library-$version.tgz"
           done
+          served @engenty/wizards-runtime "wizards-runtime-$version.tgz"
+          publish wizards "wizards-$version.tgz"
+          served wizards "wizards-$version.tgz"
+          served @engenty/wizards "wizards-$version.tgz"
           for library in $libraries; do
             served "@engenty/$library" "$library-$version.tgz"
           done

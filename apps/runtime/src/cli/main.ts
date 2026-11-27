@@ -1,4 +1,5 @@
 // First: drops Node's `localStorage` before a dependency reads it (no-webstorage.ts).
+import { CLIENTS } from "@engenty/model-setup";
 import "../no-webstorage.js";
 import "./install-env.js";
 import { accountCommand } from "./account.js";
@@ -7,7 +8,7 @@ import { findExternal, runExternal } from "./external.js";
 import { featuresCommand } from "./features.js";
 import { command, layout, packageVersion, readInstallNote } from "./home.js";
 import { startedIn } from "./install-env.js";
-import { CLIENTS, nodeIsCurrent } from "./machine.js";
+import { nodeIsCurrent } from "./machine.js";
 import { mcp } from "./mcp.js";
 import { menu } from "./menu.js";
 import { logsCommand, reportCommand } from "./report.js";
@@ -45,6 +46,8 @@ const COMMANDS = [
   "move-files",
   "move-folder-sources",
   "validate",
+  "check",
+  "eval",
   "uninstall",
 ];
 
@@ -92,8 +95,12 @@ ${line(`${command()} uninstall`, "take it off this computer: shows the plan, ask
 ${more("--dry-run only shows it; --yes asks nothing and keeps your data; --yes --delete-data")}
 ${line(`${command()} move-files`, "move the spaces’ files to where 0.16 keeps them; runs by itself at start, by hand for a second try")}
 ${line(`${command()} move-folder-sources`, "once with Dateien on: the Sources plugin’s folders become mounts, taken into Wissen from there")}
+${line(`${command()} bot`, "wizards.bot, your own agent: install, setup, status, update, uninstall")}
+${more(`(${command()} bot --help says more)`)}
 ${line(`${command()} validate`, "check wizards without the studio: .wizard files, unpacked packages, wizard JSON")}
 ${more("--json prints the issues as JSON. A space’s connectors and plugins are checked on import.")}
+${line(`${command()} check <folder>`, "check a wizard made of step files: its file, each step compiled, the ways no test takes")}
+${line(`${command()} eval <wizard> --dataset <file>`, "run a wizard over a dataset as test runs and judge each run with its evals")}
 
 Options
   --yes, -y           don’t ask; skip everything optional
@@ -120,6 +127,8 @@ interface Args {
   apps: string[];
   /** The paths \`validate\` checks. */
   paths: string[];
+  /** The file \`eval\` runs the wizard over. */
+  dataset: string;
   json: boolean;
   yes: boolean;
   local: boolean;
@@ -136,6 +145,7 @@ function parse(argv: string[]): Args | string {
     engine: "",
     apps: [],
     paths: [],
+    dataset: "",
     json: false,
     yes: false,
     local: false,
@@ -158,6 +168,8 @@ function parse(argv: string[]): Args | string {
       args.print = true;
     } else if (arg === "--json") {
       args.json = true;
+    } else if (arg === "--dataset") {
+      args.dataset = argv[++i] ?? "";
     } else if (arg === "--client") {
       const id = argv[++i];
       if (!CLIENTS.some((client) => client.id === id)) {
@@ -171,7 +183,7 @@ function parse(argv: string[]): Args | string {
     } else if (arg.startsWith("-")) {
       return `Unknown option ${arg}.`;
     } else if (
-      ["autostart", "autoupdate", "logs", "account", "sandbox"].includes(args.command) &&
+      ["autostart", "autoupdate", "logs", "account", "sandbox", "eval"].includes(args.command) &&
       !args.value
     ) {
       args.value = arg;
@@ -182,7 +194,7 @@ function parse(argv: string[]): Args | string {
       args.engine = arg;
     } else if (["connect", "disconnect", "features"].includes(args.command)) {
       args.apps.push(arg);
-    } else if (args.command === "validate") {
+    } else if (args.command === "validate" || args.command === "check") {
       args.paths.push(arg);
     } else if (args.command) {
       return `Unexpected argument “${arg}”.`;
@@ -284,6 +296,12 @@ async function main(argv: string[]): Promise<number> {
       // The paths are the person's, from where they typed the command (install-env.ts).
       process.chdir(startedIn);
       return validateCommand(args.paths, args.json);
+    case "check":
+      process.chdir(startedIn);
+      return (await import("./check.js")).checkCommand(args.paths, args.json);
+    case "eval":
+      process.chdir(startedIn);
+      return (await import("./eval.js")).evalCommand(paths, args.value, args.dataset, args.json);
     default:
       console.error(`Unknown command “${args.command}”. ${SEE_HELP}`);
       return 2;

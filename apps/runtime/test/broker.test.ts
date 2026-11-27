@@ -454,10 +454,28 @@ describe("a wizard's connection, as the person running it", () => {
         kind: "write",
       }).outcome,
     ).toBe("deny");
-    // In a Work chat the same write is a confirmed action: „Mit Freigabe“ asks the admins (A7).
-    expect(
-      broker.decide({ who: { kind: "person", id: "m" }, where: { chatId: "c" }, connection: plugin, actionId: "x", kind: "write" }),
-    ).toMatchObject({ outcome: "ask", admins: true });
+    // Outside a run the rule decides. As the space nobody is asked: „Mit Freigabe“ is „Nie“ there.
+    const person = { kind: "person" as const, id: "m" };
+    const outside = { chatId: "c" };
+    const withRules = (signIn: "space" | "person", write: "allow" | "ask" | "deny") => ({
+      ...plugin,
+      row: { ...(plugin.row as object), signIn, rules: { read: "allow", write } } as never,
+    });
+    const writes = (signIn: "space" | "person", write: "allow" | "ask" | "deny") =>
+      broker.decide({
+        who: person,
+        where: outside,
+        connection: withRules(signIn, write),
+        actionId: "x",
+        kind: "write",
+      });
+    expect(writes("space", "allow")).toMatchObject({ outcome: "allow", rule: "rules.write" });
+    expect(writes("space", "deny")).toMatchObject({ outcome: "deny", rule: "rules.write" });
+    expect(writes("space", "ask")).toMatchObject({ outcome: "deny", rule: "rules.write" });
+    expect(writes("space", "ask").reason).toMatch(/writing never/);
+    // Where each person signs in, „Mit Freigabe“ asks that person.
+    expect(writes("person", "ask")).toMatchObject({ outcome: "ask", rule: "rules.write" });
+    expect(writes("person", "ask").reason).toMatch(/asks the person/);
     expect(
       broker.decide({ who: guest, where: { guest: true }, connection: plugin, actionId: "x", kind: "read" })
         .outcome,
@@ -499,6 +517,22 @@ describe("the run's grant, fixed at start", () => {
       connections: {},
       hosts: [],
       tools: [],
+      channels: {},
+    });
+  });
+
+  it("comes from the file for a wizard in version 0.3.0: its hosts, tools and connections", () => {
+    const def = {
+      ...definition,
+      kernel: {
+        requires: { hosts: ["Date.nager.at"], tools: ["web_search"] },
+        connections: { mail: { search: "allow", send: "ask" } },
+      },
+    };
+    expect(broker.grantOf(def as never)).toEqual({
+      connections: { mail: ["search", "send"] },
+      hosts: ["date.nager.at"],
+      tools: ["web_search"],
       channels: {},
     });
   });

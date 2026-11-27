@@ -374,16 +374,6 @@ describe("„B darf Dokument D nicht lesen“", () => {
     );
   });
 
-  it("a Work chat's space_search finds nothing of it for B", async () => {
-    const { toolToRun } = await import("../src/services/work-ai");
-    const tool = await local(() =>
-      toolToRun({ id: spaceId, name: "Test" }, B, "space_search", new AbortController().signal),
-    );
-    const found = (await local(() => tool?.execute?.({ query: "Hollunder" }))) as any;
-    expect(found.hits.map((h: any) => h.open)).not.toContain(`p:${fixture.pageOfD}`);
-    expect(JSON.stringify(found)).not.toContain("12000");
-  });
-
   it("a run's step: search, page_read and space_document as B refuse it", async () => {
     const { spaceTools } = await import("../src/tools/space");
     await local(async () => {
@@ -412,11 +402,7 @@ describe("„B darf Dokument D nicht lesen“", () => {
         lang: "en",
         signal: new AbortController().signal,
       } as never;
-      const tools = gooseSpaceTools(input, space, () => {}, {
-        brandSections: false,
-        brandRules: false,
-        typography: false,
-      });
+      const tools = gooseSpaceTools(input, space, () => {});
       const looked = await tools.look_at_file.execute({ id: fixture.D });
       expect(looked).toMatchObject({ error: expect.stringContaining("permission"), id: fixture.D });
       expect(JSON.stringify(looked)).not.toContain("Hollunder");

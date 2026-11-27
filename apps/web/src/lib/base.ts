@@ -28,7 +28,7 @@ export const STUDIO_PAGES = new Set([
   "skills",
   "capabilities",
   "work",
-  "client",
+  "shared",
   "settings",
   "account",
   "setup",

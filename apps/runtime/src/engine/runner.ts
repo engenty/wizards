@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
+import { fitData } from "@engenty/chatviews/shape";
 import {
   type ChoiceAnswer,
   type DecisionQuestion,
@@ -41,6 +42,7 @@ import {
   whenValue,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
+import { kernelOf } from "@engenty/wizards-shared/kernel-file";
 import { agentsMismatch, requiresOf, withRequires } from "@engenty/wizards-shared/requires";
 import type {
   AskInput,
@@ -63,9 +65,13 @@ import {
   saidText,
 } from "@engenty/wizards-shared/run";
 import { CONVERSATION_RUNNERS, DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
-import { fitData } from "@engenty/wizards-shared/shape";
 import type { StartEvent, StartedBy } from "@engenty/wizards-shared/starts";
-import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
+import type {
+  ConnectionDef,
+  ConnectionView,
+  ListDef,
+  ListRow,
+} from "@engenty/wizards-shared/store";
 import {
   type FlowEvent,
   type FlowFailure,
@@ -85,8 +91,9 @@ import { effectsOn, enterVisit } from "../broker/effect.js";
 import { grantNote, grantOf, inAudience, type KnownConnector, kindOf } from "../broker/index.js";
 import { runHolder, subjectsOf } from "../broker/rwx.js";
 import { resolveConnector } from "../connectors/external.js";
-import { connectionViews, connectorOptions } from "../connectors/index.js";
-import { spaceConnectionOf } from "../connectors/space-connections.js";
+import { candidates, connectionViews, connectorOptions } from "../connectors/index.js";
+import { runConnectionsOn } from "../connectors/person-connections.js";
+import { spaceConnectionOf, spaceConnectorFor } from "../connectors/space-connections.js";
 import {
   addLocalCost,
   canSpend,
@@ -99,6 +106,9 @@ import { db, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { feature, remoteFeatures } from "../features.js";
 import { saveAsset } from "../files/storage.js";
+import { kernelHost } from "../kernel/host.js";
+import { kernelPage } from "../kernel/page.js";
+import { signalWait } from "../kernel/signals.js";
 import { managed, tenantInfo } from "../manage.js";
 import { hasFfmpeg } from "../media/ffmpeg.js";
 import { NotedError, noteOf, saidOf } from "../model-errors.js";
@@ -110,6 +120,7 @@ import {
   noteFreeTierRefusal,
   takeMasked,
 } from "../models.js";
+import { oldFormatOn } from "../old-format.js";
 import { runEnded } from "../plugins/events.js";
 import { pluginsOf as loadedPlugins } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
@@ -130,7 +141,6 @@ import { spaceFiles } from "../services/space-files.js";
 import { brandSpaceId } from "../services/space-parent.js";
 import { spaceProfile } from "../services/spaces.js";
 import { storedTranslation } from "../services/translations.js";
-import { decidedHeld, holdReview } from "../services/work-approvals.js";
 import { latestShareJob } from "../sharing/state.js";
 import { dataRequirement } from "../store/data.js";
 import { listRows, listSecrets, scopeOf } from "../store/index.js";
@@ -147,6 +157,7 @@ import {
   wakeDue,
   wakeRun,
 } from "../tenants/control.js";
+import { servesTenant } from "../tenants/own-runner.js";
 import { currentTenant, currentTenantOrNull } from "../tenants/tenant.js";
 import { hasOwnAccount } from "../upstreams.js";
 import { type Caller, whoOf } from "./answerers.js";
@@ -156,6 +167,7 @@ import { clearDeviceCalls } from "./device.js";
 import { newTurn, TurnAsks, turnOf } from "./durable-turn.js";
 import { emitEvent, recentEvents, saidInVisit, signalChanged, visitLeftOpen } from "./events.js";
 import { classifyFailure, type Failure } from "./failures.js";
+import { decidedHeld, holdReview } from "./held-reviews.js";
 import { type FormContext, type InputError, readFormInput } from "./input.js";
 import { withMailText } from "./mail-watch.js";
 import {
@@ -178,6 +190,7 @@ import {
   tierRefusalSaid,
 } from "./requirements.js";
 import { liveResources, releaseResources, resourcesFor } from "./resources.js";
+import { needsAhead, needsOfStep, unconnected } from "./run-needs.js";
 import {
   dropWait,
   findSignal,
@@ -257,6 +270,16 @@ async function concurrencyLimit(tenant: string): Promise<number> {
   return info?.limits.concurrentRuns || env.limits.concurrentRuns;
 }
 
+/**
+ * The runs this process drives at once: a tenant's runner as many as its tenant may
+ * (`limits.concurrentRuns`), a shared runner RUNNER_MAX_RUNS.
+ */
+export function runCap(): Promise<number> {
+  return env.runner.tenant
+    ? concurrencyLimit(env.runner.tenant)
+    : Promise.resolve(env.runner.maxRuns);
+}
+
 /** Puts a claim on the run's own row; an older claim that arrives late changes nothing. */
 async function holdRun(runId: string, generation: number) {
   await db
@@ -284,7 +307,7 @@ export async function loadSpace(run: RunRow): Promise<SpaceRow> {
   return p;
 }
 
-/** Where a run's data is: the client space it was started in, else its wizard's space. */
+/** Where a run's data is: the space it carries, else its wizard's space. */
 async function dataSpaceOf(run: RunRow, space: SpaceRow): Promise<{ id: string; name: string }> {
   if (!run.clientSpaceId) {
     return { id: space.id, name: space.name };
@@ -294,7 +317,7 @@ async function dataSpaceOf(run: RunRow, space: SpaceRow): Promise<{ id: string; 
     where: eq(schema.space.id, run.clientSpaceId),
   });
   if (!client) {
-    throw new Error("client space missing");
+    throw new Error("space missing");
   }
   return client;
 }
@@ -579,7 +602,7 @@ export async function createRun(input: {
   lang?: string | null;
   /** The client that starts it over the public API; null for the studio and the AI apps. */
   client?: string | null;
-  /** The client space it runs in, with its parent's wizard (docs/plans/client-portal.md). */
+  /** The space it runs in where that is not its wizard's, or a client's (docs/plans/org-spaces.md). */
   clientSpaceId?: string | null;
   /** The Work chat it was started from (docs/plans/org-spaces.md). */
   chatId?: string | null;
@@ -592,12 +615,26 @@ export async function createRun(input: {
   fill?: Record<string, unknown>;
   /** Which time of the start this is (`occurrenceKey`): a second run of it is refused. */
   occurrence?: string;
+  /**
+   * A wizard in version 0.3.0 (docs/plans/kernel.md): what the run is given as its input. Left out,
+   * the run asks for it first, where the wizard's file has fields for one.
+   */
+  input?: Record<string, unknown>;
 }): Promise<string> {
   const id = nanoid(18);
   const first = input.definition.steps[0];
+  const file = kernelOf(input.definition);
   // A started run fills its first page itself, in the drive loop.
-  const waits = first.type === "form" && !input.startedBy;
+  const waits = !file && first.type === "form" && !input.startedBy;
   const state: RunState = { values: {}, outputs: {}, history: [], notes: {} };
+  if (file) {
+    state.kernel = {
+      input: input.input ?? null,
+      startedAt: Date.now(),
+      open: null,
+      status: "running",
+    };
+  }
   if (input.startedBy) {
     state.start = input.start;
     state.fill = input.fill ?? {};
@@ -621,6 +658,9 @@ export async function createRun(input: {
   }
   // What the wizard needs and this runtime lacks: nothing starts. Off, nothing starts that would
   // need the clock; a run that already waits goes on.
+  if (!file && !(await oldFormatOn())) {
+    throw new ModelUnavailableError(note("oldFormatOff"));
+  }
   const requires = input.definition.requires ?? requiresOf(input.definition);
   const switches = await remoteFeatures().catch(() => null);
   for (const name of requires.features ?? []) {
@@ -667,8 +707,8 @@ export async function createRun(input: {
   }
   // What the run may reach outside, from the definition it starts on: fixed here, never widened.
   const grant = grantOf(input.definition);
-  // Without an account nobody can come back for a result later: it is kept a week. A run of a
-  // client space is the client's, kept with it.
+  // Without an account nobody can come back for a result later: it is kept a week. A run that
+  // carries its space is kept with that space.
   const expiresAt =
     input.mode === "live" && !input.clientSpaceId
       ? new Date(Date.now() + env.limits.resultTtlDays * 24 * 60 * 60 * 1000)
@@ -708,7 +748,7 @@ export async function createRun(input: {
       startedBy: input.startedBy ?? null,
       occurrence: input.occurrence ?? null,
       status: waits ? "waiting_input" : "running",
-      cursor: first.id,
+      cursor: file ? file.start : first.id,
       state,
       label: await labelOf(input.definition, state),
       expiresAt,
@@ -819,7 +859,11 @@ async function grantConnectors(
 export function kick(runId: string) {
   const tenant = currentTenant();
   void wakeRun(runId)
-    .then(() => (env.serves.runner ? take(runId, tenant) : nudgeRunner(runId, tenant)))
+    .then(async () =>
+      env.serves.runner && (await servesTenant(tenant))
+        ? take(runId, tenant)
+        : nudgeRunner(runId, tenant),
+    )
     .catch((err) => console.error(`[run ${runId}]`, err));
 }
 
@@ -829,7 +873,7 @@ export function kick(runId: string) {
  * line still has the run, and the next look takes it.
  */
 async function nudgeRunner(runId: string, tenant: string) {
-  const runners = await otherRunners();
+  const runners = await otherRunners(tenant);
   const runner = runners[Math.floor(Math.random() * runners.length)];
   if (!runner) {
     return;
@@ -873,7 +917,16 @@ async function claimAndHold(runId: string, tenant: string): Promise<number | nul
  * steps do, and the line goes on meanwhile.
  */
 async function take(runId: string, tenant: string): Promise<void> {
-  if (active.has(runId) || active.size >= env.runner.maxRuns) {
+  if (active.has(runId) || (!env.runner.tenant && active.size >= env.runner.maxRuns)) {
+    return;
+  }
+  // A tenant's runner takes no other tenant's run, a shared runner none of a tenant with a runner
+  // of its own: the line keeps it for that runner.
+  if (!(await servesTenant(tenant))) {
+    return;
+  }
+  const cap = await runCap();
+  if (active.has(runId) || active.size >= cap) {
     return;
   }
   // The slot counts from here, so takes at the same moment stay under the cap.
@@ -1165,7 +1218,8 @@ export async function makeContext(
     resources,
     ask: own.ask ?? ((ask) => askOf(run, ask, stepId, signal)),
     emit:
-      own.emit ?? ((type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset)),
+      own.emit ??
+      ((type, message, asset) => emitEvent(run.id, stepId || null, type, message, asset)),
     call: { runId: run.id, stepId },
     ...(own.share ? { share: true } : {}),
     saveState: async () => {
@@ -2069,6 +2123,44 @@ async function waitForPerson(
   });
 }
 
+/**
+ * A step uses a need the run has no account for (none, or several and none chosen): the run waits
+ * for the person to connect or choose one, as long as it takes. Their card says so; it goes on at
+ * once after (`signedIn`).
+ */
+async function waitForAccount(run: RunRow, step: Step, need: ConnectionDef) {
+  const spaceId = await spaceIdOf(run);
+  const service = need.title ?? (await candidates(need, spaceId))[0]?.name ?? need.id;
+  const pause: RunPause = { kind: "sign_in", service, connection: need.id };
+  const state = structuredClone(run.state);
+  // Woken before anything was connected, it waits again and says nothing new.
+  const told = state.retries?.step === step.id && state.retries.told === "sign_in";
+  state.pause = pause;
+  state.retries = {
+    ...(state.retries?.step === step.id
+      ? state.retries
+      : { step: step.id, count: 0, since: new Date().toISOString() }),
+    told: "sign_in",
+  };
+  await updateRun(run.id, { status: "sleeping", state, wakeAt: null }, { status: "running" });
+  if (!told) {
+    await tellPerson(run, step.id, pause);
+    void pushRun(run.id, "waiting");
+  }
+}
+
+/**
+ * The wizard's need a sign-in is for, where the run has no account to use for it: the connect
+ * card's (`RunView.connect`), not a new sign-in's. With `runConnections` off, never.
+ */
+async function unconnectedNeed(run: RunRow, connectionId: string | undefined) {
+  const need = run.definition.connections?.find((c) => c.id === connectionId);
+  if (!(need && (await runConnectionsOn()))) {
+    return null;
+  }
+  return (await unconnected(scopeOf(run), await spaceIdOf(run), [need])).length ? need : null;
+}
+
 /** The connection of the space behind the wizard's connection a sign-in is for, if it is one. */
 async function spaceRowOf(run: RunRow, connectionId: string | undefined) {
   const named = run.definition.connections?.find((c) => c.id === connectionId)?.spaceConnection;
@@ -2080,6 +2172,9 @@ async function signInSaid(
   run: RunRow,
   pause: { service: string; connection?: string },
 ): Promise<RunNote> {
+  if (await unconnectedNeed(run, pause.connection)) {
+    return note("stepWaitsConnect", { service: pause.service });
+  }
   const row = await spaceRowOf(run, pause.connection);
   return note(row?.signIn === "space" ? "stepWaitsAdminSignIn" : "stepWaitsSignIn", {
     service: pause.service,
@@ -2242,6 +2337,18 @@ async function startDriving(runId: string): Promise<boolean> {
 }
 
 async function drive(runId: string, signal: AbortSignal) {
+  // A wizard in version 0.3.0: the kernel moves the run (docs/plans/kernel.md).
+  const versioned = await loadRun(runId);
+  if (versioned && kernelOf(versioned.definition)) {
+    if (!RUN_ENDED.has(versioned.status)) {
+      await kernelRuns.drive(versioned, signal);
+    }
+    return;
+  }
+  // A run of a wizard in version 0.2.0 moves only where its switch is on; off, it fails at once.
+  if (versioned && !(await oldFormatOn())) {
+    throw new ModelUnavailableError(note("oldFormatOff"));
+  }
   // The step starts afresh here: a question or a device call another process left has no one
   // waiting.
   await clearStaleAsk(runId);
@@ -2377,6 +2484,18 @@ async function drive(runId: string, signal: AbortSignal) {
       // A step that ran is over and the next one is the person's: a phone in a pocket hears it.
       void pushRun(runId, "waiting");
       return;
+    }
+    // A need of this step with no account to use: the person connects or chooses one first.
+    if (await runConnectionsOn()) {
+      const [missing] = await unconnected(
+        scopeOf(run),
+        await spaceIdOf(run),
+        needsOfStep(def, step),
+      );
+      if (missing) {
+        await waitForAccount(run, step, missing);
+        return;
+      }
     }
     // An answer moved the run on without holding again (`answerGoesOn`): it holds before it spends.
     if (run.state.holdLater) {
@@ -2603,7 +2722,11 @@ function unsentWithout(run: RunRow, stepId: string): { unsent?: RunRow["unsent"]
  * One page's entry is written in place, so two pages saving at once keep both.
  */
 export async function keepUnsent(run: RunRow, stepId: string, values: Record<string, unknown>) {
-  const step = stepOf(run.definition, stepId);
+  // A run of step files shows its open ask as a page; what is typed there is kept the same way.
+  const shown = kernelOf(run.definition)
+    ? kernelPage(run, await kernelRuns.view(run)).definition
+    : run.definition;
+  const step = stepOf(shown, stepId);
   if (step?.type !== "form") {
     throw new RunConflict("Not a page");
   }
@@ -2628,6 +2751,28 @@ export async function submitPage(
   by?: Actor,
   sent?: { seq: number; tab?: string },
 ): Promise<boolean> {
+  const versioned = await kernelRunOf(runId);
+  if (versioned) {
+    // A wizard in version 0.3.0: the page is the form the run waits at, a step's or its input.
+    const row = (await kernelRuns.view(versioned)).waiting.find(
+      (r) => r.step === stepId && r.type === "form",
+    );
+    if (!row) {
+      throw new RunConflict({ code: "runMovedOn" });
+    }
+    // The page's fields are checked as every form's are: kinds, what is required, choices.
+    const page = kernelPage(versioned, await kernelRuns.view(versioned));
+    const form = stepOf(page.definition, stepId);
+    if (form?.type !== "form") {
+      throw new RunConflict("Not a page");
+    }
+    const read = readFormInput(form, input, await formContext(page, form));
+    if (read.errors.length) {
+      throw new RunInputError(read.errors);
+    }
+    await kernelAnswer(runId, row.n, read.values, by);
+    return false;
+  }
   const at = Date.now();
   if (sent) {
     const last = (await loadRun(runId))?.state.pagesSent;
@@ -2811,6 +2956,51 @@ export type ReviewAction =
  * answers, as the door established it; none for what the engine does itself.
  */
 export async function reviewStep(runId: string, stepId: string, action: ReviewAction, by?: Actor) {
+  const versioned = await kernelRunOf(runId);
+  if (versioned) {
+    // A wizard in version 0.3.0: a review of the step, or the leave for an action it is about to do.
+    const waiting = (await kernelRuns.view(versioned)).waiting.filter((r) => r.step === stepId);
+    const row =
+      waiting.find((r) => r.type === "approval") ?? waiting.find((r) => r.type === "review");
+    if (!row) {
+      throw new RunConflict({ code: "runMovedOn" });
+    }
+    const shows = (row.show as string[] | undefined) ?? [];
+    if (action.type === "regenerate") {
+      // The step answers `{ regenerate, note }` and goes back to the step it names.
+      if (row.type !== "review" || row.regenerate !== true || !shows.includes(action.target)) {
+        throw new RunConflict("Not a review that can be made again");
+      }
+      await kernelAnswer(
+        runId,
+        row.n,
+        { approved: false, regenerate: action.target, note: action.note.slice(0, 2000) },
+        by,
+      );
+      return;
+    }
+    const yes = action.type === "accept";
+    // As in version 0.2.0: only edits of a step the review shows, and only where it lets them edit.
+    const edits =
+      action.type === "accept" && row.edit === true
+        ? Object.fromEntries(
+            Object.entries(action.edits ?? {}).filter(([id]) => shows.includes(id)),
+          )
+        : {};
+    await kernelAnswer(
+      runId,
+      row.n,
+      row.type === "approval"
+        ? { allow: yes }
+        : {
+            approved: yes,
+            ...(action.note ? { note: action.note } : {}),
+            ...(Object.keys(edits).length ? { edits } : {}),
+          },
+      by,
+    );
+    return;
+  }
   const at = Date.now();
   const run = await requireWaiting(runId, stepId);
   const step = stepOf(run.definition, stepId);
@@ -2891,6 +3081,16 @@ export async function goBack(runId: string, by?: Actor) {
   if (!run) {
     throw new RunConflict({ code: "runBusy" });
   }
+  if (kernelOf(run.definition)) {
+    // A wizard in version 0.3.0: the last answer somebody gave is asked for again.
+    const rows = (await kernelRuns.view(run)).rows;
+    const last = rows.findLast((r) => !("left" in r) && r.state === "done" && r.by !== undefined);
+    if (!last) {
+      throw new RunConflict({ code: "runMovedOn" });
+    }
+    await kernelRuns.rewind(runId, last.n).catch(kernelRefused);
+    return;
+  }
   // What belonged to the step left behind goes with it, and whoever answered the page asked again
   // no longer has: the flow's `back`.
   await apply(run, run.state, await flow(run, { kind: "back" }), {
@@ -2904,6 +3104,16 @@ export async function retry(runId: string) {
   const run = await loadRun(runId);
   if (run?.status !== "failed") {
     throw new RunConflict("Nothing to retry");
+  }
+  if (kernelOf(run.definition)) {
+    // A wizard in version 0.3.0: the ask that failed is made again.
+    const rows = (await kernelRuns.view(run)).rows;
+    const failed = rows.findLast((r) => !("left" in r) && r.state === "failed");
+    if (!failed) {
+      throw new RunConflict("Nothing to retry");
+    }
+    await kernelRuns.rewind(runId, failed.n).catch(kernelRefused);
+    return;
   }
   // A failure gave the run's hold back: a refusal on wake must not be walked around here.
   const refused = (await durableRunsOn()) ? await holdAgain(run) : null;
@@ -3098,7 +3308,7 @@ export async function talkAllowed(run: RunRow): Promise<boolean> {
 }
 
 /** The viewer is the person whose run it is. */
-const ownsRun = (run: RunRow, viewer: Caller) =>
+export const ownsRun = (run: RunRow, viewer: Caller) =>
   Boolean(
     viewer.local ||
       viewer.link ||
@@ -3135,6 +3345,10 @@ async function signInOf(
   }
   const spaceId = await spaceIdOf(run);
   const lang = textLang(wizardLang(def));
+  // No account to use for it at all: the connect card of `RunView.connect` asks.
+  if (!row && (await unconnectedNeed(run, connection.id))) {
+    return null;
+  }
   if (!row) {
     const [view] = await connectionViews([connection], scopeOf(run), spaceId, lang);
     // An account the step met and could not use is no account: the card connects anew.
@@ -3155,6 +3369,7 @@ async function signInOf(
       title: connection.title ?? row.name,
       description: connection.description ?? null,
       account: null,
+      candidates: [],
       connectors: await connectorOptions(
         { id: connection.id, connector: row.connectorId },
         spaceId,
@@ -3162,6 +3377,55 @@ async function signInOf(
       ),
     },
   };
+}
+
+/**
+ * What the run asks the viewer to connect or choose before it goes on (`RunView.connect`), for
+ * the person whose run it is: at its start (nothing passed yet) the needs of the steps every run
+ * passes, and the need of the step it waits at. A need used on a branch only asks when the run
+ * gets there. With `runConnections` off, nothing: a page field connects, as before.
+ */
+async function connectOf(
+  run: RunRow,
+  def: WizardDefinition,
+  viewer: Caller | undefined,
+): Promise<ConnectionView[]> {
+  if (!(viewer && ownsRun(run, viewer) && def.connections?.length)) {
+    return [];
+  }
+  if (!(await runConnectionsOn())) {
+    return [];
+  }
+  const pause = run.status === "sleeping" ? run.state.pause : undefined;
+  const waits =
+    pause?.kind === "sign_in" ? def.connections.filter((c) => c.id === pause.connection) : [];
+  const starting =
+    !run.state.history.length && (run.status === "waiting_input" || waits.length > 0);
+  const ahead = starting ? needsAhead(def, def.steps[0].id, run.state.values) : [];
+  const needs = [...new Set([...waits, ...ahead])];
+  const spaceId = await spaceIdOf(run);
+  const scope = scopeOf(run);
+  const missing = await unconnected(scope, spaceId, needs);
+  if (!missing.length) {
+    return [];
+  }
+  // An admin of the space whose run it is may connect for the space; a guest never.
+  const admin = Boolean(
+    viewer.userId && viewer.userId === run.userId && viewer.role && isAdminRole(viewer.role),
+  );
+  const home = run.clientSpaceId ?? spaceId;
+  const views = await connectionViews(missing, scope, spaceId, textLang(wizardLang(def)));
+  return Promise.all(
+    views.map(async (view) => {
+      const forSpace: string[] = [];
+      for (const c of admin ? view.connectors : []) {
+        if (await spaceConnectorFor(home, c.id)) {
+          forSpace.push(c.id);
+        }
+      }
+      return { ...view, forSpace };
+    }),
+  );
 }
 
 /**
@@ -3176,6 +3440,10 @@ export async function runView(
   hide: ReadonlySet<string> = new Set(),
   viewer?: Caller,
 ): Promise<RunView> {
+  // A wizard in version 0.3.0: the page reads the run as the small wizard it is at this moment.
+  if (kernelOf(run.definition)) {
+    return runView(kernelPage(run, await kernelRuns.view(run)), brand, hide, viewer);
+  }
   // In the viewer's language every text of the view is the translation; ids and values stay.
   const memory = run.lang ? await storedTranslation(run.wizardId, run.lang) : null;
   const translated = memory ? translateDefinition(run.definition, memory) : null;
@@ -3247,6 +3515,7 @@ export async function runView(
         : null,
     pause: run.status === "sleeping" ? (run.state.pause ?? null) : null,
     signIn: await signInOf(run, def, viewer),
+    connect: await connectOf(run, def, viewer),
     waitsFor:
       run.status === "waiting_signal" && step?.type === "wait"
         ? waitKeyText(run, step) || null
@@ -3371,11 +3640,26 @@ export async function signalRun(
   },
 ) {
   const run = await loadRun(runId);
+  const { only, ...signal } = input;
+  if (run && kernelOf(run.definition)) {
+    // A run of version 0.3.0: the row it waits at names the signal and its key.
+    const wait =
+      run.status === "waiting_signal" ? signalWait((await kernelRuns.view(run)).rows) : undefined;
+    if (!wait || (only && wait.name !== only) || signalMissing(input.data, wait.fields).length) {
+      return null;
+    }
+    return sendSignal({
+      spaceId: await spaceIdOf(run),
+      scope: runScope(run.id),
+      name: wait.name,
+      key: wait.key,
+      ...signal,
+    });
+  }
   const step = run ? stepOf(run.definition, run.cursor) : undefined;
   if (run?.status !== "waiting_signal" || step?.type !== "wait" || !step.signal) {
     return null;
   }
-  const { only, ...signal } = input;
   if (only ? step.signal.name !== only : signalMissing(input.data, step.signal.fields).length) {
     return null;
   }
@@ -3406,3 +3690,37 @@ async function runSpaceFiles(spaceId: string) {
   );
   return [...brand, ...own.filter((f) => !BRAND_FILES.has(f.kind))];
 }
+
+// --- runs of a wizard in version 0.3.0 (docs/plans/kernel.md) ----------------------
+
+/** The run, when it is of a wizard in version 0.3.0 and has not ended. */
+async function kernelRunOf(runId: string): Promise<RunRow | undefined> {
+  const run = await loadRun(runId);
+  return run && kernelOf(run.definition) ? run : undefined;
+}
+
+/** What the kernel refuses of a person's write, as the engine says it. */
+function kernelRefused(err: unknown): never {
+  if (err instanceof RunConflict) {
+    throw err;
+  }
+  throw new RunInputError([
+    { field: "", message: err instanceof Error ? err.message : String(err) },
+  ]);
+}
+
+/** A person's answer to a row of a run in version 0.3.0. */
+export async function kernelAnswer(runId: string, n: number, value: unknown, by?: Actor) {
+  await kernelRuns
+    .answer(runId, n, value, by?.userId ?? by?.visitorId ?? undefined)
+    .catch(kernelRefused);
+}
+
+/** The kernel's host over this engine: its line, its claims, its writes of a run's row. */
+export const kernelRuns = kernelHost({
+  loadRun,
+  updateRun: (runId, patch, seen) => updateRun(runId, patch, seen),
+  loadSpace,
+  makeContext,
+  kick,
+});

@@ -102,7 +102,7 @@ describe("a wait step", () => {
     expect(parseWizard(wizard({ for: "2d" })).issues).toEqual([]);
     expect(parseWizard(wizard({ until: "2026-11-10T08:00:00.000Z" })).issues).toEqual([]);
     expect(parseWizard(wizard({ until: "{{due}}" })).issues).toEqual([]);
-    expect(DEFINITION_VERSION).toBe(1);
+    expect(DEFINITION_VERSION).toBe("0.2.0");
   });
 
   it("has one of them", () => {
@@ -156,7 +156,7 @@ describe("a wait step", () => {
     it("takes a name, a key, a timeout and fields, and the version stays", () => {
       expect(parseWizard(wizard(signal())).issues).toEqual([]);
       expect(parseWizard(wizard(signal({ timeout: "3d", fields: ["amount"] }))).issues).toEqual([]);
-      expect(DEFINITION_VERSION).toBe(1);
+      expect(DEFINITION_VERSION).toBe("0.2.0");
     });
 
     it("is one of the three, with a known key and a readable timeout", () => {

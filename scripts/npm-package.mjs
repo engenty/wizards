@@ -9,7 +9,9 @@
 //                             installer and hands over to it (bin/wizards.mjs).
 //   @engenty/wizards          what code outside this repo imports: packages/wizards/dist as its
 //                             build leaves it (packages/wizards/scripts/build.mjs)
-//   @engenty/decision-model, @engenty/search-index, @engenty/search-libsql, @engenty/goose
+//   @engenty/decision-model, @engenty/search-index, @engenty/search-libsql, @engenty/tool-harness,
+//   @engenty/vault, @engenty/plugins, @engenty/browser, @engenty/model-providers,
+//   @engenty/model-setup
 //                             the MIT libraries in packages/: each its dist/ as tsc leaves it
 //                             (tsconfig.build.json), its LICENSE and README, at the release's
 //                             version. search-libsql names the other two at that version.
@@ -52,7 +54,18 @@ const launcherStage = join(outDir, "wizards");
 const libraryStage = join(outDir, "engenty-wizards");
 const RUNTIME = "@engenty/wizards-runtime";
 // The MIT libraries, by their folder in packages/; one that another needs comes first.
-const LIBRARIES = ["decision-model", "search-index", "search-libsql", "goose"];
+const LIBRARIES = [
+  "chatviews",
+  "decision-model",
+  "search-index",
+  "search-libsql",
+  "tool-harness",
+  "vault",
+  "plugins",
+  "browser",
+  "model-providers",
+  "model-setup",
+];
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
@@ -78,6 +91,7 @@ const BUILT = [
   "apps/web/dist",
   "packages/shared/dist",
   "packages/wizards/dist",
+  "packages/kernel/dist",
   ...LIBRARIES.map((dir) => `packages/${dir}/dist`),
 ];
 if (flag("skip-build")) {
@@ -158,6 +172,9 @@ const collect = (dir) => {
       const linked = installed[name]?.path;
       if (!linked) {
         throw new Error(`${name} (${dir}) is not linked — run pnpm install.`);
+      }
+      if (bundled.includes(name)) {
+        continue;
       }
       const from = relative(root, linked);
       const manifest = readJson(`${from}/package.json`);
@@ -323,10 +340,13 @@ writeFileSync(
 );
 
 // --- 4. the launcher ---------------------------------------------------------------------
-// bin/wizards.mjs as it is (it tells the launcher from the runtime by what is beside it) and the
-// installer it runs. No engines: it runs on an older Node too, and the installer brings a new one.
+// bin/wizards.mjs as it is (it tells the launcher from the runtime by what is beside it), `wizards
+// bot` (bin/bot.mjs) and the installer it runs. No engines: it runs on an older Node too, and the
+// installer brings a new one.
 mkdirSync(join(launcherStage, "bin"), { recursive: true });
-cpSync(join(root, "bin", "wizards.mjs"), join(launcherStage, "bin", "wizards.mjs"));
+for (const file of ["wizards.mjs", "bot.mjs", "bot-tunnel.mjs"]) {
+  cpSync(join(root, "bin", file), join(launcherStage, "bin", file));
+}
 chmodSync(join(launcherStage, "bin", "wizards.mjs"), 0o755);
 for (const file of ["install.sh", "install.ps1"]) {
   cpSync(join(root, "apps", "web", "public", file), join(launcherStage, file));

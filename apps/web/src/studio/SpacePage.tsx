@@ -47,7 +47,7 @@ import {
   useValue,
   ValueView,
 } from "./space/Categories";
-import { ClientSpaces, OpenToClients } from "./space/ClientSpaces";
+import { ClientWizards, OpenToClients } from "./space/Clients";
 import { DatabaseView } from "./space/DatabaseView";
 import { DateienMenu, DateienPage } from "./space/Dateien";
 import { FileView } from "./space/Documents";
@@ -231,9 +231,12 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const pagesOn = useFeature("pages");
   // Skills wait behind theirs.
   const skillsOn = useFeature("skills");
-  // Client spaces wait behind theirs, and are the admins'.
+  // What of the organization's own space its client spaces reach: behind their switch and the
+  // organization's spaces, the admins', on the root alone. A client space's own is its clients'.
   const admin = useIsAdmin();
-  const clientsOn = useFeature("clientSpaces") && admin;
+  const clientSpaces = useFeature("clientSpaces");
+  const orgSpaces = useFeature("orgSpaces");
+  const clientsOn = clientSpaces && orgSpaces && admin && Boolean(space?.root);
   // Wissen as a knowledge base waits behind its switch.
   const treeOn = useFeature("knowledgeTree");
   // Dateien waits behind its switch, and mounts a folder of this computer (a local install's) or
@@ -281,13 +284,11 @@ export function SpacePage({ place }: { place?: "skills" }) {
     ? space.brand.name?.trim() || (me ? spaceLabel(me, space) : space.name)
     : t("nav.space");
 
-  // Typography waits behind its switch.
-  const off = useFeature("typography") ? [] : ["typography"];
   const partMenu = part ? (plugins.spaceMenus[part.id] ?? []) : [];
   const sections = part
     ? [{ plugin: null, label: null, sections: partMenu }]
     : group && group !== "results"
-      ? spaceSections(group, plugins, off)
+      ? spaceSections(group, plugins)
       : [];
   const added = group ? spaceSections(group, plugins).filter((g) => g.plugin) : [];
   const anchors = [...sections, ...(group === "results" ? added : [])].flatMap((g) =>
@@ -1105,7 +1106,7 @@ export function SpacePage({ place }: { place?: "skills" }) {
               ) : null}
               {space && group === "clients" && clientsOn ? (
                 <Anchor id="clients">
-                  <ClientSpaces space={space} />
+                  <ClientWizards space={space} />
                 </Anchor>
               ) : null}
               {space && group === "skills" && skillsOn ? (

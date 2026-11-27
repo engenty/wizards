@@ -9,7 +9,7 @@ import {
   type ConnectionRules,
   MAILBOX_ERRORS,
 } from "@engenty/wizards-shared/connectors";
-import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import { inCurrentFormat, type WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
 import { withRequires } from "@engenty/wizards-shared/requires";
 import {
@@ -77,7 +77,8 @@ const updatedAt = () => integer("updated_at", { mode: "timestamp_ms" }).notNull(
 const definitionColumn = customType<{ data: WizardDefinition; driverData: string }>({
   dataType: () => "text",
   toDriver: (value) => JSON.stringify(filledIn(value)),
-  fromDriver: (value) => JSON.parse(value) as WizardDefinition,
+  // A definition kept before its version was written as today reads as today's.
+  fromDriver: (value) => inCurrentFormat(JSON.parse(value) as WizardDefinition),
 });
 
 function filledIn(def: WizardDefinition): WizardDefinition {
@@ -164,6 +165,11 @@ export const space = sqliteTable(
      * its admins (services/members-studio.ts). One rule for all members; admins set it.
      */
     membersStudio: integer("members_studio", { mode: "boolean" }).notNull().default(false),
+    /**
+     * Of a hundred finished runs of a wizard in version 0.3.0, how many its evals judge
+     * (docs/plans/kernel.md, item 13). 0, the default: none. Admins set it in the space's Info.
+     */
+    evalShare: integer("eval_share").notNull().default(0),
     /** Who of the organization sees the space: everyone, or only its members (docs/plans/org-spaces.md). */
     access: text("access", { enum: ["all", "members"] })
       .notNull()
@@ -179,15 +185,18 @@ export const space = sqliteTable(
     origin: text("origin", { enum: ["local"] }),
     syncedAt: integer("synced_at", { mode: "timestamp_ms" }),
     /**
-     * `client`: a client space under `parentId` (docs/plans/client-spaces.md): one client's data,
-     * results and chats, reading the parent's setup. `space`: a space of the organization.
-     * `personal`: one person's own space, Mein Space (docs/plans/org-spaces.md): its one member
-     * is that person, nobody else sees it.
+     * `space`: a team space of the organization, for its members only. `client`: a client space
+     * (docs/plans/org-spaces.md), one per client of the firm, beside the team spaces under the
+     * root: the client's people are in it (`space_member`, role `client`) and see it alone.
+     * `personal`: one person's own space, Mein Space: its one member is that person.
      */
     kind: text("kind", { enum: ["space", "client", "personal"] })
       .notNull()
       .default("space"),
-    /** The space a client space belongs to; null for a space. Two levels, never more. */
+    /**
+     * The organization's own space, the root, for every other space; null for the root and for a
+     * space a local install synced. Two levels, never more.
+     */
     parentId: text("parent_id").references((): AnySQLiteColumn => space.id, {
       onDelete: "cascade",
     }),
@@ -198,10 +207,9 @@ export const space = sqliteTable(
 );
 
 /**
- * Who of the organization is in a client space (docs/plans/client-spaces.md): `client`, the
- * client's own people, who see only the client spaces they are in; `member`, the firm's people
- * assigned to it. The firm's members see every client space of their space all the same until a
- * space turns "assigned only" on.
+ * Who is in a space (docs/plans/org-spaces.md): `client`, one of a client's people, in their
+ * client space and seeing it alone; `member`, the organization's people chosen for a space shared
+ * with its members only (`space.access`), and the one person of a Mein Space.
  */
 export const spaceMember = sqliteTable(
   "space_member",
@@ -431,20 +439,19 @@ export const run = sqliteTable(
     } | null>(),
     costMicros: integer("cost_micros").notNull().default(0),
     /**
-     * The client space a run was started in (docs/plans/client-portal.md): the wizard is its
-     * parent's, the run's data and results belong to the client space. Null: a run of its
-     * wizard's space.
+     * The space a run is in where that is not plainly its wizard's (docs/plans/org-spaces.md): a
+     * run of the root's wizard started in a space under it, or a client's run in their client
+     * space. Its data and results belong to that space. Null: a run of its wizard's space.
      */
     clientSpaceId: text("client_space_id").references((): AnySQLiteColumn => space.id, {
       onDelete: "cascade",
     }),
     /**
-     * The Work chat the run was started from; its folder lists the run's result as one of its
-     * Ergebnisse (docs/plans/org-spaces.md). Null outside a chat.
+     * The chat the run was started from, as its caller named it. Null outside a chat.
      */
     chatId: text("chat_id"),
     /**
-     * When the firm shared the run with the client space's clients, on purpose; null: it stays
+     * When the firm shared the run with the clients of its client space, on purpose; null: it stays
      * the firm's. A client's own runs need none.
      */
     clientSharedAt: integer("client_shared_at", { mode: "timestamp_ms" }),
@@ -1471,123 +1478,24 @@ export const assistantMessage = sqliteTable(
   (t) => [index("assistant_message_chat").on(t.chatId, t.createdAt)],
 );
 
-// --- Work's chats (behind `workMode`) --------------------------------------------
-// A chat belongs to a space, has members (people, later engenties) and lives in a section of
-// the space's sidebar or in none. A sub-thread is a chat with a parent. A private chat is seen by
-// its members only; any other chat by everyone of the tenant. The messages are Mastra's: a
-// memory thread per chat (thread id = chat id, resource id = the space), in Mastra's tables of
-// the same database (services/work-mastra.ts). The chat row keeps what the sidebar shows.
-
-export const chatSection = sqliteTable(
-  "chat_section",
-  {
-    id: text("id").primaryKey(),
-    tenantId: text("tenant_id").notNull(),
-    spaceId: text("space_id")
-      .notNull()
-      .references(() => space.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    position: integer("position").notNull().default(0),
-    /**
-     * With `orgSpaces` a section is a folder (Ordner, docs/plans/org-spaces.md): what every chat
-     * in it should know, read by the AI before the space's Wissen.
-     */
-    infos: text("infos").notNull().default(""),
-    /** A folder linked to a mounted folder or drive of its space (Dateien): its files are the folder's. */
-    mountId: text("mount_id").references((): AnySQLiteColumn => spaceMount.id, {
-      onDelete: "set null",
-    }),
-    createdBy: text("created_by").notNull(),
-    createdAt: createdAt(),
-  },
-  (t) => [index("chat_section_space").on(t.spaceId, t.position)],
-);
-
-export const chat = sqliteTable(
-  "chat",
-  {
-    id: text("id").primaryKey(),
-    tenantId: text("tenant_id").notNull(),
-    spaceId: text("space_id")
-      .notNull()
-      .references(() => space.id, { onDelete: "cascade" }),
-    title: text("title").notNull(),
-    sectionId: text("section_id").references(() => chatSection.id, { onDelete: "set null" }),
-    parentId: text("parent_id").references((): AnySQLiteColumn => chat.id, {
-      onDelete: "cascade",
-    }),
-    private: integer("private", { mode: "boolean" }).notNull().default(false),
-    createdBy: text("created_by").notNull(),
-    createdAt: createdAt(),
-    /** The last message's time, else when it was made: the sidebar's order. */
-    updatedAt: updatedAt(),
-    /** The last message for the sidebar: who wrote it ("ai" for the space's AI), its start. */
-    lastAuthorId: text("last_author_id"),
-    lastAuthorName: text("last_author_name"),
-    lastText: text("last_text"),
-    /** Since when the space's AI answers here; null while it doesn't. Others follow the turn. */
-    answeringSince: integer("answering_since", { mode: "timestamp_ms" }),
-  },
-  (t) => [index("chat_space").on(t.spaceId, t.updatedAt), index("chat_parent").on(t.parentId)],
-);
-
-export const chatMember = sqliteTable(
-  "chat_member",
-  {
-    chatId: text("chat_id")
-      .notNull()
-      .references(() => chat.id, { onDelete: "cascade" }),
-    kind: text("kind", { enum: ["person", "engenty"] }).notNull(),
-    /** A person's user id, an engenty's id. */
-    memberId: text("member_id").notNull(),
-    joinedAt: integer("joined_at", { mode: "timestamp_ms" }).notNull().default(now),
-  },
-  (t) => [
-    primaryKey({ columns: [t.chatId, t.kind, t.memberId] }),
-    index("chat_member_member").on(t.kind, t.memberId),
-  ],
-);
-
-/** What one person did with a chat: pinned it, archived it for themselves, read it up to when. */
-export const chatState = sqliteTable(
-  "chat_state",
-  {
-    chatId: text("chat_id")
-      .notNull()
-      .references(() => chat.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
-    pinnedAt: integer("pinned_at", { mode: "timestamp_ms" }),
-    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
-    /** Null: never opened, or marked unread. */
-    readAt: integer("read_at", { mode: "timestamp_ms" }),
-  },
-  (t) => [primaryKey({ columns: [t.chatId, t.userId] })],
-);
-
+// --- Held reviews -----------------------------------------------------------------
 /**
- * Something held for a person's decision. In a Work chat a call of a tool that reaches past the
- * space (`chat_id`): approve runs the stored call once with the stored arguments, deny doesn't, and
- * either way the AI hears of it. In a run a review with `approve` (`run_id`, `step_id`): the first
- * decision counts, and `next` rules read it.
+ * A run's review with `approve`, held for the people named under "Answered by" (`run_id`,
+ * `step_id`): the first decision counts, and `next` rules read it.
  */
 export const approval = sqliteTable(
   "approval",
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    chatId: text("chat_id").references(() => chat.id, { onDelete: "cascade" }),
     runId: text("run_id").references(() => run.id, { onDelete: "cascade" }),
     stepId: text("step_id"),
     /** What is held: a tool's name, or the review's title. */
     toolName: text("tool_name").notNull(),
     input: text("input", { mode: "json" }).$type<unknown>(),
-    /** Who the turn was for: the call runs with their access, and they may decide. Empty in a run. */
+    /** Who started the run; empty for a run nobody signed in started. */
     askedBy: text("asked_by").notNull(),
-    /**
-     * Whose decision it waits for: the asker's (a confirmed action, a plugin's tool), the space's
-     * admins' („Mit Freigabe“ on a connection that signs in as the space, A7), or those named under
-     * "Answered by" (a run's review).
-     */
+    /** Whose decision it waits for: those named under "Answered by" (`team`). */
     heldFor: text("held_for", { enum: ["asker", "admins", "team"] })
       .notNull()
       .default("asker"),
@@ -1600,7 +1508,6 @@ export const approval = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [
-    index("approval_chat").on(t.chatId, t.createdAt),
     index("approval_state").on(t.tenantId, t.state),
     index("approval_run").on(t.runId, t.stepId),
   ],
@@ -2091,6 +1998,48 @@ export const runEffect = sqliteTable(
     at: integer("at", { mode: "timestamp_ms" }).notNull(),
   },
   (t) => [index("run_effect_run").on(t.runId)],
+);
+
+/**
+ * A row of a run the kernel moves (docs/plans/kernel.md): an ask with its answer, or a step that
+ * returned with its value and its way. Rows are only added to, except by a rewind, which drops
+ * the later ones.
+ */
+export const runRow = sqliteTable(
+  "run_row",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    n: integer("n").notNull(),
+    step: text("step").notNull(),
+    /** `ask`, `left`, `approval` (the user's leave for an action), or `note` (under another ask). */
+    kind: text("kind", { enum: ["ask", "left", "approval", "note"] }).notNull(),
+    /** An ask's: `waiting`, `done`, `failed`. Null on a row that left a step. */
+    state: text("state"),
+    /** The whole row as the kernel keeps it. */
+    data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.runId, t.n] })],
+);
+
+/** What an eval said of a step that returned, or of a finished run (docs/plans/kernel.md). */
+export const runScore = sqliteTable(
+  "run_score",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    /** `<step>/<name>`, or `end/<name>`. */
+    eval: text("eval").notNull(),
+    /** The row it judged. */
+    row: integer("row").notNull(),
+    score: real("score"),
+    data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.runId, t.eval, t.row] })],
 );
 
 /**

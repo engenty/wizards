@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { TerminalError } from "@engenty/model-setup/server";
 import { BUILT_IN_RUNNERS, RUNNER_ID } from "@engenty/wizards-shared/runners";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { and, eq } from "drizzle-orm";
@@ -27,6 +28,7 @@ import { openCommand } from "./open-command.js";
 import { PLUGIN_NAME, pluginArchive, pluginMarketplace } from "./plugin.js";
 import { apiRoutes } from "./routes/api.js";
 import { brokerRoutes } from "./routes/broker.js";
+import { brokerPeerRoutes } from "./routes/broker-peer.js";
 import { bundleRoutes } from "./routes/bundles.js";
 import { clientContractRoutes } from "./routes/client-contract.js";
 import { clientSpaceRoutes } from "./routes/client-spaces.js";
@@ -38,7 +40,9 @@ import { elementRoutes } from "./routes/elements.js";
 import { internalRoutes } from "./routes/internal.js";
 import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
 import { liveRoutes } from "./routes/live.js";
+import { localEvalRoutes } from "./routes/local-eval.js";
 import { marketplaceGuest, marketplaceStudio } from "./routes/marketplace.js";
+import { terminalRefused } from "./routes/model-setup.js";
 import { organizationRoutes } from "./routes/organization.js";
 import { peerRoutes } from "./routes/peer.js";
 import { personRoutes } from "./routes/person.js";
@@ -80,7 +84,8 @@ app.use("*", async (c, next) => {
   }
 });
 
-app.onError((err, c) => {
+app.onError((thrown, c) => {
+  const err = thrown instanceof TerminalError ? terminalRefused(thrown) : thrown;
   if (err instanceof ServiceError) {
     const body = err.toJSON(requestLang(c));
     return c.json({ ...body, error: spelledFor(c, body.error) }, err.status);
@@ -269,7 +274,7 @@ if (serves.doors) {
   });
 }
 
-/** What a client of the organization may ask the studio's routes for: who they are, their client spaces. */
+/** What a client of the organization may ask the studio's routes for: who they are, their spaces. */
 const CLIENT_OPEN = /\/api\/studio\/(me|spaces)$/;
 
 /** The studio's requests that open an item: a wizard, a page, a table, a skill, a space. */
@@ -334,8 +339,8 @@ if (serves.studio) {
 
   // A member reaches a space's studio only where its admins opened it (behind `capabilities`).
   app.use("/api/studio/*", membersStudioGate);
-  // A client of the organization reaches no Studio and no Work (docs/plans/client-spaces.md):
-  // who they are and their own client spaces, until the client portal brings its own routes.
+  // A client of the organization reaches no Studio and no Work (docs/plans/org-spaces.md):
+  // who they are and their client spaces, until the client portal brings its own routes.
   app.use("/api/studio/*", async (c, next) => {
     const user = c.get("user") as { role?: string } | undefined;
     if (user?.role !== "client" || (c.req.method === "GET" && CLIENT_OPEN.test(c.req.path))) {
@@ -349,7 +354,7 @@ if (serves.api) {
   const mcp = mcpHandler();
   app.on(["GET", "POST", "DELETE"], "/api/mcp", (c) => mcp(c.req.raw));
   app.route("/api/v1", elementRoutes);
-  // The client contract: a client's own client spaces, for the client portal.
+  // The client contract: a client's client spaces, for the client portal.
   app.route("/api/v1", clientContractRoutes);
   app.route("/api/v1", apiRoutes);
 }
@@ -416,9 +421,13 @@ if (serves.studio) {
   app.route("/api/studio/work", workRoutes);
   app.route("/api/studio", studio);
   app.route("/api/local/debug", localDebugRoutes);
+  app.route("/api/local/eval", localEvalRoutes);
 }
 app.route("/api/internal", internalRoutes);
 app.route("/api/peer", peerRoutes);
+if (serves.broker) {
+  app.route("/api/peer", brokerPeerRoutes);
+}
 if (serves.doors) {
   app.use("/api/public/*", answers);
   app.use("/api/shares/*", answers);

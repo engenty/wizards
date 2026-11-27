@@ -75,7 +75,7 @@ let schemaTag = "";
 const calls: string[] = [];
 
 const inCloud: Transport = {
-  overview: () => cloud(() => hub.syncOverview()),
+  overview: () => cloud(() => hub.syncOverview(USER)),
   pull: (id, since, cursor) => (calls.push("pull"), cloud(() => hub.pullChanges(id, since, cursor))),
   push: (id, input) => {
     calls.push("push");

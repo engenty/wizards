@@ -17,9 +17,16 @@ FROM base AS manifests
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/runtime/package.json apps/runtime/
 COPY apps/web/package.json apps/web/
+COPY packages/chatviews/package.json packages/chatviews/
 COPY packages/shared/package.json packages/shared/
 COPY packages/wizards/package.json packages/wizards/
 COPY packages/runner/package.json packages/runner/
+COPY packages/model-providers/package.json packages/model-providers/
+COPY packages/decision-model/package.json packages/decision-model/
+COPY packages/search-index/package.json packages/search-index/
+COPY packages/tool-harness/package.json packages/tool-harness/
+COPY packages/kernel/package.json packages/kernel/
+COPY packages/model-setup/package.json packages/model-setup/
 RUN sed -i 's/"version": *"[^"]*"/"version": "0.0.0"/' package.json
 
 # Everything the build needs.
@@ -38,7 +45,9 @@ COPY . .
 # The path the app is served under (https://example.com/wizards: /wizards); empty at an origin's root.
 ARG APP_BASE_PATH=""
 ENV APP_BASE_PATH=$APP_BASE_PATH
-RUN pnpm build
+# The runtime, the studio and the workspace packages they use. The other libraries are not
+# installed here (their manifests are not copied above), so they are not built either.
+RUN pnpm --filter "@engenty/wizards-runtime..." --filter "@engenty/wizards-studio..." build
 
 # Sandbox engines that aren't part of the runtime (docs/plans/agentos-sandbox.md), only those
 # named: `--build-arg SANDBOX_ENGINES=agentos` (about 820 MB). Its own stage, fed with just the
@@ -72,16 +81,36 @@ COPY --from=engines /opt/engines /opt/engines
 # first: they change least.
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/runtime/node_modules ./apps/runtime/node_modules
+COPY --from=prod-deps /app/packages/chatviews/node_modules ./packages/chatviews/node_modules
 COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules
-# The built-in terminal (apps/runtime/src/harness/terminal.ts) needs node-pty's binary for this
+COPY --from=prod-deps /app/packages/model-providers/node_modules ./packages/model-providers/node_modules
+COPY --from=prod-deps /app/packages/decision-model/node_modules ./packages/decision-model/node_modules
+COPY --from=prod-deps /app/packages/tool-harness/node_modules ./packages/tool-harness/node_modules
+COPY --from=prod-deps /app/packages/kernel/node_modules ./packages/kernel/node_modules
+COPY --from=prod-deps /app/packages/model-setup/node_modules ./packages/model-setup/node_modules
+# The built-in terminal (packages/model-setup/src/server/terminal.ts) needs node-pty's binary for this
 # platform: an image whose terminal cannot start a command is not built.
-RUN cd apps/runtime && node -e "require('@lydell/node-pty').spawn('/bin/sh', ['-c', 'exit 0'], {}).onExit((e) => process.exit(e.exitCode))"
+RUN cd packages/model-setup && node -e "require('@lydell/node-pty').spawn('/bin/sh', ['-c', 'exit 0'], {}).onExit((e) => process.exit(e.exitCode))"
 COPY --from=build /app/apps/runtime/package.json ./apps/runtime/
 COPY --from=build /app/apps/runtime/dist ./apps/runtime/dist
+COPY --from=build /app/packages/chatviews/package.json ./packages/chatviews/
+COPY --from=build /app/packages/chatviews/dist ./packages/chatviews/dist
 COPY --from=build /app/packages/shared/package.json ./packages/shared/
 COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build /app/packages/wizards/package.json ./packages/wizards/
 COPY --from=build /app/packages/wizards/dist ./packages/wizards/dist
+COPY --from=build /app/packages/decision-model/package.json ./packages/decision-model/
+COPY --from=build /app/packages/decision-model/dist ./packages/decision-model/dist
+COPY --from=build /app/packages/search-index/package.json ./packages/search-index/
+COPY --from=build /app/packages/search-index/dist ./packages/search-index/dist
+COPY --from=build /app/packages/tool-harness/package.json ./packages/tool-harness/
+COPY --from=build /app/packages/tool-harness/dist ./packages/tool-harness/dist
+COPY --from=build /app/packages/kernel/package.json ./packages/kernel/
+COPY --from=build /app/packages/kernel/dist ./packages/kernel/dist
+COPY --from=build /app/packages/model-providers/package.json ./packages/model-providers/
+COPY --from=build /app/packages/model-providers/dist ./packages/model-providers/dist
+COPY --from=build /app/packages/model-setup/package.json ./packages/model-setup/
+COPY --from=build /app/packages/model-setup/dist ./packages/model-setup/dist
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/plugin ./plugin
 # The plugins that ship with the runtime. Further ones go into a folder of PLUGINS_DIR.

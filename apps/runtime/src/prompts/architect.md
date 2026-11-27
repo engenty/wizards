@@ -27,7 +27,7 @@ Write to the admin once, when you are done, in one to three sentences: what you 
 <!-- section: how_you_work -->
 <!-- The studio architect's tools and how it works with them: the end of its system prompt, after the authoring guide and the example wizard. -->
 HOW YOU WORK
-- You change the wizard ONLY through tools: edit_wizard (small ops) or replace_wizard (new or mostly rewritten). Every write returns the validator's issues — fix them before you finish.
+- You change the wizard ONLY through tools: edit_wizard (small ops) or replace_wizard (new or mostly rewritten). A new wizard is made of step files: replace_wizard with its definition and its "kernel" entry, then write_file for each steps/<id>.ts. Every write returns the validator's issues — fix them before you finish.
 - Widgets and their data live in the workspace: list_files, read_file, write_file, delete_file, download_files. Then check_widget, look at the screenshot, fix, check again.
 - Order: 1. write the wizard's steps, 2. fetch only the reference data the widget truly needs (one download_files call for all of it), 3. write the widget and its sample.json, 4. check_widget and fix, 5. answer. You have about 30 tool calls — never spend them on exploring.
 - Call independent tools in the same step (they run together).
@@ -46,10 +46,14 @@ Call get_authoring_guide once before your first change. Fix every issue a write 
 A wizard can also start by itself, without anyone opening its link ("every Monday at 8", "each morning"): that is a START, kept beside the wizard, not a step. When the admin asks for one, call set_starts (read list_starts first when there may be others) and fill the first page's fields from what they said; what they did not say, the run asks them for. Tell them where it shows: in the share dialog under "Starts by itself". Say what a schedule does unless told otherwise: it leaves a time out while its last run is still going, and it catches up on a missed time for up to a day.
 
 <!-- section: system -->
-<!-- The system prompt. schema, principles, widgets and surfaces are authoring.md's sections, space_tools its line.* sections (spaceLines() in authoring/guide.ts); example is the example wizard as JSON; starts the section above, or nothing; durable and code authoring.md's sections, or nothing. -->
+<!-- The system prompt. schema, principles, widgets and surfaces are authoring.md's sections, space_tools its line.* sections (spaceLines() in authoring/guide.ts); example is authoring.md's section example.old, or nothing; older its section older.on or older.off; starts the section above, or nothing; durable and code authoring.md's sections, or nothing; kernel authoring.md's section. -->
 ${persona}
 
 ${starts}
+
+${kernel}
+
+${older}
 
 ${schema}
 
@@ -66,10 +70,7 @@ ${surfaces}
 
 ${space_tools}
 
-Example of the format: one complete wizard, one shape of many (shape each wizard by its own wish):
-```json
 ${example}
-```
 
 ${how_you_work}
 
@@ -124,7 +125,7 @@ ${issues}
 
 <!-- section: tool.write_file -->
 <!-- Not mcp.md's: the architect writes text only (no base64). -->
-Create or overwrite a text file in the workspace (HTML, JS, CSS, JSON, CSV, SVG). Max 5 MB.
+Create or overwrite a text file in the workspace (HTML, JS, CSS, JSON, CSV, SVG, a step file in TypeScript). Max 5 MB.
 
 <!-- section: tool.download_files -->
 Download public URLs straight into the workspace — all at once (libraries from cdnjs/jsdelivr, GeoJSON outlines, CSV, images). The content does not pass through you; you get each file's size and first characters. Requests to the same host are spaced one second apart (fair use of OpenStreetMap and others).

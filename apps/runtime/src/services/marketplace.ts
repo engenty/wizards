@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { statSync } from "node:fs";
 import {
   DEFINITION_VERSION,
+  FORMAT_VERSIONS,
+  formatVersionOf,
+  KERNEL_VERSION,
   readable,
   type WizardDefinition,
   wizardSchema,
@@ -45,6 +48,7 @@ import {
   videoCostUsd,
   WEB_SEARCH_COST_USD,
 } from "../models.js";
+import { oldFormatOn } from "../old-format.js";
 import { type PluginStarterEntry, pluginIdsOf, pluginStartersOf } from "../plugins/registry.js";
 import { readSetting, writeSetting } from "../settings.js";
 import { currentTenant, LOCAL_TENANT } from "../tenants/tenant.js";
@@ -68,15 +72,22 @@ export const asLang = (raw: string | undefined | null): MarketplaceLang =>
 const TIMEOUT_MS = 5000;
 
 /** One call to the marketplace's API; null without an answer, or with an error. */
-async function call<T>(path: string, init?: RequestInit): Promise<T | null> {
+async function call<T>(path: string, init?: RequestInit, preview = false): Promise<T | null> {
   if (!env.marketplace.url) {
     return null;
   }
   try {
-    const res = await fetch(`${env.marketplace.url}/api/v1${path}`, {
+    const asked = preview ? `${path}${path.includes("?") ? "&" : "?"}preview=1` : path;
+    const res = await fetch(`${env.marketplace.url}/api/v1${asked}`, {
       ...init,
-      // The definition version this runtime reads.
-      headers: { ...init?.headers, "x-wizards-definition": String(DEFINITION_VERSION) },
+      // The definition version this runtime reads; a preview carries the runtime's key.
+      headers: {
+        ...init?.headers,
+        "x-wizards-definition": String(DEFINITION_VERSION),
+        ...(preview && env.marketplace.previewKey
+          ? { "x-marketplace-preview": env.marketplace.previewKey }
+          : {}),
+      },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) {
@@ -216,6 +227,7 @@ function addFacets(a: MarketplaceFacets, b: MarketplaceFacets): MarketplaceFacet
     format: add(a.format, b.format),
     capability: add(a.capability, b.capability),
     plan: add(a.plan, b.plan),
+    version: add(a.version, b.version),
   };
 }
 
@@ -252,10 +264,14 @@ function asEntry(
   optional: Set<Capability> = new Set(),
 ): MarketplaceEntry {
   const lacking = summary.capabilities.filter((c) => unavailable.has(c));
+  // A marketplace that still writes the version the earlier way is read as today's.
+  const version = formatVersionOf(summary.version);
   return {
     ...summary,
+    version: String(version),
     credits: null,
-    usable: summary.version <= DEFINITION_VERSION,
+    // A format this app reads, and runs.
+    usable: (FORMAT_VERSIONS as readonly unknown[]).includes(version),
     starred: starred.has(summary.id),
     missing: lacking.filter((c) => !optional.has(c)),
     optional: lacking.filter((c) => optional.has(c)),
@@ -298,6 +314,11 @@ export interface MarketplaceSearch extends MarketplaceFilters {
   starred?: boolean;
   limit?: number;
   offset?: number;
+  /**
+   * A platform admin's preview: the entries that are not published too, each with its status.
+   * Never kept here, never offered to anyone else.
+   */
+  preview?: boolean;
 }
 
 export interface MarketplaceResult extends MarketplacePage<MarketplaceEntry> {
@@ -320,7 +341,8 @@ export function featuredFirst(page: MarketplaceResult, opts: { q?: string }): Ma
  * Searches the tenant's plugins' starters and the marketplace, in that order: a page holds the
  * plugins' starters the words and filters find, then the marketplace's entries.
  */
-export async function searchMarketplace(search: MarketplaceSearch): Promise<MarketplaceResult> {
+export async function searchMarketplace(asked: MarketplaceSearch): Promise<MarketplaceResult> {
+  const search = await currentFormatOnly(asked);
   const { q = "", starred, limit = 60, offset = 0, lang: _lang, ...filters } = search;
   const own = starred ? [] : await pluginStartersOf(currentTenant());
   if (!own.length) {
@@ -356,15 +378,30 @@ export async function searchMarketplace(search: MarketplaceSearch): Promise<Mark
  * The gallery for someone not signed in (the studio's start page for guests): what the
  * marketplace lists, without a tenant's stars and plugins. An entry that needs a plugin says so.
  */
-export function searchMarketplaceAsGuest(
+export async function searchMarketplaceAsGuest(
   search: Omit<MarketplaceSearch, "starred">,
 ): Promise<MarketplaceResult> {
-  return searchListed(search, true);
+  return searchListed(await currentFormatOnly(search), true);
+}
+
+/** The search, kept to version 0.3.0 while wizards in version 0.2.0 do not load here. */
+async function currentFormatOnly<T extends { version?: MarketplaceSearch["version"] }>(
+  search: T,
+): Promise<T> {
+  return (await oldFormatOn()) ? search : { ...search, version: KERNEL_VERSION };
 }
 
 /** Searches the marketplace; without an answer, what is kept here, scored the same way. */
 async function searchListed(search: MarketplaceSearch, guest = false): Promise<MarketplaceResult> {
-  const { q = "", lang, starred: onlyStarred, limit = 60, offset = 0, ...filters } = search;
+  const {
+    q = "",
+    lang,
+    starred: onlyStarred,
+    limit = 60,
+    offset = 0,
+    preview = false,
+    ...filters
+  } = search;
   const stars = guest ? [] : await starredIds();
   const starred = new Set(stars);
   const unavailable = guest ? new Set<Capability>() : await missingCapabilities();
@@ -388,17 +425,26 @@ async function searchListed(search: MarketplaceSearch, guest = false): Promise<M
   const remote =
     onlyStarred && !stars.length
       ? { entries: [], total: 0, all: 0, facets: { useCase: {}, industry: {}, format: {} } }
-      : await call<MarketplacePage>(`/entries?${params}`);
+      : await call<MarketplacePage>(`/entries?${params}`, undefined, preview && !guest);
   if (remote) {
+    // A marketplace from before the version of an entry was kept ignores that filter: the
+    // entries of another version are left out here, and the count says what is left.
+    const wanted = filters.version ? formatVersionOf(filters.version) : null;
+    const shown = wanted
+      ? remote.entries.filter((e) => formatVersionOf(e.version) === wanted)
+      : remote.entries;
     const optional = await keptOptional(
-      remote.entries.map((e) => e.id),
+      shown.map((e) => e.id),
       lang,
       unavailable,
     );
     return {
       ...remote,
+      ...(shown.length < remote.entries.length
+        ? { total: offset + shown.length, all: offset + shown.length }
+        : {}),
       entries: await plugged(
-        remote.entries.map((e) => asEntry(e, starred, unavailable, optional.get(e.id))),
+        shown.map((e) => asEntry(e, starred, unavailable, optional.get(e.id))),
       ),
       offline: false,
       unavailable: [...unavailable],
@@ -426,9 +472,15 @@ async function searchListed(search: MarketplaceSearch, guest = false): Promise<M
 // --- one entry -----------------------------------------------------------------------------
 
 /** An entry with its wizard: from the marketplace, else from what is kept here. */
-async function fetchItem(id: string, lang: MarketplaceLang): Promise<MarketplaceItem | null> {
+async function fetchItem(
+  id: string,
+  lang: MarketplaceLang,
+  preview = false,
+): Promise<MarketplaceItem | null> {
   const remote = await call<MarketplaceItem>(
     `/entries/${encodeURIComponent(id)}?lang=${encodeURIComponent(lang)}`,
+    undefined,
+    preview,
   );
   if (remote) {
     return remote;
@@ -492,6 +544,7 @@ export interface MarketplaceDetail extends MarketplaceEntry, WizardOutline {}
 export async function marketplaceDetail(
   id: string,
   lang: MarketplaceLang,
+  preview = false,
 ): Promise<MarketplaceDetail | null> {
   const own = await pluginStarter(id);
   if (own) {
@@ -502,7 +555,7 @@ export async function marketplaceDetail(
       ...wizardOutline(definition, Object.keys(own.starter.files ?? {}), lang),
     };
   }
-  const found = await fetchItem(id, lang);
+  const found = await fetchItem(id, lang, preview);
   if (!found) {
     return null;
   }
@@ -522,6 +575,22 @@ export async function marketplaceDetail(
       outline: [],
       results: [],
       files: Object.keys(files),
+    };
+  }
+  // A wizard in version 0.3.0: its steps and asks are in its step files.
+  if (parsed.kernel) {
+    const raw = Object.fromEntries(
+      Object.entries(files).map(([path, data]) => [path, Buffer.from(data, "base64")]),
+    );
+    // Loaded when a page asks for it: it reads step files with the step executors' pieces, and
+    // whatever loads this module would otherwise load the step executors with it.
+    const { kernelCatalog } = await import("../kernel/catalog.js");
+    const { outline, priced: asSteps } = await kernelCatalog(parsed, raw);
+    return {
+      ...entry,
+      credits: await priced(asSteps),
+      ...wizardOutline(parsed, Object.keys(files), lang),
+      outline,
     };
   }
   return {
@@ -547,6 +616,7 @@ export interface MarketplaceWizard {
 export async function marketplaceWizard(
   id: string,
   lang: MarketplaceLang,
+  preview = false,
 ): Promise<MarketplaceWizard | null> {
   const own = await pluginStarter(id);
   if (own) {
@@ -567,7 +637,7 @@ export async function marketplaceWizard(
       ),
     };
   }
-  const found = await fetchItem(id, lang);
+  const found = await fetchItem(id, lang, preview);
   if (!found) {
     return null;
   }

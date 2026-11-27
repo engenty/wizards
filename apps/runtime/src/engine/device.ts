@@ -1,9 +1,10 @@
+import { parseJsonAnswer, renderPrompt } from "@engenty/model-providers/clients";
 import type { TextClass } from "@engenty/wizards-shared/definition";
 import type { LanguageModel } from "ai";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
-import { parseJsonAnswer, renderPrompt } from "../harness/prompt.js";
+import { CLIENT_WORDS } from "../harness/prompt.js";
 
 /**
  * The device a run is watched from as a model: the mobile app (engenty-wizards-apps) offers Apple
@@ -192,7 +193,7 @@ export class DeviceModel implements V3 {
     if (format !== "text" && format !== "json") {
       return null;
     }
-    const { system, prompt, warnings } = renderPrompt(options.prompt);
+    const { system, prompt, warnings } = renderPrompt(options.prompt, undefined, CLIENT_WORDS);
     if (warnings.length || system.length + prompt.length > this.maxChars) {
       return null;
     }

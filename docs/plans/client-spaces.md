@@ -1,6 +1,6 @@
 # Plan: client spaces
 
-Status: decided on 2026-10-31. Step 1 built (#411), inviting clients built; the rest of steps 2 and 3 open. Phase 2b of `docs/plans/modular.md` (decision 8). The
+Status: carried into `docs/plans/org-spaces.md` on 2026-11-14: a client space is its own kind again, but beside the team spaces under the organization's root (two levels), not under a team space, and listed in the space menu under „Kund:innen“. Inviting, the clients' seed, the portal and runs in a client space are as below. Decided on 2026-10-31. Step 1 built (#411), inviting clients built. Phase 2b of `docs/plans/modular.md` (decision 8). The
 proposal and its mockups: the artifact "How a Space Works", question 8
 (claude.ai/artifact/RwejkjT7hj7BwuWYcooVsw).
 

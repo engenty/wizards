@@ -23,5 +23,7 @@ export {
   WizardSpec,
   wizardProps,
   wizardRules,
+  wizardsChatLibrarySpec,
 } from "./server.js";
+export { wizardsChatLibrary } from "./views.js";
 export { configureWizards, Wizard, type WizardsConfig } from "./Wizard.js";

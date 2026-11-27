@@ -1,7 +1,554 @@
 [
   {
+    "version": "v0.22.1",
+    "timestamp": 1795793432,
+    "commits": [
+      {
+        "id": "6dc9146",
+        "message": "a wizard in version 0.3.0 needs the plugins whose tools its file lists (#778)",
+        "group": "Fixed",
+        "scope": "marketplace",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.22.0",
+    "timestamp": 1795787558,
+    "commits": [
+      {
+        "id": "cb1ea0f",
+        "message": "templates in version 0.3.0 show their steps, time and cost (#774)",
+        "group": "Added",
+        "scope": "marketplace",
+        "breaking": false
+      },
+      {
+        "id": "29de97e",
+        "message": "the share dialog of a local studio offers the wizard's link for this computer (#776)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "a9f5a58",
+        "message": "wizards in version 0.2.0 load only behind the switch version020 (#773)",
+        "group": "Added",
+        "scope": null,
+        "breaking": true
+      },
+      {
+        "id": "0df118a",
+        "message": "wizards made of step files for everyone, the switch kernel goes (#771)",
+        "group": "Added",
+        "scope": null,
+        "breaking": true
+      },
+      {
+        "id": "4c11e56",
+        "message": "services from Composio as connectors, beside our own (#770)",
+        "group": "Added",
+        "scope": "connectors",
+        "breaking": false
+      },
+      {
+        "id": "cb6108f",
+        "message": "wizards made of step files, behind the switch kernel (#697)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "11b5a0b",
+        "message": "packages and databases pages from the code (#769)",
+        "group": "Docs",
+        "scope": "dev",
+        "breaking": false
+      },
+      {
+        "id": "5065f3f",
+        "message": "OpenRouter as a provider a person brings a key for (#768)",
+        "group": "Added",
+        "scope": "models",
+        "breaking": false
+      },
+      {
+        "id": "bc221ce",
+        "message": "the providers a person brings a key for, and the wizards account (#767)",
+        "group": "Added",
+        "scope": "model-providers",
+        "breaking": false
+      },
+      {
+        "id": "5154b06",
+        "message": "rename @engenty/local-models to @engenty/model-providers (#766)",
+        "group": "Changed",
+        "scope": "model-providers",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.21.3",
+    "timestamp": 1795675612,
+    "commits": [
+      {
+        "id": "8af1bbd",
+        "message": "the chats Work had of its own are gone, and their messages are deleted (#764)",
+        "group": "Docs",
+        "scope": "work",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.21.2",
+    "timestamp": 1795647952,
+    "commits": [
+      {
+        "id": "f0eb069",
+        "message": "every member of the team chats on its Bot Server (#758)",
+        "group": "Added",
+        "scope": "work",
+        "breaking": false
+      },
+      {
+        "id": "2b75d9f",
+        "message": "a Form with a Field that must be answered can be sent once it is filled in (#760)",
+        "group": "Fixed",
+        "scope": "chatviews",
+        "breaking": false
+      },
+      {
+        "id": "443e757",
+        "message": "what the studio's chat engine left behind goes, and \"With approval\" is offered only where someone is asked (#759)",
+        "group": "Fixed",
+        "scope": "work",
+        "breaking": false
+      },
+      {
+        "id": "0c737cf",
+        "message": "the chats know the open space, and the team's Bot Server is not an outside app (#757)",
+        "group": "Added",
+        "scope": "work",
+        "breaking": false
+      },
+      {
+        "id": "b148112",
+        "message": "a thinking Ollama model streams what it thinks as reasoning (#745)",
+        "group": "Added",
+        "scope": "local-models",
+        "breaking": false
+      },
+      {
+        "id": "8603752",
+        "message": "the flow widget starts where cookies are closed off (#746)",
+        "group": "Fixed",
+        "scope": "web",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.21.1",
+    "timestamp": 1795642585,
+    "commits": [
+      {
+        "id": "f91d434",
+        "message": "Work's chats are the team's Bot Server, and the studio's own chat engine goes (#755)",
+        "group": "Added",
+        "scope": "work",
+        "breaking": false
+      },
+      {
+        "id": "6d9040f",
+        "message": "Goose guides Home's setup with buttons, and the setup takes the page's width (#754)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.21.0",
+    "timestamp": 1795616935,
+    "commits": [
+      {
+        "id": "4f907e1",
+        "message": "one harness around an agent's tools, with a search by words and meaning (#751)",
+        "group": "Added",
+        "scope": "tool-harness",
+        "breaking": false
+      },
+      {
+        "id": "b315d3c",
+        "message": "Apple MLX beside Ollama and LM Studio (#750)",
+        "group": "Added",
+        "scope": "local-models",
+        "breaking": false
+      },
+      {
+        "id": "1e0d1af",
+        "message": "models on this computer to use, download and remove, with Ollama and LM Studio (#749)",
+        "group": "Added",
+        "scope": "model-setup",
+        "breaking": false
+      },
+      {
+        "id": "1fc0fcf",
+        "message": "the setup's page as React parts, and the studio's setup on them (#748)",
+        "group": "Added",
+        "scope": "model-setup",
+        "breaking": false
+      },
+      {
+        "id": "78a56b7",
+        "message": "@engenty/model-setup, the setup's clients, terminal and routes for the runtime and wizards.bot (#747)",
+        "group": "Added",
+        "scope": "model-setup",
+        "breaking": false
+      },
+      {
+        "id": "34ad364",
+        "message": "the Wizard among engenty's views (#744)",
+        "group": "Added",
+        "scope": "openui",
+        "breaking": false
+      },
+      {
+        "id": "bf8dc61",
+        "message": "views as A2UI v1.0 (#743)",
+        "group": "Added",
+        "scope": "chatviews",
+        "breaking": false
+      },
+      {
+        "id": "f109838",
+        "message": "views a model writes, as an OpenUI library (#742)",
+        "group": "Added",
+        "scope": "chatviews",
+        "breaking": false
+      },
+      {
+        "id": "1f02154",
+        "message": "the views' components in @engenty/chatviews/react (#741)",
+        "group": "Added",
+        "scope": "chatviews",
+        "breaking": false
+      },
+      {
+        "id": "957cc3f",
+        "message": "surfaces, calc and data shapes in their own MIT package (#738)",
+        "group": "Changed",
+        "scope": "chatviews",
+        "breaking": false
+      },
+      {
+        "id": "8c35fe8",
+        "message": "long runs as MCP tasks (#740)",
+        "group": "Added",
+        "scope": "mcp",
+        "breaking": false
+      },
+      {
+        "id": "a38338a",
+        "message": "a run's pages as questions the app shows (#739)",
+        "group": "Added",
+        "scope": "mcp",
+        "breaking": false
+      },
+      {
+        "id": "dd0f5de",
+        "message": "a client that uses a space runs a wizard to the end (#737)",
+        "group": "Fixed",
+        "scope": "mcp",
+        "breaking": false
+      },
+      {
+        "id": "fc79ec9",
+        "message": "the MCP bridge for subscription clients, shared by the runtime and wizards.bot (#736)",
+        "group": "Added",
+        "scope": "local-models",
+        "breaking": false
+      },
+      {
+        "id": "daba38f",
+        "message": "Work's engine is frozen; the wizards.bot home becomes its engine (#735)",
+        "group": "Docs",
+        "scope": "work",
+        "breaking": false
+      },
+      {
+        "id": "fdf24f4",
+        "message": "the image builds only the runtime, the studio and the packages they use (#734)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.20.6",
+    "timestamp": 1795500515,
+    "commits": [
+      {
+        "id": "02e3675",
+        "message": "@engenty/local-models, Ollama and subscription clients for the runtime and wizards.bot (#732)",
+        "group": "Added",
+        "scope": "local-models",
+        "breaking": false
+      },
+      {
+        "id": "d55eb3e",
+        "message": "wizards bot tunnel needs no account: a name of its own at wizards.host (#731)",
+        "group": "Added",
+        "scope": "bot",
+        "breaking": false
+      },
+      {
+        "id": "fa24b33",
+        "message": "a Bot Server finds Codex and Claude installed under nvm, npm, pnpm or Bun (#725)",
+        "group": "Fixed",
+        "scope": "bot",
+        "breaking": false
+      },
+      {
+        "id": "8e446df",
+        "message": "wizards bot tunnel asks account.engenty.ai, where the account answers (#724)",
+        "group": "Fixed",
+        "scope": "bot",
+        "breaking": false
+      },
+      {
+        "id": "dc0f208",
+        "message": "wizards bot tunnel through our relay at <name>.wizards.host (#723)",
+        "group": "Added",
+        "scope": "bot",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.20.5",
+    "timestamp": 1795423681,
+    "commits": [
+      {
+        "id": "8f76f0b",
+        "message": "wizards bot install <folder>, a port check and wizards bot tunnel (#721)",
+        "group": "Added",
+        "scope": "bot",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.20.4",
+    "timestamp": 1795418177,
+    "commits": [
+      {
+        "id": "db5890b",
+        "message": "logins for @engenty/vault and a new @engenty/browser for agents (#718)",
+        "group": "Added",
+        "scope": "vault,browser",
+        "breaking": false
+      },
+      {
+        "id": "3f1480d",
+        "message": "the plugin's process may read zod through the link pnpm installs beside the package (#719)",
+        "group": "Fixed",
+        "scope": "plugins",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.20.3",
+    "timestamp": 1795390892,
+    "commits": [
+      {
+        "id": "7244cf2",
+        "message": "MIT library @engenty/plugins, the plugin contract engenty wizards and wizards.bot both load (#716)",
+        "group": "Added",
+        "scope": "plugins",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.20.2",
+    "timestamp": 1795385378,
+    "commits": [
+      {
+        "id": "fee7c1f",
+        "message": "the branded button opens its colours as a small menu (#713)",
+        "group": "Added",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "bb823c1",
+        "message": "MIT library @engenty/vault for sealed secrets, key rings and a redactor (#712)",
+        "group": "Added",
+        "scope": "vault",
+        "breaking": false
+      },
+      {
+        "id": "1e86828",
+        "message": "seven colours for the branded theme (#711)",
+        "group": "Added",
+        "scope": "web",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.20.1",
+    "timestamp": 1795379082,
+    "commits": [
+      {
+        "id": "15eb961",
+        "message": "wizards bot installs wizards.bot on this computer – install, setup, status, update, uninstall (#709)",
+        "group": "Added",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.20.0",
+    "timestamp": 1794845850,
+    "commits": [
+      {
+        "id": "4bbbfd0",
+        "message": "Claude Code takes a step's output schema without the dialect it refuses (#701)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "a8e53d2",
+        "message": "a wizard's version is the format's, 0.2.0, with a Version filter on the templates behind the kernel switch (#700)",
+        "group": "Added",
+        "scope": "shared",
+        "breaking": true
+      },
+      {
+        "id": "64d5ac5",
+        "message": "documentation updates (#679, #698, #699)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "a74d2cc",
+        "message": "a channel's run uses the space's choice, and a run nobody watches can't pick the space's connection itself (#696)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "443af1e",
+        "message": "a run a start began uses the space's choice, and a link visitor without a cookie never does (#695)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "3e46be2",
+        "message": "Shared previews the page as visitors see it, with the page's own look and words (#693)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "3ab11e4",
+        "message": "the connect card at a run's start, a choice among several accounts, and an admin connects for the space (#690)",
+        "group": "Added",
+        "scope": "runner",
+        "breaking": false
+      },
+      {
+        "id": "47c4be7",
+        "message": "Shared's panel stands beside the page, the page is a drawn preview, named after the organization (#692)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "2979a4f",
+        "message": "Shared, the admins' place for the organization's page and the wizards shared by link (#691)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "078d715",
+        "message": "a wizard's needs with the space's choice for runs nobody watches, and a person's own connections (#689)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "94144e3",
+        "message": "a fixed step uses its person's sign-in; a person's account follows the space's rules; held space connections are bound by the grant (#688)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "3459911",
+        "message": "a client is a client space beside the team spaces, made with „Kund:in anlegen“ (#687)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "965ac67",
+        "message": "clients are in spaces under the organization's own space; client spaces go (#686)",
+        "group": "Changed",
+        "scope": "runtime",
+        "breaking": true
+      },
+      {
+        "id": "0174902",
+        "message": "the organization's own space, Mein Space, the path bar and Ordner are on by default (#685)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "e35e812",
+        "message": "brand sections, rules and typography for everyone; Goose and the new Wissen on unless a plan says no (#684)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "2e18eca",
+        "message": "a run's accounts become a person's connections, with a remembered choice and one lookup (#680)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "170eba3",
+        "message": "a run that waits for a sign-in shows the connect card (#682)",
+        "group": "Added",
+        "scope": "runner",
+        "breaking": false
+      },
+      {
+        "id": "a6d93c6",
+        "message": "a connector that can't connect here is named before a run, and the architect knows which can (#681)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.19.1",
-    "timestamp": 1794645386,
+    "timestamp": 1794646108,
     "commits": [
       {
         "id": "45491ce",
@@ -29,6 +576,13 @@
         "message": "a template card that lacks a setup wraps its notice and links to that setup (#615)",
         "group": "Fixed",
         "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "fc97e35",
+        "message": "agents and workflows elsewhere as a step, over MCP and A2A (#613)",
+        "group": "Docs",
+        "scope": "plans",
         "breaking": false
       }
     ]

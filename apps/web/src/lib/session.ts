@@ -53,6 +53,8 @@ export type HarnessId = "claude" | "codex" | "antigravity" | "cursor";
 export interface HarnessStatus {
   id: HarnessId;
   name: string;
+  /** The name with its provider, where a list shows it. */
+  label: string;
   /** How to install it in a terminal; the setup's Install button runs the same command. */
   install: string;
   /** The vendor's desktop app on this machine ("Claude"): the subscription is most likely there. */
@@ -71,6 +73,7 @@ export interface LocalModels {
   source: HarnessId | "account" | "own";
   bindings: Record<ModelClass, string>;
   ollamaUrl: string;
+  lmstudioUrl: string;
   /** Which providers have a key stored, by provider id. */
   keys: Partial<Record<string, boolean>>;
 }
@@ -351,6 +354,8 @@ export interface Space {
   readOnly: boolean;
   /** „Mitglieder dürfen ins Studio“: the organization's members build here too. */
   membersStudio: boolean;
+  /** Of a hundred finished runs in version 0.3.0, how many the evals judge. */
+  evalShare: number;
   /** Whether this person reaches the space's Studio: a member only by the rule above. */
   studio: boolean;
   /** How the admins hear of the broker's critical lines: Work's bell, the hourly mail. */
@@ -362,7 +367,7 @@ export interface Space {
   root: boolean;
   /** Mein Space: the person's own. */
   personal: boolean;
-  /** How many Kund:innen are in the space. */
+  /** How many clients are in the space. */
   clients: number;
   /** Who of the organization sees the space: everyone, or only its members. */
   access: "all" | "members";

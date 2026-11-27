@@ -2,7 +2,7 @@ import { assembleSurface, parseWizard, type SurfaceStep } from "@engenty/wizards
 import { fontFace, runTheme } from "@engenty/wizards-shared/spaces";
 import { freeThemeId, type Theme, themeContentKey, themeIdFrom, themeIdProblem, themeOffered, themeSchema } from "@engenty/wizards-shared/theme";
 import { chosenTheme, lookColours, themedLook } from "@engenty/wizards-shared/theme-look";
-import { bound, pointer, validateSurface, worded } from "@engenty/wizards-shared/surface";
+import { bound, pointer, validateSurface, worded } from "@engenty/chatviews/surface";
 import { describe, expect, it, vi } from "vitest";
 
 const access = vi.hoisted(() => ({ value: null }));

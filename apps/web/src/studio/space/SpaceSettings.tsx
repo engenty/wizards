@@ -23,7 +23,7 @@ import { useFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { type Space, useIsAdmin, useManySpaces, useMe } from "../../lib/session";
-import { Button, cn, Dialog, Input, Label, Switch, Textarea } from "../../ui";
+import { Button, cn, Dialog, Input, Label, Select, Switch, Textarea } from "../../ui";
 import { useAssistantPage } from "../assistant/page";
 import { AssistantSlot } from "../assistant/StudioAssistant";
 import { ReadOnlyNote, spaceReadOnlyText } from "../ReadOnly";
@@ -63,6 +63,7 @@ type Patch = {
   };
   facts?: SpaceFact[];
   membersStudio?: boolean;
+  evalShare?: number;
 };
 
 /**
@@ -124,6 +125,58 @@ function MembersStudioRow({
           save({ membersStudio: on }).catch(() => setOpen(!on));
         }}
       />
+    </div>
+  );
+}
+
+/** How many of a hundred finished runs the evals judge, as the row offers it. */
+const EVAL_SHARES = [
+  { value: 0, label: "space.evalShare.none" },
+  { value: 10, label: "space.evalShare.tenth" },
+  { value: 25, label: "space.evalShare.quarter" },
+  { value: 50, label: "space.evalShare.half" },
+  { value: 100, label: "space.evalShare.all" },
+] as const;
+
+/**
+ * „Läufe bewerten“: how many finished runs of a wizard with evals they judge
+ * (docs/plans/kernel.md, item 13). Behind `kernel`; admins set it, as every change of a space.
+ */
+function EvalShareRow({ space, save }: { space: Space; save: (patch: Patch) => Promise<unknown> }) {
+  const shown = useIsAdmin();
+  const [share, setShare] = useState(space.evalShare ?? 0);
+  if (!shown) {
+    return null;
+  }
+  const options = EVAL_SHARES.map((option) => ({
+    value: String(option.value),
+    label: t(option.label),
+  }));
+  if (!EVAL_SHARES.some((option) => option.value === share)) {
+    options.push({ value: String(share), label: t("space.evalShare.some", { n: share }) });
+  }
+  return (
+    <div className="flex items-start gap-3 border-border-soft border-t pt-5">
+      <div className="min-w-0 flex-1">
+        <span className="font-medium text-[0.875rem]">{t("space.evalShare")}</span>
+        <p className="mt-0.5 text-[0.8125rem] text-ink-3">{t("space.evalShareHint")}</p>
+      </div>
+      {space.readOnly ? (
+        <span className="text-[0.875rem] text-ink-2">
+          {options.find((option) => option.value === String(share))?.label}
+        </span>
+      ) : (
+        <Select
+          className="w-44"
+          value={String(share)}
+          onChange={(next) => {
+            const before = share;
+            setShare(Number(next));
+            save({ evalShare: Number(next) }).catch(() => setShare(before));
+          }}
+          options={options}
+        />
+      )}
     </div>
   );
 }
@@ -273,6 +326,7 @@ function Base({
           <p className="mt-1.5 text-[0.8125rem] text-ink-3">{t("space.aboutHint")}</p>
         </div>
         <MembersStudioRow space={space} save={save} />
+        <EvalShareRow space={space} save={save} />
       </div>
     </Section>
   );
@@ -317,10 +371,6 @@ export function SpaceSettings({
   const key = `${space.id}:${rev}`;
   const readOnly = space.readOnly;
   const knowledge = group === "knowledge";
-  // Parts of the brand that wait behind their switches.
-  const sectioned = useFeature("brandSections");
-  const ruled = useFeature("brandRules");
-  const typography = useFeature("typography");
   const me = useMe().data;
   // A space under the organization's root chooses whose Info and brand it shows.
   const choosing =
@@ -377,7 +427,12 @@ export function SpaceSettings({
           save={save}
         />
       ) : null}
-      {group === "info" && taken ? <MembersStudioRow space={space} save={save} /> : null}
+      {group === "info" && taken ? (
+        <>
+          <MembersStudioRow space={space} save={save} />
+          <EvalShareRow space={space} save={save} />
+        </>
+      ) : null}
       {group === "info" && !taken ? (
         <>
           <Anchor id="base">
@@ -422,8 +477,6 @@ export function SpaceSettings({
               readOnly={readOnly}
               sections={space.brand.logoSections ?? []}
               rules={space.brand.logoRules ?? []}
-              sectioned={sectioned}
-              ruled={ruled}
               save={(brand) => save({ brand })}
             />
           </Anchor>
@@ -437,27 +490,22 @@ export function SpaceSettings({
               gradients={space.brand.gradients ?? []}
               patterns={space.brand.patterns ?? []}
               rules={space.brand.colorRules ?? []}
-              sectioned={sectioned}
-              ruled={ruled}
               save={(brand) => save({ brand })}
               readOnly={readOnly}
             />
           </Anchor>
-          {typography ? (
-            <Anchor id="typography">
-              <Typography
-                key={`typography:${key}`}
-                spaceId={space.id}
-                fonts={space.brand.fonts ?? []}
-                styles={space.brand.textStyles ?? []}
-                rules={space.brand.typeRules ?? []}
-                ruled={ruled}
-                sample={space.brand.name || t("space.typeSample")}
-                save={(brand) => save({ brand })}
-                readOnly={readOnly}
-              />
-            </Anchor>
-          ) : null}
+          <Anchor id="typography">
+            <Typography
+              key={`typography:${key}`}
+              spaceId={space.id}
+              fonts={space.brand.fonts ?? []}
+              styles={space.brand.textStyles ?? []}
+              rules={space.brand.typeRules ?? []}
+              sample={space.brand.name || t("space.typeSample")}
+              save={(brand) => save({ brand })}
+              readOnly={readOnly}
+            />
+          </Anchor>
           <Anchor id="assets">
             <Assets
               key={`assets:${key}`}
@@ -473,7 +521,6 @@ export function SpaceSettings({
               key={`voice:${key}`}
               blocks={space.brand.voice ?? []}
               rules={space.brand.voiceRules ?? []}
-              ruled={ruled}
               save={(brand) => save({ brand })}
               readOnly={readOnly}
             />

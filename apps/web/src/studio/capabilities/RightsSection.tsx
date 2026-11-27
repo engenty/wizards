@@ -69,7 +69,10 @@ export function RightsSection() {
   const [params, setParams] = useSearchParams();
   const { space } = useCurrentSpace();
   const admin = useIsAdmin();
-  const clientsOn = useFeature("clientSpaces");
+  // Clients are in the organization's spaces: both switches.
+  const clientSpaces = useFeature("clientSpaces");
+  const orgSpaces = useFeature("orgSpaces");
+  const clientsOn = clientSpaces && orgSpaces;
   const qc = useQueryClient();
   const spaceId = space?.id ?? "";
   const shown = params.get("show");

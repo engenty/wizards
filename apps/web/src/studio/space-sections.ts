@@ -130,13 +130,8 @@ export function groupOfSection(id: string, plugins: StudioPlugins): SpaceGroupId
  * The sections of one part of the space page, in the order the page shows them: its own, then
  * each plugin's.
  */
-export function spaceSections(
-  group: SpaceGroupId,
-  plugins: StudioPlugins,
-  /** Own sections a feature switch keeps out. */
-  off: string[] = [],
-): SpaceSectionGroup[] {
-  const own = OWN.filter((s) => s.group === group && !off.includes(s.id)).map((s) => ({
+export function spaceSections(group: SpaceGroupId, plugins: StudioPlugins): SpaceSectionGroup[] {
+  const own = OWN.filter((s) => s.group === group).map((s) => ({
     id: s.id,
     label: t(s.label),
     icon: s.icon,

@@ -1,0 +1,4 @@
+.build/
+.build-native/
+.xcode/
+bin/

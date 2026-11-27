@@ -151,9 +151,17 @@ export function toolsAt(step: Step, agents: AgentNeeds): string[] {
 }
 
 /** The plugins a definition's steps use, by id: a runtime without one of them cannot run it. */
-export function pluginsOf(def: Pick<WizardDefinition, "steps">, agents: AgentNeeds = {}): string[] {
-  return sorted(
-    def.steps.flatMap((step) => {
+export function pluginsOf(
+  def: Pick<WizardDefinition, "steps" | "kernel">,
+  agents: AgentNeeds = {},
+): string[] {
+  // A wizard in version 0.3.0 lists a plugin's tools its steps may ask for in its file.
+  const declared = (def.kernel?.requires?.tools ?? []).flatMap(
+    (tool) => pluginToolOf(tool)?.plugin ?? [],
+  );
+  return sorted([
+    ...declared,
+    ...def.steps.flatMap((step) => {
       const tools =
         step.type === "agent"
           ? toolsAt(step, agents)
@@ -162,7 +170,7 @@ export function pluginsOf(def: Pick<WizardDefinition, "steps">, agents: AgentNee
             : [];
       return tools.flatMap((tool) => pluginToolOf(tool)?.plugin ?? []);
     }),
-  );
+  ]);
 }
 
 /**

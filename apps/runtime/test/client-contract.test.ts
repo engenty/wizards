@@ -157,13 +157,22 @@ beforeAll(async () => {
     expect(res.status, await res.clone().text()).toBe(200);
     wizards[k] = ((await res.json()) as any).wizardId ?? ((await res.json()) as any).id;
   }
-  wagner = (await studio("POST", `/api/studio/spaces/${spaceId}/clients`, { name: "Wagner GmbH" })).id;
-  berger = (await studio("POST", `/api/studio/spaces/${spaceId}/clients`, { name: "Berger & Söhne" })).id;
+  // A client space for each client beside the team spaces; a local install makes one space,
+  // these are written here directly.
+  wagner = "space-wagner";
+  berger = "space-berger";
+  await local(() =>
+    db.db.insert(db.schema.space).values([
+      { id: wagner, tenantId: "local", name: "Wagner GmbH", brand: {}, parentId: spaceId, kind: "client" },
+      { id: berger, tenantId: "local", name: "Berger & Söhne", brand: {}, parentId: spaceId, kind: "client" },
+    ]),
+  );
   await studio("PUT", `/api/studio/spaces/${wagner}/members/wagner`, { role: "client" });
   await studio("PUT", `/api/studio/spaces/${berger}/members/berger`, { role: "client" });
   await studio("PUT", `/api/studio/spaces/${spaceId}/open-to-clients`, { kind: "page", id: pages.open, open: true });
   await studio("PUT", `/api/studio/spaces/${spaceId}/open-to-clients`, { kind: "wizard", id: wizards.open, open: true });
-  await local(() => data.createPage("local", wagner, { title: "Unterlagen Wagner", markdown: "Vertrag liegt bei." }));
+  const theirs = await local(() => data.createPage("local", wagner, { title: "Unterlagen Wagner", markdown: "Vertrag liegt bei." }));
+  await studio("PUT", `/api/studio/spaces/${wagner}/open-to-clients`, { kind: "page", id: theirs.id, open: true });
 }, 60_000);
 
 describe("the client contract", () => {
@@ -171,7 +180,7 @@ describe("the client contract", () => {
     const res = await app.fetch(new Request("http://localhost:5181/api/v1/client"));
     const { calls } = (await res.json()) as any;
     const names = calls.map((c: any) => c.name);
-    expect(names).toEqual(expect.arrayContaining(["me", "spaces", "for_you", "wizard_start", "chat_post", "files"]));
+    expect(names).toEqual(expect.arrayContaining(["me", "spaces", "for_you", "wizard_start", "files"]));
     const start = calls.find((c: any) => c.name === "wizard_start");
     expect(start).toMatchObject({ scope: "elements:run", path: "/api/v1/client/spaces/{spaceId}/wizard_start" });
     expect(start.input.properties.wizardId).toBeTruthy();
@@ -212,13 +221,24 @@ describe("the client contract", () => {
     const { eq } = await import("drizzle-orm");
     const run = await local(() => db.db.query.run.findFirst({ where: eq(db.schema.run.id, runId) }));
     expect(run).toMatchObject({ clientSpaceId: wagner, userId: "wagner", expiresAt: null });
-    // Its data is the client space's, its setup the parent's.
+    // Its data is the space's, its setup the root's, where the wizard is.
     const runner = await import("../src/engine/runner");
     const ctx = await local(async () =>
       runner.makeContext(run as any, await runner.loadSpace(run as any), run!.state, new AbortController().signal),
     );
     expect(ctx.dataSpace.id).toBe(wagner);
     expect(ctx.space.id).toBe(spaceId);
+    // What a step says while it works is filed under that step, not where the run stands.
+    const own = await local(async () =>
+      runner.makeContext(run as any, await runner.loadSpace(run as any), run!.state, new AbortController().signal, {
+        stepId: "research",
+      }),
+    );
+    await local(() => own.emit("info", "Reading example.org"));
+    const said = await local(() =>
+      db.db.select().from(db.schema.runEvent).where(eq(db.schema.runEvent.runId, runId)),
+    );
+    expect(said.find((e) => e.message === "Reading example.org")?.stepId).toBe("research");
     // Waiting on its first page, it is the client's to do.
     expect((await call("tok-wagner", "for_you", wagner)).result.waiting.map((r: any) => r.runId)).toEqual([runId]);
     const view = await app.fetch(new Request(`http://localhost:5181/api/runs/${runId}?rt=${ticket}`));
@@ -236,7 +256,7 @@ describe("the client contract", () => {
     await local(() => db.db.update(db.schema.run).set({ status: "done" }).where(eq(db.schema.run.id, runId)));
     expect((await call("tok-wagner", "results", wagner)).result).toEqual([]);
     expect((await call("tok-wagner", "run_open", undefined, { runId })).status).toBe(404);
-    // The firm's results of the client space show it, the parent's do not.
+    // The firm's results of the space show it, the root's do not.
     const inClient = await studio("GET", `/api/studio/spaces/${wagner}/results`);
     expect(inClient.runs).toEqual([expect.objectContaining({ id: runId, clientShared: false })]);
     expect((await studio("GET", `/api/studio/spaces/${spaceId}/results`)).runs).toEqual([]);
@@ -278,22 +298,6 @@ describe("the client contract", () => {
     expect([mine.spaceId, theirs.spaceId, firm.spaceId]).toEqual([wagner, berger, spaceId]);
   });
 
-  it("chats with the firm's AI: a client sees their own chats, never the firm's internal ones", async () => {
-    const posted = await call("tok-wagner", "chat_post", wagner, { text: "Wann ist der nächste Termin?" });
-    expect(posted.status, JSON.stringify(posted.body)).toBe(200);
-    const { chatId } = posted.result;
-    const work = await import("../src/services/work-chats");
-    const owner = { id: "local", tenantId: "local", role: "owner" as const, name: "Anna", email: "" };
-    await local(() => work.createChat(owner, { spaceId: wagner, title: "Intern: Honorar" }));
-    const chats = (await call("tok-wagner", "chats", wagner)).result;
-    expect(chats.map((c: any) => c.id)).toEqual([chatId]);
-    const read = (await call("tok-wagner", "chat_messages", undefined, { chatId })).result;
-    expect(read.spaceId).toBe(wagner);
-    expect(read.messages[0]).toEqual(expect.objectContaining({ text: "Wann ist der nächste Termin?", author: expect.objectContaining({ me: true }) }));
-    expect((await call("tok-berger", "chat_messages", undefined, { chatId })).status).toBe(404);
-    expect((await call("tok-berger", "chats", berger)).result).toEqual([]);
-  });
-
   it("hands out the client space's files, to that client only", async () => {
     const files = await import("../src/services/space-files");
     const png = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64"));
@@ -312,12 +316,10 @@ describe("the client contract", () => {
   it("answers a foreign item exactly as a missing one: the same status and body", async () => {
     const { eq } = await import("drizzle-orm");
     const runs = await local(() => db.db.query.run.findMany({ where: eq(db.schema.run.clientSpaceId, wagner) }));
-    const chats = await local(() => db.db.query.chat.findMany({ where: eq(db.schema.chat.spaceId, wagner) }));
     const pairs: [string, string | undefined, Record<string, string>, Record<string, string>][] = [
       ["for_you", wagner, {}, {}],
       ["files", wagner, {}, {}],
       ["run_open", undefined, { runId: runs[0].id }, { runId: "nothing-here-1" }],
-      ["chat_messages", undefined, { chatId: chats[0].id }, { chatId: "nothing-here-2" }],
       ["file", undefined, { fileId: files_.id ?? "" }, { fileId: "nothing-here-3" }],
     ];
     for (const [name, space, foreign, missing] of pairs) {

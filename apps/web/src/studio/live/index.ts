@@ -1,7 +1,6 @@
 import { useEffect, useReducer } from "react";
 import { wizardLive } from "../editor/live-bindings";
 import { knowledgeLive, skillsLive } from "../space/live";
-import { chatLive } from "../work/live-bindings";
 import { flashClass, registerLiveBindings, watchFlash } from "./patch";
 import { presenceLive } from "./presence";
 import { spaceLive } from "./spaces";
@@ -13,7 +12,6 @@ registerLiveBindings([
   ...knowledgeLive,
   ...skillsLive,
   ...presenceLive,
-  ...chatLive,
 ]);
 
 export { useLiveFeed } from "./feed";

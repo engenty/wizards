@@ -44,8 +44,8 @@ export interface StepContext {
   /** The wizard's space: its setup (connections, skills, plugins, brand) is what the run uses. */
   space: SpaceRow;
   /**
-   * Where the run's data is (docs/plans/client-portal.md): the client space a run was started
-   * in, whose Knowledge reaches through to the parent as the rules allow; else the wizard's space.
+   * Where the run's data is (docs/plans/org-spaces.md): the space it carries (`clientSpaceId`),
+   * whose Knowledge reaches through to the root as the rules allow; else the wizard's space.
    */
   dataSpace: { id: string; name: string };
   /** The space's logos, assets and documents that are ready to use. */

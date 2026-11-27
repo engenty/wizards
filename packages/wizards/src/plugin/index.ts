@@ -630,14 +630,13 @@ export interface PluginAssistantTool<S extends z.ZodType = z.ZodType> {
    */
   card?: boolean;
   /**
-   * What a call does, for the AI of a Work chat (docs/plans/work-chats.md): `read` only reads,
-   * `space` changes the space's own data, `outside` reaches past the space (sends, books,
-   * cancels with someone, publishes, deletes on a connected service). An `outside` call waits
-   * for a person's approval before it runs.
+   * What a call does: `read` only reads, `space` changes the space's own data, `outside`
+   * reaches past the space (sends, books, cancels with someone, publishes, deletes on a
+   * connected service).
    */
   risk?: "read" | "space" | "outside";
   /**
-   * What a call does, as a Work chat's step line says it: `{ de: "Mail senden", en: "Send a
+   * What a call does, as a chat's step line says it: `{ de: "Mail senden", en: "Send a
    * mail" }`. Without it the line shows the plugin's name and the tool's.
    */
   label?: { de: string; en: string };

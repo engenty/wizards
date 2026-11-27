@@ -1,13 +1,12 @@
 ---
 title: Connectors
 description: Services a wizard works in for the person who runs it – built in, from the registry, by their address or brought by a plugin with its skills.
-version: 0.17.1
+version: 0.21.1
 ---
 
-**[Capabilities](./capabilities.md) › Connectors** lists the services the space’s wizards, Work
-chats and Goose can work in. Each space has its own connectors. In the cloud, a space you publish
-from your computer shows its connectors without letting you change them: you change them on your
-computer.
+**[Capabilities](./capabilities.md) › Connectors** lists the services the space’s wizards and
+Goose can work in. Each space has its own connectors. In the cloud, a space you publish from your
+computer shows its connectors without letting you change them: you change them on your computer.
 
 A wizard reaches a service in one of two ways:
 
@@ -110,6 +109,29 @@ address reaches such addresses. In the cloud a private address is refused.
 connection, sign in, then choose “Reload actions” on the connector. It asks the server with that
 sign-in, and what you set for each action stays. Only admins check an address and reload actions.
 
+## From Composio
+
+Composio is a service that connects hundreds of others, such as Gmail, Notion or Slack. With the
+switch `composio` on, its catalog shows in “Discover” as its own group, and “Add connection”
+searches it too. Choose “Set up”, then sign in. Composio’s own page signs you in to the service.
+
+**What engenty wizards keeps.** Composio keeps the sign-in and its tokens. engenty wizards keeps
+only which account at Composio the connection uses. Every call still goes through your space:
+its rules, its approvals, its limits and the [audit](./protocol.md). An action counts as a read
+only where Composio says it reads. Every other one counts as a change, a mail or a delete.
+
+**Your data at Composio.** What a call sends and gets passes through Composio. Composio can keep
+the content of these calls in its logs for up to a year. Connect only what you are fine with
+passing through Composio. Removing the connection, or your own sign-in, also signs you out at
+Composio.
+
+**In the cloud and on your computer.** In the cloud, the calls go through engenty’s account at
+Composio. On your computer they go the same way through your linked engenty account. With your own
+Composio API key under Settings → Models → API keys, they go to Composio directly, and your key
+wins. That key stays on your computer.
+
+Turn it on in `~/.engenty/wizards/.features` with `composio=on`.
+
 ## A connector that brings skills
 
 A plugin for Claude Code or Cursor often holds two things that belong together: an MCP server for
@@ -186,7 +208,7 @@ registry or add a server [by its address](#by-its-address). When you set one up,
 
 | Signs in | What it means |
 |---|---|
-| As the space | An admin signs the space in once, with an API key, an app token or a team account. Everyone uses that account, even when nobody is watching. On this kind of connection the AI only reads; writing happens in fixed steps or as an action someone confirms |
+| As the space | An admin signs the space in once, with an API key, an app token or a team account. Everyone uses that account, even when nobody is watching. On this kind of connection the AI only reads; writing happens in fixed steps, or from a connected app such as Claude where the rule says Allowed |
 | Each person signs in | Each person signs in once with their own account, here or in their menu › Connections. The connection then acts as that person, and asks them before it changes something |
 
 An admin can change how a connection signs in later, on its page. The sign-ins made until then go
@@ -202,16 +224,16 @@ A connection on a connector that is “not checked” starts with Admins.
 
 | Kind | What it covers |
 |---|---|
-| Read | Searching and reading, in AI steps and chats |
-| Change | Creating and changing, only in fixed steps or as a confirmed action |
+| Read | Searching and reading, in AI steps, with Goose and from connected apps |
+| Change | Creating and changing. Where the space signs in, a wizard’s AI step never does it: a fixed step does |
 | Delete | Removing something for good |
 | Send | Sending emails and messages to others |
 
-Each rule is Allowed, With approval or Never. A new connection reads freely, asks for approval
-before a change or a send, and never deletes. With approval asks the space’s admins. In a Work
-chat the action waits until one of them agrees. A wizard’s run doesn’t wait: a fixed step with
-such a rule fails there, and the editor warns you on that step
-([Capabilities](./capabilities.md#connectors)).
+Each rule is Allowed or Never. Where each person signs in, a rule can also be With approval,
+which asks that person. A new connection reads freely and never deletes. Where each person signs
+in, it asks for approval before a change or a send. Where the space signs in, it changes and sends
+nothing until an admin sets the rule to Allowed. A fixed step whose rule is Never fails in a run,
+and the editor warns you on that step ([Capabilities](./capabilities.md#connectors)).
 
 **How often.** An admin can limit a connection’s calls per run and per day. Empty means no limit.
 [Limits](./capabilities.md#limits) has the details.
@@ -223,8 +245,8 @@ signs in, they sign in right there.
 
 A space’s admins set up a connection and choose how it signs in: once as the space, or each
 person for themselves. Your menu › Connections lists the connections of your spaces that are open
-to you. Where each person signs in, you sign in or out there; your chats, your runs and your Goose
-then act as you, and nobody else sees your sign-in. Where the space signs in, you see its account
+to you. Where each person signs in, you sign in or out there. Your runs and your Goose then act
+as you, and nobody else sees your sign-in. Where the space signs in, you see its account
 and who set it up. You set up no connection there: that stays with the space’s admins.
 
 ## The person’s mailbox

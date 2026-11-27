@@ -1,3 +1,4 @@
+import type { ServerStatus } from "@engenty/model-setup";
 import { type ModelClass, TEXT_CLASSES, type TextClass } from "@engenty/wizards-shared/definition";
 import { featureOn } from "@engenty/wizards-shared/features";
 import {
@@ -64,8 +65,9 @@ import {
 } from "../lib/session";
 import { Button, Card, cn, Input, LinkedText, Select, Spinner, Switch } from "../ui";
 import { billingUrl } from "./AppFrame";
+import { ComposioKeyCard } from "./ComposioKey";
 import { HarnessPanel } from "./Harness";
-import { LocalModels, useLocalModels } from "./LocalModels";
+import { LocalModels, type ServerId, useLocalModels } from "./LocalModels";
 import { openExternal } from "./LocalRuntime";
 import {
   AccountPanel,
@@ -133,6 +135,7 @@ interface ModelsState {
   source: HarnessId | "account" | "own";
   bindings: Partial<Record<ModelClass, string>>;
   ollamaUrl: string;
+  lmstudioUrl: string;
   creditFallback: boolean;
   keys: Record<ProviderId, boolean>;
   /** Each key there is, masked, and the environment variable it came from (null: kept here). */
@@ -204,13 +207,29 @@ interface AppleStatus {
   reason: "device" | "os" | "missing" | "off" | "loading" | null;
 }
 
-/** A model on this machine: Ollama, or Apple Intelligence on a Mac. */
-type LocalBy = "ollama" | "apple";
+/** A model on this machine: a server's, or Apple Intelligence on a Mac. */
+type LocalBy = ServerId | "apple";
+
+/** The servers for open models, by the name the person knows and the model text starts with. */
+const SERVERS: Record<ServerId, { name: string; first: string }> = {
+  ollama: { name: "Ollama", first: "qwen3" },
+  lmstudio: { name: "LM Studio", first: "google/gemma-4-12b" },
+  mlx: { name: "Apple MLX", first: "mlx-community/Qwen3-4B-4bit" },
+};
+const SERVER_IDS = Object.keys(SERVERS) as ServerId[];
+
+/** A held model's name in a row: Ollama's without the tag that says nothing. */
+const heldName = (model: { name: string }) => model.name.replace(/:latest$/, "");
+
+/** The server a binding names. */
+const serverOf = (ref: string | null | undefined) =>
+  SERVER_IDS.find((id) => ref?.startsWith(`${id}:`));
 
 interface ModelsInput {
   source?: ModelsState["source"];
   bindings?: Partial<Record<ModelClass, string>>;
   ollamaUrl?: string;
+  lmstudioUrl?: string;
   creditFallback?: boolean;
   decision?: DecisionChoice;
   decisionLocal?: string;
@@ -332,8 +351,9 @@ function choiceOf(state: ModelsState, cap: ModelCapability, place: Place): Choic
   if (isCreditsRef(bound)) {
     return { kind: "credits" };
   }
-  if (bound?.startsWith("ollama:")) {
-    return { kind: "local", by: "ollama" };
+  const server = serverOf(bound);
+  if (server) {
+    return { kind: "local", by: server };
   }
   if (bound?.startsWith("apple:")) {
     return { kind: "local", by: "apple" };
@@ -352,7 +372,7 @@ function choiceOf(state: ModelsState, cap: ModelCapability, place: Place): Choic
     case "key":
       return providerInfo(way.by ?? "") ? { kind: "key", provider: way.by as ProviderId } : null;
     case "local":
-      return { kind: "local", by: way.by === "apple" ? "apple" : "ollama" };
+      return { kind: "local", by: way.by as LocalBy };
     case "credits":
       return { kind: "credits" };
     default:
@@ -1009,6 +1029,15 @@ function CapabilityPanel({
       (h.version !== null || (chosen?.kind === "client" && chosen.id === h.id)),
   );
   const providers = PROVIDERS.filter((p) => p.models[cap]?.length);
+  const lmStudio = useLocalModels("lmstudio", isText(cap) && !place.cloud);
+  const mlx = useLocalModels("mlx", isText(cap) && !place.cloud);
+  const servers = SERVER_IDS.filter(
+    (id) =>
+      id === "ollama" ||
+      (id === "lmstudio" && lmStudio.data?.server.installed) ||
+      (id === "mlx" && mlx.data?.server.installed) ||
+      (chosen?.kind === "local" && chosen.by === id),
+  );
 
   const pick = (next: Choice) => {
     setNeedsAccount(false);
@@ -1041,7 +1070,10 @@ function CapabilityPanel({
         save.mutate(
           next.by === "apple"
             ? { bindings: isText(cap) ? appleBindings(state) : { audio: "apple:transcribe" } }
-            : { source: "own", bindings: every("ollama:qwen3") },
+            : {
+                source: "own",
+                bindings: every(`${next.by}:${SERVERS[next.by].first}`),
+              },
         );
         return;
       case "credits":
@@ -1075,7 +1107,7 @@ function CapabilityPanel({
                 {clients.map((h) => (
                   <Option
                     key={h.id}
-                    title={h.name}
+                    title={h.label}
                     {...clientNote(h)}
                     selected={chosen?.kind === "client" && chosen.id === h.id}
                     disabled={!place.canEdit}
@@ -1116,15 +1148,18 @@ function CapabilityPanel({
                   onPick={() => pick({ kind: "local", by: "apple" })}
                 />
               ) : null}
-              {isText(cap) && !place.cloud ? (
-                <Option
-                  title={t("models.optLocal")}
-                  note={t("models.optLocalNote")}
-                  selected={chosen?.kind === "local" && chosen.by === "ollama"}
-                  disabled={!place.canEdit}
-                  onPick={() => pick({ kind: "local", by: "ollama" })}
-                />
-              ) : null}
+              {isText(cap) && !place.cloud
+                ? servers.map((id) => (
+                    <Option
+                      key={id}
+                      title={SERVERS[id].name}
+                      note={t("models.optLocalNote")}
+                      selected={chosen?.kind === "local" && chosen.by === id}
+                      disabled={!place.canEdit}
+                      onPick={() => pick({ kind: "local", by: id })}
+                    />
+                  ))
+                : null}
               <Option
                 title={place.cloud ? t("models.creditsOrganization") : t("models.creditsName")}
                 note={place.credits ? priceNote(cap, state) : t("models.noteNeedsAccount")}
@@ -1226,7 +1261,7 @@ function CapabilityPanel({
           chosen.by === "apple" ? (
             <ApplePart cap={cap} state={state} place={place} />
           ) : (
-            <OllamaPart state={state} disabled={!place.canEdit} onOpen={onOpen} />
+            <ServerPart id={chosen.by} state={state} disabled={!place.canEdit} onOpen={onOpen} />
           )
         ) : null}
 
@@ -1276,7 +1311,7 @@ function CapabilityPanel({
 function appleBindings(state: ModelsState): Partial<Record<ModelClass, string>> {
   const keep = (cls: ModelClass) => {
     const bound = state.bindings[cls] ?? "";
-    return /^(ollama|apple):/.test(bound) ? "" : bound;
+    return /^(ollama|lmstudio|mlx|apple):/.test(bound) ? "" : bound;
   };
   return {
     classifier: "apple:default",
@@ -1321,34 +1356,38 @@ function ApplePart({
   );
 }
 
-function OllamaPart({
+function ServerPart({
+  id,
   state,
   disabled,
   onOpen,
 }: {
+  id: ServerId;
   state: ModelsState;
   disabled?: boolean;
   onOpen: (target: Target) => void;
 }) {
   const save = useSave();
+  const { name } = SERVERS[id];
   return (
     <Part
-      title={t("models.optLocal")}
+      title={name}
       aside={
         <Button variant="secondary" size="sm" onClick={() => onOpen({ type: "local" })}>
-          {t("models.ollamaOpen")}
+          {t("models.serverOpen", { name })}
           <ArrowRight className="size-4" />
         </Button>
       }
     >
-      <Hint>{t("models.ollamaHint")}</Hint>
+      <Hint>{t("models.serverHint", { name })}</Hint>
       <LocalModels
+        server={id}
         job="text"
-        inUse={[(state.bindings.low ?? "").replace(/^ollama:/, "")]}
+        inUse={[(state.bindings.low ?? "").replace(`${id}:`, "")]}
         disabled={disabled}
         onChoose={(model) =>
           save.mutate({
-            bindings: Object.fromEntries(TEXT_CLASSES.map((c) => [c, `ollama:${model}`])),
+            bindings: Object.fromEntries(TEXT_CLASSES.map((c) => [c, `${id}:${model}`])),
           })
         }
       />
@@ -1359,78 +1398,93 @@ function OllamaPart({
   );
 }
 
-/** The models the studio asks Ollama for now: text, search and decisions. */
-function ollamaInUse(state: ModelsState): string[] {
+/** The models the studio asks a server for now: text, and of Ollama search and decisions. */
+function serverInUse(id: ServerId, state: ModelsState): string[] {
   const text = Object.values(state.bindings)
-    .filter((ref): ref is string => Boolean(ref?.startsWith("ollama:")))
-    .map((ref) => ref.slice("ollama:".length));
-  return [...text, state.embedding.local, ...(state.decision.local ? [state.decision.local] : [])];
+    .filter((ref): ref is string => serverOf(ref) === id)
+    .map((ref) => ref.slice(id.length + 1));
+  return id === "ollama"
+    ? [...text, state.embedding.local, ...(state.decision.local ? [state.decision.local] : [])]
+    : text;
 }
 
 /**
- * Ollama on this computer as a way of its own: whether it runs, its address, and every model
- * it holds with the jobs each serves — to download more or remove one. Each job picks its
- * model on its own page.
+ * A server for open models on this computer as a way of its own: whether it runs, its address,
+ * and every model it holds with the jobs each serves — to download more or remove one. Each job
+ * picks its model on its own page.
  */
-function OllamaAccessPanel({ state, place }: { state: ModelsState; place: Place }) {
+function ServerAccessPanel({
+  id,
+  state,
+  place,
+}: {
+  id: ServerId;
+  state: ModelsState;
+  place: Place;
+}) {
   const save = useSave();
   const qc = useQueryClient();
-  const { data: local } = useLocalModels();
-  const [url, setUrl] = useState(state.ollamaUrl);
-  const version = local?.ollama.version;
+  const { data: local } = useLocalModels(id);
+  // MLX answers in the studio itself: it has no address.
+  const field = id === "mlx" ? null : (`${id}Url` as const);
+  const [url, setUrl] = useState(field ? state[field] : "");
+  const { name } = SERVERS[id];
+  const server = local?.server;
   return (
     <div className="flex flex-col gap-5">
       <PanelHead
         icon={HardDrive}
-        title="Ollama"
-        lead={t("models.ollamaLead")}
+        title={name}
+        lead={t(`models.serverLead.${id}`)}
         status={
-          local ? (
+          server ? (
             <Status
               text={
-                version
-                  ? t("models.ollamaRuns", { version })
-                  : local.ollama.installed
-                    ? t("models.ollamaStoppedShort")
-                    : t("models.ollamaMissingShort")
+                server.running
+                  ? [name, server.version].filter(Boolean).join(" ")
+                  : server.installed
+                    ? t("models.serverStoppedShort")
+                    : t("models.serverMissingShort")
               }
-              tone={version ? "done" : "warn"}
+              tone={server.running ? "done" : "warn"}
             />
           ) : null
         }
       />
       <Card className="flex flex-col gap-6 p-3.5 sm:p-5 sm:p-6">
-        <Part title={t("models.ollamaModels")}>
-          <Hint>{t("models.ollamaModelsHint")}</Hint>
-          <LocalModels inUse={ollamaInUse(state)} disabled={!place.canEdit} />
+        <Part title={t("models.serverModels")}>
+          <Hint>{t("models.serverModelsHint")}</Hint>
+          <LocalModels server={id} inUse={serverInUse(id, state)} disabled={!place.canEdit} />
         </Part>
-        <Part title={t("models.ollamaAddress")}>
-          <Hint>{t("models.ollamaAddressHint")}</Hint>
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <Input
-              className="font-mono text-[0.8125rem]"
-              value={url}
-              disabled={!place.canEdit}
-              onChange={(e) => setUrl(e.target.value)}
-            />
-            <Button
-              variant="secondary"
-              busy={save.isPending}
-              disabled={!place.canEdit || !url.trim() || url.trim() === state.ollamaUrl}
-              onClick={() =>
-                save.mutate(
-                  { ollamaUrl: url },
-                  { onSuccess: () => qc.invalidateQueries({ queryKey: ["models", "local"] }) },
-                )
-              }
-            >
-              {t("settings.save")}
-            </Button>
-          </div>
-          {save.isError ? (
-            <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
-          ) : null}
-        </Part>
+        {field && id !== "mlx" ? (
+          <Part title={t("models.serverAddress", { name })}>
+            <Hint>{t(`models.serverAddressHint.${id}`)}</Hint>
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <Input
+                className="font-mono text-[0.8125rem]"
+                value={url}
+                disabled={!place.canEdit}
+                onChange={(e) => setUrl(e.target.value)}
+              />
+              <Button
+                variant="secondary"
+                busy={save.isPending}
+                disabled={!place.canEdit || !url.trim() || url.trim() === state[field]}
+                onClick={() =>
+                  save.mutate(
+                    { [field]: url },
+                    { onSuccess: () => qc.invalidateQueries({ queryKey: ["models", "local"] }) },
+                  )
+                }
+              >
+                {t("settings.save")}
+              </Button>
+            </div>
+            {save.isError ? (
+              <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+            ) : null}
+          </Part>
+        ) : null}
       </Card>
     </div>
   );
@@ -1537,7 +1591,7 @@ function ChatPanel({
                   {clients.map((h) =>
                     option(
                       h.id as ChatWay,
-                      h.name,
+                      h.label,
                       clientNote(h).note,
                       ready(h.id as ChatWay),
                       !ready(h.id as ChatWay),
@@ -2132,6 +2186,7 @@ function DecisionPanel({
           <Part title={t("models.optLocal")}>
             <Hint>{t("models.decisionLocalHint")}</Hint>
             <LocalModels
+              server="ollama"
               job="decision"
               inUse={state.decision.local ? [state.decision.local] : []}
               disabled={!place.canEdit}
@@ -2299,6 +2354,7 @@ function SearchPanel({
                 : t("models.searchLocalHint", { model: state.embedding.local })}
             </Hint>
             <LocalModels
+              server="ollama"
               job="search"
               inUse={[state.embedding.local]}
               disabled={!place.canEdit}
@@ -2534,8 +2590,8 @@ interface Situation {
   policy: ModelPolicy;
   /** The organization's admins, in the cloud, on a tier: its scope, its choice and its switches. */
   admin: boolean;
-  /** Ollama on this computer; null in the cloud. */
-  ollama: { running: boolean; models: string[] } | null;
+  /** The servers for open models on this computer; none in the cloud. */
+  servers: (ServerStatus & { models: string[] })[];
   /** The organization's accounts at the providers (`ownKeysGateway`); null without. */
   accounts: Accounts | null;
   open: (target: Target) => void;
@@ -2688,7 +2744,7 @@ function heroOf(s: Situation, jobs: OverviewJob[]): Hero {
 
 /** "Zugänge": what the page's person can use, or what the organization's admins allow. */
 function accessRows(s: Situation, save: ReturnType<typeof useSave>): AccessRow[] {
-  const { me, state, place, tier, policy, admin, ollama, open } = s;
+  const { me, state, place, tier, policy, admin, servers, open } = s;
   const keyed = PROVIDERS.filter((p) => state.keys[p.id]);
   const rows: AccessRow[] = [];
   const organization = me.tenant.name ?? t("policy.yourOrganization");
@@ -2848,7 +2904,7 @@ function accessRows(s: Situation, save: ReturnType<typeof useSave>): AccessRow[]
     rows.push({
       kind: "row",
       id: h.id,
-      name: h.name,
+      name: h.label,
       desc: t("overview.client.desc", { sub: t(`harness.sub.${h.id}`) }),
       status: signedIn
         ? t(h.auth === "api_key" ? "overview.client.key" : "overview.client.in")
@@ -2870,23 +2926,24 @@ function accessRows(s: Situation, save: ReturnType<typeof useSave>): AccessRow[]
       onOpen: () => open({ type: "cap", id: "text" }),
     });
   }
-  rows.push({
-    kind: "row",
-    id: "ollama",
-    name: "Ollama",
-    desc: ollama?.models.length ? ollama.models.join(", ") : t("overview.ollama.desc"),
-    status:
-      ollama?.running && ollama.models.length
-        ? t(ollama.models.length === 1 ? "overview.ollama.one" : "overview.ollama.n", {
-            n: ollama.models.length,
+  for (const server of servers.filter((x) => x.id === "ollama" || x.installed)) {
+    const ready = server.running && server.models.length > 0;
+    rows.push({
+      kind: "row",
+      id: server.id,
+      name: server.name,
+      desc: server.models.length
+        ? server.models.join(", ")
+        : t(`overview.server.desc.${server.id}`),
+      status: ready
+        ? t(server.models.length === 1 ? "overview.server.one" : "overview.server.n", {
+            n: server.models.length,
           })
         : null,
-    button:
-      ollama?.running && ollama.models.length
-        ? null
-        : { label: t("overview.setUp"), onClick: () => open({ type: "local" }) },
-    onOpen: () => open({ type: "local" }),
-  });
+      button: ready ? null : { label: t("overview.setUp"), onClick: () => open({ type: "local" }) },
+      onOpen: () => open({ type: "local" }),
+    });
+  }
   rows.push({
     kind: "row",
     id: "keys",
@@ -3054,6 +3111,7 @@ function KeysPanel({ s }: { s: Situation }) {
           <Hint>{t("overview.keys.plan")}</Hint>
         </Card>
       )}
+      <ComposioKeyCard />
     </div>
   );
 }
@@ -3099,7 +3157,7 @@ function SubsPanel({ s }: { s: Situation }) {
   );
 }
 
-/** Lokale Modelle: Ollama on this computer; in the cloud, whether members may use theirs. */
+/** Lokale Modelle: the servers on this computer; in the cloud, whether members may use theirs. */
 function LocalPanel({ s }: { s: Situation }) {
   const { state, place, tier, policy, admin } = s;
   if (place.cloud) {
@@ -3127,7 +3185,13 @@ function LocalPanel({ s }: { s: Situation }) {
       </div>
     );
   }
-  return <OllamaAccessPanel state={state} place={place} />;
+  return (
+    <div className="flex flex-col gap-10">
+      {SERVER_IDS.filter((id) => id !== "mlx" || s.servers.some((x) => x.id === id)).map((id) => (
+        <ServerAccessPanel key={id} id={id} state={state} place={place} />
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -3140,8 +3204,11 @@ function LocalPanel({ s }: { s: Situation }) {
 export function Models() {
   const me = useMe();
   const models = useModels();
-  // Ollama's row in the menu; a runtime of a Manage-App has none.
-  const local = useLocalModels(Boolean(me.data) && me.data?.mode !== "managed");
+  // The servers' rows; a runtime of a Manage-App has none.
+  const alone = Boolean(me.data) && me.data?.mode !== "managed";
+  const ollama = useLocalModels("ollama", alone);
+  const lmStudio = useLocalModels("lmstudio", alone);
+  const mlx = useLocalModels("mlx", alone);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [view, setView] = useState<View>("auto");
@@ -3182,12 +3249,11 @@ export function Models() {
     tier,
     policy,
     admin: place.cloud && place.canEdit && Boolean(tier),
-    ollama: place.cloud
-      ? null
-      : {
-          running: Boolean(local.data?.ollama.version),
-          models: local.data?.installed.map((m) => m.name.replace(/:latest$/, "")) ?? [],
-        },
+    servers: place.cloud
+      ? []
+      : [ollama.data, lmStudio.data, mlx.data].flatMap((local) =>
+          local ? [{ ...local.server, models: local.installed.map(heldName) }] : [],
+        ),
     accounts: place.accounts ? (accounts.data ?? null) : null,
     open,
     savePolicy: (next) => savePolicy.mutate(next),
@@ -3205,7 +3271,8 @@ export function Models() {
   const refusedAccounts = s.accounts?.accounts.filter((a) => a.status === "refused").length ?? 0;
   const signedIn = place.harnesses.filter((h) => h.version !== null && h.auth !== "none").length;
   const localCount =
-    (s.ollama?.running ? s.ollama.models.length : 0) + (state.apple?.available ? 1 : 0);
+    s.servers.reduce((n, server) => n + (server.running ? server.models.length : 0), 0) +
+    (state.apple?.available ? 1 : 0);
   const usage = me.data.mode === "managed" && featureOn(me.data.features, "organizationSettings");
 
   return (

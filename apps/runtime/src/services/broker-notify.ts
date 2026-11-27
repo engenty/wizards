@@ -103,7 +103,7 @@ async function deliver(
       connection: { kind: "space_connection", row, connector: await connectorOfRow(row) },
       action: { id: "send_message", kind: "send" },
       input: { to: message.to, subject: message.subject },
-      ctx: { approved: true, confirmed: true },
+      ctx: { confirmed: true },
       handler: (held) => sendAsAccount(held.connector, held.ctx, message),
     }).catch((err: Error) => {
       console.warn(`[broker] the mail through ${row.name} failed:`, err.message);

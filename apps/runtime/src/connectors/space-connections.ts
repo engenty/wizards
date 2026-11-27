@@ -5,9 +5,10 @@ import {
   CONNECTION_OUTCOMES,
   CONNECTION_SIGN_INS,
   type ConnectionRules,
-  DEFAULT_CONNECTION_RULES,
   type MailboxView,
+  rulesForSignIn,
   type SpaceConnectionView,
+  startConnectionRules,
 } from "@engenty/wizards-shared/connectors";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { featureOn } from "@engenty/wizards-shared/features";
@@ -16,7 +17,13 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import type { GuideSpaceConnection } from "../authoring/guide.js";
-import { callsToday, inAudience, logRuleChange, type Who } from "../broker/index.js";
+import {
+  callsToday,
+  composioSignInOf,
+  inAudience,
+  logRuleChange,
+  type Who,
+} from "../broker/index.js";
 import { db, schema } from "../db/client.js";
 import {
   buildAuthorizationUrl,
@@ -34,8 +41,24 @@ import { notFound, ServiceError } from "../services/errors.js";
 import { ownedSpace } from "../services/spaces.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { connectorFetch, resolveEnv, signInFetch, viaAccount } from "./builtin.js";
+import {
+  ComposioError,
+  type ComposioHolder,
+  type ComposioWay,
+  composioSignOut,
+  composioWay,
+  finishComposioSignIn,
+  startComposioSignIn,
+} from "./composio.js";
+import {
+  type ComposioSecret,
+  isComposioConnector,
+  toolkitOfConnector,
+} from "./composio-connectors.js";
 import { resolveConnector } from "./external.js";
 import { connectRedirectUri as redirectUri } from "./index.js";
+import { remember, spaceHolder } from "./person-connections.js";
+import { sameService } from "./same-service.js";
 import { standInUrl } from "./stand-ins.js";
 import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-account.js";
 
@@ -60,8 +83,12 @@ export interface StoredTokens {
   refreshToken: string | null;
   expiresAt: string | null;
   scopes: string[];
-  /** Signed in through the account's Manage-App, which also refreshes the token. */
-  via?: "account";
+  /**
+   * `account`: signed in through the account's Manage-App, which also refreshes the token.
+   * `composio`: Composio keeps the tokens; `accessToken` holds only whose account it is there
+   * (`ComposioSecret`), so nothing refreshes (docs/plans/composio.md).
+   */
+  via?: "account" | "composio";
 }
 
 export const rulesSchema = z.object(
@@ -79,7 +106,8 @@ export const newConnectionSchema = z.object({
   signIn: z.enum(CONNECTION_SIGN_INS),
   /** Left out: the members, and the admins on a connector that came from a pasted address. */
   audience: z.enum(CONNECTION_AUDIENCES).optional(),
-  rules: rulesSchema.default(DEFAULT_CONNECTION_RULES),
+  /** Left out: what a connection of this sign-in starts with. „Mit Freigabe“ as the space is kept as Nie. */
+  rules: rulesSchema.optional(),
   /** The connector's actions it is for; left out: every action. */
   actions: z.array(z.string().max(200)).max(200).default([]),
 });
@@ -353,11 +381,62 @@ export async function createSpaceConnection(
       signIn: input.signIn,
       // A server nobody checked reaches the AI with its own texts: the admins use it first.
       audience: input.audience ?? (found.fromAddress ? "admins" : "members"),
-      rules: input.rules,
+      rules: rulesForSignIn(input.rules ?? startConnectionRules(input.signIn), input.signIn),
       actions: knownActions(found.connector, input.actions),
       setUpBy: userId,
     })
     .returning();
+  return row;
+}
+
+/**
+ * The connector a connection of the space uses for an account a run connects with `connectorId`:
+ * itself, or the service's own (kind `mail` signs in to Gmail as `mail-gmail`, the space keeps
+ * `google-gmail`). Null: the space can't keep it as a connection (a mailbox over IMAP).
+ */
+export async function spaceConnectorFor(
+  spaceId: string,
+  connectorId: string,
+): Promise<string | null> {
+  for (const id of sameService(connectorId)) {
+    const found = await resolveConnector(spaceId, id);
+    if (found && found.connector.auth.kind !== "browser") {
+      return found.connector.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * An admin connects an account for the space from inside a run (docs/plans/run-connections.md,
+ * decision 2): a connection of the space that signs in as the space, under the space's default
+ * rules, and the space's choice for the wizard's need, and the admin's own. One the admin began
+ * here and never signed in is taken again, not set up twice. The sign-in follows, as the space:
+ * `startSpaceConnectionOAuth` or `signInWithCredentials`.
+ */
+export async function spaceConnectionForNeed(
+  userId: string,
+  spaceId: string,
+  need: { wizardId: string; id: string; name: string; holder: string },
+  connectorId: string,
+): Promise<SpaceConnectionRow> {
+  const begun = (await listSpaceConnections(spaceId)).find(
+    (r) =>
+      r.connectorId === connectorId &&
+      r.signIn === "space" &&
+      r.secret === null &&
+      r.setUpBy === userId,
+  );
+  const row =
+    begun ??
+    (await createSpaceConnection(
+      userId,
+      spaceId,
+      newConnectionSchema.parse({ connectorId, name: need.name, signIn: "space" }),
+    ));
+  for (const holder of [spaceHolder(spaceId), need.holder]) {
+    await remember(need.wizardId, need.id, holder, { kind: "space", row });
+  }
   return row;
 }
 
@@ -387,6 +466,18 @@ export async function updateSpaceConnection(
   if (switched && !(row.signIn === "space" && (await connectorOfRow(row)).stream)) {
     throw new ServiceError("invalid", note("connectionNoMailbox"));
   }
+  // The sign-ins of the way it leaves, where Composio holds them: signed out there too.
+  const leaving =
+    signInChanged && toolkitOfConnector(row.connectorId)
+      ? row.signIn === "space"
+        ? [row.secret]
+        : await personSecrets(row.id)
+      : [];
+  // A connection that signs in as the space keeps „Mit Freigabe“ as Nie: nobody would be asked.
+  const rules =
+    patch.rules !== undefined || signInChanged
+      ? rulesForSignIn(patch.rules ?? row.rules, patch.signIn ?? row.signIn)
+      : undefined;
   const [updated] = await db
     .update(schema.spaceConnection)
     .set({
@@ -394,7 +485,7 @@ export async function updateSpaceConnection(
       // The space's own sign-in goes with the way it leaves; a person's has none on the row.
       ...(signInChanged ? { signIn: patch.signIn, secret: null, label: null } : {}),
       ...(patch.audience !== undefined ? { audience: patch.audience } : {}),
-      ...(patch.rules !== undefined ? { rules: patch.rules } : {}),
+      ...(rules !== undefined ? { rules } : {}),
       ...(actions !== undefined ? { actions } : {}),
       ...(patch.callsPerRun !== undefined ? { callsPerRun: patch.callsPerRun } : {}),
       ...(patch.callsPerDay !== undefined ? { callsPerDay: patch.callsPerDay } : {}),
@@ -408,6 +499,7 @@ export async function updateSpaceConnection(
       .delete(schema.spaceConnectionSignIn)
       .where(eq(schema.spaceConnectionSignIn.connectionId, row.id));
   }
+  await signOutAtComposio(leaving);
   if (switched) {
     // Agreed from now on: what came before, or while it was off, stays unread.
     await forgetMailCursor(row.id);
@@ -418,7 +510,7 @@ export async function updateSpaceConnection(
   // How it signs in, who may use it, what each kind of action may do and how many calls it takes:
   // a change there is heard of.
   const rulesChanged =
-    patch.rules !== undefined && JSON.stringify(patch.rules) !== JSON.stringify(row.rules);
+    rules !== undefined && CONNECTION_ACTION_KINDS.some((kind) => rules[kind] !== row.rules[kind]);
   const audienceChanged = patch.audience !== undefined && patch.audience !== row.audience;
   const limits = changedLimits(row, updated);
   if (rulesChanged || audienceChanged || signInChanged || limits || switched) {
@@ -527,7 +619,37 @@ export async function removeSpaceConnection(userId: string, id: string): Promise
   await ownedSpace(userId, row.spaceId);
   await requireWritableSpace(row.spaceId);
   await requireAdmin();
+  const signedIn = toolkitOfConnector(row.connectorId)
+    ? [row.secret, ...(await personSecrets(row.id))]
+    : [];
   await db.delete(schema.spaceConnection).where(eq(schema.spaceConnection.id, row.id));
+  await signOutAtComposio(signedIn);
+}
+
+/**
+ * Signs these sealed sign-ins out at Composio, where they are Composio's: a connection removed or
+ * signed out, or a sign-in replaced, leaves no connected account behind. A sign-out Composio can't
+ * take now is logged; the connection is gone here all the same.
+ */
+async function signOutAtComposio(sealed: (string | null)[], keep?: string): Promise<void> {
+  for (const secret of sealed) {
+    const signIn = composioSignInOf(secret);
+    if (!signIn || signIn.composio === keep) {
+      continue;
+    }
+    await composioSignOut(signIn.way, signIn.composio).catch((err) =>
+      console.error("[composio] sign-out", signIn.composio, err),
+    );
+  }
+}
+
+/** The sealed sign-ins of each person of a connection. */
+async function personSecrets(connectionId: string): Promise<string[]> {
+  const rows = await db.query.spaceConnectionSignIn.findMany({
+    where: eq(schema.spaceConnectionSignIn.connectionId, connectionId),
+    columns: { secret: true },
+  });
+  return rows.map((r) => r.secret);
 }
 
 // --- signing in ------------------------------------------------------------------------------
@@ -560,7 +682,12 @@ async function keepSignIn(
   label: string,
   stored: StoredTokens,
 ): Promise<void> {
+  // A new Composio sign-in replaces the one before: that one is signed out there.
+  const kept = stored.via === "composio" ? JSON.parse(stored.accessToken).composio : undefined;
   if (as.as === "space") {
+    if (kept) {
+      await signOutAtComposio([row.secret], kept);
+    }
     // An admin agreed to reading that account: another one is not agreed to, nor its cursor valid.
     const another = label !== row.label;
     await db
@@ -576,6 +703,16 @@ async function keepSignIn(
       await forgetMailCursor(row.id);
     }
     return;
+  }
+  if (kept) {
+    const before = await db.query.spaceConnectionSignIn.findFirst({
+      where: and(
+        eq(schema.spaceConnectionSignIn.connectionId, row.id),
+        eq(schema.spaceConnectionSignIn.userId, as.userId),
+      ),
+      columns: { secret: true },
+    });
+    await signOutAtComposio([before?.secret ?? null], kept);
   }
   await db
     .insert(schema.spaceConnectionSignIn)
@@ -638,6 +775,10 @@ interface SpaceConnectionOAuthState {
   verifier: string;
   exp: number;
   lang?: Lang;
+  /** Started from a run's connect card: the run hears of it and looks again. */
+  runId?: string;
+  /** A Composio sign-in: the way it went, whose account it is, the toolkit. */
+  composio?: { way: ComposioWay; holder: ComposioHolder; toolkit: string };
 }
 
 /** The provider rights the connection's actions need, and the connector's base rights. */
@@ -659,6 +800,8 @@ export async function startSpaceConnectionOAuth(
   id: string,
   as: SignInAs,
   lang?: Lang,
+  /** The run whose connect card started it. */
+  runId?: string,
 ): Promise<string> {
   const row = await spaceConnectionById(id);
   await allowSignIn(row, as);
@@ -673,7 +816,11 @@ export async function startSpaceConnectionOAuth(
     userId: as.as === "person" ? as.userId : null,
     exp: Date.now() + 15 * 60_000,
     lang,
+    ...(runId ? { runId } : {}),
   };
+  if (isComposioConnector(connector)) {
+    return startComposio(row, as, base);
+  }
   if (await viaAccount(connector)) {
     // The Manage-App keeps the PKCE verifier; ours stays empty.
     try {
@@ -700,6 +847,39 @@ export async function startSpaceConnectionOAuth(
   );
 }
 
+/**
+ * Composio's sign-in page for a connection on one of its toolkits (docs/plans/composio.md): the
+ * account belongs to the space, or to the person who signs in, as Composio's user.
+ */
+async function startComposio(
+  row: SpaceConnectionRow,
+  as: SignInAs,
+  base: Omit<SpaceConnectionOAuthState, "verifier">,
+): Promise<string> {
+  const toolkit = toolkitOfConnector(row.connectorId);
+  const way = await composioWay();
+  if (!toolkit || !way) {
+    throw new ServiceError("refused", note("composioNotAvailable"));
+  }
+  const holder: ComposioHolder = as.as === "space" ? `s:${row.spaceId}` : `u:${as.userId}`;
+  try {
+    return await startComposioSignIn(way, {
+      toolkit,
+      holder,
+      returnUrl: redirectUri(),
+      state: seal({
+        ...base,
+        verifier: "",
+        composio: { way, holder, toolkit },
+      } satisfies SpaceConnectionOAuthState),
+    });
+  } catch (err) {
+    throw err instanceof ComposioError || err instanceof AccountConnectError
+      ? new ServiceError("refused", err.message)
+      : err;
+  }
+}
+
 /** A state the callback can tell is a space connection's: the tenant to finish it in, or null. */
 export function spaceConnectionStateTenant(rawState: string): string | null {
   const state = unseal<SpaceConnectionOAuthState>(rawState);
@@ -708,9 +888,9 @@ export function spaceConnectionStateTenant(rawState: string): string | null {
 
 /** The provider came back for a connection of the space: keeps the sign-in it started. */
 export async function finishSpaceConnectionOAuth(
-  answer: { code: string } | { ticket: string },
+  answer: { code: string } | { ticket: string } | { composioAccount: string },
   rawState: string,
-): Promise<{ connectionId: string }> {
+): Promise<{ connectionId: string; runId: string | null }> {
   const state = unseal<SpaceConnectionOAuthState>(rawState);
   if (!state?.spaceConnection || state.exp < Date.now()) {
     throw new Error("The sign-in has expired. Sign in again.");
@@ -724,6 +904,41 @@ export async function finishSpaceConnectionOAuth(
   const connector = await connectorOfRow(row);
   if (connector.auth.kind !== "oauth2") {
     throw new Error("not an oauth connector");
+  }
+  // The person's role was checked when the sign-in started; the state is ours, sealed.
+  const as: SignInAs =
+    state.userId === null
+      ? { as: "space" }
+      : { as: "person", userId: state.userId, role: "member" };
+  if (as.as === "space" && row.signIn !== "space") {
+    throw new Error("The connection no longer signs in as the space.");
+  }
+  if (as.as === "person" && row.signIn !== "person") {
+    throw new Error("The connection no longer signs in per person.");
+  }
+  if (isComposioConnector(connector) || state.composio) {
+    if (!(state.composio && isComposioConnector(connector)) || "code" in answer) {
+      throw new Error("The sign-in does not belong to this connection.");
+    }
+    const { way, holder, toolkit } = state.composio;
+    const composio = await finishComposioSignIn(
+      way,
+      "ticket" in answer
+        ? { state: rawState, ticket: answer.ticket }
+        : { connectedAccountId: answer.composioAccount, holder, toolkit },
+    );
+    const secret: ComposioSecret = { composio, way, holder, toolkit };
+    await keepSignIn(row, as, connector.name, {
+      accessToken: JSON.stringify(secret),
+      refreshToken: null,
+      expiresAt: null,
+      scopes: [],
+      via: "composio",
+    });
+    return { connectionId: row.id, runId: state.runId ?? null };
+  }
+  if ("composioAccount" in answer) {
+    throw new Error("The sign-in does not belong to this connection.");
   }
   const tokens: OAuth2Tokens =
     "ticket" in answer
@@ -747,19 +962,8 @@ export async function finishSpaceConnectionOAuth(
     scopes: tokens.grantedScopes,
     ...("ticket" in answer ? { via: "account" as const } : {}),
   };
-  // The person's role was checked when the sign-in started; the state is ours, sealed.
-  const as: SignInAs =
-    state.userId === null
-      ? { as: "space" }
-      : { as: "person", userId: state.userId, role: "member" };
-  if (as.as === "space" && row.signIn !== "space") {
-    throw new Error("The connection no longer signs in as the space.");
-  }
-  if (as.as === "person" && row.signIn !== "person") {
-    throw new Error("The connection no longer signs in per person.");
-  }
   await keepSignIn(row, as, account.label, stored);
-  return { connectionId: row.id };
+  return { connectionId: row.id, runId: state.runId ?? null };
 }
 
 /** Forgets a sign-in: the space's (admins) or the person's own. */
@@ -772,16 +976,19 @@ export async function removeSignIn(id: string, as: SignInAs): Promise<void> {
       .set({ secret: null, label: null, autonomousMode: "off", updatedAt: new Date() })
       .where(eq(schema.spaceConnection.id, row.id));
     await forgetMailCursor(row.id);
+    await signOutAtComposio([row.secret]);
     return;
   }
-  await db
+  const [gone] = await db
     .delete(schema.spaceConnectionSignIn)
     .where(
       and(
         eq(schema.spaceConnectionSignIn.connectionId, row.id),
         eq(schema.spaceConnectionSignIn.userId, as.userId),
       ),
-    );
+    )
+    .returning({ secret: schema.spaceConnectionSignIn.secret });
+  await signOutAtComposio([gone?.secret ?? null]);
 }
 
 /**

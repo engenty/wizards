@@ -14,7 +14,7 @@ afterAll(() => {
 
 const warning = (kind: "write" | "send", name = "Team-Slack"): StepWarning => ({
   stepId: "notify",
-  kind: "needs_approval",
+  kind: "rule_never",
   connection: { id: "c/1 2", name },
   action: { id: kind === "send" ? "post_message" : "update_message", kind },
 });
@@ -23,16 +23,16 @@ describe("the editor's warning for a fixed step", () => {
   it("names the connection and the rule, as the connection's page names them", () => {
     setLang("de");
     expect(warningText(warning("send"))).toBe(
-      "Bei der Verbindung „Team-Slack“ steht „Senden“ auf „Mit Freigabe“. In einem Lauf wartet nichts auf eine Freigabe, darum schlägt dieser Schritt dort fehl.",
+      "Bei der Verbindung „Team-Slack“ steht „Senden“ auf „Nie“. Darum schlägt dieser Schritt in einem Lauf fehl.",
     );
     expect(warningText(warning("write", "Bestellungen"))).toContain(
-      "Bei der Verbindung „Bestellungen“ steht „Ändern“ auf „Mit Freigabe“.",
+      "Bei der Verbindung „Bestellungen“ steht „Ändern“ auf „Nie“.",
     );
     setLang("en");
     expect(warningText(warning("send"))).toBe(
-      "The connection “Team-Slack” has “Send” on “With approval”. Nothing waits for an approval in a run, so this step fails there.",
+      "The connection “Team-Slack” has “Send” on “Never”. That is why this step fails in a run.",
     );
-    expect(warningText(warning("write"))).toContain("has “Change” on “With approval”");
+    expect(warningText(warning("write"))).toContain("has “Change” on “Never”");
   });
 
   it("tells an admin to change the rule, and a member to ask the admins", () => {

@@ -1,15 +1,23 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
+import {
+  type ChatCall,
+  CLIENT_IDS,
+  CLIENTS,
+  type ClientId,
+  cursorWorkspace,
+  ownCursorServers,
+  resolveEnv,
+} from "@engenty/model-providers/clients";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
 import { internalKey } from "../auth/keys.js";
 import { env } from "../env.js";
-import { resolveEnv } from "../harness/env.js";
-import { detectHarness, harness, signedOut } from "../harness/index.js";
+import { detectHarness, harness } from "../harness/index.js";
+import { signedOut } from "../harness/model.js";
 import { ModelUnavailableError } from "../model-errors.js";
 import {
   CHAT_WAYS,
@@ -25,14 +33,6 @@ import { ServiceError } from "../services/errors.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
 import { type ServerKey, serverText } from "../texts.js";
 import type { ChatImage } from "./architect.js";
-import {
-  CHAT_CLIENTS,
-  type ChatCall,
-  CODEX_KEY_VAR,
-  cursorWorkspace,
-  SUBSCRIPTION_CLIENTS,
-  type SubscriptionClient,
-} from "./chat-clients.js";
 import { thoughtLine } from "./thought.js";
 import type { TurnClock } from "./turn-clock.js";
 
@@ -43,7 +43,16 @@ import type { TurnClock } from "./turn-clock.js";
  * stays with it: this server never sees a subscription token. Runs of wizards go through it as
  * a model (../harness/) when the settings name it as the source.
  */
-export type { SubscriptionClient } from "./chat-clients.js";
+export type SubscriptionClient = ClientId;
+
+/** The clients whose subscription can answer the studio chat: those that take its MCP tools. */
+const SUBSCRIPTION_CLIENTS = CLIENT_IDS.filter((id) => CLIENTS[id].tools);
+
+/** The environment variable Codex reads this server's bearer key from. */
+const CODEX_KEY_VAR = "WIZARDS_MCP_KEY";
+
+/** This server's MCP server, as the clients know it. */
+const MCP_NAME = "wizards";
 
 /** The AI clients installed and signed in on this machine whose subscription can answer the studio chat. */
 export async function subscriptionClients(): Promise<SubscriptionClient[]> {
@@ -68,7 +77,7 @@ function mcpConfig(): string {
     file,
     JSON.stringify({
       mcpServers: {
-        wizards: {
+        [MCP_NAME]: {
           type: "http",
           url: mcpUrl(),
           headers: { Authorization: `Bearer ${internalKey("Claude")}` },
@@ -78,18 +87,6 @@ function mcpConfig(): string {
     { mode: 0o600 },
   );
   return file;
-}
-
-/** The server names in the person's own Cursor config, which the chat's workspace denies. */
-function ownCursorServers(): string[] {
-  const file = join(homedir(), ".cursor", "mcp.json");
-  try {
-    return existsSync(file)
-      ? Object.keys(JSON.parse(readFileSync(file, "utf8")).mcpServers ?? {})
-      : [];
-  } catch {
-    return [];
-  }
 }
 
 const SYSTEM = (wizardId: string) =>
@@ -149,7 +146,7 @@ const EXT: Record<string, string> = {
 export async function subscriptionTurn(
   input: SubscriptionTurn,
 ): Promise<{ reply: string; changed: boolean }> {
-  const client = CHAT_CLIENTS[input.client];
+  const client = CLIENTS[input.client];
   const key = sessionKey(input.client, input.wizardId);
   // Cursor Agent keeps its chats per workspace: one folder per wizard.
   const dir = input.client === "cursor" ? join(workDir, "cursor", input.wizardId) : workDir;
@@ -159,7 +156,7 @@ export async function subscriptionTurn(
     for (const [path, text] of Object.entries(
       cursorWorkspace({
         system,
-        mcpUrl: mcpUrl(),
+        mcp: { name: MCP_NAME, url: mcpUrl() },
         key: internalKey("Cursor"),
         ownServers: ownCursorServers(),
       }),
@@ -184,9 +181,13 @@ export async function subscriptionTurn(
     system,
     message: input.message,
     session: await readSetting<string>(key),
-    mcpUrl: mcpUrl(),
     dir,
-    mcpConfigFile: input.client === "claude" ? mcpConfig() : undefined,
+    mcp: {
+      name: MCP_NAME,
+      url: mcpUrl(),
+      keyVar: CODEX_KEY_VAR,
+      configFile: input.client === "claude" ? mcpConfig() : undefined,
+    },
     model:
       (await chatModelId(input.client, input.extra === false ? "normal" : "extra")) ?? undefined,
     images,
@@ -326,7 +327,7 @@ export async function subscriptionText(input: {
   onModel?: (model: string | undefined) => void;
   clock?: TurnClock;
 }): Promise<string> {
-  const client = CHAT_CLIENTS[input.client];
+  const client = CLIENTS[input.client];
   const dir = join(workDir, "bare", input.client);
   mkdirSync(dir, { recursive: true });
   if (input.client === "cursor") {
@@ -337,11 +338,9 @@ export async function subscriptionText(input: {
     system: input.system,
     message: input.message,
     session: null,
-    mcpUrl: mcpUrl(),
     dir,
     model: (await chatModelId(input.client, "normal")) ?? undefined,
     images: [],
-    bare: true,
   };
   input.clock?.runsOn(call.model);
   input.onModel?.(call.model);

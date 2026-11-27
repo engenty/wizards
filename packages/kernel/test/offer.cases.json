@@ -1,0 +1,178 @@
+[
+  {
+    "name": "Small, signed",
+    "input": {
+      "customer": "Nordlicht GmbH",
+      "email": "einkauf@nordlicht.example",
+      "budget": 4000,
+      "items": [{ "name": "Workshop", "price": 1500, "quantity": 2 }]
+    },
+    "answers": [
+      { "offer": { "text": "…", "price": 3000 } },
+      { "check": { "approved": true } },
+      { "accept": { "approved": true } },
+      { "signed": { "came": true } }
+    ],
+    "expect": { "signed": true, "price": 3000 }
+  },
+  {
+    "name": "Small, no signature",
+    "input": {
+      "customer": "Nordlicht GmbH",
+      "email": "einkauf@nordlicht.example",
+      "budget": 4000,
+      "items": [{ "name": "Workshop", "price": 1500, "quantity": 2 }]
+    },
+    "answers": [
+      { "offer": { "text": "…", "price": 3000 } },
+      { "check": { "approved": true } },
+      { "accept": { "approved": true } },
+      { "signed": { "came": false, "timedOut": true } },
+      { "chase": { "mail": "A reminder" } }
+    ],
+    "expect": { "signed": false, "reminder": "A reminder" }
+  },
+  {
+    "name": "Large, within budget",
+    "input": {
+      "customer": "Nordlicht GmbH",
+      "email": "einkauf@nordlicht.example",
+      "budget": 9000,
+      "items": [{ "name": "Workshop", "price": 1500, "quantity": 2 }]
+    },
+    "answers": [
+      { "offer": { "text": "…", "price": 8400 } },
+      { "legal": { "approved": true } },
+      { "check": { "approved": true } },
+      { "accept": { "approved": true } },
+      { "signed": { "came": true } }
+    ],
+    "expect": { "signed": true, "price": 8400 }
+  },
+  {
+    "name": "Legal says no once",
+    "input": {
+      "customer": "Nordlicht GmbH",
+      "email": "einkauf@nordlicht.example",
+      "budget": 9000,
+      "items": [{ "name": "Workshop", "price": 1500, "quantity": 2 }]
+    },
+    "answers": [
+      { "offer": { "text": "…", "price": 8400 } },
+      { "legal": { "approved": false, "note": "Add the liability clause." } },
+      { "offer": { "text": "…", "price": 8400 } },
+      { "legal": { "approved": true } },
+      { "check": { "approved": true } },
+      { "accept": { "approved": true } },
+      { "signed": { "came": true } }
+    ],
+    "expect": { "signed": true }
+  },
+  {
+    "name": "Over budget once",
+    "input": {
+      "customer": "Nordlicht GmbH",
+      "email": "einkauf@nordlicht.example",
+      "budget": 2000,
+      "items": [{ "name": "Workshop", "price": 1500, "quantity": 2 }]
+    },
+    "answers": [
+      { "offer": { "text": "…", "price": 3000 } },
+      { "offer": { "text": "…", "price": 2100 } },
+      { "check": { "approved": true } },
+      { "accept": { "approved": true } },
+      { "signed": { "came": true } }
+    ],
+    "expect": { "price": 2100 }
+  },
+  {
+    "name": "Always over budget",
+    "input": {
+      "customer": "Nordlicht GmbH",
+      "email": "einkauf@nordlicht.example",
+      "budget": 1000,
+      "items": [{ "name": "Workshop", "price": 1500, "quantity": 2 }]
+    },
+    "answers": [
+      { "offer": { "text": "…", "price": 3000 } },
+      { "offer": { "text": "…", "price": 3000 } },
+      { "offer": { "text": "…", "price": 3000 } },
+      { "offer": { "text": "…", "price": 3000 } },
+      { "check": { "approved": true } },
+      { "accept": { "approved": true } },
+      { "signed": { "came": true } }
+    ],
+    "expect": { "price": 3000 }
+  },
+  {
+    "name": "Operator says no once",
+    "input": {
+      "customer": "Nordlicht GmbH",
+      "email": "einkauf@nordlicht.example",
+      "budget": 4000,
+      "items": [{ "name": "Workshop", "price": 1500, "quantity": 2 }]
+    },
+    "answers": [
+      { "offer": { "text": "…", "price": 3000 } },
+      { "check": { "approved": false, "note": "Shorter." } },
+      { "offer": { "text": "…", "price": 2900 } },
+      { "check": { "approved": true } },
+      { "accept": { "approved": true } },
+      { "signed": { "came": true } }
+    ],
+    "expect": { "price": 2900 }
+  },
+  {
+    "name": "User declines",
+    "input": {
+      "customer": "Nordlicht GmbH",
+      "email": "einkauf@nordlicht.example",
+      "budget": 4000,
+      "items": [{ "name": "Workshop", "price": 1500, "quantity": 2 }]
+    },
+    "answers": [
+      { "offer": { "text": "…", "price": 3000 } },
+      { "check": { "approved": true } },
+      { "accept": { "approved": false } }
+    ],
+    "expect": { "price": 3000 }
+  },
+  {
+    "name": "Legal says no three times",
+    "input": {
+      "customer": "Nordlicht GmbH",
+      "email": "einkauf@nordlicht.example",
+      "budget": 9000,
+      "items": [{ "name": "Workshop", "price": 1500, "quantity": 2 }]
+    },
+    "answers": [
+      { "offer": { "text": "…", "price": 8400 } },
+      { "legal": { "approved": false, "note": "No." } },
+      { "offer": { "text": "…", "price": 8400 } },
+      { "legal": { "approved": false, "note": "No." } },
+      { "offer": { "text": "…", "price": 8400 } },
+      { "legal": { "approved": false, "note": "No." } },
+      { "offer": { "text": "…", "price": 8400 } }
+    ],
+    "fails": true
+  },
+  {
+    "name": "Operator says no three times",
+    "input": {
+      "customer": "Nordlicht GmbH",
+      "email": "einkauf@nordlicht.example",
+      "budget": 4000,
+      "items": [{ "name": "Workshop", "price": 1500, "quantity": 2 }]
+    },
+    "answers": [
+      { "offer": { "text": "…", "price": 3000 } },
+      { "check": { "approved": false, "note": "No." } },
+      { "offer": { "text": "…", "price": 3000 } },
+      { "check": { "approved": false, "note": "No." } },
+      { "offer": { "text": "…", "price": 3000 } },
+      { "check": { "approved": false, "note": "No." } },
+      { "offer": { "text": "…", "price": 3000 } }
+    ],
+    "fails": true
+  }
+]

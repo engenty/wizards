@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
+
+import { readNumber } from "@engenty/chatviews/numbers";
 import type { TableColumn } from "./engenty/data-tables/columns.js";
 import { coerceRowValues, mergeRowValues } from "./engenty/data-tables/columns-value.js";
-import { readNumber } from "./numbers.js";
 
 /**
  * What a wizard keeps between runs for one person: lists (tabular data), files and connected
@@ -104,9 +105,33 @@ export interface ConnectionView {
   connector: string | null;
   title: string | null;
   description: string | null;
-  /** Set when the person has connected an account. */
+  /** The account the run uses for it; null: none yet, or several and none chosen. */
   account: { connector: string; label: string; connectedAt: string } | null;
+  /**
+   * The accounts the run may use for it (docs/plans/run-connections.md): the person's own and the
+   * space's connections. With several and none in use the person chooses one of them.
+   */
+  candidates: ConnectionCandidate[];
   connectors: ConnectorOption[];
+  /**
+   * The connectors (`connectors`, by id) the viewer may connect for the space instead of for
+   * themselves: an admin of the space. Empty for anyone else.
+   */
+  forSpace?: string[];
+}
+
+/** An account a run may use for a need. */
+export interface ConnectionCandidate {
+  id: string;
+  /** `person`: the account of the person whose run it is; `space`: a connection of the space. */
+  owner: "person" | "space";
+  /** The account as the provider names it: its address. */
+  label: string;
+  /** A connection of the space: its name there. */
+  name: string | null;
+  connector: string;
+  /** The run uses this one. */
+  chosen: boolean;
 }
 
 /** One list as a Markdown table of raw cell values — what a model reads. */

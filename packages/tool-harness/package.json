@@ -1,0 +1,43 @@
+{
+  "name": "@engenty/tool-harness",
+  "version": "0.1.0",
+  "description": "One harness around an agent's tools: the few it always has, a search for the rest by words and meaning, one call that runs what was found, and what a model of which level may use.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/engenty/wizards.git",
+    "directory": "packages/tool-harness"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "wizards-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@engenty/decision-model": "workspace:*",
+    "@engenty/search-index": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "~7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

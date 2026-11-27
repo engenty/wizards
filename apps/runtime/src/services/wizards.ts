@@ -1,7 +1,9 @@
+import { typesOf } from "@engenty/wizards-kernel";
 import { versionChanges } from "@engenty/wizards-shared/changes";
 import type { StepWarning } from "@engenty/wizards-shared/connectors";
 import {
-  DEFINITION_VERSION,
+  KERNEL_VERSION,
+  type KernelFile,
   type Lang,
   pluginToolOf,
   shapeIssues,
@@ -11,6 +13,7 @@ import {
   type WizardDefinition,
   wizardSchema,
 } from "@engenty/wizards-shared/definition";
+import { kernelShell } from "@engenty/wizards-shared/kernel-file";
 import { withRequires } from "@engenty/wizards-shared/requires";
 import { note } from "@engenty/wizards-shared/run";
 import { inputSchemaOf, outputSchemaOf } from "@engenty/wizards-shared/run-schema";
@@ -30,8 +33,10 @@ import { answeringNarrowed, whoOf } from "../engine/answerers.js";
 import { wizardAgentFiles } from "../engine/wizard-code.js";
 import { env } from "../env.js";
 import { getBlob } from "../files/blobs.js";
+import { draftCodeIssues } from "../kernel/check.js";
 import { managed, tenantMembers } from "../manage.js";
 import { saidOf } from "../model-errors.js";
+import { isOldFormat, oldFormatOn, shutOut } from "../old-format.js";
 import { pluginToolsOf } from "../plugins/registry.js";
 import { dropWizardData } from "../store/data.js";
 import { dropLinks, putLink } from "../tenants/control.js";
@@ -40,7 +45,7 @@ import { serverText } from "../texts.js";
 import { requireAdmin, requireBuild, requireWritable, requireWritableSpace } from "./access.js";
 import { changedSteps, emitDraftChanged } from "./draft-events.js";
 import { notFound, ServiceError } from "./errors.js";
-import { copyFiles, draftFiles, sameFiles, seedFiles, snapshotFile } from "./files.js";
+import { copyFiles, draftFiles, sameFiles, seedFiles, snapshotFile, writeFile } from "./files.js";
 import { forgetWizardLinks } from "./links.js";
 import { pushWizards } from "./manage-reports.js";
 import { asLang, countInstall, marketplaceWizard } from "./marketplace.js";
@@ -56,31 +61,37 @@ export type WizardRow = typeof schema.wizard.$inferSelect;
 /** Who wrote: the studio, or an admin's own MCP client (named after its API key). */
 export type Writer = { source: "studio" } | { source: "mcp"; client: string };
 
-/** The wizard a new one starts as, in the language of whoever makes it. */
-function blankWizard(lang: Lang): WizardDefinition {
-  return {
-    version: DEFINITION_VERSION,
+/** The step a new wizard starts with: it hands on what the first page asked. */
+const BLANK_STEP = "export default async function (run) {\n  return { value: run.input };\n}\n";
+
+/**
+ * The wizard a new one starts as, in version 0.3.0 and in the language of whoever makes it: a
+ * first page that asks what it is about, and one step file.
+ */
+function blankWizard(lang: Lang): { draft: WizardDefinition; files: Record<string, string> } {
+  const file: KernelFile = {
+    version: KERNEL_VERSION,
     title: serverText(lang, "newWizard"),
     description: "",
     avatar: "round",
     lang,
-    steps: [
-      {
-        id: "start",
-        type: "form",
-        title: serverText(lang, "newWizardStart"),
-        fields: [
-          {
-            id: "input",
-            label: serverText(lang, "newWizardAsk"),
-            kind: "textarea",
-            required: true,
-          },
-        ],
-      },
-      { id: "done", type: "result", title: serverText(lang, "newWizardDone"), deliverables: [] },
-    ],
-  };
+    input: {
+      title: serverText(lang, "newWizardStart"),
+      fields: [
+        { id: "input", label: serverText(lang, "newWizardAsk"), kind: "textarea", required: true },
+      ],
+    },
+    start: "start",
+    edges: { start: ["end"] },
+  } as KernelFile;
+  return { draft: kernelShell(file), files: { "steps/start.ts": BLANK_STEP } };
+}
+
+/** Refuses a definition in version 0.2.0 while its switch is off: a wizard is made of step files. */
+async function requireCurrentFormat(definition: WizardDefinition) {
+  if (await shutOut(definition)) {
+    throw new ServiceError("invalid", note("oldFormatWrite"));
+  }
 }
 
 export const studioUrl = (wizardId: string) => `${env.appUrl}/studio/edit/${wizardId}`;
@@ -91,7 +102,8 @@ export async function ownedWizard(_userId: string, wizardId: string): Promise<Wi
   const w = await db.query.wizard.findFirst({
     where: and(eq(schema.wizard.id, wizardId), eq(schema.wizard.tenantId, currentTenant())),
   });
-  if (!w) {
+  // A wizard in version 0.2.0 is not there while its switch is off.
+  if (!w || (await shutOut(w.draft))) {
     throw notFound();
   }
   return w;
@@ -141,7 +153,8 @@ export async function listWizards(_userId: string, spaceId?: string) {
     ),
     orderBy: [desc(schema.wizard.updatedAt)],
   });
-  return rows.map(wizardSummary);
+  const old = await oldFormatOn();
+  return rows.filter((w) => old || !isOldFormat(w.draft)).map(wizardSummary);
 }
 
 /** What a run of the wizard takes and gives, as JSON Schema, worked out from its definition. */
@@ -332,10 +345,9 @@ async function spaceConnectionIssues(spaceId: string, draft: WizardDefinition) {
 /**
  * The fixed steps of a draft that fail in a run as the space's rules are now
  * (docs/plans/capabilities-next.md, 2b): a `call` on a connection of the space whose rule for
- * that kind of action is „Mit Freigabe“ asks the space's admins, and nothing in a run waits for
- * them. The broker's own decision says so, read from the rule as it is: the warning is gone once
- * the rule says „Erlaubt“, and a wizard's own connection or a read never has one. No issue: the
- * wizard saves and publishes.
+ * that kind of action is „Nie“ is refused. The broker's own decision says so, read from the rule
+ * as it is: the warning is gone once the rule says „Erlaubt“, and a wizard's own connection
+ * never has one. No issue: the wizard saves and publishes.
  */
 export async function stepWarnings(
   spaceId: string,
@@ -370,10 +382,10 @@ export async function stepWarnings(
       actionId: action.id,
       kind,
     });
-    if (decision.outcome === "ask" && decision.admins) {
+    if (decision.outcome === "deny" && decision.rule === `rules.${kind}`) {
       warnings.push({
         stepId: step.id,
-        kind: "needs_approval",
+        kind: "rule_never",
         connection: { id: row.id, name: row.name },
         action: { id: action.id, kind },
       });
@@ -399,8 +411,8 @@ async function draftDataIssues(draft: WizardDefinition, files: WorkspaceFile[]) 
 }
 
 /**
- * Everything wrong with a draft: its structure, its workspace files and the skills and SQL among
- * them, its space's connectors and plugins.
+ * Everything wrong with a draft: its structure, its workspace files and the skills, SQL and step
+ * files among them, its space's connectors and plugins.
  */
 export async function checkDraft(
   spaceId: string,
@@ -414,6 +426,8 @@ export async function checkDraft(
     ),
     ...(files ? await workspaceSkillIssues(files) : []),
     ...(files ? await draftDataIssues(draft, files) : []),
+    // A wizard in version 0.3.0: its step files compiled, and their ways against the map.
+    ...(files && draft.kernel ? await draftCodeIssues(draft.kernel, files) : []),
     ...(await connectorIssues(spaceId, draft)),
     ...(await spaceConnectionIssues(spaceId, draft)),
     ...(await pluginIssues(draft)),
@@ -531,6 +545,8 @@ export async function createWizard(
     lang?: string;
     definition?: unknown;
     note?: string;
+    /** The starter may be a template that is not published: a platform admin's preview. */
+    preview?: boolean;
   },
   writer: Writer = { source: "studio" },
 ) {
@@ -541,7 +557,7 @@ export async function createWizard(
   const space = await named();
   await requireWritable(space);
   const starter = input.starterId
-    ? await marketplaceWizard(input.starterId, asLang(input.lang))
+    ? await marketplaceWizard(input.starterId, asLang(input.lang), input.preview)
     : undefined;
   if (input.starterId && !starter) {
     throw new ServiceError("invalid", note("unknownTemplate", { starterId: input.starterId }));
@@ -556,7 +572,8 @@ export async function createWizard(
             draft: { ...starter.definition, lang: starter.definition.lang ?? starter.language },
             issues: [],
           }
-        : { draft: blankWizard(maker), issues: [] };
+        : { ...blankWizard(maker), issues: [] };
+  await requireCurrentFormat(draft);
   const fromStarter = input.definition === undefined ? starter : undefined;
   const id = nanoid(12);
   const shareToken = newShareToken();
@@ -573,6 +590,10 @@ export async function createWizard(
   });
   await putLink(shareToken, "wizard", id);
   pushWizards();
+  const blank = input.definition === undefined && !starter ? blankWizard(maker).files : undefined;
+  if (blank) {
+    await seedFiles(id, blank);
+  }
   if (fromStarter) {
     await seedFiles(id, fromStarter.files);
     // Counted at the marketplace, beside the request; a plugin's starter is not the marketplace's.
@@ -610,6 +631,7 @@ export async function writeDraft(
     return file ? file.data.toString("utf8") : null;
   });
   const { draft } = parseDraft(input.definition, paths, agents);
+  await requireCurrentFormat(draft);
   const issues = await checkDraft(w.spaceId, draft, files);
   const [row] = await db
     .update(schema.wizard)
@@ -627,6 +649,9 @@ export async function writeDraft(
       revision: current.revision,
     });
   }
+  if (draft.kernel) {
+    await writeTypes(userId, w.id, draft.kernel, files);
+  }
   if (input.note) {
     await addMessage(w.id, { role: "assistant", content: input.note, changed: true }, writer);
   }
@@ -640,6 +665,26 @@ export async function writeDraft(
     touched: changedSteps(w.draft, draft),
   });
   return { revision: row.revision, issues, warnings: await stepWarnings(w.spaceId, draft), draft };
+}
+
+/**
+ * `wizard.d.ts` beside a wizard in version 0.3.0: the types its steps are written against, made
+ * from its file (`typesOf`). Written when they change, so the editor and the assistant see a field
+ * the input lacks or a way the map lacks while a step is written.
+ */
+const TYPES = "wizard.d.ts";
+
+async function writeTypes(
+  userId: string,
+  wizardId: string,
+  file: KernelFile,
+  files: WorkspaceFile[],
+) {
+  const types = typesOf(file as Parameters<typeof typesOf>[0]);
+  const now = await snapshotFile(files, TYPES);
+  if (now?.data.toString("utf8") !== types) {
+    await writeFile(userId, wizardId, TYPES, types);
+  }
 }
 
 export async function editWizard(

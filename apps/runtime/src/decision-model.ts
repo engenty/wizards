@@ -1,3 +1,5 @@
+import { ollamaRoot } from "@engenty/model-providers/ollama";
+
 /**
  * A decision model on the person's own machine: Cloudflare's Clef-flash (open weights, Apache
  * 2.0), which Ollama 0.35 and newer serves at /v1/systemone with the same questions and answers
@@ -7,11 +9,6 @@
 
 /** The model the setup pulls. Clef, its larger sibling, is taken as well where it is there. */
 export const LOCAL_DECISION_MODEL = "clef-flash";
-
-/** Ollama's own address from the one the runtime uses for its OpenAI-style API (…/v1). */
-export function ollamaRoot(url: string): string {
-  return url.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
-}
 
 /** The decision model among the models Ollama lists: Clef-flash, else Clef. */
 export function decisionModelIn(names: string[]): string | null {

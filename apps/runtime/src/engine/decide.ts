@@ -27,6 +27,8 @@ export interface DecideInput {
   signal?: AbortSignal;
   /** A person waits: give up after this long, whichever way is answering. */
   deadlineMs?: number;
+  /** Only a decision model answers: what it leaves open is an error, not a language model's. */
+  modelOnly?: boolean;
   /** Books what the language model cost on the run. */
   charge?: (usd: number) => Promise<void>;
 }
@@ -116,8 +118,10 @@ export async function decide(input: DecideInput): Promise<Decision> {
   if (!Object.keys(open).length) {
     return { answers, source: "systemone" };
   }
-  if (signal?.aborted) {
-    throw new DecisionError("No answer in time.");
+  if (signal?.aborted || input.modelOnly) {
+    throw new DecisionError(
+      signal?.aborted ? "No answer in time." : "The decision model left it open.",
+    );
   }
   const filled = await askLanguageModel(input, open, signal);
   return {

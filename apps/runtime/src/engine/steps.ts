@@ -1,3 +1,15 @@
+import {
+  fitData,
+  labelOf,
+  type ObjectShape,
+  recordsOf,
+  shapeJsonSchema,
+  shapeLines,
+  shapeZod,
+  titleKey,
+} from "@engenty/chatviews/shape";
+import { type Surface, type SurfaceComponent, validateSurface } from "@engenty/chatviews/surface";
+import type { Waiting } from "@engenty/model-providers/mlx";
 import { type DecisionQuestion, pOf } from "@engenty/wizards-shared/decision";
 import {
   type AgentStep,
@@ -18,28 +30,14 @@ import {
 } from "@engenty/wizards-shared/definition";
 import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
-import {
-  fitData,
-  labelOf,
-  type ObjectShape,
-  recordsOf,
-  shapeJsonSchema,
-  shapeLines,
-  shapeZod,
-  titleKey,
-} from "@engenty/wizards-shared/shape";
 import { mainLogo, ruleLines, runTheme } from "@engenty/wizards-shared/spaces";
-import {
-  type Surface,
-  type SurfaceComponent,
-  validateSurface,
-} from "@engenty/wizards-shared/surface";
 import { Agent } from "@mastra/core/agent";
 import { generateText, type JSONSchema7, jsonSchema, Output, parsePartialJson } from "ai";
 import type { z } from "zod";
 import { subjectsOf } from "../broker/rwx.js";
 import { extFor, loadAsset, loadAssetText } from "../files/storage.js";
 import { snapshotHtmlImages } from "../files/web-images.js";
+import { withLocalCall } from "../local-call.js";
 import {
   type GeneratedMedia,
   generateImageMedia,
@@ -300,6 +298,26 @@ function foundLines(step: AgentStep, ctx: StepContext) {
   };
 }
 
+/** From how many tokens on a run says that a local model reads them: below, it takes a moment. */
+const LONG_READ = 1_500;
+
+/** Says in the run's log once what a local model does before it answers: it can take a minute. */
+function waitingLines(ctx: StepContext) {
+  const told = new Set<string>();
+  return (waiting: Waiting | null) => {
+    const code =
+      waiting?.state === "loading"
+        ? "loadsModel"
+        : waiting?.state === "reading" && (waiting.total ?? 0) >= LONG_READ
+          ? "modelReads"
+          : null;
+    if (code && !told.has(code)) {
+      told.add(code);
+      void ctx.emit("info", { code }).catch(() => undefined);
+    }
+  };
+}
+
 /** Runs a json step's agent as a stream, with `foundLines`. Returns what `generate` would: the text, the steps and the usage. */
 async function streamWithProgress(
   agent: Agent,
@@ -350,13 +368,17 @@ async function seenPhotos(
     return [];
   }
   const named = new Set(templateRefs(step.instructions).map((ref) => ref.split(".")[0]));
+  // A step of a wizard made of step files names a photo by its upload itself.
+  const direct = new Set(
+    [...step.instructions.matchAll(/upload:([A-Za-z0-9_-]+)/g)].map((found) => found[1]),
+  );
   const ids = allFields(ctx.def)
-    .filter((f) => f.kind === "image" && named.has(f.id))
+    .filter((f) => f.kind === "image")
     .flatMap((f) => {
       const value = ctx.state.values[f.id];
-      return (Array.isArray(value) ? value : [value]).filter(
-        (id): id is string => typeof id === "string" && id.length > 0,
-      );
+      return (Array.isArray(value) ? value : [value])
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+        .filter((id) => named.has(f.id) || direct.has(id));
     })
     .slice(0, MAX_SEEN);
   const out: { upload: UploadRef; id: string; data: Uint8Array; mime: string }[] = [];
@@ -770,18 +792,21 @@ export async function runAgentStep(
       ]
     : request;
   let result: { text?: string; steps?: unknown };
+  const local = { onWaiting: waitingLines(ctx) };
   if (turn) {
-    const end = await durableTurn(turn, ctx, {
-      instructions: system,
-      model: agentModel(resolved),
-      tools,
-      assets,
-      message,
-      maxSteps,
-      // Each model step is booked as it ends: a crash neither repeats nor loses the ones before it.
-      onStepUsage: (usage) => ctx.chargeUsd(costOf(resolved, usage)),
-      onText: step.output.format === "json" ? foundLines(step, ctx).text : undefined,
-    });
+    const end = await withLocalCall(local, () =>
+      durableTurn(turn, ctx, {
+        instructions: system,
+        model: agentModel(resolved),
+        tools,
+        assets,
+        message,
+        maxSteps,
+        // Each model step is booked as it ends: a crash neither repeats nor loses the ones before it.
+        onStepUsage: (usage) => ctx.chargeUsd(costOf(resolved, usage)),
+        onText: step.output.format === "json" ? foundLines(step, ctx).text : undefined,
+      }),
+    );
     assets.splice(0, assets.length, ...end.assets);
     result = { text: end.text, steps: [{ text: end.closing }] };
   } else {
@@ -793,10 +818,12 @@ export async function runAgentStep(
       tools,
     });
     // A json step streams, so the person sees its entries as they are written (`found`).
-    result =
+    const options = { maxSteps, abortSignal: ctx.signal };
+    result = await withLocalCall(local, () =>
       step.output.format === "json"
-        ? await streamWithProgress(agent, message, { maxSteps, abortSignal: ctx.signal }, step, ctx)
-        : await agent.generate(message, { maxSteps, abortSignal: ctx.signal });
+        ? streamWithProgress(agent, message, options, step, ctx)
+        : agent.generate(message, options),
+    );
     await ctx.chargeUsd(costOf(resolved, await totalUsage(result)));
   }
   // `result.text` strings together what the model said between tool calls ("I open the page …").
@@ -864,9 +891,12 @@ function imagesOf(name: string, ctx: StepContext): string[] {
       (id): id is string => typeof id === "string" && id.length > 0,
     );
   }
-  return (ctx.state.outputs[name]?.assets ?? [])
+  const made = (ctx.state.outputs[name]?.assets ?? [])
     .filter((a) => a.mime.startsWith("image/") && a.kind !== "poster")
     .map((a) => a.id);
+  // A wizard made of step files names the image itself, by its id; `loadReference` takes it
+  // only where it is this run's.
+  return made.length || !ctx.def.kernel ? made : [name];
 }
 
 async function loadReference(id: string | undefined, ctx: StepContext) {

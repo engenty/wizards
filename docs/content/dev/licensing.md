@@ -1,7 +1,7 @@
 ---
 title: Licensing
 description: How we handle sharing the source and enable your usage.
-version: 0.18.0
+version: 0.21.1
 ---
 
 The wizard format, the runner and four libraries are under the MIT licence. Anyone may read,
@@ -14,18 +14,19 @@ Use it, change it and share it in any app, open or closed. Keep the licence text
 
 | Part | Where | Licence |
 |---|---|---|
-| The wizard format | eighteen files in `packages/shared/src` | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT)) |
+| The wizard format | fifteen files in `packages/shared/src` | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT)) |
 | The runner | `@engenty/wizards-runner` in `packages/runner` | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/packages/runner/LICENSE)) |
+| The kernel | `@engenty/wizards-kernel` in `packages/kernel` | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/packages/kernel/LICENSE)) |
 | The plugin for the AI apps | `plugin/`, without the engenty figures in it | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/plugin/LICENSE)) |
-| The libraries | `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql` and `@engenty/goose` in `packages/` | MIT (the `LICENSE` in each folder) |
+| The libraries | `@engenty/chatviews`, `@engenty/decision-model`, `@engenty/search-index`, `@engenty/search-libsql`, `@engenty/tool-harness`, `@engenty/vault`, `@engenty/plugins`, `@engenty/browser`, `@engenty/model-providers` and `@engenty/model-setup` in `packages/` | MIT (the `LICENSE` in each folder) |
 
 ### The wizard format
 
-These eighteen files define a wizard, read it and pack it as a `.wizard` file:
+These fifteen files define a wizard, read it and pack it as a `.wizard` file:
 
-- `definition.ts`, `fit.ts`, `numbers.ts`, `run.ts`, `runner-texts.ts`, `shape.ts`
+- `definition.ts`, `fit.ts`, `run.ts`, `runner-texts.ts`
 - `run-schema.ts`: what a wizard takes and gives, as JSON Schema
-- `sharing.ts`, `store.ts`, `surface.ts`, `texts.ts`, `translation.ts`
+- `sharing.ts`, `store.ts`, `texts.ts`, `translation.ts`
 - `theme.ts`: a theme’s values, which a `.wizard` file carries
 - `wizard-data.ts`: the SQL of a wizard’s own data, read and checked
 - `wizard-package.ts`: the `.wizard` file and its `wizard.json`
@@ -33,8 +34,8 @@ These eighteen files define a wizard, read it and pack it as a `.wizard` file:
 
 Each says `SPDX-License-Identifier: FSL-1.1-MIT OR MIT` in its first line, and you choose which
 of the two licences you take them under. Take MIT, and you can use the format in any tool: an
-editor, a converter, your own runtime. The files import only each other and zod, so they work
-without the rest of engenty wizards.
+editor, a converter, your own runtime. The files import only each other, zod and `@engenty/chatviews` (MIT: the views, the calc
+language and the shapes of data), so they work without the rest of engenty wizards.
 
 ### The runner
 
@@ -44,14 +45,36 @@ MIT, the format files it bundles included. Your own app can draw runs with it
 
 ### The libraries
 
-Four libraries go to npm with each release, at its version:
+Ten libraries go to npm with each release, at its version:
 
 - `@engenty/decision-model`: one request to a decision model, by whichever way is set up (the
   Vercel AI Gateway, TypeSafe’s API or Ollama)
-- `@engenty/search-index`: what every search index meets, chunks, scoring and embedders
+- `@engenty/search-index`: what every search index meets, chunks, scoring, embedders and the ways
+  to one, and a search over a catalogue in memory by words and meaning
 - `@engenty/search-libsql`: a search index on libSQL, full text and vectors
-- `@engenty/goose`: Goose, the copilot: a chat with tools and adapters for the Anthropic and
-  OpenAI SDKs and the Vercel AI SDK
+- `@engenty/tool-harness`: one harness around an agent’s tools: the few it always has, a search
+  for the rest, one call that runs what was found, and what a model of which level may use
+- `@engenty/vault`: secrets sealed with AES-256-GCM and bound to where they belong, key rings
+  for a new key, keys from the environment, a private file or the macOS Keychain, a
+  redactor that keeps secret values out of text, and what a password vault needs: which
+  websites a login fits, authenticator codes and the CSV exports of password managers
+- `@engenty/plugins`: the plugin contract engenty wizards and wizards.bot both load: the
+  manifest, finding plugins in folders, a plugin’s tools, and a host that runs them in a Node
+  process with fewer rights
+- `@engenty/browser`: a browser for agents on Mastra’s agent-browser provider: its tools for any
+  tool system, none that runs the model’s JavaScript, and a private fill that types a password
+  or a code only into a field on the expected website
+- `@engenty/model-providers`: every way an app reaches a model. The servers for open models on a
+  person’s own computer: Ollama (its models, what each can do, which fits the memory, downloads,
+  and a model on its own chat API with the context length set), LM Studio and Apple MLX. The AI
+  clients signed in on their subscription (Claude Code, Codex, Antigravity, Cursor Agent: found,
+  signed in, run headless as a model or as a chat with one MCP server). The providers a person
+  brings a key for (OpenAI, Anthropic, Google, OpenRouter, the Vercel AI Gateway and more: who
+  they are, the test of a key, a model on it). The wizards account’s gateway. And a short real
+  call that says whether each answers
+- `@engenty/model-setup`: the setup in which a person picks what an app thinks with, shared by
+  engenty wizards and wizards.bot: the AI clients it offers, how each is found, installed and
+  signed in through a terminal in the page, and the routes the page asks
 
 They depend only on each other and on packages under MIT or a licence as permissive.
 

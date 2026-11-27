@@ -53,7 +53,7 @@ The person's wizards, newest first, each with its space's name and where that sp
 A wizard's draft with its revision, validator issues and warnings, whether it differs from the published version, and its links. A warning names a step that saves and publishes but fails in a run as the space's rules are now.
 
 <!-- section: tool.validate_wizard -->
-Check a wizard JSON without saving it. Returns ok and the issues.
+Check a wizard JSON without saving it. Returns ok and the issues. With wizardId it is checked against that wizard's workspace files, and the step files of a wizard in version 0.3.0 are compiled; without a definition, the wizard's draft is checked.
 
 <!-- section: tool.create_wizard -->
 Create a wizard from your JSON, or copy a starter. The draft may still have issues; fix them with edit_wizard.
@@ -87,8 +87,11 @@ Status, recent events, outputs (text clipped) with signed download links valid o
 <!-- section: tool.show_wizard -->
 Show a wizard as its flow diagram: its pages, AI steps, reviews and branches. The published version when there is one, else the draft. Also returns the steps as text.
 
+<!-- section: tool.wizard_run -->
+Runs one of the space's published wizards as the person, with answers for its first page (field ids from waitingFor). Then follow waitingFor until the run is done: form → ask the person the fields with inChat=true, answer_form (other fields: the run page at browserUrl); review → show the outputs, review_step; ask → answer_ask after the person said; question → answer_question in their words. While status is running, get_run with waitSeconds. Hosts with MCP Apps show the run as a widget the person answers in.
+
 <!-- section: tool.run_wizard -->
-Start a run of a published wizard for the person, here in the chat. Spends credits like any run.
+For the wizard's author: try the published version. To use a space's wizard, wizard_run. Start a run of a published wizard for the person, here in the chat. Spends credits like any run.
 Start it right away — no show_wizard first: the widget shows the wizard's pages and the person can answer there. What the person already said goes to the first page with answer_form, using the field ids in waitingFor. Then follow waitingFor:
 - form: ask the person for the fields with inChat=true, in order, answer_form; fields with inChat=false (files, recordings, signatures) need the run page at browserUrl. A field with a when is asked only while its condition holds on the answers so far (shown says so for what is known now); fields the wizard decided against are not listed
 - review: show the outputs, then review_step
@@ -135,9 +138,9 @@ Load a widget step of the draft in a real browser with its sample data (or the d
 <!-- section: param.run_wizard.theme -->
 The widget's look: the id of a theme the wizard names (its definition's themes), brand or default. Left out: host, this app's own look. Only when the person asks for the wizard's look.
 
-<!-- section: note.step_needs_approval -->
-<!-- A warning on a draft: a fixed step on a connection of the space whose rule asks the admins. kind: read | write | destructive | send. -->
-Step "${step}" will fail in a run: the connection "${connection}" asks the space's admins before the action "${action}" (${kind}), and a run does not wait for them. An admin of the space can set that rule to allowed on the connection's page; tell your user.
+<!-- section: note.step_rule_never -->
+<!-- A warning on a draft: a fixed step on a connection of the space whose rule for the action's kind is never. kind: read | write | destructive | send. -->
+Step "${step}" will fail in a run: the connection "${connection}" never allows the action "${action}" (${kind}). An admin of the space can set that rule to allowed on the connection's page; tell your user.
 
 <!-- section: note.present -->
 <!-- In a tool result on a wizard while people edit it; who: "Ana (page 2), Ben", verb: is | are. -->

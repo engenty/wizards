@@ -1,7 +1,7 @@
 ---
 title: Models and account
 description: What runs the AI in your wizards – an AI client on your computer, your own API keys, a local model or credits.
-version: 0.18.0
+version: 0.21.1
 ---
 
 Settings → Models decides what runs the AI in your wizards. On your computer you set it up
@@ -33,7 +33,7 @@ A job’s page asks “Who does it?”:
 | Choice | What it is | Cost |
 |---|---|---|
 | Your subscription | Claude Code, Codex, Antigravity or Cursor Agent on this computer, using your sign-in there (text; Codex also makes images; Antigravity runs steps without their tools) | Your subscription |
-| Your own API key | OpenAI, Anthropic, Google Gemini, fal.ai, ElevenLabs, Replicate or Vercel AI Gateway | The provider bills your key |
+| Your own API key | OpenAI, Anthropic, Google Gemini, OpenRouter, fal.ai, ElevenLabs, Replicate or Vercel AI Gateway | The provider bills your key |
 | Apple Intelligence | The model on this Mac: short texts and decisions (Classifier, Standard) and voice notes. See [Apple Intelligence](#apple-intelligence) | Nothing |
 | Local model | [Ollama](https://ollama.com) on this computer: text, search and decisions. See [Local models](#local-models) | Nothing |
 | engenty credits | Your account’s credits. Auto picks the model, or you choose one it offers (FLUX on fal, ElevenLabs voices, Veo …) | Credits |
@@ -132,6 +132,7 @@ before a run say so, with a link to top up at Vercel.
 | fal.ai | Images (FLUX, Recraft, Imagen), video (Veo, Luma, MiniMax), voice, transcripts |
 | ElevenLabs | Voices, transcripts (Scribe) |
 | Replicate | Images, video |
+| OpenRouter | Text: many providers’ models with one key. Auto lets OpenRouter pick the model for each request; you can name one of its models instead |
 | Vercel AI Gateway | Many providers’ models with one key, web search |
 
 ## Model per class
@@ -226,14 +227,14 @@ and the sub-processors of each tier.
 
 ## Model choice
 
-“Model choice” sets how the admins share out the tier, for wizards, Goose and work chats. Running
-work finishes as it started.
+“Model choice” sets how the admins share out the tier, for wizards and Goose. Running work
+finishes as it started.
 
 | Way | Means |
 |---|---|
 | Preselection | People choose from the tier’s preselection: Auto and a few models that fit best. New models join on their own |
 | You set defaults | A default per task. People switch to any model in the tier, up to the effort you allow |
-| Expert mode | The admins decide which models people choose from, separately for wizards, Goose and work chats, with the efforts they allow. New models join only when they approve them |
+| Expert mode | The admins decide which models people choose from, separately for wizards and Goose, with the efforts they allow. New models join only when they approve them |
 
 The model menus in the editor and in Goose’s message box offer what the way allows.
 

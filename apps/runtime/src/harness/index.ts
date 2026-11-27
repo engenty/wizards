@@ -1,17 +1,30 @@
-import { mkdirSync } from "node:fs";
-import { installCommand, POWERSHELL } from "../cli/clients.js";
+import { join } from "node:path";
+import { setClientFolders } from "@engenty/model-providers/clients";
+import type { ClientSetupStatus } from "@engenty/model-setup";
+import { ClientSetup } from "@engenty/model-setup/server";
 import { inherited, runtimePath } from "../cli/environment.js";
 import { layout } from "../cli/home.js";
-import { CLIENTS, vendorApp } from "../cli/machine.js";
-import { antigravity } from "./antigravity.js";
-import { claude } from "./claude.js";
-import { codex } from "./codex.js";
-import { cursor } from "./cursor.js";
-import { forgetEnv, loginShellEnv, ProbeUndecided, resolveEnv } from "./env.js";
-import type { Harness, HarnessAuth, HarnessId } from "./types.js";
+import { antigravity, claude, codex, cursor } from "./clients.js";
+import type { Harness, HarnessId } from "./types.js";
 
-export { HarnessModel, notInstalled, signedOut } from "./model.js";
-export { HARNESS_IDS, type Harness, type HarnessAuth, type HarnessId } from "./types.js";
+export { HARNESS_IDS, type Harness, type HarnessId } from "./types.js";
+
+/**
+ * Where the setup installs clients, whoever started this runtime: npm's prefix (on Windows the
+ * prefix itself), and on Windows where Claude Code and Cursor Agent put themselves. A client's
+ * environment finds them before the shell's PATH.
+ */
+setClientFolders(() => {
+  if (process.platform !== "win32") {
+    return [join(layout().clients, "bin")];
+  }
+  const { USERPROFILE: home, LOCALAPPDATA: local } = process.env;
+  return [
+    layout().clients,
+    ...(home ? [join(home, ".local", "bin")] : []),
+    ...(local ? [join(local, "cursor-agent"), join(local, "agy", "bin")] : []),
+  ];
+});
 
 /**
  * The AI clients this runtime can run as a model, in the order the setup offers them. The first
@@ -29,106 +42,24 @@ export function isHarnessVendor(vendor: string): vendor is HarnessId {
 }
 
 /** A client on this machine: what the setup and the settings show of it. */
-export interface HarnessStatus {
-  id: HarnessId;
-  name: string;
-  /** How to install it in a terminal; the setup runs the same command. */
-  install: string;
-  /** The vendor's desktop app on this machine ("Claude"): the subscription is most likely there. */
-  app: string | null;
-  /** Null: not installed. */
-  version: string | null;
-  auth: HarnessAuth;
-  /** The sign-in opens the client's own app, which the person ends. */
-  interactiveLogin: boolean;
-  /** It makes images on the sign-in as well (Codex); video and audio no client makes. */
-  images: boolean;
-}
+export type HarnessStatus = ClientSetupStatus<HarnessId>;
 
-const detected = new Map<HarnessId, { at: number; value: HarnessStatus }>();
+/** The clients as the setup finds, installs and signs them in. */
+export const clientSetup = new ClientSetup({
+  clients: HARNESSES,
+  folder: () => layout().clients,
+  env: (shellPath) => ({
+    ...inherited(process.env),
+    PATH: runtimePath(layout(), shellPath ? { ...process.env, PATH: shellPath } : process.env),
+  }),
+});
 
 /** One client, as it is now; asked again after a minute — it may get installed or signed in meanwhile. */
-export async function detectHarness(id: HarnessId, force = false): Promise<HarnessStatus | null> {
-  const h = harness(id);
-  if (!h) {
-    return null;
-  }
-  const hit = detected.get(id);
-  if (!force && hit && Date.now() - hit.at < 60_000) {
-    return hit.value;
-  }
-  if (force) {
-    // The person may just have signed in or set a key in their shell.
-    forgetEnv(id);
-  }
-  const client = CLIENTS.find((c) => c.id === id);
-  let value: HarnessStatus = {
-    id,
-    name: h.name,
-    install: client ? installCommand(client, layout()) : "",
-    app: client ? vendorApp(client) : null,
-    version: null,
-    auth: "none",
-    interactiveLogin: h.login.interactive,
-    images: Boolean(h.image),
-  };
-  try {
-    const { env, auth } = await resolveEnv(h);
-    const version = await h.version(env);
-    if (version) {
-      value = { ...value, version, auth };
-    }
-  } catch (err) {
-    if (err instanceof ProbeUndecided && hit?.value.version) {
-      // The machine is busy (another client is working): the client was there, it still is.
-      value = hit.value;
-    }
-  }
-  detected.set(id, { at: Date.now(), value });
-  return value;
+export function detectHarness(id: HarnessId, force = false): Promise<HarnessStatus | null> {
+  return clientSetup.detect(id, force);
 }
 
 /** Every client this runtime knows, installed or not. */
 export function detectHarnesses(force = false): Promise<HarnessStatus[]> {
-  return Promise.all(HARNESSES.map((h) => detectHarness(h.id, force) as Promise<HarnessStatus>));
-}
-
-/**
- * What the inline terminal runs to install a client: the command the terminal setup runs, shown
- * first. A client from npm goes into the install's own prefix with the npm of its own Node.
- */
-export async function installSpec(
-  id: string,
-): Promise<{ bin: string; args: string[]; env: NodeJS.ProcessEnv } | null> {
-  const client = CLIENTS.find((c) => c.id === id);
-  if (!client) {
-    return null;
-  }
-  const paths = layout();
-  mkdirSync(paths.clients, { recursive: true });
-  const shell = await loginShellEnv();
-  if (process.platform === "win32") {
-    const [bin, ...args] = POWERSHELL;
-    const command = installCommand(client, paths);
-    return {
-      bin,
-      args: [...args, `Write-Host "$ ${command.replaceAll('"', '`"')}\`n"; ${command}`],
-      env: { ...inherited(process.env), PATH: runtimePath(paths, process.env) },
-    };
-  }
-  return {
-    bin: "bash",
-    args: [
-      "-c",
-      'printf "\\033[2m$ %s\\033[0m\\n\\n" "$1"; set -o pipefail; eval "$1"',
-      "install",
-      installCommand(client, paths),
-    ],
-    env: {
-      ...inherited(process.env),
-      PATH: runtimePath(paths, { ...process.env, PATH: shell.PATH || process.env.PATH }),
-      TERM: "xterm-256color",
-      COLORTERM: "truecolor",
-    },
-  };
+  return clientSetup.detectAll(force);
 }

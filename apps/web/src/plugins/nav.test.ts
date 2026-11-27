@@ -13,8 +13,8 @@ describe("navIn", () => {
     expect(navIn(all, "work", ["studio", "work"])).toEqual([work]);
   });
 
-  it("shows no plugin's icon in Client", () => {
-    expect(navIn(all, "client", ["studio", "work", "client"])).toEqual([]);
+  it("shows no plugin's icon in Shared", () => {
+    expect(navIn(all, "shared", ["studio", "work", "shared"])).toEqual([]);
   });
 
   it("brings an icon for Work to Studio where Work is off", () => {
@@ -22,6 +22,6 @@ describe("navIn", () => {
   });
 
   it("doesn't bring a Studio icon to someone who only has Work", () => {
-    expect(navIn(all, "work", ["work", "client"])).toEqual([work]);
+    expect(navIn(all, "work", ["work", "shared"])).toEqual([work]);
   });
 });

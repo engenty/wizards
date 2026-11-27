@@ -1,3 +1,4 @@
+import { grantOf } from "@engenty/wizards-kernel";
 import {
   dataRef,
   FIELD_WAYS,
@@ -7,9 +8,11 @@ import {
   type Step,
   shownFields,
   slotText,
+  type WizardDefinition,
   waitDurationMs,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
+import { kernelOf } from "@engenty/wizards-shared/kernel-file";
 import { note, type RunState, type RunTimeline, type RunView } from "@engenty/wizards-shared/run";
 import { and, count, desc, eq, gte, inArray, isNull, max, or, sql } from "drizzle-orm";
 import { canSpend, MICROS_PER_CREDIT } from "../credits/credits.js";
@@ -33,6 +36,7 @@ import {
   createRun,
   formContext,
   goBack,
+  kernelRuns,
   NoCreditsError,
   type ReviewAction,
   RunConflict,
@@ -42,6 +46,10 @@ import {
   runView,
   submitPage,
 } from "../engine/runner.js";
+import { kernelOutline } from "../kernel/outline.js";
+import { kernelPage } from "../kernel/page.js";
+import { signalWait } from "../kernel/signals.js";
+import { type KernelStill, kernelStill } from "../kernel/still.js";
 import { managed } from "../manage.js";
 import { ModelUnavailableError, saidOf } from "../model-errors.js";
 import { prompt } from "../prompts.js";
@@ -50,6 +58,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { roleOf } from "./access.js";
 import { brandView } from "./brand.js";
 import { notFound, ServiceError } from "./errors.js";
+import { listFiles } from "./files.js";
 import { readsOf } from "./space-parent.js";
 import { storedTranslation } from "./translations.js";
 import { ownedWizard, requireClean, shareUrl, studioUrl } from "./wizards.js";
@@ -77,6 +86,8 @@ export async function startTestRun(
     mode: "test",
     userId,
     unattended: Boolean(autopilot),
+    // A wizard in version 0.3.0 takes the answers as its input: its first page is filled with them.
+    ...(autopilot && kernelOf(definition) ? { input: autopilot.answers } : {}),
   }).catch((err) => {
     throw err instanceof ModelUnavailableError ? new ServiceError("refused", saidOf(err)) : err;
   });
@@ -451,8 +462,61 @@ export async function runReport(
   );
 }
 
+/**
+ * The report of a run of a wizard in version 0.3.0 (docs/plans/kernel.md): the report of the small
+ * wizard the run is at this moment, as its page reads it, so every door that reads a report finds
+ * what it finds for any run: the page it waits at with its fields, what the steps left behind,
+ * the run's link. Beside that the run's rows and scores, and the row it waits at. A form or the
+ * run's input is answered with `answer_form` and the row's step; a review, or the leave for an
+ * action, with `review_step`.
+ */
+export async function kernelReport(run: RunRow, draft?: Record<string, unknown>, viewer?: Caller) {
+  const view = await kernelRuns.view(run);
+  const shown = await reportOf(kernelPage(run, view), draft, viewer);
+  const asks = view.waiting.filter((row) => row.type !== "wait" || row.signal);
+  const first = asks.find((row) => row.type === "approval") ?? asks[0];
+  const waits = shown.waitingFor as Record<string, unknown> | undefined;
+  return {
+    ...shown,
+    version: "0.3.0",
+    cursor: view.cursor,
+    waitingFor: first
+      ? {
+          ...(first.type === "wait"
+            ? {
+                wait: first.step,
+                title: String(first.title ?? first.step),
+                until: run.wakeAt?.toISOString() ?? null,
+                signal: first.signal,
+                key: first.key,
+                hint: prompt("mcp", "hint.waiting_signal"),
+              }
+            : waits),
+          row: first.n,
+          step: first.step,
+          role: first.role,
+          ...(first.type === "approval" ? { leaveFor: first.call, input: first.input } : {}),
+        }
+      : (waits ?? null),
+    rows: view.rows.map((row) =>
+      "left" in row
+        ? { n: row.n, step: row.step, left: true, to: row.to }
+        : { n: row.n, step: row.step, type: row.type, role: row.role, state: row.state },
+    ),
+    scores: view.scores.map(({ asks: _asks, ...score }) => score),
+    ...(view.output ? { data: view.output } : {}),
+  };
+}
+
 /** The report of a run as it stands; `draft` as for `waitingFor`. */
 export async function runReportOf(run: RunRow, draft?: Record<string, unknown>, viewer?: Caller) {
+  if (kernelOf(run.definition)) {
+    return kernelReport(run, draft, viewer) as never;
+  }
+  return reportOf(run, draft, viewer);
+}
+
+async function reportOf(run: RunRow, draft?: Record<string, unknown>, viewer?: Caller) {
   const current = run.definition.steps.find((s) => s.id === run.cursor) ?? null;
   const base = `/api/runs/${run.id}`;
   const hidden = viewer ? await hiddenWhileAsked(run, viewer) : [];
@@ -522,7 +586,7 @@ export async function runReportOf(run: RunRow, draft?: Record<string, unknown>, 
   };
 }
 
-export type RunReport = Awaited<ReturnType<typeof runReportOf>>;
+export type RunReport = Awaited<ReturnType<typeof reportOf>>;
 
 /** The run's data without the keys that read a step kept from the viewer. */
 function shownData(run: RunRow, data: Record<string, unknown>, hidden: string[]) {
@@ -552,9 +616,9 @@ export function refusedInput(err: unknown): never {
 
 /**
  * Runs the published version of a wizard for the admin, from their own AI client: a live run
- * that is theirs — no visitor, no share link needed. With answers the first page is filled. In a
- * client space the wizard is its parent's and the run belongs to the client space
- * (docs/plans/client-portal.md).
+ * that is theirs — no visitor, no share link needed. With answers the first page is filled. A run
+ * that carries a space (`clientSpaceId`) belongs to it, whichever space its wizard is in
+ * (docs/plans/org-spaces.md).
  */
 export async function startRun(
   userId: string,
@@ -584,6 +648,15 @@ export async function startRun(
   if (!(await canSpend())) {
     throw new ServiceError("no_credits", note("creditsUsedUp"));
   }
+  // A wizard in version 0.3.0 takes its first page's answers as the run's input, where every
+  // field that must be answered is among them. Otherwise the run asks its first page.
+  const asked = kernelOf(version.definition)?.input?.fields ?? [];
+  const given = Object.fromEntries(
+    asked.filter((f) => f.id in answers).map((f) => [f.id, answers[f.id]]),
+  );
+  const whole =
+    Object.keys(given).length > 0 &&
+    asked.every((f) => !f.required || (given[f.id] != null && given[f.id] !== ""));
   const runId = await createRun({
     wizardId: w.id,
     definition: version.definition,
@@ -593,6 +666,7 @@ export async function startRun(
     userId,
     clientSpaceId,
     chatId,
+    ...(whole ? { input: given } : {}),
   }).catch((err) => {
     if (err instanceof ModelUnavailableError) {
       throw new ServiceError("refused", saidOf(err));
@@ -694,11 +768,13 @@ export async function draftStepView(
   wizardId: string,
   stepId: string,
   lang: string | null,
+  ask = 0,
 ): Promise<RunView> {
   const w = await ownedWizard(userId, wizardId);
   const def = w.draft;
   const step = def.steps.find((s) => s.id === stepId);
-  if (!step) {
+  const file = step ? undefined : kernelOf(def);
+  if (!step && !file) {
     throw notFound();
   }
   // The latest finished test run has every answer and output; else the latest one at all.
@@ -708,7 +784,24 @@ export async function draftStepView(
       where: and(tests, eq(schema.run.status, "done")),
       orderBy: desc(schema.run.createdAt),
     })) ?? (await db.query.run.findFirst({ where: tests, orderBy: desc(schema.run.createdAt) }));
-  const before = new Set(def.steps.slice(0, def.steps.indexOf(step)).map((s) => s.id));
+  // A wizard in version 0.3.0: the step's page as its code asks for it, with what the latest
+  // test run made, or a sample of it.
+  let still: KernelStill | null = null;
+  if (file) {
+    const left = latest ? (await kernelRuns.view(latest)).rows : [];
+    still = kernelStill(
+      file,
+      await kernelOutline(await listFiles(userId, wizardId)),
+      stepId,
+      Object.fromEntries(left.flatMap((row) => ("left" in row ? [[row.step, row.value]] : []))),
+      wizardLang(def) === "de",
+      ask,
+    );
+    if (!still) {
+      throw notFound();
+    }
+  }
+  const before = new Set(step ? def.steps.slice(0, def.steps.indexOf(step)).map((s) => s.id) : []);
   const state: RunState = {
     values: latest?.state.values ?? {},
     outputs: Object.fromEntries(
@@ -717,8 +810,9 @@ export async function draftStepView(
     history: (latest?.state.history ?? []).filter((id) => before.has(id)),
     notes: {},
   };
-  const status: RunRow["status"] =
-    step.type === "form" || step.type === "review"
+  const status: RunRow["status"] = !step
+    ? (still?.status ?? "running")
+    : step.type === "form" || step.type === "review"
       ? "waiting_input"
       : step.type === "result"
         ? "done"
@@ -761,12 +855,12 @@ export async function draftStepView(
     driving: false,
     status,
     wakeAt:
-      step.type === "wait" && (step.for ?? step.signal?.timeout)
+      step?.type === "wait" && (step.for ?? step.signal?.timeout)
         ? new Date(now.getTime() + waitDurationMs((step.for ?? step.signal?.timeout) as string))
         : null,
     claim: 0,
     rev: 0,
-    cursor: step.id,
+    cursor: stepId,
     state,
     lang: lang && lang !== wizardLang(def) && (await storedTranslation(w.id, lang)) ? lang : null,
     error: null,
@@ -777,7 +871,34 @@ export async function draftStepView(
     clientSharedAt: null,
     shareToken: null,
   };
-  const view = await runView(run, await brandView(w.spaceId, def.themes));
+  // The still as the small wizard a run in version 0.3.0 is shown as, with the titles its code has and the step's working line.
+  const page = still
+    ? kernelPage(run, {
+        id: run.id,
+        status,
+        cursor: stepId,
+        rows: still.rows,
+        waiting: still.waiting,
+        scores: [],
+        rev: 0,
+      })
+    : run;
+  const shown = still
+    ? {
+        ...page,
+        definition: {
+          ...page.definition,
+          // The intro stands above the page a run starts with, not above a later step's.
+          intro: stepId === "input" ? page.definition.intro : undefined,
+          steps: page.definition.steps.map((s) => ({
+            ...s,
+            ...(still.titles[s.id] ? { title: still.titles[s.id] } : {}),
+            ...(s.id === stepId && still.working ? { working: still.working } : {}),
+          })),
+        } as WizardDefinition,
+      }
+    : page;
+  const view = await runView(shown, await brandView(w.spaceId, def.themes));
   // What the latest run said while it worked, and when, is its own: nothing works here.
   return { ...view, events: [] };
 }
@@ -842,10 +963,19 @@ export async function runTimeline(run: RunRow, canAct: boolean): Promise<RunTime
     .where(and(eq(schema.runEvent.runId, run.id), eq(schema.runEvent.type, "run_started")))
     .limit(1);
   const name = started?.note?.params?.name;
+  const file = kernelOf(run.definition);
+  const view = file ? await kernelRuns.view(run) : null;
+  // What it listens for: the row a run of version 0.3.0 waits at names it, else the run's wait.
   const wait =
-    run.status === "waiting_signal"
-      ? await db.query.runWait.findFirst({ where: eq(schema.runWait.runId, run.id) })
-      : null;
+    run.status !== "waiting_signal"
+      ? null
+      : view
+        ? signalWait(view.rows)
+        : await db.query.runWait.findFirst({ where: eq(schema.runWait.runId, run.id) });
+  // A run of version 0.3.0 has its steps in its file, and their titles in their own files.
+  const steps = file
+    ? Object.keys(file.edges).map((id) => ({ id, title: view?.titles?.[id]?.title ?? id }))
+    : run.definition.steps.map((s) => ({ id: s.id, title: s.title }));
   const step = run.definition.steps.find((s) => s.id === run.cursor);
   return {
     id: run.id,
@@ -860,12 +990,19 @@ export async function runTimeline(run: RunRow, canAct: boolean): Promise<RunTime
         : null,
     pause: run.status === "sleeping" ? (run.state.pause?.kind ?? null) : null,
     credits: Math.ceil(run.costMicros / MICROS_PER_CREDIT),
-    stepTitle: step?.title ?? null,
+    stepTitle: file
+      ? (steps.find((s) => s.id === run.cursor)?.title ?? null)
+      : (step?.title ?? null),
     startedBy: typeof name === "string" ? name : null,
     signal: wait ? { name: wait.name, key: wait.key } : null,
-    teamStep: run.status === "waiting_input" && whoOf(step) === "team",
+    teamStep:
+      run.status === "waiting_input" &&
+      (view
+        ? view.waiting.some((row) => row.type !== "wait" && row.role !== "user")
+        : whoOf(step) === "team"),
     canAct,
-    steps: run.definition.steps.map((s) => ({ id: s.id, title: s.title })),
+    steps,
+    ...(file ? { kernel: { roles: grantOf(file).roles } } : {}),
     events: await recentEvents(run.id, 0, TIMELINE_LINES),
     total: lines?.n ?? 0,
   };
@@ -887,25 +1024,23 @@ export interface ResultsFilter {
  * `filter`; and each wizard with how many it has and when its last one came, the latest first.
  */
 export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
-  // A client space shows the runs started in it, of its parent's wizards; a space only its own
-  // (docs/plans/client-portal.md). With `orgSpaces` a space under the root shows its own wizards'
-  // runs and the runs of the root's wizards started in it (docs/plans/org-spaces.md).
+  // A space shows its own wizards' runs, a client's among them, and with `orgSpaces` the runs of
+  // the root's wizards started in it (docs/plans/org-spaces.md). A run in another space than its
+  // wizard's, or a client's, carries that space (`clientSpaceId`).
   const reads = await readsOf(spaceId);
-  const client = reads?.as === "client" ? spaceId : null;
-  const wizardSpaces =
-    reads?.as === "client"
-      ? [reads.parentId]
-      : reads?.as === "root"
-        ? [spaceId, reads.parentId]
-        : [spaceId];
-  const inSpace = client
-    ? eq(schema.run.clientSpaceId, client)
-    : reads?.as === "root"
-      ? or(
-          and(eq(schema.wizard.spaceId, spaceId), isNull(schema.run.clientSpaceId)),
-          and(eq(schema.wizard.spaceId, reads.parentId), eq(schema.run.clientSpaceId, spaceId)),
-        )
-      : isNull(schema.run.clientSpaceId);
+  const wizardSpaces = reads ? [spaceId, reads.parentId] : [spaceId];
+  // In a client space, each result says whether it is shared with its clients.
+  const client = await db.query.spaceMember.findFirst({
+    columns: { id: true },
+    where: and(eq(schema.spaceMember.spaceId, spaceId), eq(schema.spaceMember.role, "client")),
+  });
+  const here = or(isNull(schema.run.clientSpaceId), eq(schema.run.clientSpaceId, spaceId));
+  const inSpace = reads
+    ? or(
+        and(eq(schema.wizard.spaceId, spaceId), here),
+        and(eq(schema.wizard.spaceId, reads.parentId), eq(schema.run.clientSpaceId, spaceId)),
+      )
+    : here;
   const wizards = await db
     .select({
       id: schema.wizard.id,
@@ -936,19 +1071,15 @@ export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
   const ids = wizards.map((w) => w.id).filter((id) => !filter.wizardId || id === filter.wizardId);
   // The runs of this space, by the wizards listed: the root's only those started here.
   const fromRoot = new Set(wizards.filter((w) => w.spaceId !== spaceId).map((w) => w.id));
-  const runsHere =
-    reads?.as === "root"
-      ? or(
-          and(
-            inArray(schema.run.wizardId, ids.filter((id) => !fromRoot.has(id)).concat("")),
-            isNull(schema.run.clientSpaceId),
-          ),
-          and(
-            inArray(schema.run.wizardId, [...fromRoot].concat("")),
-            eq(schema.run.clientSpaceId, spaceId),
-          ),
-        )
-      : inSpace;
+  const runsHere = reads
+    ? or(
+        and(inArray(schema.run.wizardId, ids.filter((id) => !fromRoot.has(id)).concat("")), here),
+        and(
+          inArray(schema.run.wizardId, [...fromRoot].concat("")),
+          eq(schema.run.clientSpaceId, spaceId),
+        ),
+      )
+    : here;
   const rows = ids.length
     ? await db
         .select({

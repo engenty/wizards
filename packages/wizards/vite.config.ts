@@ -5,7 +5,7 @@ import { defaultClientConditions, defineConfig } from "vite";
 const entry = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
 /**
- * `/openui` as the published package ships it (scripts/build.mjs): the runner and the shared
+ * `/openui` as the published package ships it (scripts/build.mjs): the runner, the views and the shared
  * modules bundled in from their sources, every other package left as an import, so the libraries
  * are the host's own `dependencies` and React, OpenUI and zod its peers.
  */
@@ -24,6 +24,7 @@ export default defineConfig({
       external: (id) =>
         !(id.startsWith(".") || id.startsWith("/") || id.startsWith("\0")) &&
         !id.startsWith("@engenty/wizards-") &&
+        !id.startsWith("@engenty/chatviews") &&
         !/^[A-Za-z]:[\\/]/.test(id),
       output: { chunkFileNames: "chunks/[name]-[hash].js" },
     },

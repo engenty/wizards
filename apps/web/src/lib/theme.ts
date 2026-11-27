@@ -9,6 +9,29 @@ export type ThemeMode = "light" | "branded" | "dark";
 const MODES: readonly string[] = ["light", "branded", "dark"];
 
 const KEY = "wizards.theme";
+const GROUND_KEY = "wizards.ground";
+
+/**
+ * The colours the branded theme stands on. Each dark one is deep and intense, as the engenty's
+ * blue; citron is the one light ground. `stage` is the ground, `accent` the button on it; the
+ * tokens they set are in app.css (`[data-ground]`).
+ */
+export const BRANDED_GROUNDS = [
+  { ground: "cobalt", stage: "oklch(34% 0.14 264)", accent: "oklch(70.5% 0.187 39)" },
+  { ground: "violet", stage: "oklch(33% 0.17 292)", accent: "oklch(82% 0.16 78)" },
+  { ground: "berry", stage: "oklch(36% 0.15 352)", accent: "oklch(82% 0.13 192)" },
+  { ground: "petrol", stage: "oklch(36% 0.085 214)", accent: "oklch(74% 0.16 35)" },
+  { ground: "emerald", stage: "oklch(35.5% 0.105 158)", accent: "oklch(90% 0.19 118)" },
+  { ground: "brick", stage: "oklch(38% 0.145 36)", accent: "oklch(84% 0.09 250)" },
+  { ground: "citron", stage: "oklch(90% 0.18 116)", accent: "oklch(23% 0.035 125)" },
+] as const;
+
+export type BrandedGround = (typeof BRANDED_GROUNDS)[number]["ground"];
+
+const GROUNDS: readonly string[] = BRANDED_GROUNDS.map((option) => option.ground);
+/** The grounds the branded theme shows light on. */
+const LIGHT_GROUNDS: readonly BrandedGround[] = ["citron"];
+const DEFAULT_GROUND: BrandedGround = "cobalt";
 const listeners = new Set<() => void>();
 const system = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -20,7 +43,15 @@ const system = window.matchMedia("(prefers-color-scheme: dark)");
 const SHARED_COOKIE = "engenty_theme";
 
 function sharedPick(): string | null {
-  const raw = document.cookie
+  // A page closed off without its own origin (an AI app's widget, a home's view) has no
+  // cookies: reading them throws.
+  let cookie = "";
+  try {
+    cookie = document.cookie;
+  } catch {
+    return null;
+  }
+  const raw = cookie
     .split(";")
     .map((part) => part.trim())
     .find((part) => part.startsWith(`${SHARED_COOKIE}=`))
@@ -35,8 +66,12 @@ function sharePick(value: ThemeMode | "system") {
   const named = labels.length > 1 && !/^\d+$/.test(labels[labels.length - 1]);
   const parent = named ? (labels.length > 2 ? labels.slice(1).join(".") : host) : "";
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
-  // biome-ignore lint/suspicious/noDocumentCookie: the Cookie Store API is missing in Safari and Firefox
-  document.cookie = `${SHARED_COOKIE}=${value}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax${parent ? `; Domain=${parent}` : ""}${secure}`;
+  try {
+    // biome-ignore lint/suspicious/noDocumentCookie: the Cookie Store API is missing in Safari and Firefox
+    document.cookie = `${SHARED_COOKIE}=${value}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax${parent ? `; Domain=${parent}` : ""}${secure}`;
+  } catch {
+    // No cookies here: the choice stays with this page.
+  }
 }
 
 /**
@@ -58,6 +93,16 @@ function stored(): ThemeMode | null {
 /** The pick, with the OS setting in for "follow the OS": its dark is the branded one. */
 function chosen(): ThemeMode {
   return stored() ?? (system.matches ? "branded" : "light");
+}
+
+/** The colour the visitor picked for the branded theme, cobalt until then. */
+function storedGround(): BrandedGround {
+  try {
+    const value = localStorage.getItem(GROUND_KEY);
+    return value && GROUNDS.includes(value) ? (value as BrandedGround) : DEFAULT_GROUND;
+  } catch {
+    return DEFAULT_GROUND;
+  }
 }
 
 /** Pages shown right now that stand on a vivid ground of their own, whatever the theme. */
@@ -99,7 +144,21 @@ function current(): Theme {
   if (preferred && !picked()) {
     return preferred;
   }
-  return chosen() === "light" ? "light" : "dark";
+  const mode = chosen();
+  return mode === "light" || (mode === "branded" && LIGHT_GROUNDS.includes(storedGround()))
+    ? "light"
+    : "dark";
+}
+
+/**
+ * The ground the root stands on while the visitor's branded pick is what shows: not on a page
+ * with a vivid ground of its own, a wizard's pinned theme or an app's light or dark.
+ */
+function shownGround(): BrandedGround | null {
+  if (grounded > 0 || pinned || hosted || (preferred && !picked())) {
+    return null;
+  }
+  return chosen() === "branded" ? storedGround() : null;
 }
 
 /**
@@ -133,6 +192,12 @@ function apply() {
   const dark = current() === "dark";
   document.documentElement.classList.toggle("dark", dark);
   document.documentElement.classList.toggle("branded", branded());
+  const ground = shownGround();
+  if (ground && ground !== "cobalt") {
+    document.documentElement.dataset.ground = ground;
+  } else {
+    delete document.documentElement.dataset.ground;
+  }
   syncThemeColor();
   for (const listener of listeners) {
     listener();
@@ -159,6 +224,24 @@ export function setTheme(mode: ThemeMode | null) {
     return;
   }
   apply();
+}
+
+/** The colour of the branded theme; picking one picks the branded theme too. */
+export function setBrandedGround(ground: BrandedGround) {
+  try {
+    localStorage.setItem(GROUND_KEY, ground);
+  } catch {
+    // the pick only lasts this page then
+  }
+  setTheme("branded");
+}
+
+/** The colour the visitor picked for the branded theme. */
+export function useBrandedGround(): BrandedGround {
+  return useSyncExternalStore((listener) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }, storedGround);
 }
 
 /**
@@ -205,7 +288,11 @@ export function useThemeMode(): ThemeMode {
     },
     () => {
       const root = document.documentElement.classList;
-      return root.contains("dark") ? (root.contains("branded") ? "branded" : "dark") : "light";
+      if (!root.contains("dark")) {
+        // A light ground (citron) is the branded theme too.
+        return document.documentElement.dataset.ground ? "branded" : "light";
+      }
+      return root.contains("branded") ? "branded" : "dark";
     },
   );
 }

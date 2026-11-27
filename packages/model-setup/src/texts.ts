@@ -1,0 +1,261 @@
+// The setup's words. Wording: docs/copy-style.md; `pnpm copy:check` reads them.
+
+const en = {
+  "harness.appHere": "The {app} app is on this computer: {name} signs in with the same {sub}.",
+  "harness.authKey":
+    "Signed in with an API key from your shell, not the subscription. Sign in here so it runs on your {sub}.",
+  "harness.authNone": "Not signed in yet.",
+  "harness.authSubscription": "Signed in with your {sub}.",
+  "harness.found": "{name} {version} found",
+  "harness.hint":
+    "Text runs on {name} on this computer, using your {sub}. No key needed. Images, video and audio still need a key.",
+  "harness.hintImages":
+    "Text and images run on {name} on this computer, using your {sub}. No key needed. Video and audio still need a key.",
+  "harness.install": "Or in your own terminal:",
+  "harness.installButton": "Install {name}",
+  "harness.installEnded":
+    "The installation ended, but {name} isn’t there. The output above says why.",
+  "harness.installing":
+    "{name} is installing in the terminal below – it takes about a minute. Then you sign in.",
+  "harness.loginEnded": "The sign-in ended, but {name} isn’t signed in. Try again.",
+  "harness.missing": "{name} isn’t installed on this computer.",
+  "harness.notInstalled": "not installed",
+  "harness.ready": "signed in",
+  "harness.signedOut": "not signed in",
+  "harness.signIn": "Sign in here",
+  "harness.signInInteractive":
+    "{name} starts below. Choose to sign in with your {sub} there, then finish in the browser. The terminal closes once you’re signed in.",
+  "harness.signingIn":
+    "The sign-in runs in the terminal below – your browser opens for it. The terminal closes once you’re signed in.",
+  "harness.sub.claude": "Claude subscription",
+  "harness.sub.codex": "ChatGPT subscription",
+  "harness.sub.antigravity": "Google AI subscription",
+  "harness.sub.cursor": "Cursor subscription",
+  "harness.desc.claude": "On your Claude subscription – no key needed.",
+  "harness.desc.codex": "On your ChatGPT subscription – no key needed.",
+  "harness.desc.antigravity": "On your Google AI subscription – no key needed.",
+  "harness.desc.cursor": "On your Cursor subscription – no key needed.",
+  "local.keyGet": "Get a key",
+  "local.keyRemove": "Delete",
+  "local.keySet": "stored",
+  "local.keyWorks": "Works. Your wizards write with {model}.",
+  "local.keyWorksOther": "Works. Your wizards keep writing with {model}.",
+  "local.keyWorksPlain": "Works.",
+  "local.keys": "Keys",
+  "local.keysHint":
+    "One key is enough. Test checks it with the provider. Keys stay in this computer’s keychain, never in the database.",
+  "local.modelsLater": "Which model does which job can be changed later under Settings → Models.",
+  "local.serverWhere": "another computer’s, say",
+  "local.address": "Address",
+  "server.desc": "A model on this computer, without an account.",
+  "server.heading": "Choose a model",
+  "server.here": "on this computer",
+  "server.hint":
+    "Choose a model. {name} loads it only then, for the test, and it takes memory while it is loaded.",
+  "local.recheck": "Check again",
+  "local.sourceOwn": "Your own keys",
+  "local.test": "Test",
+  "local.testFailed": "The test didn’t work: {error}",
+  "local.testHint": "One short call checks that the model can be reached.",
+  "local.testOk": "Answered in {s} s on {ref}: “{reply}”",
+  "setup.h.done": "Connected.",
+  "setup.h.install": "Install {name}",
+  "setup.h.keys": "Enter a key",
+  "setup.h.signIn": "Sign in to {name}",
+  "setup.h.test": "One short test",
+  "setup.noHarness":
+    "No AI client is installed yet. Choose one and it installs right here, or enter your own keys.",
+  "setup.less": "Show less",
+  "setup.more": "Show more",
+  "setup.ready": "All set.",
+  "setup.recommended": "Recommended",
+  "setup.stage.connect": "Connect",
+  "setup.stage.done": "Done",
+  "setup.stage.test": "Test",
+  "setup.back": "Back",
+  "setup.cancel": "Cancel",
+  "setup.close": "Close",
+  "setup.keyBad": "The key wasn’t accepted. Check it and try again.",
+  "models.local.downloadOnly": "Download",
+  "models.local.notHere": "{name} isn’t on this computer. It runs open models here.",
+  "models.local.stopped": "{name} is installed but isn’t running.",
+  "models.local.install": "Install {name}",
+  "models.local.start": "Start {name}",
+  "models.local.starts.ollama": "Ollama is starting. On a Mac it may ask for your password once.",
+  "models.local.starts.lmstudio":
+    "LM Studio is starting. The first time, go through its own start in its window.",
+  "models.local.startFailed": "{name} didn’t start: {error}",
+  "models.local.trouble.locked":
+    "{name} asks for an API token. Switch that off in its server settings.",
+  "models.local.trouble.old": "This {name} is too old. Update it and try again.",
+  "models.local.get": "Get {name}",
+  "models.local.here": "On this computer",
+  "models.local.hereNone": "No model for this yet.",
+  "models.local.offered": "To download",
+  "models.local.offeredNone": "The list of models to download isn’t reachable right now.",
+  "models.local.other": "Another model for {name}",
+  "models.local.example": "e.g. {model}",
+  "models.local.use": "Use",
+  "models.local.inUse": "in use",
+  "models.local.download": "Download and use",
+  "models.local.starting": "Loading…",
+  "models.local.progress": "{done} of {total} MB",
+  "models.local.downloadUnreachable":
+    "{name} isn’t running on this computer. Start it and try again.",
+  "models.local.downloadFailed": "The download didn’t work: {error}",
+  "models.local.remove": "Remove from {name}",
+  "models.local.removeThere": "Models are removed in {name} itself.",
+  "models.local.removeConfirm": "Remove “{name}” from {server}? This frees {size} GB.",
+  "models.local.size": "{size} GB",
+  "models.local.suggested": "suggested",
+  "models.local.tooBig": "needs about {memory} GB memory",
+  "models.local.loaded": "loaded",
+  "models.local.cap.vision": "images",
+  "models.local.cap.audio": "sound",
+  "models.local.cap.tools": "tools",
+  "models.cap.text": "Text & reasoning",
+  "models.cap.search": "Knowledge search",
+  "models.cap.decision": "Decisions",
+  "models.local.removeYes": "Remove",
+  "models.local.removeFailed": "{name} didn’t remove the model: {error}",
+};
+
+/** A word of the setup. */
+export type SetupText = keyof typeof en;
+
+const de: Record<SetupText, string> = {
+  "harness.appHere":
+    "Die {app}-App ist auf diesem Computer: {name} meldet sich mit demselben {sub} an.",
+  "harness.authKey":
+    "Angemeldet mit einem API-Key aus deiner Shell, nicht mit dem Abo. Melde dich hier an, damit es über dein {sub} läuft.",
+  "harness.authNone": "Noch nicht angemeldet.",
+  "harness.authSubscription": "Angemeldet mit deinem {sub}.",
+  "harness.found": "{name} {version} gefunden",
+  "harness.hint":
+    "Texte schreibt {name} auf diesem Computer, mit deinem {sub}. Kein API-Key nötig. Bilder, Videos und Audio brauchen weiter einen API-Key.",
+  "harness.hintImages":
+    "Texte und Bilder erzeugt {name} auf diesem Computer, mit deinem {sub}. Kein API-Key nötig. Videos und Audio brauchen weiter einen API-Key.",
+  "harness.install": "Oder in deinem eigenen Terminal:",
+  "harness.installButton": "{name} installieren",
+  "harness.installEnded":
+    "Die Installation ist fertig, aber {name} ist nicht da. Warum, steht oben.",
+  "harness.installing":
+    "{name} wird im Terminal unten installiert – das dauert etwa eine Minute. Danach meldest du es an.",
+  "harness.loginEnded": "Die Anmeldung wurde beendet, ohne dass {name} angemeldet ist.",
+  "harness.missing": "{name} ist auf diesem Computer nicht installiert.",
+  "harness.notInstalled": "nicht installiert",
+  "harness.ready": "angemeldet",
+  "harness.signedOut": "nicht angemeldet",
+  "harness.signIn": "Hier anmelden",
+  "harness.signInInteractive":
+    "Unten startet {name}. Wähle dort die Anmeldung mit deinem {sub} und melde dich im Browser an. Das Terminal schließt sich, sobald die Anmeldung da ist.",
+  "harness.signingIn":
+    "Die Anmeldung läuft im Terminal unten – dein Browser öffnet sich dafür. Das Terminal schließt sich, sobald die Anmeldung da ist.",
+  "harness.sub.claude": "Claude-Abo",
+  "harness.sub.codex": "ChatGPT-Abo",
+  "harness.sub.antigravity": "Google-AI-Abo",
+  "harness.sub.cursor": "Cursor-Abo",
+  "harness.desc.claude": "Mit deinem Claude-Abo – kein API-Key nötig.",
+  "harness.desc.codex": "Mit deinem ChatGPT-Abo – kein API-Key nötig.",
+  "harness.desc.antigravity": "Mit deinem Google-AI-Abo – kein API-Key nötig.",
+  "harness.desc.cursor": "Mit deinem Cursor-Abo – kein API-Key nötig.",
+  "local.keyGet": "Key holen",
+  "local.keyRemove": "Entfernen",
+  "local.keySet": "hinterlegt",
+  "local.keyWorks": "Funktioniert. Deine Wizards schreiben mit {model}.",
+  "local.keyWorksOther": "Funktioniert. Deine Wizards schreiben weiter mit {model}.",
+  "local.keyWorksPlain": "Funktioniert.",
+  "local.keys": "API-Keys",
+  "local.keysHint":
+    "Ein API-Key reicht. Testen prüft ihn beim Anbieter. Die Keys liegen im Schlüsselbund dieses Geräts, nie in der Datenbank.",
+  "local.modelsLater":
+    "Welches Modell was übernimmt, lässt sich später unter Einstellungen → Modelle ändern.",
+  "local.serverWhere": "etwa eines anderen Computers",
+  "local.address": "Adresse",
+  "server.desc": "Ein Modell auf diesem Computer, ohne Konto.",
+  "server.heading": "Modell wählen",
+  "server.here": "auf diesem Computer",
+  "server.hint":
+    "Wähle ein Modell. Erst dann lädt {name} es, für den Test, und es belegt Arbeitsspeicher, solange es geladen ist.",
+  "local.recheck": "Erneut prüfen",
+  "local.sourceOwn": "Eigene API-Keys",
+  "local.test": "Testen",
+  "local.testFailed": "Der Test hat nicht geklappt: {error}",
+  "local.testHint": "Ein kurzer Aufruf prüft, ob das Modell erreichbar ist.",
+  "local.testOk": "Antwort in {s} s über {ref}: „{reply}“",
+  "setup.h.done": "Verbunden",
+  "setup.h.install": "{name} installieren",
+  "setup.h.keys": "API-Key eintragen",
+  "setup.h.signIn": "{name} anmelden",
+  "setup.h.test": "Ein kurzer Test",
+  "setup.noHarness":
+    "Noch kein KI-Client installiert. Wähle einen aus – er wird dann hier installiert. Oder trage eigene API-Keys ein.",
+  "setup.less": "Weniger anzeigen",
+  "setup.more": "Mehr anzeigen",
+  "setup.ready": "Alles bereit.",
+  "setup.recommended": "Empfohlen",
+  "setup.stage.connect": "Verbinden",
+  "setup.stage.done": "Fertig",
+  "setup.stage.test": "Testen",
+  "setup.back": "Zurück",
+  "setup.cancel": "Abbrechen",
+  "setup.close": "Schließen",
+  "setup.keyBad": "Der Key wurde nicht angenommen.",
+  "models.local.downloadOnly": "Laden",
+  "models.local.notHere": "{name} ist nicht auf diesem Computer. Es führt offene Modelle hier aus.",
+  "models.local.stopped": "{name} ist installiert, läuft aber nicht.",
+  "models.local.install": "{name} installieren",
+  "models.local.start": "{name} starten",
+  "models.local.starts.ollama":
+    "Ollama startet. Auf einem Mac fragt es eventuell einmal nach deinem Passwort.",
+  "models.local.starts.lmstudio":
+    "LM Studio startet. Beim ersten Mal richtest du es zuerst in seinem Fenster ein.",
+  "models.local.startFailed": "{name} ist nicht gestartet: {error}",
+  "models.local.trouble.locked":
+    "{name} verlangt ein API-Token. Schalte das in seinen Server-Einstellungen ab.",
+  "models.local.trouble.old":
+    "Dieses {name} ist zu alt. Aktualisiere es und versuch es noch einmal.",
+  "models.local.get": "{name} holen",
+  "models.local.here": "Auf diesem Computer",
+  "models.local.hereNone": "Noch kein Modell dafür.",
+  "models.local.offered": "Zum Laden",
+  "models.local.offeredNone": "Die Liste der Modelle zum Laden ist gerade nicht erreichbar.",
+  "models.local.other": "Ein anderes Modell für {name}",
+  "models.local.example": "z. B. {model}",
+  "models.local.use": "Verwenden",
+  "models.local.inUse": "in Verwendung",
+  "models.local.download": "Laden und verwenden",
+  "models.local.starting": "Lädt …",
+  "models.local.progress": "{done} von {total} MB",
+  "models.local.downloadUnreachable":
+    "{name} läuft nicht auf diesem Computer. Starte es und versuch es noch einmal.",
+  "models.local.downloadFailed": "Das Laden hat nicht geklappt: {error}",
+  "models.local.remove": "Aus {name} entfernen",
+  "models.local.removeThere": "Modelle entfernst du in {name} selbst.",
+  "models.local.removeConfirm": "„{name}“ aus {server} entfernen? Das gibt {size} GB frei.",
+  "models.local.size": "{size} GB",
+  "models.local.suggested": "empfohlen",
+  "models.local.tooBig": "braucht etwa {memory} GB Arbeitsspeicher",
+  "models.local.loaded": "geladen",
+  "models.local.cap.vision": "Bilder",
+  "models.local.cap.audio": "Ton",
+  "models.local.cap.tools": "Werkzeuge",
+  "models.cap.text": "Text & Denken",
+  "models.cap.search": "Wissen durchsuchen",
+  "models.cap.decision": "Entscheidungen",
+  "models.local.removeYes": "Entfernen",
+  "models.local.removeFailed": "{name} hat das Modell nicht entfernt: {error}",
+};
+
+/** The setup's words; a host may spread them into a dictionary of its own. */
+export const SETUP_TEXTS = { en, de };
+
+export type SetupVars = Record<string, string | number>;
+
+/** A word in a language, its gaps filled. */
+export function setupText(lang: "en" | "de", key: SetupText, vars?: SetupVars): string {
+  const line = SETUP_TEXTS[lang][key];
+  return vars
+    ? line.replace(/\{(\w+)\}/g, (whole, name: string) => String(vars[name] ?? whole))
+    : line;
+}

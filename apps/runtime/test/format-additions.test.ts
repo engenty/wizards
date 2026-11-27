@@ -1,4 +1,4 @@
-import { calcNames, calcScope, calcValue, parseCalc } from "@engenty/wizards-shared/calc";
+import { calcNames, calcScope, calcValue, parseCalc } from "@engenty/chatviews/calc";
 import {
   type FormStep,
   ruleMatches,
@@ -10,7 +10,7 @@ import {
   wizardSchema,
 } from "@engenty/wizards-shared/definition";
 import { needs } from "@engenty/wizards-shared/fit";
-import { bound, validateSurface, worded } from "@engenty/wizards-shared/surface";
+import { bound, validateSurface, worded } from "@engenty/chatviews/surface";
 import { describe, expect, it } from "vitest";
 import { readFormInput } from "../src/engine/input";
 

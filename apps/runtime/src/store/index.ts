@@ -27,13 +27,22 @@ export interface StoreScope {
   wizardId: string;
   holder: string;
   /**
-   * The client space the run belongs to (docs/plans/client-portal.md): its shared lists are the
-   * client space's, never the parent's or another client's. Absent: the wizard's space.
+   * The space the run carries (docs/plans/org-spaces.md): its shared lists are that space's,
+   * never the root's or another space's. Absent: the wizard's space.
    */
   clientSpaceId?: string | null;
+  /**
+   * A run nobody of the team watches (docs/plans/run-connections.md): one of the wizard's starts
+   * began it with no person, or it came through a channel (WhatsApp, SMS, a call). The space's
+   * choice is its account for a need. A link visitor in a browser is not this.
+   */
+  unwatched?: true;
 }
 
 export { StoreError };
+
+/** How a channel's person is the run's visitor (plugins/runs.ts): `p:` and a hash of who they are. */
+export const CHANNEL_VISITOR = "p:";
 
 /** The person a run belongs to: the signed-in admin, else the visitor of the shared link. */
 export function holderOf(run: { id: string; userId: string | null; visitorId: string | null }) {
@@ -49,12 +58,22 @@ export function scopeOf(run: {
   userId: string | null;
   visitorId: string | null;
   clientSpaceId?: string | null;
+  startedBy?: unknown;
 }): StoreScope {
   return {
     wizardId: run.wizardId,
     holder: holderOf(run),
     ...(run.clientSpaceId ? { clientSpaceId: run.clientSpaceId } : {}),
+    ...(unwatched(run) ? { unwatched: true as const } : {}),
   };
+}
+
+/** A run a start began with no person, or one a channel's person runs. */
+function unwatched(run: { userId: string | null; visitorId: string | null; startedBy?: unknown }) {
+  if (run.userId) {
+    return false;
+  }
+  return run.visitorId ? run.visitorId.startsWith(CHANNEL_VISITOR) : Boolean(run.startedBy);
 }
 
 /** Marks the store as in use; stores nobody came back to are cleaned up. */

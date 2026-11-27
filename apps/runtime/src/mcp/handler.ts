@@ -15,7 +15,10 @@ import { serverText } from "../texts.js";
 import { authenticate, type Principal, principalOf } from "./auth.js";
 import { registerElementTools } from "./elements.js";
 import { registerFlowApp } from "./flow-app.js";
-import { appKind, clientNameOf, noteChecked, noteRequest } from "./seen.js";
+import { requestStateVerify } from "./run-pages.js";
+import { runTaskRequest } from "./run-tasks.js";
+import { registerRunTools } from "./runs.js";
+import { appKind, clientNameOf, HOME_CLIENT, noteChecked, noteRequest } from "./seen.js";
 import { registerPrompts, registerTools } from "./tools.js";
 
 /**
@@ -23,8 +26,10 @@ import { registerPrompts, registerTools } from "./tools.js";
  * calls are answered with a tool error the app shows, before any tool reads the space. Calls of
  * other kinds (listing the tools) go on. Behind `modelTiers`. Best effort: an app is told apart
  * by the name it gives itself, and any name not known as a local app's counts as a subscription.
+ * The team's Bot Server is no such app: it is told apart by its token's client, which only the
+ * Manage-App sets, and its calls go on whatever the policy says, counted like the others.
  */
-async function appRefusal(who: Principal, client: string, body: unknown): Promise<Response | null> {
+async function appRefusal(who: Principal, signIn: string, body: unknown): Promise<Response | null> {
   const calls = (Array.isArray(body) ? body : [body]).filter(
     (m): m is { id?: unknown; method?: string } =>
       Boolean(m) && typeof m === "object" && (m as { method?: string }).method === "tools/call",
@@ -39,12 +44,11 @@ async function appRefusal(who: Principal, client: string, body: unknown): Promis
   if (info && !policy) {
     return null;
   }
+  const client = clientNameOf(signIn, who.client);
   const kind = appKind(client, who.client);
-  const allowed = policy
-    ? kind === "local"
-      ? policy.apps.local
-      : policy.apps.subscriptions
-    : false;
+  const allowed =
+    signIn === HOME_CLIENT ||
+    (policy ? (kind === "local" ? policy.apps.local : policy.apps.subscriptions) : false);
   await noteChecked(who.tenantId, client, who.name ?? who.email ?? null, allowed, kind);
   if (allowed) {
     return null;
@@ -86,11 +90,14 @@ export function mcpHandler(): (request: Request) => Promise<Response> {
         {
           instructions: prompt("mcp", "instructions"),
           capabilities: { tools: {}, prompts: {}, resources: {} },
+          // A run's page asked of the person comes back with its sealed state (mcp/run-pages.ts).
+          requestState: { verify: requestStateVerify },
         },
       );
       const who = principalOf(ctx.authInfo!);
       registerTools(server, who);
       registerElementTools(server, who);
+      registerRunTools(server, who);
       registerPrompts(server);
       registerFlowApp(server);
       return server;
@@ -120,9 +127,17 @@ export function mcpHandler(): (request: Request) => Promise<Response> {
         .json()
         .catch(() => null);
       await noteRequest(who.tenantId, authInfo.clientId, who.client, body);
-      const refused = await appRefusal(who, clientNameOf(authInfo.clientId, who.client), body);
+      const refused = await appRefusal(who, authInfo.clientId, body);
       if (refused) {
         return refused;
+      }
+      // Runs followed as tasks: the SDK has no runtime for the Tasks extension (mcp/run-tasks.ts).
+      const tasked = await withTenant(who.tenantId, () =>
+        asRole(who.role, () => runTaskRequest(who, body)),
+      );
+      if (tasked) {
+        nudge(who.tenantId);
+        return tasked;
       }
     }
     const answer = await withTenant(who.tenantId, () =>

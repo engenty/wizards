@@ -1,3 +1,8 @@
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({ test: { include: ["test/**/*.test.ts"] } });
+// "wizards-source": the shared package is read as TypeScript, so tests need no build of it.
+export default defineConfig({
+  resolve: { conditions: ["wizards-source"] },
+  ssr: { resolve: { conditions: ["wizards-source"] } },
+  test: { include: ["test/**/*.test.ts"] },
+});

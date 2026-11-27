@@ -10,7 +10,7 @@
 // the installer puts there, it is the command itself.
 //
 // Only --version needs no install. A copy with the runtime beside it (a checkout, the runtime from
-// npm) runs --help, validate and mcp here as well, as long as this Node can.
+// npm) runs --help, validate, check and mcp here as well, as long as this Node can.
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
@@ -40,7 +40,7 @@ const installer = [
   join(root, "apps", "web", "dist", installerName),
 ].find((file) => existsSync(file));
 // uninstall: never installs or hands over first; the install it takes away may no longer run.
-const RUN_HERE = ["help", "validate", "mcp", "uninstall"];
+const RUN_HERE = ["help", "validate", "check", "mcp", "uninstall"];
 /** The installer's line, as a person types it here. */
 const installLine = windows
   ? "  irm https://engenty.ai/install.ps1 | iex\n"
@@ -210,6 +210,12 @@ function handOver() {
   });
 }
 
+// `wizards bot …` runs here, in the launcher as in the runtime: it installs wizards.bot, which
+// needs no engenty wizards, so `npx wizards bot install` installs nothing else first.
+if (args[0] === "bot") {
+  const { main } = await import("./bot.mjs");
+  process.exit(await main(args.slice(1)));
+}
 const command = commandOf(args);
 if (command === "version") {
   console.log(versionOf(root));

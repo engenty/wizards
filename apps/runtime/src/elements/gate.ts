@@ -17,8 +17,8 @@ export interface ElementCall {
   /** Left out: the reader decides each item it hands out (Knowledge). */
   resource?: Resource;
   /**
-   * The space whose rules decide the resource, where it is not the caller's: a client space's
-   * parent for the wizards it runs (docs/plans/client-portal.md).
+   * The space whose rules decide the resource, where it is not the caller's: the root for its
+   * wizards run in a space under it (docs/plans/org-spaces.md).
    */
   rulesIn?: string;
   /** What the log files a call without one resource under: `knowledge` when left out, `skills`, `wizards`, `sandbox`. */

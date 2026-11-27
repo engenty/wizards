@@ -16,17 +16,18 @@ import { claimClientInvites } from "./client-spaces.js";
 import { notFound, ServiceError } from "./errors.js";
 import { startRun } from "./runs.js";
 import { spaceFileContent, spaceFiles } from "./space-files.js";
+import { brandSpaceId } from "./space-parent.js";
 import { listSpaces } from "./spaces.js";
 import { listWizards } from "./wizards.js";
-import { createChat, readChat, sendMessage } from "./work-chats.js";
 
 /*
  * The client contract (docs/plans/client-portal.md): what a client of the organization reaches
  * of their client spaces, for the client portal and any app built on the same contract. Every
- * call acts as the token's person with the role `client` (I1); a space is one of their client
- * spaces, else not found (I2, `ownedSpace`); the broker decides each item as that client, so the
- * parent's Knowledge and wizards come back only where the firm opened them. Behind the
- * `clientSpaces` switch, and only with the broker on: without it every rule says yes.
+ * call acts as the token's person with the role `client` (I1); a space is one they are in, else
+ * not found (I2, `ownedSpace`); the broker decides each item as that client, so the space's and
+ * the organization's Knowledge and wizards come back only where the firm opened them. Behind the
+ * `clientSpaces` and `orgSpaces` switches, and only with the broker on: without it every rule
+ * says yes.
  */
 
 /** Who calls: the token's person, as the work chats know a person. */
@@ -37,10 +38,14 @@ type RunRow = typeof schema.run.$inferSelect;
 
 const clientSubjects = (who: { id: string }) => subjectsOfPerson(who.id, "client");
 
-/** The contract is there for clients of an organization with client spaces and the broker on. */
+/** The contract is there for clients of an organization with clients and the broker on. */
 async function requirePortal(who: ClientWho): Promise<void> {
   const features = await currentFeatures();
-  if (features.clientSpaces !== true || !featureOn(features, "broker")) {
+  if (
+    features.clientSpaces !== true ||
+    features.orgSpaces !== true ||
+    !featureOn(features, "broker")
+  ) {
     throw notFound();
   }
   if (who.role !== "client") {
@@ -60,28 +65,28 @@ const asClient = (who: { id: string }) =>
     eq(schema.space.tenantId, currentTenant()),
   );
 
-/** One of the client's client spaces, with its parent. */
+/**
+ * One of the client spaces the client is in, with the spaces whose wizards it runs: its own and
+ * the organization's root.
+ */
 async function clientSpace(
   who: ClientWho,
   spaceId: string,
-): Promise<{ space: SpaceRow; parent: SpaceRow }> {
+): Promise<{ space: SpaceRow; sources: string[] }> {
   await requirePortal(who);
   const [row] = await db
     .select({ space: schema.space })
     .from(schema.space)
     .innerJoin(schema.spaceMember, eq(schema.spaceMember.spaceId, schema.space.id))
-    .where(and(eq(schema.space.id, spaceId), asClient(who)))
+    .where(and(eq(schema.space.id, spaceId), eq(schema.space.kind, "client"), asClient(who)))
     .limit(1);
-  const parent = row?.space.parentId
-    ? await db.query.space.findFirst({ where: eq(schema.space.id, row.space.parentId) })
-    : undefined;
-  if (!(row && parent)) {
+  if (!row?.space.parentId) {
     throw notFound();
   }
-  return { space: row.space, parent };
+  return { space: row.space, sources: [row.space.id, row.space.parentId] };
 }
 
-/** Whether the person is one of the client space's clients. */
+/** Whether the person is one of the space's clients. */
 async function isClientOf(userId: string, spaceId: string): Promise<boolean> {
   const row = await db.query.spaceMember.findFirst({
     columns: { id: true },
@@ -95,8 +100,8 @@ async function isClientOf(userId: string, spaceId: string): Promise<boolean> {
 }
 
 /**
- * Whether a client opens a run: one of their client space's, started by them or shared with them
- * by the firm. The run's own routes ask it too (routes/runs.ts).
+ * Whether a client opens a run: one of their client space's, started by them or shared with them by the
+ * firm. The run's own routes ask it too (routes/runs.ts).
  */
 export async function clientMayOpen(
   userId: string,
@@ -111,9 +116,9 @@ export async function clientMayOpen(
 /** A logo's address on the runtime, for a page on another origin. */
 const absolute = (path: string | null) => (path ? `${env.publicUrl}${path}` : null);
 
-/** The firm's brand, as its space shows it: the client portal wears it. */
-async function firmBrand(parentId: string) {
-  const brand = await brandView(parentId);
+/** The space's brand, its own or the organization's it takes: the client portal wears it. */
+async function firmBrand(spaceId: string) {
+  const brand = await brandView(await brandSpaceId(spaceId));
   return { ...brand, logoUrl: absolute(brand.logoUrl) };
 }
 
@@ -136,51 +141,53 @@ export async function clientMe(who: ClientWho) {
   };
 }
 
-/** The client's client spaces, each with the firm's space and brand. */
+/** The spaces the client is in, each with the organization's name and the brand it wears. */
 export async function clientSpaces(who: ClientWho) {
   await requirePortal(who);
   await claimClientInvites(who.id, who.email);
-  // A client space, or with `orgSpaces` any space under the root shared with them: both have a
-  // parent whose brand the portal wears.
-  const spaces = (await listSpaces(who.id)).filter((s) => s.parentId);
-  const parents = spaces.length
-    ? await db.query.space.findMany({
-        columns: { id: true, name: true },
-        where: inArray(
-          schema.space.id,
-          spaces.map((s) => s.parentId as string),
-        ),
-      })
-    : [];
+  const spaces = (await listSpaces(who.id)).filter((s) => s.kind === "client" && s.parentId);
+  const org = spaces.length ? await tenantInfo(who.tenantId).catch(() => null) : null;
   return Promise.all(
     spaces.map(async (s) => ({
       id: s.id,
       name: s.name,
-      firm: {
-        name: parents.find((p) => p.id === s.parentId)?.name ?? "",
-        brand: await firmBrand(s.parentId as string),
-      },
+      firm: { name: org?.name ?? "", brand: await firmBrand(s.id) },
     })),
   );
 }
 
 // --- wizards ---------------------------------------------------------------------------------
 
-/** The parent's published wizards the firm opened to its clients: read and run. */
-async function openWizards(who: ClientWho, parent: SpaceRow) {
-  const published = (await listWizards(who.id, parent.id)).filter((w) => w.published);
-  const ids = published.map((w) => w.id);
-  const readable = new Set(await readableIds(parent.id, clientSubjects(who), "wizard", ids));
-  const open: typeof published = [];
-  for (const w of published) {
-    if (
-      readable.has(w.id) &&
-      (await decide(parent.id, clientSubjects(who), { kind: "wizard", id: w.id }, "x")).ok
-    ) {
-      open.push(w);
+type PublishedWizard = Awaited<ReturnType<typeof listWizards>>[number];
+
+/**
+ * The published wizards the firm opened to its clients, of the space and of the organization's
+ * root, each with the space whose rules decide it: read and run.
+ */
+async function openedWizards(
+  who: ClientWho,
+  sources: string[],
+): Promise<{ spaceId: string; wizard: PublishedWizard }[]> {
+  const open: { spaceId: string; wizard: PublishedWizard }[] = [];
+  for (const spaceId of sources) {
+    const published = (await listWizards(who.id, spaceId)).filter((w) => w.published);
+    const ids = published.map((w) => w.id);
+    const readable = new Set(await readableIds(spaceId, clientSubjects(who), "wizard", ids));
+    for (const wizard of published) {
+      if (
+        readable.has(wizard.id) &&
+        (await decide(spaceId, clientSubjects(who), { kind: "wizard", id: wizard.id }, "x")).ok
+      ) {
+        open.push({ spaceId, wizard });
+      }
     }
   }
-  return open.map((w) => ({
+  return open;
+}
+
+/** The opened wizards as the contract lists them. */
+async function openWizards(who: ClientWho, sources: string[]) {
+  return (await openedWizards(who, sources)).map(({ wizard: w }) => ({
     id: w.id,
     title: w.title,
     description: w.description ?? "",
@@ -190,16 +197,26 @@ async function openWizards(who: ClientWho, parent: SpaceRow) {
 }
 
 export async function clientWizards(who: ClientWho, spaceId: string) {
-  const { parent } = await clientSpace(who, spaceId);
-  return openWizards(who, parent);
+  const { sources } = await clientSpace(who, spaceId);
+  return openWizards(who, sources);
 }
 
 /**
- * Starts one of the opened wizards in the client space: the wizard is the parent's, the run the
- * client space's. A line of the audit like every element call.
+ * Starts one of the opened wizards in the space: the run is the space's, whichever space the
+ * wizard is in. A line of the audit like every element call.
  */
 export async function clientStartWizard(who: ClientWho, spaceId: string, wizardId: string) {
-  const { space, parent } = await clientSpace(who, spaceId);
+  const { space, sources } = await clientSpace(who, spaceId);
+  const opened = (await openedWizards(who, sources)).find((o) => o.wizard.id === wizardId);
+  // A wizard not opened is refused by the rules of the space it is in, as one opened is decided.
+  const home = opened
+    ? opened.spaceId
+    : ((
+        await db.query.wizard.findFirst({
+          columns: { spaceId: true },
+          where: and(eq(schema.wizard.id, wizardId), eq(schema.wizard.tenantId, currentTenant())),
+        })
+      )?.spaceId ?? space.id);
   const caller = personCaller({
     space: { id: space.id, name: space.name },
     userId: who.id,
@@ -212,12 +229,12 @@ export async function clientStartWizard(who: ClientWho, spaceId: string, wizardI
     {
       action: "wizard_start",
       resource: { kind: "wizard", id: wizardId },
-      rulesIn: parent.id,
+      rulesIn: sources.includes(home) ? home : space.id,
       perm: "x",
       input: { wizardId },
     },
     async () => {
-      if (!(await openWizards(who, parent)).some((w) => w.id === wizardId)) {
+      if (!opened) {
         throw notFound();
       }
       const { runId } = await startRun(who.id, wizardId, {}, { clientSpaceId: space.id });
@@ -306,7 +323,7 @@ export async function clientOpenRun(who: ClientWho, runId: string) {
  * firm shared, the wizards they can start.
  */
 export async function clientForYou(who: ClientWho, spaceId: string) {
-  const { space, parent } = await clientSpace(who, spaceId);
+  const { space, sources } = await clientSpace(who, spaceId);
   const [waiting, shared, wizards] = await Promise.all([
     db.query.run.findMany({
       where: and(
@@ -329,7 +346,7 @@ export async function clientForYou(who: ClientWho, spaceId: string) {
       orderBy: [desc(schema.run.clientSharedAt)],
       limit: 10,
     }),
-    openWizards(who, parent),
+    openWizards(who, sources),
   ]);
   const titles = await titlesOf([...waiting, ...shared].map((r) => r.wizardId));
   // What the firm's team is asked waits for them, not for the client.
@@ -341,191 +358,6 @@ export async function clientForYou(who: ClientWho, spaceId: string) {
     wizards,
   };
 }
-
-// --- chats -----------------------------------------------------------------------------------
-
-/** The client space's chats the client is a member of: the firm's other chats stay internal. */
-async function memberChats(who: ClientWho, spaceId: string) {
-  const mine = await db
-    .select({ chatId: schema.chatMember.chatId })
-    .from(schema.chatMember)
-    .where(and(eq(schema.chatMember.kind, "person"), eq(schema.chatMember.memberId, who.id)));
-  if (!mine.length) {
-    return [];
-  }
-  return db.query.chat.findMany({
-    where: and(
-      eq(schema.chat.spaceId, spaceId),
-      inArray(
-        schema.chat.id,
-        mine.map((m) => m.chatId),
-      ),
-    ),
-    orderBy: [desc(schema.chat.updatedAt)],
-  });
-}
-
-export async function clientChats(who: ClientWho, spaceId: string) {
-  const { space } = await clientSpace(who, spaceId);
-  return (await memberChats(who, space.id)).map((c) => ({
-    id: c.id,
-    title: c.title,
-    updatedAt: c.updatedAt.toISOString(),
-    last: c.lastText ? { name: c.lastAuthorName ?? "", text: c.lastText } : null,
-    answering: Boolean(c.answeringSince),
-  }));
-}
-
-/** One chat the client is a member of, in one of their client spaces, by the chat alone. */
-async function memberChat(who: ClientWho, chatId: string) {
-  await requirePortal(who);
-  const [row] = await db
-    .select({ chat: schema.chat })
-    .from(schema.chat)
-    .innerJoin(schema.space, eq(schema.space.id, schema.chat.spaceId))
-    .innerJoin(schema.spaceMember, eq(schema.spaceMember.spaceId, schema.space.id))
-    .innerJoin(
-      schema.chatMember,
-      and(
-        eq(schema.chatMember.chatId, schema.chat.id),
-        eq(schema.chatMember.kind, "person"),
-        eq(schema.chatMember.memberId, who.id),
-      ),
-    )
-    .where(and(eq(schema.chat.id, chatId), asClient(who)))
-    .limit(1);
-  if (!row) {
-    throw notFound();
-  }
-  return row.chat;
-}
-
-/** A tool's name in a message part: `tool-<name>`, or a dynamic tool's own. */
-const toolOf = (p: { type: string; toolName?: unknown }) =>
-  p.type === "dynamic-tool" && typeof p.toolName === "string"
-    ? p.toolName
-    : p.type.startsWith("tool-")
-      ? p.type.slice(5)
-      : null;
-
-/** A view or a run the AI made in a chat, as the portal draws it in the message. */
-export type ClientCard =
-  | {
-      kind: "view";
-      id: string;
-      title: string | null;
-      components: unknown[];
-      data: Record<string, unknown>;
-    }
-  | {
-      kind: "run";
-      runId: string;
-      wizardId: string;
-      title: string;
-      avatar: string;
-      status: string;
-    };
-
-/** A piece of a message, in the order it was written: text, or a card. */
-export type ClientPart = { kind: "text"; text: string } | ClientCard;
-
-/**
- * A chat's messages as the client reads them: who wrote, the text, and the AI's views and the
- * runs it started as cards, in the order the AI wrote them (no other tool calls). A run shows
- * only where the client opens it.
- */
-export async function clientChatMessages(who: ClientWho, chatId: string) {
-  const chat = await memberChat(who, chatId);
-  const read = await readChat(who, chat.id);
-  type Part = (typeof read.messages)[number]["parts"][number];
-  const done = (p: Part) =>
-    p.state === "output-available" && p.output && typeof p.output === "object";
-  const runIds = read.messages.flatMap((m) =>
-    m.parts
-      .filter((p) => toolOf(p) === "wizard_run" && done(p))
-      .map((p) => (p.output as { runId?: unknown }).runId)
-      .filter((id): id is string => typeof id === "string"),
-  );
-  const runs = runIds.length
-    ? await db.query.run.findMany({
-        where: and(inArray(schema.run.id, runIds), seenRuns(who, chat.spaceId)),
-      })
-    : [];
-  const titles = await titlesOf(runs.map((r) => r.wizardId));
-  const cardOf = (p: Part): ClientCard | null => {
-    const tool = toolOf(p);
-    if (tool === "show_view" && done(p) && (p.output as { ok?: unknown }).ok === true) {
-      const input = (p.input ?? {}) as { title?: string; components?: unknown[]; data?: object };
-      return {
-        kind: "view",
-        id: String(p.toolCallId ?? ""),
-        title: input.title ?? null,
-        components: input.components ?? [],
-        data: (input.data ?? {}) as Record<string, unknown>,
-      };
-    }
-    if (tool === "wizard_run" && done(p)) {
-      const run = runs.find((r) => r.id === (p.output as { runId?: unknown }).runId);
-      return run
-        ? {
-            kind: "run",
-            runId: run.id,
-            wizardId: run.wizardId,
-            title: titles.get(run.wizardId) ?? run.definition.title,
-            avatar: run.definition.avatar,
-            status: run.status,
-          }
-        : null;
-    }
-    return null;
-  };
-  const partOf = (p: Part): ClientPart | null =>
-    p.type === "text"
-      ? typeof p.text === "string" && p.text.trim()
-        ? { kind: "text", text: p.text.trim() }
-        : null
-      : cardOf(p);
-  return {
-    spaceId: chat.spaceId,
-    chat: { id: chat.id, title: chat.title, answering: Boolean(read.chat.answeringSince) },
-    messages: read.messages
-      .map((m) => {
-        const parts = m.parts.map(partOf).filter((p): p is ClientPart => p !== null);
-        return {
-          id: m.id,
-          author: { kind: m.author.kind, name: m.author.name, me: m.author.id === who.id },
-          text: parts.flatMap((p) => (p.kind === "text" ? [p.text] : [])).join("\n\n"),
-          parts,
-          createdAt: m.createdAt,
-        };
-      })
-      .filter((m) => m.parts.length),
-  };
-}
-
-/**
- * Writes in one of the client's chats, or starts a new one. The firm's AI answers every message
- * (docs/plans/client-portal.md, phase 1), as the client and with a client's tools (work-ai.ts):
- * its turn runs on, the next read shows the answer. The firm's people read the chat as well.
- */
-export async function clientChatPost(
-  who: ClientWho,
-  spaceId: string,
-  input: { chatId?: string; text: string },
-) {
-  const { space } = await clientSpace(who, spaceId);
-  const chatId = input.chatId
-    ? (await memberChat(who, input.chatId)).id
-    : (await createChat(who, { spaceId: space.id })).id;
-  const sent = await sendMessage(who, chatId, input.text, { ask: true });
-  if (sent.kind === "turn") {
-    // Nobody follows the stream here: it is read to its end so the turn runs through.
-    void sent.stream.pipeTo(new WritableStream()).catch(() => undefined);
-  }
-  return { chatId, sent: sent.kind };
-}
-
-// --- files -----------------------------------------------------------------------------------
 
 /** The client space's documents and files, to download: one still being read is there already. */
 export async function clientFiles(who: ClientWho, spaceId: string) {

@@ -9,6 +9,8 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "./theme.css";
 @source "./";
+/* The views and the UI primitives the runner draws with (@engenty/chatviews). */
+@source "../../chatviews/src/react";
 
 :root {
   /*

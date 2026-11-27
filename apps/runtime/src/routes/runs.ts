@@ -9,6 +9,7 @@ import {
   wizardLang,
 } from "@engenty/wizards-shared/definition";
 import { TableColumnValueError } from "@engenty/wizards-shared/engenty/data-tables";
+import { kernelOf } from "@engenty/wizards-shared/kernel-file";
 import {
   note,
   noteText,
@@ -37,7 +38,9 @@ import { MARK_FOCUSED_PERSONAL } from "../browser/snapshot.js";
 import { clientOf, clientRefused } from "../clients.js";
 import {
   ConnectError,
+  choose,
   connectionViews,
+  connectorFor,
   connectWithCredentials,
   disconnect,
   findConnection,
@@ -46,15 +49,19 @@ import {
   oauthStateRun,
   startOAuth,
 } from "../connectors/index.js";
+import { runConnectionsOn } from "../connectors/person-connections.js";
 import { finishPluginOAuth, pluginStateTenant } from "../connectors/plugin-connections.js";
 import {
   finishSpaceConnectionOAuth,
   type SignInAs,
   signInWithCredentials,
+  spaceConnectionForNeed,
   spaceConnectionOf,
   spaceConnectionStateTenant,
+  spaceConnectorFor,
   startSpaceConnectionOAuth,
 } from "../connectors/space-connections.js";
+import { canSpend } from "../credits/credits.js";
 import { db, schema, withTenant } from "../db/client.js";
 import {
   answerersOf,
@@ -85,7 +92,10 @@ import {
   GuestBudgetError,
   goBack,
   keepUnsent,
+  kernelAnswer,
+  kernelRuns,
   NoCreditsError,
+  ownsRun,
   RunConflict,
   RunInputError,
   retry,
@@ -103,6 +113,7 @@ import { basePath, env } from "../env.js";
 import { loadAsset, saveAsset } from "../files/storage.js";
 import { type CheckedUpload, checkUpload } from "../files/upload-check.js";
 import { reverseGeocode } from "../geocode.js";
+import { kernelPage } from "../kernel/page.js";
 import { allowed, hashIp, verifyTurnstile, wizardUnavailable } from "../limits.js";
 import { managed, postFeedback, type Role } from "../manage.js";
 import { mintConversation } from "../media/conversation.js";
@@ -116,7 +127,7 @@ import {
   runWaitTicketValid,
   verifySignedUrl,
 } from "../secrets/signing.js";
-import { isAdminRole, MEMBERS_EDIT_ONLY } from "../services/access.js";
+import { asRole, isAdminRole, MEMBERS_EDIT_ONLY } from "../services/access.js";
 import { brandView } from "../services/brand.js";
 import { clientMayOpen } from "../services/client-portal.js";
 import { ServiceError } from "../services/errors.js";
@@ -333,7 +344,7 @@ async function openedRun(c: Context, runId: string, opts: { signed?: boolean; an
   }
   const user = await principalOf(c);
   if (user && user.tenantId === run.tenantId) {
-    // A client of the organization opens only the runs of their client spaces that are theirs
+    // A client of the organization opens only the runs of their spaces that are theirs
     // or shared with them (docs/plans/client-portal.md); the firm opens every run.
     if (user.role === "client" && !(await clientMayOpen(user.id, run))) {
       return null;
@@ -415,6 +426,63 @@ async function spaceSignIn(
     connectorId: row.connectorId,
     as: { as: "person", userId: user.id, role: user.role },
   };
+}
+
+/** Whether a connect from the run is for the space (decision 2 in docs/plans/run-connections.md). */
+async function wantsForSpace(
+  c: Context,
+): Promise<{ forSpace: boolean; values?: Record<string, string> }> {
+  const body = await c.req.json().catch(() => ({}));
+  return z
+    .object({
+      forSpace: z.boolean().optional().default(false),
+      values: z.record(z.string(), z.string().max(500)).optional(),
+    })
+    .parse(body ?? {});
+}
+
+/**
+ * An admin of the space connects the account for the space from the run they run themselves: a
+ * connection of the space, signed in as the space, and the space's choice for the need. Nobody
+ * else, never a guest. Returns the connection to sign in, as the space.
+ */
+async function spaceConnectionFromRun(
+  c: Context,
+  run: RunRow,
+  connection: ConnectionDef,
+): Promise<{ id: string; role: Role }> {
+  const user = await principalOf(c);
+  const admin =
+    user &&
+    user.tenantId === run.tenantId &&
+    user.id === run.userId &&
+    isAdminRole(user.role) &&
+    !connection.spaceConnection &&
+    (await runConnectionsOn());
+  if (!admin) {
+    throw new HTTPException(403, { res: refuse(c, MEMBERS_EDIT_ONLY, 403) });
+  }
+  const spaceId = await spaceIdOf(run);
+  const home = run.clientSpaceId ?? spaceId;
+  const connector = await connectorFor(connection, c.req.param("connectorId") ?? "", spaceId);
+  const kept = await spaceConnectorFor(home, connector.id);
+  if (!kept) {
+    throw new HTTPException(404, { res: c.json(notFoundAnswer(c), 404) });
+  }
+  const row = await asRole(user.role, () =>
+    spaceConnectionForNeed(
+      user.id,
+      home,
+      {
+        wizardId: run.wizardId,
+        id: connection.id,
+        name: connection.title ?? connector.name,
+        holder: scopeOf(run).holder,
+      },
+      kept,
+    ),
+  );
+  return { id: row.id, role: user.role };
 }
 
 /**
@@ -1217,10 +1285,55 @@ export const runRoutes = new Hono()
     return c.json({ ok: true });
   })
   // A run's timeline in the runs panel, for the people of its organization.
+  // A run of a wizard in version 0.3.0 (docs/plans/kernel.md): its rows, and an answer or a way back
+  // for one of them. The pages and reviews above answer such a run as well.
+  .get("/:id/rows", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!(run && kernelOf(run.definition))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    return c.json(await kernelRuns.view(run));
+  })
+  .post("/:id/rows/:n", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
+    if (!(run && kernelOf(run.definition))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const { value, back } = z
+      .object({ value: z.unknown().optional(), back: z.boolean().optional() })
+      .parse(await c.req.json());
+    const n = Number(c.req.param("n"));
+    try {
+      if (back) {
+        await kernelRuns.rewind(run.id, n, value);
+      } else {
+        await kernelAnswer(run.id, n, value, await actorOf(c, run));
+      }
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 409);
+    }
+  })
+  // The evals that have not judged the run yet, now: after a row was asked again, say.
+  .post("/:id/judge", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"), { answers: true });
+    if (!(run && kernelOf(run.definition))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    if (run.driving || run.status === "running") {
+      throw new ServiceError("refused", note("runBusy"));
+    }
+    if (!(await canSpend())) {
+      throw new ServiceError("no_credits", note("creditsUsedUp"));
+    }
+    const scores = await kernelRuns.judge(run, c.req.raw.signal);
+    return c.json({ ok: true, scores });
+  })
   .get("/:id/timeline", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     const user = run && (await memberViewing(c, run)) ? await principalOf(c) : null;
-    if (!(run && user && (await durableRunsOn()))) {
+    // A run of version 0.3.0 has its rows to show, whether or not runs last for days here.
+    if (!(run && user && (kernelOf(run.definition) || (await durableRunsOn())))) {
       return c.json(notFoundAnswer(c), 404);
     }
     return c.json(await runTimeline(run, mayActOnWait(user, run)));
@@ -1660,7 +1773,23 @@ export const runRoutes = new Hono()
     }
     const space = await spaceSignIn(c, run, connection);
     if (space) {
-      return c.json({ url: await startSpaceConnectionOAuth(space.id, space.as, requestLang(c)) });
+      return c.json({
+        url: await startSpaceConnectionOAuth(space.id, space.as, requestLang(c), run.id),
+      });
+    }
+    if ((await wantsForSpace(c)).forSpace) {
+      try {
+        const made = await spaceConnectionFromRun(c, run, connection);
+        const url = await asRole(made.role, () =>
+          startSpaceConnectionOAuth(made.id, { as: "space" }, requestLang(c), run.id),
+        );
+        return c.json({ url });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          return c.json(err.toJSON(requestLang(c)), err.status);
+        }
+        throw err;
+      }
     }
     try {
       const url = await startOAuth(
@@ -1686,14 +1815,28 @@ export const runRoutes = new Hono()
     if (!run || !connection) {
       return c.json(notFoundAnswer(c), 404);
     }
-    const { values } = z
-      .object({ values: z.record(z.string(), z.string().max(500)) })
-      .parse(await c.req.json());
+    const { values = {}, forSpace } = await wantsForSpace(c);
     const space = await spaceSignIn(c, run, connection);
     if (space) {
       const { label } = await signInWithCredentials(space.id, space.as, values);
       await signedIn(run.id);
       return c.json({ ok: true, label });
+    }
+    if (forSpace) {
+      try {
+        const made = await spaceConnectionFromRun(c, run, connection);
+        const { label } = await asRole(made.role, () =>
+          signInWithCredentials(made.id, { as: "space" }, values),
+        );
+        signalChanged(run.id);
+        await signedIn(run.id);
+        return c.json({ ok: true, label });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          return c.json(err.toJSON(requestLang(c)), err.status);
+        }
+        throw err;
+      }
     }
     try {
       const label = await connectWithCredentials(
@@ -1719,6 +1862,29 @@ export const runRoutes = new Hono()
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
+    signalChanged(run.id);
+    await signedIn(run.id);
+    return c.json({ ok: true });
+  })
+  // The person picks which account the wizard uses for a need: on the card, or to change it.
+  // The choice is theirs alone: someone reading along (an admin too) changes nothing.
+  .put("/:id/connections/:connectionId/choice", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    const spaceId = run ? await spaceIdOf(run) : "";
+    const connection = run ? await findConnection(run, c.req.param("connectionId"), spaceId) : null;
+    if (!run || !connection) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    if (!ownsRun(run, await callerOf(c, run))) {
+      return refuse(c, { code: "connectionNotForYou" }, 403);
+    }
+    const pick = z
+      .object({ owner: z.enum(["person", "space"]), id: z.string().min(1).max(100) })
+      .parse(await c.req.json());
+    if (!(await choose(scopeOf(run), spaceId, connection, pick))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    signalChanged(run.id);
     await signedIn(run.id);
     return c.json({ ok: true });
   })
@@ -1828,6 +1994,7 @@ export const runRoutes = new Hono()
         title: null,
         description: null,
         account: { connector: x.provider, label: x.label, connectedAt: x.createdAt },
+        candidates: [],
         connectors: [],
       }));
     return c.json({
@@ -1841,7 +2008,7 @@ export const runRoutes = new Hono()
             await spaceIdOf(run),
             requestLang(c),
           )
-        ).filter((x) => x.account),
+        ).filter((x) => x.account || x.candidates.length),
         ...forSharing,
       ],
       keepsSignIns: secrets.some((s) => s.slot === "browser"),
@@ -2084,14 +2251,31 @@ export const connectCallback = new Hono().get("/callback", async (c) => {
   const tenant = state
     ? (pluginTenant ?? spaceTenant ?? (await tenantOfRun(oauthStateRun(state) ?? "")))
     : null;
-  const answer = ticket ? { ticket } : code ? { code } : null;
+  // Composio with a key of one's own: the connected account's id, unless it says the sign-in failed.
+  const composioAccount =
+    c.req.query("status") === "failed" ? undefined : c.req.query("connected_account_id");
+  const answer = ticket
+    ? { ticket }
+    : code
+      ? { code }
+      : composioAccount && spaceTenant
+        ? { composioAccount }
+        : null;
   if (answer && state && tenant) {
     try {
-      if (pluginTenant) {
+      if (pluginTenant && !("composioAccount" in answer)) {
         await withTenant(tenant, () => finishPluginOAuth(answer, state));
       } else if (spaceTenant) {
-        await withTenant(tenant, () => finishSpaceConnectionOAuth(answer, state));
-      } else {
+        const done = await withTenant(tenant, () => finishSpaceConnectionOAuth(answer, state));
+        // Signed in from a run's connect card: the run looks again now.
+        if (done.runId) {
+          const runId = done.runId;
+          signalChanged(runId);
+          await withTenant(tenant, () => signedIn(runId)).catch((err) =>
+            console.error("[connect] wake", err),
+          );
+        }
+      } else if (!("composioAccount" in answer)) {
         const done = await withTenant(tenant, () => finishOAuth(answer, state));
         signalChanged(done.runId);
         // The account is kept: a wake that fails leaves the run to its next look.
@@ -2168,7 +2352,9 @@ async function serveAsset(c: Context, run: RunRow, assetId: string) {
   return c.body(new Uint8Array(found.data), 200, headers);
 }
 
-async function serveDownload(c: Context, run: RunRow, stepId: string, rawFormat?: string) {
+async function serveDownload(c: Context, given: RunRow, stepId: string, rawFormat?: string) {
+  // A run of a wizard made of step files is read as the page shows it: its steps and what each left.
+  const run = kernelOf(given.definition) ? kernelPage(given, await kernelRuns.view(given)) : given;
   const format = z.enum(FORMATS).safeParse(rawFormat);
   const step = run.definition.steps.find((s) => s.id === stepId);
   const output = step ? run.state.outputs[step.id] : undefined;

@@ -1,3 +1,4 @@
+import { readNumber } from "@engenty/chatviews/numbers";
 import {
   AskPanel,
   choiceLabel,
@@ -13,6 +14,7 @@ import {
   OutputView,
   QuestionPanel,
   SignInCard,
+  StartCard,
   StoreButton,
   textHints,
   useDoneSignal,
@@ -31,7 +33,6 @@ import {
   type ReviewStep,
   shownFields,
 } from "@engenty/wizards-shared/definition";
-import { readNumber } from "@engenty/wizards-shared/numbers";
 import type { RunEvent, RunNoteCode, RunView } from "@engenty/wizards-shared/run";
 import {
   ArrowUp,
@@ -1672,6 +1673,21 @@ export function ChatBody({
                 t(view.answeredBy === "team" ? "run.answeredByTeam" : "run.answeredByOther"),
               ),
             ]}
+          />
+          <Idle />
+        </>
+      );
+    } else if (
+      view.connect?.length &&
+      (view.status === "waiting_input" || view.status === "sleeping")
+    ) {
+      // An account the run needs and has none for: connected or chosen before anything else.
+      body = (
+        <>
+          <Thread
+            avatar={view.wizard.avatar}
+            costume={view.wizard.costume}
+            lines={[...before, bot("connect", <StartCard view={view} />, { wide: true })]}
           />
           <Idle />
         </>

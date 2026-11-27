@@ -11,7 +11,7 @@ import { serverText } from "./texts.js";
  */
 export const managed = Boolean(env.manage.url);
 
-/** `client`: a client of the organization, in their client spaces only (docs/plans/client-spaces.md). */
+/** `client`: a client of the organization, in their client spaces only (docs/plans/org-spaces.md). */
 export type Role = "owner" | "admin" | "member" | "client";
 
 export interface TokenClaims {
@@ -77,7 +77,7 @@ function toClaims(payload: JWTPayload): TokenClaims | null {
   if (typeof p.sub !== "string" || typeof p.tenant !== "string") {
     return null;
   }
-  // A role this runtime does not know gets the least: a client's (docs/plans/client-spaces.md).
+  // A role this runtime does not know gets the least: a client's (docs/plans/org-spaces.md).
   const role: Role =
     p.role === "owner" || p.role === "admin" || p.role === "member" || p.role === "client"
       ? p.role
@@ -260,6 +260,31 @@ export function tenantMembers(id: string): Promise<TenantMembers> {
 }
 
 const tenantPath = (id: string) => `/v1/tenants/${encodeURIComponent(id)}`;
+
+/**
+ * The team's Bot Server (wizards.bot), which runs Work's chats. `team`: a team's server takes a
+ * pass for each of its people; a person's own is paired by its own code.
+ */
+export type TeamHome =
+  | { state: "none"; mayMake: boolean; makeUrl: string }
+  | {
+      state: "making" | "running" | "stopped";
+      address: string;
+      origin: string;
+      team: boolean;
+      mayMake: boolean;
+      makeUrl: string;
+    };
+
+/** Where the tenant's Bot Server is, and whether this person could make one. */
+export function teamHome(tenantId: string, userId: string): Promise<TeamHome> {
+  return call<TeamHome>("GET", `${tenantPath(tenantId)}/home?userId=${encodeURIComponent(userId)}`);
+}
+
+/** The link that pairs this person's browser with the team's Bot Server, good for five minutes. */
+export function teamHomePass(tenantId: string, userId: string): Promise<{ url: string }> {
+  return call<{ url: string }>("POST", `${tenantPath(tenantId)}/home/pass`, { userId });
+}
 
 /**
  * Changes to a tenant's people for the person who asks (`actorId`): the Manage-App checks their

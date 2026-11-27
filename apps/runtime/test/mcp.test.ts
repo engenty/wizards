@@ -95,8 +95,25 @@ describe("MCP endpoint", () => {
 
   it("creates, edits with revisions, refuses stale writes and unclean publishes", async () => {
     const client = await connect();
-    const created = await call(client, "create_wizard", { note: "Leeren Wizard angelegt." });
-    expect(created.isError).toBe(false);
+    // A wizard in version 0.2.0, whose steps the ops below change.
+    const created = await call(client, "create_wizard", {
+      definition: {
+        version: 1,
+        title: "Neu",
+        description: "",
+        avatar: "round",
+        steps: [
+          {
+            id: "start",
+            type: "form",
+            title: "Worum geht es?",
+            fields: [{ id: "input", label: "Worum geht es?", kind: "textarea", required: true }],
+          },
+          { id: "done", type: "result", title: "Fertig", deliverables: [] },
+        ],
+      },
+      note: "Leeren Wizard angelegt.",
+    });
     expect(created.isError, JSON.stringify(created.body)).toBe(false);
     const { wizardId } = created.body;
     expect(created.body.revision).toBe(0);
@@ -167,6 +184,19 @@ describe("MCP endpoint", () => {
     const published = await call(client, "publish_wizard", { wizardId });
     expect(published.body).toMatchObject({ version: 1 });
     expect(published.body.shareUrl).toMatch(/^http:\/\/localhost:5181\/w\//);
+  });
+
+  it("starts a new wizard in version 0.3.0, and a test run takes its answers as the input", async () => {
+    const client = await connect();
+    const created = await call(client, "create_wizard", {});
+    expect(created.isError, JSON.stringify(created.body)).toBe(false);
+    const run = await call(client, "start_test_run", {
+      wizardId: created.body.wizardId,
+      answers: { input: "Bäcker" },
+    });
+    expect(run.isError, JSON.stringify(run.body)).toBe(false);
+    const report = await call(client, "get_test_run", { runId: run.body.runId, waitSeconds: 10 });
+    expect(report.body.status).toBe("done");
   });
 
   it("offers the flow widget with the tools that show a wizard or a run", async () => {
@@ -396,16 +426,16 @@ describe("a draft's warnings", () => {
     const blank = await call(client, "get_wizard", { wizardId });
     expect(blank.body.warnings).toEqual([]);
 
-    // A connection of the space, new: Senden is on „Mit Freigabe“, and a run waits for nobody.
+    // A connection of the space, new: Senden is on „Nie“.
     const { withTenant } = await import("../src/db/client");
     const connections = await import("../src/connectors/space-connections");
-    const { DEFAULT_CONNECTION_RULES } = await import("@engenty/wizards-shared/connectors");
+    const { startConnectionRules } = await import("@engenty/wizards-shared/connectors");
     const row = await withTenant("local", () =>
       connections.createSpaceConnection("local", blank.body.spaceId, {
         connectorId: "smtp",
         name: "Bestellungen",
         signIn: "space",
-        rules: DEFAULT_CONNECTION_RULES,
+        rules: startConnectionRules("space"),
         actions: [],
       }),
     );
@@ -439,11 +469,11 @@ describe("a draft's warnings", () => {
     expect(written.body.issues).toEqual([]);
     const warning = {
       stepId: "send",
-      kind: "needs_approval",
+      kind: "rule_never",
       connection: { id: row.id, name: "Bestellungen" },
       action: { id: "send_message", kind: "send" },
       message: expect.stringMatching(
-        /^Step "send" will fail in a run: the connection "Bestellungen" asks the space's admins before the action "send_message" \(send\)/,
+        /^Step "send" will fail in a run: the connection "Bestellungen" never allows the action "send_message" \(send\)/,
       ),
     };
     expect(written.body.warnings).toEqual([warning]);
@@ -458,7 +488,7 @@ describe("a draft's warnings", () => {
     expect(edited.body.warnings).toEqual([warning]);
     await withTenant("local", () =>
       connections.updateSpaceConnection("local", row.id, {
-        rules: { ...DEFAULT_CONNECTION_RULES, send: "allow" },
+        rules: { ...startConnectionRules("space"), send: "allow" },
       }),
     );
     expect((await call(client, "get_wizard", { wizardId })).body.warnings).toEqual([]);

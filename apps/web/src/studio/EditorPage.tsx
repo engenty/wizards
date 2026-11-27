@@ -1,9 +1,11 @@
 import { goesOnText, waitsSignalText } from "@engenty/wizards-runner";
 import { type ModelClass, TEXT_CLASSES } from "@engenty/wizards-shared/definition";
+import { withKernelFile } from "@engenty/wizards-shared/kernel-file";
 import type { MissingConnection, MissingModel, RunView } from "@engenty/wizards-shared/run";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Code2,
   Eye,
   FileText,
   Flag,
@@ -11,6 +13,8 @@ import {
   History,
   Lock,
   NotebookTabs,
+  PanelRightClose,
+  PanelRightOpen,
   Pencil,
   Settings,
   Share2,
@@ -38,6 +42,8 @@ import { ChatPanel, useArchitectChat, Working } from "./editor/ChatPanel";
 import { FilesPanel } from "./editor/FilesPanel";
 import { currentDecisions, FlowDiagram, type StepLive } from "./editor/FlowDiagram";
 import { Inspector, StepNav } from "./editor/Inspector";
+import { KernelCodeView, WIZARD_JSON } from "./editor/KernelCodeView";
+import { firstKernelStep, KernelFlow, KernelStep } from "./editor/KernelFlow";
 import { LiveDialog } from "./editor/LiveDialog";
 import { MemoryPanel } from "./editor/MemoryPanel";
 import { Pills, PreviewPane } from "./editor/PreviewPane";
@@ -56,7 +62,7 @@ import { WizardMenu } from "./WizardMenu";
 import { WhereChip, whereItRuns } from "./where";
 
 /** What the main area shows. The flow has a column of its own where the window is wide. */
-type View = "preview" | "flow" | "files" | "memory" | "runs";
+type View = "preview" | "flow" | "code" | "files" | "memory" | "runs";
 
 /** The model classes an account's credits run: text, images, videos. */
 const CREDIT_CLASSES: readonly ModelClass[] = [...TEXT_CLASSES, "image", "video"];
@@ -64,6 +70,7 @@ const CREDIT_CLASSES: readonly ModelClass[] = [...TEXT_CLASSES, "image", "video"
 const VIEW_LABEL: Record<View, Key> = {
   preview: "editor.preview",
   flow: "editor.flow",
+  code: "editor.code",
   files: "editor.files",
   memory: "editor.memory",
   runs: "editor.runs",
@@ -71,6 +78,7 @@ const VIEW_LABEL: Record<View, Key> = {
 const VIEW_ICON: Record<View, typeof Eye> = {
   preview: Eye,
   flow: Workflow,
+  code: Code2,
   files: FileText,
   memory: NotebookTabs,
   runs: History,
@@ -94,7 +102,7 @@ const COLUMN_SHOWN_KEY = "wizards.editor.columnShown";
 /** What the column beside the preview shows: the flow, or the editor of what the strip has chosen. */
 type Column = "flow" | "edit";
 /** The column's switch: the editor named by what it is on, the wizard's settings and result apart. */
-type ColumnPick = "settings" | "flow" | "edit" | "result";
+type ColumnPick = "settings" | "flow" | "edit" | "result" | "code";
 const COLUMN_KEY = "wizards.editor.column";
 /** Steps a person sees: shown first; the others are edited first where there is no room for both. */
 const SHOWN_FIRST = new Set(["form", "review", "result"]);
@@ -355,9 +363,34 @@ function Editor() {
   const [columnShown, setColumnShown] = useColumnShown();
   /** A column beside the preview holds the flow or the editor, while the window is wide and it is shown. */
   const columnBeside = wideWindow && columnShown;
-  const [column, setColumn] = useColumn();
+  const [storedColumn, storeColumn] = useColumn();
+  /** A wizard of one step is open on that step, until the person picks what the column shows. */
+  const [onPrompt, setOnPrompt] = useState(false);
+  const column: Column = onPrompt ? "edit" : storedColumn;
+  const setColumn = (next: Column) => {
+    setOnPrompt(false);
+    storeColumn(next);
+  };
   /** Where there is no column: the main area edits the step chosen instead of showing it. */
   const [editing, setEditing] = useState(false);
+  // A wizard made of one step file is its prompt: it opens on that step, where the prompt is typed
+  // over, not on a map of one step. What the browser remembers for the column stays as it is.
+  const kernelFile = wizard.data?.draft.kernel;
+  const onlyStep =
+    kernelFile && Object.keys(kernelFile.edges).length === 1 ? kernelFile.start : null;
+  const openedOn = useRef<string | null>(null);
+  useEffect(() => {
+    if (onlyStep && id && openedOn.current !== id) {
+      openedOn.current = id;
+      setSelected(onlyStep);
+      setOnPrompt(true);
+      setEditing(true);
+    }
+  }, [onlyStep, id]);
+  /** A wizard made of step files: the chosen step is edited as code, not as fields. */
+  const [coding, setCoding] = useState(false);
+  /** The file the code view has open, once one was picked there. */
+  const [codePath, setCodePath] = useState<string | null>(null);
   // On a wide window the flow lives in the column, never as a view of the main area.
   const shownView: View = wideWindow && view === "flow" ? "preview" : view;
   const sheet = useSheetHeight();
@@ -633,6 +666,10 @@ function Editor() {
   const select = (sid: string | null) => {
     setSelected(sid);
     setShowRun(false);
+    // A wizard made of step files shows every step: what is on, preview, fields or code, stays.
+    if (def.kernel) {
+      return;
+    }
     const step = stepOf(sid);
     setEditing(!step || !SHOWN_FIRST.has(step.type));
   };
@@ -719,31 +756,57 @@ function Editor() {
     </Button>
   );
 
+  /** A wizard of version 0.3.0, and the step of it that is chosen: neither is in `def.steps`. */
+  const kernel = def.kernel ? { wizardId: w.id, file: def.kernel, files: w.files } : undefined;
+  const kernelStep =
+    kernel && selected && selected !== "__wizard" && !stepOf(selected) ? selected : null;
+
+  /** The file of the step that is chosen; the wizard's own where none is, or the page its runs start with. */
+  const stepFile =
+    kernel?.files.find((f) => f.path === `steps/${kernelStep}.ts`)?.path ?? WIZARD_JSON;
+
   /** The step's editor: in the column beside the preview, or in the preview's place. */
-  const editor = (
-    // A swipe left or right moves to the next or the previous step.
-    <div className="min-h-0 flex-1 overflow-y-auto" {...stepSwipe}>
-      <div className="mx-auto w-full max-w-3xl">
-        <ResultPageOpener.Provider value={openPage}>
-          <Inspector
-            def={def}
-            selected={selected}
-            update={save}
+  const editor =
+    kernel && coding ? (
+      // The chosen step as code: its file, in an editor.
+      <KernelCodeView wizard={kernel} path={stepFile} readOnly={w.readOnly} />
+    ) : kernel && kernelStep ? (
+      <div className="min-h-0 flex-1 overflow-y-auto" {...stepSwipe}>
+        <div className="mx-auto w-full max-w-3xl">
+          <KernelStep
+            wizard={kernel}
+            id={kernelStep}
             onSelect={select}
-            issues={w.issues}
-            warnings={w.warnings}
-            files={w.files}
-            wizardId={w.id}
-            spaceId={w.spaceId}
             readOnly={w.readOnly}
-            decisions={shownDecisions}
-            branchFocus={branchFocus}
-            assistant={assistant}
+            onFile={(file) => save(withKernelFile(def, file))}
+            onNote={(text) => void chat.send(text)}
           />
-        </ResultPageOpener.Provider>
+        </div>
       </div>
-    </div>
-  );
+    ) : (
+      // A swipe left or right moves to the next or the previous step.
+      <div className="min-h-0 flex-1 overflow-y-auto" {...stepSwipe}>
+        <div className="mx-auto w-full max-w-3xl">
+          <ResultPageOpener.Provider value={openPage}>
+            <Inspector
+              def={def}
+              selected={selected}
+              update={save}
+              onSelect={select}
+              issues={w.issues}
+              warnings={w.warnings}
+              files={w.files}
+              wizardId={w.id}
+              spaceId={w.spaceId}
+              readOnly={w.readOnly}
+              decisions={shownDecisions}
+              branchFocus={branchFocus}
+              assistant={assistant}
+            />
+          </ResultPageOpener.Provider>
+        </div>
+      </div>
+    );
 
   /** The steps in a row, under the preview's switches: what the preview and the editor are on. */
   const strip = (
@@ -754,17 +817,23 @@ function Editor() {
       issues={w.issues}
       warnings={w.warnings}
       run={drawerRun ? { shown: showRun, at: activeStep, onShow: () => setShowRun(true) } : null}
+      kernel={kernel}
     />
   );
   /** Where there is no column: show the step or edit it, at the start of the main area's bar. */
   const showOrEdit = columnBeside ? null : (
-    <Pills<"show" | "edit">
+    <Pills<"show" | "edit" | "code">
       label={t("editor.view")}
-      value={editing ? "edit" : "show"}
-      onChange={(v) => setEditing(v === "edit")}
+      value={!editing ? "show" : coding && kernel ? "code" : "edit"}
+      onChange={(v) => {
+        setEditing(v !== "show");
+        setCoding(v === "code");
+      }}
       options={[
         { id: "show", label: t("editor.preview") },
         { id: "edit", label: t("editor.edit") },
+        // A wizard made of step files: the chosen step's file, as code.
+        ...(kernel ? [{ id: "code" as const, label: t("editor.code") }] : []),
       ]}
     />
   );
@@ -777,17 +846,27 @@ function Editor() {
   const columnPick: ColumnPick =
     column === "flow"
       ? "flow"
-      : !chosen
-        ? "settings"
-        : chosen.type === "result"
-          ? "result"
-          : "edit";
+      : kernel && coding
+        ? "code"
+        : kernelStep
+          ? "edit"
+          : !chosen
+            ? "settings"
+            : chosen.type === "result"
+              ? "result"
+              : "edit";
   const pickColumn = (pick: ColumnPick) => {
     setColumn(pick === "flow" ? "flow" : "edit");
+    // The fields are what the column shows; code only while its own switch is on.
+    setCoding(pick === "code");
     if (pick === "settings") {
       select("__wizard");
     } else if (pick === "result" && resultStep) {
       select(resultStep.id);
+    } else if (pick === "edit" && kernel) {
+      if (!kernelStep) {
+        select(firstKernelStep(kernel.file));
+      }
     } else if (pick === "edit" && (!chosen || chosen.type === "result")) {
       const first = def.steps.find((s) => s.type !== "result");
       if (first) {
@@ -797,9 +876,11 @@ function Editor() {
   };
 
   // The tabs follow the window's width alone: wide, the flow is in the column.
-  const views: View[] = wideWindow
-    ? ["preview", "files", "memory", "runs"]
-    : ["preview", "flow", "files", "memory", "runs"];
+  const views: View[] = (
+    wideWindow
+      ? (["preview", "code", "files", "memory", "runs"] as const)
+      : (["preview", "flow", "code", "files", "memory", "runs"] as const)
+  ).filter((v) => v !== "code" || Boolean(kernel));
   /** The diagram follows a run where it is not in sight: its tab says so. */
   const flowPulse = Boolean(drawerRun && activeStep) && shownView !== "flow";
   const pickView = (v: View) => {
@@ -836,6 +917,15 @@ function Editor() {
         <div className="flex h-full items-center justify-center px-6 text-[0.875rem] text-ink-3">
           <Working chat={chat} spinner="size-4 text-ember" />
         </div>
+      ) : def.kernel ? (
+        <KernelFlow
+          wizard={{ wizardId: w.id, file: def.kernel, files: w.files }}
+          selected={selected}
+          onSelect={(sid) => {
+            select(sid);
+            setColumn("edit");
+          }}
+        />
       ) : (
         <FlowDiagram
           def={def}
@@ -1099,6 +1189,7 @@ function Editor() {
           {/* At the very right: a copy, the package to keep, deleting it. */}
           <WizardMenu
             wizard={{ id: w.id, title: def.title, published: w.published }}
+            convertible={!def.kernel}
             onDeleted={() => navigate("/")}
           />
         </div>
@@ -1223,7 +1314,14 @@ function Editor() {
                 runId={drawerRun}
                 runView={runView}
                 onView={onRunView}
-                stepId={showRun && drawerRun ? null : (stepOf(selected)?.id ?? null)}
+                stepId={
+                  showRun && drawerRun
+                    ? null
+                    : (stepOf(selected)?.id ??
+                      // The page a run of version 0.3.0 starts with is the step `input` there.
+                      (kernelStep === "/input" ? "input" : kernelStep))
+                }
+                kernelStamp={kernel?.files.map((f) => f.hash).join(",")}
                 audience={audience}
                 onAudience={setAudience}
                 test={{
@@ -1247,6 +1345,29 @@ function Editor() {
             </div>
           ) : shownView === "flow" ? (
             flow
+          ) : shownView === "code" && kernel ? (
+            // Every file of the wizard as code, to pick from and to change.
+            <KernelCodeView
+              wizard={kernel}
+              path={codePath ?? stepFile}
+              onPath={setCodePath}
+              list
+              readOnly={w.readOnly}
+              end={
+                wideWindow ? (
+                  <IconButton
+                    label={t(columnShown ? "editor.columnHide" : "editor.columnShow")}
+                    onClick={() => setColumnShown(!columnShown)}
+                  >
+                    {columnShown ? (
+                      <PanelRightClose className="size-4" />
+                    ) : (
+                      <PanelRightOpen className="size-4" />
+                    )}
+                  </IconButton>
+                ) : null
+              }
+            />
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto max-w-3xl py-2">
@@ -1260,7 +1381,12 @@ function Editor() {
                     readOnly={w.readOnly}
                   />
                 ) : (
-                  <RunsPanel wizardId={w.id} starts={w.starts} onOpen={openRun} />
+                  <RunsPanel
+                    wizardId={w.id}
+                    starts={w.starts}
+                    kernel={Boolean(def.kernel)}
+                    onOpen={openRun}
+                  />
                 )}
               </div>
             </div>
@@ -1328,6 +1454,16 @@ function Editor() {
                               id: "result" as const,
                               label: t("editor.result"),
                               icon: <Flag className="size-3.5" />,
+                            },
+                          ]
+                        : []),
+                      // A wizard made of step files: what the strip has chosen, as code.
+                      ...(kernel
+                        ? [
+                            {
+                              id: "code" as const,
+                              label: t("editor.code"),
+                              icon: <Code2 className="size-3.5" />,
                             },
                           ]
                         : []),

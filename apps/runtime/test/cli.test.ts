@@ -14,17 +14,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { localTicketExpiry, mintLocalTicket } from "../src/auth/local-ticket.js";
 import { loginApp, loginItemText, unitText, writeMacLoginItem } from "../src/cli/autostart.js";
-import { installCommand } from "../src/cli/clients.js";
 import { findExternal } from "../src/cli/external.js";
 import { inherited, runtimeEnv, runtimePath } from "../src/cli/environment.js";
 import { layout, readEnvFile, wizardsHome } from "../src/cli/home.js";
-import {
-  CLIENTS,
-  findChrome,
-  findOnPath,
-  nodeIsCurrent,
-  suggestedClient,
-} from "../src/cli/machine.js";
+import { findChrome, findOnPath, nodeIsCurrent } from "../src/cli/machine.js";
 import { entryUrl, readSecret } from "../src/cli/start.js";
 import { clearRunning, readRunning, writeRunning } from "../src/running.js";
 
@@ -228,45 +221,6 @@ describe("finding a command", () => {
     expect(findOnPath("claude", dir, "win32", ".EXE;.CMD")).toBeNull();
     // Not executable: no command on macOS or Linux.
     expect(findOnPath("codex", dir, "linux")).toBeNull();
-  });
-});
-
-describe("the AI clients", () => {
-  const codex = CLIENTS.find((c) => c.id === "codex");
-  const claude = CLIENTS.find((c) => c.id === "claude");
-
-  it("installs one from npm into the install's own prefix, quoted when it has to be", () => {
-    expect(codex && installCommand(codex, layout("/h"))).toBe(
-      "npm install --global --prefix /h/clients @openai/codex",
-    );
-    expect(codex && installCommand(codex, layout("/Users/a b/w"))).toBe(
-      "npm install --global --prefix '/Users/a b/w/clients' @openai/codex",
-    );
-    expect(claude && installCommand(claude, layout("/h"))).toBe(
-      "curl -fsSL https://claude.ai/install.sh | bash",
-    );
-  });
-
-  it("installs on Windows with PowerShell: the vendor's install.ps1, npm with a quoted prefix", () => {
-    const home = layout("C:\\Users\\a b\\.engenty\\wizards");
-    expect(claude && installCommand(claude, home, "win32")).toBe(
-      "irm https://claude.ai/install.ps1 | iex",
-    );
-    const cursor = CLIENTS.find((c) => c.id === "cursor");
-    expect(cursor && installCommand(cursor, home, "win32")).toBe(
-      "irm 'https://cursor.com/install?win32=true' | iex",
-    );
-    expect(codex && installCommand(codex, home, "win32")).toMatch(
-      /^npm install --global --prefix '.*a b.*clients' @openai\/codex$/,
-    );
-  });
-
-  it("suggests the first when no vendor app says otherwise", () => {
-    const missing = CLIENTS.filter((c) => c.id !== "codex").map((c) => ({
-      client: { ...c, app: undefined },
-    }));
-    expect(suggestedClient(missing)?.client.id).toBe("claude");
-    expect(suggestedClient([])).toBeNull();
   });
 });
 

@@ -8,19 +8,24 @@ company, run it, change it — just don't offer it to others as a competing prod
 Each release becomes MIT two years after it is published. Every package of the workspace names
 its licence in its `package.json`.
 
-The wizard format is open to everyone now: the eighteen files that define a wizard, read it and
-pack it as a `.wizard` file (`packages/shared/src/definition.ts`, `fit.ts`, `numbers.ts`,
-`run.ts`, `run-schema.ts`, `runner-texts.ts`, `shape.ts`, `sharing.ts`, `store.ts`, `surface.ts`, `texts.ts`,
+The wizard format is open to everyone now: the fifteen files that define a wizard, read it and
+pack it as a `.wizard` file (`packages/shared/src/definition.ts`, `fit.ts`,
+`run.ts`, `run-schema.ts`, `runner-texts.ts`, `sharing.ts`, `store.ts`, `texts.ts`,
 `theme.ts`, `translation.ts`, `wizard-data.ts`, `wizard-package.ts` and `engenty/data-tables/columns.ts`,
 `columns-format.ts`, `columns-value.ts`) are also under the MIT licence, at the
 choice of whoever uses them (`FSL-1.1-MIT OR MIT`, [packages/shared/LICENSE-MIT](packages/shared/LICENSE-MIT)).
 Each says so in its first line. The runner package (`packages/runner`, MIT) bundles them under MIT.
+The kernel (`packages/kernel`, the engine of a wizard made of step files) is under the MIT licence
+([packages/kernel/LICENSE](packages/kernel/LICENSE)).
 `@engenty/wizards` on npm is `FSL-1.1-MIT`; its `/openui` bundles the runner, whose MIT licence
 ships beside it (`dist/openui/LICENSE-MIT`).
-Four libraries are under the MIT licence, each with its own `LICENSE`, and go to npm with each
-release: `packages/decision-model` (`@engenty/decision-model`), `packages/search-index`
-(`@engenty/search-index`), `packages/search-libsql` (`@engenty/search-libsql`) and
-`packages/goose` (`@engenty/goose`). They depend only on each other and on MIT or permissive
+Ten libraries are under the MIT licence, each with its own `LICENSE`, and go to npm with each
+release: `packages/chatviews` (`@engenty/chatviews`), `packages/decision-model` (`@engenty/decision-model`), `packages/search-index`
+(`@engenty/search-index`), `packages/search-libsql` (`@engenty/search-libsql`),
+`packages/tool-harness` (`@engenty/tool-harness`),
+`packages/vault` (`@engenty/vault`),
+`packages/plugins` (`@engenty/plugins`), `packages/browser` (`@engenty/browser`),
+`packages/model-providers` (`@engenty/model-providers`) and `packages/model-setup` (`@engenty/model-setup`). They depend only on each other and on MIT or permissive
 packages (`pnpm mit-deps:check`).
 The plugin for the AI apps (`plugin/`, published as engenty/wizards-plugins) is under the MIT
 licence ([plugin/LICENSE](plugin/LICENSE)), except the engenty figures in it.
@@ -61,6 +66,10 @@ Declared by two or more of the workspaces below:
 
 | Package | Version | Licence |
 |---|---|---|
+| [@ai-sdk/anthropic](https://ai-sdk.dev/docs) | 4.0.97 | Apache-2.0 |
+| [@ai-sdk/gateway](https://ai-sdk.dev/docs) | 4.0.136 | Apache-2.0 |
+| [@ai-sdk/google](https://ai-sdk.dev/docs) | 4.0.112 | Apache-2.0 |
+| [@ai-sdk/openai](https://ai-sdk.dev/docs) | 4.0.109 | Apache-2.0 |
 | [@fontsource/bricolage-grotesque](https://fontsource.org/fonts/bricolage-grotesque) | 5.3.0 | OFL-1.1 |
 | [@fontsource/caveat](https://fontsource.org/fonts/caveat) | 5.3.0 | OFL-1.1 |
 | [@fontsource/creepster](https://fontsource.org/fonts/creepster) | 5.3.0 | OFL-1.1 |
@@ -77,8 +86,11 @@ Declared by two or more of the workspaces below:
 | [@hono/node-server](https://github.com/honojs/node-server) | 2.1.6 | MIT |
 | [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.4.0 | Apache-2.0 |
 | [@modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps) | 2.0.4 | MIT |
+| [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.4.0 | Apache-2.0 |
 | [ai](https://ai-sdk.dev/docs) | 7.0.163 | Apache-2.0 |
+| [cross-spawn](https://github.com/moxystudio/node-cross-spawn) | 7.0.6 | MIT |
 | [dompurify](https://github.com/cure53/DOMPurify) | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
+| [esbuild](https://github.com/evanw/esbuild#readme) | 0.28.2 | MIT |
 | [fflate](https://101arrowz.github.io/fflate) | 0.8.3 | MIT |
 | [hono](https://hono.dev) | 4.13.16 | MIT |
 | [lucide-react](https://lucide.dev) | 1.69.0 | ISC |
@@ -105,36 +117,28 @@ Declared by two or more of the workspaces below:
 
 | Package | Version | Licence |
 |---|---|---|
-| [@ai-sdk/anthropic](https://ai-sdk.dev/docs) | 4.0.97 | Apache-2.0 |
 | [@ai-sdk/elevenlabs](https://ai-sdk.dev/docs) | 3.0.80 | Apache-2.0 |
 | [@ai-sdk/fal](https://ai-sdk.dev/docs) | 3.0.76 | Apache-2.0 |
-| [@ai-sdk/gateway](https://ai-sdk.dev/docs) | 4.0.136 | Apache-2.0 |
-| [@ai-sdk/google](https://ai-sdk.dev/docs) | 4.0.112 | Apache-2.0 |
-| [@ai-sdk/openai](https://ai-sdk.dev/docs) | 4.0.109 | Apache-2.0 |
 | [@ai-sdk/replicate](https://ai-sdk.dev/docs) | 3.0.76 | Apache-2.0 |
 | [@clack/prompts](https://github.com/bombshell-dev/clack/tree/main/packages/prompts#readme) | 1.8.1 | MIT |
 | [@executor-js/plugin-openapi](https://github.com/UsefulSoftwareCo/executor/tree/main/packages/plugins/openapi) | 1.6.11 | MIT |
 | [@libsql/client](https://github.com/tursodatabase/libsql-client-ts#readme) | 0.18.0 | MIT |
 | [@llamaindex/liteparse](https://github.com/run-llama/liteparse#readme) | 2.18.0 | Apache-2.0 |
-| [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
-| [@mastra/ai-sdk](https://mastra.ai) | 1.11.3 | Apache-2.0 |
 | [@mastra/core](https://mastra.ai) | 1.82.0 | Apache-2.0 |
 | [@mastra/docker](https://mastra.ai) | 0.13.0 | Apache-2.0 |
 | [@mastra/libsql](https://mastra.ai) | 1.29.0 | Apache-2.0 |
-| [@mastra/memory](https://mastra.ai) | 1.41.0 | Apache-2.0 |
 | [@mastra/quickjs](https://mastra.ai) | 0.1.5 | Apache-2.0 |
-| [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.4.0 | Apache-2.0 |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 1.0.13 | MIT |
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.3 | MIT |
+| [acorn](https://github.com/acornjs/acorn) | 8.19.0 | MIT |
 | [aws4fetch](https://github.com/mhart/aws4fetch#readme) | 1.0.20 | MIT |
-| [cross-spawn](https://github.com/moxystudio/node-cross-spawn) | 7.0.6 | MIT |
 | [drizzle-orm](https://orm.drizzle.team) | 0.45.4 | Apache-2.0 |
 | [effect](https://effect.website) | 4.0.0-beta.59 | MIT |
 | [exceljs](https://github.com/exceljs/exceljs#readme) | 4.4.0 | MIT |
 | [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser#readme) | 5.12.0 | MIT |
 | [imapflow](https://imapflow.com/) | 2.10.2 | MIT |
 | [jiti](https://github.com/unjs/jiti#readme) | 2.7.0 | MIT |
-| [jose](https://github.com/panva/jose) | 6.2.15 | MIT |
+| [jose](https://github.com/panva/jose) | 6.2.18 | MIT |
 | [mammoth](https://github.com/mwilliamson/mammoth.js#readme) | 1.13.0 | BSD-2-Clause |
 | [nanoid](https://github.com/ai/nanoid#readme) | 6.0.2 | MIT |
 | [nodemailer](https://nodemailer.com/) | 10.3.1 | MIT-0 |
@@ -150,10 +154,10 @@ Declared by two or more of the workspaces below:
 
 | Package | Version | Licence |
 |---|---|---|
-| [@ai-sdk/react](https://ai-sdk.dev/docs) | 4.0.167 | Apache-2.0 |
 | [@base-ui/react](https://base-ui.com) | 1.9.0 | MIT |
 | @codemirror/autocomplete | 6.20.4 | MIT |
 | @codemirror/commands | 6.11.1 | MIT |
+| [@codemirror/lang-javascript](https://github.com/codemirror/lang-javascript#readme) | 6.2.4 | MIT |
 | [@codemirror/lang-json](https://github.com/codemirror/lang-json#readme) | 6.0.2 | MIT |
 | @codemirror/lang-markdown | 6.5.2 | MIT |
 | @codemirror/language | 6.13.1 | MIT |
@@ -164,7 +168,6 @@ Declared by two or more of the workspaces below:
 | [@dagrejs/dagre](https://github.com/dagrejs/dagre#readme) | 3.1.3 | MIT |
 | [@floating-ui/dom](https://floating-ui.com) | 1.8.0 | MIT |
 | @lezer/highlight | 1.2.5 | MIT |
-| [@shadcn/react](https://ui.shadcn.com) | 0.3.1 | MIT |
 | [@tanstack/react-query](https://tanstack.com/query) | 5.106.1 | MIT |
 | [@tiptap/core](https://tiptap.dev) | 3.32.2 | MIT |
 | [@tiptap/extension-bubble-menu](https://tiptap.dev) | 3.32.2 | MIT |
@@ -189,15 +192,49 @@ Declared by two or more of the workspaces below:
 | [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT |
 | [xlsx](https://sheetjs.com/) | 0.20.3 | Apache-2.0 |
 
+### kernel (packages/kernel)
+
+| Package | Version | Licence |
+|---|---|---|
+| [@jitl/quickjs-wasmfile-release-sync](https://github.com/justjake/quickjs-emscripten#readme) | 0.31.0 | MIT |
+| [quickjs-emscripten-core](https://github.com/justjake/quickjs-emscripten#readme) | 0.31.0 | MIT |
+
+### packages/browser (packages/browser)
+
+| Package | Version | Licence |
+|---|---|---|
+| [@mastra/agent-browser](https://mastra.ai) | 0.6.0 | Apache-2.0 |
+
+### packages/model-providers (packages/model-providers)
+
+| Package | Version | Licence |
+|---|---|---|
+| [@ai-sdk/openai-compatible](https://ai-sdk.dev/docs) | 3.0.94 | Apache-2.0 |
+
+### packages/model-setup (packages/model-setup)
+
+| Package | Version | Licence |
+|---|---|---|
+| [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
+
+### packages/vault (packages/vault)
+
+| Package | Version | Licence |
+|---|---|---|
+| [tldts](https://github.com/remusao/tldts#readme) | 7.4.24 | MIT |
+
 ### Development only
 
 Used to build, check and test; not part of what people run:
 
 | Package | Version | Licence |
 |---|---|---|
-| [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript#readme) | 1.5.0 | Apache-2.0 |
+| [@a2ui/web_core](https://a2ui.org/) | 0.16.1 | Apache-2.0 |
 | [@biomejs/biome](https://biomejs.dev) | 2.5.0 | MIT OR Apache-2.0 |
+| [@executor-js/emulate](https://emulators.dev) | 0.14.2 | Apache-2.0 |
+| [@executor-js/sdk](https://github.com/UsefulSoftwareCo/executor/tree/main/packages/core/sdk) | 1.6.11 | MIT |
 | [@microsoft/api-extractor](https://api-extractor.com) | 7.60.1 | MIT |
+| [@openuidev/lang-core](https://openui.com) | 1.1.0 | MIT |
 | [@openuidev/react-lang](https://openui.com) | 1.1.0 | MIT |
 | [@tailwindcss/postcss](https://tailwindcss.com) | 4.3.4 | MIT |
 | [@tailwindcss/vite](https://tailwindcss.com) | 4.3.4 | MIT |
@@ -216,7 +253,7 @@ Used to build, check and test; not part of what people run:
 | [drizzle-kit](https://orm.drizzle.team) | 0.31.11 | MIT |
 | [git-cliff](https://github.com/orhun/git-cliff#readme) | 2.14.2 | MIT OR Apache-2.0 |
 | [jsdom](https://github.com/jsdom/jsdom#readme) | 30.1.3 | MIT |
-| [openai](https://github.com/openai/openai-node#readme) | 7.51.0 | Apache-2.0 |
+| [miniflare](https://github.com/cloudflare/workers-sdk/tree/main/packages/miniflare#readme) | 4.20260730.0 | MIT |
 | [postcss](https://postcss.org/) | 8.5.32 | MIT |
 | [tailwindcss](https://tailwindcss.com) | 4.3.4 | MIT |
 | [tsx](https://tsx.hirok.io) | 4.23.15 | MIT |

@@ -166,9 +166,7 @@ function ColorsFromUrl({
 /**
  * The brand's colours by name. The standard ones come first; the first of them is the accent.
  * Two optional parts, as for the logos: sections for a further palette of its own use, and rules
- * for how the colours may be used. They wait behind the switches `brandSections` (without it every
- * colour stands with the standard ones, and gradients and patterns are not shown) and
- * `brandRules`.
+ * for how the colours may be used.
  */
 export function Colors({
   spaceId,
@@ -178,8 +176,6 @@ export function Colors({
   gradients: savedGradients,
   patterns: savedPatterns,
   rules: savedRules,
-  sectioned,
-  ruled,
   save,
   readOnly,
 }: {
@@ -191,10 +187,6 @@ export function Colors({
   gradients: BrandGradient[];
   patterns: BrandPattern[];
   rules: BrandRule[];
-  /** Sections (gradients and patterns among them) are shown and can be added. */
-  sectioned: boolean;
-  /** Rules are shown and can be added. */
-  ruled: boolean;
   save: (patch: {
     colors: BrandColor[];
     colorSections: ColorSection[];
@@ -234,8 +226,7 @@ export function Colors({
     },
     save,
   );
-  const shown = sectioned ? sections : [];
-  const colourSections = shown.filter((s) => (s.kind ?? "colors") === "colors");
+  const colourSections = sections.filter((s) => (s.kind ?? "colors") === "colors");
   const known = (r: Row) => colourSections.some((s) => s.id === r.section);
   const standard = rows.filter((r) => !known(r));
   const accentId = (standard[0] ?? rows[0])?.id;
@@ -286,7 +277,7 @@ export function Colors({
           },
         ]
       : []),
-    ...(sectioned && sections.length < SPACE_LIMITS.logoSections
+    ...(sections.length < SPACE_LIMITS.logoSections
       ? [
           {
             label: t("space.colorSectionAdd"),
@@ -305,7 +296,7 @@ export function Colors({
           },
         ]
       : []),
-    ...(!ruled || rules.full
+    ...(rules.full
       ? []
       : [
           {
@@ -400,7 +391,7 @@ export function Colors({
           <p className="text-[0.875rem] text-ink-3">{t("space.colorsEmpty")}</p>
         )}
 
-        {shown.map((s) => {
+        {sections.map((s) => {
           const kind = s.kind ?? "colors";
           const own = rows.filter((r) => r.section === s.id);
           const fills = gradients.filter((g) => g.section === s.id);
@@ -525,13 +516,7 @@ export function Colors({
           );
         })}
 
-        {ruled ? (
-          <RuleRows
-            rules={rules}
-            placeholder={t("space.colorRulePlaceholder")}
-            readOnly={readOnly}
-          />
-        ) : null}
+        <RuleRows rules={rules} placeholder={t("space.colorRulePlaceholder")} readOnly={readOnly} />
       </div>
       {actions.error ? <p className="mt-3 text-[0.875rem] text-rose">{actions.error}</p> : null}
       {editing ? (

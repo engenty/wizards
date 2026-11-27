@@ -11,6 +11,7 @@ import { type Lang, textClassOf } from "@engenty/wizards-shared/definition";
 import { RWX_ALL } from "@engenty/wizards-shared/rwx";
 import { SPACE_DATA_LIMITS } from "@engenty/wizards-shared/space-data";
 import {
+  basicFactOf,
   cleanAssetSections,
   cleanLogoSections,
   FACT_TYPES,
@@ -74,6 +75,7 @@ import {
 import { ownedSpace, type SpaceRow, updateSpace } from "../services/spaces.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
+import { harnessed, harnessedModel, oneOfMany } from "../tools/harness.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
 import { gatewayWebSearch } from "../tools/web-search.js";
@@ -161,6 +163,7 @@ function system(capabilities: boolean): string {
     }),
     prompt("goose", "knows"),
     prompt("goose", "page"),
+    prompt("goose", "setup"),
     prompt("goose", "space"),
     prompt("goose", "work"),
     contentPolicy(),
@@ -302,19 +305,7 @@ async function spaceState(userId: string, role: Role, spaceId: string) {
   };
 }
 
-/** Parts of the brand that wait behind their switches: their tools are left out while off. */
-export interface BrandSwitches {
-  brandSections: boolean;
-  brandRules: boolean;
-  typography: boolean;
-}
-
-export function gooseSpaceTools(
-  input: AssistantInput,
-  space: SpaceRow,
-  wrote: () => void,
-  on: BrandSwitches,
-) {
+export function gooseSpaceTools(input: AssistantInput, space: SpaceRow, wrote: () => void) {
   const { signal } = input;
   const userId = input.user.id;
   const spaceId = space.id;
@@ -417,14 +408,16 @@ export function gooseSpaceTools(
             const next = [...p.facts];
             for (const f of facts) {
               const label = f.label.trim();
-              const at = next.findIndex((x) => x.label.toLowerCase() === label.toLowerCase());
+              // A common fact (IBAN, USt-IdNr. …) keeps the studio's key, whatever it is called.
+              const basic = basicFactOf(label);
+              const at = next.findIndex(
+                (x) => x.label.toLowerCase() === label.toLowerCase() || (basic && x.key === basic),
+              );
               if (at >= 0) {
                 next[at] = { ...next[at], value: f.value.trim(), type: f.type ?? next[at].type };
               } else {
-                const key = factKey(
-                  label,
-                  next.map((x) => x.key),
-                );
+                const keys = next.map((x) => x.key);
+                const key = basic && !keys.includes(basic) ? basic : factKey(label, keys);
                 next.push({
                   key,
                   label,
@@ -481,11 +474,6 @@ export function gooseSpaceTools(
         attempt(() =>
           inTurn(async () => {
             doing("set_colors");
-            if (!on.brandSections && (sections || colors.some((c) => c.section))) {
-              throw new Error(
-                "Colour sections are not available in this studio: pass the colours without them.",
-              );
-            }
             const p = await ownedSpace(userId, spaceId);
             const groups = sections
               ? sections.map((s) => ({
@@ -858,16 +846,6 @@ export function gooseSpaceTools(
       toModelOutput: imageOutput("image", (rest) => String(rest.name)),
     }),
   };
-  if (!on.brandSections) {
-    delete tools.set_logo_sections;
-    delete tools.set_gradients;
-  }
-  if (!on.brandRules) {
-    delete tools.set_rules;
-  }
-  if (!on.typography) {
-    delete tools.set_typography;
-  }
   // Every write to the space's setup is the broker's: `w` on it, for Goose for its person
   // (docs/plans/modular.md, B4). An admin's deny for Goose stops it; each write is a log line.
   for (const name of SETUP_WRITES) {
@@ -1029,11 +1007,6 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   const { space } = input;
   const writable = space && input.writable ? space : null;
   const switches = await currentFeatures();
-  const brandOn: BrandSwitches = {
-    brandSections: switches.brandSections === true,
-    brandRules: switches.brandRules === true,
-    typography: switches.typography === true,
-  };
   const tools: Record<string, any> = {
     ...knowsTools({
       user: input.user,
@@ -1046,8 +1019,36 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
         input.onCard?.(card);
       },
     }),
-    ...(writable ? gooseSpaceTools(input, writable, wrote, brandOn) : {}),
+    ...(writable ? gooseSpaceTools(input, writable, wrote) : {}),
   };
+  // Short answers as buttons under the answer: a click sends one as the person's message.
+  tools.offer_replies = createTool({
+    id: "offer_replies",
+    description:
+      "Puts up to three short answers as buttons under your answer; a click sends that answer as the person's next message. Call it once, at the end, when your answer ends with a question the person answers with one of a few choices, or when there is an obvious next step (the next part of the setup, checking what you just filled in). Labels in the person's language, one to four words; `message` is what is sent, a full sentence where the label alone would be unclear. `to` opens a page of the studio first (a path such as `/` for Home or a setup step's `to`); with `to` and no `message` the button only opens the page. Don't list the buttons in your text.",
+    inputSchema: z.object({
+      replies: z
+        .array(
+          z.object({
+            label: z.string().min(1).max(40),
+            message: z.string().min(1).max(300).optional(),
+            to: z
+              .string()
+              .regex(/^\/(?!\/)[^\s]*$/)
+              .max(200)
+              .optional(),
+          }),
+        )
+        .min(1)
+        .max(3),
+    }),
+    execute: async ({ replies }) => {
+      const card = { plugin: "", tool: "replies", data: { replies } };
+      cards.push(card);
+      input.onCard?.(card);
+      return { shown: replies.map((r) => r.label) };
+    },
+  });
   // On everyday effort the chat can offer extra effort for work that asks for more: a card with
   // a button, while it goes on answering.
   if (!input.extra) {
@@ -1212,12 +1213,14 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
   }
   const instructions = system(switches.capabilities === true);
+  // The person's connections and the plugins' tools: many, and few of them in one chat.
+  const harness = harnessed(tools, resolved, (_name, tool) => oneOfMany(tool));
   const agent = spaceAgent({
     id: "studio-assistant",
     name: "Studio assistant",
     instructions,
-    resolved,
-    tools,
+    resolved: harnessedModel(resolved),
+    tools: harness.tools,
   });
   const page = input.page;
   const pluginPage =
@@ -1267,17 +1270,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
       : part === "skills"
         ? prompt("goose", "turn.skills_empty")
         : "",
-    writable && !(brandOn.brandSections && brandOn.brandRules && brandOn.typography)
-      ? prompt("goose", "turn.off", {
-          missing: [
-            brandOn.brandSections ? "" : "sections of logos and colours, gradients and patterns",
-            brandOn.brandRules ? "" : "rules for logos, colours and type",
-            brandOn.typography ? "" : "typography (fonts, type scale)",
-          ]
-            .filter(Boolean)
-            .join("; "),
-        })
-      : "",
+    await harness.hint(input.message, input.signal),
     input.message,
   ]
     .filter(Boolean)
@@ -1287,7 +1280,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     system: instructions,
     context,
     history: history.messages.map((m) => ({ role: m.role, chars: m.content.length })),
-    tools: toolSizes(tools),
+    tools: toolSizes(harness.tools),
   });
   let reply = "";
   // Where the part the result holds begins: a message written meanwhile cuts the answer there.

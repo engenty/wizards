@@ -1,5 +1,6 @@
 import { RunnerBody as RunnerPage, setRunnerLang } from "@engenty/wizards-runner";
 import { isLang, langName, wizardLang } from "@engenty/wizards-shared/definition";
+import type { KernelOutline } from "@engenty/wizards-shared/kernel-file";
 import type { RunTheme, RunView } from "@engenty/wizards-shared/run";
 import { DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -27,6 +28,7 @@ import { RunnerBody, type RunSource } from "../../runner/RunnerView";
 import { bothModes, useScopedLook } from "../../runner/theme";
 import { Button, cn, IconButton } from "../../ui";
 import { LookSwitch, type RunLook } from "../RunDrawer";
+import { askName } from "./KernelFlow";
 import { type Audience, ResultPreview } from "./ResultPreview";
 import { TestRunControls } from "./RunControls";
 
@@ -152,6 +154,7 @@ export function PreviewPane({
   runView,
   onView,
   stepId,
+  kernelStamp,
   audience,
   onAudience,
   test,
@@ -171,6 +174,8 @@ export function PreviewPane({
   onView: (view: RunView | null) => void;
   /** The step shown; null: the test run, or without one the start. */
   stepId: string | null;
+  /** A wizard in version 0.3.0: what its step files are now, so the step shown follows an edit. */
+  kernelStamp?: string;
   audience: Audience;
   onAudience: (audience: Audience) => void;
   test: { start: () => void; busy: boolean; disabled: boolean };
@@ -256,15 +261,32 @@ export function PreviewPane({
   const [device, setDevice] = useState<"desk" | "phone">("desk");
 
   // The step chosen, as a run shows it there; the result step is its result page.
-  const shown = stepId ? (def.steps.find((s) => s.id === stepId) ?? null) : null;
+  // A step of a wizard in version 0.3.0 is not in the definition: it is shown by its id alone.
+  const listed = stepId ? (def.steps.find((s) => s.id === stepId) ?? null) : null;
+  const shown: { id: string; type: string } | null =
+    listed ?? (stepId && kernelStamp !== undefined ? { id: stepId, type: "step" } : null);
+  // A step of version 0.3.0 may ask more than once: each of its asks can be shown.
+  const outline = useQuery({
+    queryKey: ["wizard-outline", w.id, kernelStamp],
+    queryFn: () => api.get<{ steps: KernelOutline }>(`/api/studio/wizards/${w.id}/outline`),
+    enabled: Boolean(shown && !listed),
+  }).data?.steps;
+  const asks = shown && !listed ? (outline?.[shown.id]?.asks ?? []) : [];
+  const [askAt, setAskAt] = useState({ step: "", at: 0 });
+  const at = askAt.step === shown?.id && askAt.at < asks.length ? askAt.at : 0;
   const stepView = useQuery({
-    queryKey: ["draft-step-view", w.id, shown?.id, w.revision, shownLang],
-    queryFn: () =>
-      api.get<RunView>(
+    queryKey: ["draft-step-view", w.id, shown?.id, w.revision, shownLang, kernelStamp, at],
+    queryFn: () => {
+      const query = new URLSearchParams({
+        ...(shownLang === own ? {} : { lang: shownLang }),
+        ...(at ? { ask: String(at) } : {}),
+      }).toString();
+      return api.get<RunView>(
         `/api/studio/wizards/${w.id}/steps/${encodeURIComponent(shown?.id ?? "")}/view${
-          shownLang === own ? "" : `?lang=${encodeURIComponent(shownLang)}`
+          query ? `?${query}` : ""
         }`,
-      ),
+      );
+    },
     enabled: Boolean(shown && shown.type !== "result"),
     // An edit asks again and the step stays meanwhile; another step never shows the one before.
     placeholderData: (previous, query) => (query?.queryKey[2] === shown?.id ? previous : undefined),
@@ -288,7 +310,7 @@ export function PreviewPane({
         }
       : null;
 
-  const result = shown?.type === "result" ? shown : null;
+  const result = listed?.type === "result" ? listed : null;
   /** Shows or hides the column beside the preview, where the window has room for it. */
   const columnToggle =
     column === null ? null : (
@@ -324,11 +346,6 @@ export function PreviewPane({
       <div className={cn("flex min-h-0 flex-1 flex-col", result && "hidden")}>
         <div className="kb-hide flex h-12 shrink-0 items-center gap-1.5 overflow-x-auto border-border-soft border-b px-3 [scrollbar-width:none]">
           {lead}
-          {ways.length > 1 && !shown ? (
-            <span className="shrink-0">
-              <LookSwitch look={shownWay} onChange={setWay} ways={[...ways]} />
-            </span>
-          ) : null}
           {onShowRun ? (
             <button
               type="button"
@@ -338,6 +355,17 @@ export function PreviewPane({
               <Play className="size-3.5" />
               {t("run.testChip")}
             </button>
+          ) : null}
+          {shown && asks.length > 1 ? (
+            <Choice
+              label={t("editor.previewAsk")}
+              value={String(at)}
+              onChange={(v) => setAskAt({ step: shown.id, at: Number(v) })}
+              options={asks.map((ask, i) => ({
+                value: String(i),
+                label: `${i + 1}. ${askName(ask.spec)}`,
+              }))}
+            />
           ) : null}
           <span className="flex-1" />
           {onEdit ? (
@@ -372,6 +400,12 @@ export function PreviewPane({
               onChange={setShownLang}
               options={langs.map((code) => ({ value: code, label: langName(code) }))}
             />
+          ) : null}
+          {/* How a run looks, steps or chat: beside the device it is shown on. */}
+          {ways.length > 1 && !shown ? (
+            <span className="shrink-0">
+              <LookSwitch look={shownWay} onChange={setWay} ways={[...ways]} />
+            </span>
           ) : null}
           <span className="max-sm:hidden">
             <Pills<"desk" | "phone">

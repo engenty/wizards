@@ -27,8 +27,8 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 /**
  * The table a shared list is kept in: made the first time, following the list as it changes. A
- * run of a client space keeps it in the client space (docs/plans/client-portal.md): the firm's
- * clients never share a list.
+ * run that carries a space keeps it in that space (docs/plans/org-spaces.md): two spaces never
+ * share a list.
  */
 export async function sharedTable(scope: StoreScope, def: ListDef): Promise<TableRow> {
   const { wizardId } = scope;

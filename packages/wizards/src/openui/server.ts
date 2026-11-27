@@ -1,3 +1,4 @@
+import { chatLibrarySpec } from "@engenty/chatviews/chat";
 import type { PublicField, PublicWizard } from "@engenty/wizards-shared/run";
 import { defineComponent, type Library } from "@openuidev/react-lang";
 import { z } from "zod";
@@ -105,3 +106,12 @@ export function wizardRules(wizards: WizardInfo[]): string[] {
     `Available wizards:\n${list}`,
   ];
 }
+
+/**
+ * The views of engenty's chats (@engenty/chatviews, `engenty:core/1`) with the Wizard component
+ * among them, as the model sees them: a chat server writes its prompt from this library, the
+ * browser draws with `wizardsChatLibrary`. Both make the same prompt.
+ */
+export const wizardsChatLibrarySpec = chatLibrarySpec.extend({
+  components: { add: [WizardSpec as never] },
+});

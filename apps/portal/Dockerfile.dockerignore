@@ -5,6 +5,7 @@
 !pnpm-workspace.yaml
 !tsconfig.base.json
 !apps/portal
+!packages/chatviews
 !packages/shared
 !packages/runner
 **/node_modules

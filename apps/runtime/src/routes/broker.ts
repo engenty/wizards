@@ -77,7 +77,7 @@ const logSchema = z.object({
   connection: z.string().min(1).max(200).optional(),
   who: z.enum(WHO).optional(),
   outcome: z.enum(["allow", "ask", "deny"]).optional(),
-  /** What came of the call: `ok`, a refusal (`needs_approval`: held for the admins), an error's class. */
+  /** What came of the call: `ok`, a refusal, an error's class. */
   result: z.string().min(1).max(80).optional(),
   /** Refused by a rule or by the person asked. */
   refused: flag,
@@ -180,8 +180,7 @@ async function describeLines(
   ];
   const runIds = ids((r) => r.runId);
   const wizardIds = ids((r) => r.wizardId);
-  const chatIds = ids((r) => r.chatId);
-  const [runs, wizards, chats] = await Promise.all([
+  const [runs, wizards] = await Promise.all([
     runIds.length
       ? db
           .select({
@@ -198,16 +197,9 @@ async function describeLines(
           .from(schema.wizard)
           .where(inArray(schema.wizard.id, wizardIds))
       : [],
-    chatIds.length
-      ? db
-          .select({ id: schema.chat.id, title: schema.chat.title })
-          .from(schema.chat)
-          .where(inArray(schema.chat.id, chatIds))
-      : [],
   ]);
   const runOf = new Map(runs.map((r) => [r.id, r]));
   const wizardOf = new Map(wizards.map((w) => [w.id, w]));
-  const chatOf = new Map(chats.map((c) => [c.id, c]));
   const person = (id: string | null) => (id ? (named.get(id)?.name ?? null) : null);
 
   return Promise.all(
@@ -246,7 +238,6 @@ async function describeLines(
         actionName: action?.summary ?? null,
         wizardName: wizard?.title ?? null,
         runMode: run?.mode ?? null,
-        chatTitle: row.chatId ? (chatOf.get(row.chatId)?.title ?? null) : null,
       };
     }),
   );
@@ -317,7 +308,6 @@ export const brokerRoutes = new Hono<Vars>()
       rule: decision.rule,
       reason: decision.reason,
       ...(decision.refused ? { refused: decision.refused } : {}),
-      ...(decision.admins ? { admins: true } : {}),
       ...(fixedChannel ? { fixedChannel: true } : {}),
     });
   })

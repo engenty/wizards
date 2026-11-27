@@ -11,7 +11,8 @@ import { AppFrame } from "./studio/AppFrame";
 import { AssistantProvider } from "./studio/assistant/chat";
 import { MembersStudio } from "./studio/members-studio";
 import { SignInPage } from "./studio/SignInPage";
-import { ClientPage, InMode, WorkPage, WorkRunPage } from "./studio/work/WorkPages";
+import { SharedPage } from "./studio/shared/SharedPage";
+import { InMode, WorkPage, WorkRunPage } from "./studio/work/WorkPages";
 
 // The public runner and the studio are separate bundles: a visitor never downloads the editor.
 const PublicRunner = lazy(() =>
@@ -188,7 +189,8 @@ export function StudioApp() {
           <Route
             path="/"
             element={
-              <Studio>
+              // Wide: Home's setup takes the page's whole width; its dashboard keeps a column.
+              <Studio wide>
                 <InMode mode="studio">
                   <Start />
                 </InMode>
@@ -264,26 +266,6 @@ export function StudioApp() {
             }
           />
           <Route
-            path="/work/c/:chatId"
-            element={
-              <Studio full>
-                <InMode mode="work">
-                  <WorkPage />
-                </InMode>
-              </Studio>
-            }
-          />
-          <Route
-            path="/work/f/:folderId"
-            element={
-              <Studio full>
-                <InMode mode="work">
-                  <WorkPage />
-                </InMode>
-              </Studio>
-            }
-          />
-          <Route
             path="/work/r/:runId"
             element={
               <Studio full>
@@ -302,11 +284,11 @@ export function StudioApp() {
             }
           />
           <Route
-            path="/client"
+            path="/shared"
             element={
               <Studio wide>
-                <InMode mode="client">
-                  <ClientPage />
+                <InMode mode="shared">
+                  <SharedPage />
                 </InMode>
               </Studio>
             }

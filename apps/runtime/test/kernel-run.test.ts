@@ -1,0 +1,761 @@
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { kernelShell } from "@engenty/wizards-shared/kernel-file";
+import { asc, eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+const dir = mkdtempSync(join(tmpdir(), "wizards-kernel-run-"));
+process.env.DATA_DIR = dir;
+process.env.APP_URL = "http://localhost:5181";
+process.env.LOCAL_ACCESS_KEY = "test-key";
+process.env.MARKETPLACE_URL = "off";
+process.env.AI_GATEWAY_API_KEY = "";
+process.env.OPENAI_API_KEY = "";
+process.env.ANTHROPIC_API_KEY = "";
+process.env.RUNTIME_ROLE = "runner";
+process.env.FEATURES = "durableRuns=on";
+process.env.RUNNER_CLOCK_MS = "100";
+
+/**
+ * A wizard in version 0.3.0 through the runtime (docs/plans/kernel.md): made as every wizard is,
+ * its step files in its workspace, its runs in the engine's line. The model is a stand-in, as in
+ * the other engine tests: what an ask becomes for today's step executors is what is looked at.
+ */
+const worked: { step: string; type: string; instructions?: string; tools?: unknown; connections?: unknown }[] = [];
+const price = { next: [3000] as number[] };
+vi.mock("../src/engine/steps.js", async (original) => ({
+  ...(await original<typeof import("../src/engine/steps.js")>()),
+  runAutomaticStep: async (
+    step: { id: string; type: string; instructions?: string; tools?: unknown; connections?: unknown },
+    ctx: { def: { connections?: unknown } },
+  ) => {
+    worked.push({ step: step.id, type: step.type, instructions: step.instructions, tools: step.tools, connections: ctx.def.connections });
+    if (step.id === "offer/tone") {
+      return { json: { score: 0.8, why: "Clear." }, at: new Date().toISOString() };
+    }
+    if (step.type === "tool") {
+      return { json: { id: "msg_9" }, at: new Date().toISOString() };
+    }
+    if (step.id === "work") {
+      return { json: { to: "einkauf@nordlicht.example", subject: "Re: Workshop", threadId: "thr_1", draft: "Dear Nordlicht" }, at: new Date().toISOString() };
+    }
+    if (step.id === "pitch") {
+      return { json: { text: "A long pitch" }, at: new Date().toISOString() };
+    }
+    if (step.id === "offer") {
+      return { json: { text: "An offer", price: price.next.shift() ?? 3000 }, at: new Date().toISOString() };
+    }
+    return { json: { mail: "A reminder" }, at: new Date().toISOString() };
+  },
+}));
+vi.mock("../src/engine/requirements.js", async (original) => ({
+  ...(await original<typeof import("../src/engine/requirements.js")>()),
+  missingModelsSaid: async () => [],
+  missingConnectionsSaid: async () => [],
+}));
+vi.mock("../src/safety.js", async (original) => ({
+  ...(await original<typeof import("../src/safety.js")>()),
+  guestChecksOn: async () => false,
+}));
+vi.mock("../src/credits/credits.js", async (original) => ({
+  ...(await original<typeof import("../src/credits/credits.js")>()),
+  reserveForRun: async () => true,
+  releaseRun: async () => undefined,
+}));
+
+let client: typeof import("../src/db/client");
+let runner: typeof import("../src/engine/runner");
+let wizards: typeof import("../src/services/wizards");
+let files: typeof import("../src/services/files");
+let doors: typeof import("../src/services/runs");
+
+const T = "tenant-kernel-run";
+const example = new URL("../../../packages/kernel/examples/offer/", import.meta.url).pathname;
+const file = { ...JSON.parse(readFileSync(`${example}wizard.json`, "utf8")) };
+const input = { customer: "Nordlicht GmbH", email: "einkauf@nordlicht.example", budget: 4000, items: [{ name: "Workshop", price: 1500, quantity: 2 }] };
+
+/** The offer wizard in a tenant: its definition around the file, its step files in its workspace. */
+async function offerWizard(mode: "quickjs" | "native" = "quickjs") {
+  process.env.KERNEL_STEPS = mode;
+  return client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(file) as never });
+    const seed: Record<string, string> = { "wizard.ts": readFileSync(`${example}wizard.ts`, "utf8").replace("../../src/types.js", "./kernel-types.js") };
+    for (const name of readdirSync(`${example}steps`)) {
+      seed[`steps/${name}`] = readFileSync(`${example}steps/${name}`, "utf8");
+    }
+    await files.seedFiles(created.id, seed);
+    return { id: created.id, files: await files.draftFiles(created.id) };
+  });
+}
+const start = (w: { id: string; files: unknown[] }, given?: Record<string, unknown>) =>
+  client.withTenant(T, () =>
+    runner.createRun({
+      wizardId: w.id,
+      definition: kernelShell(file) as never,
+      files: w.files as never,
+      version: null,
+      mode: "test",
+      userId: "u",
+      input: given,
+    }),
+  );
+const run = (id: string) =>
+  client.withTenant(T, () => client.db.query.run.findFirst({ where: eq(client.schema.run.id, id) }));
+const view = async (id: string) => {
+  const row = await run(id);
+  return client.withTenant(T, () => runner.kernelRuns.view(row as never));
+};
+const rowsOf = (id: string) =>
+  client.withTenant(T, () =>
+    client.db.select().from(client.schema.runRow).where(eq(client.schema.runRow.runId, id)).orderBy(asc(client.schema.runRow.n)),
+  );
+/** Waits until the run rests in one of these statuses. */
+async function rests(id: string, ...statuses: string[]) {
+  for (let i = 0; i < 200; i++) {
+    const row = await run(id);
+    if (row && statuses.includes(row.status) && !row.driving) {
+      return row;
+    }
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  const row = await run(id);
+  throw new Error(`Run ${id} is ${row?.status} (${row?.error ?? "no error"}), not ${statuses.join(" or ")}.`);
+}
+const answer = (id: string, n: number, value: unknown) =>
+  client.withTenant(T, () => runner.kernelRuns.answer(id, n, value, "u"));
+const waitingRow = async (id: string) => {
+  const v = await view(id);
+  return v.waiting.at(-1) as { n: number; step: string; type: string };
+};
+
+beforeAll(async () => {
+  client = await import("../src/db/client");
+  await client.migrateControlDb();
+  runner = await import("../src/engine/runner");
+  wizards = await import("../src/services/wizards");
+  files = await import("../src/services/files");
+  doors = await import("../src/services/runs");
+  runner.startRunner();
+});
+afterAll(async () => {
+  await runner.stopRunner();
+});
+
+describe.each(["quickjs", "native"] as const)("a wizard in version 0.3.0, its steps run as %s", (mode) => {
+  it("runs to the operator's review, and on to its end as each one answers", async () => {
+    worked.length = 0;
+    price.next = [3000];
+    const w = await offerWizard(mode);
+    const id = await start(w, input);
+
+    let row = await rests(id, "waiting_input");
+    expect(row.cursor).toBe("check");
+    expect(worked.map((s) => [s.step, s.type])).toEqual([["offer", "agent"]]);
+    expect(worked[0].instructions).toContain("Write an offer for Nordlicht GmbH.");
+    expect((await rowsOf(id)).map((r) => [r.n, r.step, r.kind, r.state])).toEqual([
+      [0, "offer", "ask", "done"],
+      [1, "offer", "left", null],
+      [2, "check", "ask", "waiting"],
+    ]);
+
+    await answer(id, 2, { approved: true });
+    row = await rests(id, "waiting_input");
+    expect(row.cursor).toBe("accept");
+    await answer(id, (await waitingRow(id)).n, { approved: true });
+    row = await rests(id, "waiting_signal");
+    expect(row.cursor).toBe("signed");
+    expect(row.wakeAt).not.toBeNull();
+    await answer(id, (await waitingRow(id)).n, { came: true });
+
+    row = await rests(id, "done");
+    const done = await view(id);
+    expect(done.output).toEqual({ offer: "An offer", price: 3000, signed: true });
+    expect(done.rows.filter((r) => "left" in r).map((r) => r.step)).toEqual(["offer", "check", "accept", "signed"]);
+  });
+
+  it("asks for its input first when it is given none", async () => {
+    const w = await offerWizard(mode);
+    const id = await start(w);
+    await rests(id, "waiting_input");
+    const first = await waitingRow(id);
+    expect(first).toMatchObject({ n: 0, step: "input", type: "form" });
+    await expect(answer(id, 0, { customer: "N" })).rejects.toThrow('"email" is missing.');
+    await answer(id, 0, input);
+    const row = await rests(id, "waiting_input");
+    expect(row.cursor).toBe("check");
+  });
+
+  it("goes back to an answer and on from there", async () => {
+    price.next = [3000, 2800];
+    const w = await offerWizard(mode);
+    const id = await start(w, input);
+    await rests(id, "waiting_input");
+    await answer(id, 2, { approved: true });
+    await rests(id, "waiting_input");
+    // the operator's yes becomes a no: the offer is written again
+    await client.withTenant(T, () => runner.kernelRuns.rewind(id, 2, { approved: false, note: "Shorter." }));
+    const row = await rests(id, "waiting_input");
+    expect(row.cursor).toBe("check");
+    const v = await view(id);
+    expect(v.rows.filter((r) => "left" in r).map((r) => r.step)).toEqual(["offer", "check", "offer"]);
+    expect(String((v.rows[4] as { instructions?: string }).instructions)).toContain("The check step said: Shorter.");
+  });
+
+  it("says in its timeline that it has rows, with its steps and the roles a person answers in", async () => {
+    price.next = [3000];
+    const id = await start(await offerWizard(mode), input);
+    const row = await rests(id, "waiting_input");
+    const timeline = await client.withTenant(T, () => doors.runTimeline(row as never, true));
+    expect(timeline.kernel?.roles).toEqual(expect.arrayContaining(["user", "operator", "legal"]));
+    expect(timeline.steps.map((s) => s.id)).toEqual(Object.keys(file.edges));
+    expect(timeline.stepTitle).toBe(timeline.steps.find((s) => s.id === "check")?.title);
+    // the operator's review is the team's to answer
+    expect(timeline.teamStep).toBe(true);
+  });
+
+  it("fails on the file's limit, whatever the steps return", async () => {
+    price.next = [3000, 3000, 3000, 3000];
+    const w = await offerWizard(mode);
+    const id = await start(w, input);
+    for (let i = 0; i < 3; i++) {
+      await rests(id, "waiting_input");
+      await answer(id, (await waitingRow(id)).n, { approved: false, note: "No." });
+    }
+    const row = await rests(id, "failed");
+    expect(row.error).toBe('"check" was reached more than 3 times.');
+  });
+});
+
+it("fails a run whose step does not compile, and says where", async () => {
+  process.env.KERNEL_STEPS = "quickjs";
+  const w = await client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell({ ...file, start: "bad", edges: { bad: ["end"] }, limits: {}, output: {} }) as never });
+    await files.seedFiles(created.id, { "steps/bad.ts": 'import { readFileSync } from "node:fs";\nexport default async () => ({ value: readFileSync("/etc/passwd", "utf8") });\n' });
+    return { id: created.id, files: await files.draftFiles(created.id) };
+  });
+  const id = await client.withTenant(T, () =>
+    runner.createRun({ wizardId: w.id, definition: kernelShell({ ...file, start: "bad", edges: { bad: ["end"] }, limits: {}, output: {} }) as never, files: w.files as never, version: null, mode: "test", userId: "u", input: {} }),
+  );
+  const row = await rests(id, "failed");
+  expect(row.error).toContain('steps/bad.ts:1: A step imports files of its own workspace only, not "node:fs".');
+});
+
+it("says in a draft's issues that a step does not compile, before any run", async () => {
+  const bad = { ...file, start: "bad", edges: { bad: ["end"] }, limits: {}, output: {} };
+  const issues = await client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(bad) as never });
+    await files.seedFiles(created.id, { "steps/bad.ts": 'export default async (run, ask) => {\n  return { value: 1, to: "elsewhere" };\n};\n' });
+    const first = await wizards.draftIssues(await wizards.ownedWizard("u", created.id));
+    await files.writeFile("u", created.id, "steps/bad.ts", new TextEncoder().encode("export default async (run, ask) => {\n  return {;\n};\n"));
+    const second = await wizards.draftIssues(await wizards.ownedWizard("u", created.id));
+    return { first: first.map((i) => i.message), second: second.map((i) => i.message) };
+  });
+  expect(issues.first).toEqual(['steps/bad.ts goes to "elsewhere", and the map has no such way from "bad".']);
+  expect(issues.second).toHaveLength(1);
+  expect(issues.second[0]).toMatch(/^steps\/bad\.ts:2: /);
+});
+
+it("keeps a wizard's compiled steps at a save, writes its types beside it, and a run takes what is kept", async () => {
+  const { objects } = await import("../src/files/objects.js");
+  const { compiledKey, kernelWizard } = await import("../src/kernel/wizard.js");
+  const one = { ...file, start: "one", edges: { one: ["end"] }, limits: {}, output: {} };
+  const saved = await client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(one) as never });
+    await files.seedFiles(created.id, { "steps/one.ts": "export default async () => ({ value: 1 });\n" });
+    const w = await wizards.ownedWizard("u", created.id);
+    await wizards.writeDraft("u", created.id, { definition: w.draft, baseRevision: w.revision });
+    const after = await files.draftFiles(created.id);
+    const types = await files.snapshotFile(after, "wizard.d.ts");
+    const key = compiledKey(after, "quickjs");
+    const kept = JSON.parse((await objects.get(key))?.toString("utf8") ?? "null");
+    // What a run takes is what is kept: changed there, the run's step is the changed one.
+    await objects.put(key, Buffer.from(JSON.stringify({ steps: { one: "kept" }, evals: {} })));
+    const wizard = await kernelWizard(one, after, "quickjs");
+    // Written again unchanged, the types stay one file with one revision of it.
+    const again = await wizards.ownedWizard("u", created.id);
+    await wizards.writeDraft("u", created.id, { definition: again.draft, baseRevision: again.revision });
+    const last = await files.draftFiles(created.id);
+    return { types: types?.data.toString("utf8"), kept, step: wizard.steps.one, same: last.find((f) => f.path === "wizard.d.ts")?.hash === after.find((f) => f.path === "wizard.d.ts")?.hash };
+  });
+  expect(saved.types).toContain('"one": "end";');
+  expect(Object.keys(saved.kept.steps)).toEqual(["one"]);
+  expect(saved.kept.steps.one).toContain("__step");
+  expect(saved.step).toBe("kept");
+  expect(saved.same).toBe(true);
+});
+
+it("fails a step that asks another wizard: the runtime starts no run of one yet", async () => {
+  const asks = { ...file, start: "ask", edges: { ask: ["end"] }, limits: {}, output: {}, requires: { ...file.requires, wizards: ["other"] } };
+  const id = await client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(asks) as never });
+    await files.seedFiles(created.id, { "steps/ask.ts": 'export default async (run, ask) => ({ value: await ask({ type: "wizard", wizard: "other" }) });\n' });
+    const w = await wizards.ownedWizard("u", created.id);
+    return runner.createRun({ wizardId: created.id, definition: w.draft, files: await files.draftFiles(created.id), version: null, mode: "test", userId: "u", input });
+  });
+  const row = await rests(id, "failed");
+  expect(row.error).toBe('This runtime does not start a run of "other" yet.');
+});
+
+it("reads the brand, a file of the wizard's own and a list, and writes a row, without a model", async () => {
+  const prices = { id: "prices", title: "Prices", key: "item", columns: [{ id: "item", name: "Item", type: "text", required: true }, { id: "price", name: "Price", type: "number", format: { style: "currency", currency: "EUR" } }] };
+  const reads = { ...file, start: "read", edges: { read: ["end"] }, limits: {}, output: { all: "read.all" }, lists: [prices] };
+  const step = `export default async (run, ask) => {
+  const brand = await ask({ type: "brand" });
+  const rates = await ask({ type: "file", path: "rates.json" });
+  await ask({ type: "list", list: "prices", row: { item: "Workshop", price: rates.workshop } });
+  const rows = await ask({ type: "list", list: "prices", query: { item: "Workshop" } });
+  return { value: { all: { name: brand.name, price: rows[0].price, count: rows.length } } };
+};
+`;
+  const id = await client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(reads) as never });
+    await files.seedFiles(created.id, { "steps/read.ts": step, "rates.json": '{ "workshop": 1500 }' });
+    const w = await wizards.ownedWizard("u", created.id);
+    return runner.createRun({ wizardId: created.id, definition: w.draft, files: await files.draftFiles(created.id), version: null, mode: "test", userId: "u", input });
+  });
+  await rests(id, "done");
+  expect((await view(id)).output).toMatchObject({ all: { price: 1500, count: 1 } });
+  expect(worked.filter((w) => w.step === "read")).toEqual([]);
+});
+
+it("fails a list ask for a list the file does not keep", async () => {
+  const asks = { ...file, start: "read", edges: { read: ["end"] }, limits: {}, output: {} };
+  const id = await client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(asks) as never });
+    await files.seedFiles(created.id, { "steps/read.ts": 'export default async (run, ask) => ({ value: await ask({ type: "list", list: "other" }) });\n' });
+    const w = await wizards.ownedWizard("u", created.id);
+    return runner.createRun({ wizardId: created.id, definition: w.draft, files: await files.draftFiles(created.id), version: null, mode: "test", userId: "u", input });
+  });
+  const row = await rests(id, "failed");
+  expect(row.error).toBe('"read" reached for "other", which the file does not grant.');
+});
+
+it("leaves a wizard in version 0.2.0 to today's engine", async () => {
+  const id = await client.withTenant(T, async () => {
+    const def = { version: 1, title: "Old", description: "", avatar: "round", steps: [{ id: "write", type: "agent", title: "Write", instructions: "Do it.", tools: [], output: { format: "text" } }, { id: "done", type: "result", title: "Done", deliverables: [] }] };
+    const created = await wizards.createWizard("u", { definition: def as never });
+    return runner.createRun({ wizardId: created.id, definition: def as never, files: [], version: null, mode: "test", userId: "u" });
+  });
+  const row = await rests(id, "waiting_input", "done");
+  expect(row.state.kernel).toBeUndefined();
+  expect(await rowsOf(id)).toEqual([]);
+});
+
+const folder = (name: string) => new URL(`../../../packages/kernel/examples/${name}/`, import.meta.url).pathname;
+/** A wizard of the kernel's examples in the tenant, with every code file of its folder. */
+async function exampleWizard(name: string, more: Record<string, string> = {}) {
+  const at = folder(name);
+  const its = JSON.parse(readFileSync(`${at}wizard.json`, "utf8"));
+  return client.withTenant(T, async () => {
+    const created = await wizards.createWizard("u", { definition: kernelShell(its) as never });
+    const seed: Record<string, string> = { ...more };
+    for (const dirName of ["steps", "evals/offer", "evals/end"]) {
+      try {
+        for (const fileName of readdirSync(`${at}${dirName}`)) {
+          seed[`${dirName}/${fileName}`] = readFileSync(`${at}${dirName}/${fileName}`, "utf8");
+        }
+      } catch {
+        // the example has no such folder
+      }
+    }
+    await files.seedFiles(created.id, seed);
+    const snapshot = await files.draftFiles(created.id);
+    return { id: created.id, files: snapshot, file: its };
+  });
+}
+const startOf = (w: { id: string; files: unknown[]; file: unknown }, given?: Record<string, unknown>) =>
+  client.withTenant(T, () =>
+    runner.createRun({ wizardId: w.id, definition: kernelShell(w.file as never) as never, files: w.files as never, version: null, mode: "test", userId: "u", input: given }),
+  );
+
+describe("an action the file sets to ask", () => {
+  it("waits for the user's leave as a row, and is done once", async () => {
+    process.env.KERNEL_STEPS = "quickjs";
+    worked.length = 0;
+    const id = await startOf(await exampleWizard("mail"), { customer: "Nordlicht GmbH" });
+    await rests(id, "waiting_input");
+    // the agent was handed the two reading actions of the connection, and not the send
+    const agent = worked.find((s) => s.step === "work");
+    expect(agent?.connections).toMatchObject([{ id: "gmail", actions: ["users.threads.list", "users.threads.get"] }]);
+
+    await answer(id, (await waitingRow(id)).n, { approved: true });
+    await rests(id, "waiting_input");
+    const leave = await waitingRow(id);
+    expect(leave).toMatchObject({ type: "approval", step: "send", call: "gmail.users.messages.send" });
+    expect(worked.some((s) => s.type === "tool")).toBe(false); // nothing is sent while it is open
+
+    await answer(id, leave.n, { allow: true });
+    await rests(id, "done");
+    const tool = worked.find((s) => s.type === "tool");
+    expect(tool?.connections).toMatchObject([{ id: "gmail", actions: ["users.messages.send"] }]);
+    expect((await view(id)).output).toEqual({ sent: "msg_9" });
+  });
+
+  it("fails the action, and the run, when the user says no", async () => {
+    worked.length = 0;
+    const id = await startOf(await exampleWizard("mail"), { customer: "Nordlicht GmbH" });
+    await rests(id, "waiting_input");
+    await answer(id, (await waitingRow(id)).n, { approved: true });
+    await rests(id, "waiting_input");
+    await answer(id, (await waitingRow(id)).n, { allow: false });
+    const row = await rests(id, "failed");
+    expect(row.error).toBe('The user did not allow "gmail.users.messages.send".');
+    expect(worked.some((s) => s.type === "tool")).toBe(false);
+  });
+});
+
+describe("a wait", () => {
+  it("leaves every process and is woken by the clock, with a timeout as its answer", async () => {
+    const napFile = { version: "0.3.0", title: "Nap", description: "", start: "nap", edges: { nap: ["end"] }, output: { woke: "nap.timedOut" } };
+    const w = await client.withTenant(T, async () => {
+      const created = await wizards.createWizard("u", { definition: kernelShell(napFile as never) as never });
+      await files.seedFiles(created.id, { "steps/nap.ts": 'export default async (run, ask) => ({ value: await ask({ type: "wait", timeout: "1s" }) });\n' });
+      return { id: created.id, files: await files.draftFiles(created.id), file: napFile };
+    });
+    const id = await startOf(w, {});
+    const slept = await rests(id, "sleeping");
+    expect(slept.wakeAt).not.toBeNull();
+    await rests(id, "done");
+    expect((await view(id)).output).toEqual({ woke: true });
+  });
+});
+
+/** Sets how many of a hundred finished runs the evals of the wizard's space judge. */
+const judgeShare = (wizardId: string, share: number) =>
+  client.withTenant(T, async () => {
+    const w = await client.db.query.wizard.findFirst({ where: eq(client.schema.wizard.id, wizardId) });
+    await client.db.update(client.schema.space).set({ evalShare: share }).where(eq(client.schema.space.id, w?.spaceId ?? ""));
+  });
+/** Takes the run through its two reviews and its signal to its end. */
+async function toTheEnd(id: string) {
+  await rests(id, "waiting_input");
+  await answer(id, 2, { approved: true });
+  await rests(id, "waiting_input");
+  await answer(id, (await waitingRow(id)).n, { approved: true });
+  await rests(id, "waiting_signal");
+  await answer(id, (await waitingRow(id)).n, { came: true });
+  await rests(id, "done");
+}
+const scoresOf = (id: string) =>
+  client.withTenant(T, () => client.db.select().from(client.schema.runScore).where(eq(client.schema.runScore.runId, id)));
+
+describe("evals", () => {
+  it("judge no finished run where the space has not turned them on", async () => {
+    price.next = [3000];
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    await judgeShare(w.id, 0);
+    const id = await startOf(w, input);
+    await toTheEnd(id);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(await scoresOf(id)).toEqual([]);
+  });
+
+  it("judge a finished run where the space says all of them, and keep their scores", async () => {
+    price.next = [3000];
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    await judgeShare(w.id, 100);
+    const id = await startOf(w, input);
+    await toTheEnd(id);
+    await judgeShare(w.id, 0);
+    // judging follows the run's end: wait for the scores
+    let scores: { eval: string; score: number | null }[] = [];
+    for (let i = 0; i < 100 && scores.length < 3; i++) {
+      scores = await scoresOf(id);
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    expect(scores.map((s) => [s.eval, s.score]).sort()).toEqual([
+      ["end/signed", 1],
+      ["offer/tone", 0.8],
+      ["offer/within-budget", 1],
+    ]);
+  });
+});
+
+describe("a dataset, and a row asked again", () => {
+  it("runs the wizard on every entry, answers its waits from the entry and judges each run", async () => {
+    const { evalDataset } = await import("../src/services/evals");
+    price.next = [3000, 3000];
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    await judgeShare(w.id, 0);
+    const heard: string[] = [];
+    const done = await client.withTenant(T, () =>
+      evalDataset(
+        "u",
+        w.id,
+        [
+          { name: "signed", input, answers: { check: [{ approved: true }], accept: [{ approved: true }], signed: [{ came: true }] } },
+          { name: "unanswered", input },
+        ],
+        new AbortController().signal,
+        (entry) => {
+          heard.push(entry.name);
+        },
+      ),
+    );
+    expect(heard).toEqual(["signed", "unanswered"]);
+    expect(done.runs.map((r) => [r.name, r.status])).toEqual([
+      ["signed", "done"],
+      ["unanswered", "waiting_input"],
+    ]);
+    expect(done.runs[0].scores.map((s) => s.eval).sort()).toEqual(["end/signed", "offer/tone", "offer/within-budget"]);
+    // the run that waits is judged as far as it came: the end has not come
+    expect(done.runs[1].scores.map((s) => s.eval).sort()).toEqual(["offer/tone", "offer/within-budget"]);
+    expect(done.summary["offer/tone"]).toEqual({ mean: 0.8, scores: 2, errors: 0 });
+    expect(done.summary["end/signed"]).toEqual({ mean: 1, scores: 1, errors: 0 });
+    // the runs stay as test runs, with their scores in the table
+    expect((await scoresOf(done.runs[0].runId)).length).toBe(3);
+  });
+
+  it("judges a past run again once a row was asked again and the run came to its end", async () => {
+    price.next = [3000, 3000];
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    await judgeShare(w.id, 0);
+    const id = await startOf(w, input);
+    await toTheEnd(id);
+    const first = await view(id);
+    expect(first.evals?.sort()).toEqual(["end/signed", "offer/tone", "offer/within-budget"]);
+    expect(await client.withTenant(T, async () => (await runner.kernelRuns.judge((await run(id)) as never, new AbortController().signal)).length)).toBe(3);
+    // the review asked again: the scores of what came after it are gone
+    await client.withTenant(T, () => runner.kernelRuns.rewind(id, 2));
+    await rests(id, "waiting_input");
+    expect((await view(id)).scores.map((s) => s.eval).sort()).toEqual(["offer/tone", "offer/within-budget"]);
+    await answer(id, 2, { approved: true });
+    await rests(id, "waiting_input");
+    await answer(id, (await waitingRow(id)).n, { approved: true });
+    await rests(id, "waiting_signal");
+    await answer(id, (await waitingRow(id)).n, { came: true });
+    await rests(id, "done");
+    const scores = await client.withTenant(T, async () => runner.kernelRuns.judge((await run(id)) as never, new AbortController().signal));
+    expect(scores.map((s) => s.eval).sort()).toEqual(["end/signed", "offer/tone", "offer/within-budget"]);
+  });
+});
+
+describe("the file and its step files", () => {
+  it("says where a file and its step files do not fit", async () => {
+    const { validateWizard } = await import("@engenty/wizards-shared/definition");
+    const def = kernelShell({ ...file, edges: { ...file.edges, legal: ["check", "offr"] } });
+    expect(validateWizard(def, ["steps/offer.ts", "steps/legal.ts", "steps/extra.ts"]).map((i) => i.message)).toEqual(
+      expect.arrayContaining([
+        'The map names "offr", there is no steps/offr.ts.',
+        'The map names "check", there is no steps/check.ts.',
+        "No way leads to steps/extra.",
+      ]),
+    );
+  });
+});
+
+describe("through the doors every run has", () => {
+  /** What an MCP client, or the run's page, does: read the report, answer what it waits for. */
+  const report = (id: string) => client.withTenant(T, () => doors.runReport("u", id)) as unknown as Promise<{
+    status: string;
+    version: number;
+    waitingFor: null | { row: number; step: string; form?: string; review?: string; leaveFor?: string; fields?: { id: string }[] };
+    rows: { step: string; left?: boolean }[];
+    data?: Record<string, unknown>;
+  }>;
+
+  it("starts a test run from the draft, asks for the input, and takes the answers as forms and reviews", async () => {
+    process.env.KERNEL_STEPS = "quickjs";
+    price.next = [3000];
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    const { runId } = await client.withTenant(T, () => doors.startTestRun("u", w.id));
+    await rests(runId, "waiting_input");
+
+    let seen = await report(runId);
+    expect(seen).toMatchObject({ version: "0.3.0", status: "waiting_input", waitingFor: { step: "input", form: "input" } });
+    expect(seen.waitingFor?.fields?.map((f) => f.id)).toEqual(["customer", "email", "budget", "items"]);
+
+    await client.withTenant(T, () => doors.answerRunForm("u", runId, "input", input));
+    await rests(runId, "waiting_input");
+    seen = await report(runId);
+    expect(seen.waitingFor).toMatchObject({ step: "check", review: "check" });
+
+    await client.withTenant(T, () => doors.reviewRun("u", runId, "check", { type: "decline", note: "Shorter." }));
+    await rests(runId, "waiting_input");
+    expect((await report(runId)).rows.filter((r) => r.left).map((r) => r.step)).toEqual(["offer", "check", "offer"]);
+
+    await client.withTenant(T, () => doors.reviewRun("u", runId, "check", { type: "accept" }));
+    await rests(runId, "waiting_input");
+    expect((await report(runId)).waitingFor).toMatchObject({ step: "accept" });
+
+    // back: the operator's yes is asked for again
+    await client.withTenant(T, () => doors.controlRun("u", runId, "back"));
+    await rests(runId, "waiting_input");
+    expect((await report(runId)).waitingFor).toMatchObject({ step: "check" });
+
+    await client.withTenant(T, () => doors.controlRun("u", runId, "cancel"));
+    expect((await rests(runId, "cancelled")).status).toBe("cancelled");
+  });
+
+  it("answers the leave for an action as a review of its step, and tries a failed ask again", async () => {
+    worked.length = 0;
+    const id = await startOf(await exampleWizard("mail"), { customer: "Nordlicht GmbH" });
+    await rests(id, "waiting_input");
+    await client.withTenant(T, () => doors.reviewRun("u", id, "look", { type: "accept" }));
+    await rests(id, "waiting_input");
+    expect((await report(id)).waitingFor).toMatchObject({ step: "send", review: "send", leaveFor: "gmail.users.messages.send" });
+    await client.withTenant(T, () => doors.reviewRun("u", id, "send", { type: "decline" }));
+    await rests(id, "failed");
+
+    // try again: the action is asked for again, and so is the user
+    await client.withTenant(T, () => doors.controlRun("u", id, "retry"));
+    await rests(id, "waiting_input");
+    await client.withTenant(T, () => doors.reviewRun("u", id, "send", { type: "accept" }));
+    await rests(id, "done");
+    expect((await report(id)).data).toEqual({ sent: "msg_9" });
+  });
+
+  it("checks a page's answers as every form's are", async () => {
+    const w = await exampleWizard("offer", { "wizard.ts": "export {};\n" });
+    const { runId } = await client.withTenant(T, () => doors.startTestRun("u", w.id));
+    await rests(runId, "waiting_input");
+    // an e-mail that is none, and a budget that is no number
+    await expect(
+      client.withTenant(T, () => doors.answerRunForm("u", runId, "input", { ...input, email: "not an address", budget: "a lot" })),
+    ).rejects.toThrow();
+    expect((await run(runId))?.status).toBe("waiting_input");
+    await client.withTenant(T, () => doors.answerRunForm("u", runId, "input", input));
+    await rests(runId, "waiting_input");
+    expect((await run(runId))?.cursor).toBe("check");
+  });
+
+  it("refuses an answer to a page the run does not wait at", async () => {
+    const id = await startOf(await exampleWizard("mail"), { customer: "N" });
+    await rests(id, "waiting_input");
+    await expect(client.withTenant(T, () => doors.answerRunForm("u", id, "input", {}))).rejects.toThrow();
+  });
+});
+
+describe("the run's page", () => {
+  const page = async (id: string) => {
+    const row = await run(id);
+    return client.withTenant(T, () => runner.runView(row as never, null as never));
+  };
+
+  it("shows the input as a form, a review with what it is about, the leave for an action, and the end", async () => {
+    process.env.KERNEL_STEPS = "quickjs";
+    // started without an input, so it asks for it; the draft's own check would want a real Gmail
+    const runId = await startOf(await exampleWizard("mail"));
+    await rests(runId, "waiting_input");
+
+    let seen = await page(runId);
+    expect(seen.step).toMatchObject({ id: "input", type: "form" });
+    expect((seen.step as { fields: { id: string }[] }).fields.map((f) => f.id)).toEqual(["customer"]);
+
+    // what is typed and not yet sent is kept, as on any page
+    await client.withTenant(T, async () => runner.keepUnsent((await run(runId)) as never, "input", { customer: "Nord" }));
+    expect((await run(runId))?.unsent).toMatchObject({ input: { customer: "Nord" } });
+
+    await client.withTenant(T, () => runner.submitPage(runId, "input", { customer: "Nordlicht GmbH" }, { userId: "u" }));
+    await rests(runId, "waiting_input");
+    seen = await page(runId);
+    expect(seen.step).toMatchObject({ id: "look", type: "review", show: ["work"], approve: true });
+
+    await client.withTenant(T, () => runner.reviewStep(runId, "look", { type: "accept" }, { userId: "u" }));
+    await rests(runId, "waiting_input");
+    seen = await page(runId);
+    expect(seen.step).toMatchObject({ id: "send", type: "review", title: "gmail.users.messages.send", show: ["send__action"] });
+
+    await client.withTenant(T, () => runner.reviewStep(runId, "send", { type: "accept" }, { userId: "u" }));
+    await rests(runId, "done");
+    seen = await page(runId);
+    expect(seen.status).toBe("done");
+    expect(seen.step).toMatchObject({ type: "result" });
+  });
+});
+
+describe("a wizard of version 0.2.0 made into step files", () => {
+  it("is copied with its map and step files, and the copy runs to its end", async () => {
+    process.env.KERNEL_STEPS = "quickjs";
+    const convert = await import("../src/services/convert");
+    const v1 = {
+      version: 1,
+      title: "A reminder",
+      description: "Writes a reminder and has it looked at.",
+      steps: [
+        { id: "ask", type: "form", title: "Who", fields: [{ id: "customer", label: "Customer", kind: "text", required: true }] },
+        { id: "write", type: "agent", title: "Write", instructions: "Write a reminder for {{customer}}." },
+        { id: "look", type: "review", title: "Look", show: ["write"], approve: true },
+        { id: "end", type: "result", title: "Done", deliverables: [{ from: "write", formats: ["md"] }] },
+      ],
+    };
+    const made = await client.withTenant(T, async () => {
+      const from = await wizards.createWizard("u", { definition: v1 as never });
+      const copy = await convert.convertWizard("u", from.id);
+      // a second time on the copy is refused: it is made of step files already
+      await expect(convert.convertWizard("u", copy.id)).rejects.toThrow(/step files/);
+      const w = await wizards.writableWizard("u", copy.id);
+      return { ...copy, draft: w.draft, files: await files.draftFiles(copy.id) };
+    });
+    expect(made.files.map((f) => f.path).sort()).toEqual(["steps/look.ts", "steps/write.ts"]);
+    expect((made.draft as { kernel?: { start: string } }).kernel?.start).toBe("write");
+
+    const runId = await client.withTenant(T, () =>
+      runner.createRun({ wizardId: made.id, definition: made.draft as never, files: made.files as never, version: null, mode: "test", userId: "u", input: { customer: "Nordlicht GmbH" } }),
+    );
+    await rests(runId, "waiting_input");
+    await client.withTenant(T, () => runner.reviewStep(runId, "look", { type: "accept" }, { userId: "u" }));
+    const done = await rests(runId, "done", "failed");
+    expect(done.error ?? null).toBeNull();
+    expect(done.status).toBe("done");
+    expect(worked.at(-1)?.instructions).toContain("Nordlicht GmbH");
+  });
+
+  it("takes a review's edits and its way back, and ends with what the file's output names", async () => {
+    process.env.KERNEL_STEPS = "quickjs";
+    const convert = await import("../src/services/convert");
+    const v1 = {
+      version: 1,
+      title: "A letter",
+      description: "Writes a pitch, has it looked at, and a letter from it.",
+      steps: [
+        { id: "ask", type: "form", title: "Who", fields: [{ id: "customer", label: "Customer", kind: "text", required: true }] },
+        { id: "pitch", type: "agent", title: "Pitch", instructions: "Write a pitch for {{customer}}." },
+        { id: "look", type: "review", title: "Look", show: ["pitch"], edit: true, regenerate: true },
+        { id: "letter", type: "agent", title: "Letter", instructions: "Write a letter from this pitch: {{steps.pitch}}" },
+        { id: "end", type: "result", title: "Done", deliverables: [{ from: "letter", formats: ["md"] }, { from: "pitch", formats: ["md"] }] },
+      ],
+    };
+    const made = await client.withTenant(T, async () => {
+      const from = await wizards.createWizard("u", { definition: v1 as never });
+      const copy = await convert.convertWizard("u", from.id);
+      const w = await wizards.writableWizard("u", copy.id);
+      return { ...copy, draft: w.draft, files: await files.draftFiles(copy.id) };
+    });
+    const runId = await client.withTenant(T, () =>
+      runner.createRun({ wizardId: made.id, definition: made.draft as never, files: made.files as never, version: null, mode: "test", userId: "u", input: { customer: "Nordlicht GmbH" } }),
+    );
+    await rests(runId, "waiting_input");
+    const page = async () => client.withTenant(T, async () => runner.runView((await run(runId)) as never, null as never));
+
+    // the review offers what its ask names: an edit and a new version, not a yes or no
+    let seen = await page();
+    expect(seen.step).toMatchObject({ id: "look", type: "review", show: ["pitch"], edit: true, regenerate: true, approve: false });
+    expect(seen.outputs.pitch?.text).toBe("A long pitch");
+
+    // a new version: the pitch runs again with the note
+    worked.length = 0;
+    await client.withTenant(T, () => runner.reviewStep(runId, "look", { type: "regenerate", target: "pitch", note: "Shorter." }, { userId: "u" }));
+    await rests(runId, "waiting_input");
+    expect(worked.map((w) => w.step)).toEqual(["pitch"]);
+    expect(worked[0].instructions).toContain("Shorter.");
+    // only a step the review shows can be made again
+    await expect(
+      client.withTenant(T, () => runner.reviewStep(runId, "look", { type: "regenerate", target: "letter", note: "No." }, { userId: "u" })),
+    ).rejects.toThrow(/made again/);
+
+    // an edit of the text reaches the step after the review
+    worked.length = 0;
+    await client.withTenant(T, () =>
+      runner.reviewStep(runId, "look", { type: "accept", edits: { pitch: "A short pitch" } }, { userId: "u" }),
+    );
+    await rests(runId, "done", "failed");
+    expect(worked.find((w) => w.step === "letter")?.instructions).toContain("A short pitch");
+    expect(worked.find((w) => w.step === "letter")?.instructions).not.toContain("A long pitch");
+
+    seen = await page();
+    expect(seen.status).toBe("done");
+    expect((seen.step as { deliverables: { from: string }[] }).deliverables.map((d) => d.from).sort()).toEqual(["letter", "pitch"]);
+  });
+});

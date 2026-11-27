@@ -533,6 +533,55 @@
       "when": 1794650059999,
       "tag": "0075_person_connection",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "6",
+      "when": 1794661909758,
+      "tag": "0076_clients_in_spaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "6",
+      "when": 1794664300321,
+      "tag": "0077_client_spaces_at_root",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "6",
+      "when": 1795639642428,
+      "tag": "0078_work_chats_gone",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "6",
+      "when": 1795646254581,
+      "tag": "0079_space_rules_never",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "6",
+      "when": 1795673517252,
+      "tag": "0080_work_messages_gone",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "6",
+      "when": 1795673776300,
+      "tag": "0081_kernel_rows",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "6",
+      "when": 1795729010659,
+      "tag": "0082_space_eval_share",
+      "breakpoints": true
     }
   ]
 }

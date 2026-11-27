@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
+
+import type { Surface } from "@engenty/chatviews/surface";
 import {
   type AheadForm,
   type CardOption,
@@ -13,7 +15,6 @@ import {
 import type { ShareJobView } from "./sharing.js";
 import type { StartEvent } from "./starts.js";
 import type { ConnectionKind, ConnectionView, ListDef, ListRow } from "./store.js";
-import type { Surface } from "./surface.js";
 import { type Gap, type Line, lineText, type Texts, type TextTable, textOf } from "./texts.js";
 import type { ThemeColours, ThemeEffect, ThemeShape } from "./theme.js";
 
@@ -86,6 +87,20 @@ export interface RunTurn {
 }
 
 export interface RunState {
+  /**
+   * A run of a wizard in version 0.3.0 (docs/plans/kernel.md): what the kernel keeps of it besides
+   * its rows. The other entries of this state stay empty for such a run.
+   */
+  kernel?: {
+    /** Null until the run began: it then asks for its input where it was given none. */
+    input: Record<string, unknown> | null;
+    startedAt: number;
+    /** Where the rows of the step the run stands in begin; null between two steps. */
+    open: number | null;
+    status: "running" | "waiting" | "paused" | "done" | "failed" | "stopped";
+    grant?: unknown;
+    output?: Record<string, unknown>;
+  };
   values: Record<string, unknown>;
   outputs: Record<string, StepOutput>;
   /** Interactive steps answered, oldest first — "back" pops this. */
@@ -323,6 +338,8 @@ const NOTES_EN = {
   noSandbox: "Working without the sandbox – this run can’t run code",
   noDurable: "This step starts over after an interruption: its model can’t go on where it stopped",
   turnWentOn: "Went on after an interruption",
+  loadsModel: "Loading the model",
+  modelReads: "The model reads what the step holds",
   turnAsked: "Asks you: {question}",
   turnAnswered: "Goes on with your answer",
   // What the run may reach outside, from its grant (broker/grant.ts), as its log opens.
@@ -382,6 +399,7 @@ const NOTES_EN = {
   stepWaitsCredits:
     "This wizard has run out of credits for now. It goes on by itself once there are credits again.",
   stepWaitsSignIn: "{service} needs a new sign-in. This step goes on by itself after that.",
+  stepWaitsConnect: "{service} isn’t connected yet. This step goes on by itself once it is.",
   stepWaitsAdminSignIn:
     "{service} needs a new sign-in by an admin of the space. This step goes on by itself after that.",
   stepFailedGoesOn: "This step didn’t work, so the wizard goes on with “{step}”.",
@@ -394,6 +412,11 @@ const NOTES_EN = {
   reminderSent: "Sent a reminder.",
   waitsOff: "This wizard has a wait step, and those aren’t turned on here yet.",
   codeStepsOff: "This wizard runs code of its own, and that isn’t turned on here yet.",
+  oldFormatOff: "This wizard is in the format before step files, which isn’t loaded here.",
+  oldFormatWrite:
+    "A wizard is made of step files (version 0.3.0): write its definition with a “kernel” entry, and one steps/<id>.ts per step.",
+  kernelSample: "Sample",
+  kernelSampleText: "*Sample.* After a test run, this shows what the step made.",
   pluginsMissing: "This wizard needs {plugins}, which isn’t installed here.",
   connectorsCantConnect: "{connectors} can’t connect here yet.",
   connectorNeedsSettings: "To connect {connector}, engenty wizards needs {settings} here.",
@@ -504,6 +527,17 @@ const NOTES_EN = {
   engentyAccountNotReached: "Your engenty account can’t be reached right now. Try again later.",
   googleNoLongerAccepts: "Google no longer accepts this connection. Connect the account again.",
   googleNotConnectedThrough: "Google can’t be connected through your engenty account right now.",
+  composioNoKey: "No Composio API key is entered here. Add yours in Settings → Models.",
+  composioOwnKeyLocalOnly:
+    "Your own Composio API key goes into engenty wizards on your computer only.",
+  composioNotReached: "Composio can’t be reached right now. Try again later.",
+  composioBusy: "Composio takes no more calls right now. engenty wizards tries again shortly.",
+  composioKeyRefused: "Composio didn’t accept the API key. Check it in Settings → Models.",
+  composioFailed: "Composio didn’t do it: {detail}",
+  composioSignInNotFinished: "The sign-in at Composio didn’t finish. Sign in again.",
+  composioNotAvailable: "Services from Composio can’t be connected here yet.",
+  composioOnlySpaceConnection:
+    "{name} comes from Composio. An admin connects it under Capabilities → Connectors first.",
   stepNeedsToolPlugin:
     "This step needs the tool “{id}”. The plugin “{plugin}” isn’t installed here.",
   stepCallsUnknownConnection:
@@ -810,6 +844,8 @@ const NOTES_EN = {
   maskedContract: { one: "{count} contract number", other: "{count} contract numbers" },
   maskedTerm: { one: "{count} term of your own", other: "{count} terms of your own" },
   maskedOther: { one: "{count} other detail", other: "{count} other details" },
+  unwatchedNeedsChoice:
+    "This wizard can’t start on its own yet. An admin chooses which connection it uses for {service}, in the wizard’s settings.",
 } as const satisfies Record<string, Line>;
 export type RunNoteCode = keyof typeof NOTES_EN;
 
@@ -857,6 +893,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   noDurable:
     "Dieser Schritt beginnt nach einer Unterbrechung neu: sein Modell kann nicht dort weitermachen",
   turnWentOn: "Nach einer Unterbrechung weitergemacht",
+  loadsModel: "Lädt das Modell",
+  modelReads: "Das Modell liest, was der Schritt enthält",
   turnAsked: "Fragt dich: {question}",
   turnAnswered: "Macht mit deiner Antwort weiter",
   grant: "Dieser Lauf darf: {what}",
@@ -918,6 +956,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "Das Guthaben dieses Wizards ist aufgebraucht. Er macht von selbst weiter, sobald wieder Guthaben da ist.",
   stepWaitsSignIn:
     "{service} braucht eine neue Anmeldung. Danach macht dieser Schritt von selbst weiter.",
+  stepWaitsConnect:
+    "{service} ist noch nicht verbunden. Sobald das passiert, macht dieser Schritt von selbst weiter.",
   stepWaitsAdminSignIn:
     "{service} braucht eine neue Anmeldung durch einen Admin des Space. Danach macht dieser Schritt von selbst weiter.",
   stepFailedGoesOn:
@@ -931,6 +971,12 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   reminderSent: "Erinnerung gesendet.",
   waitsOff: "Dieser Wizard hat einen Warten-Schritt, und die sind hier noch nicht eingeschaltet.",
   codeStepsOff: "Dieser Wizard führt eigenen Code aus, und das ist hier noch nicht eingeschaltet.",
+  oldFormatOff:
+    "Dieser Wizard ist im Format vor den Schritt-Dateien, und das wird hier nicht geladen.",
+  oldFormatWrite:
+    "Ein Wizard besteht aus Schritt-Dateien (Version 0.3.0): seine Definition mit einem Eintrag „kernel“, und eine steps/<id>.ts je Schritt.",
+  kernelSample: "Beispiel",
+  kernelSampleText: "*Beispiel.* Nach einem Testlauf steht hier, was dieser Schritt erstellt.",
   pluginsMissing: "Dieser Wizard braucht {plugins}, und das ist hier nicht installiert.",
   connectorsCantConnect: {
     one: "{connectors} lässt sich hier noch nicht verbinden.",
@@ -1050,6 +1096,21 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "Dein engenty-Konto ist gerade nicht erreichbar. Versuch es später noch einmal.",
   googleNoLongerAccepts: "Google nimmt diese Verbindung nicht mehr an. Verbinde das Konto neu.",
   googleNotConnectedThrough: "Google lässt sich über dein engenty-Konto gerade nicht verbinden.",
+  composioNoKey:
+    "Hier ist kein Composio-API-Key eingetragen. Trag deinen unter Einstellungen → Modelle ein.",
+  composioOwnKeyLocalOnly:
+    "Deinen eigenen Composio-API-Key trägst du nur in engenty wizards auf deinem Computer ein.",
+  composioNotReached: "Composio ist gerade nicht erreichbar. Versuch es später noch einmal.",
+  composioBusy:
+    "Composio nimmt gerade keine Aufrufe mehr an. engenty wizards versucht es gleich noch einmal.",
+  composioKeyRefused:
+    "Composio hat den API-Key nicht angenommen. Prüf ihn unter Einstellungen → Modelle.",
+  composioFailed: "Composio hat es nicht ausgeführt: {detail}",
+  composioSignInNotFinished:
+    "Die Anmeldung bei Composio ist nicht fertig geworden. Melde dich noch einmal an.",
+  composioNotAvailable: "Dienste von Composio lassen sich hier noch nicht verbinden.",
+  composioOnlySpaceConnection:
+    "{name} kommt von Composio. Ein Admin verbindet es zuerst unter Fähigkeiten → Connectors.",
   stepNeedsToolPlugin:
     "Dieser Schritt braucht das Werkzeug „{id}“. Das Plugin „{plugin}“ ist hier nicht installiert.",
   stepCallsUnknownConnection:
@@ -1358,6 +1419,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   maskedContract: { one: "{count} Vertragsnummer", other: "{count} Vertragsnummern" },
   maskedTerm: { one: "{count} eigener Begriff", other: "{count} eigene Begriffe" },
   maskedOther: { one: "{count} andere Angabe", other: "{count} andere Angaben" },
+  unwatchedNeedsChoice:
+    "Dieser Wizard kann noch nicht von selbst starten. Ein Admin wählt in den Einstellungen des Wizards, welche Verbindung er für {service} nutzt.",
 };
 
 export const RUN_NOTES: Texts<RunNoteCode> = { en: NOTES_EN, de: NOTES_DE };
@@ -1502,6 +1565,54 @@ export interface RunTimeline {
   events: RunEvent[];
   /** How many lines the log has, `events` or more. */
   total: number;
+  /**
+   * Set for a run of a wizard in version 0.3.0 (docs/plans/kernel.md): its rows are read from
+   * `GET /api/runs/:id/rows`. `roles`: whose answers come from a person, so such a row can be
+   * answered differently; every other row can only be asked again.
+   */
+  kernel?: { roles: string[] };
+}
+
+/** A row of a run of a wizard in version 0.3.0: an ask with its answer, or a step that returned. */
+export interface KernelRow {
+  n: number;
+  step: string;
+  /** A step that returned: what it left behind and the way it went. */
+  left?: true;
+  value?: unknown;
+  to?: string;
+  /** An ask: what kind, who answers, and how it stands. */
+  type?: string;
+  role?: string;
+  title?: unknown;
+  state?: "waiting" | "done" | "failed";
+  answer?: unknown;
+  error?: string;
+  by?: string;
+  /** On the row that asks the user's leave for an action: the row of that action. */
+  approves?: number;
+  /** On a row that belongs to another ask, what an agent did in its turn: that ask's row. */
+  parent?: number;
+}
+
+/** What an eval said of one step that returned, or of the finished run (`end/<name>`). */
+export interface KernelScore {
+  eval: string;
+  row: number;
+  score?: number;
+  why?: string;
+  error?: string;
+}
+
+/** What `GET /api/runs/:id/rows` answers: a run's rows in their order, and its scores. */
+export interface KernelRows {
+  rows: KernelRow[];
+  scores: KernelScore[];
+  /** Each step's title as its file writes it. */
+  titles?: Record<string, { title?: string; working?: string }>;
+  /** The wizard's evals, `<step>/<name>` and `end/<name>`, whether or not they judged yet. */
+  evals?: string[];
+  status?: RunStatus;
 }
 
 /** One step's output as the current step shows it. */
@@ -1606,6 +1717,12 @@ export interface RunView {
   lists: ShownList[];
   /** The wizard's connections with what the person has connected. */
   connections: ConnectionView[];
+  /**
+   * The accounts the run needs before it goes on and has none for, for the person whose run it
+   * is: at its start those of the steps every run passes, later the one of the step it waits at.
+   * The runner shows the connect card for them before anything else.
+   */
+  connect: ConnectionView[];
   /** The wizard keeps things for the person between runs (lists, files, accounts). */
   keeps: boolean;
   /** Set once the result is shared. */

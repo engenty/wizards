@@ -4,6 +4,11 @@ Status: plan, written on 2026-10-28 against v0.11.13 (`@mastra/core` 1.77; 1.80 
 steps 1 (#265) and 2 (#266) open. Concept: engenty-dev `concepts/` (Studio / Work / Client, Work
 deep dive). Behind `workMode`.
 
+Replaced on 2026-11-25: Work's own engine, its chats, sections and held calls are deleted. Work's
+chats are the chats of the team's Bot Server (wizards.bot, engenty/wizards-bot), whose page the
+studio shows under Chats (docs/content/dev/architecture.md, "Work mode"). What follows describes
+the engine that was built and is kept for the record.
+
 ## Goals
 
 - Chats are multi-user and durable, in a shared space.

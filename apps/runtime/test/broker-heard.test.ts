@@ -86,7 +86,6 @@ let service: typeof import("../src/connectors/space-connections");
 let bell: typeof import("../src/services/broker-bell");
 let notify: typeof import("../src/services/broker-notify");
 let seen: typeof import("../src/services/seen");
-let approvals: typeof import("../src/services/work-approvals");
 let reports: typeof import("../src/services/manage-reports");
 let access: typeof import("../src/services/access");
 let space: string;
@@ -97,7 +96,7 @@ const inTenant = <T>(fn: () => Promise<T>) => client.withTenant(TENANT, fn);
 const owner = { id: "user-a", role: "owner" as const, tenantId: TENANT, name: "A", email: "a@firma.at" };
 const member = { id: "user-m", role: "member" as const, tenantId: TENANT, name: "M", email: "m@firma.at" };
 const guestRun = { runId: "run-g", spaceId: "", mode: "live" as const, guest: true };
-const RULES = { read: "allow", write: "ask", destructive: "deny", send: "deny" } as const;
+const RULES = { read: "allow", write: "deny", destructive: "deny", send: "deny" } as const;
 
 const call = (
   who: Parameters<typeof broker.brokerCall>[0]["who"],
@@ -136,7 +135,6 @@ beforeAll(async () => {
   bell = await import("../src/services/broker-bell");
   notify = await import("../src/services/broker-notify");
   seen = await import("../src/services/seen");
-  approvals = await import("../src/services/work-approvals");
   reports = await import("../src/services/manage-reports");
   access = await import("../src/services/access");
   reports.startCriticalReports();
@@ -243,7 +241,7 @@ describe("heard: the bell and the report", () => {
     const row = (await logOf(connection)).at(-1);
     expect(row).toMatchObject({ whoKind: "admin", whoId: "user-a", actionId: broker.RULE_CHANGE_ACTION, critical: true, criticalKind: "rule_changed" });
     expect(row?.reason).toMatch(/audience is now members/);
-    expect(row?.reason).toMatch(/write: ask → allow/);
+    expect(row?.reason).toMatch(/write: deny → allow/);
     expect(reported).toEqual([]);
     await reports.reportCriticalDaily();
     expect(reported).toHaveLength(1);
@@ -255,18 +253,6 @@ describe("heard: the bell and the report", () => {
     expect((await logOf(connection)).at(-1)?.id).toBe(row?.id);
   });
 
-  it("shows an admin a call held in a private chat they are not in; a member sees only their own", async () => {
-    await inTenant(async () => {
-      await client.db.insert(client.schema.chat).values({ id: "chat-p", tenantId: TENANT, spaceId: space, title: "Private", private: true, createdBy: "user-m" } as never);
-      await approvals.holdCall({ chatId: "chat-p", userId: "user-m" }, `hubspot_${connection}_create_contact`, {}, "admins");
-      await approvals.holdCall({ chatId: "chat-p", userId: "user-m" }, "mailer_send", {}, "asker");
-    });
-    const forOwner = await inTenant(() => approvals.waitingFor(owner, []));
-    expect(forOwner.map((a) => a.heldFor).sort()).toEqual(["admins", "asker"]);
-    expect(await inTenant(() => approvals.waitingFor(member, []))).toEqual([]);
-    const own = await inTenant(() => approvals.waitingFor(member, ["chat-p"]));
-    expect(own.map((a) => a.toolName)).toEqual(["mailer_send"]);
-  });
 });
 
 describe("the hourly mail", () => {

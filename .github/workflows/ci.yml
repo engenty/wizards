@@ -42,7 +42,7 @@ jobs:
       # Every check runs to its end, so a failing one doesn't hide another.
       fail-fast: false
       matrix:
-        check: [typecheck, test, build, docs]
+        check: [typecheck, build, docs]
     steps:
       - uses: actions/checkout@v7
 
@@ -71,26 +71,6 @@ jobs:
           pnpm install --frozen-lockfile
           --filter "${{ matrix.check != 'docs' && '!' || '' }}@engenty/wizards-docs"
 
-      # How long each test file took last time: vitest starts the longest first, so
-      # apps/runtime/test/sandbox.test.ts (half a minute) runs beside the others instead of
-      # after them. Saved anew by every run, restored from the newest.
-      - if: matrix.check == 'test'
-        uses: actions/cache@v6
-        with:
-          path: |
-            apps/runtime/node_modules/.vite/vitest
-            packages/runner/node_modules/.vite/vitest
-          key: vitest-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: vitest-${{ runner.os }}-
-
-      # Tesseract's models for apps/runtime/test/document-reading.test.ts: 24 MB from GitHub,
-      # downloaded once.
-      - if: matrix.check == 'test'
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/wizards-tessdata
-          key: tessdata-best-deu-eng
-
       # Lint takes seconds: it rides along with the typecheck.
       - name: Lint
         if: matrix.check == 'typecheck'
@@ -101,7 +81,8 @@ jobs:
         if: matrix.check == 'typecheck'
         run: pnpm copy:check --strict
 
-      # The MIT packages (packages/runner, decision-model, search-index, search-libsql, goose)
+      # The MIT packages (packages/runner, kernel, decision-model, search-index, search-libsql, tool-harness, vault,
+      # plugins, browser, model-providers, model-setup)
       # depend only on MIT or permissive packages: scripts/mit-deps-check.mjs.
       - name: MIT dependencies
         if: matrix.check == 'typecheck'
@@ -111,10 +92,6 @@ jobs:
       - name: Typecheck
         if: matrix.check == 'typecheck'
         run: pnpm -r --filter "!@engenty/wizards-docs" typecheck
-
-      - name: Test
-        if: matrix.check == 'test'
-        run: pnpm test
 
       - name: Build
         if: matrix.check == 'build'
@@ -129,6 +106,119 @@ jobs:
       - name: Docs
         if: matrix.check == 'docs'
         run: pnpm --filter @engenty/wizards-docs typecheck && pnpm build:docs
+
+  # Whether the runtime's tests have anything to check. Only a pull request that touches nothing
+  # but the docs, the studio, the portal or texts skips them, and a release's own files on a
+  # release branch; main and a tag run everything. What they read of those places counts.
+  changes:
+    if: >-
+      ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+        startsWith(github.event.head_commit.message, 'chore(release):')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      runtime: ${{ steps.files.outputs.runtime }}
+    steps:
+      # A pull request is checked out as its merge into main: the first parent is main.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - id: files
+        env:
+          EVENT: ${{ github.event_name }}
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          skip='^(apps/(docs|portal|web)/|docs/|[A-Z]+\.md$)'
+          read='^(apps/docs/public/schema|apps/web/public/install\.sh$|apps/web/src/dev/(view-lab-sample|data-shape)|docs/content/dev/wizard-format)'
+          case "$BRANCH" in
+            release/v*) skip="$skip|^(package\.json|plugin/plugin\.json|plugin/\.claude-plugin/plugin\.json)$" ;;
+          esac
+          runtime=true
+          if [ "$EVENT" = pull_request ]; then
+            files="$(git diff --name-only HEAD^1 HEAD)"
+            if ! grep -qvE "$skip" <<< "$files" && ! grep -qE "$read" <<< "$files"; then
+              runtime=false
+            fi
+          fi
+          echo "runtime=$runtime" | tee -a "$GITHUB_OUTPUT"
+
+  # The runtime's tests, split over runners by how long each file takes
+  # (apps/runtime/vitest.config.ts).
+  runtime-tests:
+    name: runtime tests (${{ matrix.part }})
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          package-manager-cache: false
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter "!@engenty/wizards-docs"
+
+      # Tesseract's models for apps/runtime/test/document-reading.test.ts: 24 MB from GitHub,
+      # downloaded once.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/wizards-tessdata
+          key: tessdata-best-deu-eng
+
+      - name: Test
+        run: pnpm --filter @engenty/wizards-runtime exec vitest run --shard=${{ matrix.part }}/6
+
+  # The studio's, the portal's and the packages' tests: seconds.
+  other-tests:
+    name: other tests
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          package-manager-cache: false
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter "!@engenty/wizards-docs"
+
+      - name: Test
+        run: pnpm -r --filter "!@engenty/wizards-runtime" test
+
+  # One check for all tests, under the name main's rules ask for.
+  tests:
+    name: verify (test)
+    needs: [changes, runtime-tests, other-tests]
+    if: >-
+      ${{ always() && !(github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+        startsWith(github.event.head_commit.message, 'chore(release):')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          RUNTIME: ${{ needs.runtime-tests.result }}
+          WANTED: ${{ needs.changes.outputs.runtime }}
+          OTHERS: ${{ needs.other-tests.result }}
+        run: |
+          test "$CHANGES" = success
+          test "$OTHERS" = success
+          test "$RUNTIME" = success || { test "$WANTED" = false && test "$RUNTIME" = skipped; }
 
   # The cloud runtime's images (runtime, browser, sandbox), the portal's and the documentation's, built on GitHub's runners: the server
   # only pulls them. The layers come from the registry's cache, so a release rebuilds only what
@@ -181,7 +271,7 @@ jobs:
           cache-to: type=registry,ref=ghcr.io/engenty/engenty-wizards-${{ matrix.image }}:buildcache,mode=max
 
   deploy:
-    needs: [verify, images]
+    needs: [verify, tests, images]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -253,7 +343,7 @@ jobs:
             deploy/Dockerfile.docs.dockerignore pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json
           # A team's host: deploy/Dockerfile.portal with the image (apps/portal/Dockerfile) built
           # above.
-          move deploy/portal apps/portal packages/shared packages/runner deploy/Dockerfile.portal \
+          move deploy/portal apps/portal packages/chatviews packages/shared packages/runner deploy/Dockerfile.portal \
             deploy/Dockerfile.portal.dockerignore pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json
 
       # A repository that builds on the release's images (its own image on top of the runtime's)

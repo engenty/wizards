@@ -1,5 +1,3 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import {
   ASSISTANT_LAYOUTS,
   ASSISTANT_PAGE_BYTES,
@@ -19,13 +17,12 @@ import {
 import { CATEGORY_TYPES, whereSchema } from "@engenty/wizards-shared/knowledge";
 import { PRESENCE_KINDS } from "@engenty/wizards-shared/live";
 import { CLASS_NAMES, isCreditsRef, modelLabel } from "@engenty/wizards-shared/providers";
-import { note } from "@engenty/wizards-shared/run";
+import { note, saidText } from "@engenty/wizards-shared/run";
 import { AUDIENCES } from "@engenty/wizards-shared/rwx";
 import { SPACE_FILE_KINDS } from "@engenty/wizards-shared/spaces";
 import {
   MAX_MASK_LABEL_CHARS,
   MAX_MASK_LABELS,
-  type ModelPolicy,
   modelPolicySchema,
 } from "@engenty/wizards-shared/tiers";
 import {
@@ -54,6 +51,12 @@ import { createLocalKey, deleteLocalKey, listLocalKeys } from "../auth/keys.js";
 import { assertRwx, folderAudience, setFolderAudience, subjectsOfPerson } from "../broker/rwx.js";
 import { appStates, connectApps } from "../cli/connect.js";
 import { layout } from "../cli/home.js";
+import { composioKeyHint, composioOn, setComposioKey } from "../connectors/composio.js";
+import {
+  composioCatalog,
+  composioConnector,
+  composioView,
+} from "../connectors/composio-connectors.js";
 import {
   actionKindsPatchSchema,
   connectorImportSchema,
@@ -65,30 +68,23 @@ import {
   searchRegistry,
   setActionKinds,
 } from "../connectors/external.js";
+import { unwatchedScope } from "../connectors/person-connections.js";
 import { reloadConnector } from "../connectors/reload.js";
+import { chooseForSpace, clearForSpace, wizardNeeds } from "../connectors/space-choice.js";
 import { balanceCredits, canSpend } from "../credits/credits.js";
 import { estimateRun } from "../credits/estimate.js";
 import { listNotices, markNoticesRead } from "../engine/notices.js";
-import { missingConnections, missingModels, stepsWithoutModel } from "../engine/requirements.js";
+import {
+  missingConnections,
+  missingModels,
+  stepsWithoutModel,
+  unwatchedConnectionsSaid,
+} from "../engine/requirements.js";
 import { env } from "../env.js";
 import { feature, features, forgetAccountFeatures } from "../features.js";
 import { appleStatus } from "../harness/apple.js";
-import { freshAuth, loginEnv } from "../harness/env.js";
-import {
-  detectHarness,
-  detectHarnesses,
-  HARNESS_IDS,
-  type HarnessId,
-  harness,
-  installSpec,
-} from "../harness/index.js";
-import {
-  closeTerminal,
-  openTerminal,
-  resizeTerminal,
-  subscribeTerminal,
-  writeTerminal,
-} from "../harness/terminal.js";
+import { detectHarness, detectHarnesses, harness } from "../harness/index.js";
+import { editStep, kernelOutline } from "../kernel/outline.js";
 import {
   connectorsView,
   filesView,
@@ -98,12 +94,6 @@ import {
   wizardsView,
   wizardView,
 } from "../live/views.js";
-import {
-  downloadLocalModel,
-  localModels,
-  removeLocalModel,
-  startLocalOllama,
-} from "../local-models.js";
 import {
   installMail,
   ManageError,
@@ -128,8 +118,6 @@ import {
   checkKey,
   classProblem,
   classWays,
-  DECISION_CHOICES,
-  EMBEDDING_CHOICES,
   embeddingModel,
   hasTextModel,
   LOCAL_KEYS,
@@ -139,8 +127,6 @@ import {
   ownKeysThroughGateway,
   saveLocalModels,
   saveModels,
-  setUpKey,
-  setUpOllama,
   storedKey,
   textModel,
 } from "../models.js";
@@ -183,6 +169,7 @@ import {
   rotateInCloud,
   syncToCloud,
 } from "../services/cloud.js";
+import { convertWizard } from "../services/convert.js";
 import { notFound, ServiceError } from "../services/errors.js";
 import { deleteFile, listFiles, readFile, writeFile } from "../services/files.js";
 import {
@@ -314,7 +301,7 @@ import {
   writableWizard,
   writeDraft,
 } from "../services/wizards.js";
-import { deleteTenantSetting, readSetting, writeSetting, writeTenantSetting } from "../settings.js";
+import { deleteTenantSetting, writeTenantSetting } from "../settings.js";
 import { sharePreview, spaceShareTargets } from "../sharing/index.js";
 import {
   keepCloudForAll,
@@ -332,9 +319,10 @@ import {
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
-import { applyUpdate, updateStatus } from "../update.js";
+import { applyUpdate, installKind, updateStatus } from "../update.js";
 import { spaceFileResponse } from "./delivery.js";
 import { notFoundAnswer, requestLang, say } from "./lang.js";
+import { localSetup, modelsInput, testedSources } from "./model-setup.js";
 import { addKey, changeKey, checkKeyOf, listKeys, removeKey, setFallback } from "./own-keys.js";
 import { mayChangeRuntime } from "./runtime-settings.js";
 
@@ -359,19 +347,6 @@ const reader = (c: Context<Vars>): Reader => ({
   who: whoOf(c),
 });
 
-/** The model sources a test call has worked on: the setup is done for those, not for the others. */
-async function testedSources(): Promise<string[]> {
-  const tested = await readSetting<unknown>("setup-done");
-  return Array.isArray(tested) ? (tested as string[]) : [];
-}
-
-async function markTested(source: string) {
-  const tested = await testedSources();
-  if (!tested.includes(source)) {
-    await writeSetting("setup-done", [...tested, source]);
-  }
-}
-
 /**
  * The chosen source has passed a test call and can still answer: its client is there and signed
  * in. Where Apple Intelligence thinks the short classes, the test ran there; a client behind
@@ -379,7 +354,7 @@ async function markTested(source: string) {
  */
 async function setupDone(): Promise<boolean> {
   const { source, bindings } = localModelSettings();
-  if (!(await testedSources()).includes(source)) {
+  if (!(await testedSources.has(source))) {
     return false;
   }
   const client = bindings.low.startsWith("apple:") ? null : harness(source);
@@ -390,28 +365,8 @@ async function setupDone(): Promise<boolean> {
   return hasTextModel();
 }
 
-/** A model as Ollama names it: `name`, `name:tag`, `namespace/name:tag` or `hf.co/…`. */
-const localModelName = z
-  .string()
-  .trim()
-  .min(1)
-  .max(120)
-  .regex(/^[\w.:/-]+$/);
-
 /** The Manage-App's masking errors, passed on as it sends them: 502 labels, 503 the detector. */
 const MASKING_CODES = new Set(["labels_unavailable", "masking_unavailable"]);
-
-const modelsInput = z.object({
-  source: z.enum([...HARNESS_IDS, "account", "own"]).optional(),
-  bindings: z.partialRecord(z.enum(MODEL_CLASSES), z.string().max(160)).optional(),
-  ollamaUrl: z.string().max(200).optional(),
-  creditFallback: z.boolean().optional(),
-  decision: z.enum(DECISION_CHOICES).optional(),
-  embedding: z.enum(EMBEDDING_CHOICES).optional(),
-  decisionLocal: z.string().max(120).optional(),
-  embeddingLocal: z.string().max(120).optional(),
-  keys: z.partialRecord(z.enum(LOCAL_KEYS), z.string().max(400)).optional(),
-});
 
 /** Alone the person changes everything; in an organization its owner and admins. */
 function mayChangeModels(user: SessionUser): boolean {
@@ -427,7 +382,8 @@ async function settingsFor(c: Context<Vars>) {
 /** A binding the cloud can run: a provider's model or the credits, no client, no local model. */
 function cloudBinding(ref: string): boolean {
   return (
-    isCreditsRef(ref) || /^(openai|anthropic|google|fal|elevenlabs|replicate|gateway):/.test(ref)
+    isCreditsRef(ref) ||
+    /^(openai|anthropic|google|openrouter|fal|elevenlabs|replicate|gateway):/.test(ref)
   );
 }
 
@@ -543,15 +499,16 @@ async function testClass(cls: (typeof MODEL_CLASSES)[number], lang: Lang): Promi
 }
 
 /** The size of an inline terminal, as the page lays it out. */
-/** Whether the developer mode (Goose's, a Work chat's) is offered to this person. */
+/**
+ * Whether the developer mode is offered to this person: Goose's and a Work chat's steps, and the
+ * marketplace's templates that are not published. A platform admin in the cloud; on a computer,
+ * with ASSISTANT_DEV or a runtime started from its source.
+ */
 export async function assistantDevFor(user: SessionUser): Promise<boolean> {
-  return managed ? (await userInfo(user.id)).admin : env.assistantDev;
+  return managed
+    ? (await userInfo(user.id)).admin
+    : env.assistantDev || installKind() === "checkout";
 }
-
-const terminalSize = z.object({
-  cols: z.number().int().min(10).max(500).optional(),
-  rows: z.number().int().min(4).max(200).optional(),
-});
 
 /** How the person settled a conflict: one side, a choice per place, or a version of their own. */
 const resolutionSchema = z.union([
@@ -966,9 +923,10 @@ export const studio = new Hono<Vars>()
       .object({
         name: z.string().min(1).max(80),
         access: z.enum(["all", "members"]).default("all"),
+        kind: z.enum(["space", "client"]).default("space"),
       })
       .parse(await c.req.json());
-    return c.json(await createSpace(c.get("user").id, body.name, body.access));
+    return c.json(await createSpace(c.get("user").id, body.name, body.access, body.kind));
   })
   .patch("/spaces/:id", async (c) => {
     const patch = spacePatchSchema.parse(await c.req.json());
@@ -1170,6 +1128,20 @@ export const studio = new Hono<Vars>()
   .get("/spaces/:id/connectors", async (c) =>
     c.json(await connectorsView(reader(c), c.req.param("id"))),
   )
+  // Composio's catalog (docs/plans/composio.md): searched for „Verbindung hinzufügen“, and one
+  // toolkit as a connector before the space has a connection on it.
+  .get("/spaces/:id/composio", async (c) => {
+    await ownedSpace(c.get("user").id, c.req.param("id"));
+    const q = z.string().max(80).catch("").parse(c.req.query("q"));
+    return c.json(await composioCatalog(q));
+  })
+  .get("/spaces/:id/composio/:connectorId", async (c) => {
+    await ownedSpace(c.get("user").id, c.req.param("id"));
+    const found = await composioConnector(c.req.param("connectorId"));
+    return found
+      ? c.json(composioView(found.connector))
+      : c.json({ error: say(c, "notFound"), code: "not_found" }, 404);
+  })
   .post("/spaces/:id/connectors", async (c) => {
     const user = c.get("user");
     const space = await ownedSpace(user.id, c.req.param("id"));
@@ -1603,9 +1575,14 @@ export const studio = new Hono<Vars>()
         spaceId: z.string(),
         starterId: z.string().optional(),
         lang: z.string().optional(),
+        /** A template a platform admin previews: one that is not published yet. */
+        preview: z.boolean().optional(),
       })
       .parse(await c.req.json());
-    const { id } = await createWizard(c.get("user").id, body);
+    const { id } = await createWizard(c.get("user").id, {
+      ...body,
+      preview: Boolean(body.preview) && (await mayChangeRuntime(c.get("user"))),
+    });
     return c.json({ id });
   })
   // A wizard as a file, and a new wizard made of such a file.
@@ -1762,6 +1739,10 @@ export const studio = new Hono<Vars>()
   .post("/wizards/:id/duplicate", async (c) =>
     c.json(await duplicateWizard(c.get("user").id, c.req.param("id"))),
   )
+  // A copy made of step files; the wizard itself stays.
+  .post("/wizards/:id/convert", async (c) =>
+    c.json(await convertWizard(c.get("user").id, c.req.param("id"))),
+  )
   .delete("/wizards/:id", async (c) => {
     if (!managed) {
       await removeFromCloud(c.get("user").id, c.req.param("id"));
@@ -1807,10 +1788,41 @@ export const studio = new Hono<Vars>()
     const user = c.get("user");
     const w = await ownedWizard(user.id, c.req.param("id"));
     const lang = requestLang(c);
+    // A start nobody owns runs with nobody there: it needs the space's choice for each need.
+    const unwatched = w.starts.some((s) => s.on && !s.owner)
+      ? await unwatchedConnectionsSaid(w.draft, unwatchedScope(w.id), w.spaceId)
+      : [];
     return c.json({
       missing: await missingModels(w.draft, lang),
-      connections: await missingConnections(w.draft, w.spaceId, lang, isAdminRole(user.role)),
+      connections: [
+        ...(await missingConnections(w.draft, w.spaceId, lang, isAdminRole(user.role))),
+        ...unwatched.map((m) => ({ ...m, problem: saidText(m.problem, lang) })),
+      ],
     });
+  })
+  // The wizard's needs (docs/plans/run-connections.md, step 4): how each resolves for the person
+  // looking; for the space's admins also the space's choice for runs nobody watches.
+  .get("/wizards/:id/needs", async (c) => {
+    const user = c.get("user");
+    const w = await ownedWizard(user.id, c.req.param("id"));
+    return c.json({
+      needs: await wizardNeeds(
+        w,
+        { userId: user.id, admin: isAdminRole(user.role) },
+        requestLang(c),
+      ),
+    });
+  })
+  .put("/wizards/:id/needs/:need/space-choice", async (c) => {
+    const w = await ownedWizard(c.get("user").id, c.req.param("id"));
+    const { connection } = z.object({ connection: z.string().min(1) }).parse(await c.req.json());
+    await chooseForSpace(w, c.req.param("need"), connection);
+    return c.json({ ok: true });
+  })
+  .delete("/wizards/:id/needs/:need/space-choice", async (c) => {
+    const w = await ownedWizard(c.get("user").id, c.req.param("id"));
+    await clearForSpace(w, c.req.param("need"));
+    return c.json({ ok: true });
   })
   // A runtime that runs alone: the wizard's copy in the cloud of the linked account.
   .get("/wizards/:id/cloud", async (c) => {
@@ -2017,6 +2029,8 @@ export const studio = new Hono<Vars>()
         c.req.param("id"),
         c.req.param("stepId"),
         c.req.query("lang") ?? null,
+        // Which of a step's asks, in a wizard of version 0.3.0.
+        Math.max(0, Number.parseInt(c.req.query("ask") ?? "0", 10) || 0),
       ),
     ),
   )
@@ -2049,6 +2063,33 @@ export const studio = new Hono<Vars>()
   .get("/wizards/:id/files", async (c) =>
     c.json(await listFiles(c.get("user").id, c.req.param("id"))),
   )
+  .get("/wizards/:id/outline", async (c) =>
+    c.json({ steps: await kernelOutline(await listFiles(c.get("user").id, c.req.param("id"))) }),
+  )
+  // One text of a step typed over in the studio: written into the step's file where it stands.
+  .post("/wizards/:id/outline", async (c) => {
+    const body = z
+      .object({
+        step: z.string().regex(/^[\w-]+$/),
+        hash: z.string(),
+        at: z.tuple([z.number().int().min(0), z.number().int().min(0)]),
+        value: z.union([
+          z.string(),
+          z.array(z.union([z.string(), z.object({ $code: z.string() })])),
+        ]),
+      })
+      .parse(await c.req.json());
+    const user = c.get("user").id;
+    const path = `steps/${body.step}.ts`;
+    const { file, data } = await readFile(user, c.req.param("id"), path);
+    if (file.hash !== body.hash) {
+      throw new ServiceError("revision_conflict", "The step has changed. Load it again.");
+    }
+    const next = await editStep(data.toString("utf8"), body.at, body.value);
+    return c.json(
+      await writeFile(user, c.req.param("id"), path, new TextEncoder().encode(next), file.mime),
+    );
+  })
   .get("/wizards/:id/files/:path{.+}", async (c) => {
     const { file, data } = await readFile(c.get("user").id, c.req.param("id"), c.req.param("path"));
     return c.body(new Uint8Array(data), 200, {
@@ -2059,6 +2100,14 @@ export const studio = new Hono<Vars>()
   })
   .put("/wizards/:id/files/:path{.+}", async (c) => {
     const data = new Uint8Array(await c.req.arrayBuffer());
+    // Written from an editor, a file is replaced only while it is the version that was read.
+    const read = c.req.header("if-match");
+    if (read) {
+      const files = await listFiles(c.get("user").id, c.req.param("id"));
+      if (files.find((f) => f.path === c.req.param("path"))?.hash !== read) {
+        throw new ServiceError("revision_conflict", "The file has changed. Load it again.");
+      }
+    }
     const file = await writeFile(
       c.get("user").id,
       c.req.param("id"),
@@ -2127,13 +2176,23 @@ export const studio = new Hono<Vars>()
     }
     return c.json({ apps: await checkedApps(user.tenantId) });
   })
-  .get("/local/models", (c) => (managed ? c.notFound() : c.json(localModelSettings())))
-  .put("/local/models", async (c) => {
-    if (managed) {
-      return c.notFound();
+  // The setup and the settings of the clients, keys and models on this machine.
+  .route("/local", managed ? new Hono() : localSetup)
+  // --- a Composio key of one's own, on a computer of one's own (docs/plans/composio.md, decision 4)
+  // Kept as the model keys are and never sent to the Manage-App; shown masked, never whole.
+  .get("/composio/key", async (c) => {
+    if (managed || !(await composioOn())) {
+      return c.json({ available: false, set: false, masked: null });
     }
-    await saveLocalModels(modelsInput.parse(await c.req.json()));
-    return c.json(localModelSettings());
+    return c.json({ available: true, ...(await composioKeyHint()) });
+  })
+  .put("/composio/key", async (c) => {
+    if (managed || !(await composioOn())) {
+      return c.json({ error: say(c, "notFound"), code: "not_found" }, 404);
+    }
+    const { key } = z.object({ key: z.string().max(400) }).parse(await c.req.json());
+    await setComposioKey(key);
+    return c.json({ available: true, ...(await composioKeyHint()) });
   })
   // --- models: where each class runs, own API keys, the credits behind them -----------------
   // Alone for this machine; on a Manage-App's runtime for the organization, whose admins change it.
@@ -2163,6 +2222,7 @@ export const studio = new Hono<Vars>()
       managed &&
       (input.source ||
         input.ollamaUrl ||
+        input.lmstudioUrl ||
         Object.values(input.bindings ?? {}).some((ref) => ref && !cloudBinding(ref)))
     ) {
       return c.json(
@@ -2305,49 +2365,6 @@ export const studio = new Hono<Vars>()
     }
   })
   // Ollama on this computer: its models, what each can do, the ones to download, the downloads.
-  .get("/models/local", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    return c.json(await localModels());
-  })
-  // A model pulled into Ollama. Where it is the embedding model now, the spaces are indexed with it after.
-  .post("/models/local/pull", async (c) => {
-    if (managed || !mayChangeModels(c.get("user"))) {
-      return c.notFound();
-    }
-    const { model } = z.object({ model: localModelName }).parse(await c.req.json());
-    const embeddedBy = (await embeddingModel().catch(() => null))?.ref ?? null;
-    await downloadLocalModel(model, async () => {
-      if (((await embeddingModel().catch(() => null))?.ref ?? null) !== embeddedBy) {
-        await reindexAll();
-      }
-    });
-    return c.json(await localModels());
-  })
-  .delete("/models/local", async (c) => {
-    if (managed || !mayChangeModels(c.get("user"))) {
-      return c.notFound();
-    }
-    const model = localModelName.parse(c.req.query("model"));
-    try {
-      await removeLocalModel(model);
-    } catch (err) {
-      return c.json(
-        { error: say(c, "localModelNotRemoved", { error: (err as Error).message }) },
-        400,
-      );
-    }
-    return c.json(await localModels());
-  })
-  // Ollama installed (on a Mac) and started, as `wizards setup` does.
-  .post("/models/local/ollama", async (c) => {
-    if (managed || !mayChangeModels(c.get("user"))) {
-      return c.notFound();
-    }
-    await startLocalOllama();
-    return c.json(await localModels());
-  })
   // The organization's own accounts at the providers, kept by the Manage-App (`ownKeysGateway`).
   .get("/models/keys", listKeys)
   .post("/models/keys", addKey)
@@ -2389,167 +2406,6 @@ export const studio = new Hono<Vars>()
       .object({ cls: z.enum(MODEL_CLASSES), lang: z.enum(LANGS).default("en") })
       .parse(await c.req.json());
     return c.json(await testClass(cls, lang));
-  })
-  // The setup's test of one key, or of Ollama: a working one is put to use and ends the setup.
-  .post("/local/keys/:provider", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const provider = z.enum(LOCAL_KEYS).parse(c.req.param("provider"));
-    const { key } = z
-      .object({ key: z.string().max(400).optional() })
-      .parse(await c.req.json().catch(() => ({})));
-    const result = await setUpKey(provider, key, requestLang(c));
-    if (result.ok && result.text) {
-      await markTested("own");
-    }
-    return c.json(result);
-  })
-  .post("/local/ollama", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const { url } = z.object({ url: z.string().url().max(200) }).parse(await c.req.json());
-    const result = await setUpOllama(url, requestLang(c));
-    if (result.ok) {
-      await markTested("own");
-    }
-    return c.json(result);
-  })
-  // One short call on a class, as a run would make it: shows that the way to the model is open.
-  .post("/local/models/test", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const { cls } = z
-      .object({ cls: z.enum(TEXT_CLASSES).default("classifier") })
-      .parse(await c.req.json().catch(() => ({})));
-    const started = Date.now();
-    // The source this call runs on: the person may pick another one while it is under way.
-    const source = localModelSettings().source;
-    try {
-      const resolved = await textModel(cls);
-      const result = await generateText({
-        model: resolved.model,
-        prompt: "Reply with the single word: OK",
-        maxOutputTokens: 20,
-        abortSignal: AbortSignal.timeout(120_000),
-      });
-      // A working call is what ends the setup — for the source it ran on.
-      await markTested(source);
-      return c.json({
-        ok: true,
-        ref: resolved.ref,
-        reply: result.text.trim().slice(0, 200),
-        ms: Date.now() - started,
-      });
-    } catch (err) {
-      const message = (err as Error)?.message ?? String(err);
-      return c.json({ ok: false, error: message.slice(0, 500), ms: Date.now() - started });
-    }
-  })
-  // --- the AI clients on this machine: looked at afresh, signed in through the inline terminal ----
-  .post("/local/harness/:id/detect", async (c) => {
-    const id = c.req.param("id") as HarnessId;
-    if (managed || !harness(id)) {
-      return c.notFound();
-    }
-    return c.json({ harness: await detectHarness(id, true) });
-  })
-  .post("/local/harness/:id/install", async (c) => {
-    const spec = managed ? null : await installSpec(c.req.param("id"));
-    if (!spec) {
-      return c.notFound();
-    }
-    const { cols, rows } = terminalSize.parse(await c.req.json().catch(() => ({})));
-    const cwd = join(env.dataDir, "harness");
-    mkdirSync(cwd, { recursive: true });
-    // The page asks again once the command is over: then the client is there, or its output says why not.
-    const terminal = await openTerminal({ ...spec, cwd, cols, rows });
-    return c.json({ terminal });
-  })
-  .post("/local/harness/:id/login", async (c) => {
-    const id = c.req.param("id") as HarnessId;
-    const client = harness(id);
-    if (managed || !client) {
-      return c.notFound();
-    }
-    const { cols, rows } = terminalSize.parse(await c.req.json().catch(() => ({})));
-    const cwd = join(env.dataDir, "harness");
-    mkdirSync(cwd, { recursive: true });
-    const terminal = await openTerminal({
-      bin: client.bin,
-      args: client.login.args,
-      cwd,
-      env: { ...(await loginEnv(client)), ...client.login.env },
-      cols,
-      rows,
-      // Signed in: the client says so on its own, and the settings learn it right away.
-      until: async () => (await freshAuth(client)) !== "none",
-      onDone: () => void detectHarness(id, true),
-    });
-    return c.json({ terminal });
-  })
-  .get("/local/terminal/:id/stream", (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const id = c.req.param("id");
-    return streamSSE(c, async (stream) => {
-      let ended = false;
-      // One write after the other, and all of them out before the stream ends: the last one is
-      // the exit, and a page that comes after the end gets everything at once.
-      let written = Promise.resolve();
-      const done = new Promise<void>((resolve) => {
-        const unsubscribe = subscribeTerminal(id, (event) => {
-          written = written.then(() =>
-            stream.writeSSE({ event: event.type, data: JSON.stringify(event) }),
-          );
-          if (event.type === "exit") {
-            ended = true;
-            resolve();
-          }
-        });
-        stream.onAbort(() => {
-          unsubscribe();
-          resolve();
-        });
-      });
-      // The page keeps the stream open while the terminal lives; a heartbeat keeps proxies from closing it.
-      const beat = setInterval(() => {
-        if (!ended) {
-          void stream.writeSSE({ event: "ping", data: "" });
-        }
-      }, 15_000);
-      await done;
-      clearInterval(beat);
-      await written;
-    });
-  })
-  .post("/local/terminal/:id/input", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const { data } = z.object({ data: z.string().max(10_000) }).parse(await c.req.json());
-    writeTerminal(c.req.param("id"), data);
-    return c.json({ ok: true });
-  })
-  .post("/local/terminal/:id/resize", async (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    const { cols, rows } = z
-      .object({ cols: z.number().int().min(10).max(500), rows: z.number().int().min(4).max(200) })
-      .parse(await c.req.json());
-    resizeTerminal(c.req.param("id"), cols, rows);
-    return c.json({ ok: true });
-  })
-  .delete("/local/terminal/:id", (c) => {
-    if (managed) {
-      return c.notFound();
-    }
-    closeTerminal(c.req.param("id"));
-    return c.json({ ok: true });
   })
   .put("/local/chat-models", async (c) => {
     if (managed) {

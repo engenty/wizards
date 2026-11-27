@@ -62,8 +62,12 @@ ${sandbox}
 <!-- Technical: engineering owns everything below. -->
 
 <!-- section: guide -->
-<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON; durable and code are the sections below, or nothing. -->
-engenty wizards: a wizard is a page-by-page flow an end user walks through on a shared link. Pages ask questions; AI steps research, write, draw images, render video, build documents and dashboards, or write into other systems. You author the wizard as JSON; the person who asked you is the ADMIN, the people who later open the link are END USERS.
+<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the section example.old with the example wizard of version 0.2.0, or nothing; older is the section older.on or older.off; durable and code are the sections below, or nothing; kernel is the section below. -->
+engenty wizards: a wizard is a page-by-page flow an end user walks through on a shared link. Pages ask questions; AI steps research, write, draw images, render video, build documents and dashboards, or write into other systems. You author a new wizard as step files (version 0.3.0, next); the person who asked you is the ADMIN, the people who later open the link are END USERS.
+
+${kernel}
+
+${older}
 
 ${schema}
 
@@ -97,10 +101,7 @@ Editing:
 - A wizard written as a file instead (a .wizard package, its wizard.json, or the JSON alone) follows the JSON Schema at ${schema_url}; `wizards validate <path>` checks it as the import does.
 - Test runs and published runs spend the admin's credits (research ~150, video ~250, short copy with an image ~15).
 
-Example of a complete wizard:
-```json
 ${example}
-```
 
 <!-- section: schema -->
 <!-- The wizard's format, as TypeScript-like types. -->
@@ -598,6 +599,50 @@ Sandbox tools. When the fixed task needs a program, packages or files (convert a
   ---
 The script runs in its folder in the run's sandbox: it reads input.json, writes output.json (checked against output), and files it writes to out/ become files of the step. A file the person gave reaches it when the model passes upload:<id>; the script finds it at the path input.json then holds (in/<name>). At most 5 minutes a call; what it installs stays for the run. The step lists every host of "hosts" in its own "hosts". The sandbox is agentOS where Docker isn't the engine: Python is Pyodide (numpy, pandas; pure-Python packages with micropip), Node runs JavaScript, no native programs.
 
+<!-- section: kernel -->
+<!-- A wizard in version 0.3.0 of the format (docs/plans/kernel.md): a file and one function per step. -->
+A wizard made of step files (version 0.3.0). Every new wizard is one, a plain line of pages and AI steps too.
+
+Such a wizard is one definition with a "kernel" entry, plus one file per step in its workspace:
+
+{ "version": 1, "title": "...", "description": "...", "avatar": "round",
+  "steps": [{ "id": "result", "type": "result", "title": "...", "deliverables": [] }],   // always exactly this one step
+  "kernel": {
+    "version": "0.3.0", "title": "...", "description": "...",
+    "requires": { "models": ["standard"], "tools": [], "roles": { "legal": "Legal" }, "hosts": [] },
+    "connections": { "<connection id>": { "<action>": "allow" | "ask" } },   // "ask": the user is asked before the action is done
+    "lists": [{ "id": "prices", "title": "Prices", "key": "item", "columns": [...] }],   // kept across runs, read and written with ask "list"
+    "input": { "fields": [Field, ...] },        // what the run is given, or asks for on its first page
+    "output": { "<name>": "<step>.<key>" },      // what a finished run gives back
+    "start": "<step>",
+    "edges": { "<step>": ["<step>" | "end", ...] },   // every way a step may go; the first is taken when the step names none
+    "limits": { "<step>": 3 }                    // how often a step may be reached in one run (default 10)
+  } }
+
+Each step is a workspace file "steps/<id>.ts" (write_file) that exports ONE function. No imports except other files of the workspace; no Node modules, no packages, no network, no timers:
+
+export default async function (run, ask) {
+  const draft = await ask({ type: "agent", model: "standard", instructions: `Write an offer for ${run.input.customer}.`,
+                            fields: [{ id: "text", kind: "text" }, { id: "price", kind: "number" }] });
+  return { value: draft, to: draft.price > 5000 ? "legal" : "check" };
+}
+
+- run (read only): run.input, run.today, run.steps.<id> (what each step that returned left behind, its latest value), run.last ({ step, value, to } of the step before), run.count("<id>") (how often a step was reached, this time included).
+- ask(spec) is the only way to do anything; it returns the answer. spec.type:
+  "form" { fields } and "review" { show: ["<step>"], approve: true } are answered by a person (role "user" by default; "role": "operator" or one of requires.roles for someone else). A review answers { approved, note }.
+  "agent" { model, instructions, fields?, tools? } is answered by a model; with fields the answer has those keys. tools names connection actions as "<connection>.<action>", only ones the file lists.
+  "tool" { call: "<connection>.<action>", input } is one fixed action.
+  "wait" { timeout: "3d", signal?, key? } is answered by time or a signal: { came } or { timedOut }.
+  "brand" {} is the space's brand: { name, about, tagline, colors, fonts, facts, … }.
+  "file" { path } is a file of the wizard's own workspace, as text; a ".json" file as its data.
+  "list" { list, query? } is the rows of one of the file's "lists" whose columns equal query; "list" { list, row } writes that row (a known key updates it). No model is asked for any of these three.
+  A form's "components" may show a number worked out while the person types: a prop { "calc": "amount * rate" } over the form's field ids and its data.
+  "timeout" on any ask: after it the answer is { timedOut: true }.
+- return { value, to }: value is what later steps read as run.steps.<id>; to is one of the step's ways in "edges", or left out for the first.
+- A step runs again from its top when an answer arrives, and ask gives earlier answers back at once. So a step only computes and asks.
+- The file is the limit: an ask that names a model class, tool, role, host or connection action the file does not list fails, and so does a way that is not in "edges".
+- A loop is an edge back to an earlier step, counted with run.count() and held by "limits".
+
 <!-- section: widgets -->
 Widgets — when to use: the result must look the same every run, animate, or be explored (a map with
 animated arrows, a timeline with a scrubber, a dashboard with filters, a configurator). Documents and
@@ -686,19 +731,20 @@ A path may put its value into words: {"path": "in_fridge", "map": {"true": "da",
 Design it like an app, not a report: lead with a headline, the key figure or the chips; one Card per thing, never a Table of things; ordered work is Steps, things to get are a Checklist, sets are grouped by their key. A Table only for figures people compare across columns.
 Keep it small: what the person needs to see first, then the details. Never invent numbers: bind them by path.
 
-<!-- section: surfaces.chat -->
-<!-- What a view in a Work chat adds to the surfaces section above: show_view in services/work-ai.ts reads both. -->
-In a chat, show_view draws the view in the chat for everyone in it. The data is what you found: put the rows and figures into "data" and bind them by path; never type numbers into the components.
-In a chat a view may also:
-- ask the AI: Button { label, action: "ask", prompt? } — the person who taps it says the prompt (else the label) in the chat, and you answer it
-- open a file: Button { label, action: "open", target: a file id }
-- point to a thing of the space: Ref { title, open, subtitle?, meta? } — open is what space_search gave as "open" ("p:…", "t:…", "f:…"), or "chat:<id>", "wizard:<id>"
-- ask for answers: one Form { title?, submit, children: [Field ids] } with Field { name, kind, label, required?, options?, value?, placeholder?, help?, multiple? }
-  kind: text, textarea, number, select, multiselect (both need options: [texts]), date, email, url, toggle, color, image (a picture or the camera), file, location (where the person is), audio (a recording), signature
-  value prefills what you already know from the chat; the person still checks it. The answers come back as that person's message; once someone sent them, the form shows them.
-A file id is the space's file: what space_search gave after "f:", or a file in a message. Media and files come from the space only, never from an address on the web.
-Never ask for passwords, card numbers or other secrets in a Form.
-Use a view when rows, figures, a comparison or a few questions answer better than text: write one short sentence around it, not the same content again. For a short answer, write text.
+<!-- section: older.on -->
+<!-- While the switch version020 is on: wizards in version 0.2.0 load here. -->
+Version 0.2.0, for wizards made before: change such a wizard as it is, or convert it. Its pages, steps and fields below are also what a step file's asks take (a form's fields, an agent's model and tools, a generate step's options).
+
+<!-- section: older.off -->
+<!-- While the switch version020 is off: no wizard is written in version 0.2.0. -->
+The pages, steps and fields below are what a step file's asks take (a form's fields, an agent's model and tools, a generate step's options). Never write a wizard in this form: a wizard is made of step files, as above.
+
+<!-- section: example.old -->
+<!-- While the switch version020 is on. wizard: the example wizard of version 0.2.0 as JSON. -->
+Example of a complete wizard in version 0.2.0 (a new wizard is made of step files, as above):
+```json
+${wizard}
+```
 
 <!-- section: line.connectors -->
 <!-- connectors: one "- id — name, tools prefix_*: actions" line per connector -->

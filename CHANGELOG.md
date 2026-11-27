@@ -4,6 +4,99 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.22.1] - 2026-11-27
+- FIXED **[marketplace]** A wizard in version 0.3.0 needs the plugins whose tools its file lists (#778)
+
+## [0.22.0] - 2026-11-27
+- ADDED **[marketplace]** Templates in version 0.3.0 show their steps, time and cost (#774)
+- ADDED **[studio]** The share dialog of a local studio offers the wizard's link for this computer (#776)
+- ADDED Wizards in version 0.2.0 load only behind the switch version020 (#773) **[breaking]**
+- ADDED Wizards made of step files for everyone, the switch kernel goes (#771) **[breaking]**
+- ADDED **[connectors]** Services from Composio as connectors, beside our own (#770)
+- ADDED **[runtime]** Wizards made of step files, behind the switch kernel (#697)
+- ADDED **[models]** OpenRouter as a provider a person brings a key for (#768)
+- ADDED **[model-providers]** The providers a person brings a key for, and the wizards account (#767)
+- CHANGED **[model-providers]** Rename @engenty/local-models to @engenty/model-providers (#766)
+- DOCS **[dev]** Packages and databases pages from the code (#769)
+
+## [0.21.3] - 2026-11-26
+- DOCS **[work]** The chats Work had of its own are gone, and their messages are deleted (#764)
+
+## [0.21.2] - 2026-11-25
+- ADDED **[work]** Every member of the team chats on its Bot Server (#758)
+- ADDED **[work]** The chats know the open space, and the team's Bot Server is not an outside app (#757)
+- ADDED **[local-models]** A thinking Ollama model streams what it thinks as reasoning (#745)
+- FIXED **[chatviews]** A Form with a Field that must be answered can be sent once it is filled in (#760)
+- FIXED **[work]** What the studio's chat engine left behind goes, and "With approval" is offered only where someone is asked (#759)
+- FIXED **[web]** The flow widget starts where cookies are closed off (#746)
+
+## [0.21.1] - 2026-11-25
+- ADDED **[work]** Work's chats are the team's Bot Server, and the studio's own chat engine goes (#755)
+- ADDED **[studio]** Goose guides Home's setup with buttons, and the setup takes the page's width (#754)
+
+## [0.21.0] - 2026-11-25
+- ADDED **[tool-harness]** One harness around an agent's tools, with a search by words and meaning (#751)
+- ADDED **[local-models]** Apple MLX beside Ollama and LM Studio (#750)
+- ADDED **[model-setup]** Models on this computer to use, download and remove, with Ollama and LM Studio (#749)
+- ADDED **[model-setup]** The setup's page as React parts, and the studio's setup on them (#748)
+- ADDED **[model-setup]** @engenty/model-setup, the setup's clients, terminal and routes for the runtime and wizards.bot (#747)
+- ADDED **[openui]** The Wizard among engenty's views (#744)
+- ADDED **[chatviews]** Views as A2UI v1.0 (#743)
+- ADDED **[chatviews]** Views a model writes, as an OpenUI library (#742)
+- ADDED **[chatviews]** The views' components in @engenty/chatviews/react (#741)
+- ADDED **[mcp]** Long runs as MCP tasks (#740)
+- ADDED **[mcp]** A run's pages as questions the app shows (#739)
+- ADDED **[local-models]** The MCP bridge for subscription clients, shared by the runtime and wizards.bot (#736)
+- CHANGED **[chatviews]** Surfaces, calc and data shapes in their own MIT package (#738)
+- DOCS **[work]** Work's engine is frozen; the wizards.bot home becomes its engine (#735)
+- FIXED **[mcp]** A client that uses a space runs a wizard to the end (#737)
+- FIXED **[runtime]** The image builds only the runtime, the studio and the packages they use (#734)
+
+## [0.20.6] - 2026-11-24
+- ADDED **[local-models]** @engenty/local-models, Ollama and subscription clients for the runtime and wizards.bot (#732)
+- ADDED **[bot]** Wizards bot tunnel needs no account: a name of its own at wizards.host (#731)
+- ADDED **[bot]** Wizards bot tunnel through our relay at <name>.wizards.host (#723)
+- FIXED **[bot]** A Bot Server finds Codex and Claude installed under nvm, npm, pnpm or Bun (#725)
+- FIXED **[bot]** Wizards bot tunnel asks account.engenty.ai, where the account answers (#724)
+
+## [0.20.5] - 2026-11-23
+- ADDED **[bot]** Wizards bot install <folder>, a port check and wizards bot tunnel (#721)
+
+## [0.20.4] - 2026-11-23
+- ADDED **[vault,browser]** Logins for @engenty/vault and a new @engenty/browser for agents (#718)
+- FIXED **[plugins]** The plugin's process may read zod through the link pnpm installs beside the package (#719)
+
+## [0.20.3] - 2026-11-22
+- ADDED **[plugins]** MIT library @engenty/plugins, the plugin contract engenty wizards and wizards.bot both load (#716)
+
+## [0.20.2] - 2026-11-22
+- ADDED **[web]** The branded button opens its colours as a small menu (#713)
+- ADDED **[vault]** MIT library @engenty/vault for sealed secrets, key rings and a redactor (#712)
+- ADDED **[web]** Seven colours for the branded theme (#711)
+
+## [0.20.1] - 2026-11-22
+- ADDED **[cli]** Wizards bot installs wizards.bot on this computer – install, setup, status, update, uninstall (#709)
+
+## [0.20.0] - 2026-11-16
+- ADDED **[shared]** A wizard's version is the format's, 0.2.0, with a Version filter on the templates behind the kernel switch (#700) **[breaking]**
+- ADDED **[studio]** Shared previews the page as visitors see it, with the page's own look and words (#693)
+- ADDED **[runner]** The connect card at a run's start, a choice among several accounts, and an admin connects for the space (#690)
+- ADDED **[studio]** Shared's panel stands beside the page, the page is a drawn preview, named after the organization (#692)
+- ADDED **[studio]** Shared, the admins' place for the organization's page and the wizards shared by link (#691)
+- ADDED **[studio]** A wizard's needs with the space's choice for runs nobody watches, and a person's own connections (#689)
+- ADDED **[studio]** A client is a client space beside the team spaces, made with „Kund:in anlegen“ (#687)
+- ADDED **[studio]** The organization's own space, Mein Space, the path bar and Ordner are on by default (#685)
+- ADDED **[studio]** Brand sections, rules and typography for everyone; Goose and the new Wissen on unless a plan says no (#684)
+- ADDED **[runtime]** A run's accounts become a person's connections, with a remembered choice and one lookup (#680)
+- ADDED **[runner]** A run that waits for a sign-in shows the connect card (#682)
+- ADDED **[studio]** A connector that can't connect here is named before a run, and the architect knows which can (#681)
+- CHANGED **[runtime]** Clients are in spaces under the organization's own space; client spaces go (#686) **[breaking]**
+- DOCS Documentation updates (#679, #698, #699)
+- FIXED **[runtime]** Claude Code takes a step's output schema without the dialect it refuses (#701)
+- FIXED **[runtime]** A channel's run uses the space's choice, and a run nobody watches can't pick the space's connection itself (#696)
+- FIXED **[runtime]** A run a start began uses the space's choice, and a link visitor without a cookie never does (#695)
+- FIXED **[runtime]** A fixed step uses its person's sign-in; a person's account follows the space's rules; held space connections are bound by the grant (#688)
+
 ## [0.19.1] - 2026-11-14
 - ADDED **[studio]** The architect adds model and image steps only where a wish needs them (#623)
 - FIXED An ended run, chat turn or share job keeps the state it reached (#676)

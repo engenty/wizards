@@ -237,7 +237,7 @@ export async function databasesCheck(): Promise<Omit<CheckResult, "ms"> | undefi
 }
 
 async function lineCheck(): Promise<Omit<CheckResult, "ms">> {
-  const { runners, oldestWaiting } = await lineState();
+  const { runners, oldestWaiting, withoutRunner } = await lineState();
   const now = Date.now();
   const alive = runners.filter(
     (r) =>
@@ -251,8 +251,14 @@ async function lineCheck(): Promise<Omit<CheckResult, "ms">> {
       id: r.id,
       seen: r.seen.toISOString(),
       lineAt: r.lineAt?.toISOString() ?? null,
+      tenant: r.tenant,
     })),
     oldestWaitingSeconds: waitingSeconds,
+    // Tenants with a runner of their own whose runs wait while it is not running.
+    withoutRunner: withoutRunner.map((w) => ({
+      tenant: w.tenant,
+      waitingSeconds: Math.round((now - w.since.getTime()) / 1000),
+    })),
   };
   if (!alive.length) {
     return { status: "down", error: "no runner takes runs", detail };
@@ -261,6 +267,14 @@ async function lineCheck(): Promise<Omit<CheckResult, "ms">> {
     return {
       status: "degraded",
       error: `a run has waited ${waitingSeconds} s for a runner`,
+      detail,
+    };
+  }
+  if (withoutRunner.length) {
+    const names = withoutRunner.map((w) => w.tenant).join(", ");
+    return {
+      status: "degraded",
+      error: `runs wait for a tenant's own runner, which is not running: ${names}`,
       detail,
     };
   }

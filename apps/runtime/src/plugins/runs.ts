@@ -50,6 +50,7 @@ import {
   waitRun,
 } from "../services/runs.js";
 import { shareUrl } from "../services/wizards.js";
+import { CHANNEL_VISITOR } from "../store/index.js";
 import { visitorOverLimit } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 
@@ -62,7 +63,7 @@ import { currentTenant } from "../tenants/tenant.js";
 
 /** A person of a door as the run's visitor: a hash, never the number or the account itself. */
 function visitorOf(person: { channel: string; id: string }): string {
-  return `p:${createHash("sha256").update(`${person.channel}:${person.id}`).digest("hex").slice(0, 32)}`;
+  return `${CHANNEL_VISITOR}${createHash("sha256").update(`${person.channel}:${person.id}`).digest("hex").slice(0, 32)}`;
 }
 
 export function runsApiFor(pluginId: string): PluginRuns {

@@ -994,6 +994,13 @@ function Access({
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const id = useId();
+  const { copied, copy } = useCopy();
+  // On this computer the wizard has a link of its own: it opens here, in this browser and any
+  // other on this computer, and nowhere else.
+  const local =
+    here && wizard.published && wizard.shareEnabled
+      ? `${window.location.origin}/w/${wizard.shareToken}`
+      : null;
   useEffect(() => {
     if (!open) {
       return;
@@ -1051,6 +1058,22 @@ function Access({
             </button>
           )}
           <p className="text-[0.8125rem] text-ink-3">{hint}</p>
+          {local ? (
+            <div className="mt-1.5 flex min-w-0 items-center gap-2">
+              <a
+                href={local}
+                target="_blank"
+                rel="noreferrer"
+                className="min-w-0 truncate font-mono text-[0.8125rem] text-ink-2 underline-offset-2 hover:underline"
+              >
+                {local}
+              </a>
+              <Button size="sm" variant="secondary" onClick={() => copy("local", local)}>
+                {copied === "local" ? <Check className="size-4" /> : <Link2 className="size-4" />}
+                {copied === "local" ? t("share.copied") : t("share.copy")}
+              </Button>
+            </div>
+          ) : null}
         </div>
         {open ? (
           <div

@@ -190,9 +190,13 @@ function Similar({
   );
 }
 
-export function NewWizardPage() {
+/**
+ * A new wizard from a wish, a template or a file. `embedded`: the same under Home's setup, without
+ * the engenty above it, the field's focus and the way back when nothing may be built here.
+ */
+export function NewWizardPage({ embedded = false }: { embedded?: boolean } = {}) {
   // The wish is typed here: Goose stays small beside it.
-  useAssistantPage({ ownInput: true });
+  useAssistantPage(embedded ? {} : { ownInput: true });
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { space } = useCurrentSpace();
@@ -300,24 +304,27 @@ export function NewWizardPage() {
 
   // Nothing is made here, or not in this space (a local install's): back to what there is.
   if (!build || space?.readOnly) {
-    return <Navigate to="/" replace />;
+    return embedded ? null : <Navigate to="/" replace />;
   }
   const error = create.error ?? fromStarter.error;
+  const Heading = embedded ? "h2" : "h1";
 
   return (
-    <div className="animate-rise md:pt-4">
+    <div className={embedded ? undefined : "animate-rise md:pt-4"}>
       <div className="mx-auto max-w-2xl">
         <div className="flex flex-col items-center text-center">
           {/* On a phone the same engenty at a little over half its size: scaled, so it stays
             the fluffy one (Mascot draws a flat one below 120). */}
-          <div className="size-[84px] md:size-auto">
-            <div className="origin-top-left scale-[0.56] md:scale-100">
-              <Mascot kind="sprout" size={150} fluffy />
+          {embedded ? null : (
+            <div className="size-[84px] md:size-auto">
+              <div className="origin-top-left scale-[0.56] md:scale-100">
+                <Mascot kind="sprout" size={150} fluffy />
+              </div>
             </div>
-          </div>
-          <h1 className="mt-1 font-display font-semibold text-[1.5rem] leading-tight tracking-tight md:mt-2 md:text-[2.375rem]">
+          )}
+          <Heading className="mt-1 font-display font-semibold text-[1.5rem] leading-tight tracking-tight md:mt-2 md:text-[2.375rem]">
             {t("new.title")}
-          </h1>
+          </Heading>
           <p className="mt-2 max-w-lg text-[0.9375rem] text-ink-3 leading-relaxed">
             {t("new.lead")}
           </p>
@@ -361,7 +368,7 @@ export function NewWizardPage() {
           ) : null}
           <FilePreview files={shown} at={previewAt} onAt={setPreviewAt} />
           <Textarea
-            autoFocus
+            autoFocus={!embedded}
             minRows={4}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}

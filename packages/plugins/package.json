@@ -1,0 +1,51 @@
+{
+  "name": "@engenty/plugins",
+  "version": "0.1.0",
+  "description": "The plugin contract engenty wizards and wizards.bot both load: the manifest, finding plugins in folders, the types of a plugin and its tools, and a host that runs a plugin's tools in a Node process with fewer rights.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/engenty/wizards.git",
+    "directory": "packages/plugins"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "wizards-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "wizards-source": "./src/node.ts",
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=24.11"
+  },
+  "peerDependencies": {
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "~7.0.2",
+    "vitest": "^5.1.0",
+    "zod": "4.6.7"
+  }
+}

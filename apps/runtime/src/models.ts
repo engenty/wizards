@@ -1,11 +1,18 @@
 import { createHash } from "node:crypto";
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { createElevenLabs } from "@ai-sdk/elevenlabs";
 import { createFal } from "@ai-sdk/fal";
 import { createGateway } from "@ai-sdk/gateway";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createReplicate } from "@ai-sdk/replicate";
+import { accountGateway } from "@engenty/model-providers/account";
+import { ClientModel } from "@engenty/model-providers/clients";
+import { lmStudioFetch, lmStudioRoot } from "@engenty/model-providers/lmstudio";
+import { mlxModel } from "@engenty/model-providers/mlx";
+import { ollamaRoot } from "@engenty/model-providers/ollama";
+import { checkKey as askProvider, PROVIDERS as SOURCES } from "@engenty/model-providers/providers";
+import { providerModel } from "@engenty/model-providers/providers/model";
+import { SERVERS, type ServerId } from "@engenty/model-providers/servers";
 import type { Lang, VideoResolution } from "@engenty/wizards-shared/definition";
 import {
   DEFINITION_VERSION,
@@ -54,7 +61,8 @@ import {
   type TranscriptionModel,
 } from "ai";
 import { accountToken, linkedAccount } from "./auth/account.js";
-import { LOCAL_DECISION_MODEL, ollamaDecisionModel, ollamaRoot } from "./decision-model.js";
+import { brokerRemote, gatewayViaBroker } from "./broker/remote.js";
+import { LOCAL_DECISION_MODEL, ollamaDecisionModel } from "./decision-model.js";
 import { DeviceModel, deviceThinks } from "./engine/device.js";
 import { env } from "./env.js";
 import { feature, remoteFeatures } from "./features.js";
@@ -68,12 +76,11 @@ import {
   detectHarness,
   type Harness,
   type HarnessId,
-  HarnessModel,
   harness,
   isHarnessVendor,
-  notInstalled,
-  signedOut,
 } from "./harness/index.js";
+import { notInstalled, signedOut } from "./harness/model.js";
+import { localCall } from "./local-call.js";
 import { managed, tenantInfo } from "./manage.js";
 import { hasFfmpeg } from "./media/ffmpeg.js";
 import { ModelUnavailableError, saidOf } from "./model-errors.js";
@@ -90,12 +97,13 @@ export { isHarnessVendor } from "./harness/index.js";
  * A step names a model class, never a model. Where the class runs is decided here, in this order:
  *  1. its own way: an AI client installed on the machine (Claude Code, Codex, Antigravity, Cursor
  *     Agent — on its subscription), an API key the person brought (OpenAI, Anthropic, Google,
- *     fal.ai, ElevenLabs, Replicate, AI Gateway) or a local model;
+ *     OpenRouter, fal.ai, ElevenLabs, Replicate, AI Gateway) or a local model;
  *  2. credits: the model-gateway binds `wizards/<class>`, meters the call and books it — on the
  *     tenant of a Manage-App's runtime, or on the account a runtime that runs alone is linked to.
  * A runtime of a Manage-App keeps a tenant's own keys (sealed) and runs on its credits where it
  * has none. A binding is `[provider:]vendor/model`, e.g. `anthropic/claude-haiku-4.5` (AI
- * Gateway), `openai:gpt-5.4-mini`, `fal:fal-ai/flux/schnell`, `ollama:qwen3`, `claude/sonnet`
+ * Gateway), `openai:gpt-5.4-mini`, `fal:fal-ai/flux/schnell`, `ollama:qwen3`,
+ * `lmstudio:google/gemma-4-12b`, `mlx:mlx-community/Qwen3-4B-4bit`, `claude/sonnet`
  * (an installed client), or `credits`.
  */
 export { ModelUnavailableError } from "./model-errors.js";
@@ -140,6 +148,7 @@ export interface LocalModelSettings {
   source: LocalSource;
   bindings: Partial<Record<ModelClass, string>>;
   ollamaUrl?: string;
+  lmstudioUrl?: string;
   /** The credits of the linked account step in for a class without a way of its own. Default: on. */
   creditFallback?: boolean;
   /** Which decision model answers decisions (`DecisionChoice`). Default: `auto`. */
@@ -190,6 +199,7 @@ export interface ModelSettingsInput {
   source?: LocalSource;
   bindings?: Partial<Record<ModelClass, string>>;
   ollamaUrl?: string;
+  lmstudioUrl?: string;
   creditFallback?: boolean;
   decision?: DecisionChoice;
   decisionLocal?: string;
@@ -200,17 +210,6 @@ export interface ModelSettingsInput {
 }
 
 const local: ModelConfig = { settings: { source: "own", bindings: {} }, keys: {} };
-
-/** The environment variable a runtime that runs alone reads a provider's key from. */
-const ENV_KEYS: Record<LocalKey, string> = {
-  gateway: "AI_GATEWAY_API_KEY",
-  openai: "OPENAI_API_KEY",
-  anthropic: "ANTHROPIC_API_KEY",
-  google: "GOOGLE_GENERATIVE_AI_API_KEY",
-  fal: "FAL_KEY",
-  elevenlabs: "ELEVENLABS_API_KEY",
-  replicate: "REPLICATE_API_TOKEN",
-};
 
 /** A key as the settings page may show it: its prefix and its last four characters. */
 export function maskKey(key: string): string {
@@ -233,7 +232,7 @@ async function keyHints(
     const key = cfg.keys[name];
     if (key) {
       const fromEnv = !managed && !(await vaultGet(`key.${name}`));
-      hints[name] = { masked: maskKey(key), env: fromEnv ? ENV_KEYS[name] : null };
+      hints[name] = { masked: maskKey(key), env: fromEnv ? SOURCES[name].env : null };
     }
   }
   return hints;
@@ -245,6 +244,7 @@ function envKey(name: LocalKey): string | undefined {
     openai: env.openaiKey,
     anthropic: env.anthropicKey,
     google: env.googleKey,
+    openrouter: env.openrouterKey,
     fal: env.falKey,
     elevenlabs: env.elevenlabsKey,
     replicate: env.replicateKey,
@@ -370,6 +370,23 @@ function mergeBindings(
   return bindings;
 }
 
+/** Where a server answers for this machine, as the settings name it. */
+function serverUrl(cfg: ModelConfig, id: ServerId): string {
+  switch (id) {
+    case "ollama":
+      return cfg.settings.ollamaUrl ?? env.ollamaUrl;
+    case "lmstudio":
+      return cfg.settings.lmstudioUrl ?? env.lmstudioUrl;
+    case "mlx":
+      return SERVERS.mlx.address();
+  }
+}
+
+/** Where a server answers for this machine. */
+export async function localServerUrl(id: ServerId): Promise<string> {
+  return serverUrl(await config(), id);
+}
+
 export function localModelSettings() {
   return {
     ...local.settings,
@@ -377,7 +394,8 @@ export function localModelSettings() {
     bindings: Object.fromEntries(
       MODEL_CLASSES.map((c) => [c, ownRef(local, c) || local.settings.bindings[c] || ""]),
     ) as Record<ModelClass, string>,
-    ollamaUrl: local.settings.ollamaUrl ?? env.ollamaUrl,
+    ollamaUrl: serverUrl(local, "ollama"),
+    lmstudioUrl: serverUrl(local, "lmstudio"),
     keys: Object.fromEntries(LOCAL_KEYS.map((k) => [k, Boolean(local.keys[k])])) as Record<
       LocalKey,
       boolean
@@ -390,6 +408,7 @@ export async function saveLocalModels(input: ModelSettingsInput) {
     source: input.source ?? local.settings.source,
     bindings: mergeBindings(local.settings.bindings, input.bindings),
     ollamaUrl: input.ollamaUrl?.trim() || local.settings.ollamaUrl,
+    lmstudioUrl: input.lmstudioUrl?.trim() || local.settings.lmstudioUrl,
     creditFallback: input.creditFallback ?? local.settings.creditFallback,
     decision: input.decision ?? local.settings.decision,
     decisionLocal: input.decisionLocal?.trim() || local.settings.decisionLocal,
@@ -451,8 +470,12 @@ function parse(ref: string): { provider: string | null; id: string; vendor: stri
   const match = /^([a-z]+):(.*)$/s.exec(ref);
   if (match) {
     const [, provider, id] = match;
-    // Ollama and the gateway name a model as the gateway does; the others are their own vendor.
-    const vendor = provider === "ollama" || provider === "gateway" ? id.split("/")[0] : provider;
+    // Ollama, OpenRouter and the gateway name a model as the gateway does; the others are their
+    // own vendor.
+    const vendor =
+      provider === "ollama" || provider === "openrouter" || provider === "gateway"
+        ? id.split("/")[0]
+        : provider;
     return { provider, id, vendor };
   }
   return { provider: null, id: ref, vendor: ref.split("/")[0] };
@@ -460,8 +483,12 @@ function parse(ref: string): { provider: string | null; id: string; vendor: stri
 
 const vendorOf = (ref: string) => parse(ref).vendor;
 
-/** A model on this machine: Ollama, or Apple Intelligence on a Mac (harness/apple.ts). */
-const isLocalProvider = (provider: string | null) => provider === "ollama" || provider === "apple";
+/** A server for open models on this machine (@engenty/model-providers). */
+const isServer = (provider: string | null): provider is ServerId =>
+  provider !== null && Object.hasOwn(SERVERS, provider);
+
+/** A model on this machine: a server's, or Apple Intelligence on a Mac (harness/apple.ts). */
+const isLocalProvider = (provider: string | null) => isServer(provider) || provider === "apple";
 
 /** The part of `codex/default` after the client. */
 const aliasOf = (id: string) => id.split("/").slice(1).join("/");
@@ -696,16 +723,27 @@ export interface GatewayAccess {
 }
 
 /**
+ * The gateway of a Manage-App's runtime: with the runtime's key, or, on a runner of one tenant,
+ * which holds no keys, through the broker (docs/plans/kernel.md, item 24).
+ */
+function managedGateway(): GatewayAccess {
+  if (brokerRemote()) {
+    return gatewayViaBroker();
+  }
+  return {
+    baseUrl: env.manage.gatewayUrl,
+    token: env.manage.serviceKey,
+    tenant: currentTenantOrNull(),
+  };
+}
+
+/**
  * The way to the credits. On a Manage-App's runtime always; alone, through the linked account —
  * where text runs on it (`chosen`), or as the fallback for what has no way of its own.
  */
 async function creditAccess(cfg: ModelConfig, chosen: boolean): Promise<GatewayAccess | null> {
   if (managed) {
-    return {
-      baseUrl: env.manage.gatewayUrl,
-      token: env.manage.serviceKey,
-      tenant: currentTenantOrNull(),
-    };
+    return managedGateway();
   }
   if (!chosen && (cfg.settings.creditFallback === false || !(await linkedAccount()))) {
     return null;
@@ -729,11 +767,7 @@ export async function toolAccess(): Promise<GatewayAccess | null> {
     return null;
   }
   if (managed) {
-    return {
-      baseUrl: env.manage.gatewayUrl,
-      token: env.manage.serviceKey,
-      tenant: currentTenantOrNull(),
-    };
+    return managedGateway();
   }
   const token = (await linkedAccount()) ? await accountToken() : null;
   return token ? { baseUrl: env.local.gatewayUrl, token, tenant: null } : null;
@@ -831,9 +865,9 @@ export function takeMasked(runId: string, stepId: string): Record<string, number
 }
 
 function gatewayClient(access: GatewayAccess, meta: CallMeta, tiers: boolean) {
-  return createGateway({
-    baseURL: `${access.baseUrl}/v4/ai`,
-    apiKey: access.token,
+  return accountGateway({
+    url: access.baseUrl,
+    key: access.token,
     // A run's call that had personal data masked says how much, for the step's Log line.
     ...(tiers && meta.runId
       ? {
@@ -996,6 +1030,20 @@ async function installedClient(ref: string) {
   return client;
 }
 
+/** Tokens a model of LM Studio is loaded to read: a step's documents, its tools and its answer. */
+const LMSTUDIO_CONTEXT = 32_768;
+
+/** A model of MLX whose calls say what they wait for, to whoever made them (local-call.ts). */
+function mlxLanguageModel(folder: string, model: string): LanguageModel {
+  type Model = ReturnType<typeof mlxModel>;
+  const made = (): Model => mlxModel({ folder, model, ...localCall() });
+  return {
+    ...made(),
+    doStream: (options: Parameters<Model["doStream"]>[0]) => made().doStream(options),
+    doGenerate: (options: Parameters<Model["doGenerate"]>[0]) => made().doGenerate(options),
+  };
+}
+
 async function ownLanguageModel(
   cfg: ModelConfig,
   ref: string,
@@ -1010,11 +1058,24 @@ async function ownLanguageModel(
     case "ollama":
       return {
         model: createOpenAI({
-          baseURL: cfg.settings.ollamaUrl ?? env.ollamaUrl,
+          baseURL: serverUrl(cfg, "ollama"),
           apiKey: "ollama",
         }).chat(id),
         gateway: false,
       };
+    case "lmstudio": {
+      const root = lmStudioRoot(serverUrl(cfg, "lmstudio"));
+      return {
+        model: createOpenAI({
+          baseURL: `${root}/v1`,
+          apiKey: "lmstudio",
+          fetch: lmStudioFetch(root, { context: LMSTUDIO_CONTEXT }),
+        }).chat(id),
+        gateway: false,
+      };
+    }
+    case "mlx":
+      return { model: mlxLanguageModel(serverUrl(cfg, "mlx"), id), gateway: false };
     case "apple": {
       const status = await appleStatus();
       if (!status.available) {
@@ -1023,24 +1084,21 @@ async function ownLanguageModel(
       return { model: appleModel(id), gateway: false };
     }
     case "openai":
-      return { model: createOpenAI({ apiKey: need(cfg, "openai") })(id), gateway: false };
     case "anthropic":
-      return { model: createAnthropic({ apiKey: need(cfg, "anthropic") })(id), gateway: false };
     case "google":
-      return { model: createGoogle({ apiKey: need(cfg, "google") })(id), gateway: false };
+    case "openrouter":
+      return { model: providerModel(provider, need(cfg, provider), id), gateway: false };
     case null:
     case "gateway":
       if (cfg.keys.gateway) {
-        return { model: createGateway({ apiKey: cfg.keys.gateway })(id), gateway: true };
+        return { model: providerModel("gateway", cfg.keys.gateway, id), gateway: true };
       }
-      if (provider === null && vendor === "openai" && cfg.keys.openai) {
-        return { model: createOpenAI({ apiKey: cfg.keys.openai })(aliasOf(id)), gateway: false };
-      }
-      if (provider === null && vendor === "anthropic" && cfg.keys.anthropic) {
-        return {
-          model: createAnthropic({ apiKey: cfg.keys.anthropic })(aliasOf(id)),
-          gateway: false,
-        };
+      // A gateway id without a gateway key runs on the vendor's own key, where there is one.
+      if (provider === null && (vendor === "openai" || vendor === "anthropic")) {
+        const key = cfg.keys[vendor];
+        if (key) {
+          return { model: providerModel(vendor, key, aliasOf(id)), gateway: false };
+        }
       }
   }
   throw new ModelUnavailableError(note("modelNotUsedYet", { ref }));
@@ -1165,7 +1223,7 @@ export function attachTools(
   tools: Record<string, unknown>,
   ignorable = false,
 ) {
-  if (resolved.model instanceof HarnessModel) {
+  if (resolved.model instanceof ClientModel) {
     resolved.model.attach(tools);
   } else if (resolved.model instanceof DeviceModel) {
     resolved.model.attach(tools, ignorable);
@@ -1175,7 +1233,7 @@ export function attachTools(
 /** A model whose tool loop runs in a process of its own: an installed client, the run's device. */
 export function keepsOwnLoop(resolved: ResolvedModel<unknown>): boolean {
   return (
-    resolved.model instanceof HarnessModel ||
+    resolved.model instanceof ClientModel ||
     resolved.model instanceof DeviceModel ||
     isHarnessVendor(resolved.vendor)
   );
@@ -1183,7 +1241,7 @@ export function keepsOwnLoop(resolved: ResolvedModel<unknown>): boolean {
 
 /** Whether the model can call tools: an installed client that runs none cannot. */
 export function takesTools(resolved: ResolvedModel<unknown>): boolean {
-  return !(resolved.model instanceof HarnessModel) || resolved.model.takesTools;
+  return !(resolved.model instanceof ClientModel) || resolved.model.takesTools;
 }
 
 /** Gemini image models of the gateway are chat models answering with image files. */
@@ -1409,11 +1467,6 @@ export function forgetLocalModels() {
   localDecision = null;
 }
 
-/** Where Ollama answers for this machine (…/v1), as the settings name it. */
-export async function localOllamaUrl(): Promise<string> {
-  return (await config()).settings.ollamaUrl ?? env.ollamaUrl;
-}
-
 /**
  * An embedding model, with `embedImage` where it embeds pictures too, into the same space as
  * text (EmbeddingGemma 2): a question then finds a photo or a PDF page by what it shows.
@@ -1513,7 +1566,7 @@ async function embeddingBy(
       };
     }
     case "local": {
-      const url = cfg.settings.ollamaUrl ?? env.ollamaUrl;
+      const url = serverUrl(cfg, "ollama");
       const name = localEmbeddingName(cfg);
       const capabilities = await ollamaHolds(url, name);
       if (!capabilities) {
@@ -1700,7 +1753,7 @@ async function decisionBy(
           }
         : null;
     case "local": {
-      const ollama = cfg.settings.ollamaUrl ?? env.ollamaUrl;
+      const ollama = serverUrl(cfg, "ollama");
       const model = await localDecisionModel(ollama, cfg.settings.decisionLocal);
       return model
         ? {
@@ -1791,7 +1844,7 @@ async function decisionSettings(cfg: ModelConfig) {
     /** The decision model asked for in Ollama on this computer. */
     local:
       cfg.settings.decisionLocal ??
-      (managed ? null : await ollamaDecisionModel(cfg.settings.ollamaUrl ?? env.ollamaUrl)) ??
+      (managed ? null : await ollamaDecisionModel(serverUrl(cfg, "ollama"))) ??
       LOCAL_DECISION_MODEL,
   };
 }
@@ -2113,7 +2166,8 @@ export async function modelSettings(lang: Lang = "en") {
   return {
     source: cfg.settings.source,
     bindings: stored.settings.bindings,
-    ollamaUrl: cfg.settings.ollamaUrl ?? env.ollamaUrl,
+    ollamaUrl: serverUrl(cfg, "ollama"),
+    lmstudioUrl: serverUrl(cfg, "lmstudio"),
     creditFallback: cfg.settings.creditFallback !== false,
     keys: Object.fromEntries(LOCAL_KEYS.map((k) => [k, Boolean(stored.keys[k])])) as Record<
       LocalKey,
@@ -2151,47 +2205,19 @@ export async function checkKey(
   key: string,
   lang: Lang = "en",
 ): Promise<{ ok: boolean; message: string | null }> {
-  const requests: Record<LocalKey, [string, Record<string, string>]> = {
-    openai: ["https://api.openai.com/v1/models", { authorization: `Bearer ${key}` }],
-    anthropic: [
-      "https://api.anthropic.com/v1/models?limit=1",
-      { "x-api-key": key, "anthropic-version": "2023-06-01" },
-    ],
-    google: [
-      "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
-      { "x-goog-api-key": key },
-    ],
-    fal: [
-      "https://api.fal.ai/v1/models?endpoint_id=fal-ai/flux/schnell",
-      { authorization: `Key ${key}` },
-    ],
-    elevenlabs: ["https://api.elevenlabs.io/v1/models", { "xi-api-key": key }],
-    replicate: ["https://api.replicate.com/v1/account", { authorization: `Bearer ${key}` }],
-    gateway: ["https://ai-gateway.vercel.sh/v1/credits", { authorization: `Bearer ${key}` }],
-  };
-  const [url, headers] = requests[name];
-  try {
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
-    if (res.ok) {
+  const checked = await askProvider(name, key);
+  switch (checked.state) {
+    case "ok":
       return { ok: true, message: null };
-    }
-    const body = await res.text().catch(() => "");
-    // A key restricted to some permissions is still a key the provider knows.
-    if (res.status === 403 || /missing_permissions/.test(body)) {
-      return { ok: true, message: null };
-    }
-    return {
-      ok: false,
-      message:
-        res.status === 401
-          ? serverText(lang, "keyUnknown")
-          : serverText(lang, "providerError", { status: String(res.status) }),
-    };
-  } catch {
-    return {
-      ok: false,
-      message: serverText(lang, "providerUnreachable"),
-    };
+    case "unknown":
+      return { ok: false, message: serverText(lang, "keyUnknown") };
+    case "error":
+      return {
+        ok: false,
+        message: serverText(lang, "providerError", { status: String(checked.status) }),
+      };
+    case "unreachable":
+      return { ok: false, message: serverText(lang, "providerUnreachable") };
   }
 }
 
@@ -2254,24 +2280,31 @@ export async function setUpKey(
   return setupOutcome();
 }
 
-/** The setup's test of Ollama: it answers at the address and has a model to think with. */
-export async function setUpOllama(url: string, lang: Lang = "en"): Promise<SetupOutcome> {
+/** The setup's test of a server: it answers at the address and has a model to think with. */
+export async function setUpServer(
+  id: ServerId,
+  url: string,
+  lang: Lang = "en",
+): Promise<SetupOutcome> {
+  const server = SERVERS[id];
   const base = url.trim().replace(/\/+$/, "");
-  let models: string[];
-  try {
-    const res = await fetch(`${base}/models`, { signal: AbortSignal.timeout(5_000) });
-    const body = (await res.json()) as { data?: { id: string }[] };
-    models = (body.data ?? []).map((m) => m.id);
-  } catch {
-    return { ok: false, message: serverText(lang, "ollamaUnreachable"), text: null };
+  const { running } = await server.state(base);
+  if (!running) {
+    const message = serverText(lang, "serverUnreachable", { name: server.name });
+    return { ok: false, message, text: null };
   }
+  const models = (await server.models(base)).filter((m) => m.completion).map((m) => m.name);
   if (!models.length) {
-    return { ok: false, message: serverText(lang, "ollamaNoModel"), text: null };
+    const message = serverText(lang, "serverNoModel", { name: server.name });
+    return { ok: false, message, text: null };
   }
-  const bound = local.settings.bindings.low?.replace(/^ollama:/, "");
+  const bound = local.settings.bindings.low?.replace(`${id}:`, "");
   const model = bound && models.includes(bound) ? bound : models[0];
-  const text = Object.fromEntries(TEXT_CLASSES.map((c) => [c, `ollama:${model}`]));
-  await saveLocalModels({ ollamaUrl: base, bindings: freeClasses(text) });
+  const text = Object.fromEntries(TEXT_CLASSES.map((c) => [c, `${id}:${model}`]));
+  await saveLocalModels({
+    ...(id === "mlx" ? {} : { [`${id}Url`]: base }),
+    bindings: freeClasses(text),
+  });
   return setupOutcome();
 }
 
@@ -2319,7 +2352,8 @@ function priceOf(ref: string): Record<string, unknown> {
  */
 function catalogEntryOf(ref: string): CatalogEntry | undefined {
   const { provider, id } = parse(ref);
-  if (provider === null || provider === "gateway") {
+  // OpenRouter names a model as the gateway does (`anthropic/claude-sonnet-5.5`).
+  if (provider === null || provider === "gateway" || provider === "openrouter") {
     return catalog.get(id);
   }
   return (

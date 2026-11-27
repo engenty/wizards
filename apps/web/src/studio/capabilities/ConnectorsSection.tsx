@@ -3,13 +3,13 @@ import {
   CONNECTION_ACTION_KINDS,
   CONNECTION_AUDIENCES,
   CONNECTION_LIMITS,
-  CONNECTION_OUTCOMES,
   CONNECTION_SIGN_INS,
   type ConnectionActionKind,
   type ConnectionAudience,
   type ConnectionOutcome,
   type ConnectionSignIn,
   type ConnectorView,
+  connectionOutcomes,
   reachedByGuests,
   type SpaceConnectionView,
 } from "@engenty/wizards-shared/connectors";
@@ -266,6 +266,24 @@ export function ConnectorsSection() {
   const connections = useSpaceConnections(spaceId);
   const connectors = useConnectors(spaceId);
   const bundles = useBundles(spaceId, admin);
+  // A service of Composio's catalog (`?setup=composio-<slug>`) is no connector of the space until
+  // a connection is on it: its connector is read for the setup.
+  const composioId = setup?.startsWith("composio-") ? setup : null;
+  const listed = connectors.data ?? [];
+  const composio = useQuery({
+    enabled: Boolean(
+      spaceId && composioId && connectors.data && !listed.some((c) => c.id === composioId),
+    ),
+    queryKey: ["composio-connector", spaceId, composioId],
+    queryFn: () =>
+      api.get<ConnectorView>(
+        `/api/studio/spaces/${spaceId}/composio/${encodeURIComponent(composioId ?? "")}`,
+      ),
+  });
+  const offered =
+    composio.data && !listed.some((c) => c.id === composio.data.id)
+      ? [...listed, composio.data]
+      : listed;
   const list = connections.data?.connections ?? [];
   const picked = list.find((c) => c.id === show) ?? null;
   useDetail(picked ? titleOf(picked) : null);
@@ -311,7 +329,7 @@ export function ConnectorsSection() {
               connections={list}
               loading={connections.isPending}
               error={connections.error as Error | null}
-              connectors={connectors.data ?? []}
+              connectors={offered}
               writable={writable}
               setup={setup}
               address={address}
@@ -480,6 +498,7 @@ function Overview({
           initial={resolved && "connectorId" in resolved ? resolved.connectorId : ""}
           onCancel={onSetUpDone}
           onDone={onOpen}
+          onPick={onSetUp}
         />
       </Dialog>
     </>
@@ -650,12 +669,15 @@ function SetupForm({
   initial,
   onCancel,
   onDone,
+  onPick,
 }: {
   spaceId: string;
   connectors: ConnectorView[];
   initial: string;
   onCancel: () => void;
   onDone: (id: string) => void;
+  /** A service of Composio's catalog picked: the setup starts again with its connector. */
+  onPick: (connectorId: string) => void;
 }) {
   const qc = useQueryClient();
   const offered = connectors.filter((c) => c.usable);
@@ -716,6 +738,10 @@ function SetupForm({
           placeholder={t("connection.connectorPick")}
           options={offered.map((c) => ({ value: c.id, label: c.name }))}
         />
+        {connector?.sourceKind === "composio" ? (
+          <p className="mt-2 text-[0.75rem] text-ink-3">{t("connection.composio.hint")}</p>
+        ) : null}
+        <ComposioSearch spaceId={spaceId} onPick={onPick} />
       </div>
       <div>
         <Label hint={t("connection.nameHint")}>{t("connection.name")}</Label>
@@ -773,6 +799,65 @@ function SetupForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * „Bei Composio suchen“ under the connector's choice (docs/plans/composio.md): Composio's whole
+ * catalog, where its switch is on and this runtime reaches Composio. Nothing shows otherwise.
+ */
+function ComposioSearch({
+  spaceId,
+  onPick,
+}: {
+  spaceId: string;
+  onPick: (connectorId: string) => void;
+}) {
+  const on = useFeature("composio");
+  const [q, setQ] = useState("");
+  const words = q.trim();
+  const found = useQuery({
+    enabled: on && Boolean(spaceId),
+    queryKey: ["composio-catalog", spaceId, words.length >= 2 ? words : ""],
+    queryFn: () =>
+      api.get<{ available: boolean; toolkits: { connectorId: string; name: string }[] }>(
+        `/api/studio/spaces/${spaceId}/composio?q=${encodeURIComponent(words.length >= 2 ? words : "")}`,
+      ),
+    staleTime: 60_000,
+  });
+  if (!(on && found.data?.available)) {
+    return null;
+  }
+  const hits = words.length >= 2 ? found.data.toolkits.slice(0, 8) : [];
+  return (
+    <div className="mt-3 flex flex-col gap-2">
+      <span className="text-[0.75rem] text-ink-3">{t("connection.composio.search")}</span>
+      <Input
+        value={q}
+        aria-label={t("connection.composio.search")}
+        placeholder={t("connection.composio.searchPlaceholder")}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      {words.length >= 2 && !found.isFetching && !hits.length ? (
+        <p className="text-[0.75rem] text-ink-3">{t("connection.composio.none")}</p>
+      ) : null}
+      {hits.length ? (
+        <ul className="flex flex-wrap gap-1.5">
+          {hits.map((hit) => (
+            <li key={hit.connectorId}>
+              <button
+                type="button"
+                onClick={() => onPick(hit.connectorId)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-paper-2 px-3 text-[0.8125rem] text-ink-2 transition hover:bg-paper-3 hover:text-ink"
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                {hit.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -1091,7 +1176,7 @@ function ConnectionPage({
                       onChange={(outcome) =>
                         patch.mutate({ rules: { ...c.rules, [kind]: outcome } })
                       }
-                      options={CONNECTION_OUTCOMES.map((id) => ({
+                      options={connectionOutcomes(c.signIn).map((id) => ({
                         id,
                         label: t(OUTCOME_LABEL[id]),
                       }))}
@@ -1105,9 +1190,11 @@ function ConnectionPage({
               </div>
             );
           })}
-          <p className="text-[0.8125rem] text-ink-3">
-            {writable ? t("connection.askHint") : t("connection.askHintMember")}
-          </p>
+          {c.signIn === "person" ? (
+            <p className="text-[0.8125rem] text-ink-3">
+              {writable ? t("connection.askHint") : t("connection.askHintMember")}
+            </p>
+          ) : null}
         </div>
 
         <div className="border-border-soft border-t" />

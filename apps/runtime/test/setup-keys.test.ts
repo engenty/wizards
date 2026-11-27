@@ -14,6 +14,7 @@ for (const name of [
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
   "GOOGLE_GENERATIVE_AI_API_KEY",
+  "OPENROUTER_API_KEY",
   "FAL_KEY",
   "ELEVENLABS_API_KEY",
   "REPLICATE_API_TOKEN",
@@ -38,7 +39,14 @@ beforeAll(async () => {
         if (!net.ollama) {
           throw new Error("ECONNREFUSED");
         }
-        return new Response(JSON.stringify({ data: net.ollama.map((id) => ({ id })) }));
+        const models = net.ollama.map((name) => ({ name, size: 1e9, digest: name }));
+        return Response.json(
+          String(url).endsWith("/api/version")
+            ? { version: "0.40.12" }
+            : String(url).endsWith("/api/show")
+              ? { capabilities: ["completion"] }
+              : { models },
+        );
       }
       return new Response("{}", { status: net.status });
     }),
@@ -55,7 +63,7 @@ beforeEach(async () => {
   // Own keys picked in the setup, nothing stored yet.
   await settings.writeSetting("models", { source: "own", bindings: {} });
   await models.loadLocalModels();
-  await models.saveLocalModels({ keys: { openai: "", anthropic: "", gateway: "" } });
+  await models.saveLocalModels({ keys: { openai: "", anthropic: "", openrouter: "", gateway: "" } });
 });
 
 const bindings = () => models.localModelSettings().bindings;
@@ -84,6 +92,23 @@ describe("the setup's test of a key", () => {
     expect(bindings().high).toBe("openai:gpt-5.5");
   });
 
+  it("stores an OpenRouter key and lets OpenRouter pick the model of every text class", async () => {
+    const auto = "openrouter:openrouter/auto";
+    const result = await models.setUpKey("openrouter", "sk-or-v1-test");
+    expect(result).toEqual({ ok: true, message: null, text: auto });
+    expect(models.localModelSettings().keys.openrouter).toBe(true);
+    expect(bindings()).toMatchObject({
+      classifier: auto,
+      low: auto,
+      standard: auto,
+      high: auto,
+      image: "",
+    });
+    const resolved = await models.textModel("standard");
+    expect(resolved).toMatchObject({ ref: auto, vendor: "openrouter", gateway: false });
+    expect((resolved.model as { provider: string }).provider).toContain("openrouter");
+  });
+
   it("tests a stored key again when none is given", async () => {
     await models.setUpKey("openai", "sk-test");
     expect((await models.setUpKey("openai", undefined)).ok).toBe(true);
@@ -101,7 +126,7 @@ describe("the setup's test of a key", () => {
 describe("the setup's test of Ollama", () => {
   it("binds the text classes to the first model Ollama has", async () => {
     net.ollama = ["llama3.2", "qwen3"];
-    const result = await models.setUpOllama("http://127.0.0.1:11434/v1/");
+    const result = await models.setUpServer("ollama", "http://127.0.0.1:11434/v1/");
     expect(result).toEqual({ ok: true, message: null, text: "ollama:llama3.2" });
     expect(bindings().high).toBe("ollama:llama3.2");
     expect(models.localModelSettings().ollamaUrl).toBe("http://127.0.0.1:11434/v1");
@@ -109,9 +134,9 @@ describe("the setup's test of Ollama", () => {
 
   it("says so when Ollama has no model or does not answer", async () => {
     net.ollama = [];
-    expect((await models.setUpOllama("http://127.0.0.1:11434/v1")).ok).toBe(false);
+    expect((await models.setUpServer("ollama", "http://127.0.0.1:11434/v1")).ok).toBe(false);
     net.ollama = null;
-    expect((await models.setUpOllama("http://127.0.0.1:11434/v1")).ok).toBe(false);
+    expect((await models.setUpServer("ollama", "http://127.0.0.1:11434/v1")).ok).toBe(false);
     expect(bindings().low).toBe("");
   });
 });

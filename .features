@@ -24,15 +24,6 @@
 # the organization's settings in the cloud studio: name, members and invitations (instead of the account pages)
 # organizationSettings=on|off
 #
-# sections of logos and colours (gradients, patterns) in info & brand
-# brandSections=on|off
-#
-# rules for logos, colours and type in info & brand
-# brandRules=on|off
-#
-# the brand's fonts in info & brand
-# typography=on|off
-#
 # wizards run as a spoken conversation in the browser (off by default)
 # channelVoice=on|off
 #
@@ -45,7 +36,7 @@
 # Settings › Plugins before any plugin is installed (installing one turns it on)
 # plugins=on|off
 #
-# Goose, the studio's assistant
+# Goose, the studio's assistant (a plan's switch; on alone)
 # goose=on|off
 #
 # the organization's model tier: a step's maker, what calls are for, what each class runs on (off by default)
@@ -53,9 +44,6 @@
 #
 # own API keys as accounts in the Manage-App, every cloud call through the gateway (off by default)
 # ownKeysGateway=on|off
-#
-# Work's places that aren't built yet: engenties, files, data, results and the bell (off by default)
-# workWip=on|off
 #
 # skills, a place of their own in the app bar: always on, or read by a wizard when it needs one (on by default)
 # skills=on|off
@@ -89,6 +77,12 @@
 #
 # a run finds the account its wizard needs: your own from another wizard, the space's (off by default)
 # runConnections=on|off
+#
+# the organization's own space as the root, Mein Space per person, the path bar with the space menu, Ordner in Work (on by default)
+# orgSpaces=on|off
+#
+# services from Composio's catalog as connectors, beside the built-in and imported ones (off by default)
+# composio=on|off
 #
 # a plugin's switches carry its id; `wizards features` lists the ones installed here
 # contacts.leadScoring=on|off

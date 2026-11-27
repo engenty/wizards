@@ -96,7 +96,7 @@ export async function spaceOfItem(kind: string, id: string, sub?: string): Promi
         where: and(eq(schema.run.id, id), eq(schema.run.tenantId, tenant)),
         columns: { wizardId: true, clientSpaceId: true },
       });
-      // A run of a client space is the client space's, though its wizard is the parent's.
+      // A run that carries a space is that space's, though its wizard is the root's.
       if (run?.clientSpaceId) {
         return run.clientSpaceId;
       }

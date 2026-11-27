@@ -65,24 +65,6 @@ export const FEATURES = {
     label: "Organization settings in the studio",
     hint: "Settings › Organisation in the cloud studio: the organization's name, its members and invitations, changed there instead of on the account pages.",
   },
-  brandSections: {
-    kind: "release",
-    default: false,
-    label: "Sections in Brand",
-    hint: "Sections of logos and of colours, gradients and patterns among them.",
-  },
-  brandRules: {
-    kind: "release",
-    default: false,
-    label: "Rules in Brand",
-    hint: "Rules for how the logos, the colours and the type may be used.",
-  },
-  typography: {
-    kind: "release",
-    default: false,
-    label: "Typography in Brand",
-    hint: "The brand's fonts, their licences and a type scale.",
-  },
   channelVoice: {
     kind: "release",
     default: false,
@@ -120,8 +102,8 @@ export const FEATURES = {
     hint: "Settings › Plugins, also before any plugin is installed. Installing a plugin turns it on.",
   },
   goose: {
-    kind: "release",
-    default: false,
+    kind: "plan",
+    default: true,
     label: "Goose",
     hint: "The studio's assistant: its chat at the foot of the page and in the sidebar.",
   },
@@ -129,13 +111,7 @@ export const FEATURES = {
     kind: "release",
     default: false,
     label: "Work mode",
-    hint: "The switch between Studio and Work in the app bar, and Work's chats. Client comes with the public page (`pages`).",
-  },
-  workWip: {
-    kind: "release",
-    default: false,
-    label: "Work – WiP",
-    hint: "Work's places that aren't built yet, in the app bar under the chats: engenties, files, data, results and the bell.",
+    hint: "The switch between Studio and Work in the app bar, and Work's places: the chats and the bell.",
   },
   modelTiers: {
     kind: "release",
@@ -181,13 +157,13 @@ export const FEATURES = {
   },
   orgSpaces: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Organization, spaces and folders",
     hint: "The organization's own space as the root, Mein Space per person, every other space under the root; the path bar with the space menu instead of the space tile; Ordner in Work (docs/plans/org-spaces.md).",
   },
   knowledgeTree: {
-    kind: "release",
-    default: false,
+    kind: "plan",
+    default: true,
     label: "Knowledge as a knowledge base",
     hint: "Knowledge's start page with one Add menu, folders in its menu and categories as a tab, the block editor for pages (docs/plans/knowledge-base.md).",
   },
@@ -238,6 +214,18 @@ export const FEATURES = {
     default: false,
     label: "Connections a run finds",
     hint: "A run finds the account for what its wizard needs: a person's own account from another wizard, and the space's connections for the need (docs/plans/run-connections.md).",
+  },
+  version020: {
+    kind: "release",
+    default: false,
+    label: "Wizards in version 0.2.0",
+    hint: "The format before step files. Off, a wizard in version 0.2.0 is not listed, opened, saved or run, and the marketplace does not offer one; on only for a tenant that still needs one (docs/plans/kernel.md).",
+  },
+  composio: {
+    kind: "release",
+    default: false,
+    label: "Services through Composio",
+    hint: "Composio's catalog as connectors beside the built-in and imported ones: a person signs in at Composio, every call still goes through the broker (docs/plans/composio.md).",
   },
   ownKeys: {
     kind: "plan",

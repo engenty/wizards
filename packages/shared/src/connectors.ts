@@ -24,8 +24,11 @@ export interface ConnectorView {
   id: string;
   name: string;
   domain: string;
-  /** Where it comes from: shipped with the product, or imported from a spec or an MCP server. */
-  sourceKind: "builtin" | "openapi" | "mcp";
+  /**
+   * Where it comes from: shipped with the product, imported from a spec or an MCP server, or a
+   * service of Composio's catalog (docs/plans/composio.md), which keeps the account's tokens.
+   */
+  sourceKind: "builtin" | "openapi" | "mcp" | "composio";
   sourceUrl: string;
   toolPrefix: string;
   /** Whether a person can connect an account right now. */
@@ -171,6 +174,7 @@ export type CriticalKind = (typeof CRITICAL_KINDS)[number];
 /**
  * Why the broker did not run a call (the runtime's broker/call.ts `Refusal`), as the log's
  * `result` and „Was darf …?“ name it. The Protokoll page has words for each one.
+ * `needs_approval` stands only in lines of the log: the broker never answers it.
  */
 export const BROKER_REFUSALS = [
   "not_connected",
@@ -253,7 +257,6 @@ export interface ProtocolLine {
   actionName: string | null;
   wizardName: string | null;
   runMode: string | null;
-  chatTitle: string | null;
 }
 
 /** A page of the log; `next` loads the one after it. */
@@ -284,7 +287,6 @@ export interface BrokerAnswer {
   rule: string;
   reason: string;
   refused?: BrokerRefusal;
-  admins?: true;
   /** A guest's post from a fixed step: it runs only to the channel the published step fixes. */
   fixedChannel?: true;
 }
@@ -299,13 +301,33 @@ export type ConnectionOutcome = (typeof CONNECTION_OUTCOMES)[number];
 
 export type ConnectionRules = Record<ConnectionActionKind, ConnectionOutcome>;
 
-/** What a connection starts with: reading runs, a change or a mail waits for approval, deleting never. */
-export const DEFAULT_CONNECTION_RULES: ConnectionRules = {
-  read: "allow",
-  write: "ask",
-  destructive: "deny",
-  send: "ask",
-};
+/**
+ * The outcomes a connection offers, by how it signs in. „Mit Freigabe“ asks the person who signed
+ * in; as the space there is nobody to ask, so such a connection has Erlaubt and Nie.
+ */
+export function connectionOutcomes(signIn: ConnectionSignIn): readonly ConnectionOutcome[] {
+  return signIn === "person" ? CONNECTION_OUTCOMES : ["allow", "deny"];
+}
+
+/**
+ * What a connection starts with: reading runs, deleting never. A change or a mail asks the person
+ * who signed in; as the space it never runs until an admin allows it.
+ */
+export function startConnectionRules(signIn: ConnectionSignIn): ConnectionRules {
+  const change = signIn === "person" ? "ask" : "deny";
+  return { read: "allow", write: change, destructive: "deny", send: change };
+}
+
+/** Rules as a connection of this sign-in keeps them: as the space, „Mit Freigabe“ is Nie. */
+export function rulesForSignIn(rules: ConnectionRules, signIn: ConnectionSignIn): ConnectionRules {
+  const offered = connectionOutcomes(signIn);
+  return Object.fromEntries(
+    CONNECTION_ACTION_KINDS.map((kind) => [
+      kind,
+      offered.includes(rules[kind]) ? rules[kind] : "deny",
+    ]),
+  ) as ConnectionRules;
+}
 
 export const CONNECTION_LIMITS = {
   /** Characters of a connection's name. */
@@ -396,13 +418,12 @@ export function reachedByGuests(c: { audience: ConnectionAudience; signIn: Conne
 
 /**
  * What the editor warns of on a step; never an error, the wizard saves and publishes.
- * `needs_approval`: a fixed step calls an action of a connection of the space whose rule for that
- * kind of action is „Mit Freigabe“. That asks the space's admins, and nothing in a run waits for
- * them, so the step fails there (docs/plans/capabilities-next.md, 2b).
+ * `rule_never`: a fixed step calls an action of a connection of the space whose rule for that
+ * kind of action is „Nie“, so the step fails in a run (docs/plans/capabilities-next.md, 2b).
  */
 export interface StepWarning {
   stepId: string;
-  kind: "needs_approval";
+  kind: "rule_never";
   connection: { id: string; name: string };
   action: { id: string; kind: ConnectionActionKind };
 }
@@ -446,5 +467,59 @@ export interface PersonConnectionView {
 
 /** The person's menu › „Verbindungen“: per space they belong to, the connections they may use. */
 export interface PersonSignIns {
+  /** The person's own connections. */
+  own: OwnConnectionView[];
   spaces: { id: string; name: string; connections: PersonConnectionView[] }[];
+}
+
+/** A connection a person owns, as their menu › „Verbindungen“ lists it: in every space of theirs. */
+export interface OwnConnectionView {
+  id: string;
+  connectorId: string;
+  /** The connector's name; null where no space of theirs has the connector any more. */
+  connectorName: string | null;
+  /** The address the account signed in with. */
+  label: string;
+  createdAt: string;
+  /** The wizards that chose it. */
+  wizards: { id: string; title: string }[];
+}
+
+/**
+ * A need of a wizard as its settings in the studio list it (docs/plans/run-connections.md, step 4):
+ * what it names, the steps that use it, and how it resolves for the person looking.
+ */
+export interface WizardNeedView {
+  id: string;
+  /** The service it names: the connector's name, or the need's title. Null: a kind. */
+  name: string | null;
+  kind: string | null;
+  steps: { id: string; title: string }[];
+  /** A step every run passes through uses it. */
+  unavoidable: boolean;
+  /**
+   * How it resolves here: `named`, the definition names a connection of the space; `cannot`, no
+   * connector connects here (`problem` says why); `chosen` or `only`, the account in use;
+   * `choose`, several the person chooses among once; `connect`, the person connects one.
+   */
+  here:
+    | { state: "named" | "chosen" | "only"; account: NeedAccountView }
+    | { state: "cannot"; problem: string }
+    | { state: "choose"; count: number }
+    | { state: "connect" };
+  /**
+   * For admins, with `runConnections`: the space's choice for runs nobody watches, among the
+   * space's connections that fit. Absent for members.
+   */
+  space?: { chosen: string | null; options: NeedAccountView[] };
+}
+
+/** An account a need may use. */
+export interface NeedAccountView {
+  id: string;
+  /** `person`: the person's own; `space`: a connection of the space. */
+  owner: "person" | "space";
+  connectorName: string;
+  /** The address or the connection's name. */
+  label: string;
 }
