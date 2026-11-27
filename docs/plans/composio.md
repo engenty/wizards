@@ -1,6 +1,7 @@
 # Plan: Composio beside our own connections
 
-Status: planned on 2026-11-26, nothing built. Decided the same day: services such as Gmail can be
+Status: planned on 2026-11-26. Steps 3 and 4 built behind the switch `composio` (off), against a
+stand-in for Composio and for Manage; step 2 (Manage) built in engenty/engenty-wizards-manage#229. Decided the same day: services such as Gmail can be
 connected through Composio, as one more way beside the runtime's own connections and MCP servers,
 not in their place. The six questions were answered the same day (see "Decided"). This changes `docs/plans/integrations.md`, which left a hosted broker out
 ("Not in this plan"). Read against `feat/kernel` at `c081d9ed` and n8n Labs' Nod at `04b8b68`.
@@ -82,6 +83,21 @@ The endpoints are a proposal, shaped like today's Google ones (`docs/manage-cont
 | `POST /v1/connect/composio/complete` | `{ state, ticket }` → `{ connectedAccountId }` |
 | `POST /v1/connect/composio/execute` | `{ connectedAccountId, tool, input }` → Composio's answer. Checks that the account belongs to the caller's tenant |
 | `DELETE /v1/connect/composio/accounts/:id` | Signs out at Composio when a connection is removed |
+
+What the runtime sends and reads, as built (`apps/runtime/src/connectors/composio.ts`):
+
+| Call | Body or query | Answer |
+|---|---|---|
+| `GET /v1/connect/composio/toolkits?q=` | | `{ toolkits: [{ slug, name, description, logo, categories, managed }] }`; `managed`: Composio has an OAuth app of its own for it, or it asks no sign-in |
+| `GET /v1/connect/composio/toolkits?slug=gmail` | | `{ toolkit, tools: [{ slug, name, description, input, tags }] }`; `input` is the tool's JSON schema, `tags` Composio's (`readOnlyHint`, `destructiveHint`, …); `toolkit: null` where there is none |
+| `POST …/start` | `{ toolkit, holder, returnUrl, state }`, `holder` `s:<space>` or `u:<user>` | `{ url }`; Composio comes back to Manage, Manage to `returnUrl?state=…&ticket=…` |
+| `POST …/complete` | `{ state, ticket }` | `{ connectedAccountId }` |
+| `POST …/execute` | `{ connectedAccountId, tool, input }` | Composio's `{ successful, data, error }` |
+| `DELETE …/accounts/:id` | | 2xx; 404 where it is gone already |
+
+The cloud runtime adds `tenant` (in the body, or `?tenant=` on a GET), since its service key
+speaks for every tenant; a linked account's token names its own. A 429 with `Retry-After` retries
+the step after that many seconds.
 
 - **Who calls.** The cloud runtime with its service token; a local install with its linked
   account's token, as for Google today. A Composio user id is per holder within a tenant
