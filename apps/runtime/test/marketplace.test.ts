@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -375,5 +375,22 @@ describe("the version of a wizard's format in the search", () => {
     const found = await guest();
     expect(Object.keys(found.facets.version ?? {})).toEqual(["0.2.0"]);
     expect(asked()).toContain("version=0.3.0");
+  });
+
+  it("offers version 0.3.0 only while wizards in version 0.2.0 do not load, though the marketplace offers both", async () => {
+    remote.entries.set("card", exportOf("card"));
+    remote.entries.set("next", exportOf("next", { version: "0.3.0" }));
+    const file = process.env.FEATURES_FILE as string;
+    try {
+      writeFileSync(file, "");
+      await new Promise((r) => setTimeout(r, 20));
+      const { marketplaceGuest } = await import("../src/routes/marketplace");
+      const found = (await (await marketplaceGuest.request("/?lang=de")).json()) as MarketplacePage;
+      expect(found.entries.map((e) => e.id)).toEqual(["next"]);
+      expect(found.total).toBe(1);
+    } finally {
+      writeFileSync(file, "version020=on\n");
+      remote.entries.delete("next");
+    }
   });
 });

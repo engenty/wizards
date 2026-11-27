@@ -407,15 +407,22 @@ async function searchListed(search: MarketplaceSearch, guest = false): Promise<M
       ? { entries: [], total: 0, all: 0, facets: { useCase: {}, industry: {}, format: {} } }
       : await call<MarketplacePage>(`/entries?${params}`);
   if (remote) {
+    // A marketplace from before the version of an entry was kept ignores that filter: the
+    // entries of another version are left out here, and the count says what is left.
+    const wanted = filters.version ? formatVersionOf(filters.version) : null;
+    const shown = wanted
+      ? remote.entries.filter((e) => formatVersionOf(e.version) === wanted)
+      : remote.entries;
     const optional = await keptOptional(
-      remote.entries.map((e) => e.id),
+      shown.map((e) => e.id),
       lang,
       unavailable,
     );
     return {
       ...remote,
+      ...(shown.length < remote.entries.length ? { total: offset + shown.length } : {}),
       entries: await plugged(
-        remote.entries.map((e) => asEntry(e, starred, unavailable, optional.get(e.id))),
+        shown.map((e) => asEntry(e, starred, unavailable, optional.get(e.id))),
       ),
       offline: false,
       unavailable: [...unavailable],
