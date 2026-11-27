@@ -332,7 +332,6 @@ export function EditorPage() {
 function Editor() {
   const account = useFeature("account");
   const startsOn = useFeature("startTriggers");
-  const kernelOn = useFeature("kernel");
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -1190,7 +1189,7 @@ function Editor() {
           {/* At the very right: a copy, the package to keep, deleting it. */}
           <WizardMenu
             wizard={{ id: w.id, title: def.title, published: w.published }}
-            convertible={kernelOn && !def.kernel}
+            convertible={!def.kernel}
             onDeleted={() => navigate("/")}
           />
         </div>

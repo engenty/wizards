@@ -73,7 +73,6 @@ import { useNavigate } from "react-router";
 import { Mascot } from "../brand";
 import { ENGENTY_FILL, ENGENTY_KIND_FILL, type EngentyKind } from "../engenty/colors";
 import { api } from "../lib/api";
-import { useFeature } from "../lib/features";
 import { type Key, lang, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
 import { useCurrentSpace, useMayCreate, useMe } from "../lib/session";
@@ -1163,7 +1162,6 @@ export function MarketplaceBrowser({
     }
   }, [searchFor]);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
-  const versions = useFeature("kernel");
   const [starred, setStarred] = useState(false);
   const [picked, setPicked] = useState<string | null>(opened ?? null);
   const q = useSettled(query.trim(), 250);
@@ -1253,9 +1251,9 @@ export function MarketplaceBrowser({
         return <Icon className="size-4 text-ink-3" />;
       }),
     },
-    // The version of the format a template's wizard is written in, newest first: offered while
-    // the switch for version 0.3.0 is on and the marketplace counts the versions.
-    ...(versions && Object.keys(first?.facets.version ?? {}).length
+    // The version of the format a template's wizard is written in, newest first, where the
+    // marketplace counts the versions.
+    ...(Object.keys(first?.facets.version ?? {}).length
       ? [
           {
             key: "version" as const,

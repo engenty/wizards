@@ -185,12 +185,6 @@ export const FEATURES = {
     label: "Dateien",
     hint: "File trees another party owns, mounted in a space and indexed where they live: a folder on this computer first (docs/plans/media-and-files.md).",
   },
-  kernel: {
-    kind: "release",
-    default: false,
-    label: "Wizards made of step files",
-    hint: "Version 0.3.0 of the format: a file with what a wizard needs and its map, and one function per step. The kernel moves its runs (docs/plans/kernel.md).",
-  },
   durableRuns: {
     kind: "release",
     default: false,

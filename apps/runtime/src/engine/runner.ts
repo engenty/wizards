@@ -664,9 +664,6 @@ export async function createRun(input: {
       throw new ModelUnavailableError(note(name === "durableRuns" ? "waitsOff" : "codeStepsOff"));
     }
   }
-  if (file && !feature("kernel", switches)) {
-    throw new ModelUnavailableError(note("kernelOff"));
-  }
   const installed = new Set((await loadedPlugins(currentTenant())).map((p) => p.source.id));
   const lacking = (requires.plugins ?? []).filter((p) => !installed.has(p));
   if (lacking.length) {

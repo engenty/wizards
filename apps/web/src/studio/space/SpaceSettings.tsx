@@ -143,8 +143,7 @@ const EVAL_SHARES = [
  * (docs/plans/kernel.md, item 13). Behind `kernel`; admins set it, as every change of a space.
  */
 function EvalShareRow({ space, save }: { space: Space; save: (patch: Patch) => Promise<unknown> }) {
-  const admin = useIsAdmin();
-  const shown = useFeature("kernel") && admin;
+  const shown = useIsAdmin();
   const [share, setShare] = useState(space.evalShare ?? 0);
   if (!shown) {
     return null;

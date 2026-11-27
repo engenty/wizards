@@ -21,7 +21,7 @@ function phase(dir: string, name: string, env: Record<string, string> = {}) {
         OPENAI_API_KEY: "",
         ANTHROPIC_API_KEY: "",
         RUNTIME_ROLE: "runner",
-        FEATURES: "durableRuns=on,kernel=on",
+        FEATURES: "durableRuns=on",
         RUNNER_CLOCK_MS: "200",
         KERNEL_PHASE: name,
         ...env,
