@@ -1,6 +1,7 @@
 import { kernelShell } from "@engenty/wizards-shared/kernel-file";
 import { capabilitiesOf, costTierOf, effortOf, formatsOf } from "@engenty/wizards-shared/marketplace";
 import { resultsOf } from "@engenty/wizards-shared/marketplace-entry";
+import { pluginsOf } from "@engenty/wizards-shared/requires";
 import { describe, expect, it } from "vitest";
 import { kernelCatalog } from "../src/kernel/catalog.js";
 
@@ -52,6 +53,15 @@ describe("a template in version 0.3.0", () => {
     expect(capabilities).toEqual(expect.arrayContaining(["text", "image", "web", "documents"]));
     expect(costTierOf(capabilities)).toBe("medium");
     expect(effortOf(definition)).toEqual({ fields: 2, required: 1, reviews: 0, minutes: 3 });
+  });
+
+  it("needs the plugins whose tools its file lists, and so the Pro plan", () => {
+    expect(pluginsOf(definition)).toEqual([]);
+    const booking = kernelShell({
+      ...(definition.kernel as object),
+      requires: { tools: ["appointments.availability", "appointments.book", "web_search"] },
+    } as never);
+    expect(pluginsOf(booking)).toEqual(["appointments"]);
   });
 
   it("hands back what its file names, each by its label and its kind", () => {
