@@ -221,9 +221,26 @@ const FORMAT_OF: Partial<Record<Format, ItemFormat>> = {
   txt: "text",
 };
 
-/** The formats a run hands over, read from what the result step offers. */
+/**
+ * What one download of a wizard in version 0.3.0 is, by the formats it comes in: an HTML page is
+ * a dashboard (its PNG or PDF too), a video's still is the video; otherwise its first format.
+ */
+export function downloadKind(formats: readonly string[]): ItemFormat {
+  if (formats.includes("html")) return "dashboard";
+  if (formats.includes("mp4")) return "video";
+  for (const f of formats) {
+    const kind = FORMAT_OF[f as Format];
+    if (kind) return kind;
+  }
+  return formats.some((f) => f === "json") ? "table" : "text";
+}
+
+/** The formats a run hands over, read from what the result step offers, or from the file's downloads. */
 export function formatsOf(def: WizardDefinition): ItemFormat[] {
   const found = new Set<ItemFormat>();
+  for (const download of def.kernel?.result?.downloads ?? []) {
+    found.add(downloadKind(download.formats));
+  }
   for (const step of def.steps) {
     if (step.type === "generate" && step.asset === "dashboard") {
       found.add("dashboard");
