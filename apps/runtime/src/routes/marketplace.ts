@@ -4,14 +4,12 @@ import {
   INDUSTRY_IDS,
   ITEM_FORMAT_IDS,
   MARKETPLACE_PLAN_IDS,
-  type MarketplaceFacets,
   USE_CASE_IDS,
 } from "@engenty/wizards-shared/marketplace";
 import { sectorOf } from "@engenty/wizards-shared/sectors";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
-import { feature, remoteFeatures } from "../features.js";
 import {
   asLang,
   featuredFirst,
@@ -45,30 +43,17 @@ const searchSchema = z.object({
     .transform((v) => v === "1"),
 });
 
-/** The version of a wizard's format is offered while the switch for version 0.3.0 is on. */
-const versionsOffered = async () => feature("kernel", await remoteFeatures().catch(() => null));
-
-/** The filters' counts, without the versions of the format while those are not offered. */
-const facetsShown = (facets: MarketplaceFacets, versions: boolean): MarketplaceFacets => {
-  if (versions) return facets;
-  const { version: _version, ...rest } = facets;
-  return rest;
-};
-
 /** The marketplace for someone signed in: the search on "new", an entry, and the stars. */
 export const marketplaceStudio = new Hono<{ Variables: { user: SessionUser } }>()
   .get("/", async (c) => {
-    const { lang, fit, ...asked } = searchSchema.parse(c.req.query());
-    const versions = await versionsOffered();
-    const { version, ...rest } = asked;
-    const search = versions ? asked : rest;
+    const { lang, fit, ...search } = searchSchema.parse(c.req.query());
     const context = fit ? await organizationContext(c.get("user").tenantId) : null;
     if (!context) {
       const found = featuredFirst(
         await searchMarketplace({ ...search, lang: asLang(lang) }),
         search,
       );
-      return c.json({ ...found, facets: facetsShown(found.facets, versions), context: null });
+      return c.json({ ...found, context: null });
     }
     // The whole catalog in the order that fits, then the page of it.
     const all = featuredFirst(
@@ -78,7 +63,6 @@ export const marketplaceStudio = new Hono<{ Variables: { user: SessionUser } }>(
     const sector = sectorOf(context.sector);
     return c.json({
       ...all,
-      facets: facetsShown(all.facets, versions),
       entries: byFit(all.entries, context).slice(search.offset, search.offset + search.limit),
       context: {
         sector: sector?.id ?? null,
@@ -101,12 +85,6 @@ export const marketplaceStudio = new Hono<{ Variables: { user: SessionUser } }>(
 
 /** The gallery for someone not signed in (the studio's start page for guests): only the search. */
 export const marketplaceGuest = new Hono().get("/", async (c) => {
-  const { lang, starred: _starred, ...asked } = searchSchema.parse(c.req.query());
-  const versions = await versionsOffered();
-  const { version: _version, ...rest } = asked;
-  const found = await searchMarketplaceAsGuest({
-    ...(versions ? asked : rest),
-    lang: asLang(lang),
-  });
-  return c.json({ ...found, facets: facetsShown(found.facets, versions) });
+  const { lang, starred: _starred, ...search } = searchSchema.parse(c.req.query());
+  return c.json(await searchMarketplaceAsGuest({ ...search, lang: asLang(lang) }));
 });

@@ -126,21 +126,18 @@ describe("a tenant's runner at work", () => {
 });
 
 describe("the authoring guide", () => {
-  it("tells of wizards made of step files only while the switch is on", async () => {
+  it("tells of wizards made of step files: every new wizard is one", async () => {
     const { authoringGuide } = await import("../src/authoring/guide");
-    const on = authoringGuide([], [], [], [], { kernel: true });
-    expect(on).toContain('Each step is a workspace file "steps/<id>.ts"');
-    expect(on).toContain("${run.input.customer}"); // the example's own text, not a gap of the guide
-    expect(authoringGuide([], [], [], [], {})).not.toContain("steps/<id>.ts");
+    const guide = authoringGuide([], [], [], [], {});
+    expect(guide).toContain('Each step is a workspace file "steps/<id>.ts"');
+    expect(guide).toContain("Every new wizard is one");
+    expect(guide).toContain("${run.input.customer}"); // the example's own text, not a gap of the guide
   });
 
-  it("is what the studio's assistant is told as well, while the switch is on", async () => {
+  it("is what the studio's assistant is told as well", async () => {
     const { systemPrompt } = await import("../src/agents/architect");
-    const on = systemPrompt([], [], [], [], false, { kernel: true });
-    expect(on).toContain('Each step is a workspace file "steps/<id>.ts"');
-    expect(on).not.toContain("${kernel}");
-    const off = systemPrompt([], [], [], [], false, {});
-    expect(off).not.toContain("steps/<id>.ts");
-    expect(off).not.toContain("${kernel}");
+    const said = systemPrompt([], [], [], [], false, {});
+    expect(said).toContain('Each step is a workspace file "steps/<id>.ts"');
+    expect(said).not.toContain("${kernel}");
   });
 });

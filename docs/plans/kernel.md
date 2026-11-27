@@ -1,6 +1,6 @@
 # Plan: the kernel, a wizard as a file of edges and one function per step
 
-Status: partly built, behind the switch `kernel` (off by default), on the branch `feat/kernel` (#697). Built:
+Status: built, on the branch `feat/kernel` (#697). The flip, the switch `kernel` gone and every new wizard in version 0.3.0, is on `feat/kernel-flip`, to merge after #697. What waits on the deploy is H.25 (item 24 says what the deploy changes). Built:
 the kernel as a package (A), the format (B.5), and the runtime as its host (C): a wizard in
 version 0.3.0 is made, runs in the engine's line, and is answered through the pages, reviews and MCP
 tools every run has. "What is built" below says what, and where it differs from this plan. The
@@ -134,9 +134,10 @@ step work only where the code runs as ordinary code, and never in a published wi
 ## Which engine runs a wizard
 
 By the wizard, not by a global flip. A wizard in version 0.2.0 keeps today's engine
-(`apps/runtime/src/engine/runner.ts`). A wizard in version 0.3.0 runs on the kernel. The switch `kernel`
+(`apps/runtime/src/engine/runner.ts`). A wizard in version 0.3.0 runs on the kernel. Until the flip the switch `kernel`
 (`packages/shared/src/feature-flags.ts`, `kind: "release"`, off) allows making and running
-version 0.3.0. Nothing changes for a wizard nobody converts.
+version 0.3.0. The flip takes the switch out: version 0.3.0 is made and run everywhere, and every
+new wizard is one. In the release after it, today's engine goes.
 
 ## Where things live
 
@@ -490,7 +491,9 @@ Decided in this session, each with its reason. The guideline above holds for all
   `run.lang` for what it writes into a prompt. One wizard per language goes. Built when the first
   entry in a second language is; until then the catalog is German (catalog-0-3-0.md).
 - **The flip.** When the conditions above hold, a new wizard is version 0.3.0 and the switch
-  `kernel` goes. In the release after it the old engine goes, and a wizard in version 0.2.0 no
+  `kernel` goes. Built on `feat/kernel-flip`: the switch is out of the list, the run's refusal
+  and its words are gone, the marketplace offers and runs version 0.3.0, the guide and the
+  assistant say every new wizard is one, and `wizards check` and `wizards eval` are in the help. In the release after it the old engine goes, and a wizard in version 0.2.0 no
   longer runs: the studio offers its conversion (item 22) and says what was not carried over.
   The catalog is built again in version 0.3.0, not converted entry by entry.
 - **Runners per tenant:** the answers are in [kernel-runners.md](kernel-runners.md).

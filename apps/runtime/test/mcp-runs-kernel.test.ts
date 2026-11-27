@@ -16,7 +16,6 @@ process.env.LOCAL_ACCESS_KEY = "test-key";
 process.env.PLUGINS_WATCH = "0";
 process.env.PLUGIN_JOBS = "0";
 process.env.SANDBOX = "off";
-process.env.FEATURES = "kernel=on";
 process.env.KERNEL_STEPS = "quickjs";
 
 const USE_TOKEN = "tok-use";

@@ -4,7 +4,6 @@ import {
   DEFINITION_VERSION,
   FORMAT_VERSIONS,
   formatVersionOf,
-  KERNEL_VERSION,
   readable,
   type WizardDefinition,
   wizardSchema,
@@ -39,7 +38,6 @@ import {
   stepsWithoutModel,
 } from "../engine/requirements.js";
 import { env } from "../env.js";
-import { feature, remoteFeatures } from "../features.js";
 import { managed } from "../manage.js";
 import {
   classCatalog,
@@ -194,20 +192,10 @@ function pluginSummary({ id, plugin, starter }: PluginStarterEntry): Marketplace
 }
 
 /** A plugin's starter as this app shows it: never starred, and marked with its plugin. */
-function pluginEntry(
-  found: PluginStarterEntry,
-  unavailable: Set<Capability>,
-  kernel: boolean,
-): MarketplaceEntry {
+function pluginEntry(found: PluginStarterEntry, unavailable: Set<Capability>): MarketplaceEntry {
   const { id, name } = found.plugin.source.manifest;
   return {
-    ...asEntry(
-      pluginSummary(found),
-      new Set(),
-      unavailable,
-      kernel,
-      optionalOf(found.starter.definition),
-    ),
+    ...asEntry(pluginSummary(found), new Set(), unavailable, optionalOf(found.starter.definition)),
     plugin: { id, name },
   };
 }
@@ -259,18 +247,11 @@ async function withPlugins(entries: MarketplaceEntry[]): Promise<MarketplaceEntr
 
 // --- searching -----------------------------------------------------------------------------
 
-/** Whether a wizard in version 0.3.0 runs here: the switch `kernel` (docs/plans/kernel.md). */
-const kernelOn = async () => feature("kernel", await remoteFeatures().catch(() => null));
-
-/**
- * A summary as this app shows it: whether it can read and run it, and whether it is starred.
- * `kernel`: what `kernelOn` says.
- */
+/** A summary as this app shows it: whether it can read and run it, and whether it is starred. */
 function asEntry(
   summary: MarketplaceSummary,
   starred: Set<string>,
   unavailable: Set<Capability>,
-  kernel: boolean,
   optional: Set<Capability> = new Set(),
 ): MarketplaceEntry {
   const lacking = summary.capabilities.filter((c) => unavailable.has(c));
@@ -280,10 +261,8 @@ function asEntry(
     ...summary,
     version: String(version),
     credits: null,
-    // A format this app reads, and runs: version 0.3.0 only while its switch is on.
-    usable:
-      (FORMAT_VERSIONS as readonly unknown[]).includes(version) &&
-      (version !== KERNEL_VERSION || kernel),
+    // A format this app reads, and runs.
+    usable: (FORMAT_VERSIONS as readonly unknown[]).includes(version),
     starred: starred.has(summary.id),
     missing: lacking.filter((c) => !optional.has(c)),
     optional: lacking.filter((c) => optional.has(c)),
@@ -365,13 +344,12 @@ export async function searchMarketplace(search: MarketplaceSearch): Promise<Mark
     offset: Math.max(0, offset - found.total),
   });
   const unavailable = new Set(listed.unavailable);
-  const kernel = await kernelOn();
   return {
     ...listed,
     entries: [
       ...shown.flatMap((e) => {
         const entry = byId.get(e.id);
-        return entry ? [pluginEntry(entry, unavailable, kernel)] : [];
+        return entry ? [pluginEntry(entry, unavailable)] : [];
       }),
       ...listed.entries.slice(0, room),
     ],
@@ -397,7 +375,6 @@ async function searchListed(search: MarketplaceSearch, guest = false): Promise<M
   const stars = guest ? [] : await starredIds();
   const starred = new Set(stars);
   const unavailable = guest ? new Set<Capability>() : await missingCapabilities();
-  const kernel = await kernelOn();
   const plugged = (entries: MarketplaceEntry[]) =>
     guest
       ? entries.map((e) => (e.plugins?.length ? { ...e, needs: e.plugins } : e))
@@ -428,7 +405,7 @@ async function searchListed(search: MarketplaceSearch, guest = false): Promise<M
     return {
       ...remote,
       entries: await plugged(
-        remote.entries.map((e) => asEntry(e, starred, unavailable, kernel, optional.get(e.id))),
+        remote.entries.map((e) => asEntry(e, starred, unavailable, optional.get(e.id))),
       ),
       offline: false,
       unavailable: [...unavailable],
@@ -446,7 +423,7 @@ async function searchListed(search: MarketplaceSearch, guest = false): Promise<M
   return {
     ...page,
     entries: await plugged(
-      page.entries.map((e) => asEntry(e, starred, unavailable, kernel, optional.get(e.id))),
+      page.entries.map((e) => asEntry(e, starred, unavailable, optional.get(e.id))),
     ),
     offline: true,
     unavailable: [...unavailable],
@@ -527,7 +504,7 @@ export async function marketplaceDetail(
   if (own) {
     const definition = own.starter.definition as WizardDefinition;
     return {
-      ...pluginEntry(own, await missingCapabilities(), await kernelOn()),
+      ...pluginEntry(own, await missingCapabilities()),
       credits: await priced(definition),
       ...wizardOutline(definition, Object.keys(own.starter.files ?? {}), lang),
     };
@@ -541,7 +518,6 @@ export async function marketplaceDetail(
     summary,
     new Set(await starredIds()),
     await missingCapabilities(),
-    await kernelOn(),
     optionalOf(definition),
   );
   const parsed = readable(definition) ? wizardSchema.parse(definition) : null;

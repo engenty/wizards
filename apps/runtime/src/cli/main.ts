@@ -99,6 +99,8 @@ ${line(`${command()} bot`, "wizards.bot, your own agent: install, setup, status,
 ${more(`(${command()} bot --help says more)`)}
 ${line(`${command()} validate`, "check wizards without the studio: .wizard files, unpacked packages, wizard JSON")}
 ${more("--json prints the issues as JSON. A space’s connectors and plugins are checked on import.")}
+${line(`${command()} check <folder>`, "check a wizard made of step files: its file, each step compiled, the ways no test takes")}
+${line(`${command()} eval <wizard> --dataset <file>`, "run a wizard over a dataset as test runs and judge each run with its evals")}
 
 Options
   --yes, -y           don’t ask; skip everything optional

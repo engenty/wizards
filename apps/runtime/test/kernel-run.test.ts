@@ -14,7 +14,7 @@ process.env.AI_GATEWAY_API_KEY = "";
 process.env.OPENAI_API_KEY = "";
 process.env.ANTHROPIC_API_KEY = "";
 process.env.RUNTIME_ROLE = "runner";
-process.env.FEATURES = "durableRuns=on,kernel=on";
+process.env.FEATURES = "durableRuns=on";
 process.env.RUNNER_CLOCK_MS = "100";
 
 /**
@@ -531,15 +531,7 @@ describe("a dataset, and a row asked again", () => {
   });
 });
 
-describe("the switch", () => {
-  it("refuses a wizard in version 0.3.0 while it is off", async () => {
-    const features = await import("../src/features");
-    const w = await exampleWizard("mail");
-    const spy = vi.spyOn(features, "feature").mockImplementation((name: string) => name !== "kernel");
-    await expect(startOf(w, {})).rejects.toThrow();
-    spy.mockRestore();
-  });
-
+describe("the file and its step files", () => {
   it("says where a file and its step files do not fit", async () => {
     const { validateWizard } = await import("@engenty/wizards-shared/definition");
     const def = kernelShell({ ...file, edges: { ...file.edges, legal: ["check", "offr"] } });

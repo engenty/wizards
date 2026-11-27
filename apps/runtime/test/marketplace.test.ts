@@ -360,39 +360,20 @@ describe("the version of a wizard's format in the search", () => {
     return (await res.json()) as MarketplacePage;
   };
 
-  it("marks an entry of version 0.3.0 as usable only while its switch is on", async () => {
+  it("marks an entry of version 0.3.0 as usable", async () => {
     remote.entries.set("card", exportOf("card", { version: "0.3.0" }));
-    const before = process.env.FEATURES;
-    const usable = async () => (await guest()).entries.find((e) => e.id === "card")?.usable;
     try {
-      delete process.env.FEATURES;
-      expect(await usable()).toBe(false);
-      process.env.FEATURES = "kernel=on";
-      expect(await usable()).toBe(true);
+      expect((await guest()).entries.find((e) => e.id === "card")?.usable).toBe(true);
     } finally {
-      if (before === undefined) delete process.env.FEATURES;
-      else process.env.FEATURES = before;
       remote.entries.set("card", exportOf("card"));
     }
   });
 
-  it("is offered only while the switch for version 0.3.0 is on", async () => {
+  it("offers the version of the format as a filter", async () => {
     remote.entries.set("card", exportOf("card"));
-    const before = process.env.FEATURES;
-    try {
-      const asked = () => remote.calls.filter((call) => call.includes("/entries?")).at(-1) ?? "";
-      delete process.env.FEATURES;
-      const off = await guest();
-      expect(off.facets.version).toBeUndefined();
-      expect(asked()).not.toContain("version");
-
-      process.env.FEATURES = "kernel=on";
-      const on = await guest();
-      expect(Object.keys(on.facets.version ?? {})).toEqual(["0.2.0"]);
-      expect(asked()).toContain("version=0.3.0");
-    } finally {
-      if (before === undefined) delete process.env.FEATURES;
-      else process.env.FEATURES = before;
-    }
+    const asked = () => remote.calls.filter((call) => call.includes("/entries?")).at(-1) ?? "";
+    const found = await guest();
+    expect(Object.keys(found.facets.version ?? {})).toEqual(["0.2.0"]);
+    expect(asked()).toContain("version=0.3.0");
   });
 });

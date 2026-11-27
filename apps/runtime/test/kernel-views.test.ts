@@ -15,7 +15,7 @@ process.env.AI_GATEWAY_API_KEY = "";
 process.env.OPENAI_API_KEY = "";
 process.env.ANTHROPIC_API_KEY = "";
 process.env.RUNTIME_ROLE = "runner";
-process.env.FEATURES = "durableRuns=on,kernel=on";
+process.env.FEATURES = "durableRuns=on";
 process.env.RUNNER_CLOCK_MS = "100";
 process.env.KERNEL_STEPS = "quickjs";
 

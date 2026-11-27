@@ -98,7 +98,7 @@ export function systemPrompt(
   pluginTools: GuideTool[],
   connections: GuideSpaceConnection[],
   startsOn: boolean,
-  on: { durableRuns?: boolean; codeSteps?: boolean; kernel?: boolean },
+  on: { durableRuns?: boolean; codeSteps?: boolean },
 ): string {
   return `${prompt("architect", "system", {
     persona: prompt("architect", "persona"),
@@ -106,7 +106,7 @@ export function systemPrompt(
     schema: prompt("authoring", "schema"),
     durable: on.durableRuns ? prompt("authoring", "durable") : "",
     code: on.codeSteps ? prompt("authoring", "code") : "",
-    kernel: on.kernel ? prompt("authoring", "kernel") : "",
+    kernel: prompt("authoring", "kernel"),
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
