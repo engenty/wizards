@@ -456,6 +456,8 @@ export function costTierOf(capabilities: Capability[]): CostTier {
 /** One entry as the marketplace lists it, in a language. */
 export interface MarketplaceSummary {
   id: string;
+  /** Only in a preview, which lists every entry: whether it is published, unlisted or a draft. */
+  status?: "published" | "unlisted" | "draft";
   /** Goes up whenever the entry changes. */
   revision: number;
   /** Of everything the entry is made of, every language and file: changes with any of it. */
