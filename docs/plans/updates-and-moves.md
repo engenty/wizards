@@ -1,8 +1,9 @@
 # Plan: updates, moves and going back
 
 Status: concept, written on 2026-11-14. Nothing of it is built. Checked against `main` at
-`2e18ecad`. Related: `docs/plans/definition-versions.md` (a definition's version),
-`docs/plans/run-connections.md` (its kept accounts are the first move).
+`8855a1bd` (v0.22.1) on 2026-11-27. Related: `docs/plans/definition-versions.md` (a definition's
+version), `docs/plans/kernel.md` (format 0.3.0), `docs/plans/run-connections.md` (its kept
+accounts are the first move).
 
 ## In short
 
@@ -18,7 +19,7 @@ Going back has two ways. A **snapshot** taken before the update brings everythin
 was. A **reversible** update keeps what was written since: the schema only added, and each move
 knows its way back.
 
-There are no installs in the wild yet (2026-11-14). This is built before they come.
+There are no installs in the wild yet (2026-11-27). This is built before they come.
 
 ## What is built
 
@@ -26,8 +27,8 @@ There are no installs in the wild yet (2026-11-14). This is built before they co
 |---|---|---|---|
 | The program on a computer | `cli/versions.ts`, `cli/autoupdate.ts` | A new version installs beside the one that runs and becomes `current` at the next start. The one before stays in `runtime/<version>/` | The folder is there; no command switches back |
 | The program in the cloud | `compose.cloud.yaml`, `IMAGE_TAG` | The release's tag deploys the image | Set the tag back by hand |
-| Schema of a tenant | `db/migrations/tenant` (76), `openTenantNow` in `db/client.ts` | When the tenant's database opens | None |
-| Schema of the control database | `db/migrations/control` (17), `migrateControlDb` | At start | None |
+| Schema of a tenant | `db/migrations/tenant` (83), `openTenantNow` in `db/client.ts` | When the tenant's database opens | None |
+| Schema of the control database | `db/migrations/control` (18), `migrateControlDb` | At start | None |
 | A plugin's tables | `migratePlugins`, through `onTenantOpen` | When the tenant's database opens | None |
 | Tenant settings out of the control database | `moveTenantSettings` in `db/client.ts` | When the tenant's database opens | None |
 | Kept accounts become connections | `db/kept-accounts.ts` | When the tenant's database opens | None |
@@ -68,9 +69,12 @@ flowchart TB
   then.
 - **What becomes a move.** The one-offs of the table above: kept accounts, tenant settings,
   `move-files`, `move-folder-sources`. Their commands go once they are moves.
-- **Definitions.** A change of the format is a move over the stored definitions (drafts,
-  published versions). The same function upgrades an older `.wizard` file on import, which is
-  "Import by version" in `definition-versions.md`: one chain of steps, used by both.
+- **Definitions.** A change of the format after 0.3.0 is a move over the stored definitions
+  (drafts, published versions). The same function upgrades an older `.wizard` file on import,
+  which is "Import by version" in `definition-versions.md`: one chain of steps, used by both.
+  The step from 0.2.0 to 0.3.0 is not a move: a wizard in 0.2.0 loads only where the switch
+  `version020` is on, and "Convert" makes a new draft on purpose (`kernel.md`, "Which engine
+  runs a wizard"). The catalog is built again in 0.3.0.
 - **Plugins** bring moves of their own in the same shape. Later.
 
 ### Going back
@@ -122,7 +126,7 @@ same runs inside the image before the tag is set back.
 | 3 | `wizards downgrade` on a computer: the version before and the snapshot | `cli/versions.ts`, `cli/` |
 | 4 | `down` for moves, the check for additive migrations in CI, a downgrade that keeps the data | `db/moves/`, `scripts/`, `.github/workflows` |
 | 5 | The older one-offs become moves; their commands go | `cli/move-files.ts`, `cli/move-folder-sources.ts`, `db/client.ts` |
-| 6 | A format change as a move, and the same chain on import | `packages/shared/src/definition.ts`, `definition-versions.md` |
+| 6 | A format change after 0.3.0 as a move, and the same chain on import | `packages/shared/src/definition.ts`, `definition-versions.md` |
 | 7 | The cloud: the command in the image, and the steps written down | `compose.cloud.yaml`, `docs/development.md` |
 | 8 | A plugin's own moves | `plugins/loader.ts` |
 
@@ -130,7 +134,7 @@ same runs inside the image before the tag is set back.
 
 - The kept accounts' move gets a `down`: a chosen connection goes back into the wizard's store.
 - Step 5 of `run-connections.md` (the field kind `connection` and `spaceConnection` leave a
-  definition) is a move over the definitions, with a `down`, not a script.
+  definition) is dropped: the 0.3.0 format has neither, so no move over the definitions is needed.
 
 ## Open questions
 
