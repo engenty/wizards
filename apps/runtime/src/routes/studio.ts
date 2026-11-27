@@ -319,7 +319,7 @@ import {
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
-import { applyUpdate, updateStatus } from "../update.js";
+import { applyUpdate, installKind, updateStatus } from "../update.js";
 import { spaceFileResponse } from "./delivery.js";
 import { notFoundAnswer, requestLang, say } from "./lang.js";
 import { localSetup, modelsInput, testedSources } from "./model-setup.js";
@@ -499,9 +499,15 @@ async function testClass(cls: (typeof MODEL_CLASSES)[number], lang: Lang): Promi
 }
 
 /** The size of an inline terminal, as the page lays it out. */
-/** Whether the developer mode (Goose's, a Work chat's) is offered to this person. */
+/**
+ * Whether the developer mode is offered to this person: Goose's and a Work chat's steps, and the
+ * marketplace's templates that are not published. A platform admin in the cloud; on a computer,
+ * with ASSISTANT_DEV or a runtime started from its source.
+ */
 export async function assistantDevFor(user: SessionUser): Promise<boolean> {
-  return managed ? (await userInfo(user.id)).admin : env.assistantDev;
+  return managed
+    ? (await userInfo(user.id)).admin
+    : env.assistantDev || installKind() === "checkout";
 }
 
 /** How the person settled a conflict: one side, a choice per place, or a version of their own. */
@@ -1569,9 +1575,14 @@ export const studio = new Hono<Vars>()
         spaceId: z.string(),
         starterId: z.string().optional(),
         lang: z.string().optional(),
+        /** A template a platform admin previews: one that is not published yet. */
+        preview: z.boolean().optional(),
       })
       .parse(await c.req.json());
-    const { id } = await createWizard(c.get("user").id, body);
+    const { id } = await createWizard(c.get("user").id, {
+      ...body,
+      preview: Boolean(body.preview) && (await mayChangeRuntime(c.get("user"))),
+    });
     return c.json({ id });
   })
   // A wizard as a file, and a new wizard made of such a file.

@@ -395,3 +395,30 @@ describe("the version of a wizard's format in the search", () => {
     }
   });
 });
+
+describe("a preview of the templates that are not published", () => {
+  it("asks the marketplace for one where a platform admin does, never for a guest", async () => {
+    const { searchMarketplace, searchMarketplaceAsGuest } = await import("../src/services/marketplace");
+    const asked = () => remote.calls.filter((call) => call.includes("/entries?")).at(-1) ?? "";
+    await inTenant(() => searchMarketplace({ lang: "de", preview: true }));
+    expect(asked()).toContain("preview=1");
+    await inTenant(() => searchMarketplace({ lang: "de" }));
+    expect(asked()).not.toContain("preview=1");
+    await inTenant(() => searchMarketplaceAsGuest({ lang: "de", preview: true } as never));
+    expect(asked()).not.toContain("preview=1");
+  });
+
+  it("is a studio's on a computer, through the route", async () => {
+    const { marketplaceStudio } = await import("../src/routes/marketplace");
+    const asked = () => remote.calls.filter((call) => call.includes("/entries?")).at(-1) ?? "";
+    const { Hono } = await import("hono");
+    const app = new Hono()
+      .use(async (c, next) => {
+        c.set("user" as never, { id: "u", tenantId: TENANT } as never);
+        await next();
+      })
+      .route("/", marketplaceStudio);
+    await inTenant(() => app.request("/?lang=de&preview=1"));
+    expect(asked()).toContain("preview=1");
+  });
+});

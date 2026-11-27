@@ -73,15 +73,22 @@ export const asLang = (raw: string | undefined | null): MarketplaceLang =>
 const TIMEOUT_MS = 5000;
 
 /** One call to the marketplace's API; null without an answer, or with an error. */
-async function call<T>(path: string, init?: RequestInit): Promise<T | null> {
+async function call<T>(path: string, init?: RequestInit, preview = false): Promise<T | null> {
   if (!env.marketplace.url) {
     return null;
   }
   try {
-    const res = await fetch(`${env.marketplace.url}/api/v1${path}`, {
+    const asked = preview ? `${path}${path.includes("?") ? "&" : "?"}preview=1` : path;
+    const res = await fetch(`${env.marketplace.url}/api/v1${asked}`, {
       ...init,
-      // The definition version this runtime reads.
-      headers: { ...init?.headers, "x-wizards-definition": String(DEFINITION_VERSION) },
+      // The definition version this runtime reads; a preview carries the runtime's key.
+      headers: {
+        ...init?.headers,
+        "x-wizards-definition": String(DEFINITION_VERSION),
+        ...(preview && env.marketplace.previewKey
+          ? { "x-marketplace-preview": env.marketplace.previewKey }
+          : {}),
+      },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) {
@@ -308,6 +315,11 @@ export interface MarketplaceSearch extends MarketplaceFilters {
   starred?: boolean;
   limit?: number;
   offset?: number;
+  /**
+   * A platform admin's preview: the entries that are not published too, each with its status.
+   * Never kept here, never offered to anyone else.
+   */
+  preview?: boolean;
 }
 
 export interface MarketplaceResult extends MarketplacePage<MarketplaceEntry> {
@@ -382,7 +394,15 @@ async function currentFormatOnly<T extends { version?: MarketplaceSearch["versio
 
 /** Searches the marketplace; without an answer, what is kept here, scored the same way. */
 async function searchListed(search: MarketplaceSearch, guest = false): Promise<MarketplaceResult> {
-  const { q = "", lang, starred: onlyStarred, limit = 60, offset = 0, ...filters } = search;
+  const {
+    q = "",
+    lang,
+    starred: onlyStarred,
+    limit = 60,
+    offset = 0,
+    preview = false,
+    ...filters
+  } = search;
   const stars = guest ? [] : await starredIds();
   const starred = new Set(stars);
   const unavailable = guest ? new Set<Capability>() : await missingCapabilities();
@@ -406,7 +426,7 @@ async function searchListed(search: MarketplaceSearch, guest = false): Promise<M
   const remote =
     onlyStarred && !stars.length
       ? { entries: [], total: 0, all: 0, facets: { useCase: {}, industry: {}, format: {} } }
-      : await call<MarketplacePage>(`/entries?${params}`);
+      : await call<MarketplacePage>(`/entries?${params}`, undefined, preview && !guest);
   if (remote) {
     // A marketplace from before the version of an entry was kept ignores that filter: the
     // entries of another version are left out here, and the count says what is left.
@@ -453,9 +473,15 @@ async function searchListed(search: MarketplaceSearch, guest = false): Promise<M
 // --- one entry -----------------------------------------------------------------------------
 
 /** An entry with its wizard: from the marketplace, else from what is kept here. */
-async function fetchItem(id: string, lang: MarketplaceLang): Promise<MarketplaceItem | null> {
+async function fetchItem(
+  id: string,
+  lang: MarketplaceLang,
+  preview = false,
+): Promise<MarketplaceItem | null> {
   const remote = await call<MarketplaceItem>(
     `/entries/${encodeURIComponent(id)}?lang=${encodeURIComponent(lang)}`,
+    undefined,
+    preview,
   );
   if (remote) {
     return remote;
@@ -519,6 +545,7 @@ export interface MarketplaceDetail extends MarketplaceEntry, WizardOutline {}
 export async function marketplaceDetail(
   id: string,
   lang: MarketplaceLang,
+  preview = false,
 ): Promise<MarketplaceDetail | null> {
   const own = await pluginStarter(id);
   if (own) {
@@ -529,7 +556,7 @@ export async function marketplaceDetail(
       ...wizardOutline(definition, Object.keys(own.starter.files ?? {}), lang),
     };
   }
-  const found = await fetchItem(id, lang);
+  const found = await fetchItem(id, lang, preview);
   if (!found) {
     return null;
   }
@@ -587,6 +614,7 @@ export interface MarketplaceWizard {
 export async function marketplaceWizard(
   id: string,
   lang: MarketplaceLang,
+  preview = false,
 ): Promise<MarketplaceWizard | null> {
   const own = await pluginStarter(id);
   if (own) {
@@ -607,7 +635,7 @@ export async function marketplaceWizard(
       ),
     };
   }
-  const found = await fetchItem(id, lang);
+  const found = await fetchItem(id, lang, preview);
   if (!found) {
     return null;
   }

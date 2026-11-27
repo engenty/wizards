@@ -243,6 +243,11 @@ export const env = {
     url: str("MARKETPLACE_URL", "https://engenty.ai/wizards")
       .replace(/^off$/, "")
       .replace(/\/+$/, ""),
+    /**
+     * Sent as `x-marketplace-preview` when a platform admin previews the templates that are not
+     * published; the marketplace in production answers a preview only with it.
+     */
+    previewKey: str("MARKETPLACE_PREVIEW_KEY"),
   },
 
   aiGatewayKey: str("AI_GATEWAY_API_KEY"),

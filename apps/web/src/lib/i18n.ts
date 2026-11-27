@@ -2321,6 +2321,8 @@ const de: Record<Key, Line> = {
   "market.plan": "Paket",
   "market.version": "Version",
   "market.pro": "Pro",
+  "market.draft": "Entwurf",
+  "market.unlisted": "Nicht gelistet",
   "market.proHint": "Braucht Plugins, die mit Pro auf engenty.ai dabei sind.",
   "market.needsPro": "Mit Pro: braucht {list}",
   "market.needsProHint":
@@ -7288,6 +7290,8 @@ const en = {
   "market.plan": "Plan",
   "market.version": "Version",
   "market.pro": "Pro",
+  "market.draft": "Draft",
+  "market.unlisted": "Unlisted",
   "market.proHint": "Needs plugins that come with Pro on engenty.ai",
   "market.needsPro": "With Pro: needs {list}",
   "market.needsProHint":

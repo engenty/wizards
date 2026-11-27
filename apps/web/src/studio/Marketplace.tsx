@@ -78,6 +78,7 @@ import { keys } from "../lib/keys";
 import { useCurrentSpace, useMayCreate, useMe } from "../lib/session";
 import { useTheme } from "../lib/theme";
 import { Button, Card, Chip, cn, Dialog, Spinner } from "../ui";
+import { useDockPrefs } from "./assistant/dock";
 import { TYPE_TONE } from "./editor/meta";
 import type { PreviewStep } from "./FlowPreview";
 
@@ -201,6 +202,18 @@ function PluginChip({ plugin }: { plugin: { name: string } }) {
   );
 }
 
+/** A template a preview shows that is not in the marketplace yet: unlisted, or a draft. */
+function StatusChip({ entry }: { entry: Pick<MarketplaceEntry, "status"> }) {
+  if (!entry.status || entry.status === "published") {
+    return null;
+  }
+  return (
+    <span className="ml-1.5 inline-flex align-middle">
+      <Chip tone="neutral">{t(entry.status === "draft" ? "market.draft" : "market.unlisted")}</Chip>
+    </span>
+  );
+}
+
 function EntryCard({
   entry,
   onOpen,
@@ -238,6 +251,7 @@ function EntryCard({
         {/* A block, not a flex row: Safari sizes a card too short for a title that wraps in a flex row. */}
         <div className="font-display font-semibold text-[0.9375rem]">
           {entry.title}
+          <StatusChip entry={entry} />
           {entry.plan === "pro" ? (
             <span className="ml-1.5 inline-flex align-middle">
               <ProChip />
@@ -541,12 +555,13 @@ export function EntryDialog({
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const preview = usePreview();
   const detail = useQuery({
-    queryKey: ["marketplace-entry", id, lang],
+    queryKey: ["marketplace-entry", id, lang, preview],
     // A call that gets no answer ends: the dialog says so instead of waiting on.
     queryFn: ({ signal }) =>
       api.get<EntryDetail>(
-        `/api/studio/marketplace/${encodeURIComponent(id!)}?lang=${lang}`,
+        `/api/studio/marketplace/${encodeURIComponent(id!)}?lang=${lang}${previewParam(preview)}`,
         AbortSignal.any([signal, AbortSignal.timeout(DETAIL_TIMEOUT_MS)]),
       ),
     enabled: Boolean(id),
@@ -623,6 +638,7 @@ export function EntryDialog({
             <div className="relative sm:pr-36">
               <h2 className="font-display font-semibold text-[1.375rem] leading-tight tracking-tight max-sm:pr-10">
                 {entry.title}
+                <StatusChip entry={entry} />
               </h2>
               <p className="mt-1 text-[0.875rem] text-ink-2 leading-snug">
                 {detail.data?.description || entry.pitch}
@@ -976,11 +992,12 @@ export function MarketplaceHits({
 }) {
   const [picked, setPicked] = useState<string | null>(null);
   const q = useSettled(query.trim(), 250);
+  const preview = usePreview();
   const search = useQuery({
-    queryKey: ["marketplace", lang, q, "hits", limit],
+    queryKey: ["marketplace", lang, q, "hits", limit, preview],
     queryFn: () =>
       api.get<SearchPage>(
-        `/api/studio/marketplace?${new URLSearchParams({ lang, limit: String(limit), offset: "0", q })}`,
+        `/api/studio/marketplace?${new URLSearchParams({ lang, limit: String(limit), offset: "0", q })}${previewParam(preview)}`,
       ),
     enabled: Boolean(q),
     placeholderData: keepPreviousData,
@@ -1015,12 +1032,26 @@ export function MarketplaceHits({
  * The templates that fit the organization, as its first visit learned it: four rows, its sector's
  * first, each saying why it is there. Null without a first visit: the full browser stands alone.
  */
+/**
+ * Whether the gallery previews the templates that are not published: the developer mode is on,
+ * and offered to this person (a platform admin, or whoever runs the studio from source).
+ */
+export function usePreview(): boolean {
+  const me = useMe();
+  const dev = useDockPrefs().dev;
+  return Boolean(me.data?.assistantDev) && dev;
+}
+
+/** `&preview=1` where the gallery previews; nothing otherwise. */
+const previewParam = (preview: boolean) => (preview ? "&preview=1" : "");
+
 export function useFit() {
+  const preview = usePreview();
   const fit = useQuery({
-    queryKey: ["marketplace", lang, "fit"],
+    queryKey: ["marketplace", lang, "fit", preview],
     queryFn: () =>
       api.get<SearchPage>(
-        `/api/studio/marketplace?${new URLSearchParams({ lang, limit: "12", offset: "0", fit: "1" })}`,
+        `/api/studio/marketplace?${new URLSearchParams({ lang, limit: "12", offset: "0", fit: "1" })}${previewParam(preview)}`,
       ),
   });
   // Only where something fits: an order nothing explains would only hide the rest.
@@ -1098,9 +1129,15 @@ export function MarketplaceCards({ entries }: { entries: MarketplaceEntry[] }) {
   const { space } = useCurrentSpace();
   const mayCreate = useMayCreate() && Boolean(space) && !space?.readOnly;
   const [picked, setPicked] = useState<string | null>(null);
+  const preview = usePreview();
   const create = useMutation({
     mutationFn: (starterId: string) =>
-      api.post<{ id: string }>("/api/studio/wizards", { spaceId: space!.id, starterId, lang }),
+      api.post<{ id: string }>("/api/studio/wizards", {
+        spaceId: space!.id,
+        starterId,
+        lang,
+        ...(preview ? { preview: true } : {}),
+      }),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: keys.spaces() });
       await qc.invalidateQueries({ queryKey: ["wizards"] });
@@ -1174,8 +1211,9 @@ export function MarketplaceBrowser({
     }
   }, [q]);
 
+  const preview = usePreview() && !onGuestOpen;
   const search = useInfiniteQuery({
-    queryKey: ["marketplace", lang, q, filters, starred],
+    queryKey: ["marketplace", lang, q, filters, starred, preview],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ lang, limit: String(PAGE), offset: String(pageParam) });
       if (q) {
@@ -1188,6 +1226,9 @@ export function MarketplaceBrowser({
       }
       if (starred) {
         params.set("starred", "1");
+      }
+      if (preview) {
+        params.set("preview", "1");
       }
       return api.get<SearchPage>(`/api/${onGuestOpen ? "guest" : "studio"}/marketplace?${params}`);
     },
