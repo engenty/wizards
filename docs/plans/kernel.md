@@ -34,7 +34,7 @@ than the tenant's database, prices.
 | C.11 A person answers | Built another way: see below. An ask's view (`components`, and the values in `data`) reaches the page. | `kernel/page.ts`, `kernel/views.ts` |
 | D.13 Judging runs | Built: a space sets how many of a hundred finished runs its wizards' evals judge (`space.eval_share`, 0 unless set), in the space's Info while the switch is on; the host reads it when a run ends. Scores in `run_score`, shown in the run's rows. `KERNEL_EVALS` is gone. | `kernel/host.ts`, `services/spaces.ts`, `space/SpaceSettings.tsx` |
 | D.14 A dataset and a past run | Built: `wizards eval <wizard> --dataset <file>` runs the wizard of the running install over a dataset as test runs and judges each; a past run's rows are asked again in the studio and judged with "Score now". Not in the help yet, like `wizards check`. | `cli/eval.ts`, `routes/local-eval.ts`, `services/evals.ts`, `RunRows.tsx` |
-| E Executor | In the package, tested against the emulator. A battery for the runtime is on the branch `kernel/executor`, not merged: on hold while Composio comes beside our own connections ([composio.md](composio.md); engenty/wizards#770 and engenty/engenty-wizards-manage#229, both open, switch `composio`). | `packages/kernel/src/executor.ts` |
+| E Executor | Not built into the runtime (decided 2026-11-27): Composio brings the services that have no connector of our own, through the same broker ([composio.md](composio.md); engenty/wizards#770, switch `composio`). The battery for the runtime is kept as the tag `archive/kernel/executor`. The package keeps `executor.ts` and the emulator for its tests. | `packages/kernel/src/executor.ts` |
 | F.18 The map | Built: the studio draws the file's steps and edges, and a step's panel changes its ways and its limit in the file. | `apps/web/src/studio/editor/kernel-flow.ts`, `KernelFlow.tsx` |
 | F.20 A run as rows | Built: the runs panel opens a run on its rows, with the scores beside the step they judged; a row is asked again, and one a person answered is answered differently. | `apps/web/src/studio/editor/RunRows.tsx`, `RunTimeline.tsx` |
 | F.21 For those who build | The authoring guide and the studio's assistant tell of step files while the switch is on. A starter in version 0.3.0 makes a wizard with its step files, and is offered as usable only while the switch is on. The starters themselves are the marketplace's, in another repository. | `prompts/authoring.md`, `agents/architect.ts`, `services/marketplace.ts` |
@@ -113,7 +113,7 @@ ground up, and the catalog may be built again from scratch in version 0.3.0. Con
    and the broker.
 7. **The broker** below the kernel, for tools, accounts, credentials and the call: our own
    connectors, MCP servers and Composio. The kernel asks; the file says what may be reached.
-   Executor (`@executor-js/sdk`) was the first plan here; it waits on its branch (section E).
+   Executor (`@executor-js/sdk`) was the first plan here; it is not built into the runtime (section E).
 8. **Mastra** stays inside the agent ask. **Tests** of a wizard are optional and not part of it.
 
 ## The rule that orders the work
@@ -267,9 +267,10 @@ Tests named here run alone, as the repository asks:
 
 ### E. Connections through executor
 
-On hold since 2026-11-26. Services such as Gmail come through Composio first, beside our own
-connections and through the same broker ([composio.md](composio.md)). Items 15 to 17 wait on
-whether executor is still wanted once Composio is in.
+Decided 2026-11-27: not built into the runtime. Services such as Gmail come through our own
+connectors and Composio, beside each other and through the same broker
+([composio.md](composio.md)). Item 15 was built on the branch `kernel/executor` and is kept as the
+tag `archive/kernel/executor`; items 16 and 17 stay as written for the package.
 
 15. **The mail wizard in the runtime.** `packages/kernel/src/executor.ts` as a battery in the
     runtime, version pinned. A credential provider over the runtime's own connection secrets, so
@@ -451,8 +452,6 @@ Where each condition stands on 2026-11-27:
   stricter one wins; item 9 is where that is built and tested.
 - **Runners per tenant** change how the cloud is run, not only the code. Item 23 needs its own
   plan before it starts.
-- **Executor** is before 1.0. Pinned, behind one file, with the runtime's own connectors still
-  there.
 
 ## Decided on 2026-11-27
 
@@ -476,7 +475,7 @@ Decided in this session, each with its reason. The guideline above holds for all
   ours around them. Mastra stays inside the agent ask (decided point 8).
 - **Executor is not needed for the flip.** Services come through our own connectors, MCP servers
   and Composio, all through the broker. Decided point 7 now reads as the broker below the kernel;
-  `kernel/executor` stays as it is until an API with no connector needs it.
+  the runtime battery of `kernel/executor` is kept as the tag `archive/kernel/executor`.
 - **What a step may read:** the input, the date and earlier steps, as before, and by an ask each,
   answered without a model: the space's brand (`{ type: "brand" }`) and a file of the wizard's own
   (`{ type: "file", path }`), for every wizard; one of the file's `lists`
