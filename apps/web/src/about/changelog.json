@@ -1,7 +1,83 @@
 [
   {
+    "version": "v0.22.0",
+    "timestamp": 1795787421,
+    "commits": [
+      {
+        "id": "cb1ea0f",
+        "message": "templates in version 0.3.0 show their steps, time and cost (#774)",
+        "group": "Added",
+        "scope": "marketplace",
+        "breaking": false
+      },
+      {
+        "id": "29de97e",
+        "message": "the share dialog of a local studio offers the wizard's link for this computer (#776)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "a9f5a58",
+        "message": "wizards in version 0.2.0 load only behind the switch version020 (#773)",
+        "group": "Added",
+        "scope": null,
+        "breaking": true
+      },
+      {
+        "id": "0df118a",
+        "message": "wizards made of step files for everyone, the switch kernel goes (#771)",
+        "group": "Added",
+        "scope": null,
+        "breaking": true
+      },
+      {
+        "id": "4c11e56",
+        "message": "services from Composio as connectors, beside our own (#770)",
+        "group": "Added",
+        "scope": "connectors",
+        "breaking": false
+      },
+      {
+        "id": "cb6108f",
+        "message": "wizards made of step files, behind the switch kernel (#697)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "11b5a0b",
+        "message": "packages and databases pages from the code (#769)",
+        "group": "Docs",
+        "scope": "dev",
+        "breaking": false
+      },
+      {
+        "id": "5065f3f",
+        "message": "OpenRouter as a provider a person brings a key for (#768)",
+        "group": "Added",
+        "scope": "models",
+        "breaking": false
+      },
+      {
+        "id": "bc221ce",
+        "message": "the providers a person brings a key for, and the wizards account (#767)",
+        "group": "Added",
+        "scope": "model-providers",
+        "breaking": false
+      },
+      {
+        "id": "5154b06",
+        "message": "rename @engenty/local-models to @engenty/model-providers (#766)",
+        "group": "Changed",
+        "scope": "model-providers",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.21.3",
-    "timestamp": 1795675528,
+    "timestamp": 1795675612,
     "commits": [
       {
         "id": "8af1bbd",
