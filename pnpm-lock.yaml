@@ -207,7 +207,7 @@ importers:
         version: link:../../packages/shared
       '@executor-js/plugin-openapi':
         specifier: 1.6.11
-        version: 1.6.11(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.59)(ioredis@5.11.1)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
+        version: 1.6.11(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.103)(ioredis@5.11.1)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
       '@fontsource/bricolage-grotesque':
         specifier: 5.3.0
         version: 5.3.0
@@ -258,16 +258,16 @@ importers:
         version: 2.18.0
       '@mastra/core':
         specifier: 1.82.0
-        version: 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
+        version: 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
       '@mastra/docker':
         specifier: 0.13.0
-        version: 0.13.0(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))(bare-buffer@3.7.1)
+        version: 0.13.0(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))(bare-buffer@3.7.1)
       '@mastra/libsql':
         specifier: 1.29.0
-        version: 1.29.0(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))
+        version: 1.29.0(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))
       '@mastra/quickjs':
         specifier: 0.1.5
-        version: 0.1.5(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))
+        version: 0.1.5(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))
       '@modelcontextprotocol/client':
         specifier: 2.4.0
         version: 2.4.0
@@ -299,8 +299,8 @@ importers:
         specifier: ^0.45.4
         version: 0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19)
       effect:
-        specifier: 4.0.0-beta.59
-        version: 4.0.0-beta.59
+        specifier: 4.0.0-beta.103
+        version: 4.0.0-beta.103
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -715,7 +715,7 @@ importers:
     devDependencies:
       '@mastra/core':
         specifier: 1.82.0
-        version: 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
+        version: 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -814,16 +814,16 @@ importers:
         version: 0.14.2(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@executor-js/plugin-openapi':
         specifier: 1.6.11
-        version: 1.6.11(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.59)(ioredis@5.11.1)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
+        version: 1.6.11(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.103)(ioredis@5.11.1)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
       '@executor-js/sdk':
         specifier: 1.6.11
-        version: 1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.59)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.59)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
+        version: 1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.103)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.103)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
       effect:
-        specifier: 4.0.0-beta.59
-        version: 4.0.0-beta.59
+        specifier: 4.0.0-beta.103
+        version: 4.0.0-beta.103
       miniflare:
         specifier: ^4.20251011.0
         version: 4.20260730.0
@@ -6332,8 +6332,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.0.0-beta.59:
-    resolution: {integrity: sha512-xyUDLeHSe8d6lWGOvR6Fgn2HL6gYeTZ/S4Jzk9uc4ZUxMPPsNZlNXrvk0C7/utQFzeX7uAWcVnG2BjbA0SRoAA==}
+  effect@4.0.0-beta.103:
+    resolution: {integrity: sha512-pE8TxF4m2tQzVI+77dIlm3s+81TACV1AiX1JEkvY+zVuxgQQ8aGSkqXNJF6b/ST+coCSk5cUdbULpQ7sm4oHyw==}
 
   emoji-regex@10.6.0:
     resolution: {integrity: sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A==}
@@ -7206,9 +7206,9 @@ packages:
   ini@1.3.8:
     resolution: {integrity: sha512-JV/yugV2uzW5iMRSiZAyDtQd+nxtUnjeLt0acNdw98kKLrvuRVyB80tsREOE7yvGVgalhZ6RNXCmEHkUKBKxew==}
 
-  ini@6.0.0:
-    resolution: {integrity: sha512-IBTdIkzZNOpqm7q3dRqJvMaldXjDHWkEDfrwGEQTs5eaQMWV+djAhR+wahyNNMAa+qpbDUhBMVt4ZKNwpPm7xQ==}
-    engines: {node: ^20.17.0 || >=22.9.0}
+  ini@7.0.0:
+    resolution: {integrity: sha512-ifK0CgjALofS5bkrcTy4RaQ9Vx2Knf/eLeIO+NaswQEpH1UblrtTSCIvN71qQDMq0PeQ/SSPojvEJp9vvvfr+w==}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
 
   inline-style-parser@0.2.7:
     resolution: {integrity: sha512-Nb2ctOyNR8DqQoR0OwRG95uNWIC0C1lCgf5Naz5H6Ji72KZ8OcFZLz2P5sNgwlyoJ8Yif11oMuYs5pBQa86csA==}
@@ -8010,8 +8010,8 @@ packages:
     resolution: {integrity: sha512-/dOQboWnkR1cjm88XyH/cGSivECGgyQu3814+bNUAq5wACQC8Ya/CViB9WApvWJ5Hya/JJQQmUeBFOZj8MLjGA==}
     hasBin: true
 
-  msgpackr@1.12.1:
-    resolution: {integrity: sha512-4EUH9tQHnMmEgzW/MdAP0KIfa1T9AF+htl0ffe2n5vb2EKn9y2co8ccpgWko6S52Jy1PQZKwRnx5/KkYjtd9MQ==}
+  msgpackr@2.1.4:
+    resolution: {integrity: sha512-TvP18sX5U3MXoHHSUZen/FagaNTEJObyb8OlnJcNbqN6Ux/oCwYJrHhCOzi31bItyW/Efz1IDnRDKQ23j4ZuvA==}
 
   multipasta@0.2.9:
     resolution: {integrity: sha512-kAovZHgxryqb0xTFz7OTCPxbas8UBTTwCDhfrlaNecp1/z6xcMfp5PVhDxsW7jONHyDF10/ccp30MxA2+66GJw==}
@@ -9511,6 +9511,10 @@ packages:
     resolution: {integrity: sha512-vzi9uRZ926x4XV73S/4qQaTwPXM2JBj6/6lI/byHH1jOpCzb0zDbfytgA9LcN/hzb2l7WQSQnxITOVx5un/wGw==}
     hasBin: true
 
+  uuid@14.0.3:
+    resolution: {integrity: sha512-Sc5u1VVln93y1Xnz4R+CunOZc7R9LUcTmhj7Rc7Eg3HVcf7rVn2FOoa812fe0W8p3jD7xeoGSYbfqCGGH2B6xw==}
+    hasBin: true
+
   uuid@3.4.0:
     resolution: {integrity: sha512-HjSDRw6gZE5JMggctHBcjVak08+KEVhSIiDzFnT9S9aegmp85S/bReBVTb4QTFaRNptJ9kuYaNhnbNEOkbKb/A==}
     deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
@@ -10506,19 +10510,19 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@effect/platform-node-shared@4.1.2(effect@4.0.0-beta.59)':
+  '@effect/platform-node-shared@4.1.2(effect@4.0.0-beta.103)':
     dependencies:
       '@types/ws': 8.18.2
-      effect: 4.0.0-beta.59
+      effect: 4.0.0-beta.103
       ws: 8.22.1
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.59)(ioredis@5.11.1)':
+  '@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.103)(ioredis@5.11.1)':
     dependencies:
-      '@effect/platform-node-shared': 4.1.2(effect@4.0.0-beta.59)
-      effect: 4.0.0-beta.59
+      '@effect/platform-node-shared': 4.1.2(effect@4.0.0-beta.103)
+      effect: 4.0.0-beta.103
       ioredis: 5.11.1
       mime: 4.1.2
       undici: 8.12.3
@@ -10763,10 +10767,10 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@executor-js/config@1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.59)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.59)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))':
+  '@executor-js/config@1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.103)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.103)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))':
     dependencies:
-      '@executor-js/sdk': 1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.59)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.59)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
-      effect: 4.0.0-beta.59
+      '@executor-js/sdk': 1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.103)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.103)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
+      effect: 4.0.0-beta.103
       jiti: 2.7.0
       jsonc-parser: 3.3.1
     transitivePeerDependencies:
@@ -10823,12 +10827,12 @@ snapshots:
     transitivePeerDependencies:
       - typeorm
 
-  '@executor-js/plugin-openapi@1.6.11(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.59)(ioredis@5.11.1)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))':
+  '@executor-js/plugin-openapi@1.6.11(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.103)(ioredis@5.11.1)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))':
     dependencies:
-      '@effect/platform-node': 4.0.0-beta.59(effect@4.0.0-beta.59)(ioredis@5.11.1)
-      '@executor-js/config': 1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.59)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.59)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
-      '@executor-js/sdk': 1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.59)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.59)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
-      effect: 4.0.0-beta.59
+      '@effect/platform-node': 4.0.0-beta.59(effect@4.0.0-beta.103)(ioredis@5.11.1)
+      '@executor-js/config': 1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.103)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.103)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
+      '@executor-js/sdk': 1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.103)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.103)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
+      effect: 4.0.0-beta.103
       js-yaml: 4.3.2
       openapi-types: 12.1.3
     optionalDependencies:
@@ -10840,16 +10844,16 @@ snapshots:
       - typeorm
       - utf-8-validate
 
-  '@executor-js/sdk@1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.59)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.59)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))':
+  '@executor-js/sdk@1.6.11(@effect/platform-node@4.0.0-beta.59(effect@4.0.0-beta.103)(ioredis@5.11.1))(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(effect@4.0.0-beta.103)(react@19.3.1)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))':
     dependencies:
       '@executor-js/fumadb': 1.5.8(drizzle-orm@0.45.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(better-sqlite3@12.11.1)(kysely@0.28.19))(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
       '@standard-schema/spec': 1.1.0
-      effect: 4.0.0-beta.59
+      effect: 4.0.0-beta.103
       fractional-indexing: 3.4.0
       oauth4webapi: 3.8.8
       tldts: 7.4.24
     optionalDependencies:
-      '@effect/platform-node': 4.0.0-beta.59(effect@4.0.0-beta.59)(ioredis@5.11.1)
+      '@effect/platform-node': 4.0.0-beta.59(effect@4.0.0-beta.103)(ioredis@5.11.1)
       react: 19.3.1
     transitivePeerDependencies:
       - drizzle-orm
@@ -11425,7 +11429,7 @@ snapshots:
 
   '@mastra/agent-browser@0.6.0(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))(bare-buffer@3.7.1)(zod@4.6.7)':
     dependencies:
-      '@mastra/core': 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
+      '@mastra/core': 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
       agent-browser: 0.19.0(bare-buffer@3.7.1)
       zod: 4.6.7
     transitivePeerDependencies:
@@ -11437,7 +11441,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)':
+  '@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)':
     dependencies:
       '@a2a-js/sdk-v0_3': '@a2a-js/sdk@0.3.14(@grpc/grpc-js@1.14.7)(express@5.2.1)'
       '@a2a-js/sdk-v1': '@a2a-js/sdk@1.0.1(@grpc/grpc-js@1.14.7)(express@5.2.1)'
@@ -11456,7 +11460,7 @@ snapshots:
       execa: 9.6.1
       fastq: 1.20.3
       hono: 4.13.16
-      hono-openapi: 1.5.0(effect@4.0.0-beta.59)(hono@4.13.16)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
+      hono-openapi: 1.5.0(effect@4.0.0-beta.103)(hono@4.13.16)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
       ignore: 7.0.14
       jpeg-js: 0.4.4
       json-schema: 0.4.0
@@ -11490,10 +11494,10 @@ snapshots:
       - zod-openapi
       - zod-to-json-schema
 
-  '@mastra/docker@0.13.0(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))(bare-buffer@3.7.1)':
+  '@mastra/docker@0.13.0(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))(bare-buffer@3.7.1)':
     dependencies:
       '@grpc/grpc-js': 1.14.7
-      '@mastra/core': 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
+      '@mastra/core': 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
       dockerode: 4.0.12
       tar-stream: 3.2.2(bare-buffer@3.7.1)
     transitivePeerDependencies:
@@ -11502,17 +11506,17 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  '@mastra/libsql@1.29.0(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))':
+  '@mastra/libsql@1.29.0(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))':
     dependencies:
       '@libsql/client': 0.18.0
-      '@mastra/core': 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
+      '@mastra/core': 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@mastra/quickjs@0.1.5(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))':
+  '@mastra/quickjs@0.1.5(@mastra/core@1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))':
     dependencies:
-      '@mastra/core': 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
+      '@mastra/core': 1.82.0(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(ai@7.0.163(zod@4.6.7))(effect@4.0.0-beta.103)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
       quickjs-emscripten: 0.31.0
       ts-blank-space: 0.6.2
 
@@ -12989,23 +12993,23 @@ snapshots:
 
   '@stablelib/base64@1.0.1': {}
 
-  '@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)':
+  '@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.103)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@types/json-schema': 7.0.15
       quansync: 0.2.11
     optionalDependencies:
-      effect: 4.0.0-beta.59
+      effect: 4.0.0-beta.103
       zod: 4.6.7
       zod-to-json-schema: 3.25.2(zod@4.6.7)
 
-  '@standard-community/standard-openapi@0.2.11(@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))(@standard-schema/spec@1.1.0)(effect@4.0.0-beta.59)(openapi-types@12.1.3)(zod@4.6.7)':
+  '@standard-community/standard-openapi@0.2.11(@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.103)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))(@standard-schema/spec@1.1.0)(effect@4.0.0-beta.103)(openapi-types@12.1.3)(zod@4.6.7)':
     dependencies:
-      '@standard-community/standard-json': 0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
+      '@standard-community/standard-json': 0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.103)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
       '@standard-schema/spec': 1.1.0
       openapi-types: 12.1.3
     optionalDependencies:
-      effect: 4.0.0-beta.59
+      effect: 4.0.0-beta.103
       zod: 4.6.7
 
   '@standard-schema/spec@1.1.0': {}
@@ -14868,17 +14872,17 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.0.0-beta.59:
+  effect@4.0.0-beta.103:
     dependencies:
       '@standard-schema/spec': 1.1.0
       fast-check: 4.10.2
       find-my-way-ts: 0.1.6
-      ini: 6.0.0
+      ini: 7.0.0
       kubernetes-types: 1.30.0
-      msgpackr: 1.12.1
+      msgpackr: 2.1.4
       multipasta: 0.2.9
       toml: 5.0.1
-      uuid: 13.0.2
+      uuid: 14.0.3
       yaml: 2.9.1
 
   emoji-regex@10.6.0: {}
@@ -15873,11 +15877,11 @@ snapshots:
 
   highlightjs-vue@1.0.0: {}
 
-  hono-openapi@1.5.0(effect@4.0.0-beta.59)(hono@4.13.16)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7):
+  hono-openapi@1.5.0(effect@4.0.0-beta.103)(hono@4.13.16)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7):
     dependencies:
       '@hono/standard-validator': 0.4.1(@standard-schema/spec@1.1.0)(hono@4.13.16)
-      '@standard-community/standard-json': 0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
-      '@standard-community/standard-openapi': 0.2.11(@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))(@standard-schema/spec@1.1.0)(effect@4.0.0-beta.59)(openapi-types@12.1.3)(zod@4.6.7)
+      '@standard-community/standard-json': 0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.103)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7)
+      '@standard-community/standard-openapi': 0.2.11(@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.103)(zod-to-json-schema@3.25.2(zod@4.6.7))(zod@4.6.7))(@standard-schema/spec@1.1.0)(effect@4.0.0-beta.103)(openapi-types@12.1.3)(zod@4.6.7)
       '@standard-schema/spec': 1.1.0
       '@types/json-schema': 7.0.15
       hono: 4.13.16
@@ -16012,7 +16016,7 @@ snapshots:
   ini@1.3.8:
     optional: true
 
-  ini@6.0.0: {}
+  ini@7.0.0: {}
 
   inline-style-parser@0.2.7: {}
 
@@ -17090,7 +17094,7 @@ snapshots:
       '@msgpackr-extract/msgpackr-extract-win32-x64': 3.0.7
     optional: true
 
-  msgpackr@1.12.1:
+  msgpackr@2.1.4:
     optionalDependencies:
       msgpackr-extract: 3.0.7
 
@@ -18865,6 +18869,8 @@ snapshots:
   uuid@11.1.1: {}
 
   uuid@13.0.2: {}
+
+  uuid@14.0.3: {}
 
   uuid@3.4.0: {}
 
