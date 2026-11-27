@@ -39,6 +39,7 @@ import {
   stepsWithoutModel,
 } from "../engine/requirements.js";
 import { env } from "../env.js";
+import { kernelCatalog } from "../kernel/catalog.js";
 import { managed } from "../manage.js";
 import {
   classCatalog,
@@ -548,6 +549,19 @@ export async function marketplaceDetail(
       outline: [],
       results: [],
       files: Object.keys(files),
+    };
+  }
+  // A wizard in version 0.3.0: its steps and asks are in its step files.
+  if (parsed.kernel) {
+    const raw = Object.fromEntries(
+      Object.entries(files).map(([path, data]) => [path, Buffer.from(data, "base64")]),
+    );
+    const { outline, priced: asSteps } = await kernelCatalog(parsed, raw);
+    return {
+      ...entry,
+      credits: await priced(asSteps),
+      ...wizardOutline(parsed, Object.keys(files), lang),
+      outline,
     };
   }
   return {
