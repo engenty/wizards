@@ -2,8 +2,8 @@
 
 Status: converted 2026-11-16. Every entry the marketplace lists is in version 0.3.0, reworked by
 hand and walked through with real models on the dev data. Eight entries were merged into others
-and are unlisted. All of it is on the manage branch `feat/catalog-0-3-0`
-(engenty/engenty-wizards-manage#213) and not live. The notes of each walk-through are in
+and are unlisted. Live since 2026-11-27 (engenty/engenty-wizards-manage#213): the marketplace
+serves 24 templates, all in version 0.3.0. The notes of each walk-through are in
 [catalog-0-3-0/](catalog-0-3-0/).
 
 Scope: the 31 entries in `engenty-wizards-manage/apps/marketplace/entries`, which templates stay,
@@ -20,8 +20,6 @@ no translations yet).
 - `wizard.en.json` goes: version 0.3.0 has no translations. The entry is German only until it has.
 - `entry.json` stays. A merged entry's use cases and search terms move to the one it is merged
   into.
-- The branch `feat/catalog-0-3-0` stands on `feat/format-version` (#212, the entry's version as
-  the format's), which stands on this repository's `feat/kernel`. It merges after both.
 - A template is converted in the studio (`POST /wizards/:id/convert`), reworked, walked through
   in a test run with a real model, exported, and put in its folder.
 

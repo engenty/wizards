@@ -435,7 +435,7 @@ Where each condition stands on 2026-11-27:
 
 | Condition | Where it stands |
 |---|---|
-| A catalog exists in version 0.3.0. By the guideline it may be built again from scratch; it need not be the 31 starters behaving as before | The reworked templates are on the Manage-App's `feat/catalog-0-3-0` (engenty/engenty-wizards-manage#213), not merged |
+| A catalog exists in version 0.3.0. By the guideline it may be built again from scratch; it need not be the 31 starters behaving as before | Met: the marketplace serves 24 templates, all in version 0.3.0, since 2026-11-27 (engenty/engenty-wizards-manage#213) |
 | A run in version 0.3.0 survives a restart of its runner at every kind of wait | Met: `test/kernel-restart-process.test.ts` |
 | A wizard from the marketplace cannot read a file or open a connection on a local install | Met: a starter's steps run in QuickJS whatever the runner (`stepMode`, `test/kernel-where.test.ts`), and QuickJS has no `fetch`, `process`, `require` or timers (`quickjs.test.ts`). Its asks reach only what the grant holds, through the broker, and a `file` ask reads only the wizard's own files |
 | The studio's assistant builds a new wizard in version 0.3.0 from a sentence | Met: task 18, seen in the studio |
